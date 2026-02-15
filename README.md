@@ -32,20 +32,6 @@ Hardware (Scanner Unit)
 
     Firmware: Arduino C/C++.
 
-📂 Repository Structure
-Plaintext
-
-machip/
-├── src/                # Backend source code
-│   ├── config/         # Database and server configurations
-│   ├── controllers/    # Business logic (2FA verification)
-│   ├── models/         # MySQL schemas and Sequelize models
-│   └── routes/         # API endpoints for the ESP32 scanner
-├── firmware/           # Arduino/ESP32 C++ source code
-├── docs/               # Research paper drafts and technical diagrams
-├── .env.example        # Template for local environment variables
-└── server.js           # Entry point for the local server
-
 🚀 Getting Started
 Prerequisites
 
