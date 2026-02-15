@@ -31,6 +31,14 @@ app.get('/test-query', async (req, res) => {
   }
 });
 
+// Routes for users
+const userRoutes = require('./routes/user.routes.js');
+app.use('/api/users', userRoutes);
+
+// Routes for attendance
+const attendanceRoutes = require('./routes/attendance.routes.js');
+app.use('/api/attendance', attendanceRoutes);
+
 // Define port and start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
