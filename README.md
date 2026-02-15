@@ -83,6 +83,8 @@ Installation
 
     Tomas, Cydoel M. - Researcher
 
+    Morales, Trecia - Researcher
+
 ⚖️ License
 
 This project is for academic research purposes. Source code is provided under the MIT License.
