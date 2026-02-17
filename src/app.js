@@ -16,7 +16,7 @@ connectDB();
 const { sequelize } = require('./config/sequelize');
 
 // Basic route for testing
-app.get('/', (req, res) => {
+app.get('/Machip', (req, res) => {
   res.json({ message: 'Welcome to MaChip API.' });
 });
 
