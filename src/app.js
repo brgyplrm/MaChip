@@ -8,6 +8,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
+app.use(express.static('public'));
 
 // Connect to the database
 connectDB();
@@ -40,7 +41,7 @@ const attendanceRoutes = require('./routes/attendance.routes.js');
 app.use('/api/attendance', attendanceRoutes);
 
 // Define port and start server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.DB_PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}.`);
 });

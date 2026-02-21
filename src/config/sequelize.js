@@ -3,13 +3,20 @@ require('dotenv').config();
 
 // 1. Create the Sequelize instance
 const sequelize = new Sequelize(
-  process.env.DBNAME,
-  process.env.DBUSER,
-  process.env.DBPASS,
+  process.env.DB_DATABASE,
+  process.env.DB_USERNAME,
+  process.env.DB_PASSWORD,
   {
-    host: process.env.DBHOST,
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT || 4000,
     dialect: 'mysql',
-    logging: false, // You can set this to console.log to see SQL queries
+    dialectOptions: {
+      ssl: {
+        minVersion: 'TLSv1.2',
+        rejectUnauthorized: true // Required for TiDB Cloud
+      }
+    },
+    logging: false, 
   }
 );
 
@@ -18,8 +25,8 @@ const User = require('../models/user.models')(sequelize, DataTypes);
 const { user_logging, employee_Logging_report } = require('../models/attendance.models')(sequelize, DataTypes);
 
 // 3. Define associations
-User.hasMany(user_logging, { foreignKey: 'user_id' });
-user_logging.belongsTo(User, { foreignKey: 'user_id' });
+User.hasMany(user_logging, { foreignKey: 'user_id', sourceKey: 'user_Id' });
+user_logging.belongsTo(User, { foreignKey: 'user_id', targetKey: 'user_Id' });
 
 user_logging.hasMany(employee_Logging_report, { foreignKey: 'user_loggingId' });
 employee_Logging_report.belongsTo(user_logging, { foreignKey: 'user_loggingId' });

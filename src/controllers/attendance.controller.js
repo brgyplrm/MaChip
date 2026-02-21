@@ -10,7 +10,7 @@ exports.markAttendance = async (req, res) => {
 
   try {
     // 1. Check if user exists
-    const user = await User.findByPk(user_Id);
+    const user = await User.findOne({ where: { user_Id: user_Id } });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
