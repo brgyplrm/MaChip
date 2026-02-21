@@ -1,9 +1,10 @@
 {
-  "name": "projects",
+  "name": "Machip",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
+    "start": "nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -14,6 +15,7 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "mysql2": "^3.17.1",
+    "nodemon": "^3.1.11",
     "sequelize": "^6.37.7"
   }
 }
