@@ -1,4 +1,5 @@
-const API_URL = 'http://localhost:4000/api/users';
+const API_URL = 'api/users';
+
 
 // Register User
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
@@ -12,6 +13,25 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         user_Role: document.getElementById('user_Role').value
     };
 
+
+    switch (false) {
+        case userData.user_Id && !isNaN(userData.user_Id):
+            alert("Error: Please enter a valid User ID.");
+            return;
+        case userData.user_FirstName.trim() !== "" && !/\d/.test(userData.user_FirstName):
+            alert("Error: First Name cannot be empty and must not contain numbers.");
+            return;
+        case userData.user_LastName.trim() !== "" && !/\d/.test(userData.user_LastName):
+            alert("Error: Last Name cannot be empty and must not contain numbers.");
+            return;
+        case userData.user_MiddleName.trim() === "" || !/\d/.test(userData.user_MiddleName):
+            alert("Error: Middle Name must not contain numbers if provided.");
+            return;
+        case userData.user_MachipId && !isNaN(userData.user_MachipId):
+            alert("Error: Please enter a valid MaChip ID.");
+            return;
+    }   
+
     try {
         const response = await fetch(`${API_URL}/registerUser`, {
             method: 'POST',
@@ -19,14 +39,14 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             body: JSON.stringify(userData)
         });
         const data = await response.json();
-        if (response.ok) {
-            alert("User Registered!");
-            if (document.getElementById('allUsersContainer').style.display !== 'none') fetchAllUsers();
-        } else {
-            alert("Error: " + data.error);
+    if (response.ok) {
+        alert("User Registered!");
+        if (document.getElementById('allUsersContainer').style.display !== 'none') fetchAllUsers();
+    } else {
+        alert("Error: " + (data.error || data.message || "Something went wrong"));
         }
     } catch (err) {
-        alert("Error: " + err.message);
+        alert("Error: " + (err.message || "Something went wrong"));
     }
 });
 
@@ -34,6 +54,16 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
 async function searchUser() {
     const userId = document.getElementById('search_userId').value;
     const updateFields = document.getElementById('updateFields');
+    
+
+    switch (false) {
+        case !!userId:
+            alert("Error: Please enter a User ID to search.");
+            return;
+        case !isNaN(userId):
+            alert("Error: User ID must be a number.");
+            return;
+    }
 
     try {
         const response = await fetch(`${API_URL}/${userId}`);
@@ -49,11 +79,11 @@ async function searchUser() {
             document.getElementById('upd_role').value = data.user_Role;
             updateFields.style.display = 'block';
         } else {
-            alert("Error: " + data.error);
+            alert("Error: " + (data.error || data.message || "Something went wrong"));
             updateFields.style.display = 'none';
         }
     } catch (err) {
-        alert("Error: " + err.message);
+        alert("Error: " + (err.message || "Something went wrong"));
     }
 }
 
@@ -67,6 +97,22 @@ async function updateUser() {
         user_MachipId: document.getElementById('upd_machipId').value,
         user_Role: document.getElementById('upd_role').value
     };
+
+    
+    switch (false) {
+        case userData.user_FirstName.trim() !== "" && !/\d/.test(userData.user_FirstName):
+            alert("Error: First Name cannot be empty and must not contain numbers.");
+            return;
+        case userData.user_LastName.trim() !== "" && !/\d/.test(userData.user_LastName):
+            alert("Error: Last Name cannot be empty and must not contain numbers.");
+            return;
+        case userData.user_MiddleName.trim() === "" || !/\d/.test(userData.user_MiddleName):
+            alert("Error: Middle Name must not contain numbers if provided.");
+            return;
+        case userData.user_MachipId && !isNaN(userData.user_MachipId):
+            alert("Error: Please enter a valid MaChip ID.");
+            return;
+    }   
 
     try {
         const response = await fetch(`${API_URL}/updateUser/${userId}`, {
@@ -83,7 +129,7 @@ async function updateUser() {
             alert("Error: " + (data.error || data.message || "Unknown error"));
         }
     } catch (err) {
-        alert("Error: " + err.message);
+        alert("Error: " + (err.message || "Something went wrong"));
     }
 }
 
@@ -96,6 +142,11 @@ function cancelUpdate() {
 document.getElementById('removeUserBtn').addEventListener('click', async () => {
     const userId = document.getElementById('removeUserId').value;
 
+
+    if (!userId || isNaN(userId)) {
+        alert("Error: Please enter a valid User ID.");
+        return;
+    }
     try {
         const response = await fetch(`${API_URL}/deleteUser/${userId}`, {
             method: 'DELETE'
@@ -108,7 +159,7 @@ document.getElementById('removeUserBtn').addEventListener('click', async () => {
             alert("Error: " + (data.error || data.message || "Unknown error"));
         }
     } catch (err) {
-        alert("Error: " + err.message);
+        alert("Error: " + (err.message || "Something went wrong"));
     }
 });
 
@@ -118,8 +169,9 @@ async function viewSpecificUser() {
     const viewSection = document.getElementById('singleUserView');
     const detailEl = document.getElementById('view_details');
 
-    if (!userId) {
-        alert("Error: Please enter a User ID to view.");
+    
+    if (!userId || isNaN(userId)) {
+        alert("Error: Please enter a valid User ID to view.");
         return;
     }
 
@@ -141,7 +193,7 @@ async function viewSpecificUser() {
             viewSection.style.display = 'none';
         }
     } catch (err) {
-        alert("Error: " + err.message);
+        alert("Error: " + (data.error || data.message || "Something went wrong"));
     }
 }
 
@@ -171,6 +223,6 @@ async function fetchAllUsers() {
             alert("Error: Could not fetch users.");
         }
     } catch (err) {
-        alert("Error: " + err.message);
+        alert("Error: " + (err.message || "Something went wrong"));
     }
 }

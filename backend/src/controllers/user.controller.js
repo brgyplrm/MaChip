@@ -2,7 +2,20 @@ const { User } = require('../config/sequelize.js');
 
 exports.registerUser = async (req, res) => {
   try {
+    const { user_Id, user_FirstName, user_LastName, user_MachipId } = req.body;
 
+    // 1. Validate for missing required fields
+    if (!user_Id || !user_FirstName || !user_LastName || !user_MachipId) {
+      return res.status(400).json({ error: 'Missing required fields. Please fill out all required inputs.' });
+    }
+
+    // 2. Check if user already exists
+    const existingUser = await User.findOne({ where: { user_Id: user_Id } });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User ID already exists. Please use a different ID.' });
+    }
+
+    // 3. If validation passes, create the user
     const newUser = await User.create({ 
       user_Id: req.body.user_Id,
       user_FirstName: req.body.user_FirstName,
@@ -12,8 +25,13 @@ exports.registerUser = async (req, res) => {
       user_Role: req.body.user_Role || 'Employee', // Default role is Employee
     });
     
+    if (req.body.user_MiddleName && /\d/.test(req.body.user_MiddleName)) {
+      return res.status(400).json({ error: 'Middle Name must not contain numbers.' });
+    }
+
     res.status(201).json({ message: "User Registered!", data: newUser });
   } catch (error) {
+    // Catch other potential errors (like database connection issues)
     res.status(500).json({ error: error.message });
   }
 };
@@ -68,6 +86,10 @@ exports.updateUser = async (req, res) => {
       { where: { user_Id: user_Id } }
     );
 
+    if (req.body.user_MiddleName && /\d/.test(req.body.user_MiddleName)) {
+      return res.status(400).json({ error: 'Middle Name must not contain numbers.' });
+    }
+    
     if (updated) {
       const updatedUser = await User.findOne({ where: { user_Id: user_Id } });
       res.status(200).json({ message: 'User updated successfully', data: updatedUser });
