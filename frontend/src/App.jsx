@@ -23,7 +23,7 @@ function App() {
               <Route index element={<Single />} />
             </Route>
             <Route 
-                path="edit" 
+                path="edit/:userId" 
                 element={<Edit inputs={userInputs} title="Edit User Profile" />} 
               />
             <Route

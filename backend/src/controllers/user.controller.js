@@ -100,12 +100,21 @@ exports.deleteUser = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   const { user_Id } = req.params;
-  const { user_FirstName, user_LastName, user_MiddleName, user_MachipId, user_Role } = req.body;
+  const { user_FirstName, user_LastName, user_MiddleName, user_MachipId, user_Role, user_Password } = req.body;
 
   try {
+    // Prepare fields to update, only include password if it's not empty
+    const updateFields = { user_FirstName, user_LastName, user_MiddleName, user_MachipId, user_Role };
+    if (user_Password && user_Password.trim() !== "") {
+      updateFields.user_Password = user_Password;
+    }
+
     const [updated] = await User.update(
-      { user_FirstName, user_LastName, user_MiddleName, user_MachipId, user_Role },
-      { where: { user_Id: user_Id } }
+      updateFields,
+      { 
+        where: { user_Id: user_Id },
+        individualHooks: true // Required for the beforeUpdate hook to trigger
+      }
     );
 
     if (req.body.user_MiddleName && /\d/.test(req.body.user_MiddleName)) {
