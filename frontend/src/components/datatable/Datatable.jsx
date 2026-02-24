@@ -1,14 +1,40 @@
 import "./datatable.scss";
 import { DataGrid } from "@mui/x-data-grid";
-import { userColumns, userRows } from "../../datatablesource";
+import { userColumns } from "../../datatablesource";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const Datatable = () => {
-  const [data, setData] = useState(userRows);
+  const [data, setData] = useState([]);
 
-  const handleDelete = (id) => {
-    setData(data.filter((item) => item.id !== id));
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch("http://localhost:4000/api/users/all");
+        if (response.ok) {
+          const users = await response.json();
+          setData(users);
+        }
+      } catch (err) {
+        console.error("Error fetching users:", err);
+      }
+    };
+    fetchUsers();
+  }, []);
+
+  const handleDelete = async (user_Id) => {
+    try {
+      const response = await fetch(`http://localhost:4000/api/users/deleteUser/${user_Id}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        setData(data.filter((item) => item.user_Id !== user_Id));
+      } else {
+        alert("Failed to delete user.");
+      }
+    } catch (err) {
+      console.error("Error deleting user:", err);
+    }
   };
 
   const actionColumn = [
@@ -19,12 +45,12 @@ const Datatable = () => {
       renderCell: (params) => {
         return (
           <div className="cellAction">
-            <Link to={`/users/${params.row.id}`} style={{ textDecoration: "none" }}>
+            <Link to={`/users/${params.row.user_Id}`} style={{ textDecoration: "none" }}>
               <div className="viewButton">View</div>
             </Link>
             <div
               className="deleteButton"
-              onClick={() => handleDelete(params.row.id)}
+              onClick={() => handleDelete(params.row.user_Id)}
             >
               Delete
             </div>
@@ -49,6 +75,7 @@ const Datatable = () => {
         rowsPerPageOptions={[9]}
         checkboxSelection
         getRowHeight={() => 'auto'}
+        getRowId={(row) => row.user_Number}
       />
     </div>
   );
