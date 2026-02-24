@@ -9,4 +9,8 @@ router.get('/logs/:user_Id', attendanceController.viewUserLogs);
 
 router.get('/all', attendanceController.viewAllAttendance);
 
+router.get('/status/:user_Id', attendanceController.StatusLogic);
+
+router.delete('/all', attendanceController.deleteAllLogs);
+
 module.exports = router;
