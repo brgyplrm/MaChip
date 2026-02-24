@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Page</title>
+</head>
+<body>
+    <h1>Attendance Page</h1>
+    <p>Welcome to the attendance page. Please sign in to mark your attendance.</p>
+    <form id="AttendanceForm">
+        User ID: <input type="text" id="attendance_userId" required><br><br>
+        Attendance Type: 
+        <select id="attendance_type" required>
+            <option value="Login">Login</option>
+            <option value="Logout">Logout</option>
+        </select><br><br>
+        <button type="submit" id="markAttendanceBtn">Mark Attendance</button>
+    </form>
+    <hr>
+
+    <h3>View Attendance Records</h3>
+    <button onclick="viewAllattendance()">View All Attendance</button>
+
+    <h3>All Users List</h3>
+    <div id="allAttendanceContainer" style="display:none;">
+        <table border="1" style="width:100%; margin-top:10px; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th>User ID</th>
+                    <th>Last Name</th>
+                    <th>MaChip ID</th>
+                    <th>Last Login Time</th>
+                    <th>Last Logout Time</th>
+                    <th>Location</th>
+                </tr>
+            </thead>
+            <tbody id="attendanceTableBody">
+                <!-- Data will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <p id="message" style="font-weight:bold;"></p>
+
+    <button onclick="window.location.href='index.html'">Back to User Registration</button>
+
+    <script src="src/AttendancePage.js"></script>
+</body>
+</html>
