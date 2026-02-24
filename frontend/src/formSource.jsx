@@ -1,45 +1,61 @@
 export const userInputs = [
     {
       id: 1,
-      label: "Username",
+      label: "User ID",
       type: "text",
       placeholder: "e.g. john_doe",
     },
     {
       id: 2,
-      label: "Full Name",
+      label: "Username",
       type: "text",
       placeholder: "e.g. John Doe",
     },
     {
       id: 3,
-      label: "Email",
-      type: "mail",
-      placeholder: "e.g. example@gmail.com",
+      label: "First Name",
+      type: "text",
+      placeholder: "e.g. John",
     },
     {
       id: 4,
-      label: "Phone",
+      label: "Last Name",
       type: "text",
-      placeholder: "e.g. xxxx xxx 0239",
+      placeholder: "e.g. Smith",
     },
     {
       id: 5,
-      label: "Password",
-      type: "e.g. password",
+      label: "Middle Name",
+      type: "text",
+      placeholder: "e.g. Michael",
     },
     {
       id: 6,
-      label: "Address",
+      label: "Email",
       type: "text",
-      placeholder: "e.g. Elton St. 216 NewYork",
+      placeholder: "e.g. johnsmith@gmail.com",
     },
     {
       id: 7,
-      label: "Machip ID",
+      label: "Password",
+      type: "password",
+      placeholder: "e.g. SDIWD89",
+    },
+    {
+      id: 8,
+      label: "MaChip ID",
       type: "text",
       placeholder: "e.g. SDIWD89",
     },
+  ];
+
+export const editInputs = [
+    {
+      id: 1,
+      label: "User ID",
+      type: "text",
+      placeholder: "e.g. john_doe",
+    }
   ];
   
   export const productInputs = [
