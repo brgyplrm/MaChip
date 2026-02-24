@@ -172,3 +172,45 @@ exports.StatusLogic = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.getDashboardStats = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // 1. Office Occupancy (Logged in but not logged out today)
+    const officeOccupancy = await user_logging.count({
+      where: {
+        log_Date: { [Op.gte]: today, [Op.lt]: tomorrow },
+        time_Logged_out: null,
+        log_Type: 'Login'
+      }
+    });
+
+    // 2. On-time Today
+    const onTimeCount = await user_logging.count({
+      where: {
+        log_Date: { [Op.gte]: today, [Op.lt]: tomorrow },
+        status: 'On-time'
+      }
+    });
+
+    // 3. Late Arrivals Today
+    const lateArrivalsCount = await user_logging.count({
+      where: {
+        log_Date: { [Op.gte]: today, [Op.lt]: tomorrow },
+        status: 'Late'
+      }
+    });
+
+    res.status(200).json({
+      officeOccupancy,
+      onTimeCount,
+      lateArrivalsCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

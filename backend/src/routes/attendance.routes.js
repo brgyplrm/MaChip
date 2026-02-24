@@ -13,4 +13,6 @@ router.get('/status/:user_Id', attendanceController.StatusLogic);
 
 router.delete('/all', attendanceController.deleteAllLogs);
 
+router.get('/stats', attendanceController.getDashboardStats);
+
 module.exports = router;

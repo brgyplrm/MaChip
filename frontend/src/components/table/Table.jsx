@@ -6,76 +6,65 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
+import { useState, useEffect } from "react";
 
 const List = () => {
-  const rows = [
-    {
-      id: 1143155,
-      Name: "Kathleen Smith",
-      img: "https://m.media-amazon.com/images/I/81bc8mA3nKL._AC_UY327_FMwebp_QL65_.jpg",
-      Designation: "Declarant",
-      date: "1 March",
-      time: "12:00:01 PM",
-      status: "In",
-    },
-    {
-      id: 2235235,
-      Name: "Jhanna Doe",
-      img: "https://m.media-amazon.com/images/I/31JaiPXYI8L._AC_UY327_FMwebp_QL65_.jpg",
-      Designation: "License Broker",
-      date: "1 March",
-      time: "12:00:01 PM",
-      status: "Out",
-    },
-    {
-      id: 2342353,
-      Name: "Cydoell Jane",
-      img: "https://m.media-amazon.com/images/I/71kr3WAj1FL._AC_UY327_FMwebp_QL65_.jpg",
-      Designation: "Customs Officer",
-      date: "1 March",
-      time: "12:00:01 PM",
-      status: "In",
-    },
-    {
-      id: 2357741,
-      Name: "Borgy Dame",
-      img: "https://m.media-amazon.com/images/I/71wF7YDIQkL._AC_UY327_FMwebp_QL65_.jpg",
-      Designation: "Accounting Officer",
-      date: "1 March",
-      time: "12:00:01 PM",
-      status: "Out",
-    },
-    {
-      id: 2342355,
-      Name: "Trecia Lawson",
-      img: "https://m.media-amazon.com/images/I/81hH5vK-MCL._AC_UY327_FMwebp_QL65_.jpg",
-      Designation: "Tracker",
-      date: "1 March",
-      time: "12:00:01 PM",
-      status: "In",
-    },
-  ];
+  const [rows, setRows] = useState([]);
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      try {
+        const response = await fetch("http://localhost:4000/api/attendance/all");
+        if (response.ok) {
+          const data = await response.json();
+          setRows(data);
+        }
+      } catch (err) {
+        console.error("Error fetching attendance logs:", err);
+      }
+    };
+    fetchAttendance();
+  }, []);
+
   return (
     <TableContainer component={Paper} className="table">
       <Table sx={{ minWidth: 650 }} aria-label="simple table">
+        <TableHead>
+          <TableRow>
+            <TableCell className="tableCell">User ID</TableCell>
+            <TableCell className="tableCell">Name</TableCell>
+            <TableCell className="tableCell">Date</TableCell>
+            <TableCell className="tableCell">Time In</TableCell>
+            <TableCell className="tableCell">Time Out</TableCell>
+            <TableCell className="tableCell">Status</TableCell>
+          </TableRow>
+        </TableHead>
         <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.id}>
-              <TableCell className="tableCell">{row.id}</TableCell>
-              <TableCell className="tableCell">
-                <div className="cellWrapper">
-                  <img src={row.img} alt="" className="image" />
-                  {row.Name}
-                </div>
-              </TableCell>
-              <TableCell className="tableCell">{row.Designation}</TableCell>
-              <TableCell className="tableCell">{row.date}</TableCell>
-              <TableCell className="tableCell">{row.time}</TableCell>
-              <TableCell className="tableCell">
-                <span className={`status ${row.status}`}>{row.status}</span>
+          {rows.length > 0 ? (
+            rows.map((row) => (
+              <TableRow key={row.user_loggingId}>
+                <TableCell className="tableCell">{row.user_id}</TableCell>
+                <TableCell className="tableCell">
+                  <div className="cellWrapper">
+                    <img src="/avatar.webp" alt="" className="image" />
+                    {row.user ? `${row.user.user_LastName}` : "N/A"}
+                  </div>
+                </TableCell>
+                <TableCell className="tableCell">{row.log_Date}</TableCell>
+                <TableCell className="tableCell">{row.time_Logged_in}</TableCell>
+                <TableCell className="tableCell">{row.time_Logged_out || "---"}</TableCell>
+                <TableCell className="tableCell">
+                  <span className={`status ${row.status}`}>{row.status}</span>
+                </TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={6} align="center" className="tableCell" style={{ padding: "20px", color: "gray" }}>
+                No activity for now
               </TableCell>
             </TableRow>
-          ))}
+          )}
         </TableBody>
       </Table>
     </TableContainer>
