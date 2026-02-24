@@ -1,7 +1,6 @@
 import "./editUser.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
-import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 
@@ -59,29 +58,8 @@ const Edit = ({ inputs, title }) => {
           <h1>{title} (ID: {userId})</h1>
         </div>
         <div className="bottom">
-          <div className="left">
-            <img
-              src={
-                file
-                  ? URL.createObjectURL(file)
-                  : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"
-              }
-              alt=""
-            />
-          </div>
           <div className="right">
             <form onSubmit={handleUpdate}>
-              <div className="formInput">
-                <label htmlFor="file">
-                  Update Image: <DriveFolderUploadOutlinedIcon className="icon" />
-                </label>
-                <input
-                  type="file"
-                  id="file"
-                  onChange={(e) => setFile(e.target.files[0])}
-                  style={{ display: "none" }}
-                />
-              </div>
 
               {inputs.map((input) => (
                 <div className="formInput" key={input.id}>
@@ -94,7 +72,7 @@ const Edit = ({ inputs, title }) => {
                       value={formData[input.id] || ""}
                       onChange={handleInput}
                     />
-                    {input.label === "Machip ID" && (
+                    {input.label === "MaChip ID" && (
                       <button 
                         type="button" 
                         className="scanButton"

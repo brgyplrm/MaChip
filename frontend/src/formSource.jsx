@@ -48,15 +48,6 @@ export const userInputs = [
       placeholder: "e.g. SDIWD89",
     },
   ];
-
-export const editInputs = [
-    {
-      id: 1,
-      label: "User ID",
-      type: "text",
-      placeholder: "e.g. john_doe",
-    }
-  ];
   
   export const productInputs = [
     {

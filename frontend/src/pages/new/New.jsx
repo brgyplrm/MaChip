@@ -53,8 +53,8 @@ const New = ({ inputs, title }) => {
                       value={formData[input.id] || ""}
                       onChange={handleInput}
                     />
-                    {/* Only show the Scan button for the Machip ID field */}
-                    {input.label === "Machip ID" && (
+                    {/* Only show the Scan button for the MaChip ID field */}
+                    {input.label === "MaChip ID" && (
                       <button 
                         type="button" 
                         className="scanButton"
