@@ -6,11 +6,14 @@
 <body>
     <h3>Register New User</h3>
     <form id="registerForm">
-        User ID: <input type="text" id="user_Id" required><br>
+        User ID: <input type="text" id="user_Id" readonly required><br>
+        Username: <input type="text" id="user_Username" required><br>
         First Name: <input type="text" id="user_FirstName" required><br>
         Last Name: <input type="text" id="user_LastName" required><br>
         Middle Name: <input type="text" id="user_MiddleName"><br>
-        MaChip ID: <input type="text" id="user_MachipId" required><br>
+        Email: <input type="email" id="user_Email" required><br>
+        Password: <input type="password" id="user_Password" required><br>
+        MaChip ID: <input type="text" id="user_MachipId" readonly required> <button type="button" id="generateRFIDBtn">Scan RFID</button><br>
         Role: 
         <select id="user_Role">
             <option value="Employee">Employee</option>

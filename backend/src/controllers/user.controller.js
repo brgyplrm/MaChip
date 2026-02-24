@@ -1,26 +1,48 @@
 const { User } = require('../config/sequelize.js');
 
+exports.getNextUserId = async (req, res) => {
+  try {
+    const lastUser = await User.findOne({ order: [['user_Number', 'DESC']] });
+    const nextNumber = (lastUser ? lastUser.user_Number : 0) + 1;
+    const nextId = `MACJ-${String(nextNumber).padStart(3, '0')}`;
+    res.status(200).json({ nextId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.generateRfid = async (req, res) => {
+  try {
+    const generatedRfid = Math.random().toString(36).substr(2, 9).toUpperCase();
+    res.status(200).json({ rfid: generatedRfid });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.registerUser = async (req, res) => {
   try {
-    const { user_Id, user_FirstName, user_LastName, user_MachipId } = req.body;
+    const { user_FirstName, user_LastName, user_MachipId } = req.body;
 
-    // 1. Validate for missing required fields
-    if (!user_Id || !user_FirstName || !user_LastName || !user_MachipId) {
+    // 1. Validate for missing required fields (excluding user_Id as we generate it)
+    if (!user_FirstName || !user_LastName || !user_MachipId) {
       return res.status(400).json({ error: 'Missing required fields. Please fill out all required inputs.' });
     }
 
-    // 2. Check if user already exists
-    const existingUser = await User.findOne({ where: { user_Id: user_Id } });
-    if (existingUser) {
-      return res.status(400).json({ error: 'User ID already exists. Please use a different ID.' });
-    }
+    // 2. Generate the next user_Id
+    const lastUser = await User.findOne({ order: [['user_Number', 'DESC']] });
+    const nextNumber = (lastUser ? lastUser.user_Number : 0) + 1;
+    const generatedUserId = `MACJ-${String(nextNumber).padStart(3, '0')}`;
 
-    // 3. If validation passes, create the user
+    // 3. Create the user
     const newUser = await User.create({ 
-      user_Id: req.body.user_Id,
+      user_Id: generatedUserId,
+      user_Username: req.body.user_Username,
       user_FirstName: req.body.user_FirstName,
       user_LastName: req.body.user_LastName,
       user_MiddleName: req.body.user_MiddleName,
+      user_Email: req.body.user_Email,
+      user_Password: req.body.user_Password,
       user_MachipId: req.body.user_MachipId,
       user_Role: req.body.user_Role || 'Employee', // Default role is Employee
     });
@@ -101,3 +123,4 @@ exports.updateUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
