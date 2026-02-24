@@ -1,51 +1,51 @@
 export const userInputs = [
     {
-      id: 1,
+      id: "user_Id",
       label: "User ID",
+      type: "text",
+      placeholder: "e.g. MACJ-001",
+    },
+    {
+      id: "user_Username",
+      label: "Username",
       type: "text",
       placeholder: "e.g. john_doe",
     },
     {
-      id: 2,
-      label: "Username",
-      type: "text",
-      placeholder: "e.g. John Doe",
-    },
-    {
-      id: 3,
+      id: "user_FirstName",
       label: "First Name",
       type: "text",
       placeholder: "e.g. John",
     },
     {
-      id: 4,
+      id: "user_LastName",
       label: "Last Name",
       type: "text",
       placeholder: "e.g. Smith",
     },
     {
-      id: 5,
+      id: "user_MiddleName",
       label: "Middle Name",
       type: "text",
       placeholder: "e.g. Michael",
     },
     {
-      id: 6,
+      id: "user_Email",
       label: "Email",
       type: "text",
       placeholder: "e.g. johnsmith@gmail.com",
     },
     {
-      id: 7,
+      id: "user_Password",
       label: "Password",
       type: "password",
-      placeholder: "e.g. SDIWD89",
+      placeholder: "e.g. password123",
     },
     {
-      id: 8,
+      id: "user_MachipId",
       label: "MaChip ID",
       type: "text",
-      placeholder: "e.g. SDIWD89",
+      placeholder: "e.g. MACHIP-XXXXXX",
     },
   ];
   

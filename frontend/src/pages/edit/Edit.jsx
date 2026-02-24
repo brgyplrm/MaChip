@@ -15,11 +15,13 @@ const Edit = ({ inputs, title }) => {
   useEffect(() => {
     const fetchUserData = () => {
       // In a real app, you would fetch data from your database here
-      // For now, we simulate pre-filling the Machip ID for this user
+      // For now, we simulate pre-filling the data for this user
       setFormData({
-        1: "jsmith_dev",        // Username
-        2: "Kathleen Smith",   // Full Name
-        7: "MACHIP-OLD123"     // Existing Machip ID
+        user_Id: userId,
+        user_Username: "jsmith_dev",
+        user_FirstName: "Kathleen",
+        user_LastName: "Smith",
+        user_MachipId: "MACHIP-OLD123"
       });
     };
     fetchUserData();
@@ -31,16 +33,25 @@ const Edit = ({ inputs, title }) => {
     setFormData({ ...formData, [id]: value });
   };
 
-  const handleScanRFID = () => {
+  const handleScanRFID = async () => {
     console.log("Initializing RFID Scanner for re-assignment...");
     
-    // Generate a new random UID for the PUPChip system
-    const randomUID = "MACHIP-" + Math.random().toString(36).substr(2, 6).toUpperCase();
-    
-    // Update the state for the Machip ID field
-    setFormData({ ...formData, 7: randomUID });
-    
-    alert(`New Machip Scanned! ID Updated to: ${randomUID}`);
+    try {
+      const response = await fetch("http://localhost:4000/api/users/generateRfid");
+      if (response.ok) {
+        const data = await response.json();
+        const generatedRFID = data.rfid;
+        
+        // Update the state for the Machip ID field
+        setFormData(prev => ({ ...prev, user_MachipId: generatedRFID }));
+        alert(`New Machip Scanned! ID Updated to: ${generatedRFID}`);
+      } else {
+        alert("Failed to scan RFID.");
+      }
+    } catch (err) {
+      console.error("Error scanning RFID:", err);
+      alert("An error occurred while scanning.");
+    }
   };
 
   const handleUpdate = (e) => {
@@ -71,6 +82,7 @@ const Edit = ({ inputs, title }) => {
                       placeholder={input.placeholder}
                       value={formData[input.id] || ""}
                       onChange={handleInput}
+                      readOnly={input.label === "User ID" || input.label === "MaChip ID"}
                     />
                     {input.label === "MaChip ID" && (
                       <button 
