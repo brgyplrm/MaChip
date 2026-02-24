@@ -8,6 +8,7 @@ export const userColumns = [
     renderCell: (params) => {
       const { user_FirstName, user_MiddleName, user_LastName } = params.row;
       const fullName = `${user_FirstName || ""} ${user_MiddleName || ""} ${user_LastName || ""}`.replace(/\s+/g, ' ').trim();
+      {fullName}
       return (
         <div className="cellWithImg">
           <img className="cellImg" src={params.row.img || "https://images.pexels.com/photos/1820770/pexels-photo-1820770.jpeg?auto=compress&cs=tinysrgb&dpr=2&w=500"} alt="avatar" />

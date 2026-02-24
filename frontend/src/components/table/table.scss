@@ -1,4 +1,13 @@
+
 .table {
+
+  width: 100%;
+
+  .tableCell {
+    background-color: transparent;
+    border-bottom: 1px solid #ddd;
+  }
+
   .cellWrapper {
     display: flex;
     align-items: center;

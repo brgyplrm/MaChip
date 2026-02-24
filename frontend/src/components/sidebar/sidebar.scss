@@ -5,19 +5,20 @@
   background-color: #FFF8EC;
 
   .top {
-    height: 50px;
+    height: 70px;
     display: flex;
     align-items: center;
     justify-content: center;
     background-color: white;
 
     .logo {
-      align-content: flex-end;    
+      display: flex;
+      align-items: center;
     }
     
     .logo-img {
       width: auto;
-      height: 55px;
+      height: 65px;
     }
   }
 
@@ -35,7 +36,7 @@
       padding: 0;
 
       .title {
-        font-size: 10px;
+        font-size: 12px;
         font-weight: bold;
         color: #4F2A94;
         margin-top: 15px;
@@ -63,12 +64,12 @@
         }
 
         .icon {
-          font-size: 18px;
+          font-size: 20px;
           color: #2A174E;
         }
 
         span{
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 600;
             color: #2A174E;
             margin-left: 10px;

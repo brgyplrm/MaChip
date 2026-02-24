@@ -4,7 +4,11 @@ import List from "./pages/list/List";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
 import Edit from "./pages/edit/Edit";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Logs from "./pages/logs-management/Logs";
+import Notifications from "./pages/notifications/Notifications";
+import profile from "./pages/profile/Profile";
+import settings from "./pages/settings/Settings";
+import { Routes, Route } from "react-router-dom";
 import {  userInputs } from "./formSource";
 
 
@@ -31,10 +35,6 @@ function App() {
               element={<New inputs={userInputs} title="Add New User" />}
             />
           </Route>
-            <Route path="products">
-              <Route index element={<List />} />
-              <Route path=":productId" element={<Single />} />
-            </Route>
           </Route>
         </Routes>
     </div>
