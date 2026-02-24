@@ -8,6 +8,9 @@ import Table from "../../components/table/Table";
 import MeetingRoomOutlinedIcon from '@mui/icons-material/MeetingRoomOutlined';
 
 const Home = () => {
+
+
+
   return (
     <div className="home">
       <Sidebar />
