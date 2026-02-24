@@ -56,6 +56,7 @@ async function viewAllattendance() {
                     <td>${machipId}</td>
                     <td>${log.time_Logged_in}</td>
                     <td>${log.time_Logged_out || 'Active'}</td>
+                    <td>${log.status}</td>
                     <td>${log.location}</td>
                 </tr>`;
                 tableBody.innerHTML += row;
@@ -104,4 +105,29 @@ async function viewUserLogs() {
     }
 } 
 window.viewUserLogs = viewUserLogs;
+
+async function deleteAllLogs() {
+    if (!confirm("Are you sure you want to delete ALL attendance logs? This action cannot be undone.")) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/all`, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert(data.message);
+            // Refresh the table if it's visible
+            if (document.getElementById('allAttendanceContainer').style.display !== 'none') {
+                viewAllattendance();
+            }
+        } else {
+            alert("Error: " + (data.error || "Failed to delete logs"));
+        }
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+window.deleteAllLogs = deleteAllLogs;
  

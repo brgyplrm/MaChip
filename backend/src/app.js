@@ -42,6 +42,10 @@ app.get('/test-query', async (req, res) => {
 const userRoutes = require('./routes/user.routes.js');
 app.use('/api/users', userRoutes);
 
+// Routes for authentication
+const authRoutes = require('./routes/auth.routes.js');
+app.use('/api/auth', authRoutes);
+
 // Routes for attendance
 const attendanceRoutes = require('./routes/attendance.routes.js');
 app.use('/api/attendance', attendanceRoutes);

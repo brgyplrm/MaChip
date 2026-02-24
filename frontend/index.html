@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <script>
+        // Simple check to prevent redirect loops. 
+        // In a real app, you would verify a token or session cookie.
+        if (!document.referrer.includes('Login.html') && !localStorage.getItem('isLoggedIn')) {
+            // window.location.href = 'Login.html'; 
+        }
+    </script>
     <title>User Management</title>
 </head>
 <body>
@@ -34,7 +41,7 @@
         First Name: <input type="text" id="upd_firstName"><br>
         Last Name: <input type="text" id="upd_lastName"><br>
         Middle Name: <input type="text" id="upd_middleName"><br>
-        MaChip ID: <input type="text" id="upd_machipId"><br>
+        MaChip ID: <input type="text" id="upd_machipId" readonly required><button type="button" id="generateupd_RFIDBtn">Scan RFID</button><br>
         Role: 
         <select id="upd_role">
             <option value="Employee">Employee</option>
@@ -70,9 +77,8 @@
             <thead>
                 <tr style="background-color: #f2f2f2;">
                     <th>User ID</th>
-                    <th>First Name</th>
-                    <th>Last Name</th>
-                    <th>Middle Name</th>
+                    <th>Full Name</th>
+                    <th>Email</th>
                     <th>MaChip ID</th>
                     <th>Role</th>
                 </tr>

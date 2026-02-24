@@ -1,3 +1,5 @@
+const bcrypt = require('bcryptjs');
+
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
     user_Number: { type: DataTypes.INTEGER, allowNull: false, autoIncrement: true, unique: true, primaryKey: true },
@@ -12,8 +14,22 @@ module.exports = (sequelize, DataTypes) => {
     user_Role: { type: DataTypes.ENUM('Employee', 'Staff', 'Admin'), allowNull: false, defaultValue: 'Employee' },
   }, {
     timestamps: false,
-    freezeTableName: true
-  });
-
+    freezeTableName: true,
+    hooks: {
+        beforeCreate: async (user) => {
+          if (user.user_Password) {
+            const salt = await bcrypt.genSalt(10);
+            user.user_Password = await bcrypt.hash(user.user_Password, salt);
+          }
+        },
+        beforeUpdate: async (user) => {
+          if (user.changed('user_Password')) {
+            const salt = await bcrypt.genSalt(10);
+            user.user_Password = await bcrypt.hash(user.user_Password, salt);
+          }
+        }
+      }
+    });
+    
   return User;
 };

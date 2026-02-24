@@ -34,6 +34,10 @@ exports.registerUser = async (req, res) => {
     const nextNumber = (lastUser ? lastUser.user_Number : 0) + 1;
     const generatedUserId = `MACJ-${String(nextNumber).padStart(3, '0')}`;
 
+    if (req.body.user_MiddleName && /\d/.test(req.body.user_MiddleName)) {
+      return res.status(400).json({ error: 'Middle Name must not contain numbers.' });
+    }
+
     // 3. Create the user
     const newUser = await User.create({ 
       user_Id: generatedUserId,
@@ -47,10 +51,6 @@ exports.registerUser = async (req, res) => {
       user_Role: req.body.user_Role || 'Employee', // Default role is Employee
     });
     
-    if (req.body.user_MiddleName && /\d/.test(req.body.user_MiddleName)) {
-      return res.status(400).json({ error: 'Middle Name must not contain numbers.' });
-    }
-
     res.status(201).json({ message: "User Registered!", data: newUser });
   } catch (error) {
     // Catch other potential errors (like database connection issues)
