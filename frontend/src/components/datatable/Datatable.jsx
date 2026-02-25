@@ -24,9 +24,12 @@ const Datatable = () => {
 
   const handleDelete = async (user_Id) => {
     try {
-      const response = await fetch(`http://localhost:4000/api/users/deleteUser/${user_Id}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `http://localhost:4000/api/users/deleteUser/${user_Id}`,
+        {
+          method: "DELETE",
+        },
+      );
       if (response.ok) {
         setData(data.filter((item) => item.user_Id !== user_Id));
       } else {
@@ -45,7 +48,10 @@ const Datatable = () => {
       renderCell: (params) => {
         return (
           <div className="cellAction">
-            <Link to={`/users/${params.row.user_Id}`} style={{ textDecoration: "none" }}>
+            <Link
+              to={`/users/${params.row.user_Id}`}
+              style={{ textDecoration: "none" }}
+            >
               <div className="viewButton">View</div>
             </Link>
             <div
@@ -74,8 +80,8 @@ const Datatable = () => {
         pageSize={9}
         rowsPerPageOptions={[9]}
         checkboxSelection
-        getRowHeight={() => 'auto'}
-        getRowId={(row) => row.user_Number}
+        getRowHeight={() => "auto"}
+        getRowId={(row) => row.user_Id}
       />
     </div>
   );
