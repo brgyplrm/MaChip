@@ -92,9 +92,8 @@ const New = ({ inputs, title }) => {
         <Navbar />
         <div className="top">
           <h1>{title}</h1>
-        </div>
+        </div> 
         <div className="bottom">
-          
           <div className="right">
             <form onSubmit={hanleSubmit}>
               {inputs.map((input) => (
@@ -121,12 +120,14 @@ const New = ({ inputs, title }) => {
                   </div>
                 </div>
               ))}
-              <button className="submitButton" type="submit">Add</button>
             </form>
+          </div>
+          <div className="bottom-center">
+              <button className="submitButton" type="submit">Add</button>
+          </div>
           </div>
         </div>
       </div>
-    </div>
   );
 };
 
