@@ -1,0 +1,45 @@
+.logs {
+  display: flex;
+  width: 100%;
+
+  .logsContainer {
+    flex: 6;
+
+    .datatable {
+      height: 600px;
+      padding: 20px;
+
+      .datagrid {
+        .MuiDataGrid-cell {
+          display: flex !important;
+          align-items: center !important;
+          padding: 10px 0;
+        }
+
+        .status {
+          padding: 5px 10px;
+          border-radius: 5px;
+          font-size: 12px;
+
+          &.login {
+            background-color: rgba(0, 128, 0, 0.1);
+            color: green;
+          }
+          &.logout {
+            background-color: rgba(255, 0, 0, 0.1);
+            color: crimson;
+          }
+        }
+      }
+
+      .datatableTitle {
+        width: 100%;
+        font-size: 24px;
+        color: #2A174E; // Matching your primary theme color
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+      }
+    }
+  }
+}

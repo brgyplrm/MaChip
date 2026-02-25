@@ -34,6 +34,8 @@ const Sidebar = () => {
               <PersonOutlineIcon className="icon" />
               <span>Users</span>
             </li>
+          </Link>
+          <Link to ="/logs" style={{ textDecoration: "none" }}>
              <li>
             <PsychologyOutlinedIcon className="icon" />
             <span>Logs</span>

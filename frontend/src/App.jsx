@@ -35,6 +35,7 @@ function App() {
               element={<New inputs={userInputs} title="Add New User" />}
             />
           </Route>
+          <Route path="logs" element={<Logs />} />
           </Route>
         </Routes>
     </div>
