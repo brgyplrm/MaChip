@@ -1,8 +1,8 @@
-For dependencies 
+For resetting and installing dependencies
 
 run this in terminal
 
-npm install --prefix backend && npm install --prefix frontend
+npm run reset
 
 To run the application, execute the following command in the terminal:
 
