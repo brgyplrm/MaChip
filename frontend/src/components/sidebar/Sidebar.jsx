@@ -6,54 +6,60 @@ import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
-import { Link } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
 const Sidebar = () => {
   return (
     <div className="sidebar">
       <div className="top">
-        <Link to="/" style={{ textDecoration: "none" }}>
+        <NavLink to="/" style={{ textDecoration: "none" }}>
           <span className="logo">
             <img src="/images.png" alt="Logo" className="logo-img"/>
           </span>
-        </Link>
+        </NavLink>
       </div>
       <hr />
       <div className="center">
         <ul>
           <p className="title">MAIN</p>
-         <Link to="/" style={{ textDecoration: "none" }}>
+         <NavLink to="/" style={{ textDecoration: "none" }}>
             <li>
               <DashboardIcon className="icon" />
               <span>Dashboard</span>
             </li>
-          </Link>
+          </NavLink>
           <p className="title">LISTS</p>
-          <Link to="/users" style={{ textDecoration: "none" }}>
+          <NavLink to="/users" style={{ textDecoration: "none" }}>
             <li>
               <PersonOutlineIcon className="icon" />
               <span>Users</span>
             </li>
-          </Link>
-          <Link to ="/logs" style={{ textDecoration: "none" }}>
+          </NavLink>
+          <NavLink to="/logs" style={{ textDecoration: "none" }}>
              <li>
             <PsychologyOutlinedIcon className="icon" />
             <span>Logs</span>
           </li>
-          </Link>
+          </NavLink>
           <p className="title">USER</p>
+           <NavLink to="/notifications" style={{ textDecoration: "none" }}>
            <li>
-            <NotificationsNoneIcon className="icon" />
-            <span>Notifications</span>
+              <NotificationsNoneIcon className="icon" />
+              <span>Notifications</span>
           </li>
-          <li>
-            <SettingsApplicationsIcon className="icon" />
-            <span>Settings</span>
-          </li>
+          </NavLink>
+          <NavLink to="/settings" style={{ textDecoration: "none" }}>
+            <li>
+              <SettingsApplicationsIcon className="icon" />
+              <span>Settings</span>
+            </li>
+          </NavLink>
+          <NavLink to="/profile" style={{ textDecoration: "none" }}>
           <li>
             <AccountCircleOutlinedIcon className="icon" />
             <span>Profile</span>
           </li>
+          </NavLink>
           <li>
             <ExitToAppIcon className="icon" />
             <span>Logout</span>

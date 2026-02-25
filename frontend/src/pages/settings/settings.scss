@@ -1,0 +1,97 @@
+.settings {
+  display: flex;
+  width: 100%;
+
+  .settingsContainer {
+    flex: 6;
+
+    .settingsWrapper {
+      padding: 20px;
+      
+      .title {
+        color: #2A174E;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+
+      .content {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+
+        .item {
+          flex: 1;
+          min-width: 300px;
+          padding: 20px;
+          border-radius: 10px;
+          background-color: white;
+          box-shadow: 2px 4px 10px 1px rgba(201, 201, 201, 0.47);
+
+          .itemTitle {
+            font-size: 18px;
+            color: #2A174E;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 10px;
+          }
+
+          .details {
+            .detailItem {
+              margin-bottom: 15px;
+              display: flex;
+              gap: 10px;
+              font-size: 14px;
+
+              .itemKey {
+                font-weight: bold;
+                color: #555;
+              }
+
+              .itemValue {
+                color: #2A174E;
+                
+                &.statusActive {
+                    color: green;
+                    font-weight: bold;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      .editButton, .deleteBtn {
+        padding: 8px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: 500;
+        margin-top: 10px;
+      }
+
+      .editButton {
+        background-color: transparent;
+        color: #2A174E;
+        border: 1px solid #2A174E;
+        
+        &:hover {
+          background-color: #2A174E;
+          color: white;
+        }
+      }
+
+      .dangerZone {
+        margin-top: 30px;
+        padding: 20px;
+        border: 1px solid rgba(220, 20, 60, 0.3);
+        border-radius: 10px;
+        background-color: rgba(220, 20, 60, 0.05);
+
+        .deleteBtn {
+          background-color: crimson;
+          color: white;
+          border: none;
+        }
+      }
+    }
+  }
+}

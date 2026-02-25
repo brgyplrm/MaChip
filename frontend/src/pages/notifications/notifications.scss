@@ -1,0 +1,60 @@
+.notifications {
+  display: flex;
+  width: 100%;
+
+  .notificationsContainer {
+    flex: 6;
+
+    .listContainer {
+      padding: 20px;
+
+      .datatableTitle {
+        width: 100%;
+        font-size: 24px;
+        color: #2A174E;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+
+        .markReadBtn {
+          background-color: #2A174E;
+          color: white;
+          border: none;
+          padding: 8px 15px;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 14px;
+
+          &:hover {
+            background-color: #502c92;
+          }
+        }
+      }
+
+      .datagrid {
+        height: 600px;
+        .MuiDataGrid-cell {
+          display: flex !important;
+          align-items: center !important;
+          padding: 12px 0;
+        }
+      }
+
+      .cellWithStatus {
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 12px;
+
+        &.unread {
+          background-color: rgba(255, 0, 0, 0.1);
+          color: crimson;
+        }
+        &.read {
+          background-color: rgba(0, 128, 0, 0.1);
+          color: green;
+        }
+      }
+    }
+  }
+}

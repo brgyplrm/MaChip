@@ -1,6 +1,7 @@
 import "./navbar.scss";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
+import { Link } from "react-router-dom";
 
 const Navbar = () => {
 
@@ -12,10 +13,13 @@ const Navbar = () => {
           <SearchOutlinedIcon />
         </div>
         <div className="items">
+          <Link to="/notifications">
           <div className="item">
             <NotificationsNoneOutlinedIcon className="icon" />
             <div className="counter">3</div>
           </div>
+          </Link>
+          <Link to="/profile">
           <div className="item">
             <img
               src="/avatar.webp"
@@ -23,6 +27,7 @@ const Navbar = () => {
               className="avatar"
             />
           </div>
+          </Link>
         </div>
       </div>
     </div>

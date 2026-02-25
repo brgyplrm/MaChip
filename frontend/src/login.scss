@@ -1,0 +1,90 @@
+.loginPage {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  // This matches the purple -> white -> orange gradient in your image
+  background: linear-gradient(90deg, #9b89c2 0%, #ffffff 50%, #ffae00 100%);
+
+  .loginContainer {
+    width: 400px;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+
+    .top {
+      width: 100%;
+      margin-bottom: 20px;
+
+      .logo {
+        width: 250px;
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        font-size: 28px;
+        color: #444;
+        font-weight: 300;
+        margin-bottom: 10px;
+      }
+
+      hr {
+        border: none;
+        height: 1px;
+        background-color: #ddd;
+        margin-bottom: 30px;
+      }
+    }
+
+    form {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+
+      .inputItem {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+
+        label {
+          font-size: 14px;
+          color: #555;
+        }
+
+        input {
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ccc;
+          border-radius: 8px; // Matching the rounded corners in your image
+          outline: none;
+
+          &:focus {
+            border-color: #2a174e;
+          }
+        }
+      }
+
+      button {
+        width: 120px;
+        align-self: center;
+        padding: 10px;
+        background-color: #2a174e; // The dark navy/purple button color
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-top: 10px;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+
+        &:hover {
+          background-color: #3e2472;
+        }
+      }
+    }
+  }
+}
