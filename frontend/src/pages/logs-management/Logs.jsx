@@ -51,6 +51,9 @@ const Logs = () => {
         <div className="datatable">
           <div className="datatableTitle">
             User Logging Activity
+            <button className="headerButton" onClick={() => console.log("Button Clicked")}>
+              Generate Logs
+            </button>
           </div>
           <DataGrid
             className="datagrid"

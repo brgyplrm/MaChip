@@ -39,6 +39,27 @@
         margin-bottom: 20px;
         display: flex;
         align-items: center;
+        justify-content: space-between;
+
+        .headerButton {
+          background-color: #2A174E; // Your primary theme color
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background-color 0.3s ease;
+
+          &:hover {
+            background-color: #502c92; // Slightly lighter purple on hover
+          }
+
+          &:active {
+            transform: scale(0.95); // Subtle click effect
+          }
+        }
       }
 
       .cellAction {
