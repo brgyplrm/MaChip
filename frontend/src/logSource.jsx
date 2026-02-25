@@ -1,23 +1,28 @@
 export const logColumns = [
   {
-    field: "user_id",
+    field: "user_Id",
     headerName: "User ID",
-    width: 100,
+    width: 150,
+  },
+  {
+    field: "last_name",
+    headerName: "Last Name",
+    width: 200,
   },
   {
     field: "log_Date",
     headerName: "Date",
-    width: 120,
+    width: 150,
   },
   {
-    field: "time_in",
-    headerName: "Time In",
-    width: 200,
+    field: "time",
+    headerName: "Time",
+    width: 150,
   },
   {
-    field: "time_out",
-    headerName: "Time Out",
-    width: 200,
+    field: "log_type",
+    headerName: "Log Type",
+    width: 150,
   },
   {
     field: "action",
@@ -29,16 +34,6 @@ export const logColumns = [
           {params.row.action}
         </span>
       );
-    },
   },
-  {
-    field: "timestamp",
-    headerName: "Date & Time",
-    width: 250,
-  },
-  {
-    field: "ip_address",
-    headerName: "IP Address",
-    width: 150,
-  },
+  }
 ];

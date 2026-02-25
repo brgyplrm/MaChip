@@ -24,6 +24,25 @@ const Logs = () => {
     fetchLogs();
   }, []);
 
+  const actionColumn = [
+      {
+        field: "action",
+        headerName: "Action",
+        width: 200,
+        renderCell: (params) => {
+          return (
+            <div className="cellAction">
+              <Link
+                to={`/users/${params.row.user_Id}`}
+                style={{ textDecoration: "none" }}
+                ><div className="viewButton">View</div>
+              </Link>
+            </div>
+          );
+        },
+      },
+    ];
+
   return (
     <div className="logs">
       <Sidebar />
@@ -36,7 +55,7 @@ const Logs = () => {
           <DataGrid
             className="datagrid"
             rows={logData}
-            columns={logColumns}
+            columns={logColumns.concat(actionColumn)}
             pageSize={10}
             rowsPerPageOptions={[10]}
             checkboxSelection
