@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "description": "Root for MaChip Project",
   "scripts": {
+    "reset": "npm run reset:backend && npm run reset:frontend && npm install",
+    "reset:backend": "rimraf backend/node_modules backend/package-lock.json && npm install --prefix backend",
+    "reset:frontend": "rimraf frontend/node_modules frontend/package-lock.json && npm install --prefix frontend --legacy-peer-deps",
     "backend": "npm start --prefix backend",
     "frontend": "npm run dev --prefix frontend",
     "dev": "concurrently \"npm run backend\" \"npm run frontend\""
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "rimraf": "^6.1.3"
   }
 }

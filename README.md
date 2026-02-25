@@ -1,3 +1,13 @@
+For dependencies 
+
+run this in terminal
+
+npm install --prefix backend && npm install --prefix frontend
+
+To run the application, execute the following command in the terminal:
+
+npm run dev
+
 MAChip: A Microchip-Based Identification System for Centralized Access Control and Attendance Monitoring
 
 MAChip is a research-driven office automation solution designed to modernize attendance tracking at high-traffic logistics hubs. It replaces manual paper-based logs with a robust, two-factor authentication (2FA) workflow combining RFID/NFC technology and biometric fingerprint verification.
