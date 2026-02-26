@@ -10,8 +10,9 @@
       padding: 10px;
       margin: 20px;
       display: flex;
-      background-color: #2A174E;
+      background-color: #2a174e;
       border-radius: 10px;
+
       h1 {
         color: white;
         margin: 0px 20px;
@@ -29,6 +30,7 @@
       .left {
         flex: 1;
         text-align: center;
+
         img {
           width: 100px;
           height: 100px;
@@ -39,74 +41,204 @@
 
       .right {
         flex: 2;
+        width: 100%;
+
         form {
           display: flex;
           flex-wrap: wrap;
           gap: 30px;
           justify-content: space-around;
 
+          // ── Individual field wrapper ─────────────────────────
           .formInput {
             width: 40%;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
 
             label {
               display: flex;
               align-items: center;
-              gap: 10px;
+              gap: 6px;
               font-weight: 600;
               color: #555;
+              font-size: 13px;
+              transition: color 0.2s ease;
+
+              // Required asterisk
+              .requiredMark {
+                color: #c0392b;
+                font-weight: 700;
+              }
+
+              // Optional label
+              .optionalMark {
+                color: #999;
+                font-size: 11px;
+                font-weight: 400;
+                font-style: italic;
+              }
             }
 
+            // ── Input wrapper (input + buttons) ───────────────
             .inputActionWrapper {
               display: flex;
               align-items: center;
-              border-bottom: 1px solid gray;
-              width: 100%; // Ensure it fills the parent container
-              gap: 10px;   // Adds space between input and button
+              border-bottom: 1.5px solid #ccc;
+              transition:
+                border-color 0.2s ease,
+                box-shadow 0.2s ease;
+              gap: 6px;
 
-              input {
-                flex: 1;          // This makes the input "grow" to fill empty space
-                border: none;     // Remove internal borders since wrapper has one
-                outline: none;
-                background: transparent;
-                padding: 5px 0;
-                min-width: 0;     // Prevents flex items from overflowing in small screens
+              &:focus-within {
+                border-color: #2a174e;
+                box-shadow: 0 2px 0 0 rgba(42, 23, 78, 0.2);
               }
 
+              input {
+                flex: 1;
+                border: none;
+                outline: none;
+                background: transparent;
+                padding: 6px 4px;
+                min-width: 0;
+                font-size: 13px;
+                color: #333;
+
+                &::placeholder {
+                  color: #aaa;
+                  font-size: 12px;
+                }
+
+                &[readonly] {
+                  background-color: #f5f5f5;
+                  color: #888;
+                  cursor: not-allowed;
+                }
+              }
+
+              // ── Password visibility toggle ─────────────────
+              .visibilityToggle {
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: none;
+                background: none;
+                cursor: pointer;
+                padding: 4px;
+                border-radius: 50%;
+                color: #888;
+                transition:
+                  color 0.2s ease,
+                  background-color 0.2s ease;
+
+                &:hover {
+                  color: #2a174e;
+                  background-color: rgba(42, 23, 78, 0.08);
+                }
+              }
+
+              // ── Re-Scan button ─────────────────────────────
               .scanButton {
-                flex-shrink: 0;   // Prevents the button from squishing on mobile
+                flex-shrink: 0;
                 padding: 5px 12px;
                 cursor: pointer;
-                background-color: #7451f8; // Or your theme color
+                background-color: #7451f8;
                 color: white;
                 border: none;
                 border-radius: 5px;
                 font-size: 12px;
-                white-space: nowrap; // Keeps "RE-SCAN" on one line
-                
+                font-weight: 600;
+                white-space: nowrap;
+                transition:
+                  background-color 0.2s ease,
+                  transform 0.1s ease;
+
                 &:hover {
                   background-color: #5234c5;
                 }
+
+                &:active {
+                  transform: scale(0.97);
                 }
               }
+            }
+
+            // ── Inline field error text ────────────────────────
+            .fieldError {
+              font-size: 11px;
+              color: #c0392b;
+              margin-top: 2px;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+              animation: fadeInDown 0.2s ease;
+            }
+
+            // ── Error state modifier ───────────────────────────
+            &--error {
+              label {
+                color: #c0392b;
+              }
+
+              .inputActionWrapper {
+                border-color: #c0392b;
+
+                &:focus-within {
+                  border-color: #c0392b;
+                  box-shadow: 0 2px 0 0 rgba(192, 57, 43, 0.2);
+                }
+
+                input {
+                  background-color: #fff5f5;
+                }
               }
             }
           }
 
+          // ── Submit button ──────────────────────────────────────
           .submitButton {
             width: 150px;
             padding: 10px;
-            border: 1.5px solid #2A174E;
-            color: #2A174E;
+            border: 1.5px solid #2a174e;
+            background-color: transparent;
+            color: #2a174e;
             font-weight: bold;
+            font-size: 14px;
             cursor: pointer;
             margin-top: 10px;
             border-radius: 5px;
+            transition:
+              background-color 0.2s ease,
+              color 0.2s ease,
+              border-color 0.2s ease,
+              transform 0.1s ease;
 
             &:hover {
-              background-color: #4F2A94;
+              background-color: #4f2a94;
               color: white;
+              border-color: #4f2a94;
+            }
+
+            &:active {
+              transform: scale(0.97);
             }
           }
         }
       }
     }
+  }
+}
+
+// ── Animations ────────────────────────────────────────────────────────────────
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

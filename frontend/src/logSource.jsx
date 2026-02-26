@@ -1,8 +1,11 @@
+import { formatUserId } from "./utils/formatUserId";
+
 export const logColumns = [
   {
     field: "user_Id",
     headerName: "User ID",
     width: 150,
+    renderCell: (params) => formatUserId(params.row.user_Id),
   },
   {
     field: "last_name",
@@ -24,16 +27,4 @@ export const logColumns = [
     headerName: "Log Type",
     width: 150,
   },
-  {
-    field: "action",
-    headerName: "Action",
-    width: 180,
-    renderCell: (params) => {
-      return (
-        <span className={`status ${params.row.action.toLowerCase()}`}>
-          {params.row.action}
-        </span>
-      );
-  },
-  }
 ];

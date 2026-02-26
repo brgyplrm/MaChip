@@ -5,6 +5,7 @@ import Chart from "../../components/chart/Chart";
 import List from "../../components/table/Table";
 import { Link, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { formatUserId } from "../../utils/formatUserId";
 
 const Single = () => {
   const { userId } = useParams();
@@ -13,7 +14,9 @@ const Single = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await fetch(`http://localhost:4000/api/users/${userId}`);
+        const response = await fetch(
+          `http://localhost:4000/api/users/${userId}`,
+        );
         if (response.ok) {
           const data = await response.json();
           setUser(data);
@@ -33,7 +36,10 @@ const Single = () => {
         <div className="top">
           <div className="left">
             <div className="editButton">
-              <Link to={`/users/edit/${userId}`} style={{ textDecoration: "none", color: "inherit" }}>
+              <Link
+                to={`/users/edit/${userId}`}
+                style={{ textDecoration: "none", color: "inherit" }}
+              >
                 Edit
               </Link>
             </div>
@@ -46,11 +52,16 @@ const Single = () => {
                   className="itemImg"
                 />
                 <div className="details">
-                  <h1 className="itemTitle" id="user-name">{`${user.user_FirstName} ${user.user_LastName}`}</h1>
+                  <h1
+                    className="itemTitle"
+                    id="user-name"
+                  >{`${user.user_FirstName} ${user.user_LastName}`}</h1>
 
                   <div className="detailItem" id="user-id">
                     <span className="itemKey">User Id:</span>
-                    <span className="itemValue">{user.user_Id}</span>
+                    <span className="itemValue">
+                      {formatUserId(user.user_Id)}
+                    </span>
                   </div>
 
                   <div className="detailItem" id="user-email">
@@ -60,7 +71,9 @@ const Single = () => {
 
                   <div className="detailItem" id="machip-id">
                     <span className="itemKey">Machip:</span>
-                    <span className="itemValue">{user.user_MachipId || "N/A"}</span>
+                    <span className="itemValue">
+                      {user.user_MachipId || "N/A"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -74,7 +87,7 @@ const Single = () => {
         </div>
         <div className="bottom">
           <h1 className="title">Last Activity Log</h1>
-          <List />
+          <List userId={userId} />
         </div>
       </div>
     </div>

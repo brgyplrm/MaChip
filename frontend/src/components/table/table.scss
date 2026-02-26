@@ -1,11 +1,10 @@
-
 .table {
-
   width: 100%;
 
   .tableCell {
     background-color: transparent;
     border-bottom: 1px solid #ddd;
+    font-size: 13px !important;
   }
 
   .cellWrapper {
@@ -21,20 +20,59 @@
     }
   }
 
+  // ── Log Status (Logged In / Logged Out) ───────────────────────────────────
   .status {
-    padding: 5px;
+    padding: 4px 10px;
     border-radius: 5px;
-    display: inline-block; 
-    width: 60px;
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
     text-align: center;
+    white-space: nowrap;
 
     &.In {
-      color: green;
-      background-color: rgba(0, 128, 0, 0.151);
+      color: #1e7e4e;
+      background-color: rgba(30, 126, 78, 0.12);
     }
+
     &.Out {
-      color: goldenrod;
-      background-color: rgba(189, 189, 3, 0.103);
+      color: #b7791f;
+      background-color: rgba(183, 121, 31, 0.12);
+    }
+  }
+
+  // ── Attendance Status badges ───────────────────────────────────────────────
+  .attendance {
+    padding: 4px 10px;
+    border-radius: 5px;
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+
+    // On-Time
+    &.ontime {
+      color: #1565c0;
+      background-color: rgba(21, 101, 192, 0.12);
+    }
+
+    // Late
+    &.late {
+      color: #c0392b;
+      background-color: rgba(192, 57, 43, 0.12);
+    }
+
+    // Absent
+    &.absent {
+      color: #6d4c41;
+      background-color: rgba(109, 76, 65, 0.12);
+    }
+
+    // On-Leave
+    &.onleave {
+      color: #6a1b9a;
+      background-color: rgba(106, 27, 154, 0.12);
     }
   }
 }

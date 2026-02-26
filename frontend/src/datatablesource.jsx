@@ -1,3 +1,5 @@
+import { formatUserId } from "./utils/formatUserId";
+
 export const userColumns = [
   {
     field: "user_Number",
@@ -7,7 +9,12 @@ export const userColumns = [
       return params.api.getRowIndexRelativeToVisibleRows(params.id) + 1;
     },
   },
-  { field: "user_Id", headerName: "User ID", width: 120 },
+  {
+    field: "user_Id",
+    headerName: "User ID",
+    width: 120,
+    renderCell: (params) => formatUserId(params.row.user_Id),
+  },
   {
     field: "user",
     headerName: "Full Name",
@@ -21,11 +28,7 @@ export const userColumns = [
       {
         fullName;
       }
-      return (
-        <div className="cellWithImg">
-          {fullName}
-        </div>
-      );
+      return <div className="cellWithImg">{fullName}</div>;
     },
   },
   {

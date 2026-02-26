@@ -10,8 +10,9 @@
       padding: 10px;
       margin: 20px;
       display: flex;
-      background-color: #2A174E;
+      background-color: #2a174e;
       border-radius: 10px;
+
       h1 {
         color: white;
         margin: 7px 20px !important;
@@ -30,6 +31,8 @@
 
       .right {
         flex: 2;
+        width: 100%;
+
         form {
           display: flex;
           flex-wrap: wrap;
@@ -37,68 +40,170 @@
           justify-content: space-around;
           width: 100%;
 
+          // ── Individual field wrapper ─────────────────────────
           .formInput {
             width: 40%;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
 
             label {
               display: flex;
               align-items: center;
-              gap: 10px;
+              gap: 6px;
               font-weight: 600;
               color: #555;
+              font-size: 13px;
+              transition: color 0.2s ease;
+
+              // Required asterisk
+              .requiredMark {
+                color: #c0392b;
+                font-weight: 700;
+              }
             }
 
+            // ── Input wrapper (input + scan btn) ───────────────
             .inputActionWrapper {
               display: flex;
               align-items: center;
-              border-bottom: 1px solid gray;
+              border-bottom: 1.5px solid #ccc;
+              transition:
+                border-color 0.2s ease,
+                box-shadow 0.2s ease;
+
+              &:focus-within {
+                border-color: #2a174e;
+                box-shadow: 0 2px 0 0 rgba(42, 23, 78, 0.2);
+              }
 
               input {
                 width: 100%;
-                padding: 5px;
+                padding: 6px 4px;
                 border: none;
                 outline: none;
+                background: transparent;
+                font-size: 13px;
+                color: #333;
+
+                &::placeholder {
+                  color: #aaa;
+                  font-size: 12px;
+                }
+
+                &[readonly] {
+                  background-color: #f5f5f5;
+                  color: #888;
+                  cursor: not-allowed;
+                }
               }
 
               .scanButton {
+                flex-shrink: 0;
                 width: auto;
-                padding: 3px 10px;
+                padding: 4px 12px;
                 font-size: 10px;
-                background-color: #2A174E;
+                font-weight: 600;
+                background-color: #2a174e;
                 color: white;
                 border: none;
                 border-radius: 4px;
                 cursor: pointer;
-                margin-left: 5px;
-                
+                margin-left: 6px;
+                white-space: nowrap;
+                transition: background-color 0.2s ease;
+
                 &:hover {
-                  background-color: #4F2A94;
+                  background-color: #4f2a94;
+                }
+
+                &:active {
+                  transform: scale(0.97);
                 }
               }
             }
-            .bottom-center {
+
+            // ── Inline field error text ────────────────────────
+            .fieldError {
+              font-size: 11px;
+              color: #c0392b;
+              margin-top: 2px;
               display: flex;
-              justify-content: center;
-              width: 100%;
+              align-items: center;
+              gap: 4px;
+              animation: fadeInDown 0.2s ease;
+            }
+
+            // ── Error state modifier ───────────────────────────
+            &--error {
+              label {
+                color: #c0392b;
+              }
+
+              .inputActionWrapper {
+                border-color: #c0392b;
+
+                &:focus-within {
+                  border-color: #c0392b;
+                  box-shadow: 0 2px 0 0 rgba(192, 57, 43, 0.2);
+                }
+
+                input {
+                  background-color: #fff5f5;
+                }
+              }
+            }
           }
         }
       }
+
+      // ── Bottom centre — submit button ──────────────────────
+      .bottom-center {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        margin-top: 10px;
       }
     }
-    .submitButton {
-            width: 150px;
-            padding: 10px;
-            border: 1.5px solid #2A174E;
-            color: #2A174E;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 30px !important;
-            border-radius: 5px;
 
-            &:hover {
-              background-color: #4F2A94;
-              color: white;
-            }
-          }
+    // ── Submit / Add button ──────────────────────────────────
+    .submitButton {
+      width: 150px;
+      padding: 10px;
+      border: 1.5px solid #2a174e;
+      background-color: transparent;
+      color: #2a174e;
+      font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 20px;
+      border-radius: 5px;
+      transition:
+        background-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.1s ease;
+
+      &:hover {
+        background-color: #4f2a94;
+        color: white;
+        border-color: #4f2a94;
+      }
+
+      &:active {
+        transform: scale(0.97);
+      }
+    }
+  }
+}
+
+// ── Animations ────────────────────────────────────────────────────────────────
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
