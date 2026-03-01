@@ -14,20 +14,70 @@
     align-items: center;
     justify-content: space-between;
 
-    .search {
+    .breadcrumbs {
       display: flex;
       align-items: center;
-      border: 0.5px solid lightgray;
-      padding: 3px;
-      border-radius: 10px;
+      
+      a {
+        text-decoration: none;
+        color: #2A174E; // Using your primary purple theme
+        font-weight: 500;
+        
+        &:hover {
+          text-decoration: underline;
+        }
+      }
 
-      input {
-        border: none;
-        outline: none;
-        background: transparent;
+      .crumb {
+        display: flex;
+        align-items: center;
 
-        &::placeholder {
-          font-size: 12px;
+        .separator {
+          font-size: 18px;
+          color: #555;
+          margin: 0 5px;
+        }
+
+        // The current active page (last crumb)
+        &:last-child {
+          a {
+            color: #4F2A94;
+            font-weight: bold;
+            pointer-events: none; 
+          }
+        }
+      }
+    }.breadcrumbs {
+      display: flex;
+      align-items: center;
+      
+      a {
+        text-decoration: none;
+        color: #2A174E; // Using your primary purple theme
+        font-weight: 500;
+        
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+
+      .crumb {
+        display: flex;
+        align-items: center;
+
+        .separator {
+          font-size: 18px;
+          color: #555;
+          margin: 0 5px;
+        }
+
+        // The current active page (last crumb)
+        &:last-child {
+          a {
+            color: #4F2A94;
+            font-weight: bold;
+            pointer-events: none; 
+          }
         }
       }
     }

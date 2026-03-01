@@ -39,7 +39,31 @@
         margin-bottom: 20px;
         display: flex;
         align-items: center;
-        justify-content: space-between;
+
+        .searchWrapper {
+          flex: 1;             // Allows it to grow
+          margin-left: auto;      // Spacing between title and button
+          max-width: 250px;    // Prevents it from getting too wide
+          margin-right: 40px; // Spacing from the button
+
+          input {
+            width: 100%;
+            padding: 8px 15px;
+            border: 1px solid #2A174E; // Matching your primary purple
+            border-radius: 20px;       // Rounded look
+            outline: none;
+            font-size: 14px;
+            background-color: #f9f9f9;
+
+            &::placeholder {
+              color: #999;
+            }
+
+            &:focus {
+              box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
+            }
+          }
+        }
 
         .headerButton {
           background-color: #2A174E; // Your primary theme color

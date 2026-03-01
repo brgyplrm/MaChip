@@ -11,11 +11,22 @@ const Logs = () => {
   const [logData, setLogData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [searchQuery, setSearchQuery] = useState("");
 
   const dismissToast = useCallback(
     () => setToast({ message: "", type: "success" }),
     [],
   );
+
+  const filteredData = logData.filter((item) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      item.user_Id?.toString().toLowerCase().includes(query) ||
+      item.last_name?.toLowerCase().includes(query) ||
+      item.action?.toLowerCase().includes(query) ||
+      item.log_type?.toLowerCase().includes(query)
+    );
+  });
 
   // Fetch all logs from the backend
   const fetchLogs = useCallback(async () => {
@@ -127,6 +138,15 @@ const Logs = () => {
         <div className="datatable">
           <div className="datatableTitle">
             User Logging Activity
+
+            <div className="searchWrapper">
+              <input
+                type="text"
+                placeholder="Search logs (ID, Name, Action)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
             <button
               className="headerButton"
               onClick={handleGenerateLogs}
@@ -137,7 +157,7 @@ const Logs = () => {
           </div>
           <DataGrid
             className="datagrid"
-            rows={logData}
+            rows={filteredData}
             columns={logColumns.concat(actionColumn)}
             pageSize={10}
             rowsPerPageOptions={[10]}
