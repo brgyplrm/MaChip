@@ -9,9 +9,23 @@ import Toast from "../../components/toast/Toast";
 
 const Logs = () => {
   const [logData, setLogData] = useState([]);
+  const [users, setUsers] = useState([]); // State for dropdown list
+  const [selectedUser, setSelectedUser] = useState(""); // State for filter
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [searchQuery, setSearchQuery] = useState("");
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const response = await fetch("http://localhost:4000/api/users"); // Adjust endpoint as needed
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      }
+    } catch (err) {
+      console.error("Error fetching users:", err);
+    }
+  }, []);
 
   const dismissToast = useCallback(
     () => setToast({ message: "", type: "success" }),
@@ -20,12 +34,15 @@ const Logs = () => {
 
   const filteredData = logData.filter((item) => {
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch = 
       item.user_Id?.toString().toLowerCase().includes(query) ||
       item.last_name?.toLowerCase().includes(query) ||
       item.action?.toLowerCase().includes(query) ||
-      item.log_type?.toLowerCase().includes(query)
-    );
+      item.log_type?.toLowerCase().includes(query);
+
+    const matchesUser = selectedUser === "" || item.user_Id?.toString() === selectedUser;
+
+    return matchesSearch && matchesUser;
   });
 
   // Fetch all logs from the backend
@@ -65,7 +82,8 @@ const Logs = () => {
   // Load logs on mount
   useEffect(() => {
     fetchLogs();
-  }, [fetchLogs]);
+    fetchUsers(); // Fetch users on load
+  }, [fetchLogs, fetchUsers]);
 
   // Called when the "Generate Logs" button is clicked —
   // triggers markAttendance on the backend, then refreshes the table
@@ -127,6 +145,8 @@ const Logs = () => {
     },
   ];
 
+  // ... (keep all imports and logic above the return statement the same)
+
   return (
     <div className="logs">
       {/* ── Toast ── */}
@@ -139,14 +159,33 @@ const Logs = () => {
           <div className="datatableTitle">
             User Logging Activity
 
-            <div className="searchWrapper">
-              <input
-                type="text"
-                placeholder="Search logs (ID, Name, Action)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+            {/* Filter Section: Groups Search and Dropdown */}
+            <div className="filterSection">
+              <div className="searchWrapper">
+                <input
+                  type="text"
+                  placeholder="Search logs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="dropdownWrapper">
+                <select 
+                  value={selectedUser} 
+                  onChange={(e) => setSelectedUser(e.target.value)}
+                  className="userSelect"
+                >
+                  <option value="">All Users</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.user_LastName}, {user.user_FirstName}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
+
             <button
               className="headerButton"
               onClick={handleGenerateLogs}

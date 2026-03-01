@@ -35,38 +35,69 @@
       .datatableTitle {
         width: 100%;
         font-size: 24px;
-        color: #2A174E; // Matching your primary theme color
+        color: #2A174E;
         margin-bottom: 20px;
         display: flex;
         align-items: center;
+        justify-content: space-between;
+        gap: 0px;
+        flex-wrap: wrap;
 
-        .searchWrapper {
-          flex: 1;             // Allows it to grow
-          margin-left: auto;      // Spacing between title and button
-          max-width: 250px;    // Prevents it from getting too wide
-          margin-right: 40px; // Spacing from the button
+        .filterSection {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          flex: 1;
+          margin-left: 20px;
+          margin-right: 20px;
+          justify-content: flex-end;
 
-          input {
+          .searchWrapper {
             width: 100%;
-            padding: 8px 15px;
-            border: 1px solid #2A174E; // Matching your primary purple
-            border-radius: 20px;       // Rounded look
-            outline: none;
-            font-size: 14px;
-            background-color: #f9f9f9;
+            max-width: 250px;
+            min-width: 150px;
 
-            &::placeholder {
-              color: #999;
+            input {
+              width: 100%;
+              padding: 8px 15px;
+              border: 1px solid #2A174E;
+              border-radius: 20px;
+              outline: none;
+              font-size: 14px;
+              background-color: #f9f9f9;
+              margin-right: 100px;
+
+              &::placeholder {
+                color: #999;
+              }
+
+              &:focus {
+                box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
+              }
             }
+          }
 
-            &:focus {
-              box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
+          .dropdownWrapper {
+            .userSelect {
+              padding: 8px 12px;
+              border: 1px solid #2A174E;
+              border-radius: 8px;
+              background-color: #f9f9f9;
+              color: #2A174E;
+              font-size: 14px;
+              outline: none;
+              cursor: pointer;
+              margin-left: 35px;
+
+              &:focus {
+                box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
+              }
             }
           }
         }
 
         .headerButton {
-          background-color: #2A174E; // Your primary theme color
+          background-color: #2A174E;
           color: white;
           border: none;
           padding: 10px 20px;
@@ -77,11 +108,16 @@
           transition: background-color 0.3s ease;
 
           &:hover {
-            background-color: #502c92; // Slightly lighter purple on hover
+            background-color: #502c92;
           }
 
           &:active {
-            transform: scale(0.95); // Subtle click effect
+            transform: scale(0.95);
+          }
+
+          &:disabled {
+            background-color: gray;
+            cursor: not-allowed;
           }
         }
       }
@@ -111,4 +147,3 @@
     }
   }
 }
-
