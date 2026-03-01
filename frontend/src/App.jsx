@@ -3,7 +3,7 @@ import Login from "./pages/login/Login";
 import List from "./pages/list/List";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
-import Edit from "./pages/edit/Edit";
+import Edit from "./pages/editUser/Edit";
 import Logs from "./pages/logs-management/Logs";
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
@@ -29,7 +29,7 @@ function App() {
         <Route path="users">
           <Route index element={<ProtectedRoute><List /></ProtectedRoute>} />
           <Route path=":userId" element={<ProtectedRoute><Single /></ProtectedRoute>} />
-          <Route path="edit/:userId" element={<ProtectedRoute><Edit inputs={userInputs} title="Edit User Profile" /></ProtectedRoute>} />
+          <Route path="editUser/:userId" element={<ProtectedRoute><Edit inputs={userInputs} title="Edit User Profile" /></ProtectedRoute>} />
           <Route path="new" element={<ProtectedRoute><New inputs={userInputs} title="Add New User" /></ProtectedRoute>} />
         </Route>
 
