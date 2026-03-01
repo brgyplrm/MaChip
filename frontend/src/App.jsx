@@ -11,35 +11,33 @@ import Settings from "./pages/settings/Settings";
 import Logout from "./pages/logout/logout";
 import { Routes, Route } from "react-router-dom";
 import { userInputs } from "./formSource";
+import ProtectedRoute from "./components/protectedroute/ProtectedRoute";
 
 function App() {
   return (
     <div className="app">
       <Routes>
-        <Route path="/">
-          <Route index element={<Home />} />
-          <Route path="login" element={<Login />} />
-          <Route path="users">
-            <Route index element={<List />} />
-            {/* Wrap the Single and Edit routes under the ID parameter */}
-            <Route path=":userId">
-              <Route index element={<Single />} />
-            </Route>
-            <Route
-              path="edit/:userId"
-              element={<Edit inputs={userInputs} title="Edit User Profile" />}
-            />
-            <Route
-              path="new"
-              element={<New inputs={userInputs} title="Add New User" />}
-            />
-          </Route>
-          <Route path="logs" element={<Logs />} />
-          <Route path="notifications" element={<Notifications />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="profile" element={<Profile />} />
-          <Route path="logout" element={<Logout />} />
+        <Route path="login" element={<Login />} />
+        
+        {/* Wrap all protected routes */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <Home />
+          </ProtectedRoute>
+        } />
+
+        <Route path="users">
+          <Route index element={<ProtectedRoute><List /></ProtectedRoute>} />
+          <Route path=":userId" element={<ProtectedRoute><Single /></ProtectedRoute>} />
+          <Route path="edit/:userId" element={<ProtectedRoute><Edit inputs={userInputs} title="Edit User Profile" /></ProtectedRoute>} />
+          <Route path="new" element={<ProtectedRoute><New inputs={userInputs} title="Add New User" /></ProtectedRoute>} />
         </Route>
+
+        <Route path="logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
+        <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+        <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="logout" element={<Logout />} />
       </Routes>
     </div>
   );
