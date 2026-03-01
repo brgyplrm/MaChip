@@ -41,7 +41,7 @@ const List = ({ userId }) => {
 
   const getLogStatusClass = (logStatus) => {
     if (!logStatus) return "";
-    return logStatus === "Logged In" ? "In" : "Out";
+    return logStatus === "Clock In" ? "In" : "Out";
   };
 
   const getAttendanceClass = (attendanceStatus) => {

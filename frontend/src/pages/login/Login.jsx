@@ -3,15 +3,23 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 
-// ── Validation helpers ────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const validateForm = ({ username, password }) => {
+// Accepts "MACJ-001", "MACJ-1", "macj-001" — returns the numeric part as an
+// integer (e.g. 1), or NaN if the format doesn't match.
+const parseMacjId = (value) => {
+  const match = value.trim().match(/^MACJ-(\d+)$/i);
+  if (!match) return NaN;
+  return parseInt(match[1], 10);
+};
+
+const validateForm = ({ rawId, password }) => {
   const errors = {};
 
-  if (!username.trim()) {
-    errors.username = "Username is required.";
-  } else if (username.trim().length < 3) {
-    errors.username = "Username must be at least 3 characters.";
+  if (!rawId.trim()) {
+    errors.user_Id = "User ID is required.";
+  } else if (isNaN(parseMacjId(rawId))) {
+    errors.user_Id = "User ID must follow the format MACJ-001.";
   }
 
   if (!password) {
@@ -26,18 +34,14 @@ const validateForm = ({ username, password }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Login = () => {
-  const [username, setUsername] = useState("");
+  const [rawId, setRawId] = useState("");
   const [password, setPassword] = useState("");
-
-  // field-level error messages
   const [errors, setErrors] = useState({});
-
-  // toast notification: { message, type }
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
-  // Clear a single field error when the user starts typing again
   const clearError = (field) => setErrors((prev) => ({ ...prev, [field]: "" }));
 
   const dismissToast = useCallback(
@@ -48,8 +52,8 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
 
-    // 1. Validate
-    const validationErrors = validateForm({ username, password });
+    // 1. Client-side validation
+    const validationErrors = validateForm({ rawId, password });
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       setToast({
@@ -59,24 +63,41 @@ const Login = () => {
       return;
     }
 
-    // 2. Submit
+    setLoading(true);
+
+    // 2. Parse the numeric ID from "MACJ-001" → 1
+    const numericId = parseMacjId(rawId);
+
+    // 3. Submit to auth route
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password }),
+        body: JSON.stringify({ user_Id: numericId, password }),
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
+        // 4. Persist session so ProtectedRoute can verify
+        localStorage.setItem("token", String(data.data.user_Id));
+        localStorage.setItem("userData", JSON.stringify(data.data));
+
         setToast({
           message: "Login successful! Redirecting…",
           type: "success",
         });
+
+        // 5. Redirect admin to dashboard
         setTimeout(() => navigate("/"), 1200);
-      } else {
-        const data = await response.json().catch(() => ({}));
+      } else if (response.status === 403) {
         setToast({
-          message: data.error || "Invalid username or password.",
+          message: data.error || "Access denied. Admins only.",
+          type: "error",
+        });
+      } else {
+        setToast({
+          message: data.error || "Invalid user ID or password.",
           type: "error",
         });
       }
@@ -85,6 +106,8 @@ const Login = () => {
         message: "Could not connect to the server. Please try again.",
         type: "error",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -101,24 +124,25 @@ const Login = () => {
         </div>
 
         <form onSubmit={handleLogin} noValidate>
-          {/* Username */}
+          {/* User ID */}
           <div
-            className={`inputItem${errors.username ? " inputItem--error" : ""}`}
+            className={`inputItem${errors.user_Id ? " inputItem--error" : ""}`}
           >
-            <label htmlFor="login-username">Username:</label>
+            <label htmlFor="login-user-id">User ID:</label>
             <input
-              id="login-username"
+              id="login-user-id"
               type="text"
-              value={username}
+              value={rawId}
               onChange={(e) => {
-                setUsername(e.target.value);
-                clearError("username");
+                setRawId(e.target.value);
+                clearError("user_Id");
               }}
-              placeholder="Enter your username"
+              placeholder="e.g. MACJ-001"
               autoComplete="username"
+              disabled={loading}
             />
-            {errors.username && (
-              <span className="fieldError">{errors.username}</span>
+            {errors.user_Id && (
+              <span className="fieldError">{errors.user_Id}</span>
             )}
           </div>
 
@@ -137,13 +161,16 @@ const Login = () => {
               }}
               placeholder="Enter your password"
               autoComplete="current-password"
+              disabled={loading}
             />
             {errors.password && (
               <span className="fieldError">{errors.password}</span>
             )}
           </div>
 
-          <button type="submit">Login</button>
+          <button type="submit" disabled={loading}>
+            {loading ? "Signing in…" : "Login"}
+          </button>
         </form>
       </div>
     </div>

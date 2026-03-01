@@ -4,7 +4,10 @@ exports.getNextUserId = async (req, res) => {
   try {
     // Use MAX(user_Id) + 1 so the displayed ID is always sequential
     // and is fully independent of any gaps in the auto-increment user_Number PK
-    const lastUser = await User.findOne({ order: [["user_Id", "DESC"]] });
+    const lastUser = await User.findOne({
+      order: [["user_Id", "DESC"]],
+      paranoid: false,
+    });
     const nextId = (lastUser ? lastUser.user_Id : 0) + 1;
     res.status(200).json({
       nextId,
@@ -43,7 +46,10 @@ exports.registerUser = async (req, res) => {
 
     // 2. Generate the next sequential user_Id based on MAX(user_Id)
     // This avoids inheriting gaps from the auto-increment user_Number PK
-    const lastUser = await User.findOne({ order: [["user_Id", "DESC"]] });
+    const lastUser = await User.findOne({
+      order: [["user_Id", "DESC"]],
+      paranoid: false,
+    });
     const nextId = (lastUser ? lastUser.user_Id : 0) + 1;
 
     // 3. Create the user — user_Id is a plain integer, display formatting is done on the frontend
@@ -93,11 +99,49 @@ exports.deleteUser = async (req, res) => {
   const { user_Id } = req.params;
 
   try {
-    const deleted = await User.destroy({ where: { user_Id: user_Id } });
+    // paranoid: true on the model means this sets deletedAt instead of removing the row
+    const deleted = await User.destroy({ where: { user_Id } });
     if (deleted) {
-      res.status(200).json({ message: "User deleted successfully" });
+      res.status(200).json({ message: "User soft-deleted successfully." });
     } else {
-      res.status(404).json({ message: "User not found" });
+      res.status(404).json({ message: "User not found." });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Restore a soft-deleted user (clears deletedAt)
+exports.restoreUser = async (req, res) => {
+  const { user_Id } = req.params;
+
+  try {
+    const user = await User.findOne({ where: { user_Id }, paranoid: false });
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    if (!user.deletedAt) {
+      return res.status(400).json({ message: "User is not deleted." });
+    }
+    await user.restore();
+    res
+      .status(200)
+      .json({ message: "User restored successfully.", data: user });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Permanently delete a user (hard delete, cannot be undone)
+exports.forceDeleteUser = async (req, res) => {
+  const { user_Id } = req.params;
+
+  try {
+    const deleted = await User.destroy({ where: { user_Id }, force: true });
+    if (deleted) {
+      res.status(200).json({ message: "User permanently deleted." });
+    } else {
+      res.status(404).json({ message: "User not found." });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });

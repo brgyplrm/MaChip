@@ -10,7 +10,7 @@ const sequelize = new Sequelize(
     port: process.env.DB_PORT || 4000,
     dialect: "mysql",
     define: {
-      freezeTableName: true, // Stops "Users" vs "User" duplicates
+      freezeTableName: true,
     },
     dialectOptions: {
       ssl: {
@@ -28,8 +28,9 @@ const sequelize = new Sequelize(
   },
 );
 
-// 2. Define all models by passing the sequelize instance
+// ── Models ────────────────────────────────────────────────────────────────────
 const User = require("../models/user.models")(sequelize, DataTypes);
+
 const {
   user_logging,
   employee_Logging_report,
@@ -37,7 +38,14 @@ const {
   attendance_status,
 } = require("../models/attendance.models")(sequelize, DataTypes);
 
-// 3. Define associations
+const { Overtime, OvertimeStatuses } = require("../models/overtime.models")(
+  sequelize,
+  DataTypes,
+);
+
+// ── Associations ──────────────────────────────────────────────────────────────
+
+// User ↔ user_logging
 User.hasMany(user_logging, { foreignKey: "user_id", sourceKey: "user_Id" });
 user_logging.belongsTo(User, {
   foreignKey: "user_id",
@@ -45,7 +53,7 @@ user_logging.belongsTo(User, {
   as: "user",
 });
 
-// employee_Logging_report → User (daily report belongs to a user)
+// User ↔ employee_Logging_report
 User.hasMany(employee_Logging_report, {
   foreignKey: "user_id",
   sourceKey: "user_Id",
@@ -56,70 +64,80 @@ employee_Logging_report.belongsTo(User, {
   as: "user",
 });
 
-// 4. The connectDB function remains the same
+// User ↔ Overtime
+User.hasMany(Overtime, { foreignKey: "OTuser_Id", sourceKey: "user_Id" });
+Overtime.belongsTo(User, {
+  foreignKey: "OTuser_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
+
+// ── connectDB ─────────────────────────────────────────────────────────────────
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log(
       "Connection to the database has been established successfully.",
     );
-    // Synchronize models (e.g., create tables if they don't exist)
+
+    // Create any missing tables (does NOT alter existing ones)
     await sequelize.sync();
     console.log("All models were synchronized successfully.");
 
-    // ── Migrate employee_Logging_report to the new daily-summary schema ───────
-    // Disable FK checks so we can safely drop old columns and add new ones
-    // without worrying about dangling constraint names from the old schema.
-    await sequelize.query("SET FOREIGN_KEY_CHECKS = 0");
+    // ── Seed: logged_status ─────────────────────────────────────────────────
     try {
-      // Alter the table to match the new model definition
-      await employee_Logging_report.sync({ alter: true });
-      console.log("employee_Logging_report schema migrated successfully.");
+      const status_count = await logged_status.count();
+      if (status_count === 0) {
+        await logged_status.bulkCreate([
+          { statusId: 1, statusName: "Clock In" },
+          { statusId: 2, statusName: "Clock Out" },
+          { statusId: 3, statusName: "Out For Lunch" },
+          { statusId: 4, statusName: "In From Lunch" },
+          { statusId: 5, statusName: "Overtime-In" },
+          { statusId: 6, statusName: "Overtime-Out" },
+        ]);
+        console.log("Seed: logged_status inserted.");
+      }
     } catch (err) {
-      console.warn("employee_Logging_report migration warning:", err.message);
-    } finally {
-      await sequelize.query("SET FOREIGN_KEY_CHECKS = 1");
+      console.error("Seed error (logged_status):", err.message);
     }
 
-    // ── Reset AUTO_INCREMENT counters to MAX + 1 ──────────────────────────────
-    // MySQL InnoDB never rolls back the AUTO_INCREMENT counter on a failed INSERT.
-    // This means every validation error or constraint violation permanently
-    // inflates the counter. Running ALTER TABLE ... AUTO_INCREMENT = 1 on startup
-    // tells MySQL to reset to MAX(id) + 1, closing any gaps accumulated from
-    // previous failed attempts or from sync({ alter: true }) runs.
-    // MySQL silently ignores the "1" and uses MAX(pk) + 1 instead.
-    await sequelize.query("ALTER TABLE `User` AUTO_INCREMENT = 1");
-    await sequelize.query("ALTER TABLE `user_logging` AUTO_INCREMENT = 1");
-    await sequelize.query(
-      "ALTER TABLE `employee_Logging_report` AUTO_INCREMENT = 1",
-    );
-    console.log("AUTO_INCREMENT counters normalized to MAX + 1.");
-
-    const status_count = await logged_status.count();
-    if (status_count == 0) {
-      await logged_status.bulkCreate([
-        { statusId: 1, statusName: "Logged In" },
-        { statusId: 2, statusName: "Logged Out" },
-      ]);
-      console.log("Logged status data inserted successfully.");
+    // ── Seed: attendance_status ─────────────────────────────────────────────
+    try {
+      const attendance_count = await attendance_status.count();
+      if (attendance_count === 0) {
+        await attendance_status.bulkCreate([
+          { statusId: 1, statusName: "On-Time" },
+          { statusId: 2, statusName: "Late" },
+          { statusId: 3, statusName: "Absent" },
+          { statusId: 4, statusName: "On-Leave" },
+        ]);
+        console.log("Seed: attendance_status inserted.");
+      }
+    } catch (err) {
+      console.error("Seed error (attendance_status):", err.message);
     }
 
-    const attendance_count = await attendance_status.count();
-    if (attendance_count == 0) {
-      await attendance_status.bulkCreate([
-        { statusId: 1, statusName: "On-Time" },
-        { statusId: 2, statusName: "Late" },
-        { statusId: 3, statusName: "Absent" },
-        { statusId: 4, statusName: "On-Leave" },
-      ]);
-      console.log("Attendance status data inserted successfully");
+    // ── Seed: OvertimeStatuses ──────────────────────────────────────────────
+    try {
+      const overtime_count = await OvertimeStatuses.count();
+      if (overtime_count === 0) {
+        await OvertimeStatuses.bulkCreate([
+          { Status_Id: 1, Status_Name: "Pending" },
+          { Status_Id: 2, Status_Name: "Approved" },
+          { Status_Id: 3, Status_Name: "Rejected" },
+        ]);
+        console.log("Seed: OvertimeStatuses inserted.");
+      }
+    } catch (err) {
+      console.error("Seed error (OvertimeStatuses):", err.message);
     }
   } catch (error) {
     console.error("Unable to connect to the database:", error);
   }
 };
 
-// 5. Export everything
+// ── Exports ───────────────────────────────────────────────────────────────────
 module.exports = {
   sequelize,
   connectDB,
@@ -128,4 +146,6 @@ module.exports = {
   employee_Logging_report,
   logged_status,
   attendance_status,
+  Overtime,
+  OvertimeStatuses,
 };

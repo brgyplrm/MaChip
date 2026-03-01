@@ -23,24 +23,43 @@ exports.markAttendance = async (req, res) => {
 
     const now = new Date();
 
-    // ── Determine login / logout status ──────────────────────────────────────
+    // ── Lunch window check ────────────────────────────────────────────────────
+    // Lunch break: 12:00 PM – 1:00 PM
+    const totalMinutes = now.getHours() * 60 + now.getMinutes();
+    const LUNCH_START = 12 * 60; // 720 mins = 12:00 PM
+    const LUNCH_END = 13 * 60; // 780 mins =  1:00 PM
+    const isLunchWindow =
+      totalMinutes >= LUNCH_START && totalMinutes < LUNCH_END;
+
+    // ── Determine next status ─────────────────────────────────────────────────
+    // time_LoggedStatus values (seeded in logged_status table):
+    //   1 = Clock In  |  2 = Clock Out
+    //   3 = Out For Lunch  |  4 = In From Lunch
     const lastLog = await user_logging.findOne({
       where: { user_id: user_Id },
       order: [["user_loggingId", "DESC"]],
     });
 
-    // nextStatus: 1 = Logged In, 2 = Logged Out
-    const nextStatus = lastLog && lastLog.time_LoggedStatus === 1 ? 2 : 1;
+    const lastStatus = lastLog ? lastLog.time_LoggedStatus : null;
+
+    let nextStatus;
+    if (!lastStatus || lastStatus === 2) {
+      // No record yet today, or last action was Clock Out → Clock In
+      nextStatus = 1;
+    } else if (lastStatus === 3) {
+      // Currently out for lunch → coming back
+      nextStatus = 4; // In From Lunch
+    } else {
+      // lastStatus === 1 (Clock In) or 4 (In From Lunch) → currently in office
+      nextStatus = isLunchWindow ? 3 : 2; // lunch time → Out For Lunch, else → Clock Out
+    }
 
     // ── Attendance value ──────────────────────────────────────────────────────
-    // Rules:
-    //  • Login  + first of the day → 1 (On-Time) if before 09:00, else 2 (Late)
-    //  • Login  + NOT first of the day → null  (no status)
-    //  • Logout → null  (no status)
+    // Only assigned on the very first Clock In of the day.
+    //   1 = On-Time (before 09:00)  |  2 = Late (09:00 or after)
     let attendanceVal = null;
 
     if (nextStatus === 1) {
-      // Check whether there is already a login for today
       const startOfDay = new Date(now);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(now);
@@ -55,13 +74,9 @@ exports.markAttendance = async (req, res) => {
       });
 
       if (!firstLoginToday) {
-        // This IS the first login of the day — assign On-Time or Late
-        const hour = now.getHours();
-        attendanceVal = hour < 9 ? 1 : 2; // 1 = On-Time, 2 = Late
+        attendanceVal = now.getHours() < 9 ? 1 : 2;
       }
-      // else: not the first login today → attendanceVal stays null
     }
-    // For logout (nextStatus === 2): attendanceVal stays null
 
     const timeStr = now.toTimeString().split(" ")[0]; // "HH:MM:SS"
     const todayStr = now.toISOString().split("T")[0]; // "YYYY-MM-DD"
@@ -76,50 +91,60 @@ exports.markAttendance = async (req, res) => {
     });
 
     // ── 2. Upsert the daily summary in employee_Logging_report ───────────────
-    // Rules:
-    //  • One row per user per day (unique_user_day index)
-    //  • Login  → append timeStr to time_Logged_inArr, set final_LoggedStatus = 1
-    //  • Logout → append timeStr to time_Logged_outArr, set final_LoggedStatus = 2
-    //  • attendance is only set on the very first login row creation
+    // Entries (Clock In + In From Lunch)  → time_Logged_inArr
+    // Exits  (Clock Out + Out For Lunch)  → time_Logged_outArr
+    //
+    // final_LoggedStatus:
+    //   Clock In (1)       → 1  (in office)
+    //   Clock Out (2)      → 2  (out of office)
+    //   Out For Lunch (3)  → 3  (on lunch break)
+    //   In From Lunch (4)  → 1  (back in office)
+    const isEntry = nextStatus === 1 || nextStatus === 4;
+    const finalStatus = nextStatus === 4 ? 1 : nextStatus; // 4 → 1 (back in office)
 
     const existingReport = await employee_Logging_report.findOne({
       where: { user_id: user_Id, log_Date: todayStr },
     });
 
     if (!existingReport) {
-      // First event of the day — create the daily summary row
       await employee_Logging_report.create({
         user_id: user_Id,
         log_Date: todayStr,
-        time_Logged_inArr:
-          nextStatus === 1 ? JSON.stringify([timeStr]) : JSON.stringify([]),
-        time_Logged_outArr:
-          nextStatus === 2 ? JSON.stringify([timeStr]) : JSON.stringify([]),
-        attendance: attendanceVal, // On-Time / Late / null
-        final_LoggedStatus: nextStatus,
+        time_Logged_inArr: isEntry
+          ? JSON.stringify([timeStr])
+          : JSON.stringify([]),
+        time_Logged_outArr: !isEntry
+          ? JSON.stringify([timeStr])
+          : JSON.stringify([]),
+        attendance: attendanceVal,
+        final_LoggedStatus: finalStatus,
       });
     } else {
-      // Row already exists — append the time to the correct array and flip status
       const inArr = JSON.parse(existingReport.time_Logged_inArr || "[]");
       const outArr = JSON.parse(existingReport.time_Logged_outArr || "[]");
 
-      if (nextStatus === 1) {
+      if (isEntry) {
         inArr.push(timeStr);
-        await existingReport.update({
-          time_Logged_inArr: JSON.stringify(inArr),
-          final_LoggedStatus: 1,
-        });
       } else {
         outArr.push(timeStr);
-        await existingReport.update({
-          time_Logged_outArr: JSON.stringify(outArr),
-          final_LoggedStatus: 2,
-        });
       }
+
+      await existingReport.update({
+        time_Logged_inArr: JSON.stringify(inArr),
+        time_Logged_outArr: JSON.stringify(outArr),
+        final_LoggedStatus: finalStatus,
+      });
     }
 
+    const statusLabels = {
+      1: "Clock In",
+      2: "Clock Out",
+      3: "Out For Lunch",
+      4: "In From Lunch",
+    };
+
     return res.status(201).json({
-      message: `User ${nextStatus === 1 ? "logged in" : "logged out"} successfully`,
+      message: `${statusLabels[nextStatus]} recorded successfully`,
       data: newLog,
     });
   } catch (error) {
@@ -159,7 +184,7 @@ exports.viewUserLogs = async (req, res) => {
         time_Out: outArr[outArr.length - 1] ?? null, // last logout — latest
         logStatus:
           report.loggedStatus?.statusName ??
-          (report.final_LoggedStatus === 1 ? "Logged In" : "Logged Out"),
+          (report.final_LoggedStatus === 1 ? "Clock In" : "Clock Out"),
         attendanceStatus: report.attendanceStatus?.statusName ?? "—",
       };
     });
