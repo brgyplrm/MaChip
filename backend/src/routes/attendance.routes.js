@@ -9,6 +9,7 @@ router.get("/occupancy", attendanceController.getOfficeOccupancy);
 
 router.get("/logs/:user_Id", attendanceController.viewUserLogs);
 
+<<<<<<< HEAD
 router.get("/all", attendanceController.viewAllAttendance);
 
 router.get("/status/:user_Id", attendanceController.StatusLogic);
@@ -18,3 +19,10 @@ router.delete("/all", attendanceController.deleteAllLogs);
 router.get("/stats", attendanceController.getDashboardStats);
 
 module.exports = router;
+=======
+router.get('/status/:user_Id', attendanceController.StatusLogic);
+
+router.delete('/all', attendanceController.deleteAllLogs);
+
+module.exports = router;
+>>>>>>> main

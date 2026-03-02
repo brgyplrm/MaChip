@@ -1,4 +1,4 @@
-const API_URL = 'api/users';
+const API_URL = '/api/users';
 
 // Fetch Next User ID
 async function fetchNextUserId() {
@@ -13,24 +13,60 @@ async function fetchNextUserId() {
     }
 }
 
-// Initialize page
-document.addEventListener('DOMContentLoaded', () => {
-    fetchNextUserId();
-});
-
 async function generateRfid() {
+    console.log("Generate RFID button clicked");
     try {
+        console.log("Fetching from:", `${API_URL}/generateRfid`);
         const response = await fetch(`${API_URL}/generateRfid`);
+        console.log("Response status:", response.status);
         const data = await response.json();
+        console.log("Data received:", data);
         if (response.ok) {
             document.getElementById('user_MachipId').value = data.rfid;
+            console.log("Input value set to:", data.rfid);
+        } else {
+            console.error("Response not OK:", data);
         }
     } catch (err) {
         console.error("Error generating RFID:", err);
     }
 }
 
-document.getElementById('generateIdBtn').addEventListener('click', generateRfid); 
+async function generateRfidUpdate() {
+    console.log("Generate RFID button clicked for update");
+    try {
+        console.log("Fetching from:", `${API_URL}/generateRfid`);   
+        const response = await fetch(`${API_URL}/generateRfid`);
+        console.log("Response status:", response.status);
+        const data = await response.json();
+        console.log("Data received:", data);
+        if (response.ok) {
+            document.getElementById('upd_machipId').value = data.rfid;
+            console.log("Input value set to:", data.rfid);
+        } else {
+            console.error("Response not OK:", data);
+        }
+    } catch (err) {
+        console.error("Error generating RFID for update:", err);
+    }
+}
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', () => {
+    fetchNextUserId();
+    const genBtn = document.getElementById('generateRFIDBtn');
+    const genBtnUpdate = document.getElementById('generateupd_RFIDBtn');
+    if (genBtn) {
+        genBtn.addEventListener('click', generateRfid);
+    } else {
+        console.error("Could not find generateRFIDBtn element");
+    }
+    if (genBtnUpdate) {
+        genBtnUpdate.addEventListener('click', generateRfidUpdate);
+    } else {
+        console.error("Could not find generateupd_RFIDBtn element");
+    }
+});
 
 // Register User
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
@@ -52,6 +88,9 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         case !!userData.user_Id:
             alert("Error: User ID is missing.");
             return;
+        case !!userData.user_Username:
+            alert("Error: Username is required.");
+            return;
         case userData.user_FirstName.trim() !== "" && !/\d/.test(userData.user_FirstName):
             alert("Error: First Name cannot be empty and must not contain numbers.");
             return;
@@ -61,8 +100,11 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         case userData.user_MiddleName.trim() === "" || !/\d/.test(userData.user_MiddleName):
             alert("Error: Middle Name must not contain numbers if provided.");
             return;
-        case !!userData.user_MachipId:
-            alert("Error: Please enter a valid MaChip ID.");
+        case !!userData.user_Email:
+            alert("Error: Email is required.");
+            return;
+        case !!userData.user_Password:
+            alert("Error: Password is required.");
             return;
     }   
 
@@ -240,11 +282,11 @@ async function fetchAllUsers() {
         if (response.ok) {
             tbody.innerHTML = ''; // Clear current table
             users.forEach(user => {
+                const fullName = `${user.user_FirstName} ${user.user_MiddleName ? user.user_MiddleName + ' ' : ''}${user.user_LastName}`;
                 const row = `<tr>
                     <td style="padding: 8px;">${user.user_Id}</td>
-                    <td style="padding: 8px;">${user.user_FirstName}</td>
-                    <td style="padding: 8px;">${user.user_LastName}</td>
-                    <td style="padding: 8px;">${user.user_MiddleName || '-'}</td>
+                    <td style="padding: 8px;">${fullName}</td>
+                    <td style="padding: 8px;">${user.user_Email}</td>
                     <td style="padding: 8px;">${user.user_MachipId}</td>
                     <td style="padding: 8px;">${user.user_Role}</td>
                 </tr>`;

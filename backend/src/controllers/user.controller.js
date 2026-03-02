@@ -44,6 +44,7 @@ exports.registerUser = async (req, res) => {
         .json({ error: "Middle Name must not contain numbers." });
     }
 
+<<<<<<< HEAD
     // 2. Generate the next sequential user_Id based on MAX(user_Id)
     // This avoids inheriting gaps from the auto-increment user_Number PK
     const lastUser = await User.findOne({
@@ -55,6 +56,15 @@ exports.registerUser = async (req, res) => {
     // 3. Create the user — user_Id is a plain integer, display formatting is done on the frontend
     const newUser = await User.create({
       user_Id: nextId,
+=======
+    if (req.body.user_MiddleName && /\d/.test(req.body.user_MiddleName)) {
+      return res.status(400).json({ error: 'Middle Name must not contain numbers.' });
+    }
+
+    // 3. Create the user
+    const newUser = await User.create({ 
+      user_Id: generatedUserId,
+>>>>>>> main
       user_Username: req.body.user_Username,
       user_FirstName: req.body.user_FirstName,
       user_LastName: req.body.user_LastName,
@@ -64,7 +74,11 @@ exports.registerUser = async (req, res) => {
       user_MachipId: req.body.user_MachipId,
       user_Role: req.body.user_Role || "Employee",
     });
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> main
     res.status(201).json({ message: "User Registered!", data: newUser });
   } catch (error) {
     res.status(500).json({ error: error.message });
