@@ -9,10 +9,12 @@ const Logout = () => {
       try {
         // 1. Optional: Tell your backend (Express/Flask) to end the session
         // Based on your port 4000 setup
-        await fetch("http://localhost:4000/api/users/logout", { method: "POST" });
+        await fetch("http://localhost:4000/api/users/logout", {
+          method: "POST",
+        });
 
         // 2. Clear local storage/Session storage
-        localStorage.removeItem("userToken");
+        localStorage.removeItem("token");
         localStorage.removeItem("userData");
 
         // 3. Redirect back to the login page you just created

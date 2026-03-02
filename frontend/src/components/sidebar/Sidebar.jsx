@@ -14,7 +14,7 @@ const Sidebar = () => {
       <div className="top">
         <NavLink to="/" style={{ textDecoration: "none" }}>
           <span className="logo">
-            <img src="/images.png" alt="Logo" className="logo-img"/>
+            <img src="/images.png" alt="Logo" className="logo-img" />
           </span>
         </NavLink>
       </div>
@@ -22,7 +22,7 @@ const Sidebar = () => {
       <div className="center">
         <ul>
           <p className="title">MAIN</p>
-         <NavLink to="/" style={{ textDecoration: "none" }}>
+          <NavLink to="/" style={{ textDecoration: "none" }}>
             <li>
               <DashboardIcon className="icon" />
               <span>Dashboard</span>
@@ -36,17 +36,17 @@ const Sidebar = () => {
             </li>
           </NavLink>
           <NavLink to="/logs" style={{ textDecoration: "none" }}>
-             <li>
-            <PsychologyOutlinedIcon className="icon" />
-            <span>Logs</span>
-          </li>
+            <li>
+              <PsychologyOutlinedIcon className="icon" />
+              <span>Logs</span>
+            </li>
           </NavLink>
           <p className="title">USER</p>
-           <NavLink to="/notifications" style={{ textDecoration: "none" }}>
-           <li>
+          <NavLink to="/notifications" style={{ textDecoration: "none" }}>
+            <li>
               <NotificationsNoneIcon className="icon" />
               <span>Notifications</span>
-          </li>
+            </li>
           </NavLink>
           <NavLink to="/settings" style={{ textDecoration: "none" }}>
             <li>
@@ -55,16 +55,17 @@ const Sidebar = () => {
             </li>
           </NavLink>
           <NavLink to="/profile" style={{ textDecoration: "none" }}>
-          <li>
-            <AccountCircleOutlinedIcon className="icon" />
-            <span>Profile</span>
-          </li>
+            <li>
+              <AccountCircleOutlinedIcon className="icon" />
+              <span>Profile</span>
+            </li>
           </NavLink>
-          <li>
-            <ExitToAppIcon className="icon" />
-            <span>Logout</span>
-          </li>
-
+          <NavLink to="/logout" style={{ textDecoration: "none" }}>
+            <li>
+              <ExitToAppIcon className="icon" />
+              <span>Logout</span>
+            </li>
+          </NavLink>
         </ul>
       </div>
       <div className="bottom">
