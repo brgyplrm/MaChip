@@ -43,7 +43,6 @@ exports.registerUser = async (req, res) => {
         .status(400)
         .json({ error: "Middle Name must not contain numbers." });
     }
-
     // 2. Generate the next sequential user_Id based on MAX(user_Id)
     // This avoids inheriting gaps from the auto-increment user_Number PK
     const lastUser = await User.findOne({
@@ -64,7 +63,6 @@ exports.registerUser = async (req, res) => {
       user_MachipId: req.body.user_MachipId,
       user_Role: req.body.user_Role || "Employee",
     });
-
     res.status(201).json({ message: "User Registered!", data: newUser });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -172,16 +170,16 @@ exports.updateUser = async (req, res) => {
       updateFields.user_Password = user_Password;
     }
 
-    const [updated] = await User.update(updateFields, {
-      where: { user_Id: user_Id },
-      individualHooks: true, // Required for the beforeUpdate hook to trigger
-    });
-
-    if (req.body.user_MiddleName && /\d/.test(req.body.user_MiddleName)) {
+    if (user_MiddleName && /\d/.test(user_MiddleName)) {
       return res
         .status(400)
         .json({ error: "Middle Name must not contain numbers." });
     }
+
+    const [updated] = await User.update(updateFields, {
+      where: { user_Id: user_Id },
+      individualHooks: true, // Required for the beforeUpdate hook to trigger
+    });
 
     if (updated) {
       const updatedUser = await User.findOne({ where: { user_Id: user_Id } });
