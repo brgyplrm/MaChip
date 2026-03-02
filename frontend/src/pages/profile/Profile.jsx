@@ -5,10 +5,68 @@ import Chart from "../../components/chart/Chart";
 import Table from "../../components/table/Table";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { formatUserId } from "../../utils/formatUserId";
-
-const user = JSON.parse(localStorage.getItem("userData")) || {};
+import { useState, useEffect } from "react";
 
 const Profile = () => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const userId = localStorage.getItem("token"); // Token stores the numeric user_Id
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/users/${userId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data);
+          // Optional: Update localStorage if backend data is newer
+          localStorage.setItem("userData", JSON.stringify(data));
+        } else {
+          console.error("Failed to fetch profile");
+        }
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="profile">
+        <Sidebar />
+        <div className="profileContainer">
+          <Navbar />
+          <div className="profileWrapper">
+            <p>Loading profile...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="profile">
+        <Sidebar />
+        <div className="profileContainer">
+          <Navbar />
+          <div className="profileWrapper">
+            <p>No user data found.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="profile">
       <Sidebar />
@@ -68,7 +126,7 @@ const Profile = () => {
           {/* Bottom Section: Logs */}
           <div className="tableSection">
             <div className="tableTitle">Personal Activity Logs</div>
-            <Table />
+            <Table userId={user.user_Id} />
           </div>
         </div>
       </div>
