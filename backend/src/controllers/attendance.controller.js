@@ -202,7 +202,7 @@ exports.viewAllAttendance = async (req, res) => {
         {
           model: User,
           as: "user", // Explicitly name the joined object 'user'
-          attributes: ["user_LastName", "user_MachipId"],
+          attributes: ["user_Id", "user_FirstName", "user_LastName", "user_MachipId"],
         },
         {
           model: logged_status,

@@ -6,6 +6,7 @@ import { logColumns } from "../../logSource";
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
+import { formatUserId } from "../../utils/formatUserId";
 
 const Logs = () => {
   const [logData, setLogData] = useState([]);
@@ -17,7 +18,7 @@ const Logs = () => {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const response = await fetch("http://localhost:4000/api/users"); // Adjust endpoint as needed
+      const response = await fetch("http://localhost:4000/api/users/all");
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
@@ -34,11 +35,14 @@ const Logs = () => {
 
   const filteredData = logData.filter((item) => {
     const query = searchQuery.toLowerCase();
+    
     const matchesSearch = 
+      item.user_Id_formatted?.toLowerCase().includes(query) ||
       item.user_Id?.toString().toLowerCase().includes(query) ||
-      item.last_name?.toLowerCase().includes(query) ||
+      item.fullName?.toLowerCase().includes(query) ||
       item.action?.toLowerCase().includes(query) ||
-      item.log_type?.toLowerCase().includes(query);
+      item.log_type?.toLowerCase().includes(query) ||
+      item.machip_id?.toLowerCase().includes(query);
 
     const matchesUser = selectedUser === "" || item.user_Id?.toString() === selectedUser;
 
@@ -52,17 +56,28 @@ const Logs = () => {
       if (response.ok) {
         const logs = await response.json();
         // Flatten the nested Sequelize response to match the column field names
-        const mapped = logs.map((log) => ({
-          user_loggingId: log.user_loggingId,
-          user_Id: log.user_id,
-          last_name: log.user?.user_LastName ?? "—",
-          log_Date: log.log_Date
-            ? new Date(log.log_Date).toLocaleDateString()
-            : "—",
-          time: log.time_Logged ?? "—",
-          log_type: log.loggedStatus?.statusName ?? "—",
-          action: log.attendanceStatus?.statusName ?? "—",
-        }));
+        const mapped = logs.map((log) => {
+          const u_Id = log.user_id;
+          const firstName = log.user?.user_FirstName || "";
+          const lastName = log.user?.user_LastName || "";
+          const fullName = `${firstName} ${lastName}`.trim();
+          
+          return {
+            user_loggingId: log.user_loggingId,
+            user_Id: u_Id,
+            user_Id_formatted: formatUserId(u_Id),
+            first_name: firstName || "—",
+            last_name: lastName || "—",
+            fullName: fullName || "—",
+            machip_id: log.user?.user_MachipId || "—",
+            log_Date: log.log_Date
+              ? new Date(log.log_Date).toLocaleDateString()
+              : "—",
+            time: log.time_Logged ?? "—",
+            log_type: log.loggedStatus?.statusName ?? "—",
+            action: log.attendanceStatus?.statusName ?? "—",
+          };
+        });
         setLogData(mapped);
       } else {
         setToast({
@@ -85,8 +100,6 @@ const Logs = () => {
     fetchUsers(); // Fetch users on load
   }, [fetchLogs, fetchUsers]);
 
-  // Called when the "Generate Logs" button is clicked —
-  // triggers markAttendance on the backend, then refreshes the table
   const handleGenerateLogs = async () => {
     setLoading(true);
     try {
@@ -106,7 +119,6 @@ const Logs = () => {
           message: data.message || "Attendance marked successfully!",
           type: "success",
         });
-        // Refresh the log table so the new entry is visible
         await fetchLogs();
       } else {
         setToast({
@@ -129,7 +141,7 @@ const Logs = () => {
     {
       field: "view",
       headerName: "Action",
-      width: 200,
+      width: 100,
       renderCell: (params) => {
         return (
           <div className="cellAction">
@@ -145,21 +157,15 @@ const Logs = () => {
     },
   ];
 
-  // ... (keep all imports and logic above the return statement the same)
-
   return (
     <div className="logs">
-      {/* ── Toast ── */}
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
-
       <Sidebar />
       <div className="logsContainer">
         <Navbar />
         <div className="datatable">
           <div className="datatableTitle">
             User Logging Activity
-
-            {/* Filter Section: Groups Search and Dropdown */}
             <div className="filterSection">
               <div className="searchWrapper">
                 <input
@@ -169,7 +175,6 @@ const Logs = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-
               <div className="dropdownWrapper">
                 <select 
                   value={selectedUser} 
@@ -178,14 +183,13 @@ const Logs = () => {
                 >
                   <option value="">All Users</option>
                   {users.map((user) => (
-                    <option key={user.id} value={user.id}>
+                    <option key={user.user_Id} value={user.user_Id}>
                       {user.user_LastName}, {user.user_FirstName}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
-
             <button
               className="headerButton"
               onClick={handleGenerateLogs}

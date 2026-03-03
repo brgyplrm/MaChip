@@ -95,8 +95,14 @@ exports.viewUserById = async (req, res) => {
 
 exports.deleteUser = async (req, res) => {
   const { user_Id } = req.params;
+  const currentAdminId = req.user ? req.user.user_Id : req.headers["x-admin-id"];
 
   try {
+    // Prevent the authenticated user from deleting themselves
+    if (currentAdminId && parseInt(currentAdminId) === parseInt(user_Id)) {
+      return res.status(400).json({ error: "Cannot delete your own account" });
+    }
+
     // paranoid: true on the model means this sets deletedAt instead of removing the row
     const deleted = await User.destroy({ where: { user_Id } });
     if (deleted) {
@@ -133,8 +139,14 @@ exports.restoreUser = async (req, res) => {
 // Permanently delete a user (hard delete, cannot be undone)
 exports.forceDeleteUser = async (req, res) => {
   const { user_Id } = req.params;
+  const currentAdminId = req.user ? req.user.user_Id : req.headers["x-admin-id"];
 
   try {
+    // Prevent the authenticated user from deleting themselves
+    if (currentAdminId && parseInt(currentAdminId) === parseInt(user_Id)) {
+      return res.status(400).json({ error: "Cannot delete your own account" });
+    }
+
     const deleted = await User.destroy({ where: { user_Id }, force: true });
     if (deleted) {
       res.status(200).json({ message: "User permanently deleted." });

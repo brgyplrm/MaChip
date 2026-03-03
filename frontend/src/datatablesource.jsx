@@ -25,9 +25,6 @@ export const userColumns = [
         `${user_FirstName || ""} ${user_MiddleName || ""} ${user_LastName || ""}`
           .replace(/\s+/g, " ")
           .trim();
-      {
-        fullName;
-      }
       return <div className="cellWithImg">{fullName}</div>;
     },
   },

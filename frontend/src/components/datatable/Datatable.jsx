@@ -2,11 +2,15 @@ import "./datatable.scss";
 import { DataGrid } from "@mui/x-data-grid";
 import { userColumns } from "../../datatablesource";
 import { Link } from "react-router-dom";
-import { useState, useEffect } from "react";
-
+import { useState, useEffect, useCallback } from "react";
+import Toast from "../../components/toast/Toast";
 const Datatable = () => {
   const [data, setData] = useState([]);
-
+  const [toast, setToast] = useState({ message: "", type: "success" });
+  const dismissToast = useCallback(
+    () => setToast({ message: "", type: "success" }),
+    [],
+  );
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -21,25 +25,39 @@ const Datatable = () => {
     };
     fetchUsers();
   }, []);
-
   const handleDelete = async (user_Id) => {
+    const adminId = localStorage.getItem("token");
     try {
       const response = await fetch(
         `http://localhost:4000/api/users/deleteUser/${user_Id}`,
         {
           method: "DELETE",
+          headers: {
+            "x-admin-id": adminId,
+          },
         },
       );
       if (response.ok) {
         setData(data.filter((item) => item.user_Id !== user_Id));
+        setToast({
+          message: "User deleted successfully.",
+          type: "success",
+        });
       } else {
-        alert("Failed to delete user.");
+        const result = await response.json();
+        setToast({
+          message: result.error || "Failed to delete user.",
+          type: "error",
+        });
       }
     } catch (err) {
       console.error("Error deleting user:", err);
+      setToast({
+        message: "Could not connect to the server.",
+        type: "error",
+      });
     }
   };
-
   const actionColumn = [
     {
       field: "action",
@@ -67,6 +85,7 @@ const Datatable = () => {
   ];
   return (
     <div className="datatable">
+      <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
       <div className="datatableTitle">
         User Management
         <Link to="/users/new" className="link">
@@ -86,5 +105,4 @@ const Datatable = () => {
     </div>
   );
 };
-
 export default Datatable;
