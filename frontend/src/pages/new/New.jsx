@@ -33,9 +33,9 @@ const validateForm = (formData) => {
       "Last Name cannot contain numbers or speical characters";
   }
 
-  if (!nameRegex.test(formData.user_MiddleName)) {
+  if (formData.user_MiddleName && formData.user_MiddleName.trim() !== "" && !nameRegex.test(formData.user_MiddleName)) {
     errors.user_MiddleName =
-      "Middle Name cannot contain numbers or speical characters";
+      "Middle Name cannot contain numbers or special characters";
   }
 
   if (!formData.user_Email.trim()) {

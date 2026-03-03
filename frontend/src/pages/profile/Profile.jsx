@@ -6,6 +6,7 @@ import Table from "../../components/table/Table";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { formatUserId } from "../../utils/formatUserId";
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 
 const Profile = () => {
   const [user, setUser] = useState(null);
@@ -73,7 +74,6 @@ const Profile = () => {
       <div className="profileContainer">
         <Navbar />
         <div className="profileWrapper">
-          {/* Top Section: Hero Profile Card */}
           <div className="heroSection">
             <div className="profileHeader">
               <div className="imageContainer">
@@ -89,10 +89,15 @@ const Profile = () => {
                 </h1>
                 <span className="roleTag">{user.user_Role || "—"}</span>
               </div>
-              <button className="editBtn">
-                <EditOutlinedIcon className="icon" />
-                Edit Profile
-              </button>
+              <Link
+                to={`/users/edit/${user.user_Id}`}
+                style={{ textDecoration: "none" }}
+              >
+                <button className="editBtn">
+                  <EditOutlinedIcon className="icon" />
+                  Edit Profile
+                </button>
+              </Link>
             </div>
 
             <div className="detailsGrid">
@@ -115,7 +120,6 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Middle Section: Wide Chart */}
           <div className="chartSection">
             <Chart
               aspect={4 / 1}
@@ -123,7 +127,6 @@ const Profile = () => {
             />
           </div>
 
-          {/* Bottom Section: Logs */}
           <div className="tableSection">
             <div className="tableTitle">Personal Activity Logs</div>
             <Table userId={user.user_Id} />
