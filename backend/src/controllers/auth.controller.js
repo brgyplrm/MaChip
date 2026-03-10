@@ -1,4 +1,5 @@
-const { User } = require("../config/sequelize.js");
+const { sequelize } = require("../config/sequelize.js");
+const { QueryTypes } = require("sequelize");
 const bcrypt = require("bcryptjs");
 
 exports.loginUser = async (req, res) => {
@@ -16,7 +17,17 @@ exports.loginUser = async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ where: { user_Id } });
+    const result = await sequelize.query(
+      `SELECT * FROM "User"
+       WHERE "user_Id" = :user_Id
+       AND "deletedAt" IS NULL`,
+      {
+        replacements: { user_Id },
+        type: QueryTypes.SELECT,
+      },
+    );
+
+    const user = result[0];
 
     console.log(
       "[AUTH] User found:",
@@ -28,7 +39,6 @@ exports.loginUser = async (req, res) => {
     }
 
     const isMatch = await bcrypt.compare(password, user.user_Password);
-
     console.log("[AUTH] Password match:", isMatch);
 
     if (!isMatch) {
@@ -41,7 +51,7 @@ exports.loginUser = async (req, res) => {
     }
 
     // Strip password before sending back to client
-    const { user_Password, ...userData } = user.toJSON();
+    const { user_Password, ...userData } = user;
 
     return res
       .status(200)

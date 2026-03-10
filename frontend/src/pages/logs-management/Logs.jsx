@@ -35,8 +35,8 @@ const Logs = () => {
 
   const filteredData = logData.filter((item) => {
     const query = searchQuery.toLowerCase();
-    
-    const matchesSearch = 
+
+    const matchesSearch =
       item.user_Id_formatted?.toLowerCase().includes(query) ||
       item.user_Id?.toString().toLowerCase().includes(query) ||
       item.fullName?.toLowerCase().includes(query) ||
@@ -44,7 +44,8 @@ const Logs = () => {
       item.log_type?.toLowerCase().includes(query) ||
       item.machip_id?.toLowerCase().includes(query);
 
-    const matchesUser = selectedUser === "" || item.user_Id?.toString() === selectedUser;
+    const matchesUser =
+      selectedUser === "" || item.user_Id?.toString() === selectedUser;
 
     return matchesSearch && matchesUser;
   });
@@ -57,25 +58,25 @@ const Logs = () => {
         const logs = await response.json();
         // Flatten the nested Sequelize response to match the column field names
         const mapped = logs.map((log) => {
-          const u_Id = log.user_id;
-          const firstName = log.user?.user_FirstName || "";
-          const lastName = log.user?.user_LastName || "";
+          const u_Id = log.user_Id ?? log.user_id;
+          const firstName = log.user_FirstName ?? "";
+          const lastName = log.user_LastName ?? "";
           const fullName = `${firstName} ${lastName}`.trim();
-          
+
           return {
             user_loggingId: log.user_loggingId,
             user_Id: u_Id,
             user_Id_formatted: formatUserId(u_Id),
             first_name: firstName || "—",
-            last_name: lastName || "—",
+            last_name: lastName || "—", // ← was log.user?.user_LastName
             fullName: fullName || "—",
-            machip_id: log.user?.user_MachipId || "—",
+            machip_id: log.user_MachipId || "—", // ← was log.user?.user_MachipId
             log_Date: log.log_Date
               ? new Date(log.log_Date).toLocaleDateString()
               : "—",
             time: log.time_Logged ?? "—",
-            log_type: log.loggedStatus?.statusName ?? "—",
-            action: log.attendanceStatus?.statusName ?? "—",
+            log_type: log.loggedStatusName ?? "—", // ← was log.loggedStatus?.statusName
+            action: log.attendanceStatusName ?? "—", // ← was log.attendanceStatus?.statusName
           };
         });
         setLogData(mapped);
@@ -176,8 +177,8 @@ const Logs = () => {
                 />
               </div>
               <div className="dropdownWrapper">
-                <select 
-                  value={selectedUser} 
+                <select
+                  value={selectedUser}
                   onChange={(e) => setSelectedUser(e.target.value)}
                   className="userSelect"
                 >

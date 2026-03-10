@@ -1,79 +1,69 @@
-const { Op, UUIDV1, Model, Sequelize } = require("sequelize");
-const {
-  User,
-  user_logging,
-  employee_Logging_report,
-  logged_status,
-  attendance_status,
-} = require("../config/sequelize.js");
+const { sequelize } = require("../config/sequelize.js");
+const { QueryTypes } = require("sequelize");
 
+// ── Mark Attendance ───────────────────────────────────────────────────────────
 exports.markAttendance = async (req, res) => {
   try {
-    // SIMULATION: Randomly pick one user from the User table
-    const user = await User.findOne({
-      order: [Sequelize.literal("RAND()")],
-    });
+    // Randomly pick one user (PostgreSQL uses RANDOM())
+    const users = await sequelize.query(
+      `SELECT * FROM "User" WHERE "deletedAt" IS NULL ORDER BY RANDOM() LIMIT 1`,
+      { type: QueryTypes.SELECT },
+    );
 
+    const user = users[0];
     if (!user) {
       return res.status(404).json({ error: "No users found in the database." });
     }
 
-    // Extract the actual ID string from the Sequelize instance
     const user_Id = user.user_Id;
-
     const now = new Date();
 
-    // ── Lunch window check ────────────────────────────────────────────────────
-    // Lunch break: 12:00 PM – 1:00 PM
+    // ── Lunch window check ──────────────────────────────────────────────────
     const totalMinutes = now.getHours() * 60 + now.getMinutes();
-    const LUNCH_START = 12 * 60; // 720 mins = 12:00 PM
-    const LUNCH_END = 13 * 60; // 780 mins =  1:00 PM
-    const isLunchWindow =
-      totalMinutes >= LUNCH_START && totalMinutes < LUNCH_END;
+    const isLunchWindow = totalMinutes >= 720 && totalMinutes < 780;
 
-    // ── Determine next status ─────────────────────────────────────────────────
-    // time_LoggedStatus values (seeded in logged_status table):
-    //   1 = Clock In  |  2 = Clock Out
-    //   3 = Out For Lunch  |  4 = In From Lunch
-    const lastLog = await user_logging.findOne({
-      where: { user_id: user_Id },
-      order: [["user_loggingId", "DESC"]],
-    });
+    // ── Get last log for this user ──────────────────────────────────────────
+    const lastLogs = await sequelize.query(
+      `SELECT * FROM "user_logging"
+       WHERE "user_id" = :user_Id
+       ORDER BY "user_loggingId" DESC
+       LIMIT 1`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT },
+    );
 
-    const lastStatus = lastLog ? lastLog.time_LoggedStatus : null;
+    const lastStatus = lastLogs[0] ? lastLogs[0].time_LoggedStatus : null;
 
+    // ── Determine next status ───────────────────────────────────────────────
     let nextStatus;
     if (!lastStatus || lastStatus === 2) {
-      // No record yet today, or last action was Clock Out → Clock In
-      nextStatus = 1;
+      nextStatus = 1; // Clock In
     } else if (lastStatus === 3) {
-      // Currently out for lunch → coming back
       nextStatus = 4; // In From Lunch
     } else {
-      // lastStatus === 1 (Clock In) or 4 (In From Lunch) → currently in office
-      nextStatus = isLunchWindow ? 3 : 2; // lunch time → Out For Lunch, else → Clock Out
+      nextStatus = isLunchWindow ? 3 : 2; // Out For Lunch or Clock Out
     }
 
-    // ── Attendance value ──────────────────────────────────────────────────────
-    // Only assigned on the very first Clock In of the day.
-    //   1 = On-Time (before 09:00)  |  2 = Late (09:00 or after)
+    // ── Attendance value (only on first Clock In of the day) ────────────────
     let attendanceVal = null;
-
     if (nextStatus === 1) {
       const startOfDay = new Date(now);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(now);
       endOfDay.setHours(23, 59, 59, 999);
 
-      const firstLoginToday = await user_logging.findOne({
-        where: {
-          user_id: user_Id,
-          time_LoggedStatus: 1,
-          log_Date: { [Op.between]: [startOfDay, endOfDay] },
+      const firstLoginToday = await sequelize.query(
+        `SELECT * FROM "user_logging"
+         WHERE "user_id" = :user_Id
+         AND "time_LoggedStatus" = 1
+         AND "log_Date" BETWEEN :startOfDay AND :endOfDay
+         LIMIT 1`,
+        {
+          replacements: { user_Id, startOfDay, endOfDay },
+          type: QueryTypes.SELECT,
         },
-      });
+      );
 
-      if (!firstLoginToday) {
+      if (!firstLoginToday[0]) {
         attendanceVal = now.getHours() < 9 ? 1 : 2;
       }
     }
@@ -81,59 +71,81 @@ exports.markAttendance = async (req, res) => {
     const timeStr = now.toTimeString().split(" ")[0]; // "HH:MM:SS"
     const todayStr = now.toISOString().split("T")[0]; // "YYYY-MM-DD"
 
-    // ── 1. Write the raw individual event to user_logging ────────────────────
-    const newLog = await user_logging.create({
-      user_id: user_Id,
-      log_Date: now,
-      time_Logged: timeStr,
-      time_LoggedStatus: nextStatus,
-      attendance: attendanceVal,
-    });
+    // ── 1. Insert into user_logging ─────────────────────────────────────────
+    const newLogResult = await sequelize.query(
+      `INSERT INTO "user_logging"
+        ("user_id", "log_Date", "time_Logged", "time_LoggedStatus", "attendance")
+       VALUES
+        (:user_Id, :log_Date, :time_Logged, :time_LoggedStatus, :attendance)
+       RETURNING *`,
+      {
+        replacements: {
+          user_Id,
+          log_Date: now,
+          time_Logged: timeStr,
+          time_LoggedStatus: nextStatus,
+          attendance: attendanceVal,
+        },
+        type: QueryTypes.INSERT,
+      },
+    );
 
-    // ── 2. Upsert the daily summary in employee_Logging_report ───────────────
-    // Entries (Clock In + In From Lunch)  → time_Logged_inArr
-    // Exits  (Clock Out + Out For Lunch)  → time_Logged_outArr
-    //
-    // final_LoggedStatus:
-    //   Clock In (1)       → 1  (in office)
-    //   Clock Out (2)      → 2  (out of office)
-    //   Out For Lunch (3)  → 3  (on lunch break)
-    //   In From Lunch (4)  → 1  (back in office)
+    const newLog = newLogResult[0][0];
+
+    // ── 2. Upsert employee_Logging_report ───────────────────────────────────
     const isEntry = nextStatus === 1 || nextStatus === 4;
-    const finalStatus = nextStatus === 4 ? 1 : nextStatus; // 4 → 1 (back in office)
+    const finalStatus = nextStatus === 4 ? 1 : nextStatus;
 
-    const existingReport = await employee_Logging_report.findOne({
-      where: { user_id: user_Id, log_Date: todayStr },
-    });
+    const existingReport = await sequelize.query(
+      `SELECT * FROM "employee_Logging_report"
+       WHERE "user_id" = :user_Id AND "log_Date" = :todayStr
+       LIMIT 1`,
+      { replacements: { user_Id, todayStr }, type: QueryTypes.SELECT },
+    );
 
-    if (!existingReport) {
-      await employee_Logging_report.create({
-        user_id: user_Id,
-        log_Date: todayStr,
-        time_Logged_inArr: isEntry
-          ? JSON.stringify([timeStr])
-          : JSON.stringify([]),
-        time_Logged_outArr: !isEntry
-          ? JSON.stringify([timeStr])
-          : JSON.stringify([]),
-        attendance: attendanceVal,
-        final_LoggedStatus: finalStatus,
-      });
+    if (!existingReport[0]) {
+      await sequelize.query(
+        `INSERT INTO "employee_Logging_report"
+          ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr",
+           "attendance", "final_LoggedStatus")
+         VALUES
+          (:user_Id, :todayStr, :inArr, :outArr, :attendance, :finalStatus)`,
+        {
+          replacements: {
+            user_Id,
+            todayStr,
+            inArr: isEntry ? JSON.stringify([timeStr]) : JSON.stringify([]),
+            outArr: !isEntry ? JSON.stringify([timeStr]) : JSON.stringify([]),
+            attendance: attendanceVal,
+            finalStatus,
+          },
+          type: QueryTypes.INSERT,
+        },
+      );
     } else {
-      const inArr = JSON.parse(existingReport.time_Logged_inArr || "[]");
-      const outArr = JSON.parse(existingReport.time_Logged_outArr || "[]");
+      const inArr = JSON.parse(existingReport[0].time_Logged_inArr || "[]");
+      const outArr = JSON.parse(existingReport[0].time_Logged_outArr || "[]");
 
-      if (isEntry) {
-        inArr.push(timeStr);
-      } else {
-        outArr.push(timeStr);
-      }
+      if (isEntry) inArr.push(timeStr);
+      else outArr.push(timeStr);
 
-      await existingReport.update({
-        time_Logged_inArr: JSON.stringify(inArr),
-        time_Logged_outArr: JSON.stringify(outArr),
-        final_LoggedStatus: finalStatus,
-      });
+      await sequelize.query(
+        `UPDATE "employee_Logging_report"
+         SET "time_Logged_inArr" = :inArr,
+             "time_Logged_outArr" = :outArr,
+             "final_LoggedStatus" = :finalStatus
+         WHERE "user_id" = :user_Id AND "log_Date" = :todayStr`,
+        {
+          replacements: {
+            inArr: JSON.stringify(inArr),
+            outArr: JSON.stringify(outArr),
+            finalStatus,
+            user_Id,
+            todayStr,
+          },
+          type: QueryTypes.UPDATE,
+        },
+      );
     }
 
     const statusLabels = {
@@ -152,27 +164,22 @@ exports.markAttendance = async (req, res) => {
   }
 };
 
+// ── View User Logs ────────────────────────────────────────────────────────────
 exports.viewUserLogs = async (req, res) => {
   const { user_Id } = req.params;
-
   try {
-    // Read directly from employee_Logging_report — one row per day, already aggregated
-    const reports = await employee_Logging_report.findAll({
-      where: { user_id: user_Id },
-      include: [
-        {
-          model: attendance_status,
-          as: "attendanceStatus",
-          attributes: ["statusName"],
-        },
-        {
-          model: logged_status,
-          as: "loggedStatus",
-          attributes: ["statusName"],
-        },
-      ],
-      order: [["log_Date", "DESC"]], // newest day first
-    });
+    const reports = await sequelize.query(
+      `SELECT
+         r.*,
+         a."statusName" AS "attendanceStatusName",
+         l."statusName" AS "loggedStatusName"
+       FROM "employee_Logging_report" r
+       LEFT JOIN "attendance_status" a ON a."statusId" = r."attendance"
+       LEFT JOIN "logged_status" l ON l."statusId" = r."final_LoggedStatus"
+       WHERE r."user_id" = :user_Id
+       ORDER BY r."log_Date" DESC`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT },
+    );
 
     const dailyRows = reports.map((report) => {
       const inArr = JSON.parse(report.time_Logged_inArr || "[]");
@@ -180,12 +187,12 @@ exports.viewUserLogs = async (req, res) => {
       return {
         sessionId: `${report.user_id}-${report.log_Date}`,
         log_Date: report.log_Date,
-        time_In: inArr[0] ?? null, // first login — locked
-        time_Out: outArr[outArr.length - 1] ?? null, // last logout — latest
+        time_In: inArr[0] ?? null,
+        time_Out: outArr[outArr.length - 1] ?? null,
         logStatus:
-          report.loggedStatus?.statusName ??
+          report.loggedStatusName ??
           (report.final_LoggedStatus === 1 ? "Clock In" : "Clock Out"),
-        attendanceStatus: report.attendanceStatus?.statusName ?? "—",
+        attendanceStatus: report.attendanceStatusName ?? "—",
       };
     });
 
@@ -195,126 +202,152 @@ exports.viewUserLogs = async (req, res) => {
   }
 };
 
+// ── View All Attendance ───────────────────────────────────────────────────────
 exports.viewAllAttendance = async (req, res) => {
   try {
-    const logs = await user_logging.findAll({
-      include: [
-        {
-          model: User,
-          as: "user", // Explicitly name the joined object 'user'
-          attributes: ["user_Id", "user_FirstName", "user_LastName", "user_MachipId"],
-        },
-        {
-          model: logged_status,
-          as: "loggedStatus",
-          attributes: ["statusName"],
-        },
-        {
-          model: attendance_status,
-          as: "attendanceStatus",
-          attributes: ["statusName"],
-        },
-      ],
-      order: [["user_loggingId", "DESC"]],
-    });
+    const logs = await sequelize.query(
+      `SELECT
+         ul."user_loggingId",
+         ul."user_id",
+         ul."log_Date",
+         ul."time_Logged",
+         ul."time_LoggedStatus",
+         ul."attendance",
+         u."user_Id",
+         u."user_FirstName",
+         u."user_LastName",
+         u."user_MachipId",
+         ls."statusName"  AS "loggedStatusName",
+         att."statusName" AS "attendanceStatusName"
+       FROM "user_logging" ul
+       LEFT JOIN "User" u ON u."user_Id" = ul."user_id"
+       LEFT JOIN "logged_status" ls ON ls."statusId" = ul."time_LoggedStatus"
+       LEFT JOIN "attendance_status" att ON att."statusId" = ul."attendance"
+       ORDER BY ul."user_loggingId" DESC`,
+      { type: QueryTypes.SELECT },
+    );
+
     res.status(200).json(logs);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+// ── Delete All Logs ───────────────────────────────────────────────────────────
 exports.deleteAllLogs = async (req, res) => {
   try {
-    // Both tables are now independent — delete both
-    await employee_Logging_report.destroy({ where: {} });
-    await user_logging.destroy({ where: {} });
-
-    res.status(200).json({
-      message: "All attendance logs have been deleted successfully.",
+    await sequelize.query(`DELETE FROM "employee_Logging_report"`, {
+      type: QueryTypes.DELETE,
     });
+    await sequelize.query(`DELETE FROM "user_logging"`, {
+      type: QueryTypes.DELETE,
+    });
+
+    res
+      .status(200)
+      .json({ message: "All attendance logs have been deleted successfully." });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+// ── Status Logic ──────────────────────────────────────────────────────────────
 exports.StatusLogic = async (req, res) => {
   const { user_Id } = req.params;
   const { mockTime } = req.query;
+
   try {
-    let now = new Date();
-    if (mockTime) {
-      now = new Date(mockTime);
-    }
+    const now = mockTime ? new Date(mockTime) : new Date();
 
     const today = new Date(now);
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
-    let log = await user_logging.findOne({
-      where: {
-        user_id: user_Id,
-        log_Date: {
-          [Op.gte]: today,
-          [Op.lt]: tomorrow,
-        },
-      },
-      order: [["user_loggingId", "DESC"]],
-    });
+    const logs = await sequelize.query(
+      `SELECT * FROM "user_logging"
+       WHERE "user_id" = :user_Id
+       AND "log_Date" >= :today
+       AND "log_Date" < :tomorrow
+       ORDER BY "user_loggingId" DESC
+       LIMIT 1`,
+      { replacements: { user_Id, today, tomorrow }, type: QueryTypes.SELECT },
+    );
+
+    let log = logs[0];
 
     const fivePM = new Date(now);
     fivePM.setHours(17, 0, 0, 0);
 
     if (!log) {
       if (now >= fivePM) {
-        // No login record found and it's past 5:00 PM, mark as Absent
-
-        log = await user_logging.create({
-          user_id: user_Id,
-          log_Date: logDate,
-          time_Logged: "17:00:00",
-          time_LoggedStatus: 2,
-          attendance: 3,
+        const absentResult = await sequelize.query(
+          `INSERT INTO "user_logging"
+            ("user_id", "log_Date", "time_Logged", "time_LoggedStatus", "attendance")
+           VALUES (:user_Id, :log_Date, '17:00:00', 2, 3)
+           RETURNING *`,
+          {
+            replacements: { user_Id, log_Date: today },
+            type: QueryTypes.INSERT,
+          },
+        );
+        return res.status(201).json({
+          message: "User marked as Absent",
+          data: absentResult[0][0],
         });
-        return res
-          .status(201)
-          .json({ message: "User marked as Absent", data: log });
       }
       return res
         .status(404)
         .json({ error: "No attendance record found for today" });
     }
 
-    // If it's already marked as Absent or On-Leave, don't override with On-time/Late
-    if (log.attendance === "3" || log.attendance === "4") {
+    // If already Absent (3) or On-Leave (4), don't override
+    if (log.attendance === 3 || log.attendance === 4) {
       return res
         .status(200)
         .json({ message: "Attendance status finalized", data: log });
     }
 
-    const firstLog = await user_logging.findOne({
-      where: {
-        user_id: user_Id,
-        log_date: today,
-        time_LoggedStatus: 1,
-      },
-      order: [["user_loggingId", "ASC"]],
-    });
+    // Find first Clock In of the day
+    const firstLogs = await sequelize.query(
+      `SELECT * FROM "user_logging"
+       WHERE "user_id" = :user_Id
+       AND "log_Date" >= :today
+       AND "log_Date" < :tomorrow
+       AND "time_LoggedStatus" = 1
+       ORDER BY "user_loggingId" ASC
+       LIMIT 1`,
+      { replacements: { user_Id, today, tomorrow }, type: QueryTypes.SELECT },
+    );
 
+    const firstLog = firstLogs[0];
     if (firstLog) {
-      const [hours, minutes] = firstLog.time_Logged.split(":");
-      const loginHour = parseInt(hours);
+      const loginHour = parseInt(firstLog.time_Logged.split(":")[0]);
+      const newAttendanceStatus = loginHour >= 9 ? 2 : 1;
 
-      let newAttendanceStatus = 1;
-      if (loginHour >= 9) {
-        newAttendanceStatus = 2;
-      }
+      await sequelize.query(
+        `UPDATE "user_logging"
+         SET "attendance" = :attendance
+         WHERE "user_loggingId" = :id`,
+        {
+          replacements: {
+            attendance: newAttendanceStatus,
+            id: firstLog.user_loggingId,
+          },
+          type: QueryTypes.UPDATE,
+        },
+      );
 
-      firstLog.attendance = newAttendanceStatus;
-      await firstLog.save();
+      const updated = await sequelize.query(
+        `SELECT * FROM "user_logging" WHERE "user_loggingId" = :id`,
+        {
+          replacements: { id: firstLog.user_loggingId },
+          type: QueryTypes.SELECT,
+        },
+      );
 
       return res
         .status(200)
-        .json({ message: "Attendance status updated", data: firstLog });
+        .json({ message: "Attendance status updated", data: updated[0] });
     }
 
     res.status(200).json({ message: "Attendance status updated", data: log });
@@ -323,64 +356,62 @@ exports.StatusLogic = async (req, res) => {
   }
 };
 
+// ── Get Dashboard Stats ───────────────────────────────────────────────────────
 exports.getDashboardStats = async (req, res) => {
   try {
-    const todayStr = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
+    const todayStr = new Date().toISOString().split("T")[0];
 
-    // Read today's daily summary rows from employee_Logging_report — one row per user
-    const todayReports = await employee_Logging_report.findAll({
-      where: { log_Date: todayStr },
-      attributes: ["attendance", "final_LoggedStatus"],
+    const stats = await sequelize.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE "final_LoggedStatus" = 1) AS "officeOccupancy",
+         COUNT(*) FILTER (WHERE "attendance" = 1)          AS "onTimeCount",
+         COUNT(*) FILTER (WHERE "attendance" = 2)          AS "lateArrivalsCount"
+       FROM "employee_Logging_report"
+       WHERE "log_Date" = :todayStr`,
+      { replacements: { todayStr }, type: QueryTypes.SELECT },
+    );
+
+    res.status(200).json({
+      officeOccupancy: parseInt(stats[0].officeOccupancy),
+      onTimeCount: parseInt(stats[0].onTimeCount),
+      lateArrivalsCount: parseInt(stats[0].lateArrivalsCount),
     });
-
-    // 1. Office Occupancy — users whose final_LoggedStatus for today is 1 (Logged In)
-    const officeOccupancy = todayReports.filter(
-      (r) => r.final_LoggedStatus === 1,
-    ).length;
-
-    // 2. On-Time — users whose first-login attendance for today is 1
-    const onTimeCount = todayReports.filter((r) => r.attendance === 1).length;
-
-    // 3. Late Arrivals — users whose first-login attendance for today is 2
-    const lateArrivalsCount = todayReports.filter(
-      (r) => r.attendance === 2,
-    ).length;
-
-    res.status(200).json({ officeOccupancy, onTimeCount, lateArrivalsCount });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// Returns the list of users currently inside the office (final_LoggedStatus = 1 today)
+// ── Get Office Occupancy ──────────────────────────────────────────────────────
 exports.getOfficeOccupancy = async (req, res) => {
   try {
     const todayStr = new Date().toISOString().split("T")[0];
 
-    const inOfficeReports = await employee_Logging_report.findAll({
-      where: { log_Date: todayStr, final_LoggedStatus: 1 },
-      include: [
-        {
-          model: User,
-          as: "user",
-          attributes: ["user_Id", "user_FirstName", "user_LastName"],
-        },
-      ],
-    });
+    const reports = await sequelize.query(
+      `SELECT
+         r."user_id",
+         r."time_Logged_inArr",
+         u."user_Id",
+         u."user_FirstName",
+         u."user_LastName"
+       FROM "employee_Logging_report" r
+       LEFT JOIN "User" u ON u."user_Id" = r."user_id"
+       WHERE r."log_Date" = :todayStr
+       AND r."final_LoggedStatus" = 1`,
+      { replacements: { todayStr }, type: QueryTypes.SELECT },
+    );
 
-    const inOffice = inOfficeReports.map((report) => {
-      const inArr = JSON.parse(report.time_Logged_inArr || "[]");
-      return {
-        user_id: report.user_id,
-        user_Id: report.user?.user_Id ?? report.user_id,
-        firstName: report.user?.user_FirstName ?? "—",
-        lastName: report.user?.user_LastName ?? "—",
-        time_In: inArr[0] ?? "—", // first login of the day
-      };
-    });
-
-    // Sort alphabetically by last name
-    inOffice.sort((a, b) => a.lastName.localeCompare(b.lastName));
+    const inOffice = reports
+      .map((report) => {
+        const inArr = JSON.parse(report.time_Logged_inArr || "[]");
+        return {
+          user_id: report.user_id,
+          user_Id: report.user_Id ?? report.user_id,
+          firstName: report.user_FirstName ?? "—",
+          lastName: report.user_LastName ?? "—",
+          time_In: inArr[0] ?? "—",
+        };
+      })
+      .sort((a, b) => a.lastName.localeCompare(b.lastName));
 
     res.status(200).json({ count: inOffice.length, users: inOffice });
   } catch (error) {
