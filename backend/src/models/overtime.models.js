@@ -24,7 +24,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       OvertimeStatusId: {
-        type: DataTypes.TINYINT(1),
+        type: DataTypes.SMALLINT,
         allowNull: false,
       },
     },
@@ -37,7 +37,7 @@ module.exports = (sequelize, DataTypes) => {
     "OvertimeStatus",
     {
       Status_Id: {
-        type: DataTypes.TINYINT(1),
+        type: DataTypes.SMALLINT,
         primaryKey: true,
       },
       Status_Name: {

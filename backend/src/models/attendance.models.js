@@ -2,7 +2,7 @@ module.exports = (sequelize, DataTypes) => {
   const logged_status = sequelize.define(
     "logged_status",
     {
-      statusId: { type: DataTypes.TINYINT(1), primaryKey: true },
+      statusId: { type: DataTypes.SMALLINT, primaryKey: true },
       statusName: { type: DataTypes.STRING, allowNull: false },
     },
     {
@@ -13,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
   const attendance_status = sequelize.define(
     "attendance_status",
     {
-      statusId: { type: DataTypes.TINYINT(1), primaryKey: true },
+      statusId: { type: DataTypes.SMALLINT, primaryKey: true },
       statusName: { type: DataTypes.STRING, allowNull: false },
     },
     {
@@ -35,12 +35,12 @@ module.exports = (sequelize, DataTypes) => {
       log_Date: { type: DataTypes.DATE, allowNull: false },
       time_Logged: { type: DataTypes.TIME, allowNull: false },
       time_LoggedStatus: {
-        type: DataTypes.TINYINT(1),
+        type: DataTypes.SMALLINT,
         allowNull: false,
         defaultValue: 1,
       },
       attendance: {
-        type: DataTypes.TINYINT(1),
+        type: DataTypes.SMALLINT,
         allowNull: true,
         defaultValue: null,
       },
@@ -105,13 +105,13 @@ module.exports = (sequelize, DataTypes) => {
       },
       // Attendance status from the FIRST login of the day (1=On-Time, 2=Late, null=no status)
       attendance: {
-        type: DataTypes.TINYINT(1),
+        type: DataTypes.SMALLINT,
         allowNull: true,
         defaultValue: null,
       },
       // Last known status of the day: 1 = Logged In, 2 = Logged Out
       final_LoggedStatus: {
-        type: DataTypes.TINYINT(1),
+        type: DataTypes.SMALLINT,
         allowNull: false,
         defaultValue: 1,
       },
