@@ -1,33 +1,45 @@
 const bcrypt = require("bcryptjs");
-
 module.exports = (sequelize, DataTypes) => {
+  
+  const user_Role = sequelize.define(
+    "user_Role",
+    {
+      roleId: { type: DataTypes.SMALLINT, primaryKey: true },
+      roleName: { type: DataTypes.STRING, allowNull: false },
+    },
+    {
+      timestamps: false,
+    },
+  );
+  
+  const employementStatus = sequelize.define(
+    "employementStatus",
+    {
+      statusId: { type: DataTypes.SMALLINT, primaryKey: true },
+      statusName: { type: DataTypes.STRING, allowNull: false },
+    },
+    {
+      timestamps: false,
+    },
+  );
+  
   const User = sequelize.define(
     "User",
     {
-      user_Number: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        autoIncrement: true,
-        unique: true,
-        primaryKey: true,
-      },
       user_Id: {
         type: DataTypes.SMALLINT,
         allowNull: false,
         unique: true,
+        primaryKey: true,
       },
-      user_Username: { type: DataTypes.STRING, allowNull: false, unique: true },
       user_FirstName: { type: DataTypes.STRING, allowNull: false },
       user_LastName: { type: DataTypes.STRING, allowNull: false },
       user_MiddleName: { type: DataTypes.STRING, allowNull: true },
       user_Email: { type: DataTypes.STRING, allowNull: false, unique: true },
       user_Password: { type: DataTypes.STRING, allowNull: false },
       user_MachipId: { type: DataTypes.STRING, allowNull: true, unique: true },
-      user_Role: {
-        type: DataTypes.ENUM("Employee", "Staff", "Admin"),
-        allowNull: false,
-        defaultValue: "Employee",
-      },
+      user_RoleId: { type: DataTypes.SMALLINT, allowNull: false },
+      user_EmploymentStatusId: { type: DataTypes.SMALLINT, allowNull: false },
     },
     {
       timestamps: true,
@@ -49,6 +61,11 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
   );
+  
+  User.belongsTo(user_Role, { foreignKey: "user_RoleId", targetKey: "roleId" });
+  user_Role.hasMany(User, { foreignKey: "user_RoleId", sourceKey: "roleId" });
+  User.belongsTo(employementStatus, { foreignKey: "user_EmploymentStatusId", targetKey: "statusId" });
+  employementStatus.hasMany(User, { foreignKey: "user_EmploymentStatusId", sourceKey: "statusId" });
 
-  return User;
+  return {  User, user_Role, employementStatus };
 };

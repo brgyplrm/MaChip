@@ -23,7 +23,11 @@ const sequelize = new Sequelize(
 );
 
 // ── Models ────────────────────────────────────────────────────────────────────
-const User = require("../models/user.models")(sequelize, DataTypes);
+const {
+      User,
+      user_Role,
+      employementStatus,
+      } = require("../models/user.models")(sequelize, DataTypes);
 
 const {
   user_logging,
@@ -32,10 +36,25 @@ const {
   attendance_status,
 } = require("../models/attendance.models")(sequelize, DataTypes);
 
-const { Overtime, OvertimeStatuses } = require("../models/overtime.models")(
-  sequelize,
-  DataTypes,
-);
+
+const {
+  request_Status,
+  request_Type,
+  emp_Request,
+  Overtime_Request,
+  Vacation_Leave,
+  Sick_Leave,
+  Onfield_Work,
+  Leave_Balance,  
+} = require("../models/request.model")(sequelize, DataTypes);
+
+
+const {
+  Payroll,
+  Payroll_Earnings,
+  Payroll_Deductions,
+  Payroll_status,
+} = require("../models/payroll.model")(sequelize, DataTypes);
 
 // ── Associations ──────────────────────────────────────────────────────────────
 
@@ -58,13 +77,7 @@ employee_Logging_report.belongsTo(User, {
   as: "user",
 });
 
-// User ↔ Overtime
-User.hasMany(Overtime, { foreignKey: "OTuser_Id", sourceKey: "user_Id" });
-Overtime.belongsTo(User, {
-  foreignKey: "OTuser_Id",
-  targetKey: "user_Id",
-  as: "user",
-});
+
 
 // ── connectDB ─────────────────────────────────────────────────────────────────
 const connectDB = async () => {
@@ -111,21 +124,62 @@ const connectDB = async () => {
     } catch (err) {
       console.error("Seed error (attendance_status):", err.message);
     }
-
-    // ── Seed: OvertimeStatuses ──────────────────────────────────────────────
-    try {
-      const overtime_count = await OvertimeStatuses.count();
-      if (overtime_count === 0) {
-        await OvertimeStatuses.bulkCreate([
-          { Status_Id: 1, Status_Name: "Pending" },
-          { Status_Id: 2, Status_Name: "Approved" },
-          { Status_Id: 3, Status_Name: "Rejected" },
-        ]);
-        console.log("Seed: OvertimeStatuses inserted.");
-      }
-    } catch (err) {
-      console.error("Seed error (OvertimeStatuses):", err.message);
+    // Seed user_Role
+    const roleCount = await user_Role.count();
+    if (roleCount === 0) {
+      await user_Role.bulkCreate([
+        { roleId: 1, roleName: "Admin" },
+        { roleId: 2, roleName: "Staff" },
+        { roleId: 3, roleName: "Employee" },
+      ]);
+      console.log("Seed: User Roles inserted.");
     }
+    
+    // Seed employementStatus
+    const empCount = await employementStatus.count();
+    if (empCount === 0) {
+      await employementStatus.bulkCreate([
+        { statusId: 1, statusName: "Regular" },
+        { statusId: 2, statusName: "OJT/Intern" },
+        { statusId: 3, statusName: "Part-time" },
+      ]);
+      console.log("Seed: Employment Status inserted.");
+    }
+    
+    // Seed request_Status
+    const reqCount = await request_Status.count();
+    if (reqCount === 0) {
+      await request_Status.bulkCreate([
+        { reqStatId: 1, reqStatName: "Pending" },
+        { reqStatId: 2, reqStatName: "Approved" },
+        { reqStatId: 3, reqStatName: "Rejected" },
+        { reqStatId: 4, reqStatName: "Ca" },
+      ]);
+      console.log("Seed: Request Status inserted.");
+    }
+  
+    // Seed request_Type
+    const reqTypeCount = await request_Type.count();
+    if (reqTypeCount === 0) {
+      await request_Type.bulkCreate([
+        { reqTypeId: 1, reqTypeName: "Overtime" },
+        { reqTypeId: 2, reqTypeName: "Onfield Work" },
+        { reqTypeId: 3, reqTypeName: "Vacation Leave" },
+        { reqTypeId: 4, reqTypeName: "Sick Leave" },
+      ]);
+      console.log("Seed: Request Type inserted.");
+    }
+    
+    // Seed Payroll_status
+    const payrollStatusCount = await Payroll_status.count();
+    if (payrollStatusCount === 0) {
+      await Payroll_status.bulkCreate([
+        { PaystatusId: 1, PaystatusName: "Processing" },
+        { PaystatusId: 2, PaystatusName: "Released" },
+      ]);
+      console.log("Seed: Payroll Status inserted.");
+    }
+  
   } catch (error) {
     console.error("Unable to connect to the database:", error);
   }
@@ -140,6 +194,18 @@ module.exports = {
   employee_Logging_report,
   logged_status,
   attendance_status,
-  Overtime,
-  OvertimeStatuses,
+  user_Role,
+  employementStatus,
+  request_Status,
+  request_Type,
+  emp_Request,
+  Overtime_Request,
+  Vacation_Leave,
+  Sick_Leave,
+  Onfield_Work,
+  Leave_Balance,  
+  Payroll_status,
+  Payroll_Earnings,
+  Payroll_Deductions,
+  Payroll,
 };

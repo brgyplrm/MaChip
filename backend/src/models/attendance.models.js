@@ -34,12 +34,12 @@ module.exports = (sequelize, DataTypes) => {
       },
       log_Date: { type: DataTypes.DATE, allowNull: false },
       time_Logged: { type: DataTypes.TIME, allowNull: false },
-      time_LoggedStatus: {
+      logged_StatusId: {
         type: DataTypes.SMALLINT,
         allowNull: false,
         defaultValue: 1,
       },
-      attendance: {
+      attendance_StatusId: {
         type: DataTypes.SMALLINT,
         allowNull: true,
         defaultValue: null,
@@ -52,24 +52,24 @@ module.exports = (sequelize, DataTypes) => {
   );
 
   user_logging.belongsTo(attendance_status, {
-    foreignKey: "attendance",
+    foreignKey: "attendance_StatusId",
     targetKey: "statusId",
     as: "attendanceStatus",
   });
 
   attendance_status.hasMany(user_logging, {
-    foreignKey: "attendance",
+    foreignKey: "attendance_StatusId",
     sourceKey: "statusId",
   });
 
   user_logging.belongsTo(logged_status, {
-    foreignKey: "time_LoggedStatus",
+    foreignKey: "logged_StatusId",
     targetKey: "statusId",
     as: "loggedStatus",
   });
 
   logged_status.hasMany(user_logging, {
-    foreignKey: "time_LoggedStatus",
+    foreignKey: "logged_StatusId",
     sourceKey: "statusId",
   });
 
@@ -132,12 +132,12 @@ module.exports = (sequelize, DataTypes) => {
 
   // employee_Logging_report → attendance_status (for display joins)
   employee_Logging_report.belongsTo(attendance_status, {
-    foreignKey: "attendance",
+    foreignKey: "attendance_StatusId",
     targetKey: "statusId",
     as: "attendanceStatus",
   });
   attendance_status.hasMany(employee_Logging_report, {
-    foreignKey: "attendance",
+    foreignKey: "attendance_StatusId",
     sourceKey: "statusId",
   });
 
