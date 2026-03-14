@@ -34,7 +34,7 @@ function App() {
           <Route
             index
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={[1, 2]}>
                 <List />
               </ProtectedRoute>
             }
@@ -42,7 +42,7 @@ function App() {
           <Route
             path=":userId"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={[1, 2]}>
                 <Single />
               </ProtectedRoute>
             }
