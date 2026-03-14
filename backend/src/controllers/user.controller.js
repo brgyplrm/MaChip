@@ -52,7 +52,7 @@ exports.registerUser = async (req, res) => {
     );
     const nextId = (result[0].maxId ? parseInt(result[0].maxId) : 0) + 1;
 
-    // Insert new user
+        // Insert new user
     await sequelize.query(
       `INSERT INTO "User" (
         "user_Id", "user_FirstName", "user_LastName",
