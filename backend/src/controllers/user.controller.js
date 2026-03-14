@@ -55,23 +55,23 @@ exports.registerUser = async (req, res) => {
     // Insert new user
     await sequelize.query(
       `INSERT INTO "User" (
-        "user_Id", "user_Username", "user_FirstName", "user_LastName",
-        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_Role", "createdAt", "updatedAt"
+        "user_Id", "user_FirstName", "user_LastName",
+        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_RoleId", "user_EmploymentStatusId", "createdAt", "updatedAt"
       ) VALUES (
-        :user_Id, :user_Username, :user_FirstName, :user_LastName,
-        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_Role, NOW(), NOW()
+        :user_Id, :user_FirstName, :user_LastName,
+        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_RoleId, :user_EmploymentStatusId, NOW(), NOW()
       )`,
       {
         replacements: {
           user_Id: nextId,
-          user_Username: req.body.user_Username,
           user_FirstName: req.body.user_FirstName,
           user_LastName: req.body.user_LastName,
           user_MiddleName: req.body.user_MiddleName || null,
           user_Email: req.body.user_Email || null,
           user_Password: req.body.user_Password,
           user_MachipId: req.body.user_MachipId,
-          user_Role: req.body.user_Role || "Employee",
+          user_RoleId: req.body.user_RoleId || 2,
+          user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
         },
         type: QueryTypes.INSERT,
       },
