@@ -88,11 +88,19 @@ const Login = () => {
           type: "success",
         });
 
-        // 5. Redirect admin to dashboard
-        setTimeout(() => navigate("/"), 1200);
+        // 5. Redirect based on role
+        setTimeout(() => {
+          if (data.data.user_RoleId === 3) {
+            // Employee role
+            navigate("/profile");
+          } else {
+            // Admin (1) or Staff (2)
+            navigate("/");
+          }
+        }, 1200);
       } else if (response.status === 403) {
         setToast({
-          message: data.error || "Access denied. Admins only.",
+          message: data.error || "Access denied. Unauthorized role.",
           type: "error",
         });
       } else {
@@ -119,7 +127,7 @@ const Login = () => {
       <div className="loginContainer">
         <div className="top">
           <img src="/logo2.png" alt="MAC-J Logo" className="logo" />
-          <h1>Admin Login</h1>
+          <h1>MaChip Login</h1>
           <hr />
         </div>
 

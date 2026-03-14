@@ -1,5 +1,6 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
+const bcrypt = require("bcryptjs");
 
 // ── Get Next User ID ──────────────────────────────────────────────────────────
 exports.getNextUserId = async (req, res) => {
@@ -52,7 +53,11 @@ exports.registerUser = async (req, res) => {
     );
     const nextId = (result[0].maxId ? parseInt(result[0].maxId) : 0) + 1;
 
-        // Insert new user
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(req.body.user_Password, salt);
+
+    // Insert new user
     await sequelize.query(
       `INSERT INTO "User" (
         "user_Id", "user_FirstName", "user_LastName",
@@ -68,7 +73,7 @@ exports.registerUser = async (req, res) => {
           user_LastName: req.body.user_LastName,
           user_MiddleName: req.body.user_MiddleName || null,
           user_Email: req.body.user_Email || null,
-          user_Password: req.body.user_Password,
+          user_Password: hashedPassword,
           user_MachipId: req.body.user_MachipId,
           user_RoleId: req.body.user_RoleId || 2,
           user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
@@ -220,7 +225,7 @@ exports.updateUser = async (req, res) => {
     user_LastName,
     user_MiddleName,
     user_MachipId,
-    user_Role,
+    user_RoleId,
     user_Password,
   } = req.body;
 
@@ -237,7 +242,7 @@ exports.updateUser = async (req, res) => {
       "user_LastName"  = :user_LastName,
       "user_MiddleName"= :user_MiddleName,
       "user_MachipId"  = :user_MachipId,
-      "user_Role"      = :user_Role
+      "user_RoleId"    = :user_RoleId
     `;
 
     const replacements = {
@@ -246,12 +251,14 @@ exports.updateUser = async (req, res) => {
       user_LastName,
       user_MiddleName: user_MiddleName || null,
       user_MachipId,
-      user_Role,
+      user_RoleId,
     };
 
     if (user_Password && user_Password.trim() !== "") {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(user_Password, salt);
       setClause += `, "user_Password" = :user_Password`;
-      replacements.user_Password = user_Password;
+      replacements.user_Password = hashedPassword;
     }
 
     const result = await sequelize.query(

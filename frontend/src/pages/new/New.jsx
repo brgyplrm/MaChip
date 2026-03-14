@@ -72,7 +72,7 @@ const New = ({ inputs, title }) => {
     user_Email: "",
     user_Password: "",
     user_MachipId: "",
-    user_Role: "Employee",
+    user_RoleId: 3, // Default to Employee
   });
 
   // field-level errors
@@ -183,7 +183,7 @@ const New = ({ inputs, title }) => {
           user_Email: "",
           user_Password: "",
           user_MachipId: "",
-          user_Role: "Employee",
+          user_RoleId: 3, // Default to Employee
         });
         setErrors({});
       } else {

@@ -9,10 +9,14 @@ import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined
 import { NavLink } from "react-router-dom";
 
 const Sidebar = () => {
+  const userDataString = localStorage.getItem("userData");
+  const userData = userDataString ? JSON.parse(userDataString) : null;
+  const isEmployee = userData?.user_RoleId === 3;
+
   return (
     <div className="sidebar">
       <div className="top">
-        <NavLink to="/" style={{ textDecoration: "none" }}>
+        <NavLink to={isEmployee ? "/profile" : "/"} style={{ textDecoration: "none" }}>
           <span className="logo">
             <img src="/images.png" alt="Logo" className="logo-img" />
           </span>
@@ -21,26 +25,30 @@ const Sidebar = () => {
       <hr />
       <div className="center">
         <ul>
-          <p className="title">MAIN</p>
-          <NavLink to="/" style={{ textDecoration: "none" }}>
-            <li>
-              <DashboardIcon className="icon" />
-              <span>Dashboard</span>
-            </li>
-          </NavLink>
-          <p className="title">LISTS</p>
-          <NavLink to="/users" style={{ textDecoration: "none" }}>
-            <li>
-              <PersonOutlineIcon className="icon" />
-              <span>Users</span>
-            </li>
-          </NavLink>
-          <NavLink to="/logs" style={{ textDecoration: "none" }}>
-            <li>
-              <PsychologyOutlinedIcon className="icon" />
-              <span>Logs</span>
-            </li>
-          </NavLink>
+          {!isEmployee && (
+            <>
+              <p className="title">MAIN</p>
+              <NavLink to="/" style={{ textDecoration: "none" }}>
+                <li>
+                  <DashboardIcon className="icon" />
+                  <span>Dashboard</span>
+                </li>
+              </NavLink>
+              <p className="title">LISTS</p>
+              <NavLink to="/users" style={{ textDecoration: "none" }}>
+                <li>
+                  <PersonOutlineIcon className="icon" />
+                  <span>Users</span>
+                </li>
+              </NavLink>
+              <NavLink to="/logs" style={{ textDecoration: "none" }}>
+                <li>
+                  <PsychologyOutlinedIcon className="icon" />
+                  <span>Logs</span>
+                </li>
+              </NavLink>
+            </>
+          )}
           <p className="title">USER</p>
           <NavLink to="/notifications" style={{ textDecoration: "none" }}>
             <li>
@@ -48,12 +56,14 @@ const Sidebar = () => {
               <span>Notifications</span>
             </li>
           </NavLink>
-          <NavLink to="/settings" style={{ textDecoration: "none" }}>
-            <li>
-              <SettingsApplicationsIcon className="icon" />
-              <span>Settings</span>
-            </li>
-          </NavLink>
+          {!isEmployee && (
+            <NavLink to="/settings" style={{ textDecoration: "none" }}>
+              <li>
+                <SettingsApplicationsIcon className="icon" />
+                <span>Settings</span>
+              </li>
+            </NavLink>
+          )}
           <NavLink to="/profile" style={{ textDecoration: "none" }}>
             <li>
               <AccountCircleOutlinedIcon className="icon" />

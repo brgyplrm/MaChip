@@ -23,12 +23,13 @@ function App() {
         <Route
           path="/"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={[1, 2]}>
               <Home />
             </ProtectedRoute>
           }
         />
 
+        {/* Users Management: Admin (1) & Staff (2) */}
         <Route path="users">
           <Route
             index
@@ -49,7 +50,7 @@ function App() {
           <Route
             path="edit/:userId"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={[1, 2]}>
                 <Edit inputs={userInputs} title="Edit User Profile" />
               </ProtectedRoute>
             }
@@ -57,41 +58,44 @@ function App() {
           <Route
             path="new"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={[1, 2]}>
                 <New inputs={userInputs} title="Add New User" />
               </ProtectedRoute>
             }
           />
         </Route>
 
+        {/* Logs & Settings: Admin (1) & Staff (2) */}
         <Route
           path="logs"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={[1, 2]}>
               <Logs />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="notifications"
-          element={
-            <ProtectedRoute>
-              <Notifications />
             </ProtectedRoute>
           }
         />
         <Route
           path="settings"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={[1, 2]}>
               <Settings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Profile & Notifications: All Roles (1, 2, 3) */}
+        <Route
+          path="notifications"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3]}>
+              <Notifications />
             </ProtectedRoute>
           }
         />
         <Route
           path="profile"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={[1, 2, 3]}>
               <Profile />
             </ProtectedRoute>
           }

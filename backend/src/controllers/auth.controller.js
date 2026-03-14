@@ -18,9 +18,11 @@ exports.loginUser = async (req, res) => {
 
   try {
     const result = await sequelize.query(
-      `SELECT * FROM "User"
-       WHERE "user_Id" = :user_Id
-       AND "deletedAt" IS NULL`,
+      `SELECT u.*, r."roleName" as "user_Role"
+       FROM "User" u
+       LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
+       WHERE u."user_Id" = :user_Id
+       AND u."deletedAt" IS NULL`,
       {
         replacements: { user_Id },
         type: QueryTypes.SELECT,
@@ -31,7 +33,7 @@ exports.loginUser = async (req, res) => {
 
     console.log(
       "[AUTH] User found:",
-      user ? `yes (role: ${user.user_Role})` : "no",
+      user ? `yes (role: ${user.user_RoleId} - ${user.user_Role})` : "no",
     );
 
     if (!user) {
