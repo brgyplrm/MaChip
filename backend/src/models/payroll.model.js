@@ -67,5 +67,5 @@ module.exports = (sequelize, DataTypes) => {
   Payroll_Earnings.belongsTo(Payroll_Earnings, { foreignKey: "payrollId" });
   Payroll_Deductions.belongsTo(Payroll_Deductions, { foreignKey: "payrollId" });
   
-  return { Payroll, Payroll_Earnings, Payroll_Deductions };
+  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status };
 };
