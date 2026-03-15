@@ -7,6 +7,7 @@ import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import { NavLink } from "react-router-dom";
 
 const Sidebar = () => {
@@ -52,6 +53,18 @@ const Sidebar = () => {
                   <span>Logs</span>
                 </li>
               </NavLink>
+            <NavLink to="/adminRequests" style={{ textDecoration: "none" }}>
+              <li>
+                <PendingActionsIcon className="icon" />
+                <span>Requests</span>
+              </li>
+            </NavLink>
+            <NavLink to="/payroll" style={{ textDecoration: "none" }}>
+              <li>
+                <RequestQuoteOutlinedIcon className="icon" /> {/* You can replace this with a more appropriate icon for payroll */}
+                <span>Payroll</span>
+              </li>
+            </NavLink>
             </>
           )}
 
@@ -80,14 +93,6 @@ const Sidebar = () => {
               <li>
                 <SettingsApplicationsIcon className="icon" />
                 <span>Settings</span>
-              </li>
-            </NavLink>
-          )}
-          {!isEmployee && (
-            <NavLink to="/adminRequests" style={{ textDecoration: "none" }}>
-              <li>
-                <PendingActionsIcon className="icon" />
-                <span>Requests</span>
               </li>
             </NavLink>
           )}

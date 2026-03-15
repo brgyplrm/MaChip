@@ -8,6 +8,10 @@ import New from "./pages/new/New";
 import Edit from "./pages/editUser/Edit";
 import Logs from "./pages/logs-management/Logs";
 import AdminRequests from "./pages/admin_Requests/adminRequests";
+import Payroll from "./pages/admin_Payroll/payroll_Management";
+import CreatePayroll from "./pages/admin_Payroll/create_Payroll";
+import PayrollDetails from "./pages/admin_Payroll/details_Payroll";
+import EditPayroll from "./pages/admin_Payroll/edit_Payroll";
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
 import Settings from "./pages/settings/Settings";
@@ -45,6 +49,42 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <AdminRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payroll"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <Payroll />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/createPayroll"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <CreatePayroll />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payrollDetails"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <PayrollDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/editPayroll"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <EditPayroll />
             </ProtectedRoute>
           }
         />

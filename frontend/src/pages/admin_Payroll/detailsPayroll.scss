@@ -1,0 +1,119 @@
+$primary-purple: #2A174E;
+
+.payrollDetails {
+  .homeContainer {
+    background-color: #fdfaf5;
+
+    .detailsWrapper {
+      padding: 30px;
+      max-width: 1000px;
+      margin: 0 auto;
+
+      .pageHeader {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+
+        .left {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          .backIcon { cursor: pointer; color: #555; }
+          h1 { font-size: 22px; color: #333; margin: 0; }
+          span { font-size: 13px; color: #888; }
+        }
+
+        .statusBadge.paid {
+          background-color: #22c55e;
+          color: white;
+          padding: 6px 16px;
+          border-radius: 20px;
+          font-weight: bold;
+          font-size: 12px;
+        }
+      }
+
+      .detailCard {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        margin-bottom: 25px;
+
+        .cardHeader {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 20px;
+          border-bottom: 1px solid #f8f9fa;
+          padding-bottom: 12px;
+          .icon { color: #555; }
+          .earnings { color: #22c55e; }
+          .deductions { color: #ef4444; }
+          h3 { font-size: 16px; color: #333; margin: 0; }
+        }
+
+        .infoGrid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 20px;
+          .infoItem {
+            label { font-size: 12px; color: #888; display: block; margin-bottom: 5px; }
+            p { font-size: 15px; font-weight: bold; color: #333; }
+          }
+        }
+
+        .breakdownList {
+          .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #fcfcfc;
+            span { color: #555; font-size: 14px; }
+            p { font-weight: 500; }
+          }
+          .totalRow {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            &.earnings { background: #f0fdf4; color: #15803d; }
+            &.deductions { background: #fef2f2; color: #b91c1c; }
+          }
+        }
+      }
+
+      .netPayCard {
+        background: linear-gradient(90deg, #ff9800, #ffb74d);
+        padding: 30px;
+        border-radius: 15px;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 25px;
+
+        .text {
+          label { font-size: 14px; opacity: 0.9; }
+          p { font-size: 32px; font-weight: 800; margin-top: 5px; }
+        }
+        .bgIcon { font-size: 100px; opacity: 0.2; position: absolute; right: -10px; }
+      }
+
+      .recordInfo {
+        display: flex;
+        gap: 50px;
+        padding: 0 10px;
+        .item {
+          label { font-size: 12px; color: #888; display: block; margin-bottom: 5px; }
+          p { font-size: 13px; color: #555; }
+        }
+      }
+    }
+  }
+}
