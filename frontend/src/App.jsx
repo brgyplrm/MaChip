@@ -1,5 +1,6 @@
 import Home from "./pages/home/Home";
 import EmployeeHome from "./pages/employeeHome/EmployeeHome";
+import UserRequests from "./pages/userRequests/UserRequests"; 
 import Login from "./pages/login/Login";
 import List from "./pages/list/List";
 import Single from "./pages/single/Single";
@@ -21,10 +22,19 @@ function App() {
         <Route path="/login" element={<Login />} />
 
         <Route
-          path="/employee-home"
+          path="/employeeHome"
           element={
             <ProtectedRoute allowedRoles={[3]}>
               <EmployeeHome/>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/userRequests"
+          element={
+            <ProtectedRoute allowedRoles={[3]}>
+              <UserRequests />
             </ProtectedRoute>
           }
         />

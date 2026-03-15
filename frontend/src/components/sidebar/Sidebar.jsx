@@ -6,6 +6,7 @@ import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
+import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import { NavLink } from "react-router-dom";
 
 const Sidebar = () => {
@@ -16,7 +17,8 @@ const Sidebar = () => {
   return (
     <div className="sidebar">
       <div className="top">
-        <NavLink to={isEmployee ? "/profile" : "/"} style={{ textDecoration: "none" }}>
+        {/* Updated logo link to go to appropriate dashboard */}
+        <NavLink to={isEmployee ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
           <span className="logo">
             <img src="/images.png" alt="Logo" className="logo-img" />
           </span>
@@ -25,15 +27,18 @@ const Sidebar = () => {
       <hr />
       <div className="center">
         <ul>
+          <p className="title">MAIN</p>
+          {/* Dashboard is now visible to everyone, but points to different routes */}
+          <NavLink to={isEmployee ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
+            <li>
+              <DashboardIcon className="icon" />
+              <span>Dashboard</span>
+            </li>
+          </NavLink>
+
+          {/* Admin and Staff Only Sections */}
           {!isEmployee && (
             <>
-              <p className="title">MAIN</p>
-              <NavLink to="/" style={{ textDecoration: "none" }}>
-                <li>
-                  <DashboardIcon className="icon" />
-                  <span>Dashboard</span>
-                </li>
-              </NavLink>
               <p className="title">LISTS</p>
               <NavLink to="/users" style={{ textDecoration: "none" }}>
                 <li>
@@ -49,13 +54,27 @@ const Sidebar = () => {
               </NavLink>
             </>
           )}
+
+          {/* Employee only Requests */}
           <p className="title">USER</p>
+          {isEmployee && (
+            <NavLink to="/userRequests" style={{ textDecoration: "none" }}>
+              <li>
+                <PendingActionsIcon className="icon" />
+                <span>Requests</span>
+              </li>
+            </NavLink>
+          )}
+
+          {/* Shared Routes */}
           <NavLink to="/notifications" style={{ textDecoration: "none" }}>
             <li>
               <NotificationsNoneIcon className="icon" />
               <span>Notifications</span>
             </li>
           </NavLink>
+          
+          {/* Admin only Settings */}
           {!isEmployee && (
             <NavLink to="/settings" style={{ textDecoration: "none" }}>
               <li>
@@ -64,6 +83,7 @@ const Sidebar = () => {
               </li>
             </NavLink>
           )}
+
           <NavLink to="/profile" style={{ textDecoration: "none" }}>
             <li>
               <AccountCircleOutlinedIcon className="icon" />
@@ -77,16 +97,6 @@ const Sidebar = () => {
             </li>
           </NavLink>
         </ul>
-      </div>
-      <div className="bottom">
-        {/*<div
-          className="colorOption"
-          onClick={() => dispatch({ type: "LIGHT" })}
-        ></div>
-        <div
-          className="colorOption"
-          onClick={() => dispatch({ type: "DARK" })}
-        ></div>*/}
       </div>
     </div>
   );
