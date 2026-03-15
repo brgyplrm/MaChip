@@ -36,7 +36,8 @@ module.exports = (sequelize, DataTypes) => {
       date_Filed: { type: DataTypes.DATEONLY, allowNull: false },
       date_Processed: { type: DataTypes.DATEONLY, allowNull: true },
       processedBy: { type: DataTypes.SMALLINT, allowNull: true }, // admin who acted
-      remarks: { type: DataTypes.TEXT, allowNull: true },
+      remarks: { type: DataTypes.TEXT, allowNull: true }, // employee remarks
+      admin_remarks: { type: DataTypes.TEXT, allowNull: true }, // admin notes
     },
     { timestamps: true, freezeTableName: true },
   );
@@ -77,7 +78,8 @@ module.exports = (sequelize, DataTypes) => {
       },
       emp_reqId: { type: DataTypes.INTEGER, allowNull: false }, // FK → emp_Request
       user_Id: { type: DataTypes.SMALLINT, allowNull: false },
-      LeaveDate: { type: DataTypes.DATEONLY, allowNull: false },
+      StartDate: { type: DataTypes.DATEONLY, allowNull: false },
+      EndDate: { type: DataTypes.DATEONLY, allowNull: false },
       NoDays: { type: DataTypes.SMALLINT, allowNull: false },
       purpose: { type: DataTypes.TEXT, allowNull: false },
       isWithPay: { type: DataTypes.BOOLEAN, defaultValue: true },
@@ -96,7 +98,8 @@ module.exports = (sequelize, DataTypes) => {
       },
       emp_reqId: { type: DataTypes.INTEGER, allowNull: false }, // FK → emp_Request
       user_Id: { type: DataTypes.SMALLINT, allowNull: false },
-      LeaveDate: { type: DataTypes.DATEONLY, allowNull: false },
+      StartDate: { type: DataTypes.DATEONLY, allowNull: false },
+      EndDate: { type: DataTypes.DATEONLY, allowNull: false },
       NoDays: { type: DataTypes.SMALLINT, allowNull: false },
       proof_File: { type: DataTypes.STRING, allowNull: true }, // doctor's cert path
       isWithPay: { type: DataTypes.BOOLEAN, defaultValue: true },
