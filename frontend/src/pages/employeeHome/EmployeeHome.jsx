@@ -3,7 +3,7 @@ import Navbar from "../../components/navbar/Navbar";
 import Widget from "../../components/widget/Widget";
 import Table from "../../components/table/Table";
 import Chart from "../../components/chart/Chart";
-import "./home.scss";
+import "./employeeHome.scss";
 
 const EmployeeHome = () => {
   // Retrieve the logged-in user's ID from local storage
