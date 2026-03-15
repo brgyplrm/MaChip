@@ -7,6 +7,7 @@ import Single from "./pages/single/Single";
 import New from "./pages/new/New";
 import Edit from "./pages/editUser/Edit";
 import Logs from "./pages/logs-management/Logs";
+import AdminRequests from "./pages/admin_Requests/adminRequests";
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
 import Settings from "./pages/settings/Settings";
@@ -35,6 +36,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[3]}>
               <UserRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/adminRequests"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <AdminRequests />
             </ProtectedRoute>
           }
         />

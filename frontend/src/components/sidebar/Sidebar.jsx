@@ -83,7 +83,14 @@ const Sidebar = () => {
               </li>
             </NavLink>
           )}
-
+          {!isEmployee && (
+            <NavLink to="/adminRequests" style={{ textDecoration: "none" }}>
+              <li>
+                <PendingActionsIcon className="icon" />
+                <span>Requests</span>
+              </li>
+            </NavLink>
+          )}
           <NavLink to="/profile" style={{ textDecoration: "none" }}>
             <li>
               <AccountCircleOutlinedIcon className="icon" />
