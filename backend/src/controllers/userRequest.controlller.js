@@ -12,7 +12,8 @@ exports.UserCreateRequest = async (req, res) => {
     HrTo,
     Total_Hrs,
     reason,
-    LeaveDate,
+    StartDate,
+    EndDate,
     NoDays,
     purpose,
     isWithPay,
@@ -40,15 +41,16 @@ exports.UserCreateRequest = async (req, res) => {
   try {
     const parentResult = await sequelize.query(
       `INSERT INTO "emp_Request"
-        ("user_Id", "emp_reqTypeId", "emp_reqStatusId", "date_Filed", "createdAt", "updatedAt")
+        ("user_Id", "emp_reqTypeId", "emp_reqStatusId", "date_Filed", "remarks", "createdAt", "updatedAt")
         VALUES
-        (:userId, :emp_reqTypeId, 1, :date_Filed, NOW(), NOW())
+        (:userId, :emp_reqTypeId, 1, :date_Filed, :remarks, NOW(), NOW())
         RETURNING *`,
       {
         replacements: {
           userId: finalUserId,
           emp_reqTypeId,
           date_Filed: todayStr,
+          remarks: reason || purpose || null,
         },
         type: QueryTypes.INSERT,
       },
@@ -81,6 +83,8 @@ exports.UserCreateRequest = async (req, res) => {
       );
 
       childData = otResult[0][0];
+
+      // Onfield Work
     } else if (emp_reqTypeId === 2) {
       if (!finalDateOnField || !NoDays || !NoHrs) {
         return res
@@ -107,8 +111,10 @@ exports.UserCreateRequest = async (req, res) => {
         },
       );
       childData = onfieldResult[0][0];
+
+      // Leave Request
     } else if (emp_reqTypeId === 3) {
-      if (!LeaveDate || !NoDays || !purpose) {
+      if (!StartDate || !EndDate || !NoDays || !purpose) {
         return res.status(400).json({ error: "Leave fields are required" });
       }
 
@@ -151,14 +157,15 @@ exports.UserCreateRequest = async (req, res) => {
 
       const vlResult = await sequelize.query(
         `INSERT INTO "Vacation_Leave"
-        ("emp_reqId", "user_Id", "LeaveDate", "NoDays", "purpose", "isWithPay")
-        VALUES (:emp_reqId, :userId, :LeaveDate, :NoDays, :purpose, :isWithPay)
+        ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "purpose", "isWithPay")
+        VALUES (:emp_reqId, :userId, :StartDate, :EndDate, :NoDays, :purpose, :isWithPay)
         RETURNING *`,
         {
           replacements: {
             emp_reqId,
             userId: finalUserId,
-            LeaveDate,
+            StartDate,
+            EndDate,
             NoDays,
             purpose,
             isWithPay: finalIsWithPay,
@@ -184,7 +191,7 @@ exports.UserCreateRequest = async (req, res) => {
         },
       );
     } else if (emp_reqTypeId === 4) {
-      if (!LeaveDate || !NoDays) {
+      if (!StartDate || !EndDate || !NoDays) {
         return res.status(400).json({ error: "Leave fields are required" });
       }
 
@@ -229,14 +236,15 @@ exports.UserCreateRequest = async (req, res) => {
 
       const slResult = await sequelize.query(
         `INSERT INTO "Sick_Leave"
-        ("emp_reqId", "user_Id", "LeaveDate", "NoDays", "proof_File", "isWithPay")
-        VALUES (:emp_reqId, :userId, :LeaveDate, :NoDays, :proof_File, :isWithPay)
+        ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "proof_File", "isWithPay")
+        VALUES (:emp_reqId, :userId, :StartDate, :EndDate, :NoDays, :proof_File, :isWithPay)
         RETURNING *`,
         {
           replacements: {
             emp_reqId,
             userId: finalUserId,
-            LeaveDate,
+            StartDate,
+            EndDate,
             NoDays,
             proof_File: proof_File || null,
             isWithPay: finalIsWithPay,
@@ -272,6 +280,142 @@ exports.UserCreateRequest = async (req, res) => {
         details: childData,
       },
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.GetUserRequests = async (req, res) => {
+  const { userId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ error: "User Id is required" });
+  }
+
+  try {
+    const requests = await sequelize.query(
+      `SELECT 
+        er."emp_reqId",
+        er."user_Id",
+        er."emp_reqTypeId",
+        rt."reqTypeName",
+        er."emp_reqStatusId",
+        rs."reqStatName" as "status",
+        er."date_Filed",
+        er."date_Processed",
+        er.remarks,
+        er.admin_remarks,
+        ot."OT_DateOf",
+        ot."HrFrom",
+        ot."HrTo",
+        ot."Total_Hrs",
+        vl."StartDate" as "VL_StartDate",
+        vl."EndDate" as "VL_EndDate",
+        vl."NoDays" as "VL_NoDays",
+        sl."StartDate" as "SL_StartDate",
+        sl."EndDate" as "SL_EndDate",
+        sl."NoDays" as "SL_NoDays",
+        ow."DateonField",
+        ow."NoDays" as "OW_NoDays",
+        ow."NoHrs" as "OW_NoHrs"
+      FROM "emp_Request" er
+      LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+      LEFT JOIN "request_Status" rs ON er."emp_reqStatusId" = rs."reqStatId"
+      LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
+      LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+      LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+      LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+      WHERE er."user_Id" = :userId
+      ORDER BY er."date_Filed" DESC`,
+      {
+        replacements: { userId },
+        type: QueryTypes.SELECT,
+      }
+    );
+
+    res.status(200).json(requests);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.GetAllRequests = async (req, res) => {
+  console.log("[DEBUG] Fetching all requests for admin...");
+  try {
+    const requests = await sequelize.query(
+      `SELECT 
+        er."emp_reqId",
+        er."user_Id",
+        u."user_FirstName" || ' ' || u."user_LastName" as "userName",
+        er."emp_reqTypeId",
+        rt."reqTypeName",
+        er."emp_reqStatusId",
+        rs."reqStatName" as "status",
+        er."date_Filed",
+        er."date_Processed",
+        er.remarks,
+        er.admin_remarks,
+        ot."OT_DateOf",
+        ot."HrFrom",
+        ot."HrTo",
+        ot."Total_Hrs",
+        vl."StartDate" as "VL_StartDate",
+        vl."EndDate" as "VL_EndDate",
+        vl."NoDays" as "VL_NoDays",
+        vl."isWithPay" as "VL_isWithPay",
+        sl."StartDate" as "SL_StartDate",
+        sl."EndDate" as "SL_EndDate",
+        sl."NoDays" as "SL_NoDays",
+        sl."proof_File" as "SL_proof_File",
+        sl."isWithPay" as "SL_isWithPay",
+        ow."DateonField",
+        ow."NoDays" as "OW_NoDays",
+        ow."NoHrs" as "OW_NoHrs",
+        ow."destination",
+        ow."proof_File" as "OW_proof_File"
+      FROM "emp_Request" er
+      INNER JOIN "User" u ON er."user_Id" = u."user_Id"
+      LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+      LEFT JOIN "request_Status" rs ON er."emp_reqStatusId" = rs."reqStatId"
+      LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
+      LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+      LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+      LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+      ORDER BY er."date_Filed" DESC`,
+      {
+        type: QueryTypes.SELECT,
+      }
+    );
+    console.log(`[DEBUG] Found ${requests.length} requests.`);
+    res.status(200).json(requests);
+  } catch (error) {
+    console.error("[DEBUG] Error fetching all requests:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.UpdateStatusRequest = async (req, res) => {
+  const { emp_reqId, emp_reqStatusId, processedBy, remarks } = req.body;
+
+  if (!emp_reqId || !emp_reqStatusId || !processedBy) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    await sequelize.query(
+      `UPDATE "emp_Request" 
+       SET "emp_reqStatusId" = :emp_reqStatusId, 
+           "processedBy" = :processedBy, 
+           "date_Processed" = NOW(),
+           "admin_remarks" = :admin_remarks
+       WHERE "emp_reqId" = :emp_reqId`,
+      {
+        replacements: { emp_reqId, emp_reqStatusId, processedBy, admin_remarks: remarks || null },
+        type: QueryTypes.UPDATE,
+      }
+    );
+
+    res.status(200).json({ message: "Request status updated successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

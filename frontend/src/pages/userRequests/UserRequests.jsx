@@ -14,6 +14,8 @@ const UserRequests = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
   const [activeTab, setActiveTab] = useState("submit"); // 'submit' or 'history'
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [historyRequests, setHistoryRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     user_Id: userData?.user_Id || "",
@@ -25,6 +27,31 @@ const UserRequests = () => {
     isWithPay: false,
     proofFile: null,
   });
+
+  // Fetch History
+  const fetchHistory = async () => {
+    if (!userData?.user_Id) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:4000/api/request/${userData.user_Id}`);
+      const data = await response.json();
+      if (response.ok) {
+        setHistoryRequests(data);
+      } else {
+        console.error("Failed to fetch history:", data.error);
+      }
+    } catch (error) {
+      console.error("Error fetching history:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "history") {
+      fetchHistory();
+    }
+  }, [activeTab]);
 
   // Automated Day Calculation
   useEffect(() => {
@@ -41,13 +68,6 @@ const UserRequests = () => {
     }
   }, [formData.leaveStartDate, formData.leaveEndDate]);
 
-  // Mock data for history 
-  const historyRequests = [
-    { id: 1, type: "VL", title: "Family Vacation Trip", dates: "Jan 12 - Jan 13, 2024", days: 2, status: "approved" },
-    { id: 2, type: "SL", title: "Medical Checkup", dates: "Jan 15, 2024", days: 1, status: "rejected" },
-    { id: 3, type: "VL", title: "Wedding Anniversary", dates: "Feb 01 - Feb 03, 2024", days: 3, status: "pending" }
-  ];
-
   const handleInputChange = (e) => {
     const { name, value, type, checked, files } = e.target;
     setFormData((prev) => ({
@@ -58,8 +78,56 @@ const UserRequests = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Implementation for multipart/form-data submission would go here
-    setToast({ message: "Request submitted successfully!", type: "success" });
+    
+    const payload = {
+      user_Id: userData.user_Id,
+      emp_reqTypeId: parseInt(formData.emp_reqTypeId),
+      purpose: formData.remarks,
+      StartDate: formData.leaveStartDate,
+      EndDate: formData.leaveEndDate,
+      NoDays: formData.noDays,
+      isWithPay: formData.isWithPay,
+      // proof_File: formData.proofFile, // Needs multipart handling if actually uploading files
+    };
+
+    try {
+      const response = await fetch("http://localhost:4000/api/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setToast({ message: "Request submitted successfully!", type: "success" });
+        // Reset form
+        setFormData({
+          user_Id: userData?.user_Id || "",
+          emp_reqTypeId: "",
+          remarks: "",
+          leaveStartDate: "",
+          leaveEndDate: "",
+          noDays: 0,
+          isWithPay: false,
+          proofFile: null,
+        });
+      } else {
+        setToast({ message: result.error || "Failed to submit request", type: "error" });
+      }
+    } catch (error) {
+      setToast({ message: "Error connecting to server", type: "error" });
+    }
+  };
+
+  const getStatusClass = (status) => {
+    if (!status) return "pending";
+    const s = status.toLowerCase();
+    if (s.includes("approve")) return "approved";
+    if (s.includes("reject") || s.includes("denied")) return "rejected";
+    return "pending";
   };
 
   return (
@@ -94,14 +162,14 @@ const UserRequests = () => {
                     <label>Request Type</label>
                     <select name="emp_reqTypeId" value={formData.emp_reqTypeId} onChange={handleInputChange} required>
                       <option value="" disabled>Select request type</option>
-                      <option value="1">Vacation Leave (VL)</option>
-                      <option value="2">Sick Leave (SL)</option>
-                      <option value="3">Other Report</option>
+                      <option value="3">Vacation Leave (VL)</option>
+                      <option value="4">Sick Leave (SL)</option>
+                      {/* Add more types if needed, matching backend IDs */}
                     </select>
                   </div>
 
-                  {/* Conditional Fields for Leave (Types 1 and 2) */}
-                  {(formData.emp_reqTypeId === "1" || formData.emp_reqTypeId === "2") && (
+                  {/* Conditional Fields for Leave (Types 3 and 4) */}
+                  {(formData.emp_reqTypeId === "3" || formData.emp_reqTypeId === "4") && (
                     <div className="conditionalFields">
                       <div className="formRow">
                         <div className="formGroup">
@@ -120,14 +188,14 @@ const UserRequests = () => {
                           <input type="number" name="noDays" value={formData.noDays} readOnly className="readOnlyInput" />
                         </div>
                         
-                        {formData.emp_reqTypeId === "1" && (
+                        {formData.emp_reqTypeId === "3" && (
                           <div className="formGroup checkboxGroup">
                             <input type="checkbox" id="isWithPay" name="isWithPay" checked={formData.isWithPay} onChange={handleInputChange} />
                             <label htmlFor="isWithPay">With Pay</label>
                           </div>
                         )}
 
-                        {formData.emp_reqTypeId === "2" && (
+                        {formData.emp_reqTypeId === "4" && (
                           <div className="formGroup fileUploadGroup">
                             <label className="fileLabel" htmlFor="proofFile">
                               <CloudUploadIcon /> {formData.proofFile ? formData.proofFile.name : "Upload Medical Certificate"}
@@ -157,19 +225,33 @@ const UserRequests = () => {
               <div className="fullRequests">
                 <h2 className="cardTitle">All My Requests</h2>
                 <div className="requestsList">
-                  {historyRequests.map(req => (
-                    <div className={`leaveLog ${req.status}`} key={req.id}>
-                      {req.status === 'approved' && <CheckCircleIcon className="statusIcon approved" />}
-                      {req.status === 'rejected' && <CancelIcon className="statusIcon rejected" />}
-                      {req.status === 'pending' && <HourglassEmptyIcon className="statusIcon pending" />}
-                      <div className="typeBadge">{req.type}</div>
-                      <div className="text">
-                        <p className="date">{req.dates}</p>
-                        <p className="desc">{req.title} • {req.days} Day(s)</p>
-                      </div>
-                      <span className={`badge ${req.status}`}>{req.status}</span>
-                    </div>
-                  ))}
+                  {loading ? (
+                    <p>Loading requests...</p>
+                  ) : historyRequests.length > 0 ? (
+                    historyRequests.map(req => {
+                      const statusClass = getStatusClass(req.status);
+                      const dates = req.VL_StartDate ? `${req.VL_StartDate} - ${req.VL_EndDate}` : 
+                                    req.SL_StartDate ? `${req.SL_StartDate} - ${req.SL_EndDate}` :
+                                    req.OT_DateOf ? req.OT_DateOf : req.DateonField;
+                      const days = req.VL_NoDays || req.SL_NoDays || req.OW_NoDays || 1;
+
+                      return (
+                        <div className={`leaveLog ${statusClass}`} key={req.emp_reqId}>
+                          {statusClass === 'approved' && <CheckCircleIcon className="statusIcon approved" />}
+                          {statusClass === 'rejected' && <CancelIcon className="statusIcon rejected" />}
+                          {statusClass === 'pending' && <HourglassEmptyIcon className="statusIcon pending" />}
+                          <div className="typeBadge">{req.reqTypeName}</div>
+                          <div className="text">
+                            <p className="date">{dates}</p>
+                            <p className="desc">{req.remarks || "No details provided"} • {days} Day(s)</p>
+                          </div>
+                          <span className={`badge ${statusClass}`}>{req.status}</span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p>No requests found.</p>
+                  )}
                 </div>
               </div>
             )}
