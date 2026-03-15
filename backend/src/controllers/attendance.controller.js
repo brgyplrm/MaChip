@@ -54,7 +54,7 @@ exports.markAttendance = async (req, res) => {
       const firstLoginToday = await sequelize.query(
         `SELECT * FROM "user_logging"
          WHERE "user_id" = :user_Id
-         AND "time_LoggedStatus" = 1
+         AND "logged_StatusId " = 1
          AND "log_Date" BETWEEN :startOfDay AND :endOfDay
          LIMIT 1`,
         {
@@ -74,17 +74,17 @@ exports.markAttendance = async (req, res) => {
     // ── 1. Insert into user_logging ─────────────────────────────────────────
     const newLogResult = await sequelize.query(
       `INSERT INTO "user_logging"
-        ("user_id", "log_Date", "time_Logged", "time_LoggedStatus", "attendance")
+        ("user_id", "log_Date", "time_Logged", "logged_StatusId ", "attendance_StatusId")
        VALUES
-        (:user_Id, :log_Date, :time_Logged, :time_LoggedStatus, :attendance)
+        (:user_Id, :log_Date, :time_Logged, :logged_StatusId, :attendance_StatusId)
        RETURNING *`,
       {
         replacements: {
           user_Id,
           log_Date: now,
           time_Logged: timeStr,
-          time_LoggedStatus: nextStatus,
-          attendance: attendanceVal,
+          logged_StatusId: nextStatus,
+          attendance_StatusId: attendanceVal,
         },
         type: QueryTypes.INSERT,
       },
@@ -107,16 +107,16 @@ exports.markAttendance = async (req, res) => {
       await sequelize.query(
         `INSERT INTO "employee_Logging_report"
           ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr",
-           "attendance", "final_LoggedStatus")
+           "attendance_StatusId", "final_LoggedStatus")
          VALUES
-          (:user_Id, :todayStr, :inArr, :outArr, :attendance, :finalStatus)`,
+          (:user_Id, :todayStr, :inArr, :outArr, :attendance_StatusId, :finalStatus)`,
         {
           replacements: {
             user_Id,
             todayStr,
             inArr: isEntry ? JSON.stringify([timeStr]) : JSON.stringify([]),
             outArr: !isEntry ? JSON.stringify([timeStr]) : JSON.stringify([]),
-            attendance: attendanceVal,
+            attendance_StatusId: attendanceVal,
             finalStatus,
           },
           type: QueryTypes.INSERT,
@@ -174,7 +174,7 @@ exports.viewUserLogs = async (req, res) => {
          a."statusName" AS "attendanceStatusName",
          l."statusName" AS "loggedStatusName"
        FROM "employee_Logging_report" r
-       LEFT JOIN "attendance_status" a ON a."statusId" = r."attendance"
+       LEFT JOIN "attendance_status" a ON a."statusId" = r."attendance_StatusId"
        LEFT JOIN "logged_status" l ON l."statusId" = r."final_LoggedStatus"
        WHERE r."user_id" = :user_Id
        ORDER BY r."log_Date" DESC`,
@@ -221,8 +221,8 @@ exports.viewAllAttendance = async (req, res) => {
          att."statusName" AS "attendanceStatusName"
        FROM "user_logging" ul
        LEFT JOIN "User" u ON u."user_Id" = ul."user_id"
-       LEFT JOIN "logged_status" ls ON ls."statusId" = ul."time_LoggedStatus"
-       LEFT JOIN "attendance_status" att ON att."statusId" = ul."attendance"
+       LEFT JOIN "logged_status" ls ON ls."statusId" = ul."logged_StatusId"
+       LEFT JOIN "attendance_status" att ON att."statusId" = ul."attendance_StatusId"
        ORDER BY ul."user_loggingId" DESC`,
       { type: QueryTypes.SELECT },
     );
@@ -282,7 +282,7 @@ exports.StatusLogic = async (req, res) => {
       if (now >= fivePM) {
         const absentResult = await sequelize.query(
           `INSERT INTO "user_logging"
-            ("user_id", "log_Date", "time_Logged", "time_LoggedStatus", "attendance")
+            ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
            VALUES (:user_Id, :log_Date, '17:00:00', 2, 3)
            RETURNING *`,
           {
@@ -364,8 +364,8 @@ exports.getDashboardStats = async (req, res) => {
     const stats = await sequelize.query(
       `SELECT
          COUNT(*) FILTER (WHERE "final_LoggedStatus" = 1) AS "officeOccupancy",
-         COUNT(*) FILTER (WHERE "attendance" = 1)          AS "onTimeCount",
-         COUNT(*) FILTER (WHERE "attendance" = 2)          AS "lateArrivalsCount"
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 1)          AS "onTimeCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2)          AS "lateArrivalsCount"
        FROM "employee_Logging_report"
        WHERE "log_Date" = :todayStr`,
       { replacements: { todayStr }, type: QueryTypes.SELECT },

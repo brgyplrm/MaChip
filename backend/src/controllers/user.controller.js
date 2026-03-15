@@ -32,7 +32,7 @@ exports.generateRfid = async (req, res) => {
 // ── Register User ─────────────────────────────────────────────────────────────
 exports.registerUser = async (req, res) => {
   try {
-    const { user_FirstName, user_LastName, user_MachipId } = req.body;
+    const { user_FirstName, user_LastName, user_MachipId } = req.body || {};
 
     if (!user_FirstName || !user_LastName || !user_MachipId) {
       return res.status(400).json({
@@ -227,7 +227,7 @@ exports.updateUser = async (req, res) => {
     user_MachipId,
     user_RoleId,
     user_Password,
-  } = req.body;
+  } = req.body || {};
 
   try {
     if (user_MiddleName && /\d/.test(user_MiddleName)) {

@@ -3,7 +3,7 @@ const { QueryTypes } = require("sequelize");
 const bcrypt = require("bcryptjs");
 
 exports.loginUser = async (req, res) => {
-  const { user_Id, password } = req.body;
+  const { user_Id, password } = req.body || {};
 
   console.log("[AUTH] Body received:", {
     user_Id,
