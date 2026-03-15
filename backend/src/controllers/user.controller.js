@@ -32,11 +32,11 @@ exports.generateRfid = async (req, res) => {
 // ── Register User ─────────────────────────────────────────────────────────────
 exports.registerUser = async (req, res) => {
   try {
-    const { user_FirstName, user_LastName, user_MachipId } = req.body || {};
+    const { user_FirstName, user_LastName, user_MachipId, user_Email, user_Password } = req.body || {};
 
-    if (!user_FirstName || !user_LastName || !user_MachipId) {
+    if (!user_FirstName || !user_LastName || !user_MachipId || !user_Email || !user_Password) {
       return res.status(400).json({
-        error: "Missing required fields. Please fill out all required inputs.",
+        error: "Missing required fields (First Name, Last Name, Email, Password, or MaChip ID).",
       });
     }
 
@@ -44,6 +44,26 @@ exports.registerUser = async (req, res) => {
       return res
         .status(400)
         .json({ error: "Middle Name must not contain numbers." });
+    }
+
+    // Check if email already exists (including soft-deleted users)
+    const existingEmail = await sequelize.query(
+      `SELECT "user_Id" FROM "User" WHERE "user_Email" = :user_Email`,
+      { replacements: { user_Email }, type: QueryTypes.SELECT },
+    );
+
+    if (existingEmail.length > 0) {
+      return res.status(400).json({ error: "Email already exists." });
+    }
+
+    // Check if MaChip ID already exists
+    const existingMachip = await sequelize.query(
+      `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :user_MachipId`,
+      { replacements: { user_MachipId }, type: QueryTypes.SELECT },
+    );
+
+    if (existingMachip.length > 0) {
+      return res.status(400).json({ error: "MaChip ID is already assigned to another user." });
     }
 
     // Get next ID
@@ -90,7 +110,11 @@ exports.registerUser = async (req, res) => {
 
     res.status(201).json({ message: "User Registered!", data: newUser[0] });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("[REGISTER USER ERROR]:", error);
+    res.status(500).json({ 
+      error: error.message,
+      details: error.name === 'SequelizeValidationError' ? error.errors.map(e => e.message) : undefined
+    });
   }
 };
 

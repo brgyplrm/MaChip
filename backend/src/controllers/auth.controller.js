@@ -47,9 +47,10 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ error: "Invalid user ID or password." });
     }
 
-    if (user.user_Role !== "Admin") {
+    const allowedRoles = ["Admin", "Employee"];
+    if (!allowedRoles.includes(user.user_Role)) {
       console.log("[AUTH] Role denied:", user.user_Role);
-      return res.status(403).json({ error: "Access denied. Admins only." });
+      return res.status(403).json({ error: "Access denied." });
     }
 
     // Strip password before sending back to client

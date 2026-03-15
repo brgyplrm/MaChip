@@ -92,7 +92,7 @@ const Login = () => {
         setTimeout(() => {
           if (data.data.user_RoleId === 3) {
             // Employee role
-            navigate("/employee-dashboard");
+            navigate("/employee-home");
           } else {
             // Admin (1) or Staff (2)
             navigate("/");
