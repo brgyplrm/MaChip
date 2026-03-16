@@ -1,0 +1,120 @@
+$primary-purple: #2A174E;
+$bg-cream: #fdfaf5;
+
+.requestDetails {
+  .homeContainer {
+    background-color: $bg-cream;
+
+    .detailsWrapper {
+      padding: 30px;
+      max-width: 1100px;
+      margin: 0 auto;
+
+      .pageHeader {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+
+        .left {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          .backIcon { cursor: pointer; color: #555; }
+          h1 { font-size: 22px; color: #333; margin: 0; }
+          span { font-size: 13px; color: #888; }
+        }
+
+        .statusBadge.approved {
+          background-color: #22c55e;
+          color: white;
+          padding: 8px 18px;
+          border-radius: 20px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-weight: bold;
+          font-size: 14px;
+          .icon { font-size: 18px; }
+        }
+      }
+
+      .detailCard {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        margin-bottom: 20px;
+
+        .cardHeader {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 20px;
+          .headerIcon { color: #555; font-size: 20px; }
+          h3 { font-size: 16px; color: #333; margin: 0; }
+        }
+
+        .infoGrid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 20px;
+          .item {
+            label { font-size: 12px; color: #888; display: block; margin-bottom: 5px; }
+            p { font-size: 14px; font-weight: bold; color: #333; margin: 0; }
+            .bold { font-weight: 800; }
+          }
+        }
+
+        .textContent p {
+          font-size: 14px; color: #555; line-height: 1.6;
+        }
+
+        .commentsBox {
+          margin-top: 20px;
+          background: #f8f9fa;
+          padding: 15px;
+          border-radius: 10px;
+          border: 1px solid #eee;
+          label { font-size: 12px; font-weight: bold; color: #333; display: block; margin-bottom: 5px; }
+          p { font-size: 14px; color: #555; margin: 0; }
+        }
+
+        /* Timeline Styles */
+        .timeline {
+          padding-left: 10px;
+          .timelineItem {
+            position: relative;
+            padding-left: 40px;
+            padding-bottom: 30px;
+            border-left: 2px solid #eee;
+
+            &.last { border-left: none; }
+
+            .marker {
+              position: absolute;
+              left: -16px;
+              width: 32px;
+              height: 32px;
+              border-radius: 50%;
+              background: white;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+              .icon { font-size: 16px; }
+              &.blue { color: #3b82f6; }
+              &.green { color: #22c55e; }
+            }
+
+            .content {
+              .status { font-weight: bold; font-size: 14px; color: #333; margin: 0; }
+              .date { font-size: 12px; color: #888; margin-top: 2px; }
+              .sub { font-size: 12px; color: #555; font-style: italic; }
+            }
+          }
+        }
+      }
+    }
+  }
+}

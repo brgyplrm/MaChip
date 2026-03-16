@@ -8,11 +8,12 @@ import New from "./pages/new/New";
 import Edit from "./pages/editUser/Edit";
 import Logs from "./pages/logs-management/Logs";
 import AdminRequests from "./pages/admin_Requests/adminRequests";
+import RequestDetails from "./pages/request_Details/requestDetails";
 import Payroll from "./pages/admin_Payroll/payroll_Management";
 import CreatePayroll from "./pages/admin_Payroll/create_Payroll";
 import PayrollDetails from "./pages/admin_Payroll/details_Payroll";
 import EditPayroll from "./pages/admin_Payroll/edit_Payroll";
-import CalendarManagement from "./pages/admin_Calendar/calendarManagement";
+import EmployeeCalendar from "./pages/emp_Calendar/employeeCalendar"; 
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
 import Settings from "./pages/settings/Settings";
@@ -20,6 +21,7 @@ import Logout from "./pages/logout/Logout";
 import { Routes, Route } from "react-router-dom";
 import { userInputs } from "./formSource";
 import ProtectedRoute from "./components/protectedroute/ProtectedRoute";
+import CalendarRedirect from "./components/CalendarRedirect";
 
 function App() {
   return (
@@ -37,15 +39,6 @@ function App() {
         />
 
         <Route
-          path="/userRequests"
-          element={
-            <ProtectedRoute allowedRoles={[3]}>
-              <UserRequests />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
           path="/adminRequests"
           element={
             <ProtectedRoute allowedRoles={[1]}>
@@ -53,6 +46,11 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/requests">
+        <Route index element={<UserRequests />} /> {/* Your list page */}
+        <Route path=":requestId" element={<RequestDetails />} /> {/* The dynamic details page */}
+        </Route>
 
         <Route
           path="/payroll"
@@ -91,10 +89,19 @@ function App() {
         />
 
         <Route
-          path="/calendarManagement"
+          path="/calendar"
           element={
-            <ProtectedRoute allowedRoles={[1]}>
-              <CalendarManagement />
+            <ProtectedRoute allowedRoles={[1, 3]}>
+              <CalendarRedirect />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employeeCalendar"
+          element={
+            <ProtectedRoute allowedRoles={[3]}>
+              <EmployeeCalendar />
             </ProtectedRoute>
           }
         />

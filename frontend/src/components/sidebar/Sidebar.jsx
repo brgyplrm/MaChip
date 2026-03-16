@@ -38,7 +38,7 @@ const Sidebar = () => {
             </li>
           </NavLink>
 
-          <NavLink to="/calendarManagement" style={{ textDecoration: "none" }}>
+          <NavLink to="/calendar" style={{ textDecoration: "none" }}>
             <li>
               <CalendarMonthOutlinedIcon className="icon" />
               <span>Calendar</span>
@@ -79,7 +79,7 @@ const Sidebar = () => {
           {/* Employee only Requests */}
           <p className="title">USER</p>
           {isEmployee && (
-            <NavLink to="/userRequests" style={{ textDecoration: "none" }}>
+            <NavLink to="/requests" style={{ textDecoration: "none" }}>
               <li>
                 <PendingActionsIcon className="icon" />
                 <span>Requests</span>

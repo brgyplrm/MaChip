@@ -9,6 +9,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import Toast from "../../components/toast/Toast";
+import { Link } from "react-router-dom";
 
 const UserRequests = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -282,17 +283,27 @@ const UserRequests = () => {
                       const days = req.VL_NoDays || req.SL_NoDays || req.OW_NoDays || 1;
 
                       return (
-                        <div className={`leaveLog ${statusClass}`} key={req.emp_reqId}>
-                          {statusClass === 'approved' && <CheckCircleIcon className="statusIcon approved" />}
-                          {statusClass === 'rejected' && <CancelIcon className="statusIcon rejected" />}
-                          {statusClass === 'pending' && <HourglassEmptyIcon className="statusIcon pending" />}
-                          <div className="typeBadge">{req.reqTypeName}</div>
-                          <div className="text">
-                            <p className="date">{dates}</p>
-                            <p className="desc">{req.remarks || "No details provided"} • {days} Day(s)</p>
+                        /* 1. Wrap the entire log in a Link */
+                        <Link 
+                          to={`/requests/${req.emp_reqIdDetails}`} 
+                          key={req.emp_reqId} 
+                          style={{ textDecoration: 'none', color: 'inherit' }}
+                        >
+                          <div className={`leaveLog ${statusClass}`}>
+                            {statusClass === 'approved' && <CheckCircleIcon className="statusIcon approved" />}
+                            {statusClass === 'rejected' && <CancelIcon className="statusIcon rejected" />}
+                            {statusClass === 'pending' && <HourglassEmptyIcon className="statusIcon pending" />}
+                            
+                            <div className="typeBadge">{req.reqTypeName}</div>
+                            
+                            <div className="text">
+                              <p className="date">{dates}</p>
+                              <p className="desc">{req.remarks || "No details provided"} • {days} Day(s)</p>
+                            </div>
+                            
+                            <span className={`badge ${statusClass}`}>{req.status}</span>
                           </div>
-                          <span className={`badge ${statusClass}`}>{req.status}</span>
-                        </div>
+                        </Link>
                       );
                     })
                   ) : (
