@@ -37,6 +37,13 @@ const Sidebar = () => {
             </li>
           </NavLink>
 
+          <NavLink to="/calendarManagement" style={{ textDecoration: "none" }}>
+            <li>
+              <DashboardIcon className="icon" />
+              <span>Calendar Management</span>
+            </li>
+          </NavLink>
+
           {/* Admin and Staff Only Sections */}
           {!isEmployee && (
             <>

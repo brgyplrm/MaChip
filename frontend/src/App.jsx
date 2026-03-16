@@ -12,6 +12,7 @@ import Payroll from "./pages/admin_Payroll/payroll_Management";
 import CreatePayroll from "./pages/admin_Payroll/create_Payroll";
 import PayrollDetails from "./pages/admin_Payroll/details_Payroll";
 import EditPayroll from "./pages/admin_Payroll/edit_Payroll";
+import CalendarManagement from "./pages/admin_Calendar/calendarManagement";
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
 import Settings from "./pages/settings/Settings";
@@ -85,6 +86,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <EditPayroll />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/calendarManagement"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <CalendarManagement />
             </ProtectedRoute>
           }
         />
