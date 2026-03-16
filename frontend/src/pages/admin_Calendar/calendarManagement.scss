@@ -8,12 +8,36 @@ $orange-accent: #ff8c00;
 
     .pageHeader {
       display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;
-      .btn {
-        display: flex; align-items: center; gap: 8px; border: none; padding: 10px 20px;
-        border-radius: 8px; color: white; font-weight: bold; cursor: pointer;
-        &.holiday { background: $primary-purple; }
-        &.fieldWork { background: $orange-accent; }
-      }
+      .actions {
+        display: flex;         /* Aligns buttons in a row */
+        gap: 12px;            /* Precise spacing between buttons */
+        align-items: center;   /* Ensures vertical alignment */
+
+        .btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;            /* Spacing between the '+' icon and text */
+            padding: 10px 24px;  /* Horizontal padding to match the wider look */
+            border: none;
+            border-radius: 12px; /* Increased roundness to match the image */
+            color: white;
+            font-weight: 600;    /* Semi-bold text */
+            cursor: pointer;
+            transition: background 0.2s ease;
+
+            &.holiday {
+            background-color: #2A174E; /* Deep purple */
+            }
+
+            &.fieldWork {
+            background-color: #ff6d00; /* Vibrant orange */
+            }
+
+            &:hover {
+            opacity: 0.9;      /* Subtle feedback on hover */
+            }
+        }
+        }
     }
 
     .legendCard {

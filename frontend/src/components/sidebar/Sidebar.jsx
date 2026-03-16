@@ -8,6 +8,7 @@ import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import { NavLink } from "react-router-dom";
 
 const Sidebar = () => {
@@ -39,8 +40,8 @@ const Sidebar = () => {
 
           <NavLink to="/calendarManagement" style={{ textDecoration: "none" }}>
             <li>
-              <DashboardIcon className="icon" />
-              <span>Calendar Management</span>
+              <CalendarMonthOutlinedIcon className="icon" />
+              <span>Calendar</span>
             </li>
           </NavLink>
 
