@@ -16,6 +16,7 @@ const UserRequests = () => {
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [historyRequests, setHistoryRequests] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [balance, setBalance] = useState({ VL_balance: 0, SL_balance: 0 });
 
   const [formData, setFormData] = useState({
     user_Id: userData?.user_Id || "",
@@ -24,9 +25,22 @@ const UserRequests = () => {
     leaveStartDate: "",
     leaveEndDate: "",
     noDays: 0,
-    isWithPay: false,
     proofFile: null,
   });
+
+  // Fetch Balance
+  const fetchBalance = async () => {
+    if (!userData?.user_Id) return;
+    try {
+      const response = await fetch(`http://localhost:4000/api/request/balance/${userData.user_Id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setBalance(data);
+      }
+    } catch (error) {
+      console.error("Error fetching balance:", error);
+    }
+  };
 
   // Fetch History
   const fetchHistory = async () => {
@@ -46,6 +60,10 @@ const UserRequests = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchBalance();
+  }, [userData?.user_Id]);
 
   useEffect(() => {
     if (activeTab === "history") {
@@ -79,6 +97,28 @@ const UserRequests = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Check balance for warning
+    let isInsufficient = false;
+    if (formData.emp_reqTypeId === "3" && formData.noDays > balance.VL_balance) {
+      isInsufficient = true;
+    } else if (formData.emp_reqTypeId === "4" && formData.noDays > balance.SL_balance) {
+      isInsufficient = true;
+    }
+
+    // Check VL 3-day filing rule
+    let isLateFiling = false;
+    if (formData.emp_reqTypeId === "3") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const startDate = new Date(formData.leaveStartDate);
+      const diffTime = startDate - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 3) {
+        isLateFiling = true;
+      }
+    }
+
     const payload = {
       user_Id: userData.user_Id,
       emp_reqTypeId: parseInt(formData.emp_reqTypeId),
@@ -86,7 +126,6 @@ const UserRequests = () => {
       StartDate: formData.leaveStartDate,
       EndDate: formData.leaveEndDate,
       NoDays: formData.noDays,
-      isWithPay: formData.isWithPay,
       // proof_File: formData.proofFile, // Needs multipart handling if actually uploading files
     };
 
@@ -102,7 +141,19 @@ const UserRequests = () => {
       const result = await response.json();
 
       if (response.ok) {
-        setToast({ message: "Request submitted successfully!", type: "success" });
+        let finalMessage = "Request submitted successfully!";
+        if (isInsufficient && isLateFiling) {
+          finalMessage = "Warning: Insufficient balance & late filing. Request submitted but may be rejected.";
+        } else if (isInsufficient) {
+          finalMessage = "Warning: Insufficient balance. Request submitted but may be rejected.";
+        } else if (isLateFiling) {
+          finalMessage = "Warning: Vacation Leave must be filed 3 days in advance. Request submitted but may be rejected.";
+        }
+
+        setToast({ 
+          message: finalMessage, 
+          type: (isInsufficient || isLateFiling) ? "error" : "success" 
+        });
         // Reset form
         setFormData({
           user_Id: userData?.user_Id || "",
@@ -111,9 +162,9 @@ const UserRequests = () => {
           leaveStartDate: "",
           leaveEndDate: "",
           noDays: 0,
-          isWithPay: false,
           proofFile: null,
         });
+        fetchBalance();
       } else {
         setToast({ message: result.error || "Failed to submit request", type: "error" });
       }
@@ -187,13 +238,6 @@ const UserRequests = () => {
                           <label>Number of Days</label>
                           <input type="number" name="noDays" value={formData.noDays} readOnly className="readOnlyInput" />
                         </div>
-                        
-                        {formData.emp_reqTypeId === "3" && (
-                          <div className="formGroup checkboxGroup">
-                            <input type="checkbox" id="isWithPay" name="isWithPay" checked={formData.isWithPay} onChange={handleInputChange} />
-                            <label htmlFor="isWithPay">With Pay</label>
-                          </div>
-                        )}
 
                         {formData.emp_reqTypeId === "4" && (
                           <div className="formGroup fileUploadGroup">

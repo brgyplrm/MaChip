@@ -23,11 +23,10 @@ const sequelize = new Sequelize(
 );
 
 // ── Models ────────────────────────────────────────────────────────────────────
-const {
-      User,
-      user_Role,
-      employementStatus,
-      } = require("../models/user.models")(sequelize, DataTypes);
+const { User, user_Role, employementStatus } = require("../models/user.models")(
+  sequelize,
+  DataTypes,
+);
 
 const {
   user_logging,
@@ -36,25 +35,20 @@ const {
   attendance_status,
 } = require("../models/attendance.models")(sequelize, DataTypes);
 
-
 const {
   request_Status,
   request_Type,
+  withPay,
   emp_Request,
   Overtime_Request,
   Vacation_Leave,
   Sick_Leave,
   Onfield_Work,
-  Leave_Balance,  
+  Leave_Balance,
 } = require("../models/request.model")(sequelize, DataTypes);
 
-
-const {
-  Payroll,
-  Payroll_Earnings,
-  Payroll_Deductions,
-  Payroll_status,
-} = require("../models/payroll.model")(sequelize, DataTypes);
+const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status } =
+  require("../models/payroll.model")(sequelize, DataTypes);
 
 // ── Associations ──────────────────────────────────────────────────────────────
 
@@ -76,8 +70,6 @@ employee_Logging_report.belongsTo(User, {
   targetKey: "user_Id",
   as: "user",
 });
-
-
 
 // ── connectDB ─────────────────────────────────────────────────────────────────
 const connectDB = async () => {
@@ -134,7 +126,7 @@ const connectDB = async () => {
       ]);
       console.log("Seed: User Roles inserted.");
     }
-    
+
     // Seed employementStatus
     const empCount = await employementStatus.count();
     if (empCount === 0) {
@@ -145,7 +137,7 @@ const connectDB = async () => {
       ]);
       console.log("Seed: Employment Status inserted.");
     }
-    
+
     // Seed request_Status
     const reqCount = await request_Status.count();
     if (reqCount === 0) {
@@ -157,7 +149,7 @@ const connectDB = async () => {
       ]);
       console.log("Seed: Request Status inserted.");
     }
-  
+
     // Seed request_Type
     const reqTypeCount = await request_Type.count();
     if (reqTypeCount === 0) {
@@ -169,7 +161,7 @@ const connectDB = async () => {
       ]);
       console.log("Seed: Request Type inserted.");
     }
-    
+
     // Seed Payroll_status
     const payrollStatusCount = await Payroll_status.count();
     if (payrollStatusCount === 0) {
@@ -179,7 +171,19 @@ const connectDB = async () => {
       ]);
       console.log("Seed: Payroll Status inserted.");
     }
-  
+
+    // Seed withPay
+    const withPayCount = await withPay.count();
+    if (withPayCount === 0) {
+      await withPay.bulkCreate([
+        { withPayId: 1, withPayName: "Leave with Pay" },
+        { withPayId: 2, withPayName: "Leave without Pay" },
+        { withPayId: 3, withPayName: "Considered AWOL" },
+        { withPayId: 4, withPayName: "For Suspension" },
+        { withPayId: 5, withPayName: "For Dismissal" },
+      ]);
+      console.log("Seed: With Pay inserted.");
+    }
   } catch (error) {
     console.error("Unable to connect to the database:", error);
   }
@@ -198,12 +202,13 @@ module.exports = {
   employementStatus,
   request_Status,
   request_Type,
+  withPay,
   emp_Request,
   Overtime_Request,
   Vacation_Leave,
   Sick_Leave,
   Onfield_Work,
-  Leave_Balance,  
+  Leave_Balance,
   Payroll_status,
   Payroll_Earnings,
   Payroll_Deductions,

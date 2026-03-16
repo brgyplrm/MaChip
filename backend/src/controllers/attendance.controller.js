@@ -31,7 +31,7 @@ exports.markAttendance = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
 
-    const lastStatus = lastLogs[0] ? lastLogs[0].time_LoggedStatus : null;
+    const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
 
     // ── Determine next status ───────────────────────────────────────────────
     let nextStatus;
@@ -54,7 +54,7 @@ exports.markAttendance = async (req, res) => {
       const firstLoginToday = await sequelize.query(
         `SELECT * FROM "user_logging"
          WHERE "user_id" = :user_Id
-         AND "logged_StatusId " = 1
+         AND "logged_StatusId" = 1
          AND "log_Date" BETWEEN :startOfDay AND :endOfDay
          LIMIT 1`,
         {
@@ -74,7 +74,7 @@ exports.markAttendance = async (req, res) => {
     // ── 1. Insert into user_logging ─────────────────────────────────────────
     const newLogResult = await sequelize.query(
       `INSERT INTO "user_logging"
-        ("user_id", "log_Date", "time_Logged", "logged_StatusId ", "attendance_StatusId")
+        ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
        VALUES
         (:user_Id, :log_Date, :time_Logged, :logged_StatusId, :attendance_StatusId)
        RETURNING *`,
@@ -107,7 +107,7 @@ exports.markAttendance = async (req, res) => {
       await sequelize.query(
         `INSERT INTO "employee_Logging_report"
           ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr",
-           "attendance_StatusId", "final_LoggedStatus")
+           "attendance_StatusId", "logged_StatusId")
          VALUES
           (:user_Id, :todayStr, :inArr, :outArr, :attendance_StatusId, :finalStatus)`,
         {
@@ -133,7 +133,7 @@ exports.markAttendance = async (req, res) => {
         `UPDATE "employee_Logging_report"
          SET "time_Logged_inArr" = :inArr,
              "time_Logged_outArr" = :outArr,
-             "final_LoggedStatus" = :finalStatus
+             "logged_StatusId" = :finalStatus
          WHERE "user_id" = :user_Id AND "log_Date" = :todayStr`,
         {
           replacements: {
@@ -175,7 +175,7 @@ exports.viewUserLogs = async (req, res) => {
          l."statusName" AS "loggedStatusName"
        FROM "employee_Logging_report" r
        LEFT JOIN "attendance_status" a ON a."statusId" = r."attendance_StatusId"
-       LEFT JOIN "logged_status" l ON l."statusId" = r."final_LoggedStatus"
+       LEFT JOIN "logged_status" l ON l."statusId" = r."logged_StatusId"
        WHERE r."user_id" = :user_Id
        ORDER BY r."log_Date" DESC`,
       { replacements: { user_Id }, type: QueryTypes.SELECT },
@@ -191,7 +191,7 @@ exports.viewUserLogs = async (req, res) => {
         time_Out: outArr[outArr.length - 1] ?? null,
         logStatus:
           report.loggedStatusName ??
-          (report.final_LoggedStatus === 1 ? "Clock In" : "Clock Out"),
+          (report.logged_StatusId === 1 ? "Clock In" : "Clock Out"),
         attendanceStatus: report.attendanceStatusName ?? "—",
       };
     });
@@ -211,8 +211,8 @@ exports.viewAllAttendance = async (req, res) => {
          ul."user_id",
          ul."log_Date",
          ul."time_Logged",
-         ul."time_LoggedStatus",
-         ul."attendance",
+         ul."logged_StatusId",
+         ul."attendance_StatusId",
          u."user_Id",
          u."user_FirstName",
          u."user_LastName",
@@ -301,7 +301,7 @@ exports.StatusLogic = async (req, res) => {
     }
 
     // If already Absent (3) or On-Leave (4), don't override
-    if (log.attendance === 3 || log.attendance === 4) {
+    if (log.attendance_StatusId === 3 || log.attendance_StatusId === 4) {
       return res
         .status(200)
         .json({ message: "Attendance status finalized", data: log });
@@ -313,7 +313,7 @@ exports.StatusLogic = async (req, res) => {
        WHERE "user_id" = :user_Id
        AND "log_Date" >= :today
        AND "log_Date" < :tomorrow
-       AND "time_LoggedStatus" = 1
+       AND "logged_StatusId" = 1
        ORDER BY "user_loggingId" ASC
        LIMIT 1`,
       { replacements: { user_Id, today, tomorrow }, type: QueryTypes.SELECT },
@@ -326,7 +326,7 @@ exports.StatusLogic = async (req, res) => {
 
       await sequelize.query(
         `UPDATE "user_logging"
-         SET "attendance" = :attendance
+         SET "attendance_StatusId" = :attendance
          WHERE "user_loggingId" = :id`,
         {
           replacements: {
@@ -356,25 +356,60 @@ exports.StatusLogic = async (req, res) => {
   }
 };
 
+// ── Get Monthly Attendance Stats ─────────────────────────────────────────────
+exports.getMonthlyAttendanceStats = async (req, res) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const stats = await sequelize.query(
+      `SELECT 
+         TO_CHAR(TO_DATE(EXTRACT(MONTH FROM "log_Date")::text, 'MM'), 'Month') AS name,
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 1) AS "OnTime",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "Late",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "Absent",
+         EXTRACT(MONTH FROM "log_Date") as month_num
+       FROM "employee_Logging_report"
+       WHERE EXTRACT(YEAR FROM "log_Date") = :currentYear
+       GROUP BY name, month_num
+       ORDER BY month_num ASC`,
+      { replacements: { currentYear }, type: QueryTypes.SELECT }
+    );
+
+    res.status(200).json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // ── Get Dashboard Stats ───────────────────────────────────────────────────────
 exports.getDashboardStats = async (req, res) => {
   try {
     const todayStr = new Date().toISOString().split("T")[0];
 
+    const userCountResult = await sequelize.query(
+      `SELECT COUNT(*) as total FROM "User" WHERE "deletedAt" IS NULL`,
+      { type: QueryTypes.SELECT }
+    );
+    const totalEmployees = parseInt(userCountResult[0].total);
+
     const stats = await sequelize.query(
       `SELECT
-         COUNT(*) FILTER (WHERE "final_LoggedStatus" = 1) AS "officeOccupancy",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 1)          AS "onTimeCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2)          AS "lateArrivalsCount"
+         COUNT(*) FILTER (WHERE "logged_StatusId" = 1) AS "officeOccupancy",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 1) AS "onTimeCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "absentCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 4) AS "onLeaveCount"
        FROM "employee_Logging_report"
        WHERE "log_Date" = :todayStr`,
       { replacements: { todayStr }, type: QueryTypes.SELECT },
     );
 
     res.status(200).json({
-      officeOccupancy: parseInt(stats[0].officeOccupancy),
-      onTimeCount: parseInt(stats[0].onTimeCount),
-      lateArrivalsCount: parseInt(stats[0].lateArrivalsCount),
+      totalEmployees,
+      officeOccupancy: parseInt(stats[0].officeOccupancy || 0),
+      onTimeCount: parseInt(stats[0].onTimeCount || 0),
+      lateArrivalsCount: parseInt(stats[0].lateArrivalsCount || 0),
+      absentCount: parseInt(stats[0].absentCount || 0),
+      onLeaveCount: parseInt(stats[0].onLeaveCount || 0),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -396,7 +431,7 @@ exports.getOfficeOccupancy = async (req, res) => {
        FROM "employee_Logging_report" r
        LEFT JOIN "User" u ON u."user_Id" = r."user_id"
        WHERE r."log_Date" = :todayStr
-       AND r."final_LoggedStatus" = 1`,
+       AND r."logged_StatusId" = 1`,
       { replacements: { todayStr }, type: QueryTypes.SELECT },
     );
 

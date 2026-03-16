@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from "react";
 import "./payroll_Management.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
@@ -9,8 +10,47 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import { Link } from "react-router-dom";
+import { formatUserId } from "../../utils/formatUserId";
 
 const Payroll = () => {
+  const [payrolls, setPayrolls] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalNetPay: 0,
+    totalEarnings: 0,
+    totalDeductions: 0
+  });
+
+  const fetchPayrolls = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("http://localhost:4000/api/payroll/all");
+      const data = await response.json();
+      if (response.ok) {
+        setPayrolls(data);
+        
+        // Calculate stats
+        const totalNet = data.reduce((sum, p) => sum + parseFloat(p.netPay || 0), 0);
+        const totalEarn = data.reduce((sum, p) => sum + parseFloat(p.totalEarnings || 0), 0);
+        const totalDed = data.reduce((sum, p) => sum + parseFloat(p.totalDeductions || 0), 0);
+        
+        setStats({
+          totalNetPay: totalNet,
+          totalEarnings: totalEarn,
+          totalDeductions: totalDed
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching payrolls:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPayrolls();
+  }, []);
+
   return (
     <div className="payroll">
       <Sidebar />
@@ -32,23 +72,23 @@ const Payroll = () => {
           <div className="stats">
             <div className="statCard">
               <div className="left">
-                <div className="icon net"><span className="symbol">$</span></div>
+                <div className="icon net"><span className="symbol">₱</span></div>
                 <span className="title">Total Net Pay</span>
-                <span className="amount">₱40,550</span>
+                <span className="amount">₱{stats.totalNetPay.toLocaleString()}</span>
               </div>
             </div>
             <div className="statCard">
               <div className="left">
                 <div className="icon earnings"><span className="symbol">📈</span></div>
                 <span className="title">Total Earnings</span>
-                <span className="amount">₱43,520</span>
+                <span className="amount">₱{stats.totalEarnings.toLocaleString()}</span>
               </div>
             </div>
             <div className="statCard">
               <div className="left">
                 <div className="icon deductions"><span className="symbol">📉</span></div>
                 <span className="title">Total Deductions</span>
-                <span className="amount">₱2,970</span>
+                <span className="amount">₱{stats.totalDeductions.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -70,52 +110,64 @@ const Payroll = () => {
               <FilterListIcon className="icon" />
               <select>
                 <option>All Status</option>
-                <option>Draft</option>
-                <option>Processed</option>
-                <option>Paid</option>
+                <option>Processing</option>
+                <option>Released</option>
               </select>
             </div>
           </div>
 
           <div className="tableContainer">
-            <table className="payrollTable">
-              <thead>
-                <tr>
-                  <th>EMPLOYEE</th>
-                  <th>PERIOD</th>
-                  <th>DAYS/HOURS</th>
-                  <th>BASIC PAY</th>
-                  <th>EARNINGS</th>
-                  <th>DEDUCTIONS</th>
-                  <th>NET PAY</th>
-                  <th>STATUS</th>
-                  <th>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <div className="empName">Kathleen Pinto</div>
-                    <div className="id">ID: 1</div>
-                  </td>
-                  <td>3/1/2026 to 3/15/2026</td>
-                  <td>10 days / 80 hrs</td>
-                  <td>₱12,000</td>
-                  <td className="pos">+₱15,500</td>
-                  <td className="neg">-₱1,200</td>
-                  <td className="bold">₱14,300</td>
-                  <td><span className="status paid">Paid</span></td>
-                  <td>
-                    <div className="actions">
-                      <Link to="/payrollDetails"><VisibilityIcon className="view" /></Link>
-                      <Link to="/editPayroll"><EditIcon className="edit" /></Link>
-                      <DeleteIcon className="delete" />
-                    </div>
-                  </td>
-                </tr>
-                {/* Additional rows here */}
-              </tbody>
-            </table>
+            {loading ? (
+              <p>Loading payroll records...</p>
+            ) : (
+              <table className="payrollTable">
+                <thead>
+                  <tr>
+                    <th>EMPLOYEE</th>
+                    <th>PERIOD</th>
+                    <th>DAYS/HOURS</th>
+                    <th>BASIC PAY</th>
+                    <th>EARNINGS</th>
+                    <th>DEDUCTIONS</th>
+                    <th>NET PAY</th>
+                    <th>STATUS</th>
+                    <th>ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payrolls.length > 0 ? payrolls.map(p => (
+                    <tr key={p.payrollId}>
+                      <td>
+                        <div className="empName">{p.user_FirstName} {p.user_LastName}</div>
+                        <div className="id">ID: {formatUserId(p.user_Id)}</div>
+                      </td>
+                      <td>{p.period_Start} to {p.period_End}</td>
+                      <td>{p.NoDays_Worked} days / {p.NoHrs_Worked} hrs</td>
+                      <td>₱{parseFloat(p.basicPay).toLocaleString()}</td>
+                      <td className="pos">+₱{parseFloat(p.totalEarnings).toLocaleString()}</td>
+                      <td className="neg">-₱{parseFloat(p.totalDeductions).toLocaleString()}</td>
+                      <td className="bold">₱{parseFloat(p.netPay).toLocaleString()}</td>
+                      <td>
+                        <span className={`status ${p.PaystatusName?.toLowerCase()}`}>
+                          {p.PaystatusName}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="actions">
+                          <Link to={`/payrollDetails/${p.payrollId}`}><VisibilityIcon className="view" /></Link>
+                          <EditIcon className="edit" />
+                          <DeleteIcon className="delete" />
+                        </div>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan="9" style={{ textAlign: "center", padding: "20px" }}>No payroll records found</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>

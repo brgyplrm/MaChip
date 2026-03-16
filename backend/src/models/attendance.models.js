@@ -103,14 +103,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         defaultValue: "[]",
       },
-      // Attendance status from the FIRST login of the day (1=On-Time, 2=Late, null=no status)
-      attendance: {
+      // Attendance status from the FIRST login of the day (1=On-Time, 2=Late, 3=Absent, 4=On-Leave)
+      attendance_StatusId: {
         type: DataTypes.SMALLINT,
         allowNull: true,
         defaultValue: null,
       },
       // Last known status of the day: 1 = Logged In, 2 = Logged Out
-      final_LoggedStatus: {
+      logged_StatusId: {
         type: DataTypes.SMALLINT,
         allowNull: false,
         defaultValue: 1,
@@ -143,12 +143,12 @@ module.exports = (sequelize, DataTypes) => {
 
   // employee_Logging_report → logged_status (for display joins)
   employee_Logging_report.belongsTo(logged_status, {
-    foreignKey: "final_LoggedStatus",
+    foreignKey: "logged_StatusId",
     targetKey: "statusId",
     as: "loggedStatus",
   });
   logged_status.hasMany(employee_Logging_report, {
-    foreignKey: "final_LoggedStatus",
+    foreignKey: "logged_StatusId",
     sourceKey: "statusId",
   });
 

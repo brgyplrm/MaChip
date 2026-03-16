@@ -262,6 +262,31 @@ $rejected-text: #b91c1c;
                 font-weight: 700;
                 color: $text-main;
                 margin: 0;
+
+                &.insufficient {
+                  color: #b91c1c;
+                  background: #fee2e2;
+                  padding: 2px 8px;
+                  border-radius: 4px;
+                  display: inline-block;
+                }
+              }
+
+              .paymentDropdown {
+                width: 100%;
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid $border-color;
+                font-family: inherit;
+                font-size: 14px;
+                font-weight: 600;
+                color: $text-main;
+                outline: none;
+                cursor: pointer;
+
+                &:focus {
+                  border-color: $primary-purple;
+                }
               }
 
               &.attachment {
@@ -290,6 +315,23 @@ $rejected-text: #b91c1c;
                   border-radius: 8px;
                   border: 1px solid #e2e8f0;
                   margin-top: 10px;
+
+                  &.errorNote {
+                    background: #fff1f0;
+                    border-color: #ffa39e;
+                    color: #b91c1c;
+                  }
+                }
+              }
+
+              &.systemNoteBox {
+                border-top: none;
+                padding-top: 0;
+                margin-top: 0;
+                
+                label {
+                  color: #b91c1c;
+                  font-weight: 700;
                 }
               }
             }

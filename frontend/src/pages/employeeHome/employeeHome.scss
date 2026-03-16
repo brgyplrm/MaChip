@@ -1,3 +1,21 @@
+// Skeleton Loading Animation
+@keyframes pulse {
+  0% { background-color: #f0f0f0; }
+  50% { background-color: #e0e0e0; }
+  100% { background-color: #f0f0f0; }
+}
+
+.skeleton {
+  animation: pulse 1.5s ease-in-out infinite;
+  border-radius: 8px;
+  background-color: #f0f0f0;
+  
+  &.circle { border-radius: 50%; }
+  &.text { height: 14px; margin-bottom: 8px; width: 80%; }
+  &.title { height: 24px; margin-bottom: 15px; width: 40%; }
+  &.box { height: 100px; width: 100%; }
+}
+
 .home {
   .homeContainer {
     background-color: #f8f9fa;
@@ -33,14 +51,15 @@
         .statCircle {
           width: 130px;
           text-align: center;
-          .label { font-size: 14px; font-weight: 600; color: #666; margin-top: 15px; display: block; }
+          
+          .CircularProgressbar {
+            width: 100%;
+          }
         
           .CircularProgressbar-text {
             fill: #2A174E;
             font-weight: bold;
-            // CRITICAL: This allows the \n to create a new line
             white-space: pre-line; 
-            // Adjust vertical alignment so both lines are centered
             dominant-baseline: middle; 
           }
 
@@ -183,10 +202,27 @@
 
         .leaveLog {
           display: flex; align-items: center; gap: 20px; padding: 20px; border-radius: 15px; margin-bottom: 15px;
-          &.approved { background: #f6ffed; border: 1px solid #b7eb8f; }
-          .statusIcon { color: #52c41a; font-size: 28px; }
+          border: 1px solid transparent;
+
+          &.approved { 
+            background: #f6ffed; border-color: #b7eb8f; 
+            .statusIcon { color: #52c41a; }
+            .badge { background: #52c41a; }
+          }
+          &.pending { 
+            background: #fffbe6; border-color: #ffe58f; 
+            .statusIcon { color: #faad14; }
+            .badge { background: #faad14; }
+          }
+          &.rejected { 
+            background: #fff1f0; border-color: #ffa39e; 
+            .statusIcon { color: #ff4d4f; }
+            .badge { background: #ff4d4f; }
+          }
+
+          .statusIcon { font-size: 28px; }
           .text { flex: 1; .date { font-weight: 700; margin: 0; } .desc { font-size: 13px; color: #666; margin: 0; } }
-          .badge { background: #52c41a; color: white; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+          .badge { color: white; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         }
       }
     }

@@ -80,17 +80,11 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: false, freezeTableName: true },
   );
 
-  Payroll.hasMany(Payroll_Earnings, { foreignKey: "payrollId" });
-  Payroll.hasMany(Payroll_Deductions, { foreignKey: "payrollId" });
+  Payroll.hasOne(Payroll_Earnings, { foreignKey: "payrollId" });
+  Payroll.hasOne(Payroll_Deductions, { foreignKey: "payrollId" });
 
   Payroll_Earnings.belongsTo(Payroll, { foreignKey: "payrollId" });
   Payroll_Deductions.belongsTo(Payroll, { foreignKey: "payrollId" });
-
-  Payroll_Earnings.hasMany(Payroll_Earnings, { foreignKey: "payrollId" });
-  Payroll_Deductions.hasMany(Payroll_Deductions, { foreignKey: "payrollId" });
-
-  Payroll_Earnings.belongsTo(Payroll_Earnings, { foreignKey: "payrollId" });
-  Payroll_Deductions.belongsTo(Payroll_Deductions, { foreignKey: "payrollId" });
 
   return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status };
 };

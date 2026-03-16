@@ -17,6 +17,15 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: false, freezeTableName: true },
   );
 
+  const withPay = sequelize.define(
+    "withPay",
+    {
+      withPayId: { type: DataTypes.SMALLINT, primaryKey: true },
+      withPayName: { type: DataTypes.STRING, allowNull: false },
+    },
+    { timestamps: false, freezeTableName: true },
+  );
+
   // ── Parent ticket ─────────────────────────────────────────────────────────
   const emp_Request = sequelize.define(
     "emp_Request",
@@ -38,6 +47,7 @@ module.exports = (sequelize, DataTypes) => {
       processedBy: { type: DataTypes.SMALLINT, allowNull: true }, // admin who acted
       remarks: { type: DataTypes.TEXT, allowNull: true }, // employee remarks
       admin_remarks: { type: DataTypes.TEXT, allowNull: true }, // admin notes
+      system_remarks: { type: DataTypes.TEXT, allowNull: true }, // auto-generated warnings
     },
     { timestamps: true, freezeTableName: true },
   );
@@ -82,7 +92,7 @@ module.exports = (sequelize, DataTypes) => {
       EndDate: { type: DataTypes.DATEONLY, allowNull: false },
       NoDays: { type: DataTypes.SMALLINT, allowNull: false },
       purpose: { type: DataTypes.TEXT, allowNull: false },
-      isWithPay: { type: DataTypes.BOOLEAN, defaultValue: true },
+      WithPayID: { type: DataTypes.SMALLINT, allowNull: false },
     },
     { timestamps: false, freezeTableName: true },
   );
@@ -102,7 +112,7 @@ module.exports = (sequelize, DataTypes) => {
       EndDate: { type: DataTypes.DATEONLY, allowNull: false },
       NoDays: { type: DataTypes.SMALLINT, allowNull: false },
       proof_File: { type: DataTypes.STRING, allowNull: true }, // doctor's cert path
-      isWithPay: { type: DataTypes.BOOLEAN, defaultValue: true },
+      WithPayID: { type: DataTypes.SMALLINT, allowNull: false },
     },
     { timestamps: false, freezeTableName: true },
   );
@@ -211,11 +221,30 @@ module.exports = (sequelize, DataTypes) => {
     foreignKey: "emp_reqId",
     as: "request",
   });
+  Vacation_Leave.belongsTo(withPay, {
+    foreignKey: "WithPayID",
+    targetKey: "withPayId",
+    as: "withPayType",
+  });
+  withPay.hasMany(Vacation_Leave, {
+    foreignKey: "WithPayID",
+    sourceKey: "withPayId",
+  });
+  Sick_Leave.belongsTo(withPay, {
+    foreignKey: "WithPayID",
+    targetKey: "withPayId",
+    as: "withPayType",
+  });
+  withPay.hasMany(Sick_Leave, {
+    foreignKey: "WithPayID",
+    sourceKey: "withPayId",
+  });
 
   // ── Return ────────────────────────────────────────────────────────────────
   return {
     request_Status,
     request_Type,
+    withPay,
     emp_Request,
     Overtime_Request,
     Vacation_Leave,

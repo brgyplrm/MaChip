@@ -13,6 +13,8 @@ router.get("/all", attendanceController.viewAllAttendance);
 
 router.get("/status/:user_Id", attendanceController.StatusLogic);
 
+router.get("/monthly-stats", attendanceController.getMonthlyAttendanceStats);
+
 router.delete("/all", attendanceController.deleteAllLogs);
 
 router.get("/stats", attendanceController.getDashboardStats);
