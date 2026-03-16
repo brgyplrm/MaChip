@@ -9,15 +9,45 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import Toast from "../../components/toast/Toast";
+import AccessTimeIcon from '@mui/icons-material/AccessTime'; // Add this import
+import { useRef } from "react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { Link } from "react-router-dom";
 
 const UserRequests = () => {
+  const dtrRef = useRef();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const [activeTab, setActiveTab] = useState("submit"); // 'submit' or 'history'
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [historyRequests, setHistoryRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [balance, setBalance] = useState({ VL_balance: 0, SL_balance: 0 });
+
+  // 3. Add the PDF Export function
+  const handleDownloadDTR = async () => {
+    const element = dtrRef.current;
+    if (!element) return;
+
+    try {
+      const canvas = await html2canvas(element, { 
+        scale: 2, // Higher quality
+        useCORS: true, 
+        backgroundColor: "#f7f1e3" // Matches your SCSS card color
+      });
+      
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`DTR_${userData?.user_LastName || "Report"}.pdf`);
+    } catch (error) {
+      setToast({ message: "Failed to generate PDF", type: "error" });
+    }
+  };
 
   const [formData, setFormData] = useState({
     user_Id: userData?.user_Id || "",
@@ -223,10 +253,16 @@ const UserRequests = () => {
             >
               <HistoryIcon className="icon"/> Request History
             </button>
+            <button 
+              className={`tabBtn ${activeTab === "dtr" ? "active" : ""}`} 
+              onClick={() => setActiveTab("dtr")}
+            >
+              <AccessTimeIcon className="icon"/> My DTR
+            </button>
           </div>
 
           <div className="contentSection">
-            {activeTab === "submit" ? (
+            {activeTab === "submit" && (
               <div className="requestCard">
                 <h2 className="cardTitle">Submit New Report Request</h2>
                 <form onSubmit={handleSubmit}>
@@ -333,8 +369,8 @@ const UserRequests = () => {
 
                   <button type="submit" className="submitBtn">Submit Request</button>
                 </form>
-              </div>
-            ) : (
+              </div>)}
+            {activeTab === "history" &&(
               <div className="fullRequests">
                 <h2 className="cardTitle">All My Requests</h2>
                 <div className="requestsList">
@@ -375,6 +411,98 @@ const UserRequests = () => {
                   ) : (
                     <p>No requests found.</p>
                   )}
+                </div>
+              </div>
+            )}
+            {activeTab === "dtr" && (
+              <div className="dtrSection">
+                {/* 4. Add the button at the top of the section */}
+                <div className="dtrHeader">
+                    <h2 className="cardTitle">Daily Time Record</h2>
+                    <button className="exportDtrBtn" onClick={handleDownloadDTR}>
+                        <CloudUploadIcon /> Export DTR as PDF
+                    </button>
+                </div>
+                {/* 5. Add the ref to the container you want to capture */}
+                <div className="timeCardContainer" ref={dtrRef}>
+                  {/* Top Header Fields */}
+                  <div className="cardTopHeader">
+                    <div className="headerLine">
+                      <div className="field">No. <span>______</span></div>
+                      <div className="field">Pay Ending <span>MARCH 15, 2026</span></div>
+                    </div>
+                    <div className="headerLine">
+                      <div className="field">Name <span>{userData?.userName}</span></div>
+                      <div className="field">Position <span>__________</span></div>
+                    </div>
+                    <div className="headerLine">
+                      <div className="field">Dept. <span>__________</span></div>
+                      <div className="field">Age <span>____</span></div>
+                    </div>
+                  </div>
+
+                  {/* Summary Table: Earnings and Deductions */}
+                  <table className="summaryTable">
+                    <thead>
+                      <tr>
+                        <th colSpan="2">Hours</th>
+                        <th>Rate</th>
+                        <th>Amount</th>
+                        <th className="verticalTh" rowSpan="6">DEDUCTIONS</th>
+                        <th colSpan="2">ABSENCES</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="label">Reg.</td><td className="empty"></td><td className="empty"></td><td className="empty"></td><td className="label">Fines</td><td className="empty"></td>
+                      </tr>
+                      <tr>
+                        <td className="label">Over.</td><td className="empty"></td><td className="empty"></td><td className="empty"></td><td className="label">Withholding Tax</td><td className="empty"></td>
+                      </tr>
+                      <tr>
+                        <td className="label" colSpan="3">Total Earnings</td><td className="empty"></td><td className="label">S.S.S.</td><td className="empty"></td>
+                      </tr>
+                      <tr>
+                        <td className="label" colSpan="3">Less Deductions</td><td className="empty"></td><td className="empty" colSpan="2"></td>
+                      </tr>
+                      <tr className="finalRow">
+                        <td className="label" colSpan="3">NET PAY</td><td className="empty"></td><td className="label">TOTAL</td><td className="empty"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Main Attendance Grid */}
+                  <table className="mainAttendanceGrid">
+                    <thead>
+                      <tr>
+                        <th rowSpan="2">Days</th>
+                        <th colSpan="2">MORNING</th>
+                        <th colSpan="2">AFTERNOON</th>
+                        <th colSpan="2">OVERTIME</th>
+                        <th rowSpan="2">Daily Total</th>
+                      </tr>
+                      <tr>
+                        <th>IN</th><th>OUT</th><th>IN</th><th>OUT</th><th>IN</th><th>OUT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...Array(15)].map((_, i) => (
+                        <tr key={i + 1}>
+                          <td className="dayCol">{i + 1}</td>
+                          <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="cardFooter">
+                    <p className="certification">I hereby certify that the above records are true and correct.</p>
+                    <div className="signatureLine">
+                      <div className="line"></div>
+                      <span>EMPLOYEE'S SIGNATURE</span>
+                    </div>
+                    <div className="modelTag">MODEL-9,000</div>
+                  </div>
                 </div>
               </div>
             )}
