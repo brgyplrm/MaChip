@@ -11,19 +11,23 @@ import {
   Legend
 } from "recharts";
 
-const Chart = ({ aspect, title }) => {
+const Chart = ({ aspect, title, userId }) => {
   const [data, setData] = useState([]);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch("http://localhost:4000/api/attendance/monthly-stats");
+        const url = userId 
+          ? `/api/attendance/monthly-stats/${userId}`
+          : "/api/attendance/monthly-stats";
+          
+        const response = await fetch(url);
         if (response.ok) {
           const stats = await response.json();
           // Trim whitespace from TO_CHAR names
           const formattedStats = stats.map(s => ({
             ...s,
-            name: s.name.trim()
+            name: s.name ? s.name.trim() : "Unknown"
           }));
           setData(formattedStats);
         }
@@ -32,7 +36,7 @@ const Chart = ({ aspect, title }) => {
       }
     };
     fetchStats();
-  }, []);
+  }, [userId]);
 
   return (
     <div className="chart">

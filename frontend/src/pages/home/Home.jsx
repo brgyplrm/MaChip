@@ -17,7 +17,7 @@ const Home = () => {
     if (userData?.user_RoleId === 1) {
       const fetchPendingCount = async () => {
         try {
-          const response = await fetch("http://localhost:4000/api/request/pending-count");
+          const response = await fetch("/api/request/pending-count");
           if (response.ok) {
             const data = await response.json();
             if (data.count > 0) {

@@ -124,6 +124,7 @@ const Profile = () => {
             <Chart
               aspect={4 / 1}
               title="Attendance Consistency (Last 6 Months)"
+              userId={user.user_Id}
             />
           </div>
 

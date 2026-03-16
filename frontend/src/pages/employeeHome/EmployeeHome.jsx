@@ -24,8 +24,8 @@ const EmployeeHome = () => {
       if (!userData?.user_Id) return;
       try {
         const [balanceRes, requestsRes] = await Promise.all([
-          fetch(`http://localhost:4000/api/request/balance/${userData.user_Id}`),
-          fetch(`http://localhost:4000/api/request/${userData.user_Id}`)
+          fetch(`/api/request/balance/${userData.user_Id}`),
+          fetch(`/api/request/${userData.user_Id}`)
         ]);
 
         if (balanceRes.ok) setLeaveBalance(await balanceRes.json());

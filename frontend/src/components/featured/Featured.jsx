@@ -20,7 +20,7 @@ const Featured = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch("http://localhost:4000/api/attendance/stats");
+        const response = await fetch("/api/attendance/stats");
         if (response.ok) {
           const data = await response.json();
           setStats(data);

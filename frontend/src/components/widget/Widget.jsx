@@ -18,7 +18,7 @@ const Widget = ({ type }) => {
   const fetchStats = useCallback(async () => {
     try {
       const response = await fetch(
-        "http://localhost:4000/api/attendance/stats",
+        "/api/attendance/stats",
       );
       if (response.ok) {
         const stats = await response.json();

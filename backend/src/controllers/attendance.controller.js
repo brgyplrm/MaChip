@@ -356,7 +356,7 @@ exports.StatusLogic = async (req, res) => {
   }
 };
 
-// ── Get Monthly Attendance Stats ─────────────────────────────────────────────
+// ── Get Monthly Attendance Stats (Global) ────────────────────────────────────
 exports.getMonthlyAttendanceStats = async (req, res) => {
   try {
     const currentYear = new Date().getFullYear();
@@ -372,6 +372,31 @@ exports.getMonthlyAttendanceStats = async (req, res) => {
        GROUP BY name, month_num
        ORDER BY month_num ASC`,
       { replacements: { currentYear }, type: QueryTypes.SELECT }
+    );
+
+    res.status(200).json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Get Monthly Attendance Stats (Specific User) ──────────────────────────────
+exports.getMonthlyAttendanceStatsByUser = async (req, res) => {
+  const { user_Id } = req.params;
+  try {
+    const currentYear = new Date().getFullYear();
+    const stats = await sequelize.query(
+      `SELECT 
+         TO_CHAR(TO_DATE(EXTRACT(MONTH FROM "log_Date")::text, 'MM'), 'Month') AS name,
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 1) AS "OnTime",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "Late",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "Absent",
+         EXTRACT(MONTH FROM "log_Date") as month_num
+       FROM "employee_Logging_report"
+       WHERE "user_id" = :user_Id AND EXTRACT(YEAR FROM "log_Date") = :currentYear
+       GROUP BY name, month_num
+       ORDER BY month_num ASC`,
+      { replacements: { user_Id, currentYear }, type: QueryTypes.SELECT }
     );
 
     res.status(200).json(stats);
