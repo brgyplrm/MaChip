@@ -82,7 +82,7 @@ function App() {
         />
 
         <Route
-          path="/editPayroll"
+          path="/editPayroll/:payrollId"
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <EditPayroll />

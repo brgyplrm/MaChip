@@ -140,7 +140,7 @@ $primary-purple: #2A174E;
       .formGroup {
         margin-bottom: 20px;
         label { display: block; font-weight: 700; margin-bottom: 10px; font-size: 14px; color: #444; margin-right: 30px;}
-        select, textarea, input[type="date"], input[type="number"] {
+        select, textarea, input[type="date"], input[type="number"], input[type="time"] {
           width: 90%; padding: 12px; border: 1px solid #eee; border-radius: 8px; background: #fdfdfd;
           &:focus { border-color: $primary-purple; outline: none; }
         }

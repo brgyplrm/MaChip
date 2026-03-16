@@ -21,6 +21,7 @@ module.exports = (sequelize, DataTypes) => {
       period_End: { type: DataTypes.DATEONLY, allowNull: false }, // "JANUARY 15"
       NoDays_Worked: { type: DataTypes.SMALLINT, allowNull: false }, // "Number of Days: 13"
       NoHrs_Worked: { type: DataTypes.FLOAT, allowNull: false }, // "104.00 hrs"
+      dailyRate: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
       ratePerHr: { type: DataTypes.FLOAT, allowNull: false },
       basicPay: { type: DataTypes.FLOAT, allowNull: false }, // "Pay this period"
       totalEarnings: { type: DataTypes.FLOAT, allowNull: false }, // "Total Pay"
@@ -76,6 +77,7 @@ module.exports = (sequelize, DataTypes) => {
       tardiness_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       unpaidLeave_Days: { type: DataTypes.FLOAT, defaultValue: 0 },
       unpaidLeave_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
+      paidLeave_Days: { type: DataTypes.FLOAT, defaultValue: 0 },
     },
     { timestamps: false, freezeTableName: true },
   );

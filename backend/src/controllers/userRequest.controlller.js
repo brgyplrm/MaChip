@@ -278,6 +278,22 @@ exports.UserCreateRequest = async (req, res) => {
       return res.status(400).json({ error: "Invalid Request Type" });
     }
 
+    const typeNameMap = { 1: "Overtime", 2: "Onfield Work", 3: "Vacation Leave", 4: "Sick Leave" };
+    const typeName = typeNameMap[finalReqTypeId] || "Request";
+
+    await sequelize.query(
+      `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "createdAt", "updatedAt")
+       VALUES (:userId, :title, :message, false, NOW(), NOW())`,
+      {
+        replacements: {
+          userId: finalUserId,
+          title: "Request Submitted",
+          message: `Your ${typeName} request has been submitted and is currently pending review.`,
+        },
+        type: QueryTypes.INSERT,
+      },
+    );
+
     return res.status(200).json({
       message: "Request created successfully",
       data: {
@@ -465,6 +481,31 @@ exports.UpdateStatusRequest = async (req, res) => {
       }
     }
 
+    // 3. Create notification for the user
+    const [requestInfo] = await sequelize.query(
+      `SELECT er."user_Id", rt."reqTypeName" 
+       FROM "emp_Request" er
+       LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+       WHERE er."emp_reqId" = :emp_reqId`,
+      { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+    );
+
+    if (requestInfo) {
+      const statusName = emp_reqStatusId === 2 ? "Approved" : "Rejected";
+      await sequelize.query(
+        `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "createdAt", "updatedAt")
+         VALUES (:userId, :title, :message, false, NOW(), NOW())`,
+        {
+          replacements: {
+            userId: requestInfo.user_Id,
+            title: `Request ${statusName}`,
+            message: `Your ${requestInfo.reqTypeName} request has been ${statusName.toLowerCase()}.`,
+          },
+          type: QueryTypes.INSERT,
+        }
+      );
+    }
+
     res.status(200).json({ message: "Request status updated successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -517,6 +558,75 @@ exports.GetLeaveBalance = async (req, res) => {
       SL_used: balance.SL_used || 0,
       SL_balance: balance.SL_balance,
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.GetRequestDetails = async (req, res) => {
+  const { requestId } = req.params;
+  const currentYear = new Date().getFullYear();
+
+  try {
+    const request = await sequelize.query(
+      `SELECT
+        er."emp_reqId",
+        er."user_Id",
+        u."user_FirstName" || ' ' || u."user_LastName" as "userName",
+        er."emp_reqTypeId",
+        rt."reqTypeName",
+        er."emp_reqStatusId",
+        rs."reqStatName" as "status",
+        er."date_Filed",
+        er."date_Processed",
+        er.remarks,
+        er.admin_remarks,
+        er.system_remarks,
+        ot."OT_DateOf",
+        ot."HrFrom",
+        ot."HrTo",
+        ot."Total_Hrs",
+        vl."StartDate" as "VL_StartDate",
+        vl."EndDate" as "VL_EndDate",
+        vl."NoDays" as "VL_NoDays",
+        wpvl."withPayName" as "VL_withPayName",
+        sl."StartDate" as "SL_StartDate",
+        sl."EndDate" as "SL_EndDate",
+        sl."NoDays" as "SL_NoDays",
+        sl."proof_File" as "SL_proof_File",
+        wpsl."withPayName" as "SL_withPayName",
+        ow."DateonField",
+        ow."NoDays" as "OW_NoDays",
+        ow."NoHrs" as "OW_NoHrs",
+        ow."destination",
+        ow."proof_File" as "OW_proof_File",
+        lb."VL_balance",
+        lb."SL_balance",
+        ap."user_FirstName" || ' ' || ap."user_LastName" as "approverName"
+      FROM "emp_Request" er
+      INNER JOIN "User" u ON er."user_Id" = u."user_Id"
+      LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+      LEFT JOIN "request_Status" rs ON er."emp_reqStatusId" = rs."reqStatId"
+      LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
+      LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+      LEFT JOIN "withPay" wpvl ON vl."WithPayID" = wpvl."withPayId"
+      LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+      LEFT JOIN "withPay" wpsl ON sl."WithPayID" = wpsl."withPayId"
+      LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+      LEFT JOIN "Leave_Balance" lb ON er."user_Id" = lb."user_Id" AND lb."year" = :currentYear
+      LEFT JOIN "User" ap ON er."processedBy" = ap."user_Id"
+      WHERE er."emp_reqId" = CAST(:requestId AS INTEGER)`,
+      {
+        replacements: { requestId, currentYear },
+        type: QueryTypes.SELECT,
+      },
+    );
+
+    if (request.length === 0) {
+      return res.status(404).json({ error: "Request not found" });
+    }
+
+    res.status(200).json(request[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -34,6 +34,24 @@ connectDB();
 // Import the sequelize instance for raw queries
 const { sequelize } = require("./config/sequelize");
 
+// Ensure paidLeave_Days exists in the database
+(async () => {
+  try {
+    await sequelize.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Payroll_Deductions' AND column_name='paidLeave_Days') THEN
+          ALTER TABLE "Payroll_Deductions" ADD COLUMN "paidLeave_Days" FLOAT DEFAULT 0;
+        END IF;
+      END
+      $$;
+    `);
+    console.log("[DB] Checked/Added paidLeave_Days to Payroll_Deductions");
+  } catch (err) {
+    console.error("[DB] Error updating Payroll_Deductions table:", err);
+  }
+})();
+
 // Basic route for testing
 app.get("/Machip", (req, res) => {
   res.json({ message: "Welcome to MaChip API." });
@@ -67,6 +85,14 @@ app.use("/api/attendance", attendanceRoutes);
 // Routes for requests
 const requestRoutes = require("./routes/request.routes.js");
 app.use("/api/request", requestRoutes);
+
+// Routes for payroll
+const payrollRoutes = require("./routes/payroll.routes.js");
+app.use("/api/payroll", payrollRoutes);
+
+// Routes for notifications
+const notificationRoutes = require("./routes/notification.routes.js");
+app.use("/api/notifications", notificationRoutes);
 
 // Define port and start server
 const PORT = process.env.PORT || 4000;

@@ -155,7 +155,7 @@ const Payroll = () => {
                       <td>
                         <div className="actions">
                           <Link to={`/payrollDetails/${p.payrollId}`}><VisibilityIcon className="view" /></Link>
-                          <EditIcon className="edit" />
+                          <Link to={`/editPayroll/${p.payrollId}`}><EditIcon className="edit" /></Link>
                           <DeleteIcon className="delete" />
                         </div>
                       </td>

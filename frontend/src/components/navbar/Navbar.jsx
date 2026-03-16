@@ -2,10 +2,33 @@ import "./navbar.scss";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import NavigateNextIcon from '@mui/icons-material/NavigateNext'; // New Icon
 import { Link, useLocation } from "react-router-dom"; // Added useLocation
+import { useState, useEffect } from "react";
 
 const Navbar = () => {
   const location = useLocation();
+  const userData = JSON.parse(localStorage.getItem("userData"));
+  const [unreadCount, setUnreadCount] = useState(0);
   let currentLink = "";
+
+  const fetchUnreadCount = async () => {
+    if (!userData?.user_Id) return;
+    try {
+      const response = await fetch(`/api/notifications/unread-count/${userData.user_Id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setUnreadCount(data.count);
+      }
+    } catch (err) {
+      console.error("Error fetching unread count:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+    // Poll every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [userData?.user_Id]);
 
   // Logic to split URL into breadcrumb links
   const crumbs = location.pathname.split("/")
@@ -33,7 +56,7 @@ const Navbar = () => {
           <Link to="/notifications">
             <div className="item">
               <NotificationsNoneOutlinedIcon className="icon" />
-              <div className="counter">3</div>
+              {unreadCount > 0 && <div className="counter">{unreadCount}</div>}
             </div>
           </Link>
           <Link to="/profile">

@@ -50,6 +50,11 @@ const {
 const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status } =
   require("../models/payroll.model")(sequelize, DataTypes);
 
+const { Notification } = require("../models/notification.models")(
+  sequelize,
+  DataTypes,
+);
+
 // ── Associations ──────────────────────────────────────────────────────────────
 
 // User ↔ user_logging
@@ -213,4 +218,5 @@ module.exports = {
   Payroll_Earnings,
   Payroll_Deductions,
   Payroll,
+  Notification,
 };

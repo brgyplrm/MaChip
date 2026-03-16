@@ -61,6 +61,7 @@ const UserRequests = () => {
     otDate: "",
     hrFrom: "",
     hrTo: "",
+    totalHrs: 0,
     // On-field fields
     fieldDate: "",
     fieldNoHrs: 0,
@@ -69,13 +70,27 @@ const UserRequests = () => {
   });
 
   useEffect(() => {
-  if (formData.hrFrom && formData.hrTo) {
-    const start = new Date(`1970-01-01T${formData.hrFrom}`);
-    const end = new Date(`1970-01-01T${formData.hrTo}`);
-    let diff = (end - start) / (1000 * 60 * 60); // convert to hours
-    setFormData(prev => ({ ...prev, fieldNoHrs: diff > 0 ? diff.toFixed(2) : 0 }));
-  }
-}, [formData.hrFrom, formData.hrTo]);
+    if (formData.hrFrom && formData.hrTo) {
+      const [h1, m1] = formData.hrFrom.split(":").map(Number);
+      const [h2, m2] = formData.hrTo.split(":").map(Number);
+      
+      if (!isNaN(h1) && !isNaN(h2)) {
+        let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+        if (diff < 0) diff += 24 * 60; // Handle overnight OT
+        
+        const calculatedHrs = (diff / 60).toFixed(2);
+        setFormData(prev => ({ 
+          ...prev, 
+          totalHrs: calculatedHrs,
+          fieldNoHrs: formData.emp_reqTypeId === "1" ? calculatedHrs : prev.fieldNoHrs
+        }));
+      }
+    } else {
+      if (formData.totalHrs !== "0.00" && formData.totalHrs !== 0) {
+        setFormData(prev => ({ ...prev, totalHrs: "0.00" }));
+      }
+    }
+  }, [formData.hrFrom, formData.hrTo, formData.emp_reqTypeId]);
 
   // Fetch Balance
   const fetchBalance = async () => {
@@ -143,6 +158,15 @@ const UserRequests = () => {
     }));
   };
 
+  const formatTime = (time) => {
+    if (!time) return "";
+    const [hours, minutes] = time.split(":");
+    const h = parseInt(hours, 10);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -173,9 +197,23 @@ const UserRequests = () => {
     formDataToSubmit.append("emp_reqTypeId", formData.emp_reqTypeId);
     formDataToSubmit.append("remarks", formData.remarks); // Used as fallback for purpose/reason
     formDataToSubmit.append("purpose", formData.remarks);
-    formDataToSubmit.append("StartDate", formData.leaveStartDate);
-    formDataToSubmit.append("EndDate", formData.leaveEndDate);
-    formDataToSubmit.append("NoDays", formData.noDays);
+    formDataToSubmit.append("reason", formData.remarks);
+    
+    if (formData.emp_reqTypeId === "1") {
+      formDataToSubmit.append("OT_DateOf", formData.otDate);
+      formDataToSubmit.append("HrFrom", formData.hrFrom);
+      formDataToSubmit.append("HrTo", formData.hrTo);
+      formDataToSubmit.append("Total_Hrs", formData.totalHrs);
+    } else if (formData.emp_reqTypeId === "2") {
+      formDataToSubmit.append("DateonField", formData.fieldDate);
+      formDataToSubmit.append("NoDays", 1); // Default to 1 day for field work
+      formDataToSubmit.append("NoHrs", formData.fieldNoHrs);
+      formDataToSubmit.append("destination", formData.destination);
+    } else {
+      formDataToSubmit.append("StartDate", formData.leaveStartDate);
+      formDataToSubmit.append("EndDate", formData.leaveEndDate);
+      formDataToSubmit.append("NoDays", formData.noDays);
+    }
     
     if (formData.proofFile) {
       formDataToSubmit.append("proofFile", formData.proofFile);
@@ -213,6 +251,13 @@ const UserRequests = () => {
           leaveStartDate: "",
           leaveEndDate: "",
           noDays: 0,
+          otDate: "",
+          hrFrom: "",
+          hrTo: "",
+          totalHrs: 0,
+          fieldDate: "",
+          fieldNoHrs: 0,
+          destination: "",
           proofFile: null,
         });
         fetchBalance();
@@ -288,12 +333,18 @@ const UserRequests = () => {
                       </div>
                       <div className="formRow">
                         <div className="formGroup">
-                          <label>Time From</label>
+                          <label>Time From {formData.hrFrom && <span style={{color: "#2A174E", fontSize: "12px", marginLeft: "5px"}}>({parseInt(formData.hrFrom.split(":")[0]) >= 12 ? "PM" : "AM"})</span>}</label>
                           <input type="time" name="hrFrom" onChange={handleInputChange} required />
                         </div>
                         <div className="formGroup">
-                          <label>Time To</label>
+                          <label>Time To {formData.hrTo && <span style={{color: "#2A174E", fontSize: "12px", marginLeft: "5px"}}>({parseInt(formData.hrTo.split(":")[0]) >= 12 ? "PM" : "AM"})</span>}</label>
                           <input type="time" name="hrTo" onChange={handleInputChange} required />
+                        </div>
+                      </div>
+                      <div className="formRow">
+                        <div className="formGroup">
+                          <label>Total Hours</label>
+                          <input type="number" name="totalHrs" value={formData.totalHrs} readOnly className="readOnlyInput" />
                         </div>
                       </div>
                     </div>
@@ -381,13 +432,13 @@ const UserRequests = () => {
                       const statusClass = getStatusClass(req.status);
                       const dates = req.VL_StartDate ? `${req.VL_StartDate} - ${req.VL_EndDate}` : 
                                     req.SL_StartDate ? `${req.SL_StartDate} - ${req.SL_EndDate}` :
-                                    req.OT_DateOf ? req.OT_DateOf : req.DateonField;
+                                    req.OT_DateOf ? `${req.OT_DateOf} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})` : req.DateonField;
                       const days = req.VL_NoDays || req.SL_NoDays || req.OW_NoDays || 1;
 
                       return (
                         /* 1. Wrap the entire log in a Link */
                         <Link 
-                          to={`/requests/${req.emp_reqIdDetails}`} 
+                          to={`/requests/${req.emp_reqId}`} 
                           key={req.emp_reqId} 
                           style={{ textDecoration: 'none', color: 'inherit' }}
                         >

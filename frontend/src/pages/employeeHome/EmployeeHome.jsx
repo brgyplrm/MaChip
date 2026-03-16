@@ -9,6 +9,7 @@ import ArrowRightAltIcon from '@mui/icons-material/ArrowRightAlt';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import Toast from "../../components/toast/Toast";
 
 const EmployeeHome = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -18,20 +19,31 @@ const EmployeeHome = () => {
   });
   const [recentRequests, setRecentRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState({ message: "", type: "success" });
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!userData?.user_Id) return;
       try {
-        const [balanceRes, requestsRes] = await Promise.all([
+        const [balanceRes, requestsRes, notifRes] = await Promise.all([
           fetch(`/api/request/balance/${userData.user_Id}`),
-          fetch(`/api/request/${userData.user_Id}`)
+          fetch(`/api/request/${userData.user_Id}`),
+          fetch(`/api/notifications/unread-count/${userData.user_Id}`)
         ]);
 
         if (balanceRes.ok) setLeaveBalance(await balanceRes.json());
         if (requestsRes.ok) {
           const data = await requestsRes.json();
           setRecentRequests(data.slice(0, 3));
+        }
+        if (notifRes.ok) {
+          const notifData = await notifRes.json();
+          if (notifData.count > 0) {
+            setToast({
+              message: `You have ${notifData.count} unread notification(s).`,
+              type: "success"
+            });
+          }
         }
       } catch (error) {
         console.error("Dashboard fetch error:", error);
@@ -47,6 +59,11 @@ const EmployeeHome = () => {
       <Sidebar />
       <div className="homeContainer">
         <Navbar />
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast({ ...toast, message: "" })} 
+        />
         <div className="contentWrapper">
           
           {/* Top Section: Attendance Overview (Restored) */}

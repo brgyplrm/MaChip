@@ -42,6 +42,15 @@ const AdminRequests = () => {
     setPaymentStatus(2); // Default to without pay
   }, [selectedIdx, activeTab]);
 
+  const formatTime = (time) => {
+    if (!time) return "";
+    const [hours, minutes] = time.split(":");
+    const h = parseInt(hours, 10);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
   const handleStatusUpdate = async (emp_reqId, statusId) => {
     try {
       const response = await fetch(
@@ -109,7 +118,7 @@ const AdminRequests = () => {
       : req.SL_StartDate
         ? `${req.SL_StartDate} — ${req.SL_EndDate}`
         : req.OT_DateOf
-          ? req.OT_DateOf
+          ? `${req.OT_DateOf} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
           : req.DateonField;
   };
 
@@ -255,47 +264,65 @@ const AdminRequests = () => {
                             : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
                       </p>
                     </div>
-                    <div className="detailBox">
-                      <label>Payment Status</label>
-                      {current.emp_reqStatusId === 1 &&
-                      (current.emp_reqTypeId === 3 ||
-                        current.emp_reqTypeId === 4) ? (
-                        <select
-                          className="paymentDropdown"
-                          value={paymentStatus}
-                          onChange={(e) =>
-                            setPaymentStatus(parseInt(e.target.value))
-                          }
-                        >
-                          <option value={1}>Leave with Pay</option>
-                          <option value={2}>Leave without Pay</option>
-                          <option value={3}>Considered AWOL</option>
-                          <option value={4}>For Suspension</option>
-                          <option value={5}>For Dismissal</option>
-                        </select>
-                      ) : (
-                        <p>
-                          {current.VL_withPayName ||
-                            current.SL_withPayName ||
-                            "N/A"}
-                        </p>
-                      )}
-                    </div>
-                    <div className="detailBox">
-                        <label>{current.emp_reqStatusId === 1 ? "Remaining Balance" : "Leave Used"}</label>
-                        <p className={
-                          (current.emp_reqStatusId === 1) && (
-                            (current.emp_reqTypeId === 3 && current.VL_balance < current.VL_NoDays) ||
-                            (current.emp_reqTypeId === 4 && current.SL_balance < current.SL_NoDays)
-                          ) ? "insufficient" : ""
-                        }>
-                          {current.emp_reqTypeId === 3 
-                            ? (current.emp_reqStatusId === 1 ? `${current.VL_balance || 0} VL Remaining` : `${current.VL_NoDays || 0} Day(s) Used`)
-                            : current.emp_reqTypeId === 4 
-                            ? (current.emp_reqStatusId === 1 ? `${current.SL_balance || 0} SL Remaining` : `${current.SL_NoDays || 0} Day(s) Used`)
-                            : "N/A"}
-                        </p>
-                    </div>
+
+                    {current.emp_reqTypeId === 1 && (
+                      <>
+                        <div className="detailBox">
+                          <label>Time From</label>
+                          <p>{formatTime(current.HrFrom)}</p>
+                        </div>
+                        <div className="detailBox">
+                          <label>Time To</label>
+                          <p>{formatTime(current.HrTo)}</p>
+                        </div>
+                      </>
+                    )}
+
+                    {current.emp_reqTypeId !== 1 && (
+                      <>
+                        <div className="detailBox">
+                          <label>Payment Status</label>
+                          {current.emp_reqStatusId === 1 &&
+                          (current.emp_reqTypeId === 3 ||
+                            current.emp_reqTypeId === 4) ? (
+                            <select
+                              className="paymentDropdown"
+                              value={paymentStatus}
+                              onChange={(e) =>
+                                setPaymentStatus(parseInt(e.target.value))
+                              }
+                            >
+                              <option value={1}>Leave with Pay</option>
+                              <option value={2}>Leave without Pay</option>
+                              <option value={3}>Considered AWOL</option>
+                              <option value={4}>For Suspension</option>
+                              <option value={5}>For Dismissal</option>
+                            </select>
+                          ) : (
+                            <p>
+                              {current.VL_withPayName ||
+                                current.SL_withPayName ||
+                                "N/A"}
+                            </p>
+                          )}
+                        </div>
+                        <div className="detailBox">
+                            <label>{current.emp_reqStatusId === 1 ? "Remaining Balance" : "Leave Used"}</label>
+                            <p className={
+                              (current.emp_reqStatusId === 1) && (
+                                (current.emp_reqTypeId === 3 && current.VL_balance < current.VL_NoDays) ||
+                                (current.emp_reqTypeId === 4 && current.SL_balance < current.SL_NoDays)
+                              ) ? "insufficient" : ""
+                            }>
+                              {current.emp_reqTypeId === 3 
+                                ? (current.emp_reqStatusId === 1 ? `${current.VL_balance || 0} VL Remaining` : `${current.VL_NoDays || 0} Day(s) Used`)
+                                : current.emp_reqTypeId === 4 
+                                ? (current.emp_reqStatusId === 1 ? `${current.SL_balance || 0} SL Remaining` : `${current.SL_NoDays || 0} Day(s) Used`)
+                                : "N/A"}
+                            </p>
+                        </div>
+                      </>
+                    )}
                     {(current.SL_proof_File || current.OW_proof_File) && (
                       <div className="detailBox attachment">
                         <label>Attachment</label>
