@@ -23,11 +23,29 @@ const UserRequests = () => {
     user_Id: userData?.user_Id || "",
     emp_reqTypeId: "",
     remarks: "",
+    // Leave fields
     leaveStartDate: "",
     leaveEndDate: "",
     noDays: 0,
+    // OT fields
+    otDate: "",
+    hrFrom: "",
+    hrTo: "",
+    // On-field fields
+    fieldDate: "",
+    fieldNoHrs: 0,
+    destination: "",
     proofFile: null,
   });
+
+  useEffect(() => {
+  if (formData.hrFrom && formData.hrTo) {
+    const start = new Date(`1970-01-01T${formData.hrFrom}`);
+    const end = new Date(`1970-01-01T${formData.hrTo}`);
+    let diff = (end - start) / (1000 * 60 * 60); // convert to hours
+    setFormData(prev => ({ ...prev, fieldNoHrs: diff > 0 ? diff.toFixed(2) : 0 }));
+  }
+}, [formData.hrFrom, formData.hrTo]);
 
   // Fetch Balance
   const fetchBalance = async () => {
@@ -216,12 +234,60 @@ const UserRequests = () => {
                     <label>Request Type</label>
                     <select name="emp_reqTypeId" value={formData.emp_reqTypeId} onChange={handleInputChange} required>
                       <option value="" disabled>Select request type</option>
+                      <option value="1">Overtime (OT)</option>
+                      <option value="2">On-field Work (OW)</option>
                       <option value="3">Vacation Leave (VL)</option>
                       <option value="4">Sick Leave (SL)</option>
-                      {/* Add more types if needed, matching backend IDs */}
                     </select>
                   </div>
 
+                  {/* Overtime Specific Fields (Type 1) */}
+                  {formData.emp_reqTypeId === "1" && (
+                    <div className="conditionalFields">
+                      <div className="formRow">
+                        <div className="formGroup">
+                          <label>OT Date</label>
+                          <input type="date" name="otDate" onChange={handleInputChange} required />
+                        </div>
+                      </div>
+                      <div className="formRow">
+                        <div className="formGroup">
+                          <label>Time From</label>
+                          <input type="time" name="hrFrom" onChange={handleInputChange} required />
+                        </div>
+                        <div className="formGroup">
+                          <label>Time To</label>
+                          <input type="time" name="hrTo" onChange={handleInputChange} required />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* On-field Specific Fields (Type 2) */}
+                  {formData.emp_reqTypeId === "2" && (
+                    <div className="conditionalFields">
+                      <div className="formRow">
+                        <div className="formGroup">
+                          <label>Date of Field Work</label>
+                          <input type="date" name="fieldDate" onChange={handleInputChange} required />
+                        </div>
+                        <div className="formGroup">
+                          <label>No. of Hours</label>
+                          <input type="number" name="fieldNoHrs" step="0.5" onChange={handleInputChange} required />
+                        </div>
+                      </div>
+                      <div className="formGroup">
+                        <label>Destination</label>
+                        <input type="text" name="destination" placeholder="Client site / Office location" onChange={handleInputChange} required />
+                      </div>
+                      <div className="formGroup fileUploadGroup">
+                          <label className="fileLabel" htmlFor="proofFile">
+                            <CloudUploadIcon /> {formData.proofFile ? formData.proofFile.name : "Upload Itinerary / Proof"}
+                          </label>
+                          <input type="file" id="proofFile" name="proofFile" onChange={handleInputChange} style={{ display: 'none' }} />
+                      </div>
+                    </div>
+                  )}
                   {/* Conditional Fields for Leave (Types 3 and 4) */}
                   {(formData.emp_reqTypeId === "3" || formData.emp_reqTypeId === "4") && (
                     <div className="conditionalFields">

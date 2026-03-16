@@ -40,6 +40,9 @@ const CalendarManagement = () => {
               <span>Manage holidays, leaves, and field work</span>
             </div>
             <div className="actions">
+               <button className="btn holiday" onClick={() => setModalType('addHoliday')}>
+                <AddIcon /> CSV
+              </button>
               <button className="btn holiday" onClick={() => setModalType('addHoliday')}>
                 <AddIcon /> Add Holiday
               </button>
