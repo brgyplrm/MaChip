@@ -289,6 +289,21 @@ $rejected-text: #b91c1c;
                 }
               }
 
+              .attachmentLink {
+                color: $primary-purple;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                text-decoration: underline;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 700;
+
+                &:hover {
+                  opacity: 0.8;
+                }
+              }
+
               &.attachment {
                 p {
                   color: $primary-purple;

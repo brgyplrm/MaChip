@@ -299,10 +299,15 @@ const AdminRequests = () => {
                     {(current.SL_proof_File || current.OW_proof_File) && (
                       <div className="detailBox attachment">
                         <label>Attachment</label>
-                        <p>
+                        <a 
+                          href={`http://localhost:4000/uploads/${current.SL_proof_File || current.OW_proof_File}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="attachmentLink"
+                        >
                           <AttachmentIcon className="icon" />{" "}
-                          {current.SL_proof_File || current.OW_proof_File}
-                        </p>
+                          View Attachment
+                        </a>
                       </div>
                     )}
                     <div className="detailBox fullWidth">
