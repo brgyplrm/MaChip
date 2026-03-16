@@ -1,0 +1,59 @@
+$primary-purple: #2A174E;
+
+.payslipPage {
+  .payslipWrapper {
+    padding: 30px;
+    background-color: #fdfaf5;
+
+    .headerActions {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 25px;
+      h1 { font-size: 24px; color: #333; }
+      .downloadBtn {
+        display: flex; align-items: center; gap: 8px;
+        background: #22c55e; color: white; border: none;
+        padding: 10px 20px; border-radius: 8px; cursor: pointer;
+        font-weight: bold; &:hover { opacity: 0.9; }
+      }
+    }
+
+    .payslipCard {
+      background: white; padding: 40px; width: 800px;
+      margin: 0 auto; border: 2px solid #b91c1c; // Red border from design
+      font-family: Arial, sans-serif;
+
+      .companyHeader {
+        text-align: center; color: #1e3a8a; margin-bottom: 30px;
+        h2 { font-size: 20px; font-weight: bold; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+      }
+
+      .employeeInfo {
+        margin-bottom: 25px;
+        .row {
+          display: grid; grid-template-columns: 150px 20px 1fr;
+          margin-bottom: 8px; font-size: 14px;
+          .label { font-weight: bold; }
+          .val { text-transform: uppercase; }
+        }
+      }
+
+      .payslipTable {
+        width: 100%; border-collapse: collapse; font-size: 13px;
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #f8fafc; font-weight: bold; }
+        
+        .subtotal td { border-top: 2px solid #333; }
+        
+        .netPayRow {
+          td { border: none; font-size: 16px; }
+          .underline { border-bottom: 3px double #333; }
+        }
+      }
+
+      .signatureSection {
+        margin-top: 50px; font-size: 14px;
+        .signatureLine { width: 250px; border-bottom: 1.5px solid #333; margin-top: 40px; }
+      }
+    }
+  }
+}

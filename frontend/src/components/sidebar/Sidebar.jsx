@@ -73,6 +73,12 @@ const Sidebar = () => {
                 <span>Payroll</span>
               </li>
             </NavLink>
+            <NavLink to="/adminReports" style={{ textDecoration: "none" }}>
+              <li>
+                <RequestQuoteOutlinedIcon className="icon" /> {/* You can replace this with a more appropriate icon for reports */}
+                <span>Reports</span>
+              </li>
+            </NavLink>
             </>
           )}
 

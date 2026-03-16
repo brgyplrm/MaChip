@@ -22,6 +22,8 @@ import { Routes, Route } from "react-router-dom";
 import { userInputs } from "./formSource";
 import ProtectedRoute from "./components/protectedroute/ProtectedRoute";
 import CalendarRedirect from "./components/CalendarRedirect";
+import AdminReports from "./pages/admin_reports/adminReports";
+import Payslip from "./pages/admin_reports/payslip";
 
 function App() {
   return (
@@ -87,6 +89,19 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/adminReports"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <AdminReports />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route 
+          path="/adminReports/payslip/:id" 
+          element={<Payslip />} />
 
         <Route
           path="/calendar"
