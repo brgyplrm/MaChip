@@ -26,6 +26,7 @@ app.use(
 );
 
 app.use(express.static("public"));
+app.use("/uploads", express.static("uploads"));
 
 // Connect to the database
 connectDB();

@@ -119,23 +119,25 @@ const UserRequests = () => {
       }
     }
 
-    const payload = {
-      user_Id: userData.user_Id,
-      emp_reqTypeId: parseInt(formData.emp_reqTypeId),
-      purpose: formData.remarks,
-      StartDate: formData.leaveStartDate,
-      EndDate: formData.leaveEndDate,
-      NoDays: formData.noDays,
-      // proof_File: formData.proofFile, // Needs multipart handling if actually uploading files
-    };
+    const formDataToSubmit = new FormData();
+    formDataToSubmit.append("user_Id", userData.user_Id);
+    formDataToSubmit.append("emp_reqTypeId", formData.emp_reqTypeId);
+    formDataToSubmit.append("remarks", formData.remarks); // Used as fallback for purpose/reason
+    formDataToSubmit.append("purpose", formData.remarks);
+    formDataToSubmit.append("StartDate", formData.leaveStartDate);
+    formDataToSubmit.append("EndDate", formData.leaveEndDate);
+    formDataToSubmit.append("NoDays", formData.noDays);
+    
+    if (formData.proofFile) {
+      formDataToSubmit.append("proofFile", formData.proofFile);
+    }
 
     try {
       const response = await fetch("http://localhost:4000/api/request", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+        body: formDataToSubmit,
+        // Important: Don't set Content-Type header when using FormData, 
+        // the browser will set it automatically with the correct boundary
       });
 
       const result = await response.json();

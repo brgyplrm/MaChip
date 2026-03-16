@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const { UserCreateRequest, GetUserRequests, GetAllRequests, UpdateStatusRequest, GetLeaveBalance, GetPendingCount } = require("../controllers/userRequest.controlller");
+const upload = require("../middleware/upload");
 
-router.post("/", UserCreateRequest);
-router.post("/UserCreateRequest", UserCreateRequest);
+router.post("/", upload.single('proofFile'), UserCreateRequest);
+router.post("/UserCreateRequest", upload.single('proofFile'), UserCreateRequest);
 router.get("/all", GetAllRequests);
 router.get("/pending-count", GetPendingCount);
 router.get("/balance/:userId", GetLeaveBalance);

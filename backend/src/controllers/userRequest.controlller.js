@@ -18,19 +18,22 @@ exports.UserCreateRequest = async (req, res) => {
     purpose,
     isWithPay,
     IsWithPay,
-    proof_File,
     DateonField,
     DateOnField,
     NoHrs,
     destination,
   } = req.body || {};
 
-  const finalUserId = userId || user_Id;
+  const finalUserId = parseInt(userId || user_Id);
+  const finalReqTypeId = parseInt(emp_reqTypeId);
   const finalOTDate = OT_Dateof || OT_DateOf;
-  const finalIsWithPay = isWithPay ?? IsWithPay ?? true;
   const finalDateOnField = DateonField || DateOnField;
+  const finalNoDays = parseInt(NoDays || 0);
+  
+  // Use the filename from multer if a file was uploaded
+  const proof_File = req.file ? req.file.filename : null;
 
-  if (!finalUserId || !emp_reqTypeId) {
+  if (!finalUserId || !finalReqTypeId) {
     return res
       .status(400)
       .json({ error: "User Id and Request Type are required" });
@@ -42,8 +45,8 @@ exports.UserCreateRequest = async (req, res) => {
     let systemRemarks = [];
 
     // Check Leave Balances if applicable before creating parent request
-    if (emp_reqTypeId === 3 || emp_reqTypeId === 4) {
-      if (!StartDate || !EndDate || !NoDays) {
+    if (finalReqTypeId === 3 || finalReqTypeId === 4) {
+      if (!StartDate || !EndDate || !finalNoDays) {
         return res.status(400).json({ error: "Leave fields are required" });
       }
 
@@ -75,27 +78,27 @@ exports.UserCreateRequest = async (req, res) => {
       }
 
       const balance = balanceResult[0];
-      if (emp_reqTypeId === 3) {
+      if (finalReqTypeId === 3) {
         // Rule: VL needs 3 days before the start date
         const filingDate = new Date(todayStr);
-        const startDate = new Date(StartDate);
-        const diffTime = startDate - filingDate;
+        const startDateObj = new Date(StartDate);
+        const diffTime = startDateObj - filingDate;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
         if (diffDays < 3) {
           systemRemarks.push(`Filed less than 3 days before start date (Diff: ${diffDays} days)`);
         }
 
-        if (balance.VL_balance < NoDays) {
+        if (balance.VL_balance < finalNoDays) {
           systemRemarks.push(`Insufficient VL Balance (Current: ${balance.VL_balance})`);
         }
-      } else if (emp_reqTypeId === 4 && balance.SL_balance < NoDays) {
+      } else if (finalReqTypeId === 4 && balance.SL_balance < finalNoDays) {
         systemRemarks.push(`Insufficient SL Balance (Current: ${balance.SL_balance})`);
       }
     }
 
     // Check for overlapping leaves
-    if (emp_reqTypeId === 3 || emp_reqTypeId === 4) {
+    if (finalReqTypeId === 3 || finalReqTypeId === 4) {
       const overlapCheck = await sequelize.query(
         `SELECT er."emp_reqId", rt."reqTypeName", vl."StartDate" as "VL_S", vl."EndDate" as "VL_E", sl."StartDate" as "SL_S", sl."EndDate" as "SL_E"
          FROM "emp_Request" er
@@ -131,7 +134,7 @@ exports.UserCreateRequest = async (req, res) => {
       {
         replacements: {
           userId: finalUserId,
-          emp_reqTypeId,
+          emp_reqTypeId: finalReqTypeId,
           date_Filed: todayStr,
           remarks: reason || purpose || null,
           system_remarks: systemRemarks.length > 0 ? systemRemarks.join(" | ") : null,
@@ -146,7 +149,7 @@ exports.UserCreateRequest = async (req, res) => {
     let childData = null;
 
     // Overtime = 1
-    if (emp_reqTypeId === 1) {
+    if (finalReqTypeId === 1) {
       if (!finalOTDate || !HrFrom || !HrTo || !Total_Hrs || !reason) {
         return res.status(400).json({ error: "Overtime fields are required" });
       }
@@ -159,7 +162,7 @@ exports.UserCreateRequest = async (req, res) => {
             OT_DateOf: finalOTDate,
             HrFrom,
             HrTo,
-            Total_Hrs,
+            Total_Hrs: parseFloat(Total_Hrs),
             reason,
           },
           type: QueryTypes.INSERT,
@@ -169,8 +172,8 @@ exports.UserCreateRequest = async (req, res) => {
       childData = otResult[0][0];
 
       // Onfield Work
-    } else if (emp_reqTypeId === 2) {
-      if (!finalDateOnField || !NoDays || !NoHrs) {
+    } else if (finalReqTypeId === 2) {
+      if (!finalDateOnField || !finalNoDays || !NoHrs) {
         return res
           .status(400)
           .json({ error: "Onfield Work fields are required" });
@@ -186,10 +189,10 @@ exports.UserCreateRequest = async (req, res) => {
             emp_reqId,
             userId: finalUserId,
             DateonField: finalDateOnField,
-            NoDays,
-            NoHrs,
+            NoDays: finalNoDays,
+            NoHrs: parseFloat(NoHrs),
             destination: destination || null,
-            proof_File: proof_File || null,
+            proof_File: proof_File,
           },
           type: QueryTypes.INSERT,
         },
@@ -197,7 +200,7 @@ exports.UserCreateRequest = async (req, res) => {
       childData = onfieldResult[0][0];
 
       // Leave Request (Vacation Leave)
-    } else if (emp_reqTypeId === 3) {
+    } else if (finalReqTypeId === 3) {
       const vlResult = await sequelize.query(
         `INSERT INTO "Vacation_Leave"
         ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "purpose", "WithPayID")
@@ -209,8 +212,8 @@ exports.UserCreateRequest = async (req, res) => {
             userId: finalUserId,
             StartDate,
             EndDate,
-            NoDays,
-            purpose,
+            NoDays: finalNoDays,
+            purpose: purpose || reason || null,
             WithPayID: 2, // Default: Leave without Pay
           },
           type: QueryTypes.INSERT,
@@ -227,14 +230,14 @@ exports.UserCreateRequest = async (req, res) => {
          WHERE "user_Id" = :userId AND "year" = :year`,
         {
           replacements: {
-            NoDays,
+            NoDays: finalNoDays,
             userId: finalUserId,
             year: currentYear,
           },
           type: QueryTypes.UPDATE,
         },
       );
-    } else if (emp_reqTypeId === 4) {
+    } else if (finalReqTypeId === 4) {
       const slResult = await sequelize.query(
         `INSERT INTO "Sick_Leave"
         ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "proof_File", "WithPayID")
@@ -246,8 +249,8 @@ exports.UserCreateRequest = async (req, res) => {
             userId: finalUserId,
             StartDate,
             EndDate,
-            NoDays,
-            proof_File: proof_File || null,
+            NoDays: finalNoDays,
+            proof_File: proof_File,
             WithPayID: 2, // Default: Leave without Pay
           },
           type: QueryTypes.INSERT,
@@ -264,7 +267,7 @@ exports.UserCreateRequest = async (req, res) => {
          WHERE "user_Id" = :userId AND "year" = :year`,
         {
           replacements: {
-            NoDays,
+            NoDays: finalNoDays,
             userId: finalUserId,
             year: currentYear,
           },
