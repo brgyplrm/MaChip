@@ -237,7 +237,10 @@ exports.UserCreateRequest = async (req, res) => {
           type: QueryTypes.UPDATE,
         },
       );
-    } else if (finalReqTypeId === 4) {
+      
+    }
+    // Sick Leave
+    else if (finalReqTypeId === 4) {
       const slResult = await sequelize.query(
         `INSERT INTO "Sick_Leave"
         ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "proof_File", "WithPayID")

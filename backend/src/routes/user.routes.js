@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/user.controller.js");
+const upload = require("../middleware/upload.js");
 
 // URL will be: http://localhost:4000/api/users/registerUser
-router.post("/registerUser", userController.registerUser);
+router.post("/registerUser", upload.single("user_ProfilePic"), userController.registerUser);
 
 // Get the next auto-incremented user ID
 router.get("/nextId", userController.getNextUserId);
@@ -27,6 +28,6 @@ router.patch("/restoreUser/:user_Id", userController.restoreUser);
 router.delete("/forceDelete/:user_Id", userController.forceDeleteUser);
 
 //UPDATE user by user_Id
-router.put("/updateUser/:user_Id", userController.updateUser);
+router.put("/updateUser/:user_Id", upload.single("user_ProfilePic"), userController.updateUser);
 
 module.exports = router;

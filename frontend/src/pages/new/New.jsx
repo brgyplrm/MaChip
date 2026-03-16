@@ -75,7 +75,7 @@ const New = ({ inputs, title }) => {
     } catch (err) { console.error(err); }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validateForm(formData);
     if (Object.keys(validationErrors).length > 0) {
@@ -83,8 +83,59 @@ const New = ({ inputs, title }) => {
       setToast({ message: "Check required fields.", type: "error" });
       return;
     }
-    console.log("Submit:", formData, file);
-    setToast({ message: "User added successfully!", type: "success" });
+
+    const data = new FormData();
+    // Append all fields from formData
+    Object.keys(formData).forEach((key) => {
+      data.append(key, formData[key]);
+    });
+    
+    // Map Employment Status to ID if necessary (assuming 1 for Employee)
+    if (formData.user_EmploymentStatus === "Employee") {
+      data.append("user_EmploymentStatusId", 1);
+    }
+
+    // Append the file if it exists
+    if (file) {
+      data.append("user_ProfilePic", file);
+    }
+
+    try {
+      const response = await fetch("http://localhost:4000/api/users/registerUser", {
+        method: "POST",
+        body: data, // Sending FormData automatically sets multipart/form-data
+      });
+
+      if (response.ok) {
+        setToast({ message: "User added successfully!", type: "success" });
+        // Optional: Reset form or redirect
+        setFormData({
+          user_Id: "",
+          user_FirstName: "",
+          user_LastName: "",
+          user_MiddleName: "",
+          user_EmploymentStatus: "Employee",
+          user_Email: "",
+          user_Password: "",
+          user_MachipId: "",
+          user_RoleId: 3,
+        });
+        setFile("");
+        // Re-fetch next ID
+        const nextIdResponse = await fetch("http://localhost:4000/api/users/nextId");
+        if (nextIdResponse.ok) {
+          const nextIdData = await nextIdResponse.json();
+          setFormData((prev) => ({ ...prev, user_Id: nextIdData.nextId }));
+          setDisplayId(nextIdData.displayId);
+        }
+      } else {
+        const errorData = await response.json();
+        setToast({ message: errorData.error || "Failed to add user.", type: "error" });
+      }
+    } catch (err) {
+      console.error(err);
+      setToast({ message: "Something went wrong.", type: "error" });
+    }
   };
 
   return (

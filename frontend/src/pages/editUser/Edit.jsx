@@ -7,6 +7,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
+import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 
@@ -15,12 +16,6 @@ const nameRegex = /^[a-zA-Z\s]+$/;
 
 const validateForm = (formData) => {
   const errors = {};
-
-  if (!formData.user_Username || !formData.user_Username.trim()) {
-    errors.user_Username = "Username is required.";
-  } else if (formData.user_Username.trim().length < 3) {
-    errors.user_Username = "Username must be at least 3 characters.";
-  }
 
   if (!formData.user_FirstName || !formData.user_FirstName.trim()) {
     errors.user_FirstName = "First name is required.";
@@ -62,8 +57,10 @@ const validateForm = (formData) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Edit = ({ inputs, title }) => {
+  const [file, setFile] = useState("");
   const [formData, setFormData] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [displayPic, setDisplayPic] = useState("");
 
   // field-level error messages
   const [errors, setErrors] = useState({});
@@ -93,6 +90,9 @@ const Edit = ({ inputs, title }) => {
           // Keep password blank so the user must intentionally re-enter it
           const { user_Password, ...otherData } = data;
           setFormData(otherData);
+          if (data.user_ProfilePic) {
+            setDisplayPic(`http://localhost:4000/uploads/${data.user_ProfilePic}`);
+          }
         } else {
           setToast({
             message: "Failed to load user data. Please refresh.",
@@ -159,25 +159,41 @@ const Edit = ({ inputs, title }) => {
       return;
     }
 
+    const data = new FormData();
+    Object.keys(formData).forEach((key) => {
+      if (formData[key] !== null && formData[key] !== undefined) {
+        data.append(key, formData[key]);
+      }
+    });
+
+    if (file) {
+      data.append("user_ProfilePic", file);
+    }
+
     // 2. Submit
     try {
       const response = await fetch(
         `http://localhost:4000/api/users/updateUser/${userId}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: data,
         },
       );
 
       if (response.ok) {
+        const result = await response.json();
         setToast({
           message: "User profile updated successfully!",
           type: "success",
         });
+        // Update display pic if changed
+        if (result.data && result.data.user_ProfilePic) {
+          setDisplayPic(`http://localhost:4000/uploads/${result.data.user_ProfilePic}`);
+        }
         // Clear the password field after a successful update
         setFormData((prev) => ({ ...prev, user_Password: "" }));
         setErrors({});
+        setFile("");
       } else {
         const errorData = await response.json().catch(() => ({}));
         setToast({
@@ -209,6 +225,16 @@ const Edit = ({ inputs, title }) => {
         </div>
 
         <div className="bottom">
+          <div className="left">
+            <img 
+              src={file ? URL.createObjectURL(file) : displayPic || "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"} 
+              alt="Profile" 
+            />
+            <div className="fileInput">
+              <label htmlFor="file">Update Photo <DriveFolderUploadOutlinedIcon /></label>
+              <input type="file" id="file" onChange={(e) => setFile(e.target.files[0])} style={{ display: "none" }} />
+            </div>
+          </div>
           <div className="right">
             <form onSubmit={handleUpdate} noValidate>
               {inputs.map((input) => (

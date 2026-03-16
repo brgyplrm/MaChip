@@ -81,10 +81,10 @@ exports.registerUser = async (req, res) => {
     await sequelize.query(
       `INSERT INTO "User" (
         "user_Id", "user_FirstName", "user_LastName",
-        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_RoleId", "user_EmploymentStatusId", "createdAt", "updatedAt"
+        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", "createdAt", "updatedAt"
       ) VALUES (
         :user_Id, :user_FirstName, :user_LastName,
-        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_RoleId, :user_EmploymentStatusId, NOW(), NOW()
+        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, NOW(), NOW()
       )`,
       {
         replacements: {
@@ -97,6 +97,7 @@ exports.registerUser = async (req, res) => {
           user_MachipId: req.body.user_MachipId,
           user_RoleId: req.body.user_RoleId || 2,
           user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
+          user_ProfilePic: req.file ? req.file.filename : null,
         },
         type: QueryTypes.INSERT,
       },
@@ -122,7 +123,10 @@ exports.registerUser = async (req, res) => {
 exports.viewAllUsers = async (req, res) => {
   try {
     const users = await sequelize.query(
-      `SELECT * FROM "User" WHERE "deletedAt" IS NULL`,
+      `SELECT u.*, r."roleName" AS "user_Role" 
+       FROM "User" u
+       LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
+       WHERE u."deletedAt" IS NULL`,
       { type: QueryTypes.SELECT },
     );
     res.status(200).json(users);
@@ -136,7 +140,10 @@ exports.viewUserById = async (req, res) => {
   const { user_Id } = req.params;
   try {
     const user = await sequelize.query(
-      `SELECT * FROM "User" WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
+      `SELECT u.*, r."roleName" AS "user_Role"
+       FROM "User" u
+       LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
+       WHERE u."user_Id" = :user_Id AND u."deletedAt" IS NULL`,
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
     if (user.length > 0) {
@@ -283,6 +290,11 @@ exports.updateUser = async (req, res) => {
       const hashedPassword = await bcrypt.hash(user_Password, salt);
       setClause += `, "user_Password" = :user_Password`;
       replacements.user_Password = hashedPassword;
+    }
+
+    if (req.file) {
+      setClause += `, "user_ProfilePic" = :user_ProfilePic`;
+      replacements.user_ProfilePic = req.file.filename;
     }
 
     const result = await sequelize.query(

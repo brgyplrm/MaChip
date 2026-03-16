@@ -20,12 +20,21 @@ export const userColumns = [
     headerName: "Full Name",
     width: 250,
     renderCell: (params) => {
-      const { user_FirstName, user_MiddleName, user_LastName } = params.row;
+      const { user_FirstName, user_MiddleName, user_LastName, user_ProfilePic } = params.row;
       const fullName =
         `${user_FirstName || ""} ${user_MiddleName || ""} ${user_LastName || ""}`
           .replace(/\s+/g, " ")
           .trim();
-      return <div className="cellWithImg">{fullName}</div>;
+      return (
+        <div className="cellWithImg">
+          <img 
+            className="cellImg" 
+            src={user_ProfilePic ? `http://localhost:4000/uploads/${user_ProfilePic}` : "/avatar.webp"} 
+            alt="avatar" 
+          />
+          {fullName}
+        </div>
+      );
     },
   },
   {

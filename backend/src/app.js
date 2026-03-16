@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { connectDB } = require("./config/sequelize"); // Import connectDB
+const { connectDB, sequelize } = require("./config/sequelize"); // Import connectDB and sequelize
 
 const app = express();
 
@@ -30,27 +30,6 @@ app.use("/uploads", express.static("uploads"));
 
 // Connect to the database
 connectDB();
-
-// Import the sequelize instance for raw queries
-const { sequelize } = require("./config/sequelize");
-
-// Ensure paidLeave_Days exists in the database
-(async () => {
-  try {
-    await sequelize.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Payroll_Deductions' AND column_name='paidLeave_Days') THEN
-          ALTER TABLE "Payroll_Deductions" ADD COLUMN "paidLeave_Days" FLOAT DEFAULT 0;
-        END IF;
-      END
-      $$;
-    `);
-    console.log("[DB] Checked/Added paidLeave_Days to Payroll_Deductions");
-  } catch (err) {
-    console.error("[DB] Error updating Payroll_Deductions table:", err);
-  }
-})();
 
 // Basic route for testing
 app.get("/Machip", (req, res) => {

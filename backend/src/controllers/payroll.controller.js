@@ -91,7 +91,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
 
   // 4. Get approved OT
   const overtimeResult = await sequelize.query(
-    `SELECT COALESCE(SUM(ot."Total_Hrs"), 0) AS total_OT_hrs
+    `SELECT COALESCE(SUM(ot."Total_Hrs"), 0) AS "total_OT_hrs"
      FROM "Overtime_Request" ot
      JOIN "emp_Request" er ON er."emp_reqId" = ot."emp_reqId"
      WHERE ot."user_Id" = :user_Id

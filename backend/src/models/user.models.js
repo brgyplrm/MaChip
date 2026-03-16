@@ -40,6 +40,7 @@ module.exports = (sequelize, DataTypes) => {
       user_MachipId: { type: DataTypes.STRING, allowNull: true, unique: true },
       user_RoleId: { type: DataTypes.SMALLINT, allowNull: false },
       user_EmploymentStatusId: { type: DataTypes.SMALLINT, allowNull: false },
+      user_ProfilePic: { type: DataTypes.STRING, allowNull: true },
     },
     {
       timestamps: true,

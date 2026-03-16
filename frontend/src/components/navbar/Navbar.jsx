@@ -61,7 +61,11 @@ const Navbar = () => {
           </Link>
           <Link to="/profile">
             <div className="item">
-              <img src="/avatar.webp" alt="Profile" className="avatar" />
+              <img 
+                src={userData?.user_ProfilePic ? `http://localhost:4000/uploads/${userData.user_ProfilePic}` : "/avatar.webp"} 
+                alt="Profile" 
+                className="avatar" 
+              />
             </div>
           </Link>
         </div>

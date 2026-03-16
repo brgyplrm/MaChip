@@ -78,7 +78,7 @@ const Profile = () => {
             <div className="profileHeader">
               <div className="imageContainer">
                 <img
-                  src="https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&dpr=3&h=750&w=1260"
+                  src={user.user_ProfilePic ? `http://localhost:4000/uploads/${user.user_ProfilePic}` : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"}
                   alt="Profile"
                   className="profileImg"
                 />
