@@ -138,9 +138,11 @@ const Reports = () => {
               <h1>Reports & Export</h1>
               <span>Generate and export attendance, payroll, and calendar reports</span>
             </div>
-            <button className="exportBtn" onClick={exportToCSV}>
-              <FileDownloadIcon /> Export to CSV
-            </button>
+            <div className="buttonGroup">
+                <button className="exportBtn csv" onClick={exportToCSV}>
+                <FileDownloadIcon /> CSV
+                </button>
+            </div>
           </div>
 
           <div className="tabs">
@@ -196,8 +198,10 @@ const Reports = () => {
               <>
                 {activeReport === "attendance" && (
                   <>
-                    <h3>Attendance Records</h3>
-                    <span>Showing {attendanceData.length} records from {startDate} to {endDate}</span>
+                    <div className="reportHeader">
+                        <h3>Attendance Records</h3>
+                        <span>Showing {attendanceData.length} records from {startDate} to {endDate}</span>
+                    </div>
                     <table className="reportsTable">
                       <thead>
                         <tr>
@@ -255,8 +259,10 @@ const Reports = () => {
 
                 {activeReport === "payroll" && (
                   <>
-                    <h3>Payroll Records</h3>
-                    <span>Payroll data from {startDate} to {endDate}</span>
+                    <div className="reportHeader">
+                        <h3>Payroll Records</h3>
+                        <span>Payroll data from {startDate} to {endDate}</span>
+                    </div>
                     <table className="reportsTable payrollTable">
                     <thead>
                         <tr>
@@ -270,7 +276,7 @@ const Reports = () => {
                         <th>DEDUCTIONS</th>
                         <th>NET PAY</th>
                         <th>STATUS</th>
-                        <th>ACTIONS</th>
+                        <th className="no-print">ACTIONS</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -286,7 +292,7 @@ const Reports = () => {
                             <td className="neg">₱{r.totalDeductions.toLocaleString()}</td>
                             <td className="bold">₱{r.netPay.toLocaleString()}</td>
                             <td><span className={`status ${r.statusName.toLowerCase()}`}>{r.statusName}</span></td>
-                            <td>
+                            <td className="no-print">
                                 <div className="actions">
                                 <Link title="View Payslip" to={`/adminReports/payslip/${r.payrollId}`}>
                                     <ReceiptLongIcon className="payslipIcon" />
@@ -303,8 +309,10 @@ const Reports = () => {
 
                 {activeReport === "calendar" && (
                   <>
-                    <h3>Calendar Events</h3>
-                    <span>Holidays, leaves, and field work from {startDate} to {endDate}</span>
+                    <div className="reportHeader">
+                        <h3>Calendar Events</h3>
+                        <span>Holidays, leaves, and field work from {startDate} to {endDate}</span>
+                    </div>
                     <table className="reportsTable calendarTable">
                       <thead>
                         <tr>

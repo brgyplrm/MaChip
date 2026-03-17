@@ -21,7 +21,35 @@ const UserRequests = () => {
   const [activeTab, setActiveTab] = useState("submit"); // 'submit' or 'history'
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [historyRequests, setHistoryRequests] = useState([]);
+  const [dtrData, setDtrData] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  // Dynamic DTR Date Range (1-15 or 16-EOM)
+  const getPayrollDates = () => {
+    const today = new Date();
+    const day = today.getDate();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    
+    if (day <= 15) {
+      return {
+        start: new Date(year, month, 1).toISOString().split('T')[0],
+        end: new Date(year, month, 15).toISOString().split('T')[0],
+        payEnding: `${today.toLocaleString('en-US', { month: 'long' }).toUpperCase()} 15, ${year}`
+      };
+    } else {
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      return {
+        start: new Date(year, month, 16).toISOString().split('T')[0],
+        end: new Date(year, month + 1, 0).toISOString().split('T')[0],
+        payEnding: `${today.toLocaleString('en-US', { month: 'long' }).toUpperCase()} ${lastDay}, ${year}`
+      };
+    }
+  };
+
+  const payroll = getPayrollDates();
+  const [dtrStartDate, setDtrStartDate] = useState(payroll.start);
+  const [dtrEndDate, setDtrEndDate] = useState(payroll.end);
   const [balance, setBalance] = useState({ VL_balance: 0, SL_balance: 0 });
 
   // 3. Add the PDF Export function
@@ -125,6 +153,23 @@ const UserRequests = () => {
     }
   };
 
+  // Fetch DTR
+  const fetchDTR = async () => {
+    if (!userData?.user_Id) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:4000/api/attendance/report?startDate=${dtrStartDate}&endDate=${dtrEndDate}&user_Id=${userData.user_Id}`);
+      const data = await response.json();
+      if (response.ok) {
+        setDtrData(data);
+      }
+    } catch (error) {
+      console.error("Error fetching DTR:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchBalance();
   }, [userData?.user_Id]);
@@ -132,8 +177,18 @@ const UserRequests = () => {
   useEffect(() => {
     if (activeTab === "history") {
       fetchHistory();
+    } else if (activeTab === "dtr") {
+      fetchDTR();
     }
   }, [activeTab]);
+
+  // Helper to map log data to the DTR grid (15 days or current range)
+  const getDtrLogsForDay = (dayNum) => {
+    const targetDate = new Date(dtrStartDate);
+    targetDate.setDate(dayNum);
+    const dateStr = targetDate.toISOString().split('T')[0];
+    return dtrData.find(d => d.log_Date.split('T')[0] === dateStr);
+  };
 
   // Automated Day Calculation
   useEffect(() => {
@@ -480,10 +535,10 @@ const UserRequests = () => {
                   <div className="cardTopHeader">
                     <div className="headerLine">
                       <div className="field">No. <span>______</span></div>
-                      <div className="field">Pay Ending <span>MARCH 15, 2026</span></div>
+                      <div className="field">Pay Ending <span>{payroll.payEnding}</span></div>
                     </div>
                     <div className="headerLine">
-                      <div className="field">Name <span>{userData?.userName}</span></div>
+                      <div className="field">Name <span>{userData?.user_FirstName} {userData?.user_LastName}</span></div>
                       <div className="field">Position <span>__________</span></div>
                     </div>
                     <div className="headerLine">
@@ -511,7 +566,7 @@ const UserRequests = () => {
                         <td className="label">Over.</td><td className="empty"></td><td className="empty"></td><td className="empty"></td><td className="label">Withholding Tax</td><td className="empty"></td>
                       </tr>
                       <tr>
-                        <td className="label" colSpan="3">Total Earnings</td><td className="empty"></td><td className="label">S.S.S.</td><td className="empty"></td>
+                        <td className="label" colSpan="3">Total Earnings</td><td className="empty">{dtrData.reduce((sum, d) => sum + parseFloat(d.hoursWorked || 0), 0).toFixed(2)} hrs</td><td className="label">S.S.S.</td><td className="empty"></td>
                       </tr>
                       <tr>
                         <td className="label" colSpan="3">Less Deductions</td><td className="empty"></td><td className="empty" colSpan="2"></td>
@@ -537,12 +592,38 @@ const UserRequests = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {[...Array(15)].map((_, i) => (
-                        <tr key={i + 1}>
-                          <td className="dayCol">{i + 1}</td>
-                          <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-                        </tr>
-                      ))}
+                      {/* Generate rows based on the current period range */}
+                      {Array.from({ length: (new Date(dtrEndDate).getDate() - new Date(dtrStartDate).getDate() + 1) }, (_, i) => {
+                        const dayNum = new Date(dtrStartDate).getDate() + i;
+                        const log = getDtrLogsForDay(dayNum);
+                        
+                        let morningIn = "", morningOut = "", afternoonIn = "", afternoonOut = "";
+                        
+                        if (log && log.time_In !== "—") {
+                          const hour = parseInt(log.time_In.split(":")[0]);
+                          if (hour < 12) morningIn = log.time_In;
+                          else afternoonIn = log.time_In;
+                        }
+                        
+                        if (log && log.time_Out !== "—") {
+                          const hour = parseInt(log.time_Out.split(":")[0]);
+                          if (hour < 13) morningOut = log.time_Out;
+                          else afternoonOut = log.time_Out;
+                        }
+
+                        return (
+                          <tr key={dayNum}>
+                            <td className="dayCol">{dayNum}</td>
+                            <td>{morningIn}</td>
+                            <td>{morningOut}</td>
+                            <td>{afternoonIn}</td>
+                            <td>{afternoonOut}</td>
+                            <td></td>
+                            <td></td>
+                            <td>{log ? log.hoursWorked : ""}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
 

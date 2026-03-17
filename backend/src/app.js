@@ -77,6 +77,18 @@ app.use("/api/notifications", notificationRoutes);
 const systemRoutes = require("./routes/system.routes.js");
 app.use("/api/system", systemRoutes);
 
+// ── Error Handling Middleware ────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error("[ERROR]:", err.message);
+  
+  // Handle Multer errors specifically if needed
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ error: "File size too large. Maximum limit is 5MB." });
+  }
+
+  res.status(400).json({ error: err.message || "An unexpected error occurred." });
+});
+
 // ── Background Tasks ──────────────────────────────────────────────────────────
 const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
 // Run every 5 minutes

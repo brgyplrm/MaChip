@@ -150,10 +150,16 @@ const New = ({ inputs, title }) => {
             <img src={file ? URL.createObjectURL(file) : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"} alt="" />
             <div className="fileInput">
               <label htmlFor="file">Upload Photo <DriveFolderUploadOutlinedIcon /></label>
-              <input type="file" id="file" onChange={(e) => setFile(e.target.files[0])} style={{ display: "none" }} />
+              <input 
+                type="file" 
+                id="file" 
+                accept="image/png, image/jpeg, image/jpg"
+                onChange={(e) => setFile(e.target.files[0])} 
+                style={{ display: "none" }} 
+              />
             </div>
-          </div>
-          <div className="right">
+            </div>
+            <div className="right">
             <form onSubmit={handleSubmit}>
               <div className="fullNameSection">
                 <label>Full Name <span className="requiredMark">*</span></label>
@@ -192,14 +198,14 @@ const New = ({ inputs, title }) => {
                 </div>
               ))}
             </form>
-          </div>
-        </div>
-        <div className="bottom-center">
-          <button className="submitButton" onClick={handleSubmit}>Add User</button>
-        </div>
-      </div>
-    </div>
-  );
-};
+            </div>
+            </div>
+            <div className="bottom-center">
+            <button className="submitButton" onClick={handleSubmit}>Add User</button>
+            </div>
+            </div>
+            </div>
+            );
+            };
 
-export default New;
+            export default New;

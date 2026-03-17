@@ -232,7 +232,13 @@ const Edit = ({ inputs, title }) => {
             />
             <div className="fileInput">
               <label htmlFor="file">Update Photo <DriveFolderUploadOutlinedIcon /></label>
-              <input type="file" id="file" onChange={(e) => setFile(e.target.files[0])} style={{ display: "none" }} />
+              <input 
+                type="file" 
+                id="file" 
+                accept="image/png, image/jpeg, image/jpg"
+                onChange={(e) => setFile(e.target.files[0])} 
+                style={{ display: "none" }} 
+              />
             </div>
           </div>
           <div className="right">

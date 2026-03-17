@@ -67,12 +67,15 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ error: "MaChip ID is already assigned to another user." });
     }
 
-    // Get next ID
-    const result = await sequelize.query(
-      `SELECT MAX("user_Id") AS "maxId" FROM "User"`,
-      { type: QueryTypes.SELECT },
-    );
-    const nextId = (result[0].maxId ? parseInt(result[0].maxId) : 0) + 1;
+    // Get next ID if not provided by frontend (though frontend sends it)
+    let user_Id = req.body.user_Id;
+    if (!user_Id) {
+      const result = await sequelize.query(
+        `SELECT MAX("user_Id") AS "maxId" FROM "User"`,
+        { type: QueryTypes.SELECT },
+      );
+      user_Id = (result[0].maxId ? parseInt(result[0].maxId) : 0) + 1;
+    }
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -92,7 +95,7 @@ exports.registerUser = async (req, res) => {
       )`,
       {
         replacements: {
-          user_Id: nextId,
+          user_Id,
           user_FirstName: req.body.user_FirstName,
           user_LastName: req.body.user_LastName,
           user_MiddleName: req.body.user_MiddleName || null,
@@ -111,7 +114,7 @@ exports.registerUser = async (req, res) => {
     // Fetch the created user to return
     const newUser = await sequelize.query(
       `SELECT * FROM "User" WHERE "user_Id" = :user_Id`,
-      { replacements: { user_Id: nextId }, type: QueryTypes.SELECT },
+      { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
 
     res.status(201).json({ message: "User Registered!", data: newUser[0] });

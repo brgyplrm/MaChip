@@ -15,14 +15,16 @@
         align-items: center;
         margin-bottom: 25px;
 
-        h1 { font-size: 24px; color: #333; }
-        span { color: #666; font-size: 14px; }
-        .exportBtn {
-          background-color: #22c55e;
-          color: white;
-          border: none;
-          padding: 10px 20px;
-          border-radius: 8px;
+        h1 {
+          font-size: 24px;
+          color: #333;
+        }
+        span {
+          color: #666;
+          font-size: 14px;
+        }
+
+        .buttonGroup {
           display: flex;
           align-items: center;
           gap: 8px;
@@ -38,7 +40,7 @@
         padding: 10px;
         border-radius: 12px;
         margin-bottom: 25px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
 
         button {
           display: flex;
@@ -51,24 +53,32 @@
           cursor: pointer;
           font-weight: 600;
           color: #555;
-          
+
           &.active {
-            background-color: #2A174E;
+            background-color: #2a174e;
             color: white;
           }
         }
       }
 
-      .filtersCard, .recordsCard {
+      .filtersCard,
+      .recordsCard {
         background: white;
         padding: 25px;
         border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
         margin-bottom: 25px;
       }
 
       .filtersCard {
-        .title { display: flex; align-items: center; gap: 10px; font-weight: bold; margin-bottom: 20px; color: #555; }
+        .title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-weight: bold;
+          margin-bottom: 20px;
+          color: #555;
+        }
         .filterInputs {
           display: flex;
           gap: 20px;
@@ -77,35 +87,81 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            label { font-size: 13px; font-weight: 600; color: #666; }
-            input, select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
+            label {
+              font-size: 13px;
+              font-weight: 600;
+              color: #666;
+            }
+            input,
+            select {
+              padding: 10px;
+              border: 1px solid #ddd;
+              border-radius: 8px;
+              outline: none;
+            }
           }
         }
       }
 
       .recordsCard {
-        h3 { font-size: 18px; margin-bottom: 5px; }
-        span { font-size: 13px; color: #888; margin-bottom: 20px; display: block; }
+        h3 {
+          font-size: 18px;
+          margin-bottom: 5px;
+        }
+        span {
+          font-size: 13px;
+          color: #888;
+          margin-bottom: 20px;
+          display: block;
+        }
 
         .reportsTable {
           width: 100%;
           border-collapse: collapse;
           margin-top: 10px;
-          th { text-align: left; padding: 15px; background: #f8f9fa; color: #666; font-size: 12px; }
-          td { padding: 15px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
-          
+          th {
+            text-align: left;
+            padding: 15px;
+            background: #f8f9fa;
+            color: #666;
+            font-size: 12px;
+          }
+          td {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+          }
+
           .status {
             padding: 4px 12px;
             border-radius: 15px;
             font-size: 12px;
             font-weight: 600;
-            &.present { background: #dcfce7; color: #15803d; }
-            &.late { background: #fef3c7; color: #92400e; }
-            &.absent { background: #fee2e2; color: #b91c1c; }
+            &.present {
+              background: #dcfce7;
+              color: #15803d;
+            }
+            &.late {
+              background: #fef3c7;
+              color: #92400e;
+            }
+            &.absent {
+              background: #fee2e2;
+              color: #b91c1c;
+            }
           }
-          .pos { color: #22c55e; font-weight: 600; } // Positive earnings
-          .neg { color: #ef4444; font-weight: 600; } // Deductions
-          .bold { font-weight: 700; color: #333; }
+          .pos {
+            color: #22c55e;
+            font-weight: 600;
+          } // Positive earnings
+          .neg {
+            color: #ef4444;
+            font-weight: 600;
+          } // Deductions
+          .bold {
+            font-weight: 700;
+            color: #333;
+          }
 
           /* Calendar Tag Colors */
           .eventTag {
@@ -114,17 +170,39 @@
             font-size: 11px;
             font-weight: 800;
             text-transform: uppercase;
-            
-            &.holiday { background: #fee2e2; color: #b91c1c; }
-            &.leave { background: #dcfce7; color: #15803d; }
-            &.fieldWork { background: #ffedd5; color: #9a3412; }
+
+            &.holiday {
+              background: #fee2e2;
+              color: #b91c1c;
+            }
+            &.leave {
+              background: #dcfce7;
+              color: #15803d;
+            }
+            &.fieldWork {
+              background: #ffedd5;
+              color: #9a3412;
+            }
           }
 
           /* Status Badge Colors */
           .status {
-            &.paid { background: #dcfce7; color: #15803d; }
-            &.processed { background: #dbeafe; color: #1e40af; }
-            &.draft { background: #f3f4f6; color: #374151; }
+            &.paid {
+              background: #dcfce7;
+              color: #15803d;
+            }
+            &.processed {
+              background: #dbeafe;
+              color: #1e40af;
+            }
+            &.draft {
+              background: #f3f4f6;
+              color: #374151;
+            }
+          }
+
+          .no-print {
+            display: table-cell;
           }
 
           .actions {
@@ -140,7 +218,7 @@
 
               &:hover {
                 transform: scale(1.1);
-                color: #2A174E;
+                color: #2a174e;
               }
             }
           }
@@ -155,12 +233,23 @@
             background: #fdfaf5;
             padding: 20px;
             border-radius: 12px;
-            label { font-size: 14px; color: #666; }
-            p { 
-              font-size: 24px; font-weight: bold; margin-top: 10px; 
-              &.presentText { color: #22c55e; }
-              &.absentText { color: #ef4444; }
-              &.lateText { color: #f59e0b; }
+            label {
+              font-size: 14px;
+              color: #666;
+            }
+            p {
+              font-size: 24px;
+              font-weight: bold;
+              margin-top: 10px;
+              &.presentText {
+                color: #22c55e;
+              }
+              &.absentText {
+                color: #ef4444;
+              }
+              &.lateText {
+                color: #f59e0b;
+              }
             }
           }
         }
