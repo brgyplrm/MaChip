@@ -99,10 +99,9 @@ const CreatePayroll = () => {
           );
           const data = await response.json();
           if (response.ok) {
-            // Fetch logic: If no absences or unpaid leaves, it defaults to 0.
-            // It automatically fetches unpaid leaves as part of absences, but remains editable.
+            // Fetch logic: Combine true absences and unpaid leaves into total absences
             const totalInitialAbsences =
-              (data.absenceDays || 0) + (data.unpaidLeave_Days || 0);
+              (data.absence_Days || 0) + (data.unpaidLeave_Days || 0);
 
             setFormData((prev) => ({
               ...prev,

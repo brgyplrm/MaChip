@@ -55,6 +55,11 @@ const { Notification } = require("../models/notification.models")(
   DataTypes,
 );
 
+const { SystemSettings } = require("../models/system.models")(
+  sequelize,
+  DataTypes,
+);
+
 // ── Associations ──────────────────────────────────────────────────────────────
 
 // User ↔ user_logging
@@ -87,6 +92,20 @@ const connectDB = async () => {
     // Create any missing tables (does NOT alter existing ones)
     await sequelize.sync();
     console.log("All models were synchronized successfully.");
+
+    // ── Seed: SystemSettings ─────────────────────────────────────────────────
+    try {
+      const settingsCount = await SystemSettings.count();
+      if (settingsCount === 0) {
+        await SystemSettings.create({
+          mockTimeEnabled: false,
+          mockTimeValue: null,
+        });
+        console.log("Seed: SystemSettings inserted.");
+      }
+    } catch (err) {
+      console.error("Seed error (SystemSettings):", err.message);
+    }
 
     // ── Seed: logged_status ─────────────────────────────────────────────────
     try {
@@ -219,4 +238,5 @@ module.exports = {
   Payroll_Deductions,
   Payroll,
   Notification,
+  SystemSettings,
 };

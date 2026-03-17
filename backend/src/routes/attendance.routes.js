@@ -5,6 +5,8 @@ const attendanceController = require("../controllers/attendance.controller.js");
 // URL will be: http://localhost:3000/api/attendance/mark
 router.post("/mark", attendanceController.markAttendance);
 
+router.get("/report", attendanceController.getAttendanceReport);
+
 router.get("/occupancy", attendanceController.getOfficeOccupancy);
 
 router.get("/logs/:user_Id", attendanceController.viewUserLogs);

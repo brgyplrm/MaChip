@@ -1,5 +1,61 @@
 const { sequelize } = require("../config/sequelize");
 const { QueryTypes } = require("sequelize");
+const { getSystemTime, formatForSQL } = require("../utils/systemTime");
+
+const { Holiday } = require("../config/sequelize.js");
+
+exports.getCalendarReport = async (req, res) => {
+  const { startDate, endDate, user_Id } = req.query;
+  try {
+    // 1. Fetch Holidays
+    const holidays = await sequelize.query(
+      `SELECT 'Holiday' as "type", "date", "name", "type" as "details"
+       FROM "Holiday"
+       WHERE "date" BETWEEN :startDate AND :endDate`,
+      { replacements: { startDate, endDate }, type: QueryTypes.SELECT }
+    );
+
+    // 2. Fetch Field Work (Onfield_Work)
+    let fieldWorkQuery = `
+      SELECT 'Field Work' as "type", ow."date", u."user_FirstName" || ' ' || u."user_LastName" as "name", ow."location" || ' - ' || ow."purpose" as "details"
+      FROM "Onfield_Work" ow
+      JOIN "emp_Request" er ON ow."emp_reqId" = er."emp_reqId"
+      JOIN "User" u ON er."user_Id" = u."user_Id"
+      WHERE er."emp_reqStatusId" = 2 AND ow."date" BETWEEN :startDate AND :endDate
+    `;
+
+    // 3. Fetch Leaves (Vacation and Sick)
+    let leavesQuery = `
+      SELECT 'Leave' as "type", vl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Vacation Leave' as "details", vl."EndDate"
+      FROM "Vacation_Leave" vl
+      JOIN "emp_Request" er ON vl."emp_reqId" = er."emp_reqId"
+      JOIN "User" u ON er."user_Id" = u."user_Id"
+      WHERE er."emp_reqStatusId" = 2 AND (vl."StartDate" BETWEEN :startDate AND :endDate OR vl."EndDate" BETWEEN :startDate AND :endDate)
+      UNION ALL
+      SELECT 'Leave' as "type", sl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Sick Leave' as "details", sl."EndDate"
+      FROM "Sick_Leave" sl
+      JOIN "emp_Request" er ON sl."emp_reqId" = er."emp_reqId"
+      JOIN "User" u ON er."user_Id" = u."user_Id"
+      WHERE er."emp_reqStatusId" = 2 AND (sl."StartDate" BETWEEN :startDate AND :endDate OR sl."EndDate" BETWEEN :startDate AND :endDate)
+    `;
+
+    const replacements = { startDate, endDate };
+    if (user_Id && user_Id !== "All Employees") {
+      fieldWorkQuery += ` AND er."user_Id" = :user_Id`;
+      leavesQuery = leavesQuery.replace(/WHERE er."emp_reqStatusId" = 2/g, `WHERE er."emp_reqStatusId" = 2 AND er."user_Id" = :user_Id`);
+      replacements.user_Id = user_Id;
+    }
+
+    const fieldWorks = await sequelize.query(fieldWorkQuery, { replacements, type: QueryTypes.SELECT });
+    const leaves = await sequelize.query(leavesQuery, { replacements, type: QueryTypes.SELECT });
+
+    const allEvents = [...holidays, ...fieldWorks, ...leaves].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    res.status(200).json(allEvents);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
 exports.UserCreateRequest = async (req, res) => {
   const {
@@ -39,9 +95,12 @@ exports.UserCreateRequest = async (req, res) => {
       .json({ error: "User Id and Request Type are required" });
   }
 
-  const todayStr = new Date().toISOString().split("T")[0];
-
   try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+    const todayStr = now.toISOString().split("T")[0];
+    const currentYear = now.getFullYear();
+
     let systemRemarks = [];
 
     // Check Leave Balances if applicable before creating parent request
@@ -50,7 +109,6 @@ exports.UserCreateRequest = async (req, res) => {
         return res.status(400).json({ error: "Leave fields are required" });
       }
 
-      const currentYear = new Date().getFullYear();
       let balanceResult = await sequelize.query(
         `SELECT * FROM "Leave_Balance" WHERE "user_Id" = :userId and "year" = :year`,
         {
@@ -129,7 +187,7 @@ exports.UserCreateRequest = async (req, res) => {
       `INSERT INTO "emp_Request"
         ("user_Id", "emp_reqTypeId", "emp_reqStatusId", "date_Filed", "remarks", "system_remarks", "createdAt", "updatedAt")
         VALUES
-        (:userId, :emp_reqTypeId, 1, :date_Filed, :remarks, :system_remarks, NOW(), NOW())
+        (:userId, :emp_reqTypeId, 1, :date_Filed, :remarks, :system_remarks, :now, :now)
         RETURNING *`,
       {
         replacements: {
@@ -138,6 +196,7 @@ exports.UserCreateRequest = async (req, res) => {
           date_Filed: todayStr,
           remarks: reason || purpose || null,
           system_remarks: systemRemarks.length > 0 ? systemRemarks.join(" | ") : null,
+          now: nowStr,
         },
         type: QueryTypes.INSERT,
       },
@@ -222,7 +281,6 @@ exports.UserCreateRequest = async (req, res) => {
       childData = vlResult[0][0];
 
       // Update Leave Balance for VL
-      const currentYear = new Date().getFullYear();
       await sequelize.query(
         `UPDATE "Leave_Balance"
          SET "VL_balance" = GREATEST(0, "VL_balance" - :NoDays),
@@ -262,7 +320,6 @@ exports.UserCreateRequest = async (req, res) => {
       childData = slResult[0][0];
 
       // Update Leave Balance for SL
-      const currentYear = new Date().getFullYear();
       await sequelize.query(
         `UPDATE "Leave_Balance"
          SET "SL_balance" = GREATEST(0, "SL_balance" - :NoDays),
@@ -286,12 +343,13 @@ exports.UserCreateRequest = async (req, res) => {
 
     await sequelize.query(
       `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "createdAt", "updatedAt")
-       VALUES (:userId, :title, :message, false, NOW(), NOW())`,
+       VALUES (:userId, :title, :message, false, :now, :now)`,
       {
         replacements: {
           userId: finalUserId,
           title: "Request Submitted",
           message: `Your ${typeName} request has been submitted and is currently pending review.`,
+          now: nowStr,
         },
         type: QueryTypes.INSERT,
       },
@@ -369,9 +427,10 @@ exports.GetUserRequests = async (req, res) => {
 };
 
 exports.GetAllRequests = async (req, res) => {
-  console.log("[DEBUG] Fetching all requests for admin...");
-  const currentYear = new Date().getFullYear();
   try {
+    const now = await getSystemTime();
+    const currentYear = now.getFullYear();
+
     const requests = await sequelize.query(
       `SELECT
         er."emp_reqId",
@@ -425,10 +484,8 @@ exports.GetAllRequests = async (req, res) => {
         type: QueryTypes.SELECT,
       },
     );
-    console.log(`[DEBUG] Found ${requests.length} requests.`);
     res.status(200).json(requests);
   } catch (error) {
-    console.error("[DEBUG] Error fetching all requests:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -442,13 +499,17 @@ exports.UpdateStatusRequest = async (req, res) => {
   }
 
   try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
     // 1. Update the parent request status
     await sequelize.query(
       `UPDATE "emp_Request"
        SET "emp_reqStatusId" = :emp_reqStatusId,
            "processedBy" = :processedBy,
-           "date_Processed" = NOW(),
-           "admin_remarks" = :admin_remarks
+           "date_Processed" = :now,
+           "admin_remarks" = :admin_remarks,
+           "updatedAt" = :now
        WHERE "emp_reqId" = :emp_reqId`,
       {
         replacements: {
@@ -456,6 +517,7 @@ exports.UpdateStatusRequest = async (req, res) => {
           emp_reqStatusId,
           processedBy,
           admin_remarks: remarks || null,
+          now: nowStr,
         },
         type: QueryTypes.UPDATE,
       },
@@ -497,12 +559,13 @@ exports.UpdateStatusRequest = async (req, res) => {
       const statusName = emp_reqStatusId === 2 ? "Approved" : "Rejected";
       await sequelize.query(
         `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "createdAt", "updatedAt")
-         VALUES (:userId, :title, :message, false, NOW(), NOW())`,
+         VALUES (:userId, :title, :message, false, :now, :now)`,
         {
           replacements: {
             userId: requestInfo.user_Id,
             title: `Request ${statusName}`,
             message: `Your ${requestInfo.reqTypeName} request has been ${statusName.toLowerCase()}.`,
+            now: nowStr,
           },
           type: QueryTypes.INSERT,
         }
@@ -529,9 +592,11 @@ exports.GetPendingCount = async (req, res) => {
 
 exports.GetLeaveBalance = async (req, res) => {
   const { userId } = req.params;
-  const currentYear = new Date().getFullYear();
 
   try {
+    const now = await getSystemTime();
+    const currentYear = now.getFullYear();
+
     const balanceResult = await sequelize.query(
       `SELECT * FROM "Leave_Balance" WHERE "user_Id" = :userId and "year" = :year`,
       {
@@ -568,9 +633,11 @@ exports.GetLeaveBalance = async (req, res) => {
 
 exports.GetRequestDetails = async (req, res) => {
   const { requestId } = req.params;
-  const currentYear = new Date().getFullYear();
 
   try {
+    const now = await getSystemTime();
+    const currentYear = now.getFullYear();
+
     const request = await sequelize.query(
       `SELECT
         er."emp_reqId",

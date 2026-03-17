@@ -73,6 +73,18 @@ app.use("/api/payroll", payrollRoutes);
 const notificationRoutes = require("./routes/notification.routes.js");
 app.use("/api/notifications", notificationRoutes);
 
+// Routes for system settings
+const systemRoutes = require("./routes/system.routes.js");
+app.use("/api/system", systemRoutes);
+
+// ── Background Tasks ──────────────────────────────────────────────────────────
+const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
+// Run every 5 minutes
+setInterval(() => {
+  console.log("[BACKGROUND] Running ensureAbsentsMarked...");
+  ensureAbsentsMarked();
+}, 5 * 60 * 1000);
+
 // Define port and start server
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

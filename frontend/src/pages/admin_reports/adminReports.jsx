@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import "./adminReports.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
@@ -9,9 +9,123 @@ import PaymentsIcon from "@mui/icons-material/Payments";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import { Link } from "react-router-dom";
+import { formatUserId } from "../../utils/formatUserId";
 
 const Reports = () => {
   const [activeReport, setActiveReport] = useState("attendance");
+  const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedEmployee, setSelectedEmployee] = useState("All Employees");
+  
+  const [employees, setEmployees] = useState([]);
+  const [attendanceData, setAttendanceData] = useState([]);
+  const [payrollData, setPayrollData] = useState([]);
+  const [calendarData, setCalendarData] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchEmployees = useCallback(async () => {
+    try {
+      const response = await fetch("http://localhost:4000/api/users/all");
+      if (response.ok) {
+        const data = await response.json();
+        setEmployees(data);
+      }
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    }
+  }, []);
+
+  const fetchAttendanceReport = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:4000/api/attendance/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      if (response.ok) {
+        const data = await response.json();
+        setAttendanceData(data);
+      }
+    } catch (error) {
+      console.error("Error fetching attendance report:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [startDate, endDate, selectedEmployee]);
+
+  const fetchPayrollReport = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:4000/api/payroll/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPayrollData(data);
+      }
+    } catch (error) {
+      console.error("Error fetching payroll report:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [startDate, endDate, selectedEmployee]);
+
+  const fetchCalendarReport = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:4000/api/request/report/calendar?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCalendarData(data);
+      }
+    } catch (error) {
+      console.error("Error fetching calendar report:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [startDate, endDate, selectedEmployee]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
+
+  useEffect(() => {
+    if (activeReport === "attendance") fetchAttendanceReport();
+    else if (activeReport === "payroll") fetchPayrollReport();
+    else if (activeReport === "calendar") fetchCalendarReport();
+  }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport]);
+
+  const exportToCSV = () => {
+    let dataToExport = [];
+    let filename = `${activeReport}_report_${startDate}_to_${endDate}.csv`;
+    let headers = [];
+
+    if (activeReport === "attendance") {
+      headers = ["Employee MaChip ID", "Employee Name", "Date", "Time In", "Time Out", "Hours Worked", "Status", "Remarks"];
+      dataToExport = attendanceData.map(r => [r.machipId, r.userName, r.log_Date, r.time_In, r.time_Out, r.hours_worked, r.status, r.remarks]);
+    } else if (activeReport === "payroll") {
+      headers = ["Payroll ID", "Employee Name", "Period Start", "Period End", "Days Worked", "Hours Worked", "Net Pay", "Status"];
+      dataToExport = payrollData.map(r => [r.payrollId, `${r.user_FirstName} ${r.user_LastName}`, r.period_Start, r.period_End, r.NoDays_Worked, r.NoHrs_Worked, r.netPay, r.statusName]);
+    } else if (activeReport === "calendar") {
+      headers = ["Type", "Date", "Name/Employee", "Details"];
+      dataToExport = calendarData.map(r => [r.type, r.date, r.name, r.details]);
+    }
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(","), ...dataToExport.map(e => e.join(","))].join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Helper to calculate stats
+  const stats = attendanceData.reduce((acc, curr) => {
+    if (curr.status === "On-Time") acc.present++;
+    else if (curr.status === "Late") { acc.present++; acc.late++; }
+    else if (curr.status === "Absent") acc.absent++;
+    acc.totalHours += parseFloat(curr.hoursWorked) || 0;
+    return acc;
+  }, { present: 0, absent: 0, late: 0, totalHours: 0 });
 
   return (
     <div className="reports">
@@ -19,18 +133,16 @@ const Reports = () => {
       <div className="reportsContainer">
         <Navbar />
         <div className="wrapper">
-          {/* Header Section */}
           <div className="header">
             <div className="text">
               <h1>Reports & Export</h1>
               <span>Generate and export attendance, payroll, and calendar reports</span>
             </div>
-            <button className="exportBtn">
+            <button className="exportBtn" onClick={exportToCSV}>
               <FileDownloadIcon /> Export to CSV
             </button>
           </div>
 
-          {/* Report Selection Tabs */}
           <div className="tabs">
             <button 
               className={activeReport === "attendance" ? "active" : ""} 
@@ -52,7 +164,6 @@ const Reports = () => {
             </button>
           </div>
 
-          {/* Filters Section */}
           <div className="filtersCard">
             <div className="title">
               <FilterListIcon /> Filters
@@ -60,169 +171,165 @@ const Reports = () => {
             <div className="filterInputs">
               <div className="inputGroup">
                 <label>Date From</label>
-                <input type="date" defaultValue="2026-03-01" />
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
               <div className="inputGroup">
                 <label>Date To</label>
-                <input type="date" defaultValue="2026-03-16" />
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
               <div className="inputGroup">
                 <label>Employee</label>
-                <select>
-                  <option>All Employees</option>
-                  <option>Kathleen Pinto</option>
-                  <option>John Dela Cruz</option>
+                <select value={selectedEmployee} onChange={(e) => setSelectedEmployee(e.target.value)}>
+                  <option value="All Employees">All Employees</option>
+                  {employees.map(emp => (
+                    <option key={emp.user_Id} value={emp.user_Id}>
+                      {emp.user_LastName}, {emp.user_FirstName}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
           </div>
 
-          {/* Dynamic Records Card */}
           <div className="recordsCard">
-            
-            {/* 1. Attendance Report View */}
-            {activeReport === "attendance" && (
+            {loading ? <div className="loading">Loading records...</div> : (
               <>
-                <h3>Attendance Records</h3>
-                <span>Showing 10 records from 3/1/2026 to 3/16/2026</span>
-                <table className="reportsTable">
-                  <thead>
-                    <tr>
-                      <th>EMPLOYEE ID</th>
-                      <th>EMPLOYEE NAME</th>
-                      <th>DATE</th>
-                      <th>TIME IN</th>
-                      <th>TIME OUT</th>
-                      <th>HOURS WORKED</th>
-                      <th>STATUS</th>
-                      <th>REMARKS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>1</td>
-                      <td>Kathleen Pinto</td>
-                      <td>3/16/2026</td>
-                      <td>08:00:00</td>
-                      <td>17:00:00</td>
-                      <td>8 hrs</td>
-                      <td><span className="status present">Present</span></td>
-                      <td>-</td>
-                    </tr>
-                    <tr>
-                      <td>1</td>
-                      <td>Kathleen Pinto</td>
-                      <td>3/15/2026</td>
-                      <td>08:15:00</td>
-                      <td>17:05:00</td>
-                      <td>8 hrs</td>
-                      <td><span className="status late">Late</span></td>
-                      <td className="remarks">Late by 15 mins</td>
-                    </tr>
-                  </tbody>
-                </table>
+                {activeReport === "attendance" && (
+                  <>
+                    <h3>Attendance Records</h3>
+                    <span>Showing {attendanceData.length} records from {startDate} to {endDate}</span>
+                    <table className="reportsTable">
+                      <thead>
+                        <tr>
+                          <th>EMPLOYEE ID</th>
+                          <th>EMPLOYEE NAME</th>
+                          <th>DATE</th>
+                          <th>TIME IN</th>
+                          <th>TIME OUT</th>
+                          <th>HOURS WORKED</th>
+                          <th>STATUS</th>
+                          <th>REMARKS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {attendanceData.map((r, i) => (
+                          <tr key={i}>
+                            <td>{formatUserId(r.user_Id)}</td>
+                            <td>{r.userName}</td>
+                            <td>{new Date(r.log_Date).toLocaleDateString()}</td>
+                            <td>{r.time_In}</td>
+                            <td>{r.time_Out}</td>
+                            <td>{r.hoursWorked}</td>
+                            <td>
+                              <span className={`status ${r.status.toLowerCase().replace(/\s+/g, '')}`}>
+                                {r.status}
+                              </span>
+                            </td>
+                            <td>{r.remarks}</td>
+                          </tr>
+                        ))}
+                        {attendanceData.length === 0 && <tr><td colSpan="8">No records found.</td></tr>}
+                      </tbody>
+                    </table>
 
-                {/* Statistics Row: Only for Attendance */}
-                <div className="summaryStats">
-                  <div className="statBox">
-                    <label>Total Present</label>
-                    <p className="presentText">6</p>
-                  </div>
-                  <div className="statBox">
-                    <label>Total Absent</label>
-                    <p className="absentText">1</p>
-                  </div>
-                  <div className="statBox">
-                    <label>Total Late</label>
-                    <p className="lateText">1</p>
-                  </div>
-                  <div className="statBox">
-                    <label>Total Hours</label>
-                    <p>64 hrs</p>
-                  </div>
-                </div>
+                    <div className="summaryStats">
+                      <div className="statBox">
+                        <label>Total Present</label>
+                        <p className="presentText">{stats.present}</p>
+                      </div>
+                      <div className="statBox">
+                        <label>Total Absent</label>
+                        <p className="absentText">{stats.absent}</p>
+                      </div>
+                      <div className="statBox">
+                        <label>Total Late</label>
+                        <p className="lateText">{stats.late}</p>
+                      </div>
+                      <div className="statBox">
+                        <label>Total Hours</label>
+                        <p>{stats.totalHours.toFixed(1)} hrs</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeReport === "payroll" && (
+                  <>
+                    <h3>Payroll Records</h3>
+                    <span>Payroll data from {startDate} to {endDate}</span>
+                    <table className="reportsTable payrollTable">
+                    <thead>
+                        <tr>
+                        <th>PAYROLL ID</th>
+                        <th>EMPLOYEE NAME</th>
+                        <th>PERIOD</th>
+                        <th>DAYS/HOURS</th>
+                        <th>RATE/HR</th>
+                        <th>BASIC PAY</th>
+                        <th>TOTAL EARNINGS</th>
+                        <th>DEDUCTIONS</th>
+                        <th>NET PAY</th>
+                        <th>STATUS</th>
+                        <th>ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {payrollData.map((r, i) => (
+                          <tr key={i}>
+                            <td>{r.payrollId}</td>
+                            <td>{r.user_FirstName} {r.user_LastName}</td>
+                            <td>{new Date(r.period_Start).toLocaleDateString()} - {new Date(r.period_End).toLocaleDateString()}</td>
+                            <td>{r.NoDays_Worked}d / {r.NoHrs_Worked}h</td>
+                            <td>₱{r.ratePerHr}</td>
+                            <td>₱{r.basicPay.toLocaleString()}</td>
+                            <td className="pos">₱{r.totalEarnings.toLocaleString()}</td>
+                            <td className="neg">₱{r.totalDeductions.toLocaleString()}</td>
+                            <td className="bold">₱{r.netPay.toLocaleString()}</td>
+                            <td><span className={`status ${r.statusName.toLowerCase()}`}>{r.statusName}</span></td>
+                            <td>
+                                <div className="actions">
+                                <Link title="View Payslip" to={`/adminReports/payslip/${r.payrollId}`}>
+                                    <ReceiptLongIcon className="payslipIcon" />
+                                </Link>
+                                </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {payrollData.length === 0 && <tr><td colSpan="11">No records found.</td></tr>}
+                    </tbody>
+                    </table>
+                  </>
+                )}
+
+                {activeReport === "calendar" && (
+                  <>
+                    <h3>Calendar Events</h3>
+                    <span>Holidays, leaves, and field work from {startDate} to {endDate}</span>
+                    <table className="reportsTable calendarTable">
+                      <thead>
+                        <tr>
+                          <th>TYPE</th>
+                          <th>DATE</th>
+                          <th>NAME/EMPLOYEE</th>
+                          <th>DETAILS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {calendarData.map((r, i) => (
+                          <tr key={i}>
+                            <td><span className={`eventTag ${r.type.toLowerCase().replace(/\s+/g, '')}`}>{r.type}</span></td>
+                            <td>{new Date(r.date).toLocaleDateString()}</td>
+                            <td className="bold">{r.name}</td>
+                            <td>{r.details}</td>
+                          </tr>
+                        ))}
+                        {calendarData.length === 0 && <tr><td colSpan="4">No events found.</td></tr>}
+                      </tbody>
+                    </table>
+                  </>
+                )}
               </>
             )}
-
-            {/* 2. Payroll Report View */}
-            {activeReport === "payroll" && (
-            <>
-                <h3>Payroll Records</h3>
-                <span>Payroll data from 3/1/2026 to 3/16/2026</span>
-                <table className="reportsTable payrollTable">
-                <thead>
-                    <tr>
-                    <th>PAYROLL ID</th>
-                    <th>EMPLOYEE NAME</th>
-                    <th>PERIOD</th>
-                    <th>DAYS/HOURS</th>
-                    <th>RATE/HR</th>
-                    <th>BASIC PAY</th>
-                    <th>TOTAL EARNINGS</th>
-                    <th>DEDUCTIONS</th>
-                    <th>NET PAY</th>
-                    <th>STATUS</th>
-                    <th>ACTIONS</th> {/* New Column Header */}
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                    <td>1</td>
-                    <td>Kathleen Pinto</td>
-                    <td>Mar 1 - Mar 15 2026</td>
-                    <td>10d / 80h</td>
-                    <td>₱150</td>
-                    <td>₱12,000</td>
-                    <td className="pos">₱15,500</td>
-                    <td className="neg">₱1,200</td>
-                    <td className="bold">₱14,300</td>
-                    <td><span className="status paid">Paid</span></td>
-                    <td>
-                        {/* New Action Button linking to the payslip page */}
-                        <div className="actions">
-                        <Link title="View Payslip" to={`/adminReports/payslip/1`}>
-                            <ReceiptLongIcon className="payslipIcon" />
-                        </Link>
-                        </div>
-                    </td>
-                    </tr>
-                </tbody>
-                </table>
-            </>
-            )}
-
-            {/* 3. Calendar Report View */}
-            {activeReport === "calendar" && (
-              <>
-                <h3>Calendar Events</h3>
-                <span>Holidays, leaves, and field work from 3/1/2026 to 3/16/2026</span>
-                <table className="reportsTable calendarTable">
-                  <thead>
-                    <tr>
-                      <th>TYPE</th>
-                      <th>DATE</th>
-                      <th>NAME/EMPLOYEE</th>
-                      <th>DETAILS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><span className="eventTag holiday">Holiday</span></td>
-                      <td>March 25, 2026</td>
-                      <td className="bold">Araw ng Dabaw</td>
-                      <td>Special Holiday</td>
-                    </tr>
-                    <tr>
-                      <td><span className="eventTag fieldWork">Field Work</span></td>
-                      <td>March 20, 2026</td>
-                      <td className="bold">Kathleen Pinto</td>
-                      <td>Client Site A - Project Meeting</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </>
-            )}
-
           </div>
         </div>
       </div>

@@ -73,7 +73,7 @@ function App() {
         />
 
         <Route
-          path="/payrollDetails"
+          path="/payrollDetails/:payrollId"
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <PayrollDetails />

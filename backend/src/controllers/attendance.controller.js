@@ -1,37 +1,77 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
+const { getSystemTime } = require("../utils/systemTime.js");
+const { ensureAbsentsMarked } = require("../utils/attendanceHelper.js");
 
 // ── Mark Attendance ───────────────────────────────────────────────────────────
 exports.markAttendance = async (req, res) => {
+  const { forcedStatus } = req.body; // 1 for Clock In, 2 for Clock Out
+
   try {
-    // Randomly pick one user (PostgreSQL uses RANDOM())
-    const users = await sequelize.query(
-      `SELECT * FROM "User" WHERE "deletedAt" IS NULL ORDER BY RANDOM() LIMIT 1`,
-      { type: QueryTypes.SELECT },
-    );
+    const now = await getSystemTime();
+    await ensureAbsentsMarked();
+
+    let userQuery = `
+      SELECT u.* FROM "User" u 
+      LEFT JOIN "employee_Logging_report" r ON u."user_Id" = r."user_id" AND r."log_Date" = CURRENT_DATE
+      WHERE u."deletedAt" IS NULL 
+      AND (r."attendance_StatusId" IS NULL OR r."attendance_StatusId" NOT IN (3, 4))
+    `;
+
+    if (forcedStatus === 1) {
+      // Pick a user who is currently Logged Out (status 2 or no report yet)
+      userQuery += ` AND (r."logged_StatusId" IS NULL OR r."logged_StatusId" = 2)`;
+    } else if (forcedStatus === 2) {
+      // Pick a user who is currently Logged In (status 1)
+      userQuery += ` AND r."logged_StatusId" = 1`;
+    }
+
+    userQuery += ` ORDER BY RANDOM() LIMIT 1`;
+
+    const users = await sequelize.query(userQuery, { type: QueryTypes.SELECT });
 
     const user = users[0];
     if (!user) {
-      return res.status(404).json({ error: "No users found in the database." });
+      return res.status(404).json({ error: "No available users found for this action." });
     }
 
     const user_Id = user.user_Id;
-    const now = new Date();
+
+    const todayStr = now.toISOString().split("T")[0];
+    const timeStr  = now.toTimeString().split(" ")[0];
+
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
 
     // ── Lunch window check ──────────────────────────────────────────────────
     const totalMinutes = now.getHours() * 60 + now.getMinutes();
     const isLunchWindow = totalMinutes >= 720 && totalMinutes < 780;
 
-    // ── Get last log for this user ──────────────────────────────────────────
+    // ── Get ONLY TODAY's last log ───────────────────────────────────────────
     const lastLogs = await sequelize.query(
       `SELECT * FROM "user_logging"
        WHERE "user_id" = :user_Id
+       AND "log_Date" BETWEEN :todayStart AND :todayEnd
        ORDER BY "user_loggingId" DESC
        LIMIT 1`,
-      { replacements: { user_Id }, type: QueryTypes.SELECT },
+      { replacements: { user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
     );
 
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
+
+    // Check if the user has EVER clocked in (status 1) today
+    const firstLoginToday = await sequelize.query(
+      `SELECT * FROM "user_logging"
+       WHERE "user_id" = :user_Id
+       AND "logged_StatusId" = 1
+       AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       LIMIT 1`,
+      { replacements: { user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+    );
+
+    const hasPriorClockIn = !!firstLoginToday[0];
 
     // ── Determine next status ───────────────────────────────────────────────
     let nextStatus;
@@ -40,38 +80,47 @@ exports.markAttendance = async (req, res) => {
     } else if (lastStatus === 3) {
       nextStatus = 4; // In From Lunch
     } else {
-      nextStatus = isLunchWindow ? 3 : 2; // Out For Lunch or Clock Out
+      nextStatus = isLunchWindow ? 3 : 2;
+    }
+
+    // ── SUSPICIOUS ACTIVITY CHECK ──────────────────────────────────────────
+    // If attempting Clock In (status 1) past 5:30 PM AND has no prior clock-in today
+    const fivePMThirty = new Date(now);
+    fivePMThirty.setHours(17, 30, 0, 0);
+
+    if (nextStatus === 1 && now >= fivePMThirty && !hasPriorClockIn) {
+      // Create Suspicious Activity Notification for Admin (assume Admin ID = 1)
+      const adminId = 1; 
+      const timeStrFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      await sequelize.query(
+        `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "createdAt", "updatedAt")
+         VALUES (:adminId, :title, :message, false, NOW(), NOW())`,
+        {
+          replacements: {
+            adminId,
+            title: "Suspicious Activity Detected",
+            message: `User ${user.user_FirstName} ${user.user_LastName} (ID: ${user.user_Id}) attempted to Clock In at ${timeStrFormatted} but has no prior attendance record for today. Entry blocked.`,
+          },
+          type: QueryTypes.INSERT,
+        }
+      );
+
+      return res.status(403).json({ 
+        error: "Suspicious Activity: Clock-in blocked. Administrator notified.",
+        suspicious: true 
+      });
     }
 
     // ── Attendance value (only on first Clock In of the day) ────────────────
     let attendanceVal = null;
-    if (nextStatus === 1) {
-      const startOfDay = new Date(now);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(now);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const firstLoginToday = await sequelize.query(
-        `SELECT * FROM "user_logging"
-         WHERE "user_id" = :user_Id
-         AND "logged_StatusId" = 1
-         AND "log_Date" BETWEEN :startOfDay AND :endOfDay
-         LIMIT 1`,
-        {
-          replacements: { user_Id, startOfDay, endOfDay },
-          type: QueryTypes.SELECT,
-        },
-      );
-
-      if (!firstLoginToday[0]) {
-        attendanceVal = now.getHours() < 9 ? 1 : 2;
-      }
+    if (nextStatus === 1 && !hasPriorClockIn) {
+      // Only mark Late if within working hours
+      // Past 5:30 with no log is now blocked as suspicious
+      attendanceVal = now.getHours() < 9 ? 1 : 2;
     }
 
-    const timeStr = now.toTimeString().split(" ")[0]; // "HH:MM:SS"
-    const todayStr = now.toISOString().split("T")[0]; // "YYYY-MM-DD"
-
-    // ── 1. Insert into user_logging ─────────────────────────────────────────
+    // ── Insert into user_logging ────────────────────────────────────────────
     const newLogResult = await sequelize.query(
       `INSERT INTO "user_logging"
         ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
@@ -81,7 +130,7 @@ exports.markAttendance = async (req, res) => {
       {
         replacements: {
           user_Id,
-          log_Date: now,
+          log_Date: todayStart,
           time_Logged: timeStr,
           logged_StatusId: nextStatus,
           attendance_StatusId: attendanceVal,
@@ -92,8 +141,8 @@ exports.markAttendance = async (req, res) => {
 
     const newLog = newLogResult[0][0];
 
-    // ── 2. Upsert employee_Logging_report ───────────────────────────────────
-    const isEntry = nextStatus === 1 || nextStatus === 4;
+    // ── Upsert employee_Logging_report ──────────────────────────────────────
+    const isEntry    = nextStatus === 1 || nextStatus === 4;
     const finalStatus = nextStatus === 4 ? 1 : nextStatus;
 
     const existingReport = await sequelize.query(
@@ -123,7 +172,7 @@ exports.markAttendance = async (req, res) => {
         },
       );
     } else {
-      const inArr = JSON.parse(existingReport[0].time_Logged_inArr || "[]");
+      const inArr  = JSON.parse(existingReport[0].time_Logged_inArr  || "[]");
       const outArr = JSON.parse(existingReport[0].time_Logged_outArr || "[]");
 
       if (isEntry) inArr.push(timeStr);
@@ -131,7 +180,7 @@ exports.markAttendance = async (req, res) => {
 
       await sequelize.query(
         `UPDATE "employee_Logging_report"
-         SET "time_Logged_inArr" = :inArr,
+         SET "time_Logged_inArr"  = :inArr,
              "time_Logged_outArr" = :outArr,
              "logged_StatusId" = :finalStatus
          WHERE "user_id" = :user_Id AND "log_Date" = :todayStr`,
@@ -168,6 +217,7 @@ exports.markAttendance = async (req, res) => {
 exports.viewUserLogs = async (req, res) => {
   const { user_Id } = req.params;
   try {
+    await ensureAbsentsMarked();
     const reports = await sequelize.query(
       `SELECT
          r.*,
@@ -205,6 +255,7 @@ exports.viewUserLogs = async (req, res) => {
 // ── View All Attendance ───────────────────────────────────────────────────────
 exports.viewAllAttendance = async (req, res) => {
   try {
+    await ensureAbsentsMarked();
     const logs = await sequelize.query(
       `SELECT
          ul."user_loggingId",
@@ -254,47 +305,28 @@ exports.deleteAllLogs = async (req, res) => {
 // ── Status Logic ──────────────────────────────────────────────────────────────
 exports.StatusLogic = async (req, res) => {
   const { user_Id } = req.params;
-  const { mockTime } = req.query;
 
   try {
-    const now = mockTime ? new Date(mockTime) : new Date();
+    const now = await getSystemTime();
+    await ensureAbsentsMarked();
 
-    const today = new Date(now);
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
 
     const logs = await sequelize.query(
       `SELECT * FROM "user_logging"
        WHERE "user_id" = :user_Id
-       AND "log_Date" >= :today
-       AND "log_Date" < :tomorrow
+       AND "log_Date" BETWEEN :todayStart AND :todayEnd
        ORDER BY "user_loggingId" DESC
        LIMIT 1`,
-      { replacements: { user_Id, today, tomorrow }, type: QueryTypes.SELECT },
+      { replacements: { user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
     );
 
     let log = logs[0];
 
-    const fivePM = new Date(now);
-    fivePM.setHours(17, 0, 0, 0);
-
     if (!log) {
-      if (now >= fivePM) {
-        const absentResult = await sequelize.query(
-          `INSERT INTO "user_logging"
-            ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
-           VALUES (:user_Id, :log_Date, '17:00:00', 2, 3)
-           RETURNING *`,
-          {
-            replacements: { user_Id, log_Date: today },
-            type: QueryTypes.INSERT,
-          },
-        );
-        return res.status(201).json({
-          message: "User marked as Absent",
-          data: absentResult[0][0],
-        });
-      }
       return res
         .status(404)
         .json({ error: "No attendance record found for today" });
@@ -311,12 +343,11 @@ exports.StatusLogic = async (req, res) => {
     const firstLogs = await sequelize.query(
       `SELECT * FROM "user_logging"
        WHERE "user_id" = :user_Id
-       AND "log_Date" >= :today
-       AND "log_Date" < :tomorrow
+       AND "log_Date" BETWEEN :todayStart AND :todayEnd
        AND "logged_StatusId" = 1
        ORDER BY "user_loggingId" ASC
        LIMIT 1`,
-      { replacements: { user_Id, today, tomorrow }, type: QueryTypes.SELECT },
+      { replacements: { user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
     );
 
     const firstLog = firstLogs[0];
@@ -359,7 +390,9 @@ exports.StatusLogic = async (req, res) => {
 // ── Get Monthly Attendance Stats (Global) ────────────────────────────────────
 exports.getMonthlyAttendanceStats = async (req, res) => {
   try {
-    const currentYear = new Date().getFullYear();
+    await ensureAbsentsMarked();
+    const now = await getSystemTime();
+    const currentYear = now.getFullYear();
     const stats = await sequelize.query(
       `SELECT 
          TO_CHAR(TO_DATE(EXTRACT(MONTH FROM "log_Date")::text, 'MM'), 'Month') AS name,
@@ -384,7 +417,9 @@ exports.getMonthlyAttendanceStats = async (req, res) => {
 exports.getMonthlyAttendanceStatsByUser = async (req, res) => {
   const { user_Id } = req.params;
   try {
-    const currentYear = new Date().getFullYear();
+    await ensureAbsentsMarked();
+    const now = await getSystemTime();
+    const currentYear = now.getFullYear();
     const stats = await sequelize.query(
       `SELECT 
          TO_CHAR(TO_DATE(EXTRACT(MONTH FROM "log_Date")::text, 'MM'), 'Month') AS name,
@@ -408,7 +443,9 @@ exports.getMonthlyAttendanceStatsByUser = async (req, res) => {
 // ── Get Dashboard Stats ───────────────────────────────────────────────────────
 exports.getDashboardStats = async (req, res) => {
   try {
-    const todayStr = new Date().toISOString().split("T")[0];
+    await ensureAbsentsMarked();
+    const now = await getSystemTime();
+    const todayStr = now.toISOString().split("T")[0];
 
     const userCountResult = await sequelize.query(
       `SELECT COUNT(*) as total FROM "User" WHERE "deletedAt" IS NULL`,
@@ -444,7 +481,9 @@ exports.getDashboardStats = async (req, res) => {
 // ── Get Office Occupancy ──────────────────────────────────────────────────────
 exports.getOfficeOccupancy = async (req, res) => {
   try {
-    const todayStr = new Date().toISOString().split("T")[0];
+    await ensureAbsentsMarked();
+    const now = await getSystemTime();
+    const todayStr = now.toISOString().split("T")[0];
 
     const reports = await sequelize.query(
       `SELECT
@@ -478,3 +517,4 @@ exports.getOfficeOccupancy = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+

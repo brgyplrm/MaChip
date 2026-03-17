@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from "react";
 import "./detailsPayroll.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
@@ -7,10 +8,59 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { formatUserId } from "../../utils/formatUserId";
 
 const PayrollDetails = () => {
   const navigate = useNavigate();
+  const { payrollId } = useParams();
+  const [payroll, setPayroll] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPayrollDetails = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`http://localhost:4000/api/payroll/${payrollId}`);
+        const data = await response.json();
+        if (response.ok) {
+          setPayroll(data);
+        }
+      } catch (error) {
+        console.error("Error fetching payroll details:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (payrollId) {
+      fetchPayrollDetails();
+    }
+  }, [payrollId]);
+
+  if (loading) return (
+    <div className="home payrollDetails">
+      <Sidebar />
+      <div className="homeContainer">
+        <Navbar />
+        <div className="detailsWrapper">
+          <p>Loading payroll details...</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!payroll) return (
+    <div className="home payrollDetails">
+      <Sidebar />
+      <div className="homeContainer">
+        <Navbar />
+        <div className="detailsWrapper">
+          <p>Payroll record not found.</p>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="home payrollDetails">
@@ -24,10 +74,12 @@ const PayrollDetails = () => {
               <ArrowBackIcon className="backIcon" onClick={() => navigate(-1)} />
               <div className="titleText">
                 <h1>Payroll Details</h1>
-                <span>Payroll ID: 1</span>
+                <span>Payroll ID: {payroll.payrollId}</span>
               </div>
             </div>
-            <span className="statusBadge paid">Paid</span>
+            <span className={`statusBadge ${payroll.PaystatusName?.toLowerCase()}`}>
+              {payroll.PaystatusName}
+            </span>
           </div>
 
           {/* Employee Information Card */}
@@ -39,15 +91,19 @@ const PayrollDetails = () => {
             <div className="infoGrid">
               <div className="infoItem">
                 <label>Employee Name</label>
-                <p>Kathleen Pinto</p>
+                <p>{payroll.user_FirstName} {payroll.user_LastName}</p>
               </div>
               <div className="infoItem">
                 <label>Employee ID</label>
-                <p>1</p>
+                <p>{formatUserId(payroll.user_Id)}</p>
               </div>
               <div className="infoItem">
                 <label>Rate Per Hour</label>
-                <p>₱150</p>
+                <p>₱{parseFloat(payroll.ratePerHr).toLocaleString()}</p>
+              </div>
+              <div className="infoItem">
+                <label>Daily Rate</label>
+                <p>₱{parseFloat(payroll.dailyRate || 0).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -61,19 +117,19 @@ const PayrollDetails = () => {
             <div className="infoGrid">
               <div className="infoItem">
                 <label>Period Start</label>
-                <p>3/1/2026</p>
+                <p>{new Date(payroll.period_Start).toLocaleDateString()}</p>
               </div>
               <div className="infoItem">
                 <label>Period End</label>
-                <p>3/15/2026</p>
+                <p>{new Date(payroll.period_End).toLocaleDateString()}</p>
               </div>
               <div className="infoItem">
                 <label>Days Worked</label>
-                <p>10 days</p>
+                <p>{payroll.NoDays_Worked} days</p>
               </div>
               <div className="infoItem">
                 <label>Hours Worked</label>
-                <p>80 hours</p>
+                <p>{payroll.NoHrs_Worked} hours</p>
               </div>
             </div>
           </div>
@@ -85,15 +141,16 @@ const PayrollDetails = () => {
               <h3>Earnings Breakdown</h3>
             </div>
             <div className="breakdownList">
-              <div className="row"><span>Basic Pay</span><p>₱12,000</p></div>
-              <div className="row"><span>Overtime (5 hrs)</span><p>₱1,125</p></div>
-              <div className="row"><span>Rest Day OT (2 hrs)</span><p>₱600</p></div>
-              <div className="row"><span>Night Differential (8 hrs)</span><p>₱400</p></div>
-              <div className="row"><span>Special Holiday Pay</span><p>₱500</p></div>
-              <div className="row"><span>Incentives</span><p>₱200</p></div>
+              <div className="row"><span>Basic Pay</span><p>₱{parseFloat(payroll.basicPay).toLocaleString()}</p></div>
+              <div className="row"><span>Overtime ({payroll.OT_Hrs} hrs)</span><p>₱{parseFloat(payroll.OT_Amnt || 0).toLocaleString()}</p></div>
+              {payroll.restDay_OT_Amnt > 0 && <div className="row"><span>Rest Day OT ({payroll.restDay_OT_Hrs} hrs)</span><p>₱{parseFloat(payroll.restDay_OT_Amnt).toLocaleString()}</p></div>}
+              {payroll.nightDiff_Amnt > 0 && <div className="row"><span>Night Differential ({payroll.nightDiff_Hrs} hrs)</span><p>₱{parseFloat(payroll.nightDiff_Amnt).toLocaleString()}</p></div>}
+              {payroll.specialHol_Amnt > 0 && <div className="row"><span>Special Holiday Pay</span><p>₱{parseFloat(payroll.specialHol_Amnt).toLocaleString()}</p></div>}
+              {payroll.incentives > 0 && <div className="row"><span>Incentives</span><p>₱{parseFloat(payroll.incentives).toLocaleString()}</p></div>}
+              {payroll.allowance > 0 && <div className="row"><span>Allowance</span><p>₱{parseFloat(payroll.allowance).toLocaleString()}</p></div>}
               <div className="totalRow earnings">
                 <span>Total Earnings</span>
-                <p>₱15,500</p>
+                <p>₱{parseFloat(payroll.totalEarnings).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -105,12 +162,13 @@ const PayrollDetails = () => {
               <h3>Deductions Breakdown</h3>
             </div>
             <div className="breakdownList">
-              <div className="row"><span>Absence (4 hrs)</span><p>₱600</p></div>
-              <div className="row"><span>Tardiness (120 mins)</span><p>₱300</p></div>
-              <div className="row"><span>Unpaid Leave (0.5 days)</span><p>₱300</p></div>
+              <div className="row"><span>Absence ({payroll.absence_Hrs} hrs)</span><p>₱{parseFloat(payroll.absence_Amnt || 0).toLocaleString()}</p></div>
+              <div className="row"><span>Tardiness ({payroll.tardiness_Mins} mins)</span><p>₱{parseFloat(payroll.tardiness_Amnt || 0).toLocaleString()}</p></div>
+              {payroll.unpaidLeave_Amnt > 0 && <div className="row"><span>Unpaid Leave ({payroll.unpaidLeave_Days} days)</span><p>₱{parseFloat(payroll.unpaidLeave_Amnt).toLocaleString()}</p></div>}
+              {payroll.paidLeave_Days > 0 && <div className="row"><span>Paid Leave ({payroll.paidLeave_Days} days)</span><p><i>(Covered)</i></p></div>}
               <div className="totalRow deductions">
                 <span>Total Deductions</span>
-                <p>₱1,200</p>
+                <p>₱{parseFloat(payroll.totalDeductions).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -119,7 +177,7 @@ const PayrollDetails = () => {
           <div className="netPayCard">
             <div className="text">
               <label>Net Pay</label>
-              <p>₱14,300</p>
+              <p>₱{parseFloat(payroll.netPay).toLocaleString()}</p>
             </div>
             <AttachMoneyIcon className="bgIcon" />
           </div>
@@ -128,11 +186,11 @@ const PayrollDetails = () => {
           <div className="recordInfo">
             <div className="item">
               <label>Created At</label>
-              <p>3/15/2026, 6:00:00 PM</p>
+              <p>{new Date(payroll.createdAt).toLocaleString()}</p>
             </div>
             <div className="item">
               <label>Last Updated</label>
-              <p>3/15/2026, 6:00:00 PM</p>
+              <p>{new Date(payroll.updatedAt).toLocaleString()}</p>
             </div>
           </div>
         </div>

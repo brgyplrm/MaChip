@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
+import { formatTime12h } from "../../utils/formatTime";
 
 const Logs = () => {
   const [logData, setLogData] = useState([]);
@@ -56,7 +57,6 @@ const Logs = () => {
       const response = await fetch("http://localhost:4000/api/attendance/all");
       if (response.ok) {
         const logs = await response.json();
-        // Flatten the nested Sequelize response to match the column field names
         const mapped = logs.map((log) => {
           const u_Id = log.user_Id ?? log.user_id;
           const firstName = log.user_FirstName ?? "";
@@ -68,15 +68,15 @@ const Logs = () => {
             user_Id: u_Id,
             user_Id_formatted: formatUserId(u_Id),
             first_name: firstName || "—",
-            last_name: lastName || "—", // ← was log.user?.user_LastName
+            last_name: lastName || "—",
             fullName: fullName || "—",
-            machip_id: log.user_MachipId || "—", // ← was log.user?.user_MachipId
+            machip_id: log.user_MachipId || "—",
             log_Date: log.log_Date
               ? new Date(log.log_Date).toLocaleDateString()
               : "—",
-            time: log.time_Logged ?? "—",
-            log_type: log.loggedStatusName ?? "—", // ← was log.loggedStatus?.statusName
-            action: log.attendanceStatusName ?? "—", // ← was log.attendanceStatus?.statusName
+            time: formatTime12h(log.time_Logged),
+            log_type: log.loggedStatusName ?? "—",
+            action: log.attendanceStatusName ?? "—",
           };
         });
         setLogData(mapped);
@@ -98,10 +98,10 @@ const Logs = () => {
   // Load logs on mount
   useEffect(() => {
     fetchLogs();
-    fetchUsers(); // Fetch users on load
+    fetchUsers();
   }, [fetchLogs, fetchUsers]);
 
-  const handleGenerateLogs = async () => {
+  const handleGenerateLogs = async (forcedStatus) => {
     setLoading(true);
     try {
       const response = await fetch(
@@ -109,7 +109,7 @@ const Logs = () => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ forcedStatus }),
         },
       );
 
@@ -191,13 +191,23 @@ const Logs = () => {
                 </select>
               </div>
             </div>
-            <button
-              className="headerButton"
-              onClick={handleGenerateLogs}
-              disabled={loading}
-            >
-              {loading ? "Generating..." : "Generate Logs"}
-            </button>
+            <div className="buttonGroup">
+              <button
+                className="headerButton"
+                onClick={() => handleGenerateLogs(1)}
+                disabled={loading}
+              >
+                {loading ? "Processing..." : "Generate Clock In"}
+              </button>
+              <button
+                className="headerButton"
+                onClick={() => handleGenerateLogs(2)}
+                disabled={loading}
+                style={{ marginLeft: "10px" }}
+              >
+                {loading ? "Processing..." : "Generate Clock Out"}
+              </button>
+            </div>
           </div>
           <DataGrid
             className="datagrid"

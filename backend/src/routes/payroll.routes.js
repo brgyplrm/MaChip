@@ -9,11 +9,13 @@ const {
   releasePayroll,
   getPayrollById,
   updatePayroll,
+  getPayrollReport,
 } = require("../controllers/payroll.controller");
 
 router.post("/generate", generatePayroll);
 router.get("/preview", getPayrollPreview);
 router.get("/all", getAllPayrolls);
+router.get("/report", getPayrollReport);
 router.get("/user/:user_Id", getPayrollByUser);
 router.get("/:payrollId", getPayrollById);
 router.put("/update/:payrollId", updatePayroll);

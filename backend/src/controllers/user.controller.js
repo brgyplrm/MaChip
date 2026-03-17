@@ -1,6 +1,7 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const bcrypt = require("bcryptjs");
+const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 
 // ── Get Next User ID ──────────────────────────────────────────────────────────
 exports.getNextUserId = async (req, res) => {
@@ -77,6 +78,9 @@ exports.registerUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(req.body.user_Password, salt);
 
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
     // Insert new user
     await sequelize.query(
       `INSERT INTO "User" (
@@ -84,7 +88,7 @@ exports.registerUser = async (req, res) => {
         "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", "createdAt", "updatedAt"
       ) VALUES (
         :user_Id, :user_FirstName, :user_LastName,
-        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, NOW(), NOW()
+        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, :now, :now
       )`,
       {
         replacements: {
@@ -98,6 +102,7 @@ exports.registerUser = async (req, res) => {
           user_RoleId: req.body.user_RoleId || 2,
           user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
           user_ProfilePic: req.file ? req.file.filename : null,
+          now: nowStr,
         },
         type: QueryTypes.INSERT,
       },
@@ -168,10 +173,13 @@ exports.deleteUser = async (req, res) => {
       return res.status(400).json({ error: "Cannot delete your own account" });
     }
 
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
     const result = await sequelize.query(
-      `UPDATE "User" SET "deletedAt" = NOW()
+      `UPDATE "User" SET "deletedAt" = :now
        WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
-      { replacements: { user_Id }, type: QueryTypes.UPDATE },
+      { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE },
     );
 
     // result[1] = number of affected rows
@@ -267,13 +275,17 @@ exports.updateUser = async (req, res) => {
         .json({ error: "Middle Name must not contain numbers." });
     }
 
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
     // Dynamically build SET clause depending on whether password is provided
     let setClause = `
       "user_FirstName" = :user_FirstName,
       "user_LastName"  = :user_LastName,
       "user_MiddleName"= :user_MiddleName,
       "user_MachipId"  = :user_MachipId,
-      "user_RoleId"    = :user_RoleId
+      "user_RoleId"    = :user_RoleId,
+      "updatedAt"      = :now
     `;
 
     const replacements = {
@@ -283,6 +295,7 @@ exports.updateUser = async (req, res) => {
       user_MiddleName: user_MiddleName || null,
       user_MachipId,
       user_RoleId,
+      now: nowStr,
     };
 
     if (user_Password && user_Password.trim() !== "") {
@@ -317,3 +330,4 @@ exports.updateUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+

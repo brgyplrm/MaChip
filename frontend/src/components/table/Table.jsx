@@ -7,6 +7,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 import { useState, useEffect } from "react";
+import { formatTime12h } from "../../utils/formatTime";
 
 const List = ({ userId }) => {
   const [rows, setRows] = useState([]);
@@ -85,12 +86,12 @@ const List = ({ userId }) => {
 
                 {/* First Time In — locked to the first login of the day */}
                 <TableCell className="tableCell">
-                  {row.time_In ?? "—"}
+                  {formatTime12h(row.time_In)}
                 </TableCell>
 
                 {/* Last Time Out — updates with every logout; "—" if still inside */}
                 <TableCell className="tableCell">
-                  {row.time_Out ?? "—"}
+                  {formatTime12h(row.time_Out)}
                 </TableCell>
 
                 {/* Log Status — "Logged In" if last event was a login, "Logged Out" if last was a logout */}
