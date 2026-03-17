@@ -518,3 +518,74 @@ exports.getOfficeOccupancy = async (req, res) => {
   }
 };
 
+// ── Get Attendance Report (Filtered) ──────────────────────────────────────────
+exports.getAttendanceReport = async (req, res) => {
+  const { startDate, endDate, user_Id } = req.query;
+  try {
+    await ensureAbsentsMarked();
+    let query = `
+      SELECT
+        r.*,
+        u."user_Id" as "actual_user_Id",
+        u."user_FirstName",
+        u."user_LastName",
+        u."user_MachipId",
+        a."statusName" AS "attendanceStatusName"
+      FROM "employee_Logging_report" r
+      LEFT JOIN "User" u ON u."user_Id" = r."user_id"
+      LEFT JOIN "attendance_status" a ON a."statusId" = r."attendance_StatusId"
+      WHERE r."log_Date" BETWEEN :startDate AND :endDate
+    `;
+
+    const replacements = { startDate, endDate };
+    if (user_Id && user_Id !== "All Employees") {
+      query += ` AND r."user_id" = :user_Id`;
+      replacements.user_Id = user_Id;
+    }
+
+    query += ` ORDER BY r."log_Date" DESC, u."user_LastName" ASC`;
+
+    const reports = await sequelize.query(query, {
+      replacements,
+      type: QueryTypes.SELECT,
+    });
+
+    const calculateHours = (inArr, outArr) => {
+      let total = 0;
+      const len = Math.min(inArr.length, outArr.length);
+      for (let i = 0; i < len; i++) {
+        if (inArr[i] && outArr[i]) {
+          const [h1, m1, s1] = inArr[i].split(":").map(Number);
+          const [h2, m2, s2] = outArr[i].split(":").map(Number);
+          const d1 = new Date(0, 0, 0, h1, m1, s1);
+          const d2 = new Date(0, 0, 0, h2, m2, s2);
+          total += (d2 - d1) / (1000 * 60 * 60);
+        }
+      }
+      return total;
+    };
+
+    const data = reports.map((r) => {
+      const inArr = JSON.parse(r.time_Logged_inArr || "[]");
+      const outArr = JSON.parse(r.time_Logged_outArr || "[]");
+      const hoursWorked = calculateHours(inArr, outArr);
+
+      return {
+        user_Id: r.user_id,
+        machipId: r.user_MachipId,
+        userName: `${r.user_FirstName} ${r.user_LastName}`,
+        log_Date: r.log_Date,
+        time_In: inArr[0] ?? "—",
+        time_Out: outArr[outArr.length - 1] ?? "—",
+        hoursWorked: hoursWorked.toFixed(2),
+        status: r.attendanceStatusName ?? "—",
+        remarks: "", // Could be expanded if remarks are added to DB
+      };
+    });
+
+    res.status(200).json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

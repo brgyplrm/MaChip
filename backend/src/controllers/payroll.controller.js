@@ -422,3 +422,37 @@ exports.updatePayroll = async (req, res) => {
   }
 };
 
+// ── Get Payroll Report ────────────────────────────────────────────────────────
+exports.getPayrollReport = async (req, res) => {
+  const { startDate, endDate, user_Id } = req.query;
+  try {
+    let query = `
+      SELECT
+        p.*,
+        u."user_FirstName", u."user_LastName", u."user_MachipId",
+        ps."PaystatusName" AS "statusName"
+      FROM "Payroll" p
+      LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+      LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
+      WHERE p."period_Start" >= :startDate AND p."period_End" <= :endDate
+    `;
+
+    const replacements = { startDate, endDate };
+    if (user_Id && user_Id !== "All Employees") {
+      query += ` AND p."user_Id" = :user_Id`;
+      replacements.user_Id = user_Id;
+    }
+
+    query += ` ORDER BY p."period_Start" DESC, u."user_LastName" ASC`;
+
+    const payrolls = await sequelize.query(query, {
+      replacements,
+      type: QueryTypes.SELECT,
+    });
+
+    res.status(200).json(payrolls);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
