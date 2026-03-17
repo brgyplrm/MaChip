@@ -2,43 +2,7 @@ const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 
-// ── Get Payroll Report ──────────────────────────────────────────────────────
-exports.getPayrollReport = async (req, res) => {
-  const { startDate, endDate, user_Id } = req.query;
-  try {
-    let query = `
-      SELECT 
-        p.*, 
-        u."user_FirstName", 
-        u."user_LastName", 
-        ps."PaystatusName" as "statusName"
-      FROM "Payroll" p
-      JOIN "User" u ON p."user_Id" = u."user_Id"
-      LEFT JOIN "Payroll_status" ps ON p."status" = ps."PaystatusId"
-      WHERE p."period_Start" >= :startDate AND p."period_End" <= :endDate
-    `;
-
-    const replacements = { startDate, endDate };
-
-    if (user_Id && user_Id !== "All Employees") {
-      query += ` AND p."user_Id" = :user_Id`;
-      replacements.user_Id = user_Id;
-    }
-
-    query += ` ORDER BY p."period_Start" DESC, u."user_LastName" ASC`;
-
-    const payrolls = await sequelize.query(query, {
-      replacements,
-      type: QueryTypes.SELECT
-    });
-
-    res.status(200).json(payrolls);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// ── Constants ──────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 const WORK_START = "08:30:00"; // official start
 const GRACE_END = "08:35:00"; // 5 min grace period
 const WORK_HRS_PER_DAY = 8; // standard hours per day
@@ -135,17 +99,18 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     const report = reportMap[dateStr];
     const log = logMap[dateStr];
 
-    // Check if explicitly marked Absent (3) in report
-    if (report && report.attendance_StatusId === 3) {
+    // Check if explicitly marked Absent (3) in report OR no logs/first_in
+    if ((report && report.attendance_StatusId === 3)) {
       absence_Days++;
     } else if (log && log.first_in) {
-      // Not absent, and has a log - check for tardiness
       const [gh, gm] = GRACE_END.split(":").map(Number);
       const [lh, lm] = log.first_in.split(":").map(Number);
       const graceMinutes = gh * 60 + gm;
       const loginMinutes = lh * 60 + lm;
       if (loginMinutes > graceMinutes) {
         tardiness_Mins += loginMinutes - graceMinutes;
+
+        console.log(`Tardiness of user ${user_Id}: ${tardiness_Mins} minutes`);
       }
     }
   }
