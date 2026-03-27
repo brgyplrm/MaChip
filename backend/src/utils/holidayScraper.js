@@ -1,73 +1,78 @@
 const axios = require('axios');
-const cheerio = require('cheerio');
 
 /**
- * Scrapes Philippine holidays from timeanddate.com for a specific year.
- * Captures all months and filters for Regular and Special Non-working holidays.
+ * Philippine Regular Holidays — fixed by law (RA 9492 as amended by RA 10966).
+ * These are matched against holiday names returned by the Nager.Date API.
+ * Everything else that is "Public" in the API is treated as Special Holiday.
+ */
+const REGULAR_HOLIDAY_KEYWORDS = [
+  "new year",           // Jan 1
+  "maundy thursday",    // moveable
+  "good friday",        // moveable
+  "araw ng kagitingan", // Apr 9  – Day of Valor
+  "day of valor",       // Apr 9  – English alias
+  "labor day",          // May 1
+  "independence day",   // Jun 12
+  "national heroes day",// last Mon of Aug
+  "bonifacio day",      // Nov 30
+  "christmas day",      // Dec 25
+  "rizal day",          // Dec 30
+];
+
+/**
+ * Fetches Philippine public holidays from the free Nager.Date API.
+ * Classifies each as "Regular Holiday" or "Special Holiday".
+ *
+ * API docs: https://date.nager.at/swagger/index.html
+ * Endpoint: GET /api/v3/PublicHolidays/{year}/PH
  */
 const scrapeHolidays = async (year = new Date().getFullYear()) => {
-    try {
-        const url = `https://www.timeanddate.com/holidays/philippines/${year}`;
-        console.log(`[Scraper] Fetching ${year} holidays from: ${url}`);
-        
-        const { data } = await axios.get(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-            }
-        });
+  try {
+    const url = `https://date.nager.at/api/v3/PublicHolidays/${year}/PH`;
+    console.log(`[Scraper] Fetching ${year} PH holidays from Nager.Date API: ${url}`);
 
-        const $ = cheerio.load(data);
-        const holidays = [];
+    const { data } = await axios.get(url, {
+      timeout: 10000,
+      headers: { 'Accept': 'application/json' }
+    });
 
-        // Select all rows in the holiday table body
-        $('#holidays-table tbody tr').each((index, element) => {
-            // Rows with id starting with 'hol-' are actual holiday rows
-            // Header rows (month names) usually don't have this or have different classes
-            const row = $(element);
-            const cells = row.find('td');
-            
-            if (cells.length >= 2) {
-                // Date is in the <th> tag of this <tr>
-                const dateText = row.find('th').text().trim();
-                
-                // Usually: cells[0] = Day, cells[1] = Name, cells[2] = Type
-                // But let's be safe and find the name and type by their positions
-                const name = $(cells[cells.length - 2]).text().trim();
-                const typeText = $(cells[cells.length - 1]).text().trim();
-                const lowerType = typeText.toLowerCase();
-                
-                // Debug log to see what's being processed
-                // console.log(`[Scraper Debug] Row: ${dateText} | Name: ${name} | Type: ${typeText}`);
-                const isRegular = lowerType.includes("regular holiday");
-                const isSpecial = lowerType.includes("special non-working holiday") || 
-                                  lowerType.includes("special non working holiday");
-
-                if (dateText && name && (isRegular || isSpecial)) {
-                    const holidayType = isRegular ? "Regular Holiday" : "Special Holiday";
-
-                    // Convert "Jan 1" or "Jan 1 (Thu)" to "YYYY-MM-DD"
-                    const cleanDateText = dateText.split('(')[0].trim();
-                    const date = new Date(`${cleanDateText} ${year}`);
-
-                    if (!isNaN(date)) {
-                        const formattedDate = date.toISOString().split('T')[0];
-                        holidays.push({
-                            name: name,
-                            date: formattedDate,
-                            type: holidayType
-                        });
-                    }
-                }
-            }
-        });
-
-        console.log(`[Scraper] Successfully found ${holidays.length} holidays for ${year}.`);
-        return holidays;
-
-    } catch (error) {
-        console.error(`[Scraper Error]: Failed to scrape holidays. ${error.message}`);
-        return [];
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn(`[Scraper] No holidays returned for ${year}.`);
+      return [];
     }
+
+    const holidays = [];
+
+    for (const h of data) {
+      // Only include nationally applicable public holidays
+      const types = h.types || [];
+      const isPublic = types.includes('Public');
+      if (!isPublic) continue;
+
+      // Determine Regular vs Special by matching the holiday name
+      const nameLower = (h.localName + ' ' + h.name).toLowerCase();
+      const isRegular = REGULAR_HOLIDAY_KEYWORDS.some(kw => nameLower.includes(kw));
+      const holidayType = isRegular ? 'Regular Holiday' : 'Special Holiday';
+
+      // Prefer the local Filipino name; fall back to English
+      const displayName = h.name;
+
+      holidays.push({
+        name: displayName,
+        date: h.date,       // already "YYYY-MM-DD"
+        type: holidayType,
+      });
+
+      console.log(`[Scraper] ${h.date} | ${displayName} | ${holidayType}`);
+    }
+
+    console.log(`[Scraper] Done — ${holidays.length} holidays for ${year}.`);
+    return holidays;
+
+  } catch (error) {
+    console.error(`[Scraper Error]: ${error.message}`);
+    return [];
+  }
 };
 
 module.exports = scrapeHolidays;

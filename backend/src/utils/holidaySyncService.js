@@ -10,7 +10,7 @@ const scrapeHolidays = require("./holidayScraper");
 async function syncHolidaysService() {
   try {
     const currentYear = new Date().getFullYear();
-    const yearsToSync = [currentYear, currentYear + 1];
+    const yearsToSync = [currentYear];
     let totalNewSyncCount = 0;
 
     for (const year of yearsToSync) {
