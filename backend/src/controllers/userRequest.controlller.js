@@ -2,8 +2,6 @@ const { sequelize } = require("../config/sequelize");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 
-const { Holiday } = require("../config/sequelize.js");
-
 exports.getCalendarReport = async (req, res) => {
   const { startDate, endDate, user_Id } = req.query;
   try {
@@ -697,7 +695,7 @@ exports.GetRequestDetails = async (req, res) => {
     }
 
     res.status(200).json(request[0]);
-  } catch (error) {
+    } catch (error) {
     res.status(500).json({ error: error.message });
-  }
-};
+    }
+    };

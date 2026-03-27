@@ -17,16 +17,55 @@
 
         h1 { font-size: 24px; color: #2A174E; }
         span { color: #666; font-size: 14px; }
-        .createBtn {
-          background-color: #2A174E;
-          color: white;
-          border: none;
-          padding: 10px 20px;
-          border-radius: 8px;
+        .headerActions {
           display: flex;
+          gap: 10px;
           align-items: center;
-          gap: 8px;
-          cursor: pointer;
+
+          .actionBtn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.2s, transform 0.15s;
+
+            &:hover { opacity: 0.88; }
+            &:active { transform: scale(0.97); }
+            &:disabled { opacity: 0.6; cursor: not-allowed; }
+
+            svg { font-size: 17px; }
+          }
+
+          .employeeBtn {
+            background-color: #fff;
+            color: #2A174E;
+            border: 1.5px solid #2A174E;
+          }
+
+          .scheduleBtn {
+            background-color: #f0ebfa;
+            color: #2A174E;
+            border: 1.5px solid #c4b5e8;
+          }
+
+          .refreshBtn {
+            background-color: #2A174E;
+            color: white;
+
+            &.spinning svg {
+              animation: spin 0.8s linear infinite;
+            }
+          }
+
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+          }
         }
       }
 

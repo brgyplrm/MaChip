@@ -30,4 +30,10 @@ router.delete("/forceDelete/:user_Id", userController.forceDeleteUser);
 //UPDATE user by user_Id
 router.put("/updateUser/:user_Id", upload.single("user_ProfilePic"), userController.updateUser);
 
+// GET employee masterlist with daily rate columns
+router.get("/employees/masterlist", userController.getMasterlist);
+
+// PATCH employee daily rate
+router.patch("/employees/:user_Id/daily-rate", userController.updateDailyRate);
+
 module.exports = router;

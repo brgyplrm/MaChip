@@ -10,9 +10,8 @@ import Logs from "./pages/logs-management/Logs";
 import AdminRequests from "./pages/admin_Requests/adminRequests";
 import RequestDetails from "./pages/request_Details/requestDetails";
 import Payroll from "./pages/admin_Payroll/payroll_Management";
-import CreatePayroll from "./pages/admin_Payroll/create_Payroll";
 import PayrollDetails from "./pages/admin_Payroll/details_Payroll";
-import EditPayroll from "./pages/admin_Payroll/edit_Payroll";
+import PayrollList from "./pages/admin_Payroll/payroll_EmployeeList";
 import EmployeeCalendar from "./pages/emp_Calendar/employeeCalendar"; 
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
@@ -49,10 +48,22 @@ function App() {
           }
         />
 
-        <Route path="/requests">
-        <Route index element={<UserRequests />} /> {/* Your list page */}
-        <Route path=":requestId" element={<RequestDetails />} /> {/* The dynamic details page */}
-        </Route>
+        <Route
+          path="/requests"
+          element={
+            <ProtectedRoute allowedRoles={[3]}>
+              <UserRequests />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/requests/:requestId"
+          element={
+            <ProtectedRoute allowedRoles={[1, 3]}>
+              <RequestDetails />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/payroll"
@@ -64,10 +75,10 @@ function App() {
         />
 
         <Route
-          path="/createPayroll"
+          path="/payrollList"
           element={
             <ProtectedRoute allowedRoles={[1]}>
-              <CreatePayroll />
+              <PayrollList />
             </ProtectedRoute>
           }
         />
@@ -81,14 +92,6 @@ function App() {
           }
         />
 
-        <Route
-          path="/editPayroll/:payrollId"
-          element={
-            <ProtectedRoute allowedRoles={[1]}>
-              <EditPayroll />
-            </ProtectedRoute>
-          }
-        />
 
         <Route
           path="/adminReports"
@@ -101,7 +104,12 @@ function App() {
 
         <Route 
           path="/adminReports/payslip/:id" 
-          element={<Payslip />} />
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <Payslip />
+            </ProtectedRoute>
+          } 
+        />
 
         <Route
           path="/calendar"

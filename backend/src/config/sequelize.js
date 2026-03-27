@@ -9,8 +9,12 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST || "127.0.0.1",
     port: process.env.DB_PORT || 5432,
     dialect: "postgres",
+    timezone: "+08:00",
     define: {
       freezeTableName: true,
+      useUTC: false, // Prevents conversion back to UTC when reading from DB
+      dateStrings: true,
+      typeCast: true,
     },
     logging: false,
     pool: {
@@ -55,7 +59,7 @@ const { Notification } = require("../models/notification.models")(
   DataTypes,
 );
 
-const { SystemSettings } = require("../models/system.models")(
+const { SystemSettings, Holiday, PayrollPeriod } = require("../models/system.models")(
   sequelize,
   DataTypes,
 );
@@ -239,4 +243,6 @@ module.exports = {
   Payroll,
   Notification,
   SystemSettings,
+  Holiday,
+  PayrollPeriod,
 };

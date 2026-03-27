@@ -1,3 +1,4 @@
+process.env.TZ = "Asia/Manila";
 const express = require("express");
 const cors = require("cors");
 const { connectDB, sequelize } = require("./config/sequelize"); // Import connectDB and sequelize
@@ -20,7 +21,7 @@ app.use((req, res, next) => {
 app.use(
   cors({
     origin: "http://localhost:5173", // Your Vite/React URL
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
   }),
 );
@@ -29,7 +30,11 @@ app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
 // Connect to the database
-connectDB();
+connectDB().then(() => {
+  console.log("[INIT] System startup: Syncing holidays...");
+  const { syncHolidaysService } = require("./utils/holidaySyncService");
+  syncHolidaysService().catch(err => console.error("[INIT] Initial Holiday Sync Failed:", err.message));
+});
 
 // Basic route for testing
 app.get("/Machip", (req, res) => {
@@ -91,11 +96,22 @@ app.use((err, req, res, next) => {
 
 // ── Background Tasks ──────────────────────────────────────────────────────────
 const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
+const { syncHolidaysService } = require("./utils/holidaySyncService");
+
 // Run every 5 minutes
 setInterval(() => {
   console.log("[BACKGROUND] Running ensureAbsentsMarked...");
   ensureAbsentsMarked();
 }, 5 * 60 * 1000);
+
+// Sync holidays automatically every 1st of the month at midnight
+setInterval(() => {
+  const now = new Date();
+  if (now.getDate() === 1 && now.getHours() === 0) {
+    console.log("[AUTO] Syncing Philippine Holidays...");
+    syncHolidaysService();
+  }
+}, 60 * 60 * 1000); // Check every hour
 
 // Define port and start server
 const PORT = process.env.PORT || 4000;

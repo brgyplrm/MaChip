@@ -1,6 +1,21 @@
 const { SystemSettings, Holiday } = require("../config/sequelize.js");
 const { getSystemTime } = require("../utils/systemTime.js");
 const { QueryTypes } = require("sequelize");
+const { syncHolidaysService } = require('../utils/holidaySyncService');
+
+exports.syncHolidays = async (req, res) => {
+    try {
+        const result = await syncHolidaysService();
+        
+        if (!result.success && result.count === 0) {
+            return res.status(500).json({ message: "No data synced from Official Gazette." });
+        }
+
+        res.status(200).json({ message: "Calendar synced with Official Gazette successfully.", count: result.count });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
 
 exports.getHolidays = async (req, res) => {
   try {

@@ -6,23 +6,25 @@ import SearchIcon from "@mui/icons-material/Search";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import AddIcon from "@mui/icons-material/Add";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
+import EventNoteIcon from "@mui/icons-material/EventNote";
 import { Link } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 
 const Payroll = () => {
   const [payrolls, setPayrolls] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalNetPay: 0,
     totalEarnings: 0,
     totalDeductions: 0
   });
 
-  const fetchPayrolls = async () => {
-    setLoading(true);
+  const fetchPayrolls = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     try {
       const response = await fetch("http://localhost:4000/api/payroll/all");
       const data = await response.json();
@@ -44,8 +46,11 @@ const Payroll = () => {
       console.error("Error fetching payrolls:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const handleRefresh = () => fetchPayrolls(true);
 
   useEffect(() => {
     fetchPayrolls();
@@ -62,11 +67,25 @@ const Payroll = () => {
               <h1>Payroll Management</h1>
               <span>Manage employee payroll and compensation</span>
             </div>
-            <Link to="/createPayroll" style={{ textDecoration: "none", color: "inherit" }}>
-            <button className="createBtn">
-                  <AddIcon /> Create Payroll
-            </button>
-            </Link>
+            <div className="headerActions">
+              <Link to="/payrollList" style={{ textDecoration: "none" }}>
+                <button className="actionBtn employeeBtn">
+                  <PeopleAltIcon /> Employee List
+                </button>
+              </Link>
+              <Link to="/calendar" style={{ textDecoration: "none" }}>
+                <button className="actionBtn scheduleBtn">
+                  <EventNoteIcon /> Payroll Schedule
+                </button>
+              </Link>
+              <button
+                className={`actionBtn refreshBtn ${refreshing ? "spinning" : ""}`}
+                onClick={handleRefresh}
+                disabled={refreshing}
+              >
+                <RefreshIcon /> {refreshing ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
           </div>
 
           <div className="stats">
@@ -155,8 +174,6 @@ const Payroll = () => {
                       <td>
                         <div className="actions">
                           <Link to={`/payrollDetails/${p.payrollId}`}><VisibilityIcon className="view" /></Link>
-                          <Link to={`/editPayroll/${p.payrollId}`}><EditIcon className="edit" /></Link>
-                          <DeleteIcon className="delete" />
                         </div>
                       </td>
                     </tr>

@@ -41,6 +41,9 @@ module.exports = (sequelize, DataTypes) => {
       user_RoleId: { type: DataTypes.SMALLINT, allowNull: false },
       user_EmploymentStatusId: { type: DataTypes.SMALLINT, allowNull: false },
       user_ProfilePic: { type: DataTypes.STRING, allowNull: true },
+      dailyRate: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
+      previousDailyRate: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
+      rateUpdatedAt: { type: DataTypes.DATE, allowNull: true },
     },
     {
       timestamps: true,

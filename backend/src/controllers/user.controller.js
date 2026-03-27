@@ -334,3 +334,109 @@ exports.updateUser = async (req, res) => {
   }
 };
 
+// ── Get Employee Masterlist (with Daily Rate) ─────────────────────────────────
+
+exports.getMasterlist = async (req, res) => {
+  try {
+    const employees = await sequelize.query(
+      `SELECT
+         u."user_Id",
+         u."user_FirstName",
+         u."user_LastName",
+         u."user_MiddleName",
+         u."user_Email",
+         u."user_MachipId",
+         u."user_RoleId",
+         u."user_EmploymentStatusId",
+         u."user_ProfilePic",
+         u."dailyRate",
+         u."previousDailyRate",
+         u."rateUpdatedAt",
+         u."createdAt",
+         u."updatedAt",
+         r."roleName"          AS "user_Role",
+         es."statusName"       AS "employmentStatus"
+       FROM "User" u
+       LEFT JOIN "user_Role"        r  ON u."user_RoleId"             = r."roleId"
+       LEFT JOIN "employementStatus" es ON u."user_EmploymentStatusId" = es."statusId"
+       WHERE u."deletedAt" IS NULL
+       ORDER BY u."user_Id" ASC`,
+      { type: QueryTypes.SELECT },
+    );
+    res.status(200).json(employees);
+  } catch (error) {
+    console.error("[GET MASTERLIST ERROR]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Update Daily Rate ─────────────────────────────────────────────────────────
+exports.updateDailyRate = async (req, res) => {
+  const { user_Id } = req.params;
+  const { newDailyRate } = req.body;
+
+  if (newDailyRate === undefined || newDailyRate === null) {
+    return res.status(400).json({ error: "newDailyRate is required." });
+  }
+  const parsed = parseFloat(newDailyRate);
+  if (isNaN(parsed) || parsed < 0) {
+    return res.status(400).json({ error: "newDailyRate must be a positive number." });
+  }
+
+  try {
+    const existing = await sequelize.query(
+      `SELECT "user_Id", "dailyRate" FROM "User"
+       WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT },
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: "Employee not found." });
+    }
+
+    const currentRate = parseFloat(existing[0].dailyRate) || 0;
+
+    if (currentRate === parsed) {
+      return res.status(200).json({
+        message: "Rate unchanged.",
+        dailyRate: currentRate,
+        previousDailyRate: currentRate,
+      });
+    }
+
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    await sequelize.query(
+      `UPDATE "User"
+       SET
+         "previousDailyRate" = "dailyRate",
+         "dailyRate"         = :newDailyRate,
+         "rateUpdatedAt"     = :now,
+         "updatedAt"         = :now
+       WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
+      {
+        replacements: { newDailyRate: parsed, now: nowStr, user_Id },
+        type: QueryTypes.UPDATE,
+      },
+    );
+
+    const updated = await sequelize.query(
+      `SELECT
+         "user_Id", "user_FirstName", "user_LastName",
+         "dailyRate", "previousDailyRate", "rateUpdatedAt"
+       FROM "User"
+       WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT },
+    );
+
+    res.status(200).json({
+      message: "Daily rate updated successfully.",
+      data: updated[0],
+    });
+  } catch (error) {
+    console.error("[UPDATE DAILY RATE ERROR]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+

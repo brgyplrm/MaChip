@@ -1,0 +1,406 @@
+.employeeList {
+  display: flex;
+  width: 100%;
+
+  .employeeListContainer {
+    flex: 6;
+    background-color: #fdfaf5;
+    min-height: 100vh;
+
+    .wrapper {
+      padding: 24px;
+
+      // ── Header ──────────────────────────────────────
+      .pageHeader {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 24px;
+
+        .titleBlock {
+          h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2A174E;
+            margin-bottom: 4px;
+          }
+          span {
+            font-size: 13px;
+            color: #888;
+          }
+        }
+
+        .refreshBtn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 9px 18px;
+          background-color: #2A174E;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: opacity 0.2s;
+
+          &:hover { opacity: 0.85; }
+          &:disabled { opacity: 0.6; cursor: not-allowed; }
+
+          svg { font-size: 17px; }
+
+          &.spinning svg {
+            animation: spin 0.8s linear infinite;
+          }
+        }
+      }
+
+      // ── Summary Row ─────────────────────────────────
+      .summaryRow {
+        display: flex;
+        gap: 14px;
+        margin-bottom: 22px;
+
+        .chip {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: white;
+          border: 1px solid #e8e1f5;
+          border-radius: 10px;
+          padding: 12px 20px;
+          min-width: 180px;
+
+          .chipLabel {
+            font-size: 12px;
+            color: #888;
+          }
+          .chipValue {
+            font-size: 22px;
+            font-weight: 700;
+            color: #2A174E;
+            margin-left: auto;
+          }
+          .chipIcon {
+            font-size: 18px;
+            color: #7c5cbf;
+          }
+
+          &.changed {
+            border-color: #c4b5e8;
+            background: #f5f0fb;
+            .chipLabel { color: #7c5cbf; }
+            .chipValue { color: #4a2b8c; }
+          }
+        }
+      }
+
+      // ── Filter Bar ──────────────────────────────────
+      .filterBar {
+        background: white;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-bottom: 18px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+
+        .searchBox {
+          display: flex;
+          align-items: center;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          padding: 8px 12px;
+          max-width: 360px;
+
+          .icon { color: #aaa; margin-right: 8px; font-size: 18px; }
+
+          input {
+            border: none;
+            outline: none;
+            font-size: 13px;
+            width: 100%;
+            background: transparent;
+            color: #333;
+
+            &::placeholder { color: #bbb; }
+          }
+        }
+      }
+
+      // ── Table ───────────────────────────────────────
+      .tableContainer {
+        background: white;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+
+        .loadingState,
+        .emptyState {
+          text-align: center;
+          padding: 40px;
+          color: #aaa;
+          font-size: 14px;
+        }
+
+        .empTable {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+
+          thead tr {
+            background: #f6f3fb;
+          }
+
+          th {
+            padding: 14px 16px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #7c5cbf;
+          }
+
+          td {
+            padding: 13px 16px;
+            border-bottom: 1px solid #f5f3fa;
+            vertical-align: middle;
+          }
+
+          tr:last-child td { border-bottom: none; }
+
+          tr:hover td { background: #faf8fe; }
+
+          tr.rateChanged td { background: #fdf9ff; }
+          tr.rateChanged:hover td { background: #f7f1ff; }
+
+          // Row number
+          .rowNum {
+            color: #bbb;
+            font-size: 12px;
+            width: 36px;
+          }
+
+          // Employee number
+          .empNo {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #555;
+            font-weight: 600;
+          }
+
+          // Employee name cell
+          .empName {
+            .nameBlock {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+
+              .avatar {
+                width: 34px;
+                height: 34px;
+                border-radius: 50%;
+                background: #e8e1f5;
+                color: #4a2b8c;
+                font-size: 12px;
+                font-weight: 700;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                letter-spacing: 0.5px;
+              }
+
+              .name {
+                display: block;
+                font-weight: 600;
+                color: #2A174E;
+                font-size: 13px;
+              }
+              .email {
+                display: block;
+                font-size: 11px;
+                color: #aaa;
+                margin-top: 2px;
+              }
+            }
+          }
+
+          // Position
+          .position {
+            color: #666;
+            font-size: 12px;
+          }
+
+          // Old rate
+          .oldRate {
+            .oldRateValue {
+              font-size: 13px;
+              color: #aaa;
+              text-decoration: line-through;
+              text-decoration-color: #d0c4e8;
+            }
+            .noChange {
+              color: #ddd;
+            }
+          }
+
+          // New rate
+          .newRate {
+            .rateDisplay {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+
+              .rateValue {
+                font-weight: 600;
+                font-size: 14px;
+                color: #2A174E;
+
+                &.up   { color: #15803d; }
+                &.down { color: #dc2626; }
+              }
+
+              .trendIcon {
+                font-size: 16px;
+                &.up   { color: #22c55e; }
+                &.down { color: #ef4444; }
+              }
+            }
+
+            .rateInputWrap {
+              display: flex;
+              align-items: center;
+              border: 1.5px solid #7c5cbf;
+              border-radius: 7px;
+              padding: 5px 10px;
+              background: #faf8ff;
+              max-width: 140px;
+              gap: 4px;
+
+              .peso {
+                color: #7c5cbf;
+                font-weight: 600;
+                font-size: 13px;
+              }
+
+              input {
+                border: none;
+                outline: none;
+                font-size: 13px;
+                font-weight: 600;
+                color: #2A174E;
+                background: transparent;
+                width: 90px;
+
+                &::-webkit-inner-spin-button,
+                &::-webkit-outer-spin-button { -webkit-appearance: none; }
+              }
+            }
+          }
+
+          // Updated at
+          .updatedAt {
+            font-size: 11px;
+            color: #aaa;
+            white-space: nowrap;
+          }
+
+          // Actions
+          .actions {
+            .editBtn {
+              display: inline-flex;
+              align-items: center;
+              gap: 5px;
+              padding: 6px 12px;
+              border: 1px solid #d1c4e9;
+              border-radius: 7px;
+              background: white;
+              color: #5b3fa6;
+              font-size: 12px;
+              font-weight: 500;
+              cursor: pointer;
+              transition: background 0.15s, border-color 0.15s;
+
+              svg { font-size: 14px; }
+
+              &:hover {
+                background: #f0ebfa;
+                border-color: #9c7de0;
+              }
+            }
+
+            .editActions {
+              display: flex;
+              gap: 6px;
+
+              button {
+                width: 30px;
+                height: 30px;
+                border-radius: 7px;
+                border: none;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: opacity 0.15s;
+                svg { font-size: 16px; }
+                &:disabled { opacity: 0.5; cursor: not-allowed; }
+              }
+
+              .confirmBtn {
+                background: #2A174E;
+                color: white;
+                &:hover { opacity: 0.85; }
+              }
+
+              .cancelBtn {
+                background: #f5f5f5;
+                color: #888;
+                &:hover { background: #eee; }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ── Toast ─────────────────────────────────────────
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    z-index: 9999;
+    animation: slideUp 0.25s ease;
+
+    svg { font-size: 16px; }
+
+    &.success {
+      background: #2A174E;
+      color: white;
+    }
+    &.error {
+      background: #dc2626;
+      color: white;
+    }
+  }
+}
+
+// ── Animations ────────────────────────────────────
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

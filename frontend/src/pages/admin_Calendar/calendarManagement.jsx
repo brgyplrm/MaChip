@@ -7,14 +7,33 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from '@mui/icons-material/Close';
-import { useState } from "react";
+import SyncIcon from '@mui/icons-material/Sync';
+import { useState, useEffect } from "react";
 
 const CalendarManagement = () => {
   const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 1)); // Default to March 2026
   const [modalType, setModalType] = useState(null);
+  const [holidays, setHolidays] = useState([]);
+
+  const fetchHolidays = async () => {
+    try {
+      const response = await fetch("http://localhost:4000/api/system/holidays");
+      if (response.ok) {
+        const data = await response.json();
+        setHolidays(data);
+      }
+    } catch (error) {
+      console.error("Error fetching holidays:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchHolidays();
+  }, []);
 
   // Calendar Logic: Month and Year names   
   const monthName = currentDate.toLocaleString('default', { month: 'long' });
+  const monthIndex = currentDate.getMonth();
   const year = currentDate.getFullYear();
 
   // Navigation Logic for all months
@@ -28,6 +47,26 @@ const CalendarManagement = () => {
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
 
+  // Helper to get holidays for a specific day
+  const getHolidaysForDay = (day) => {
+    return holidays.filter(h => {
+      const hDate = new Date(h.date);
+      return hDate.getDate() === day && 
+             hDate.getMonth() === monthIndex && 
+             hDate.getFullYear() === year;
+    });
+  };
+
+  // Helper to get upcoming holidays (today onwards)
+  const getUpcomingHolidays = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return holidays
+      .filter(h => new Date(h.date) >= today)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .slice(0, 5); // Show next 5
+  };
+
   return (
     <div className="home calendarPage">
       <Sidebar />
@@ -40,9 +79,6 @@ const CalendarManagement = () => {
               <span>Manage holidays, leaves, and field work</span>
             </div>
             <div className="actions">
-               <button className="btn holiday" onClick={() => setModalType('addHoliday')}>
-                <AddIcon /> CSV
-              </button>
               <button className="btn holiday" onClick={() => setModalType('addHoliday')}>
                 <AddIcon /> Add Holiday
               </button>
@@ -53,10 +89,12 @@ const CalendarManagement = () => {
           </div>
 
           <div className="legendCard">
-            <div className="legendItem"><span className="dot legal"></span> Legal Holiday</div>
-            <div className="legendItem"><span className="dot special"></span> Special Holiday</div>
+            <div className="legendItem"><span className="dot legal"></span> Regular Holiday</div>
+            <div className="legendItem"><span className="dot special"></span> Special Non-Working Holiday</div>
             <div className="legendItem"><span className="dot leave"></span> Approved Leave</div>
             <div className="legendItem"><span className="dot field"></span> Field Work</div>
+            <div className="legendItem"><span className="dot periodstart"></span> Period Start</div>
+            <div className="legendItem"><span className="dot periodend"></span> Period End</div>
           </div>
 
           <div className="calendarCard">
@@ -71,14 +109,20 @@ const CalendarManagement = () => {
               </div>
               <div className="gridBody">
                 {blanks.map(b => <div key={`blank-${b}`} className="cell empty"></div>)}
-                {days.map(d => (
-                  <div key={d} className="cell">
-                    <span className="dayNum">{d}</span>
-                    {/* Example event logic matching your screenshot */}
-                    {monthName === "March" && d === 25 && <div className="event special">Araw ng Dabaw</div>}
-                    {monthName === "March" && d === 18 && <div className="event leave">Kathleen Pinto - VL</div>}
-                  </div>
-                ))}
+                {days.map(d => {
+                  const dayHolidays = getHolidaysForDay(d);
+                  return (
+                    <div key={d} className="cell">
+                      <span className="dayNum">{d}</span>
+                      {dayHolidays.map((h, i) => (
+                        <div key={i} className={`event ${h.type.toLowerCase().includes('special') ? 'special' : 'legal'}`}>
+                          {h.name}
+                        </div>
+                      ))}
+                      {/* Approved leaves and other events could be added here similarly */}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -92,23 +136,22 @@ const CalendarManagement = () => {
                 <button className="viewAll">View Calendar</button>
                 </div>
                 <div className="listWrapper">
-                {[
-                    { name: "Araw ng Dabaw", date: "3/25/2026", type: "Special" },
-                    { name: "Araw ng Kagitingan", date: "4/9/2026", type: "Legal" },
-                    { name: "Labor Day", date: "5/1/2026", type: "Legal" },
-                    { name: "Independence Day", date: "6/12/2026", type: "Legal" }
-                ].map((holiday, idx) => (
+                {getUpcomingHolidays().length > 0 ? getUpcomingHolidays().map((holiday, idx) => (
                     <div className="listItem" key={idx}>
                     <div className="info">
                         <p className="name">{holiday.name}</p>
-                        <span className="subtext">{holiday.date} • {holiday.type}</span>
+                        <span className="subtext">
+                          {new Date(holiday.date).toLocaleDateString()} • {holiday.type}
+                        </span>
                     </div>
                     <div className="icons">
                         <EditIcon className="edit" onClick={() => setModalType('editHoliday')} />
                         <DeleteIcon className="delete" />
                     </div>
                     </div>
-                ))}
+                )) : (
+                  <p style={{ textAlign: 'center', color: '#777', padding: '20px' }}>No upcoming holidays</p>
+                )}
                 </div>
             </div>
 
