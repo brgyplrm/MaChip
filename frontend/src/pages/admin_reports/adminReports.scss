@@ -27,10 +27,41 @@
         .buttonGroup {
           display: flex;
           align-items: center;
-          gap: 8px;
-          font-weight: bold;
-          cursor: pointer;
+          gap: 10px;
         }
+      }
+
+      .exportBtn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 18px;
+        border-radius: 8px;
+        border: none;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &.zip {
+          background-color: #e6f7ff;
+          color: #004085;
+          border: 1.5px solid #b8daff;
+          &:hover { background-color: #bae7ff; }
+        }
+
+        &.csv {
+          background-color: #2A174E;
+          color: white;
+          &:hover { opacity: 0.9; }
+        }
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        svg { font-size: 18px; }
       }
 
       .tabs {

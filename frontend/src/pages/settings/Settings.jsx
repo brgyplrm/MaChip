@@ -50,7 +50,7 @@ const Settings = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mockTimeEnabled: mockEnabled,
-          mockTimeValue: mockEnabled ? new Date(mockTime) : null,
+          mockTimeValue: mockEnabled ? mockTime : null, // Send the string directly
         }),
       });
       if (response.ok) {

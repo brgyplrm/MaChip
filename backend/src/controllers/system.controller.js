@@ -1,4 +1,4 @@
-const { SystemSettings, Holiday } = require("../config/sequelize.js");
+const { SystemSettings, Holiday, PayrollPeriod } = require("../config/sequelize.js");
 const { getSystemTime } = require("../utils/systemTime.js");
 const { QueryTypes } = require("sequelize");
 const { syncHolidaysService } = require('../utils/holidaySyncService');
@@ -59,5 +59,27 @@ exports.getSystemTime = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+};
+
+exports.createPayrollPeriod = async (req, res) => {
+    try {
+        const { startDate, endDate, label } = req.body;
+        console.log("[DEBUG] Creating payroll period:", { startDate, endDate, label });
+        const period = await PayrollPeriod.create({ startDate, endDate, label });
+        res.status(201).json(period);
+    } catch (error) {
+        console.error("[ERROR] createPayrollPeriod:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getPayrollPeriods = async (req, res) => {
+    try {
+        const periods = await PayrollPeriod.findAll({ order: [['startDate', 'DESC']] });
+        res.status(200).json(periods);
+    } catch (error) {
+        console.error("[ERROR] getPayrollPeriods:", error);
+        res.status(500).json({ error: error.message });
+    }
 };
 

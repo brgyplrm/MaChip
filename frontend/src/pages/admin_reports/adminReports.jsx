@@ -10,18 +10,45 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import { Link } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
+import { exportBatchToZip } from "../../utils/payrollExport";
 
 const Reports = () => {
   const [activeReport, setActiveReport] = useState("attendance");
   const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedEmployee, setSelectedEmployee] = useState("All Employees");
+  const [selectedPeriod, setSelectedPeriod] = useState("custom");
+  const [payrollPeriods, setPayrollPeriods] = useState([]);
   
   const [employees, setEmployees] = useState([]);
   const [attendanceData, setAttendanceData] = useState([]);
   const [payrollData, setPayrollData] = useState([]);
   const [calendarData, setCalendarData] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const fetchPayrollPeriods = useCallback(async () => {
+    try {
+      const response = await fetch("http://localhost:4000/api/system/payroll-periods");
+      if (response.ok) {
+        const data = await response.json();
+        setPayrollPeriods(data);
+      }
+    } catch (error) {
+      console.error("Error fetching payroll periods:", error);
+    }
+  }, []);
+
+  const handlePeriodChange = (e) => {
+    const val = e.target.value;
+    setSelectedPeriod(val);
+    if (val === "custom") return;
+
+    const period = payrollPeriods.find(p => p.periodId.toString() === val);
+    if (period) {
+      setStartDate(period.startDate);
+      setEndDate(period.endDate);
+    }
+  };
 
   const fetchEmployees = useCallback(async () => {
     try {
@@ -82,7 +109,8 @@ const Reports = () => {
 
   useEffect(() => {
     fetchEmployees();
-  }, [fetchEmployees]);
+    fetchPayrollPeriods();
+  }, [fetchEmployees, fetchPayrollPeriods]);
 
   useEffect(() => {
     if (activeReport === "attendance") fetchAttendanceReport();
@@ -116,6 +144,26 @@ const Reports = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleBatchExport = () => {
+    if (payrollData.length === 0) return;
+    
+    // Determine a label for the export
+    let label = "Payroll_Report";
+    if (selectedPeriod !== "custom") {
+      const period = payrollPeriods.find(p => p.periodId.toString() === selectedPeriod);
+      if (period) {
+        const [startY, startM, startD] = period.startDate.split('-').map(Number);
+        const [endY, endM, endD] = period.endDate.split('-').map(Number);
+        const month = new Date(startY, startM - 1, startD).toLocaleString('en-US', { month: 'long' });
+        label = `${month}${startD}-${endD}`;
+      }
+    } else {
+      label = `Payroll_${startDate}_to_${endDate}`;
+    }
+    
+    exportBatchToZip(payrollData, label);
   };
 
   // Helper to calculate stats
@@ -165,14 +213,41 @@ const Reports = () => {
               <FilterListIcon /> Filters
             </div>
             <div className="filterInputs">
-              <div className="inputGroup">
-                <label>Date From</label>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-              </div>
-              <div className="inputGroup">
-                <label>Date To</label>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-              </div>
+              {activeReport === "payroll" ? (
+                <div className="inputGroup">
+                  <label>Payroll Period</label>
+                  <select value={selectedPeriod} onChange={handlePeriodChange}>
+                    <option value="custom">-- Select Period --</option>
+                    {payrollPeriods.map(p => {
+                      const [startY, startM, startD] = p.startDate.split('-').map(Number);
+                      const [endY, endM, endD] = p.endDate.split('-').map(Number);
+                      const startObj = new Date(startY, startM - 1, startD);
+                      const month = startObj.toLocaleString('en-US', { month: 'short' });
+                      const label = `${month} ${startD}-${endD}, ${startY}`;
+                      return (
+                        <option key={p.periodId} value={p.periodId}>
+                          {label}
+                        </option>
+                      );
+                    })}
+                    <option value="custom">Custom Date Range</option>
+                  </select>
+                </div>
+              ) : null}
+
+              {(activeReport !== "payroll" || selectedPeriod === "custom") && (
+                <>
+                  <div className="inputGroup">
+                    <label>Date From</label>
+                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                  </div>
+                  <div className="inputGroup">
+                    <label>Date To</label>
+                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                  </div>
+                </>
+              )}
+
               <div className="inputGroup">
                 <label>Employee</label>
                 <select value={selectedEmployee} onChange={(e) => setSelectedEmployee(e.target.value)}>
@@ -253,9 +328,18 @@ const Reports = () => {
 
                 {activeReport === "payroll" && (
                   <>
-                    <div className="reportHeader">
-                        <h3>Payroll Records</h3>
-                        <span>Payroll data from {startDate} to {endDate}</span>
+                    <div className="reportHeader" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h3>Payroll Records</h3>
+                          <span>Payroll data from {startDate} to {endDate}</span>
+                        </div>
+                        <button 
+                          className="exportBtn zip" 
+                          onClick={handleBatchExport}
+                          disabled={payrollData.length === 0}
+                        >
+                          <FileDownloadIcon /> Batch Export (ZIP)
+                        </button>
                     </div>
                     <table className="reportsTable payrollTable">
                     <thead>
