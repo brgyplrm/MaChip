@@ -3,6 +3,8 @@ import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNone
 import NavigateNextIcon from '@mui/icons-material/NavigateNext'; // New Icon
 import { Link, useLocation } from "react-router-dom"; // Added useLocation
 import { useState, useEffect } from "react";
+import Breadcrumbs from "../../components/breadcrumbs/Breadcrumbs";
+
 
 const Navbar = () => {
   const location = useLocation();
@@ -47,10 +49,7 @@ const Navbar = () => {
     <div className="navbar">
       <div className="wrapper">
         {/* REPLACED SEARCH WITH BREADCRUMBS */}
-        <div className="breadcrumbs">
-          <Link to="/" className="home-link">Dashboard</Link>
-          {crumbs}
-        </div>
+        <Breadcrumbs />
 
         <div className="items">
           <Link to="/notifications">

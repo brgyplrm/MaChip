@@ -2,16 +2,12 @@ import React, { useState, useEffect } from "react";
 import "./payroll_Management.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
-import SearchIcon from "@mui/icons-material/Search";
-import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import { Link } from "react-router-dom";
-import { formatUserId } from "../../utils/formatUserId";
-import CreatePeriodModal from "../../components/CreatePeriodModal";
+import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodModal";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 
@@ -78,7 +74,7 @@ const Payroll = () => {
               <span>Manage employee payroll and compensation</span>
             </div>
             <div className="headerActions">
-               <Link to="/payrollList" style={{ textDecoration: "none" }}>
+               <Link to="/payroll/employeeList" style={{ textDecoration: "none" }}>
                 <button className="actionBtn employeeBtn">
                   <PeopleAltIcon /> Employee List
                 </button>
@@ -126,7 +122,7 @@ const Payroll = () => {
               <div className="detailRow"><label>Employees:</label><span>Not calculated</span></div>
               <div className="detailRow"><label>Total Amount:</label><span>Not calculated</span></div>
             </div>
-            <Link to="/payrollPeriod" style={{ textDecoration: "none" }}>
+            <Link to="/payroll/payrollPeriod" style={{ textDecoration: "none" }}>
               <button className="processBtn">
                 <VisibilityIcon /> Process Payroll
               </button>
