@@ -11,6 +11,10 @@ import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import { Link } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
+import CreatePeriodModal from "../../components/CreatePeriodModal";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+
 
 const Payroll = () => {
   const [payrolls, setPayrolls] = useState([]);
@@ -21,6 +25,12 @@ const Payroll = () => {
     totalEarnings: 0,
     totalDeductions: 0
   });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const handleCreatePeriod = (data) => {
+    console.log("Creating period for:", data);
+    // Add your API call here
+    setIsModalOpen(false);
+  };
 
   const fetchPayrolls = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -68,16 +78,17 @@ const Payroll = () => {
               <span>Manage employee payroll and compensation</span>
             </div>
             <div className="headerActions">
-              <Link to="/payrollList" style={{ textDecoration: "none" }}>
+               <Link to="/payrollList" style={{ textDecoration: "none" }}>
                 <button className="actionBtn employeeBtn">
                   <PeopleAltIcon /> Employee List
                 </button>
               </Link>
-              <Link to="/calendar" style={{ textDecoration: "none" }}>
-                <button className="actionBtn scheduleBtn">
-                  <EventNoteIcon /> Payroll Schedule
-                </button>
-              </Link>
+              <button 
+                className="actionBtn scheduleBtn" 
+                onClick={() => setIsModalOpen(true)}
+              >
+                <EventNoteIcon /> Payroll Schedule
+              </button>
               <button
                 className={`actionBtn refreshBtn ${refreshing ? "spinning" : ""}`}
                 onClick={handleRefresh}
@@ -88,104 +99,58 @@ const Payroll = () => {
             </div>
           </div>
 
-          <div className="stats">
-            <div className="statCard">
-              <div className="left">
-                <div className="icon net"><span className="symbol">₱</span></div>
-                <span className="title">Total Net Pay</span>
-                <span className="amount">₱{stats.totalNetPay.toLocaleString()}</span>
-              </div>
+          {/* New Alert Section */}
+          <div className="infoAlert">
+            <div className="alertTitle">
+              <InfoOutlinedIcon className="icon" /> 
+              <h3>Batch Payroll Processing</h3>
             </div>
-            <div className="statCard">
-              <div className="left">
-                <div className="icon earnings"><span className="symbol">📈</span></div>
-                <span className="title">Total Earnings</span>
-                <span className="amount">₱{stats.totalEarnings.toLocaleString()}</span>
-              </div>
-            </div>
-            <div className="statCard">
-              <div className="left">
-                <div className="icon deductions"><span className="symbol">📉</span></div>
-                <span className="title">Total Deductions</span>
-                <span className="amount">₱{stats.totalDeductions.toLocaleString()}</span>
-              </div>
-            </div>
+            <p>
+              Create a new payroll period to automatically calculate payroll for all employees based on their daily rates and attendance records. 
+              Once processed, the period will be locked and cannot be edited.
+            </p>
           </div>
 
-          <div className="filters">
-            <div className="search">
-              <SearchIcon className="icon" />
-              <input type="text" placeholder="Search by employee name..." />
+          {/* New Active Period Card */}
+          <div className="sectionTitle">Active Period</div><br />
+          <div className="activePeriodCard">
+            <div className="cardHeader">
+              <div className="periodIcon"><CalendarMonthIcon /></div>
+              <div className="periodInfo">
+                <h3>March 2026</h3>
+                <span>3/1/2026 - 3/31/2026</span>
+              </div>
+              <span className="statusDraft">Draft</span>
             </div>
-            <div className="select">
-              <CalendarTodayIcon className="icon" />
-              <select>
-                <option>All Periods</option>
-                <option>Current Period</option>
-                <option>Last Period</option>
-              </select>
+            <div className="cardDetails">
+              <div className="detailRow"><label>Employees:</label><span>Not calculated</span></div>
+              <div className="detailRow"><label>Total Amount:</label><span>Not calculated</span></div>
             </div>
-            <div className="select">
-              <FilterListIcon className="icon" />
-              <select>
-                <option>All Status</option>
-                <option>Processing</option>
-                <option>Released</option>
-              </select>
-            </div>
+            <Link to="/payrollPeriod" style={{ textDecoration: "none" }}>
+              <button className="processBtn">
+                <VisibilityIcon /> Process Payroll
+              </button>
+            </Link>
           </div>
 
-          <div className="tableContainer">
-            {loading ? (
-              <p>Loading payroll records...</p>
-            ) : (
-              <table className="payrollTable">
-                <thead>
-                  <tr>
-                    <th>EMPLOYEE</th>
-                    <th>PERIOD</th>
-                    <th>DAYS/HOURS</th>
-                    <th>BASIC PAY</th>
-                    <th>EARNINGS</th>
-                    <th>DEDUCTIONS</th>
-                    <th>NET PAY</th>
-                    <th>STATUS</th>
-                    <th>ACTIONS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payrolls.length > 0 ? payrolls.map(p => (
-                    <tr key={p.payrollId}>
-                      <td>
-                        <div className="empName">{p.user_FirstName} {p.user_LastName}</div>
-                        <div className="id">ID: {formatUserId(p.user_Id)}</div>
-                      </td>
-                      <td>{p.period_Start} to {p.period_End}</td>
-                      <td>{p.NoDays_Worked} days / {p.NoHrs_Worked} hrs</td>
-                      <td>₱{parseFloat(p.basicPay).toLocaleString()}</td>
-                      <td className="pos">+₱{parseFloat(p.totalEarnings).toLocaleString()}</td>
-                      <td className="neg">-₱{parseFloat(p.totalDeductions).toLocaleString()}</td>
-                      <td className="bold">₱{parseFloat(p.netPay).toLocaleString()}</td>
-                      <td>
-                        <span className={`status ${p.PaystatusName?.toLowerCase()}`}>
-                          {p.PaystatusName}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="actions">
-                          <Link to={`/payrollDetails/${p.payrollId}`}><VisibilityIcon className="view" /></Link>
-                        </div>
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan="9" style={{ textAlign: "center", padding: "20px" }}>No payroll records found</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            )}
+          {/* New Previous Periods Table */}
+          <br />
+          <div className="sectionTitle">Previous Periods (Locked)</div><br />
+          <div className="previousPeriodsTable">
+            <table>
+              <thead>
+                <tr>
+                  <th>PERIOD</th><th>DATE RANGE</th><th>EMPLOYEES</th>
+                  <th>TOTAL AMOUNT</th><th>PROCESSED DATE</th><th>STATUS</th><th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colSpan="7" className="emptyState">No previous periods found</td></tr>
+              </tbody>
+            </table>
           </div>
+
+          <CreatePeriodModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
         </div>
       </div>
     </div>

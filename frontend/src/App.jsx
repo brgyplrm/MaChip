@@ -10,6 +10,7 @@ import Logs from "./pages/logs-management/Logs";
 import AdminRequests from "./pages/admin_Requests/adminRequests";
 import RequestDetails from "./pages/request_Details/requestDetails";
 import Payroll from "./pages/admin_Payroll/payroll_Management";
+import PayrollPeriod from "./pages/admin_Payroll/payroll_Period";
 import PayrollDetails from "./pages/admin_Payroll/details_Payroll";
 import PayrollList from "./pages/admin_Payroll/payroll_EmployeeList";
 import EmployeeCalendar from "./pages/emp_Calendar/employeeCalendar"; 
@@ -73,6 +74,16 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/payrollPeriod"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <PayrollPeriod />
+            </ProtectedRoute>
+          }
+        />
+
 
         <Route
           path="/payrollList"

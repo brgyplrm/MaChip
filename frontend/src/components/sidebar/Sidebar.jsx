@@ -9,7 +9,7 @@ import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import AssessmentIcon from '@mui/icons-material/Assessment';
+import CurrencyRubleOutlinedIcon from '@mui/icons-material/CurrencyRubleOutlined';
 import { NavLink } from "react-router-dom";
 
 const Sidebar = () => {
@@ -70,13 +70,13 @@ const Sidebar = () => {
             </NavLink>
             <NavLink to="/payroll" style={{ textDecoration: "none" }}>
               <li>
-                <RequestQuoteOutlinedIcon className="icon" /> {/* You can replace this with a more appropriate icon for payroll */}
-                <span>Payroll</span>
+                  <CurrencyRubleOutlinedIcon className="icon" />
+                  <span>Payroll</span>
               </li>
             </NavLink>
             <NavLink to="/adminReports" style={{ textDecoration: "none" }}>
               <li>
-                <RequestQuoteOutlinedIcon className="icon" /> {/* You can replace this with a more appropriate icon for reports */}
+                <RequestQuoteOutlinedIcon className="icon" />
                 <span>Reports</span>
               </li>
             </NavLink>

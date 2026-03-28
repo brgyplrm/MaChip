@@ -1,0 +1,71 @@
+.modalOverlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.6); // Darker overlay for focus
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px); // Modern frosted glass effect
+
+  .confirmCard {
+    background: white;
+    width: 450px;
+    border-radius: 24px;
+    padding: 32px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    animation: slideUp 0.3s ease-out;
+
+    .warningHeader {
+      text-align: center;
+      margin-bottom: 24px;
+      .warningCircle {
+        width: 60px; height: 60px;
+        background: #fff4e6; color: #fd7e14;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 16px;
+        svg { font-size: 32px; }
+      }
+      h2 { font-size: 22px; color: #2A174E; margin: 0; }
+    }
+
+    .confirmContent {
+      .infoBox {
+        background: #f8f9fa;
+        padding: 16px;
+        border-radius: 12px;
+        display: flex; align-items: center; gap: 12px;
+        margin-bottom: 20px;
+        color: #444;
+        .icon { color: #2A174E; }
+      }
+      .warningText {
+        color: #666; font-size: 14px; line-height: 1.6; text-align: center;
+        strong { color: #d9480f; }
+      }
+    }
+
+    .actionButtons {
+      display: flex; gap: 12px; margin-top: 32px;
+      button {
+        flex: 1; padding: 14px; border-radius: 12px;
+        font-weight: 700; cursor: pointer; border: none; transition: 0.2s;
+      }
+      .cancelBtn {
+        background: white; color: #666; border: 1px solid #ddd;
+        &:hover { background: #f8f9fa; }
+      }
+      .processBtn {
+        background: #2A174E; color: white;
+        &:hover { background: #1f113a; transform: translateY(-2px); }
+      }
+    }
+  }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

@@ -7,8 +7,8 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from '@mui/icons-material/Close';
-import SyncIcon from '@mui/icons-material/Sync';
 import { useState, useEffect } from "react";
+import Breadcrumbs from "../../components/breadcrumbs/Breadcrumbs";
 
 const CalendarManagement = () => {
   const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 1)); // Default to March 2026

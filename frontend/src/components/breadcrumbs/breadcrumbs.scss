@@ -1,0 +1,36 @@
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  margin-bottom: 25px;
+  gap: 8px;
+  font-family: "Nunito", sans-serif;
+
+  .breadcrumb-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    color: #888; // Muted for parent links
+    font-size: 14px;
+    transition: all 0.2s ease;
+
+    .home-icon { font-size: 18px; }
+
+    &:hover {
+      color: #2A174E; // Your primary purple theme
+      text-decoration: underline;
+    }
+  }
+
+  .separator {
+    color: #ccc;
+    font-size: 18px;
+  }
+
+  .breadcrumb-current {
+    color: #2A174E; // Active page matches theme
+    font-weight: 700;
+    font-size: 14px;
+  }
+}
