@@ -1,3 +1,4 @@
+@use "sass:color";
 $primary-purple: #2A174E;
 
 .requestsPage {
@@ -171,7 +172,7 @@ $primary-purple: #2A174E;
       .submitBtn {
         width: 100%; padding: 15px; background: $primary-purple; color: white; border: none;
         border-radius: 10px; font-weight: 700; cursor: pointer; transition: 0.2s;
-        &:hover { background: darken($primary-purple, 10%); }
+        &:hover { background: color.adjust($primary-purple, $lightness: -10%); }
       }
 
       .requestsList {

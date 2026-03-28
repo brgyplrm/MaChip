@@ -5,11 +5,6 @@ const bcrypt = require("bcryptjs");
 exports.loginUser = async (req, res) => {
   const { user_Id, password } = req.body || {};
 
-  console.log("[AUTH] Body received:", {
-    user_Id,
-    password: password ? "***" : undefined,
-  });
-
   if (!user_Id || !password) {
     return res
       .status(400)

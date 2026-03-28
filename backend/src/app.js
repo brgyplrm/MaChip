@@ -11,10 +11,17 @@ app.use(express.urlencoded({ extended: true }));
 
 // Debug middleware to log requests
 app.use((req, res, next) => {
-  req.body = req.body || {}; // Ensure req.body is always an object
+  req.body = req.body || {};
   console.log(`[DEBUG] ${req.method} ${req.url}`);
   console.log(`[DEBUG] Content-Type: ${req.get("Content-Type")}`);
-  console.log(`[DEBUG] Body:`, req.body);
+
+  // Mask sensitive fields like "password"
+  const bodyToLog = { ...req.body };
+  if (bodyToLog.password) {
+    bodyToLog.password = "***";
+  }
+  
+  console.log(`[DEBUG] Body:`, bodyToLog);
   next();
 });
 
