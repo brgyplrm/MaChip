@@ -66,6 +66,7 @@ function App() {
           }
         />
 
+        {/* Payroll Management: Admin (1) & Staff (2) */}
         <Route
           path="/payroll"
           element={
@@ -76,7 +77,7 @@ function App() {
         />
 
         <Route
-          path="/payrollPeriod"
+          path="/payroll/payrollPeriod"
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <PayrollPeriod />
@@ -86,7 +87,7 @@ function App() {
 
 
         <Route
-          path="/payrollList"
+          path="/payroll/employeeList"
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <PayrollList />
@@ -177,7 +178,7 @@ function App() {
             }
           />
           <Route
-            path="new"
+            path="newUser"
             element={
               <ProtectedRoute allowedRoles={[1, 2]}>
                 <New inputs={userInputs} title="Add New User" />

@@ -9,10 +9,9 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { Link } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
-import CreatePeriodModal from "../../components/CreatePeriodModal";
+import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodModal";
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
-import ProcessPayrollModal from "../../components/ProcessPayrollModal";
-import Breadcrumbs from "../../components/breadcrumbs/Breadcrumbs";
+import ProcessPayrollModal from "../../components/procpayrollmodal/ProcessPayrollModal";
 
 
 
@@ -76,7 +75,6 @@ const PayrollPeriod = () => {
       <div className="payrollContainer">
         <Navbar />
         <div className="wrapper">
-          <Breadcrumbs />
           <div className="header">
             <div className="text">
               <h1>Payroll Period</h1>

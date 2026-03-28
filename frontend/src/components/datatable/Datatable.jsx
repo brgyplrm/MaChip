@@ -88,7 +88,7 @@ const Datatable = () => {
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
       <div className="datatableTitle">
         User Management
-        <Link to="/users/new" className="link">
+        <Link to="/users/newUser" className="link">
           Add New
         </Link>
       </div>
