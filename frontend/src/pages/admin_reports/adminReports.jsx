@@ -206,12 +206,6 @@ const Reports = () => {
             >
               <PaymentsIcon /> Payroll Report
             </button>
-            <button 
-              className={activeReport === "calendar" ? "active" : ""} 
-              onClick={() => setActiveReport("calendar")}
-            >
-              <CalendarMonthIcon /> Calendar Report
-            </button>
           </div>
 
           <div className="filtersCard">
@@ -387,36 +381,6 @@ const Reports = () => {
                         ))}
                         {payrollData.length === 0 && <tr><td colSpan="11">No records found.</td></tr>}
                     </tbody>
-                    </table>
-                  </>
-                )}
-
-                {activeReport === "calendar" && (
-                  <>
-                    <div className="reportHeader">
-                        <h3>Calendar Events</h3>
-                        <span>Holidays, leaves, and field work from {startDate} to {endDate}</span>
-                    </div>
-                    <table className="reportsTable calendarTable">
-                      <thead>
-                        <tr>
-                          <th>TYPE</th>
-                          <th>DATE</th>
-                          <th>NAME/EMPLOYEE</th>
-                          <th>DETAILS</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {calendarData.map((r, i) => (
-                          <tr key={i}>
-                            <td><span className={`eventTag ${r.type.toLowerCase().replace(/\s+/g, '')}`}>{r.type}</span></td>
-                            <td>{new Date(r.date).toLocaleDateString()}</td>
-                            <td className="bold">{r.name}</td>
-                            <td>{r.details}</td>
-                          </tr>
-                        ))}
-                        {calendarData.length === 0 && <tr><td colSpan="4">No events found.</td></tr>}
-                      </tbody>
                     </table>
                   </>
                 )}
