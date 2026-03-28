@@ -8,4 +8,7 @@ router.get("/time", systemController.getSystemTime);
 router.get("/holidays", systemController.getHolidays);
 router.post("/sync-holidays", systemController.syncHolidays);
 
+router.get("/payroll-periods", systemController.getPayrollPeriods);
+router.post("/payroll-periods", systemController.createPayrollPeriod);
+
 module.exports = router;

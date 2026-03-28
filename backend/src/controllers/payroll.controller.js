@@ -276,6 +276,178 @@ exports.generatePayroll = async (req, res) => {
   }
 };
 
+// ── Generate Batch Payroll ──────────────────────────────────────────────────
+exports.generateBatchPayroll = async (req, res) => {
+  const { period_Start, period_End } = req.body;
+
+  if (!period_Start || !period_End) {
+    return res.status(400).json({ error: "period_Start and period_End are required." });
+  }
+
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    // 1. Get all active employees (not deleted and have a dailyRate > 0)
+    const employees = await sequelize.query(
+      `SELECT "user_Id", "dailyRate" FROM "User" 
+       WHERE "deletedAt" IS NULL AND "dailyRate" > 0`,
+      { type: QueryTypes.SELECT }
+    );
+
+    let processedCount = 0;
+    let skippedCount = 0;
+
+    for (const emp of employees) {
+      // 2. Check if payroll already exists for this user and period
+      const existing = await sequelize.query(
+        `SELECT "payrollId" FROM "Payroll" 
+         WHERE "user_Id" = :user_Id AND "period_Start" = :period_Start AND "period_End" = :period_End`,
+        { replacements: { user_Id: emp.user_Id, period_Start, period_End }, type: QueryTypes.SELECT }
+      );
+
+      if (existing.length > 0) {
+        skippedCount++;
+        continue;
+      }
+
+      // 3. Compute stats
+      const stats = await computePeriodStats(emp.user_Id, period_Start, period_End);
+      const dailyRate = emp.dailyRate;
+      const ratePerHr = dailyRate / WORK_HRS_PER_DAY;
+      const ratePerMin = ratePerHr / 60;
+
+      const combined_Absences = stats.absence_Days + stats.unpaidLeave_Days;
+      const calculated_NoDays = stats.totalScheduledDays - combined_Absences;
+      const calculated_NoHrs = calculated_NoDays * WORK_HRS_PER_DAY;
+      const calculated_Basic = calculated_NoHrs * ratePerHr;
+
+      const calculated_AbsAmnt = combined_Absences * dailyRate;
+      const calculated_TardAmnt = stats.tardiness_Mins * ratePerMin;
+      const calculated_OTAmnt = stats.OT_Hrs * ratePerHr;
+
+      const calculated_Ded = calculated_AbsAmnt + calculated_TardAmnt;
+      const calculated_Earn = calculated_Basic + calculated_OTAmnt;
+      const calculated_Net = calculated_Earn - calculated_Ded;
+
+      // 4. Insert into Payroll
+      const payrollResult = await sequelize.query(
+        `INSERT INTO "Payroll"
+          ("user_Id", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
+           "dailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
+           "status", "createdAt", "updatedAt")
+         VALUES
+          (:user_Id, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
+           :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDeductions, :netPay,
+           1, :now, :now)
+         RETURNING "payrollId"`,
+        {
+          replacements: {
+            user_Id: emp.user_Id, period_Start, period_End,
+            NoDays_Worked: calculated_NoDays,
+            NoHrs_Worked: calculated_NoHrs,
+            dailyRate, ratePerHr,
+            basicPay: calculated_Basic,
+            totalEarnings: calculated_Earn,
+            totalDeductions: calculated_Ded,
+            netPay: calculated_Net,
+            now: nowStr
+          },
+          type: QueryTypes.INSERT
+        }
+      );
+
+      const payrollId = payrollResult[0][0].payrollId;
+
+      // 5. Insert Earnings & Deductions
+      await sequelize.query(
+        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt")
+         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt)`,
+        { replacements: { payrollId, user_Id: emp.user_Id, OT_Hrs: stats.OT_Hrs, OT_Amnt: calculated_OTAmnt }, type: QueryTypes.INSERT }
+      );
+
+      await sequelize.query(
+        `INSERT INTO "Payroll_Deductions"
+          ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days")
+         VALUES
+          (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days)`,
+        {
+          replacements: {
+            payrollId,
+            absence_Hrs: combined_Absences * WORK_HRS_PER_DAY,
+            absence_Amnt: calculated_AbsAmnt,
+            tardiness_Mins: stats.tardiness_Mins,
+            tardiness_Amnt: calculated_TardAmnt,
+            unpaidLeave_Days: stats.unpaidLeave_Days,
+            unpaidLeave_Amnt: 0,
+            paidLeave_Days: stats.paidLeave_Days
+          },
+          type: QueryTypes.INSERT
+        }
+      );
+
+      processedCount++;
+    }
+
+    res.status(201).json({ 
+      message: "Batch payroll generated successfully.",
+      processed: processedCount,
+      skipped: skippedCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Get Eligible Employees Count ─────────────────────────────────────────────
+exports.getEligibleEmployeesCount = async (req, res) => {
+  const { period_Start, period_End } = req.query;
+
+  if (!period_Start || !period_End) {
+    return res.status(400).json({ error: "period_Start and period_End are required." });
+  }
+
+  try {
+    const result = await sequelize.query(
+      `SELECT COUNT("user_Id") AS "count" FROM "User" 
+       WHERE "deletedAt" IS NULL AND "dailyRate" > 0
+       AND "user_Id" NOT IN (
+         SELECT "user_Id" FROM "Payroll" 
+         WHERE "period_Start" = :period_Start AND "period_End" = :period_End
+       )`,
+      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+    res.status(200).json({ count: parseInt(result[0].count) || 0 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Get Payroll Periods Summary ─────────────────────────────────────────────
+exports.getPayrollPeriods = async (req, res) => {
+  try {
+    const periods = await sequelize.query(
+      `SELECT 
+        "period_Start", 
+        "period_End",
+        COUNT("user_Id") AS "employeeCount",
+        SUM("netPay") AS "totalAmount",
+        MAX("createdAt") AS "processedDate",
+        CASE 
+          WHEN MIN("status") = 1 THEN 'Draft'
+          ELSE 'Released'
+        END AS "status"
+       FROM "Payroll"
+       GROUP BY "period_Start", "period_End"
+       ORDER BY "period_Start" DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(periods);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // ── View Payroll by User ──────────────────────────────────────────────────────
 exports.getPayrollByUser = async (req, res) => {
   const { user_Id } = req.params;

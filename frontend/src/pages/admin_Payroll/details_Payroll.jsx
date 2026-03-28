@@ -8,12 +8,17 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 
 const PayrollDetails = () => {
   const navigate = useNavigate();
   const { payrollId } = useParams();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const periodStart = queryParams.get("start");
+  const periodEnd = queryParams.get("end");
+
   const [payroll, setPayroll] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -21,10 +26,62 @@ const PayrollDetails = () => {
     const fetchPayrollDetails = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:4000/api/payroll/${payrollId}`);
-        const data = await response.json();
-        if (response.ok) {
-          setPayroll(data);
+        if (payrollId.startsWith("live-")) {
+          const userId = payrollId.split("-")[1];
+          // 1. Get Employee Info
+          const empRes = await fetch(`http://localhost:4000/api/users/${userId}`);
+          const emp = await empRes.json();
+
+          // 2. Get Live Preview
+          const prevRes = await fetch(`http://localhost:4000/api/payroll/preview?user_Id=${userId}&period_Start=${periodStart}&period_End=${periodEnd}`);
+          const preview = await prevRes.json();
+
+          if (empRes.ok && prevRes.ok) {
+            const ratePerHr = emp.dailyRate / 8;
+            const ratePerMin = ratePerHr / 60;
+            const combinedAbsences = (preview.absence_Days || 0) + (preview.unpaidLeave_Days || 0);
+            const daysWorked = (preview.totalScheduledDays || 0) - combinedAbsences;
+            const basicPay = daysWorked * 8 * ratePerHr;
+            const otPay = (preview.OT_Hrs || 0) * ratePerHr;
+            const tardinessDed = (preview.tardiness_Mins || 0) * ratePerMin;
+            const absenceDed = combinedAbsences * emp.dailyRate;
+
+            setPayroll({
+              payrollId: "LIVE-PREVIEW",
+              user_FirstName: emp.user_FirstName,
+              user_LastName: emp.user_LastName,
+              user_Id: emp.user_Id,
+              ratePerHr: ratePerHr,
+              dailyRate: emp.dailyRate,
+              period_Start: periodStart,
+              period_End: periodEnd,
+              NoDays_Worked: daysWorked,
+              NoHrs_Worked: daysWorked * 8,
+              basicPay: basicPay,
+              OT_Hrs: preview.OT_Hrs,
+              OT_Amnt: otPay,
+              totalEarnings: basicPay + otPay,
+              absence_Hrs: combinedAbsences * 8,
+              absence_Amnt: absenceDed,
+              tardiness_Mins: preview.tardiness_Mins,
+              tardiness_Amnt: tardinessDed,
+              unpaidLeave_Days: preview.unpaidLeave_Days,
+              unpaidLeave_Amnt: preview.unpaidLeave_Days * emp.dailyRate,
+              paidLeave_Days: preview.paidLeave_Days,
+              totalDeductions: tardinessDed + absenceDed,
+              netPay: (basicPay + otPay) - (tardinessDed + absenceDed),
+              PaystatusName: "Live",
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+          }
+        } else {
+          // Standard DB fetch
+          const response = await fetch(`http://localhost:4000/api/payroll/${payrollId}`);
+          const data = await response.json();
+          if (response.ok) {
+            setPayroll(data);
+          }
         }
       } catch (error) {
         console.error("Error fetching payroll details:", error);
@@ -36,7 +93,7 @@ const PayrollDetails = () => {
     if (payrollId) {
       fetchPayrollDetails();
     }
-  }, [payrollId]);
+  }, [payrollId, periodStart, periodEnd]);
 
   if (loading) return (
     <div className="home payrollDetails">

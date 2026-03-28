@@ -53,6 +53,12 @@
             border: 1.5px solid #c4b5e8;
           }
 
+          .processBtn {
+            background-color: #e6f7ff;
+            color: #004085;
+            border: 1.5px solid #b8daff;
+          }
+
           .refreshBtn {
             background-color: #2A174E;
             color: white;
@@ -78,17 +84,38 @@
 
     .activePeriodCard {
       background: white; border: 1px solid #ffd8a8; border-radius: 20px;
-      padding: 30px; width: 450px; box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+      padding: 30px; width: 100%; box-sizing: border-box; flex: 1; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+      margin-top: 15px;
       .cardHeader {
-        display: flex; align-items: center; gap: 15px; margin-bottom: 25px;
-        .periodIcon { background: #fff4e6; color: #fd7e14; padding: 12px; border-radius: 10px; }
-        .statusDraft { background: #adb5bd; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+        display: flex; align-items: center; gap: 15px; margin-bottom: 25px; flex-wrap: nowrap;
+        .periodIcon { flex-shrink: 0; background: #fff4e6; color: #fd7e14; padding: 12px; border-radius: 10px; }
+        .statusDraft { flex-shrink: 0; white-space: nowrap; background: #adb5bd; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
       }
       .cardDetails {
         border-top: 1px solid #eee; padding-top: 20px; margin-bottom: 25px;
         .detailRow { display: flex; justify-content: space-between; margin-bottom: 12px; label { color: #666; } span { font-weight: bold; } }
       }
-      .processBtn { width: 100%; background: #2A174E; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+      .processBtn { margin-top: auto; width: 100%; background: #2A174E; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    }
+
+    .noActivePeriod {
+      background: white; border: 1.5px dashed #ccc; border-radius: 20px;
+      padding: 40px; text-align: center; width: 100%; box-sizing: border-box; flex: 1; color: #666;
+      height: 250px; display: flex; align-items: center; justify-content: center;
+      margin-top: 15px;
+    }
+
+    .periodsGrid {
+      display: flex; gap: 24px; margin-bottom: 30px; align-items: stretch;
+      .periodColumn {
+        flex: 1; min-width: 0; display: flex; flex-direction: column;
+        .nextPeriod {
+          border-color: #e0e0e0;
+          background: #fafafa;
+          .cardHeader .periodIcon { background: #f0f0f0; color: #666; }
+          .createNextBtn { background: #f0ebfa; color: #2A174E; border: 1px solid #c4b5e8; }
+        }
+      }
     }
 
       .previousPeriodsTable {

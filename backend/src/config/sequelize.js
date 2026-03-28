@@ -51,7 +51,7 @@ const {
   Leave_Balance,
 } = require("../models/request.model")(sequelize, DataTypes);
 
-const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status } =
+const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod } =
   require("../models/payroll.model")(sequelize, DataTypes);
 
 const { Notification } = require("../models/notification.models")(
@@ -59,7 +59,7 @@ const { Notification } = require("../models/notification.models")(
   DataTypes,
 );
 
-const { SystemSettings, Holiday, PayrollPeriod } = require("../models/system.models")(
+const { SystemSettings, Holiday } = require("../models/system.models")(
   sequelize,
   DataTypes,
 );
@@ -93,7 +93,7 @@ const connectDB = async () => {
       "Connection to the database has been established successfully.",
     );
 
-    // Create any missing tables (does NOT alter existing ones)
+    // Create any missing tables or update existing ones
     await sequelize.sync();
     console.log("All models were synchronized successfully.");
 

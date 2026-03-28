@@ -3,6 +3,8 @@ const express = require("express");
 const router = express.Router();
 const {
   generatePayroll,
+  generateBatchPayroll,
+  getEligibleEmployeesCount,
   getPayrollPreview,
   getPayrollByUser,
   getAllPayrolls,
@@ -13,6 +15,8 @@ const {
 } = require("../controllers/payroll.controller");
 
 router.post("/generate", generatePayroll);
+router.post("/batch-generate", generateBatchPayroll);
+router.get("/eligible-count", getEligibleEmployeesCount);
 router.get("/preview", getPayrollPreview);
 router.get("/all", getAllPayrolls);
 router.get("/report", getPayrollReport);

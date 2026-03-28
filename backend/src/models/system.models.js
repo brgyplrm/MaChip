@@ -49,12 +49,5 @@ module.exports = (sequelize, DataTypes) => {
     }
   );
   
-  const PayrollPeriod = sequelize.define("PayrollPeriod", {
-      periodId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-      startDate: { type: DataTypes.DATEONLY, allowNull: false },
-      endDate: { type: DataTypes.DATEONLY, allowNull: false },
-      label: { type: DataTypes.STRING } // e.g., "March 1st Half"
-  });
-
-  return { SystemSettings, Holiday, PayrollPeriod };
+  return { SystemSettings, Holiday };
 };
