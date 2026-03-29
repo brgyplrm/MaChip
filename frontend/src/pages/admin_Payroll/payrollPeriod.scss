@@ -40,14 +40,6 @@
 
             svg { font-size: 17px; }
           }
-          .exportBtn {
-            background-color: #e6f7ff;
-            color: #004085;
-            border: 1.5px solid #b8daff;
-            &:hover { background-color: #bae7ff; }
-            &:disabled { opacity: 0.6; cursor: not-allowed; }
-          }
-
           .processBtn {
             background-color: #f0ebfa;
             color: #2A174E;
@@ -66,7 +58,7 @@
             border: 1.5px solid #c4b5e8;
           }
 
-          .refreshBtn {
+          .processBtn {
             background-color: #2A174E;
             color: white;
 
