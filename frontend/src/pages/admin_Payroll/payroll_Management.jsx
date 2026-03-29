@@ -24,6 +24,7 @@ const Payroll = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [activePeriod, setActivePeriod] = useState(null);
   const [upcomingPeriods, setUpcomingPeriods] = useState([]);
+  const [allPeriods, setAllPeriods] = useState([]);
 
   const formatLocalISO = (date) => {
     const year = date.getFullYear();
@@ -107,6 +108,8 @@ const Payroll = () => {
         const upcoming = generateUpcomingPeriods(periodData.endDate, 3);
         setUpcomingPeriods(upcoming);
         setIsCreateModalOpen(false);
+        // Refresh to get actual DB data (including periodId)
+        fetchActive();
       } else {
         alert("Failed to save payroll period to database.");
       }
@@ -145,54 +148,54 @@ const Payroll = () => {
 
   const handleRefresh = () => fetchPayrolls(true);
 
+  const fetchActive = async () => {
+    try {
+      // 1. Get System Time (handles mock time)
+      const timeRes = await fetch("http://localhost:4000/api/system/time");
+      const { systemTime } = await timeRes.json();
+      const today = new Date(systemTime);
+      const todayStr = formatLocalISO(today);
+
+      // 2. Get all periods
+      const response = await fetch("http://localhost:4000/api/system/payroll-periods");
+      const data = await response.json();
+      
+      if (response.ok && data.length > 0) {
+        setAllPeriods(data);
+        // Find the period that includes "today"
+        let active = data.find(p => todayStr >= p.startDate && todayStr <= p.endDate);
+        
+        // If no period includes today, take the most recent one
+        if (!active) active = data[0];
+
+        const [startY, startM, startD] = active.startDate.split('-').map(Number);
+        const [endY, endM, endD] = active.endDate.split('-').map(Number);
+        const startObj = new Date(startY, startM - 1, startD);
+        const endObj = new Date(endY, endM - 1, endD);
+        
+        setActivePeriod({
+          month: startObj.toLocaleString('en-US', { month: 'long' }),
+          year: startY,
+          periodText: `${startObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${endObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+          startDate: active.startDate,
+          endDate: active.endDate,
+          status: active.status || "Draft",
+          employees: active.employeeCount !== undefined ? active.employeeCount : "Not calculated",
+          amount: active.totalAmount !== undefined ? `₱${parseFloat(active.totalAmount).toLocaleString()}` : "Not calculated"
+        });
+
+        // Generate upcoming based on the LATEST period in the database
+        setUpcomingPeriods(generateUpcomingPeriods(data[0].endDate, 3));
+      } else {
+        setUpcomingPeriods(generateUpcomingPeriods(todayStr, 3));
+      }
+    } catch (error) {
+      console.error("Error fetching active period:", error);
+    }
+  };
+
   useEffect(() => {
     fetchPayrolls();
-    
-    const fetchActive = async () => {
-      try {
-        // 1. Get System Time (handles mock time)
-        const timeRes = await fetch("http://localhost:4000/api/system/time");
-        const { systemTime } = await timeRes.json();
-        const today = new Date(systemTime);
-        const todayStr = formatLocalISO(today);
-
-        // 2. Get all periods
-        const response = await fetch("http://localhost:4000/api/system/payroll-periods");
-        const data = await response.json();
-        
-        if (response.ok && data.length > 0) {
-          // Find the period that includes "today"
-          let active = data.find(p => todayStr >= p.startDate && todayStr <= p.endDate);
-          
-          // If no period includes today, take the most recent one
-          if (!active) active = data[0];
-
-          const [startY, startM, startD] = active.startDate.split('-').map(Number);
-          const [endY, endM, endD] = active.endDate.split('-').map(Number);
-          const startObj = new Date(startY, startM - 1, startD);
-          const endObj = new Date(endY, endM - 1, endD);
-          
-          setActivePeriod({
-            month: startObj.toLocaleString('en-US', { month: 'long' }),
-            year: startY,
-            periodText: `${startObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${endObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
-            startDate: active.startDate,
-            endDate: active.endDate,
-            status: "Draft",
-            employees: "Not calculated",
-            amount: "Not calculated"
-          });
-
-          // Generate upcoming based on the LATEST period in the database
-          setUpcomingPeriods(generateUpcomingPeriods(data[0].endDate, 3));
-        } else {
-          setUpcomingPeriods(generateUpcomingPeriods(todayStr, 3));
-        }
-      } catch (error) {
-        console.error("Error fetching active period:", error);
-      }
-    };
-
     fetchActive();
   }, []);
 
@@ -255,7 +258,7 @@ const Payroll = () => {
                   </div>
                   <div className="cardDetails">
                     <div className="detailRow"><label>Employees:</label><span>{activePeriod.employees}</span></div>
-                    <div className="detailRow"><label>Total Amount:</label><span>{activePeriod.amount}</span></div>
+                    <div className="detailRow"><label>Total Possible Pay:</label><span>{activePeriod.amount}</span></div>
                   </div>
                   <Link to="/payroll/payrollPeriod" style={{ textDecoration: "none" }}>
                     <button className="processBtn">
@@ -302,11 +305,32 @@ const Payroll = () => {
               <thead>
                 <tr>
                   <th>PERIOD</th><th>DATE RANGE</th><th>EMPLOYEES</th>
-                  <th>TOTAL AMOUNT</th><th>PROCESSED DATE</th><th>STATUS</th><th>ACTIONS</th>
+                  <th>TOTAL AMOUNT</th><th>STATUS</th><th>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
-                <tr><td colSpan="7" className="emptyState">No previous periods found</td></tr>
+                {allPeriods.filter(p => activePeriod && (p.startDate < activePeriod.startDate || p.employeeCount > 0)).length > 0 ? (
+                  allPeriods
+                    .filter(p => activePeriod && (p.startDate < activePeriod.startDate || p.employeeCount > 0))
+                    .map((p, index) => (
+                      <tr key={index}>
+                        <td>{p.label}</td>
+                        <td>{`${new Date(p.startDate).toLocaleDateString()} - ${new Date(p.endDate).toLocaleDateString()}`}</td>
+                        <td>{p.employeeCount || 0}</td>
+                        <td>₱{(parseFloat(p.totalAmount) || 0).toLocaleString()}</td>
+                        <td><span className="statusDraft">{p.status || "Draft"}</span></td>
+                        <td>
+                          <Link to="/payroll/payrollPeriod" style={{ textDecoration: "none" }}>
+                             <button className="viewBtn" style={{ background: "none", border: "none", color: "#6439ff", cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}>
+                               <VisibilityIcon style={{ fontSize: "18px" }} /> View
+                             </button>
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                ) : (
+                  <tr><td colSpan="6" className="emptyState">No previous periods found</td></tr>
+                )}
               </tbody>
             </table>
           </div>

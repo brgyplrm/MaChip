@@ -169,6 +169,14 @@ exports.generatePayroll = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    // Find the corresponding PayrollPeriod ID
+    const periodRow = await sequelize.query(
+        `SELECT "periodId" FROM "PayrollPeriod" 
+         WHERE "startDate" = :period_Start AND "endDate" = :period_End LIMIT 1`,
+        { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+      );
+    const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
+
     // If frontend didn't send calculations, compute them (fallback)
     let finalStats = { 
         NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDeductions, netPay,
@@ -218,17 +226,19 @@ exports.generatePayroll = async (req, res) => {
 
     const payrollResult = await sequelize.query(
       `INSERT INTO "Payroll"
-        ("user_Id", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
+        ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
          "dailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
          "status", "createdAt", "updatedAt")
        VALUES
-        (:user_Id, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
+        (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
          :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDeductions, :netPay,
          1, :now, :now)
        RETURNING *`,
       {
         replacements: {
-          user_Id, period_Start, period_End, 
+          user_Id, 
+          periodId,
+          period_Start, period_End, 
           NoDays_Worked: finalStats.NoDays_Worked, 
           NoHrs_Worked: finalStats.NoHrs_Worked,
           dailyRate: dailyRate || 0, 
@@ -243,7 +253,7 @@ exports.generatePayroll = async (req, res) => {
       },
     );
 
-    const payrollId = payrollResult[0][0].payrollId;
+    const payrollId = payrollResult[0][0]?.payrollId || payrollResult[0].payrollId || payrollResult[0][0];
 
     await sequelize.query(
       `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt")
@@ -279,6 +289,7 @@ exports.generatePayroll = async (req, res) => {
 // ── Generate Batch Payroll ──────────────────────────────────────────────────
 exports.generateBatchPayroll = async (req, res) => {
   const { period_Start, period_End } = req.body;
+  console.log(`[DEBUG] generateBatchPayroll: start=${period_Start}, end=${period_End}`);
 
   if (!period_Start || !period_End) {
     return res.status(400).json({ error: "period_Start and period_End are required." });
@@ -288,29 +299,51 @@ exports.generateBatchPayroll = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    // 0. Find the corresponding PayrollPeriod ID
+    const periodRow = await sequelize.query(
+      `SELECT "periodId" FROM "PayrollPeriod" 
+       WHERE "startDate" = :period_Start AND "endDate" = :period_End LIMIT 1`,
+      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+    const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
+    console.log(`[DEBUG] Found periodId: ${periodId}`);
+
     // 1. Get all active employees (not deleted and have a dailyRate > 0)
     const employees = await sequelize.query(
-      `SELECT "user_Id", "dailyRate" FROM "User" 
+      `SELECT "user_Id", "user_FirstName", "dailyRate" FROM "User" 
        WHERE "deletedAt" IS NULL AND "dailyRate" > 0`,
       { type: QueryTypes.SELECT }
     );
+    console.log(`[DEBUG] Found eligible employees: ${employees.length}`);
 
     let processedCount = 0;
     let skippedCount = 0;
 
     for (const emp of employees) {
       // 2. Check if payroll already exists for this user and period
+      // We check by period dates AND periodId if available
       const existing = await sequelize.query(
         `SELECT "payrollId" FROM "Payroll" 
-         WHERE "user_Id" = :user_Id AND "period_Start" = :period_Start AND "period_End" = :period_End`,
-        { replacements: { user_Id: emp.user_Id, period_Start, period_End }, type: QueryTypes.SELECT }
+         WHERE "user_Id" = :user_Id 
+         AND (("period_Start" = :period_Start AND "period_End" = :period_End) OR ("periodId" = :periodId))`,
+        { 
+          replacements: { 
+            user_Id: emp.user_Id, 
+            period_Start, 
+            period_End,
+            periodId: periodId || -1 // avoid null comparison issues
+          }, 
+          type: QueryTypes.SELECT 
+        }
       );
 
       if (existing.length > 0) {
+        console.log(`[DEBUG] Skipping user ${emp.user_FirstName} (${emp.user_Id}) - payroll exists.`);
         skippedCount++;
         continue;
       }
 
+      console.log(`[DEBUG] Processing user ${emp.user_FirstName} (${emp.user_Id})...`);
       // 3. Compute stats
       const stats = await computePeriodStats(emp.user_Id, period_Start, period_End);
       const dailyRate = emp.dailyRate;
@@ -333,17 +366,19 @@ exports.generateBatchPayroll = async (req, res) => {
       // 4. Insert into Payroll
       const payrollResult = await sequelize.query(
         `INSERT INTO "Payroll"
-          ("user_Id", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
+          ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
            "dailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
            "status", "createdAt", "updatedAt")
          VALUES
-          (:user_Id, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
+          (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
            :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDeductions, :netPay,
            1, :now, :now)
          RETURNING "payrollId"`,
         {
           replacements: {
-            user_Id: emp.user_Id, period_Start, period_End,
+            user_Id: emp.user_Id, 
+            periodId,
+            period_Start, period_End,
             NoDays_Worked: calculated_NoDays,
             NoHrs_Worked: calculated_NoHrs,
             dailyRate, ratePerHr,
@@ -357,7 +392,22 @@ exports.generateBatchPayroll = async (req, res) => {
         }
       );
 
-      const payrollId = payrollResult[0][0].payrollId;
+      // Handle different return formats from INSERT ... RETURNING in different environments
+      let payrollId;
+      if (Array.isArray(payrollResult) && payrollResult[0]) {
+          if (Array.isArray(payrollResult[0]) && payrollResult[0][0]) {
+              payrollId = payrollResult[0][0].payrollId || payrollResult[0][0];
+          } else {
+              payrollId = payrollResult[0].payrollId || payrollResult[0];
+          }
+      }
+      
+      if (!payrollId) {
+          console.error(`[ERROR] Failed to get payrollId for user ${emp.user_Id}`);
+          throw new Error(`Failed to generate payrollId for user ${emp.user_Id}`);
+      }
+
+      console.log(`[DEBUG] Generated payrollId: ${payrollId}`);
 
       // 5. Insert Earnings & Deductions
       await sequelize.query(
@@ -395,6 +445,7 @@ exports.generateBatchPayroll = async (req, res) => {
       skipped: skippedCount
     });
   } catch (error) {
+    console.error("[ERROR] generateBatchPayroll:", error);
     res.status(500).json({ error: error.message });
   }
 };

@@ -1,4 +1,4 @@
-const { SystemSettings, Holiday, PayrollPeriod } = require("../config/sequelize.js");
+const { sequelize, SystemSettings, Holiday, PayrollPeriod } = require("../config/sequelize.js");
 const { getSystemTime } = require("../utils/systemTime.js");
 const { QueryTypes } = require("sequelize");
 const { syncHolidaysService } = require('../utils/holidaySyncService');
@@ -75,7 +75,32 @@ exports.createPayrollPeriod = async (req, res) => {
 
 exports.getPayrollPeriods = async (req, res) => {
     try {
-        const periods = await PayrollPeriod.findAll({ order: [['startDate', 'DESC']] });
+        const periods = await sequelize.query(
+            `SELECT 
+                pp."periodId",
+                pp."startDate",
+                pp."endDate",
+                pp."label",
+                pp."status",
+                -- If Draft, show eligible employees. If not, show processed count.
+                (CASE 
+                    WHEN pp."status" = 'Draft' THEN (SELECT COUNT(*)::int FROM "User" WHERE "deletedAt" IS NULL AND "dailyRate" > 0)
+                    ELSE (SELECT COUNT(*)::int FROM "Payroll" p2 WHERE p2."periodId" = pp."periodId")
+                END) AS "employeeCount",
+                -- If Draft, show potential total (Daily Rate * Work Days). If not, show actual total.
+                (CASE 
+                    WHEN pp."status" = 'Draft' THEN (
+                        COALESCE((SELECT SUM("dailyRate") FROM "User" WHERE "deletedAt" IS NULL AND "dailyRate" > 0), 0) * 
+                        (SELECT COUNT(*)::int FROM (
+                            SELECT generate_series(pp."startDate"::date, pp."endDate"::date, '1 day'::interval) AS d
+                        ) days WHERE extract(dow from d) <> 0)
+                    )
+                    ELSE COALESCE((SELECT SUM("netPay") FROM "Payroll" p3 WHERE p3."periodId" = pp."periodId"), 0)
+                END) AS "totalAmount"
+             FROM "PayrollPeriod" pp
+             ORDER BY pp."startDate" DESC`,
+            { type: QueryTypes.SELECT }
+        );
         res.status(200).json(periods);
     } catch (error) {
         console.error("[ERROR] getPayrollPeriods:", error);

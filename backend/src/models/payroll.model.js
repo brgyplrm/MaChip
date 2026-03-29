@@ -100,6 +100,12 @@ module.exports = (sequelize, DataTypes) => {
 
   Payroll_Earnings.belongsTo(Payroll, { foreignKey: "payrollId" });
   Payroll_Deductions.belongsTo(Payroll, { foreignKey: "payrollId" });
+  
+  Payroll.belongsTo(PayrollPeriod, { foreignKey: "periodId" });
+  PayrollPeriod.hasMany(Payroll, { foreignKey: "periodId" });
+  
+  Payroll.belongsTo(Payroll_status, { foreignKey: "status", targetKey: "PaystatusId", as: "payrollStatus" });
+  Payroll_status.hasMany(Payroll, { foreignKey: "status", sourceKey: "PaystatusId" });
 
   return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod };
 };

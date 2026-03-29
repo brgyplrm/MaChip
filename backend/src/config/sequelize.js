@@ -85,6 +85,22 @@ employee_Logging_report.belongsTo(User, {
   as: "user",
 });
 
+// User ↔ Payroll
+User.hasMany(Payroll, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Payroll.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
+// User ↔ Notification
+User.hasMany(Notification, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Notification.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
+// User ↔ User Request
+User.hasMany(emp_Request, { foreignKey: "user_Id", sourceKey: "user_Id" });
+emp_Request.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
+// User ↔ Leave Balance
+User.hasMany(Leave_Balance, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Leave_Balance.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
 // ── connectDB ─────────────────────────────────────────────────────────────────
 const connectDB = async () => {
   try {
