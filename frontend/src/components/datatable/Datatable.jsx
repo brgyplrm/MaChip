@@ -1,6 +1,6 @@
 import "./datatable.scss";
 import { DataGrid } from "@mui/x-data-grid";
-import { userColumns } from "../../datatablesource";
+import { userColumns } from "../../utils/datatableSource";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import Toast from "../../components/toast/Toast";

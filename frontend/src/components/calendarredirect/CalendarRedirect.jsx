@@ -1,5 +1,5 @@
-import CalendarManagement from "../pages/admin_Calendar/calendarManagement";
-import EmployeeCalendar from "../pages/emp_Calendar/employeeCalendar";
+import CalendarManagement from "../../pages/admin_Calendar/CalendarManagement";
+import EmployeeCalendar from "../../pages/emp_Calendar/EmployeeCalendar";
 
 const CalendarRedirect = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));

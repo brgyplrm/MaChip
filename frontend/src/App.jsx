@@ -7,23 +7,23 @@ import Single from "./pages/single/Single";
 import New from "./pages/new/New";
 import Edit from "./pages/editUser/Edit";
 import Logs from "./pages/logs-management/Logs";
-import AdminRequests from "./pages/admin_Requests/adminRequests";
-import RequestDetails from "./pages/request_Details/requestDetails";
-import Payroll from "./pages/admin_Payroll/payroll_Management";
-import PayrollPeriod from "./pages/admin_Payroll/payroll_Period";
-import PayrollDetails from "./pages/admin_Payroll/details_Payroll";
-import PayrollList from "./pages/admin_Payroll/payroll_EmployeeList";
-import EmployeeCalendar from "./pages/emp_Calendar/employeeCalendar"; 
+import AdminRequests from "./pages/admin_Requests/AdminRequests";
+import RequestDetails from "./pages/request_Details/RequestDetails";
+import Payroll from "./pages/admin_Payroll/PayrollManagement";
+import PayrollPeriod from "./pages/admin_Payroll/PayrollPeriod";
+import PayrollDetails from "./pages/admin_Payroll/DetailsPayroll";
+import PayrollList from "./pages/admin_Payroll/PayrollEmployeeList";
+import EmployeeCalendar from "./pages/emp_Calendar/EmployeeCalendar"; 
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
 import Settings from "./pages/settings/Settings";
 import Logout from "./pages/logout/Logout";
 import { Routes, Route } from "react-router-dom";
-import { userInputs } from "./formSource";
+import { userInputs } from "./utils/formSource";
 import ProtectedRoute from "./components/protectedroute/ProtectedRoute";
-import CalendarRedirect from "./components/CalendarRedirect";
-import AdminReports from "./pages/admin_reports/adminReports";
-import Payslip from "./pages/admin_reports/payslip";
+import CalendarRedirect from "./components/calendarredirect/CalendarRedirect";
+import AdminReports from "./pages/admin_reports/AdminReports";
+import Payslip from "./pages/admin_reports/Payslip";
 
 function App() {
   return (

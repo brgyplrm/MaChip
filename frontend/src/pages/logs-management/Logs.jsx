@@ -2,7 +2,7 @@ import "./logs.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import { DataGrid } from "@mui/x-data-grid";
-import { logColumns } from "../../logSource";
+import { logColumns } from "../../utils/logSource";
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import Toast from "../../components/toast/Toast";

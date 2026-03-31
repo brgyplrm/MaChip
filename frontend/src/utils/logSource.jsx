@@ -1,4 +1,4 @@
-import { formatUserId } from "./utils/formatUserId";
+import { formatUserId } from "./formatUserId";
 
 export const logColumns = [
   {

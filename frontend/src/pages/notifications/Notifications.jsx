@@ -2,7 +2,7 @@ import "./notifications.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import { DataGrid } from "@mui/x-data-grid";
-import { notificationColumns } from "../../notificationSource";
+import { notificationColumns } from "../../utils/notificationSource";
 import { useState, useEffect } from "react";
 
 const Notifications = () => {
