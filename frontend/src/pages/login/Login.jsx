@@ -2,6 +2,7 @@ import "./login.scss";
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
+import { Link } from "react-router-dom";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -174,6 +175,9 @@ const Login = () => {
             {errors.password && (
               <span className="fieldError">{errors.password}</span>
             )}
+            <div className="forgotPasswordContainer">
+              <Link to="/forgot-password">Forgot Password?</Link>
+            </div>
           </div>
 
           <button type="submit" disabled={loading}>

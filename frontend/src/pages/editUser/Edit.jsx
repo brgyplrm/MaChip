@@ -14,6 +14,7 @@ import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUpload
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[a-zA-Z\s]+$/;
 
+
 const validateForm = (formData) => {
   const errors = {};
 
@@ -210,126 +211,133 @@ const Edit = ({ inputs, title }) => {
     }
   };
 
-  return (
-    <div className="new">
-      {/* ── Toast ── */}
-      <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
-
-      <Sidebar />
-      <div className="newContainer">
-        <Navbar />
-        <div className="top">
-          <h1>
-            {title} ({formatUserId(userId)})
-          </h1>
+ return (
+  <div className="new"> {/* Reusing the 'new' class for layout consistency */}
+    <Sidebar />
+    <div className="newContainer">
+      <Navbar />
+      <div className="top">
+        <h1>{title} (ID: {userId})</h1>
+      </div>
+      <div className="bottom">
+        {/* Left Side: Profile Picture Preview */}
+        <div className="left">
+          <img
+            src={
+              file
+                ? URL.createObjectURL(file)
+                : formData.user_ProfilePic 
+                  ? `http://localhost:4000/uploads/${formData.user_ProfilePic}` 
+                  : "/avatar.webp"
+            }
+            alt="Profile"
+          />
+          <div className="fileInput">
+            <label htmlFor="file">
+              Edit Image: <DriveFolderUploadOutlinedIcon className="icon" />
+            </label>
+            <input
+              type="file"
+              id="file"
+              onChange={(e) => setFile(e.target.files[0])}
+              style={{ display: "none" }}
+            />
+          </div>
         </div>
 
-        <div className="bottom">
-          <div className="left">
-            <img 
-              src={file ? URL.createObjectURL(file) : displayPic || "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"} 
-              alt="Profile" 
-            />
-            <div className="fileInput">
-              <label htmlFor="file">Update Photo <DriveFolderUploadOutlinedIcon /></label>
-              <input 
-                type="file" 
-                id="file" 
-                accept="image/png, image/jpeg, image/jpg"
-                onChange={(e) => setFile(e.target.files[0])} 
-                style={{ display: "none" }} 
-              />
+        {/* Right Side: Form Inputs */}
+        <div className="right">
+          <form onSubmit={handleUpdate}>
+            <div className="fullNameSection">
+            <label>
+              Full Name <span className="requiredMark">*</span>
+            </label>
+            <div className="nameInputsRow">
+              <div className="nameGroup">
+                <input
+                  type="text"
+                  id="user_FirstName"
+                  placeholder="First Name"
+                  value={formData.user_FirstName || ""}
+                  onChange={handleInput}
+                />
+                {errors.user_FirstName && <span className="error">{errors.user_FirstName}</span>}
+              </div>
+              {/* ADDED: Middle Name Column */}
+              <div className="nameGroup">
+                <input
+                  type="text"
+                  id="user_MiddleName"
+                  placeholder="Middle Name"
+                  value={formData.user_MiddleName || ""}
+                  onChange={handleInput}
+                />
+              </div>
+              <div className="nameGroup">
+                <input
+                  type="text"
+                  id="user_LastName"
+                  placeholder="Last Name"
+                  value={formData.user_LastName || ""}
+                  onChange={handleInput}
+                />
+                {errors.user_LastName && <span className="error">{errors.user_LastName}</span>}
+              </div>
             </div>
           </div>
-          <div className="right">
-            <form onSubmit={handleUpdate} noValidate>
-              {inputs.map((input) => (
-                <div
-                  className={`formInput${errors[input.id] ? " formInput--error" : ""}`}
-                  key={input.id}
-                >
-                  <label htmlFor={input.id}>
-                    {input.label}
-                    {/* Required indicator — skip for optional fields */}
-                    {input.id !== "user_MiddleName" &&
-                      input.label !== "User ID" && (
-                        <span className="requiredMark"> *</span>
-                      )}
-                    {/* Password is optional on edit */}
-                    {input.id === "user_Password" && (
-                      <span className="optionalMark"> (optional)</span>
-                    )}
-                  </label>
-
-                  <div className="inputActionWrapper">
+            {inputs.map((input) => (
+            <div className="formInput" key={input.id}>
+              <label>{input.label}</label>
+              <div className="inputActionWrapper">
+                {/* Logic for Employment Status Dropdown */}
+                {input.type === "select" ? (
+                  <select 
+                    id={input.id} 
+                    value={formData[input.id] || ""} 
+                    onChange={handleInput}
+                  >
+                    <option value="" disabled>Select {input.label}</option>
+                    <option value="Employee">Employee</option>
+                  </select>
+                ) : (
+                  /* Logic for Password with Eye Icon */
+                  <>
                     <input
                       id={input.id}
-                      type={
-                        input.id === "user_Password" && showPassword
-                          ? "text"
-                          : input.type
-                      }
+                      type={input.id === "user_Password" && showPassword ? "text" : input.type}
                       placeholder={input.placeholder}
-                      value={
-                        input.id === "user_Id"
-                          ? formatUserId(formData[input.id])
-                          : formData[input.id] || ""
-                      }
+                      value={formData[input.id] || ""}
                       onChange={handleInput}
-                      readOnly={
-                        input.label === "User ID" || input.label === "MaChip ID"
-                      }
-                      autoComplete={
-                        input.id === "user_Password" ? "new-password" : "off"
-                      }
+                      readOnly={input.label === "User ID" || input.label === "MaChip ID"}
                     />
-
-                    {/* Password visibility toggle */}
                     {input.id === "user_Password" && (
-                      <button
-                        type="button"
-                        className="visibilityToggle"
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        aria-label={
-                          showPassword ? "Hide password" : "Show password"
-                        }
-                      >
-                        {showPassword ? (
-                          <VisibilityOffIcon fontSize="small" />
-                        ) : (
-                          <VisibilityIcon fontSize="small" />
-                        )}
-                      </button>
+                      <div className="eyeIcon" onClick={() => setShowPassword(!showPassword)}>
+                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                      </div>
                     )}
+                  </>
+                )}
 
-                    {/* Re-scan button for MaChip ID */}
-                    {input.label === "MaChip ID" && (
-                      <button
-                        type="button"
-                        className="scanButton"
-                        onClick={handleScanRFID}
-                      >
-                        RE-SCAN
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Inline field error message */}
-                  {errors[input.id] && (
-                    <span className="fieldError">{errors[input.id]}</span>
-                  )}
-                </div>
-              ))}
-
-              <button className="submitButton" type="submit">
-                Update Profile
-              </button>
-            </form>
-          </div>
+                {input.label === "MaChip ID" && (
+                  <button type="button" className="scanBtn" onClick={handleScanRFID}>
+                    RE-SCAN
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          </form>
         </div>
       </div>
+      {/* Bottom Center: Action Button */}
+      <div className="bottom-center">
+        <button className="submitButton" onClick={handleUpdate}>
+          Update Profile
+        </button>
+      </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default Edit;

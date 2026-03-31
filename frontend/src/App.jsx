@@ -2,6 +2,7 @@ import Home from "./pages/home/Home";
 import EmployeeHome from "./pages/employeeHome/EmployeeHome";
 import UserRequests from "./pages/userRequests/UserRequests"; 
 import Login from "./pages/login/Login";
+import ForgotPassword from "./pages/forgotPassword/ForgotPassword";
 import List from "./pages/list/List";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
@@ -25,11 +26,13 @@ import CalendarRedirect from "./components/calendarredirect/CalendarRedirect";
 import AdminReports from "./pages/admin_reports/AdminReports";
 import Payslip from "./pages/admin_reports/Payslip";
 
+
 function App() {
   return (
     <div className="app">
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="forgot-password" element={<ForgotPassword />} />
 
         <Route
           path="/employeeHome"
