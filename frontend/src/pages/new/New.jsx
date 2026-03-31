@@ -146,19 +146,48 @@ const New = ({ inputs, title }) => {
         <Navbar />
         <div className="top"><h1>{title}</h1></div>
         <div className="bottom">
-          <div className="left">
-            <img src={file ? URL.createObjectURL(file) : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"} alt="" />
-            <div className="fileInput">
-              <label htmlFor="file">Upload Photo <DriveFolderUploadOutlinedIcon /></label>
-              <input 
-                type="file" 
-                id="file" 
-                accept="image/png, image/jpeg, image/jpg"
-                onChange={(e) => setFile(e.target.files[0])} 
-                style={{ display: "none" }} 
+          <div className="leftIdentity">
+            <div className="imageContainer">
+              <img
+                src={
+                  file
+                    ? URL.createObjectURL(file)
+                    : formData.user_ProfilePic
+                      ? `http://localhost:4000/uploads/${formData.user_ProfilePic}`
+                      : "/avatar.webp"
+                }
+                alt="Profile Preview"
               />
+              <div className="fileInput">
+                <label htmlFor="file">
+                  <DriveFolderUploadOutlinedIcon className="icon" /> <div className="fileInput-label">Image Upload</div>
+                </label>
+                <input
+                  type="file"
+                  id="file"
+                  onChange={(e) => setFile(e.target.files[0])}
+                  style={{ display: "none" }}
+                />
+              </div>
             </div>
+
+            {/* Real-time Name Display */}
+            <h1 className="userName">
+              {formData.user_FirstName || "First"} {formData.user_LastName || "Last"}
+            </h1>
+
+            {/* Real-time Role Display */}
+            <span className="userRole">
+              {formData.user_Role || "Select Role"}
+            </span>
+
+            {/* Real-time Employment Status Badge */}
+            <div className={`statusBadge ${formData.user_EmploymentStatus?.toLowerCase().replace(" ", "") || "regular"}`}>
+              {formData.user_EmploymentStatus || "Regular"}
             </div>
+          </div>
+
+            
             <div className="right">
             <form onSubmit={handleSubmit}>
               <div className="fullNameSection">
@@ -183,8 +212,26 @@ const New = ({ inputs, title }) => {
                   <label>{input.label}</label>
                   <div className="inputActionWrapper">
                     {input.type === "select" ? (
-                      <select id={input.id} value={formData[input.id]} onChange={handleInput}>
-                        {input.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      <select 
+                        id={input.id} 
+                        value={formData[input.id] || ""} 
+                        onChange={handleInput}
+                      >
+                        <option value="" disabled>Select {input.label}</option>
+                        {/* If you updated formSource, use input.options.map here */}
+                        {input.id === "user_EmploymentStatus" && (
+                          <>
+                            <option value="Regular">Regular</option>
+                            <option value="Part-time">Part-time</option>
+                            <option value="Intern / OJT">Intern / OJT</option>
+                          </>
+                        )}
+                        {input.id === "user_Role" && (
+                          <>
+                            <option value="Employee">Employee</option>
+                            <option value="Admin">Admin</option>
+                          </>
+                        )}
                       </select>
                     ) : (
                       <input
@@ -194,6 +241,7 @@ const New = ({ inputs, title }) => {
                       />
                     )}
                     {input.label === "MaChip ID" && <button type="button" className="scanBtn" onClick={handleScanRFID}>SCAN</button>}
+
                   </div>
                 </div>
               ))}

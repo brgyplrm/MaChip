@@ -221,29 +221,47 @@ const Edit = ({ inputs, title }) => {
       </div>
       <div className="bottom">
         {/* Left Side: Profile Picture Preview */}
-        <div className="left">
-          <img
-            src={
-              file
-                ? URL.createObjectURL(file)
-                : formData.user_ProfilePic 
-                  ? `http://localhost:4000/uploads/${formData.user_ProfilePic}` 
-                  : "/avatar.webp"
-            }
-            alt="Profile"
-          />
-          <div className="fileInput">
-            <label htmlFor="file">
-              Edit Image: <DriveFolderUploadOutlinedIcon className="icon" />
-            </label>
-            <input
-              type="file"
-              id="file"
-              onChange={(e) => setFile(e.target.files[0])}
-              style={{ display: "none" }}
-            />
+
+        <div className="leftIdentity">
+            <div className="imageContainer">
+              <img
+                src={
+                  file
+                    ? URL.createObjectURL(file)
+                    : formData.user_ProfilePic
+                      ? `http://localhost:4000/uploads/${formData.user_ProfilePic}`
+                      : "/avatar.webp"
+                }
+                alt="Profile Preview"
+              />
+              <div className="fileInput">
+                <label htmlFor="file">
+                  <DriveFolderUploadOutlinedIcon className="icon" /> <div className="fileInput-label">Edit Image:</div>
+                </label>
+                <input
+                  type="file"
+                  id="file"
+                  onChange={(e) => setFile(e.target.files[0])}
+                  style={{ display: "none" }}
+                />
+              </div>
+            </div>
+
+            {/* Real-time Name Display */}
+            <h1 className="userName">
+              {formData.user_FirstName || "First"} {formData.user_LastName || "Last"}
+            </h1>
+
+            {/* Real-time Role Display */}
+            <span className="userRole">
+              {formData.user_Role || "Select Role"}
+            </span>
+
+            {/* Real-time Employment Status Badge */}
+            <div className={`statusBadge ${formData.user_EmploymentStatus?.toLowerCase().replace(" ", "") || "regular"}`}>
+              {formData.user_EmploymentStatus || "Regular"}
+            </div>
           </div>
-        </div>
 
         {/* Right Side: Form Inputs */}
         <div className="right">
@@ -296,8 +314,21 @@ const Edit = ({ inputs, title }) => {
                     value={formData[input.id] || ""} 
                     onChange={handleInput}
                   >
-                    <option value="" disabled>Select {input.label}</option>
-                    <option value="Employee">Employee</option>
+                   <option value="" disabled>Select {input.label}</option>
+                        {/* If you updated formSource, use input.options.map here */}
+                        {input.id === "user_EmploymentStatus" && (
+                          <>
+                            <option value="Regular">Regular</option>
+                            <option value="Part-time">Part-time</option>
+                            <option value="Intern / OJT">Intern / OJT</option>
+                          </>
+                        )}
+                        {input.id === "user_Role" && (
+                          <>
+                            <option value="Employee">Employee</option>
+                            <option value="Admin">Admin</option>
+                          </>
+                        )}
                   </select>
                 ) : (
                   /* Logic for Password with Eye Icon */

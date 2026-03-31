@@ -8,8 +8,44 @@
     }
     .bottom {
       display: flex; padding: 20px; margin: 20px; background: white; border-radius: 10px; box-shadow: 0px 0px 15px -10px rgba(0,0,0,0.75);
-      .left {
-        flex: 1; display: flex; flex-direction: column; align-items: center; border-right: 1px solid #eee;
+      .leftIdentity {
+        flex: 1;
+        background-color: #fafbfc;
+        border-right: 1px solid #eee;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px 20px;
+
+        .userName {
+          font-size: 22px;
+          color: #2A174E; // Your system's primary purple
+          margin: 15px 0 5px;
+          text-align: center;
+          text-transform: capitalize;
+        }
+
+        .userRole {
+          color: #888;
+          font-size: 14px;
+          margin-bottom: 20px;
+          font-weight: 500;
+        }
+
+        .statusBadge {
+          padding: 6px 16px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 700;
+          text-transform: uppercase;
+          background-color: #e2e8f0; // Default gray
+          color: #4a5568;
+
+          &.regular { background-color: #def7ec; color: #03543f; } // Green for Regular
+          &.part-time { background-color: #e1effe; color: #1e429f; } // Blue for Part-time
+          &.intern, &.ojt { background-color: #fef3c7; color: #92400e; } // Amber for Intern
+        }
+
         img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; border: 2px solid #2a174e; }
         .fileInput label { cursor: pointer; color: #2a174e; font-weight: 600; display: flex; align-items: center; gap: 5px; }
       }
@@ -17,13 +53,13 @@
         flex: 3; padding-left: 30px;
         form { display: flex; flex-wrap: wrap; gap: 20px;
           .fullNameSection {
-            width: 40%;
+            width: 45%;
             label { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 10px; display: block; .requiredMark { color: #c0392b; } }
             .nameInputsRow {
               display: flex; gap: 30px;
               .nameGroup {
                 flex: 1; input { width: 100%; padding: 10px; border: 1.5px solid #ccc; border-radius: 5px; outline: none; &:focus { border-color: #2a174e; } }
-                .error { font-size: 10px; color: #c0392b; }
+                .error { font-size: 10px; color: #c0392b; } 
               }
             }
           }
@@ -31,7 +67,7 @@
             width: 45%; display: flex; flex-direction: column; gap: 5px;
             label { font-size: 13px; font-weight: 600; color: #555; }
             .inputActionWrapper {
-              display: flex; border-bottom: 1px solid gray;
+              display: flex; gap: 10px;
               input, select { border: none; outline: none; width: 100%; padding: 5px; background: transparent; }
               .scanBtn { background: #2a174e; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 10px; }
             }

@@ -9,7 +9,13 @@ export const userInputs = [
     id: "user_EmploymentStatus",
     label: "Employment Status",
     type: "select",
-    options: ["Employee"],
+    options: ["Regular", "Part-time", "Intern / OJT"], // Updated values
+  },
+  {
+    id: "user_Role", // New ID for Role Status
+    label: "Role Status",
+    type: "select",
+    options: ["Employee", "Admin"], // New values
   },
   {
     id: "user_Email",
