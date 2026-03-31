@@ -18,9 +18,11 @@ import { exportBatchToZip } from "../../utils/payrollExport";
 
 const PayrollPeriod = () => {
   const [payrolls, setPayrolls] = useState([]);
+  const [periods, setPeriods] = useState([]);
+  const [selectedPeriodIdx, setSelectedPeriodIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [currentPeriod, setCurrentPeriod] = useState("Loading...");
+  const [currentPeriodLabel, setCurrentPeriodLabel] = useState("Loading...");
   const [periodDates, setPeriodDates] = useState({ start: null, end: null });
   const [stats, setStats] = useState({
     totalNetPay: 0,
@@ -28,42 +30,38 @@ const PayrollPeriod = () => {
     totalDeductions: 0
   });
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [systemToday, setSystemToday] = useState("");
 
-  const fetchActivePeriod = async () => {
+  const fetchPeriodsList = async () => {
     try {
-      // 1. Get System Time
       const timeRes = await fetch("http://localhost:4000/api/system/time");
       const { systemTime } = await timeRes.json();
       const today = new Date(systemTime);
       const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+      setSystemToday(todayStr);
 
-      // 2. Get All Periods
       const response = await fetch("http://localhost:4000/api/system/payroll-periods");
       const data = await response.json();
       
       if (response.ok && data.length > 0) {
-        // Find the period that includes "today"
-        let active = data.find(p => todayStr >= p.startDate && todayStr <= p.endDate);
-        
-        // If no period includes today, take the most recent one (data[0] is latest by startDate DESC)
-        if (!active) active = data[0];
-        
-        // Parse manually to avoid timezone shifts
-        const [startY, startM, startD] = active.startDate.split('-').map(Number);
-        const [endY, endM, endD] = active.endDate.split('-').map(Number);
-        
-        // Create a local date for the month name only
-        const startObj = new Date(startY, startM - 1, startD);
-        const month = startObj.toLocaleString('en-US', { month: 'long' });
-
-        setCurrentPeriod(`${month} ${startD}-${endD}, ${startY}`);
-        setPeriodDates({ start: active.startDate, end: active.endDate });
-        return active;
+        setPeriods(data);
+        return data;
       }
     } catch (error) {
-      console.error("Error fetching active period:", error);
+      console.error("Error fetching periods:", error);
     }
-    return null;
+    return [];
+  };
+
+  const setPeriodDisplay = (active) => {
+    if (!active) return;
+    const [startY, startM, startD] = active.startDate.split('-').map(Number);
+    const [endY, endM, endD] = active.endDate.split('-').map(Number);
+    const startObj = new Date(startY, startM - 1, startD);
+    const month = startObj.toLocaleString('en-US', { month: 'long' });
+
+    setCurrentPeriodLabel(`${month} ${startD}-${endD}, ${startY}`);
+    setPeriodDates({ start: active.startDate, end: active.endDate });
   };
 
   const fetchLivePayrolls = async (period) => {
@@ -135,13 +133,32 @@ const PayrollPeriod = () => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     
-    const active = await fetchActivePeriod();
-    if (active) {
-      await fetchLivePayrolls(active);
+    const list = await fetchPeriodsList();
+    if (list.length > 0) {
+      const selected = list[selectedPeriodIdx];
+      setPeriodDisplay(selected);
+      
+      // Check if this period already has processed payrolls in the DB
+      const checkRes = await fetch(`http://localhost:4000/api/payroll/all?start=${selected.startDate}&end=${selected.endDate}`);
+      const checkData = await checkRes.json();
+      
+      if (Array.isArray(checkData) && checkData.length > 0) {
+        // Show saved data
+        setPayrolls(checkData);
+        const net = checkData.reduce((acc, p) => acc + parseFloat(p.netPay || 0), 0);
+        const earn = checkData.reduce((acc, p) => acc + parseFloat(p.totalEarnings || 0), 0);
+        const ded = checkData.reduce((acc, p) => acc + parseFloat(p.totalDeductions || 0), 0);
+        setStats({ totalNetPay: net, totalEarnings: earn, totalDeductions: ded });
+        setLoading(false);
+        setRefreshing(false);
+      } else {
+        // Show live preview
+        await fetchLivePayrolls(selected);
+      }
     } else {
       setLoading(false);
       setRefreshing(false);
-      setCurrentPeriod("No Active Period");
+      setCurrentPeriodLabel("No Active Period");
     }
   };
 
@@ -181,7 +198,7 @@ const PayrollPeriod = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [selectedPeriodIdx]);
 
   return (
     <div className="payroll">
@@ -191,11 +208,16 @@ const PayrollPeriod = () => {
         <div className="wrapper">
           <div className="header">
             <div className="text">
-              <h1>Payroll Period ({currentPeriod})</h1>
+              <h1>Payroll Period ({currentPeriodLabel}) {selectedPeriodIdx === 0 ? "(Current)" : "(Previous)"}</h1>
               <span>Manage employee payroll and compensation</span>
             </div>
             <div className="headerActions">
-              <button className={`actionBtn processBtn`} onClick={() => setIsConfirmOpen(true)}>
+              <button 
+                className={`actionBtn processBtn ${ (selectedPeriodIdx !== 0 || periodDates.end < systemToday) ? "disabled" : ""}`} 
+                onClick={() => setIsConfirmOpen(true)}
+                disabled={selectedPeriodIdx !== 0 || periodDates.end < systemToday}
+                title={selectedPeriodIdx !== 0 ? "Only the current period can be batch processed." : (periodDates.end < systemToday ? "This period is over." : "")}
+              >
                 <GroupsOutlinedIcon /> Process Batch
               </button>
               <button
@@ -213,21 +235,21 @@ const PayrollPeriod = () => {
               <div className="left">
                 <div className="icon net"><span className="symbol">₱</span></div>
                 <span className="title">Total Net Pay</span>
-                <span className="amount">₱{stats.totalNetPay.toLocaleString()}</span>
+                <span className="amount">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
               </div>
             </div>
             <div className="statCard">
               <div className="left">
                 <div className="icon earnings"><span className="symbol">📈</span></div>
                 <span className="title">Total Earnings</span>
-                <span className="amount">₱{stats.totalEarnings.toLocaleString()}</span>
+                <span className="amount">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
               </div>
             </div>
             <div className="statCard">
               <div className="left">
                 <div className="icon deductions"><span className="symbol">📉</span></div>
                 <span className="title">Total Deductions</span>
-                <span className="amount">₱{stats.totalDeductions.toLocaleString()}</span>
+                <span className="amount">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
               </div>
             </div>
           </div>
@@ -239,10 +261,12 @@ const PayrollPeriod = () => {
             </div>
             <div className="select">
               <CalendarTodayIcon className="icon" />
-              <select>
-                <option>All Periods</option>
-                <option>Current Period</option>
-                <option>Last Period</option>
+              <select value={selectedPeriodIdx} onChange={(e) => setSelectedPeriodIdx(parseInt(e.target.value))}>
+                {periods.map((p, idx) => (
+                  <option key={p.periodId} value={idx}>
+                    {p.startDate} to {p.endDate} {idx === 0 ? "(Latest)" : ""}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="select">
@@ -282,13 +306,13 @@ const PayrollPeriod = () => {
                       </td>
                       <td>{p.period_Start} to {p.period_End}</td>
                       <td>{p.NoDays_Worked} days / {p.NoHrs_Worked} hrs</td>
-                      <td>₱{parseFloat(p.basicPay).toLocaleString()}</td>
-                      <td className="pos">+₱{parseFloat(p.totalEarnings).toLocaleString()}</td>
-                      <td className="neg">-₱{parseFloat(p.totalDeductions).toLocaleString()}</td>
-                      <td className="bold">₱{parseFloat(p.netPay).toLocaleString()}</td>
+                      <td>₱{parseFloat(p.basicPay).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                      <td className="pos">+₱{parseFloat(p.totalEarnings).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                      <td className="neg">-₱{parseFloat(p.totalDeductions).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                      <td className="bold">₱{parseFloat(p.netPay).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                       <td>
-                        <span className={`status ${p.PaystatusName?.toLowerCase()}`}>
-                          {p.PaystatusName}
+                        <span className={`status ${p.PaystatusName?.toLowerCase() || (p.status === 2 ? "released" : "live")}`}>
+                          {p.PaystatusName || (p.status === 2 ? "Released" : "Live")}
                         </span>
                       </td>
                       <td>

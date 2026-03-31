@@ -1,6 +1,9 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
+const { sendPayrollEmail } = require("../utils/emailService");
+const { generatePayslipPDF } = require("../utils/pdfGenerator");
+
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const WORK_START = "08:30:00"; // official start
@@ -310,7 +313,7 @@ exports.generateBatchPayroll = async (req, res) => {
 
     // 1. Get all active employees (not deleted and have a dailyRate > 0)
     const employees = await sequelize.query(
-      `SELECT "user_Id", "user_FirstName", "dailyRate" FROM "User" 
+      `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email", "dailyRate" FROM "User" 
        WHERE "deletedAt" IS NULL AND "dailyRate" > 0`,
       { type: QueryTypes.SELECT }
     );
@@ -372,7 +375,7 @@ exports.generateBatchPayroll = async (req, res) => {
          VALUES
           (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
            :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDeductions, :netPay,
-           1, :now, :now)
+           2, :now, :now)
          RETURNING "payrollId"`,
         {
           replacements: {
@@ -435,6 +438,41 @@ exports.generateBatchPayroll = async (req, res) => {
           type: QueryTypes.INSERT
         }
       );
+
+      // 6. Send notification email with PDF attachment asynchronously
+      if (emp.user_Email) {
+        const payrollDataForPDF = {
+          user_FirstName: emp.user_FirstName,
+          user_LastName: emp.user_LastName,
+          period_Start,
+          period_End,
+          NoDays_Worked: calculated_NoDays,
+          NoHrs_Worked: calculated_NoHrs,
+          basicPay: calculated_Basic,
+          OT_Hrs: stats.OT_Hrs,
+          OT_Amnt: calculated_OTAmnt,
+          absence_Hrs: combined_Absences * WORK_HRS_PER_DAY,
+          absence_Amnt: calculated_AbsAmnt,
+          tardiness_Mins: stats.tardiness_Mins,
+          tardiness_Amnt: calculated_TardAmnt,
+          totalEarnings: calculated_Earn,
+          totalDeductions: calculated_Ded,
+          netPay: calculated_Net
+        };
+
+        generatePayslipPDF(payrollDataForPDF).then(pdfBuffer => {
+          return sendPayrollEmail({
+            email: emp.user_Email,
+            name: `${emp.user_FirstName} ${emp.user_LastName}`,
+            period: `${period_Start} to ${period_End}`,
+            netPay: calculated_Net,
+            attachments: [{
+              filename: `Payslip_${emp.user_LastName}_${period_Start}.pdf`,
+              content: pdfBuffer
+            }]
+          });
+        }).catch(err => console.error(`[BATCH EMAIL/PDF FAILED] user ${emp.user_Id}:`, err.message));
+      }
 
       processedCount++;
     }
@@ -554,10 +592,46 @@ exports.releasePayroll = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    // Fetch payroll details and user email before releasing
+    const payrollInfo = await sequelize.query(
+      `SELECT 
+         p.*, 
+         u."user_Email", u."user_FirstName", u."user_LastName",
+         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", e."nightDiff_Hrs", e."nightDiff_Amnt",
+         e."specialHol_Hrs", e."specialHol_Amnt", e."incentives", e."allowance", e."Bonus", e."Other_Earnings",
+         d."absence_Hrs", d."absence_Amnt", d."tardiness_Mins", d."tardiness_Amnt", d."unpaidLeave_Days", 
+         d."unpaidLeave_Amnt", d."paidLeave_Days", d."SSS_Ded", d."Philhealth_Ded", d."HDMF_Ded", d."Tax_Ded",
+         d."SSS_Loan", d."HDMF_Loan", d."Other_Deductions"
+       FROM "Payroll" p
+       JOIN "User" u ON p."user_Id" = u."user_Id"
+       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
+       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+       WHERE p."payrollId" = :payrollId LIMIT 1`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+
     await sequelize.query(
       `UPDATE "Payroll" SET "status" = 2, "updatedAt" = :now WHERE "payrollId" = :payrollId`,
       { replacements: { payrollId, now: nowStr }, type: QueryTypes.UPDATE },
     );
+
+    if (payrollInfo.length > 0 && payrollInfo[0].user_Email) {
+      const p = payrollInfo[0];
+      
+      generatePayslipPDF(p).then(pdfBuffer => {
+        return sendPayrollEmail({
+          email: p.user_Email,
+          name: `${p.user_FirstName} ${p.user_LastName}`,
+          period: `${p.period_Start} to ${p.period_End}`,
+          netPay: p.netPay,
+          attachments: [{
+            filename: `Payslip_${p.user_LastName}_${p.payrollId}.pdf`,
+            content: pdfBuffer
+          }]
+        });
+      }).catch(err => console.error(`[RELEASE EMAIL/PDF FAILED] payroll ${payrollId}:`, err.message));
+    }
+
     res.status(200).json({ message: "Payroll released successfully." });
   } catch (error) {
     res.status(500).json({ error: error.message });

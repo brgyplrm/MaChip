@@ -1,5 +1,6 @@
 $primary-purple: #2A174E;
 $orange-accent: #ff8c00;
+$ot-blue: #e0f2fe;
 
 .calendarPage.employeeView {
   .calendarWrapper {
@@ -15,6 +16,7 @@ $orange-accent: #ff8c00;
     .legendCard {
       background: white; padding: 15px; border-radius: 12px; display: flex; gap: 20px;
       margin-bottom: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+      flex-wrap: wrap;
       .legendItem { 
         display: flex; align-items: center; gap: 8px; font-size: 13px; color: #555;
         .dot { 
@@ -23,6 +25,7 @@ $orange-accent: #ff8c00;
           &.special { background: #f3e8ff; border: 1px solid #d8b4fe; }
           &.leave { background: #dcfce7; border: 1px solid #86efac; }
           &.field { background: #ffedd5; border: 1px solid #fdba74; }
+          &.ot { background: #e0f2fe; border: 1px solid #7dd3fc; }
         }
       }
     }
@@ -46,13 +49,22 @@ $orange-accent: #ff8c00;
         .gridBody {
           display: grid; grid-template-columns: repeat(7, 1fr);
           .cell {
-            height: 110px; border: 1px solid #f0f0f0; padding: 10px;
+            height: 110px; border: 1px solid #f0f0f0; padding: 10px; transition: background 0.3s;
+            
+            &.has-leave { background-color: rgba(220, 252, 231, 0.3); }
+            &.has-field { background-color: rgba(255, 237, 213, 0.3); }
+            &.has-ot { background-color: rgba(224, 242, 254, 0.3); }
+            &.has-holiday { background-color: rgba(254, 226, 226, 0.2); }
+
             .dayNum { display: block; margin-bottom: 5px; font-weight: bold; }
             .event {
               font-size: 10px; padding: 4px; border-radius: 4px; margin-top: 4px;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
               &.leave { background: #dcfce7; color: #166534; }
               &.special { background: #f3e8ff; color: #6b21a8; }
+              &.legal { background: #fee2e2; color: #b91c1c; }
               &.field { background: #ffedd5; color: #9a3412; }
+              &.ot { background: #e0f2fe; color: #0369a1; }
             }
           }
         }

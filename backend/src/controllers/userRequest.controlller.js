@@ -1,57 +1,87 @@
 const { sequelize } = require("../config/sequelize");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
+const { sendOnfieldEmail } = require("../utils/emailService");
 
 exports.getCalendarReport = async (req, res) => {
-  const { startDate, endDate, user_Id } = req.query;
+  let { startDate, endDate, user_Id } = req.query;
   try {
-    // 1. Fetch Holidays
-    const holidays = await sequelize.query(
-      `SELECT 'Holiday' as "type", "date", "name", "type" as "details"
-       FROM "Holiday"
-       WHERE "date" BETWEEN :startDate AND :endDate`,
-      { replacements: { startDate, endDate }, type: QueryTypes.SELECT }
-    );
-
-    // 2. Fetch Field Work (Onfield_Work)
-    let fieldWorkQuery = `
-      SELECT 'Field Work' as "type", ow."date", u."user_FirstName" || ' ' || u."user_LastName" as "name", ow."location" || ' - ' || ow."purpose" as "details"
-      FROM "Onfield_Work" ow
-      JOIN "emp_Request" er ON ow."emp_reqId" = er."emp_reqId"
-      JOIN "User" u ON er."user_Id" = u."user_Id"
-      WHERE er."emp_reqStatusId" = 2 AND ow."date" BETWEEN :startDate AND :endDate
-    `;
-
-    // 3. Fetch Leaves (Vacation and Sick)
-    let leavesQuery = `
-      SELECT 'Leave' as "type", vl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Vacation Leave' as "details", vl."EndDate"
-      FROM "Vacation_Leave" vl
-      JOIN "emp_Request" er ON vl."emp_reqId" = er."emp_reqId"
-      JOIN "User" u ON er."user_Id" = u."user_Id"
-      WHERE er."emp_reqStatusId" = 2 AND (vl."StartDate" BETWEEN :startDate AND :endDate OR vl."EndDate" BETWEEN :startDate AND :endDate)
-      UNION ALL
-      SELECT 'Leave' as "type", sl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Sick Leave' as "details", sl."EndDate"
-      FROM "Sick_Leave" sl
-      JOIN "emp_Request" er ON sl."emp_reqId" = er."emp_reqId"
-      JOIN "User" u ON er."user_Id" = u."user_Id"
-      WHERE er."emp_reqStatusId" = 2 AND (sl."StartDate" BETWEEN :startDate AND :endDate OR sl."EndDate" BETWEEN :startDate AND :endDate)
-    `;
-
     const replacements = { startDate, endDate };
-    if (user_Id && user_Id !== "All Employees") {
-      fieldWorkQuery += ` AND er."user_Id" = :user_Id`;
-      leavesQuery = leavesQuery.replace(/WHERE er."emp_reqStatusId" = 2/g, `WHERE er."emp_reqStatusId" = 2 AND er."user_Id" = :user_Id`);
+    let userFilter = "";
+
+    if (user_Id && user_Id !== "All Employees" && user_Id !== "undefined" && user_Id !== "null") {
+      userFilter = ` AND er."user_Id" = :user_Id`;
       replacements.user_Id = user_Id;
     }
 
-    const fieldWorks = await sequelize.query(fieldWorkQuery, { replacements, type: QueryTypes.SELECT });
-    const leaves = await sequelize.query(leavesQuery, { replacements, type: QueryTypes.SELECT });
+    // 1. Fetch Holidays
+    const holidays = await sequelize.query(
+      `SELECT 'Holiday' as "type", "date", "name", "type" as "details", NULL as "endDate"
+       FROM "Holiday"
+       WHERE "date" BETWEEN :startDate AND :endDate`,
+      { replacements, type: QueryTypes.SELECT }
+    );
 
-    const allEvents = [...holidays, ...fieldWorks, ...leaves].sort((a, b) => new Date(a.date) - new Date(b.date));
+    // 2. Fetch Field Work
+    const fieldWorks = await sequelize.query(
+      `SELECT 'Field Work' as "type", ow."DateonField" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", ow."destination" as "details", NULL as "endDate"
+       FROM "Onfield_Work" ow
+       JOIN "emp_Request" er ON ow."emp_reqId" = er."emp_reqId"
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       WHERE er."emp_reqStatusId" = 2 
+       AND ow."DateonField" BETWEEN :startDate AND :endDate
+       ${userFilter}`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    // 3. Fetch Vacation Leaves
+    const vacationLeaves = await sequelize.query(
+      `SELECT 'Leave' as "type", vl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Vacation Leave' as "details", vl."EndDate" as "endDate"
+       FROM "Vacation_Leave" vl
+       JOIN "emp_Request" er ON vl."emp_reqId" = er."emp_reqId"
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       WHERE er."emp_reqStatusId" = 2 
+       AND (vl."StartDate" BETWEEN :startDate AND :endDate OR vl."EndDate" BETWEEN :startDate AND :endDate)
+       ${userFilter}`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    // 4. Fetch Sick Leaves
+    const sickLeaves = await sequelize.query(
+      `SELECT 'Leave' as "type", sl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Sick Leave' as "details", sl."EndDate" as "endDate"
+       FROM "Sick_Leave" sl
+       JOIN "emp_Request" er ON sl."emp_reqId" = er."emp_reqId"
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       WHERE er."emp_reqStatusId" = 2 
+       AND (sl."StartDate" BETWEEN :startDate AND :endDate OR sl."EndDate" BETWEEN :startDate AND :endDate)
+       ${userFilter}`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    // 5. Fetch Overtime
+    const overtime = await sequelize.query(
+      `SELECT 'Overtime' as "type", ot."OT_DateOf" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", CAST(ot."Total_Hrs" AS VARCHAR) || ' hrs OT' as "details", NULL as "endDate"
+       FROM "Overtime_Request" ot
+       JOIN "emp_Request" er ON ot."emp_reqId" = er."emp_reqId"
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       WHERE er."emp_reqStatusId" = 2 
+       AND ot."OT_DateOf" BETWEEN :startDate AND :endDate
+       ${userFilter}`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    const allEvents = [...holidays, ...fieldWorks, ...vacationLeaves, ...sickLeaves, ...overtime].sort((a, b) => {
+      if (!a.date || !b.date) return 0;
+      return new Date(a.date) - new Date(b.date);
+    });
 
     res.status(200).json(allEvents);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("--- CALENDAR ERROR START ---");
+    console.error("Message:", error.message);
+    console.error("Stack:", error.stack);
+    console.error("--- CALENDAR ERROR END ---");
+    res.status(500).json({ error: "Failed to fetch calendar data: " + error.message });
   }
 };
 
@@ -76,6 +106,7 @@ exports.UserCreateRequest = async (req, res) => {
     DateOnField,
     NoHrs,
     destination,
+    emp_reqStatusId,
   } = req.body || {};
 
   const finalUserId = parseInt(userId || user_Id);
@@ -83,6 +114,7 @@ exports.UserCreateRequest = async (req, res) => {
   const finalOTDate = OT_Dateof || OT_DateOf;
   const finalDateOnField = DateonField || DateOnField;
   const finalNoDays = parseInt(NoDays || 0);
+  const finalStatus = parseInt(emp_reqStatusId || 1);
   
   // Use the filename from multer if a file was uploaded
   const proof_File = req.file ? req.file.filename : null;
@@ -185,12 +217,13 @@ exports.UserCreateRequest = async (req, res) => {
       `INSERT INTO "emp_Request"
         ("user_Id", "emp_reqTypeId", "emp_reqStatusId", "date_Filed", "remarks", "system_remarks", "createdAt", "updatedAt")
         VALUES
-        (:userId, :emp_reqTypeId, 1, :date_Filed, :remarks, :system_remarks, :now, :now)
+        (:userId, :emp_reqTypeId, :emp_reqStatusId, :date_Filed, :remarks, :system_remarks, :now, :now)
         RETURNING *`,
       {
         replacements: {
           userId: finalUserId,
           emp_reqTypeId: finalReqTypeId,
+          emp_reqStatusId: finalStatus,
           date_Filed: todayStr,
           remarks: reason || purpose || null,
           system_remarks: systemRemarks.length > 0 ? systemRemarks.join(" | ") : null,
@@ -255,6 +288,23 @@ exports.UserCreateRequest = async (req, res) => {
         },
       );
       childData = onfieldResult[0][0];
+
+      // Email for Onfield Work if auto-approved (Type 2)
+      if (finalStatus === 2) {
+        const userInfo = await sequelize.query(
+          `SELECT "user_Email", "user_FirstName", "user_LastName" FROM "User" WHERE "user_Id" = :userId`,
+          { replacements: { userId: finalUserId }, type: QueryTypes.SELECT }
+        );
+        if (userInfo.length > 0 && userInfo[0].user_Email) {
+          sendOnfieldEmail({
+            email: userInfo[0].user_Email,
+            name: `${userInfo[0].user_FirstName} ${userInfo[0].user_LastName}`,
+            date: finalDateOnField,
+            destination: destination || "N/A",
+            noHrs: parseFloat(NoHrs)
+          }).catch(err => console.error("[ONFIELD EMAIL FAILED]:", err.message));
+        }
+      }
 
       // Leave Request (Vacation Leave)
     } else if (finalReqTypeId === 3) {
@@ -546,9 +596,12 @@ exports.UpdateStatusRequest = async (req, res) => {
 
     // 3. Create notification for the user
     const [requestInfo] = await sequelize.query(
-      `SELECT er."user_Id", rt."reqTypeName" 
+      `SELECT er."user_Id", rt."reqTypeName", er."emp_reqTypeId", u."user_Email", u."user_FirstName", u."user_LastName",
+              ow."DateonField", ow."destination", ow."NoHrs"
        FROM "emp_Request" er
        LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+       LEFT JOIN "User" u ON er."user_Id" = u."user_Id"
+       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
        WHERE er."emp_reqId" = :emp_reqId`,
       { replacements: { emp_reqId }, type: QueryTypes.SELECT }
     );
@@ -568,6 +621,17 @@ exports.UpdateStatusRequest = async (req, res) => {
           type: QueryTypes.INSERT,
         }
       );
+
+      // Email for Onfield Work Approval (Type 2)
+      if (emp_reqStatusId === 2 && requestInfo.emp_reqTypeId === 2 && requestInfo.user_Email) {
+        sendOnfieldEmail({
+          email: requestInfo.user_Email,
+          name: `${requestInfo.user_FirstName} ${requestInfo.user_LastName}`,
+          date: requestInfo.DateonField,
+          destination: requestInfo.destination || "N/A",
+          noHrs: requestInfo.NoHrs
+        }).catch(err => console.error("[ONFIELD EMAIL FAILED]:", err.message));
+      }
     }
 
     res.status(200).json({ message: "Request status updated successfully" });

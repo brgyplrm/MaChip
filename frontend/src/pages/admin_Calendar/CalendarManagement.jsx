@@ -9,32 +9,100 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from '@mui/icons-material/Close';
 import { useState, useEffect } from "react";
 import Breadcrumbs from "../../components/breadcrumbs/Breadcrumbs";
+import { formatUserId } from "../../utils/formatUserId";
+import Toast from "../../components/toast/Toast";
 
 const CalendarManagement = () => {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 1)); // Default to March 2026
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [events, setEvents] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [modalType, setModalType] = useState(null);
-  const [holidays, setHolidays] = useState([]);
+  const [toast, setToast] = useState({ message: "", type: "success" });
+  
+  // Field Work Form State
+  const [fieldWorkForm, setFieldWorkForm] = useState({
+    userId: "",
+    date: "",
+    location: "",
+    hours: 8
+  });
 
-  const fetchHolidays = async () => {
+  const handleFieldWorkSubmit = async (e) => {
+    e.preventDefault();
+    if (!fieldWorkForm.userId || !fieldWorkForm.date || !fieldWorkForm.location) {
+      setToast({ message: "Please fill in all fields.", type: "error" });
+      return;
+    }
+
     try {
-      const response = await fetch("http://localhost:4000/api/system/holidays");
+      const response = await fetch("http://localhost:4000/api/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_Id: fieldWorkForm.userId,
+          emp_reqTypeId: 2, // Onfield Work
+          emp_reqStatusId: 2, // Auto-approve
+          DateonField: fieldWorkForm.date,
+          NoHrs: fieldWorkForm.hours,
+          destination: fieldWorkForm.location,
+          NoDays: 1,
+          purpose: "Admin Assigned Field Work"
+        }),
+      });
+
       if (response.ok) {
-        const data = await response.json();
-        setHolidays(data);
+        setToast({ message: "Field work assigned and email sent!", type: "success" });
+        setModalType(null);
+        setFieldWorkForm({ userId: "", date: "", location: "", hours: 8 });
+        fetchCalendarEvents(); // Refresh
+      } else {
+        const err = await response.json();
+        setToast({ message: err.error || "Failed to assign field work.", type: "error" });
       }
     } catch (error) {
-      console.error("Error fetching holidays:", error);
+      setToast({ message: "Connection error.", type: "error" });
+    }
+  };
+
+  const monthName = currentDate.toLocaleString('default', { month: 'long' });
+  const monthIndex = currentDate.getMonth();
+  const year = currentDate.getFullYear();
+
+  const fetchCalendarEvents = async () => {
+    setLoading(true);
+    try {
+      const firstDay = `${year}-01-01`;
+      const lastDay = `${year}-12-31`;
+      
+      const response = await fetch(`http://localhost:4000/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}`);
+      if (response.ok) {
+        const data = await response.json();
+        setEvents(data);
+      }
+    } catch (error) {
+      console.error("Error fetching calendar events:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await fetch("http://localhost:4000/api/users/all");
+      if (response.ok) {
+        const data = await response.json();
+        setEmployees(data);
+      }
+    } catch (error) {
+      console.error("Error fetching employees:", error);
     }
   };
 
   useEffect(() => {
-    fetchHolidays();
-  }, []);
-
-  // Calendar Logic: Month and Year names   
-  const monthName = currentDate.toLocaleString('default', { month: 'long' });
-  const monthIndex = currentDate.getMonth();
-  const year = currentDate.getFullYear();
+    fetchCalendarEvents();
+    fetchEmployees();
+  }, [currentDate]);
 
   // Navigation Logic for all months
   const changeMonth = (offset) => {
@@ -47,24 +115,22 @@ const CalendarManagement = () => {
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
 
-  // Helper to get holidays for a specific day
-  const getHolidaysForDay = (day) => {
-    return holidays.filter(h => {
-      const hDate = new Date(h.date);
-      return hDate.getDate() === day && 
-             hDate.getMonth() === monthIndex && 
-             hDate.getFullYear() === year;
+  // Helper to get events for a specific day
+  const getEventsForDay = (day) => {
+    return events.filter(e => {
+      if (!e.date) return false;
+      const datePart = e.date.split('T')[0];
+      const [ey, em, ed] = datePart.split('-').map(Number);
+      return ed === day && (em - 1) === monthIndex && ey === year;
     });
   };
 
-  // Helper to get upcoming holidays (today onwards)
   const getUpcomingHolidays = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return holidays
-      .filter(h => new Date(h.date) >= today)
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .slice(0, 5); // Show next 5
+    const todayStr = new Date().toISOString().split('T')[0];
+    return events
+      .filter(h => h.type === "Holiday" && h.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 5);
   };
 
   return (
@@ -72,6 +138,7 @@ const CalendarManagement = () => {
       <Sidebar />
       <div className="homeContainer">
         <Navbar />
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         <div className="calendarWrapper">
           <div className="pageHeader">
             <div className="title">
@@ -93,8 +160,7 @@ const CalendarManagement = () => {
             <div className="legendItem"><span className="dot special"></span> Special Non-Working Holiday</div>
             <div className="legendItem"><span className="dot leave"></span> Approved Leave</div>
             <div className="legendItem"><span className="dot field"></span> Field Work</div>
-            <div className="legendItem"><span className="dot periodstart"></span> Period Start</div>
-            <div className="legendItem"><span className="dot periodend"></span> Period End</div>
+            <div className="legendItem"><span className="dot ot"></span> Overtime</div>
           </div>
 
           <div className="calendarCard">
@@ -110,16 +176,38 @@ const CalendarManagement = () => {
               <div className="gridBody">
                 {blanks.map(b => <div key={`blank-${b}`} className="cell empty"></div>)}
                 {days.map(d => {
-                  const dayHolidays = getHolidaysForDay(d);
+                  const dayEvents = getEventsForDay(d);
+                  const hasLeave = dayEvents.some(e => e.type === "Leave");
+                  const hasField = dayEvents.some(e => e.type === "Field Work");
+                  const hasOt = dayEvents.some(e => e.type === "Overtime");
+                  const hasHoliday = dayEvents.some(e => e.type === "Holiday");
+
+                  let cellClass = "cell";
+                  if (hasLeave) cellClass += " has-leave";
+                  else if (hasField) cellClass += " has-field";
+                  else if (hasOt) cellClass += " has-ot";
+                  else if (hasHoliday) cellClass += " has-holiday";
+
                   return (
-                    <div key={d} className="cell">
+                    <div key={d} className={cellClass}>
                       <span className="dayNum">{d}</span>
-                      {dayHolidays.map((h, i) => (
-                        <div key={i} className={`event ${h.type.toLowerCase().includes('special') ? 'special' : 'legal'}`}>
-                          {h.name}
-                        </div>
-                      ))}
-                      {/* Approved leaves and other events could be added here similarly */}
+                      {dayEvents.map((e, i) => {
+                        let typeClass = "legal";
+                        if (e.type === "Holiday") {
+                          typeClass = e.details.toLowerCase().includes("special") ? "special" : "legal";
+                        } else if (e.type === "Leave") {
+                          typeClass = "leave";
+                        } else if (e.type === "Field Work") {
+                          typeClass = "field";
+                        } else if (e.type === "Overtime") {
+                          typeClass = "ot";
+                        }
+                        return (
+                          <div key={i} className={`event ${typeClass}`}>
+                            {e.name || e.details}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
@@ -161,16 +249,20 @@ const CalendarManagement = () => {
                 <h3>Field Work Assignments</h3>
                 </div>
                 <div className="listWrapper">
-                <div className="listItem fieldWork">
-                    <div className="info">
-                    <p className="name">Kathleen Pinto</p>
-                    <span className="subtext">3/20/2026 • Client Site A</span>
-                    <p className="purpose">Project Meeting & Site Inspection</p>
+                {events.filter(e => e.type === "Field Work").length > 0 ? events.filter(e => e.type === "Field Work").map((field, idx) => (
+                    <div className="listItem fieldWork" key={idx}>
+                      <div className="info">
+                        <p className="name">{field.name}</p>
+                        <span className="subtext">{field.date}</span>
+                        <p className="purpose">{field.details}</p>
+                      </div>
+                      <div className="icons">
+                        <DeleteIcon className="delete" />
+                      </div>
                     </div>
-                    <div className="icons">
-                    <DeleteIcon className="delete" />
-                    </div>
-                </div>
+                )) : (
+                  <p style={{ textAlign: 'center', color: '#777', padding: '20px' }}>No field work assignments this month</p>
+                )}
                 </div>
             </div>
             </div>
@@ -183,14 +275,34 @@ const CalendarManagement = () => {
                   <h2>{modalType.includes('Holiday') ? (modalType.startsWith('add') ? 'Add' : 'Edit') + ' Holiday' : 'Add Field Work'}</h2>
                   <CloseIcon className="closeIcon" onClick={() => setModalType(null)} />
                 </div>
-                <form className="modalForm">
+                <form className="modalForm" onSubmit={modalType === 'addFieldWork' ? handleFieldWorkSubmit : (e) => e.preventDefault()}>
                   <div className="inputGroup">
-                    <label>{modalType === 'addFieldWork' ? 'Employee Name' : 'Holiday Name'}</label>
-                    <input type="text" placeholder="Enter name" />
+                    <label>{modalType === 'addFieldWork' ? 'Select Employee' : 'Holiday Name'}</label>
+                    {modalType === 'addFieldWork' ? (
+                      <select 
+                        value={fieldWorkForm.userId} 
+                        onChange={(e) => setFieldWorkForm({...fieldWorkForm, userId: e.target.value})}
+                        required
+                      >
+                        <option value="">Choose Employee...</option>
+                        {employees.map(emp => (
+                          <option key={emp.user_Id} value={emp.user_Id}>
+                            {formatUserId(emp.user_Id)} - {emp.user_LastName} {emp.user_FirstName?.charAt(0)}.
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input type="text" placeholder="Enter name" />
+                    )}
                   </div>
                   <div className="inputGroup">
                     <label>Date</label>
-                    <input type="date" />
+                    <input 
+                      type="date" 
+                      value={modalType === 'addFieldWork' ? fieldWorkForm.date : ""}
+                      onChange={(e) => modalType === 'addFieldWork' && setFieldWorkForm({...fieldWorkForm, date: e.target.value})}
+                      required
+                    />
                   </div>
                   {modalType.includes('Holiday') ? (
                     <div className="inputGroup">
@@ -198,10 +310,28 @@ const CalendarManagement = () => {
                       <select><option>Regular Holiday</option><option>Special Holiday</option></select>
                     </div>
                   ) : (
-                    <div className="inputGroup">
-                      <label>Location</label>
-                      <input type="text" placeholder="e.g., Client Site A" />
-                    </div>
+                    <>
+                      <div className="inputGroup">
+                        <label>Location</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g., Client Site A" 
+                          value={fieldWorkForm.location}
+                          onChange={(e) => setFieldWorkForm({...fieldWorkForm, location: e.target.value})}
+                          required
+                        />
+                      </div>
+                      <div className="inputGroup">
+                        <label>Hours</label>
+                        <input 
+                          type="number" 
+                          step="0.5"
+                          value={fieldWorkForm.hours}
+                          onChange={(e) => setFieldWorkForm({...fieldWorkForm, hours: e.target.value})}
+                          required
+                        />
+                      </div>
+                    </>
                   )}
                   <div className="modalActions">
                     <button type="button" className="cancelBtn" onClick={() => setModalType(null)}>Cancel</button>

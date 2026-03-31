@@ -90,10 +90,6 @@ const UserRequests = () => {
     hrFrom: "",
     hrTo: "",
     totalHrs: 0,
-    // On-field fields
-    fieldDate: "",
-    fieldNoHrs: 0,
-    destination: "",
     proofFile: null,
   });
 
@@ -109,8 +105,7 @@ const UserRequests = () => {
         const calculatedHrs = (diff / 60).toFixed(2);
         setFormData(prev => ({ 
           ...prev, 
-          totalHrs: calculatedHrs,
-          fieldNoHrs: formData.emp_reqTypeId === "1" ? calculatedHrs : prev.fieldNoHrs
+          totalHrs: calculatedHrs
         }));
       }
     } else {
@@ -259,11 +254,6 @@ const UserRequests = () => {
       formDataToSubmit.append("HrFrom", formData.hrFrom);
       formDataToSubmit.append("HrTo", formData.hrTo);
       formDataToSubmit.append("Total_Hrs", formData.totalHrs);
-    } else if (formData.emp_reqTypeId === "2") {
-      formDataToSubmit.append("DateonField", formData.fieldDate);
-      formDataToSubmit.append("NoDays", 1); // Default to 1 day for field work
-      formDataToSubmit.append("NoHrs", formData.fieldNoHrs);
-      formDataToSubmit.append("destination", formData.destination);
     } else {
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
       formDataToSubmit.append("EndDate", formData.leaveEndDate);
@@ -310,9 +300,6 @@ const UserRequests = () => {
           hrFrom: "",
           hrTo: "",
           totalHrs: 0,
-          fieldDate: "",
-          fieldNoHrs: 0,
-          destination: "",
           proofFile: null,
         });
         fetchBalance();
@@ -371,7 +358,6 @@ const UserRequests = () => {
                     <select name="emp_reqTypeId" value={formData.emp_reqTypeId} onChange={handleInputChange} required>
                       <option value="" disabled>Select request type</option>
                       <option value="1">Overtime (OT)</option>
-                      <option value="2">On-field Work (OW)</option>
                       <option value="3">Vacation Leave (VL)</option>
                       <option value="4">Sick Leave (SL)</option>
                     </select>
@@ -405,31 +391,6 @@ const UserRequests = () => {
                     </div>
                   )}
 
-                  {/* On-field Specific Fields (Type 2) */}
-                  {formData.emp_reqTypeId === "2" && (
-                    <div className="conditionalFields">
-                      <div className="formRow">
-                        <div className="formGroup">
-                          <label>Date of Field Work</label>
-                          <input type="date" name="fieldDate" onChange={handleInputChange} required />
-                        </div>
-                        <div className="formGroup">
-                          <label>No. of Hours</label>
-                          <input type="number" name="fieldNoHrs" step="0.5" onChange={handleInputChange} required />
-                        </div>
-                      </div>
-                      <div className="formGroup">
-                        <label>Destination</label>
-                        <input type="text" name="destination" placeholder="Client site / Office location" onChange={handleInputChange} required />
-                      </div>
-                      <div className="formGroup fileUploadGroup">
-                          <label className="fileLabel" htmlFor="proofFile">
-                            <CloudUploadIcon /> {formData.proofFile ? formData.proofFile.name : "Upload Itinerary / Proof"}
-                          </label>
-                          <input type="file" id="proofFile" name="proofFile" onChange={handleInputChange} style={{ display: 'none' }} />
-                      </div>
-                    </div>
-                  )}
                   {/* Conditional Fields for Leave (Types 3 and 4) */}
                   {(formData.emp_reqTypeId === "3" || formData.emp_reqTypeId === "4") && (
                     <div className="conditionalFields">

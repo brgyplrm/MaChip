@@ -1,0 +1,179 @@
+const nodemailer = require("nodemailer");
+const dns = require("dns").promises;
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "../../.env") });
+
+/**
+ * Validates if the email format is correct and if the domain has MX records.
+ */
+exports.validateEmailActive = async (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw new Error("Invalid email format.");
+  }
+
+  const domain = email.split("@")[1];
+  try {
+    const mxRecords = await dns.resolveMx(domain);
+    if (!mxRecords || mxRecords.length === 0) {
+      throw new Error("Email domain does not have valid MX records.");
+    }
+  } catch (error) {
+    throw new Error(`Email domain "${domain}" is invalid or unreachable.`);
+  }
+  return true;
+};
+
+/**
+ * Sends a welcome email with account details.
+ */
+exports.sendWelcomeEmail = async ({ email, password, name, displayId }) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.error("[EMAIL CONFIG ERROR]: Missing EMAIL_USER or EMAIL_PASS in .env file.");
+    throw new Error("Server email configuration is missing. Please contact admin.");
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: {
+      user: EMAIL_USER,
+      pass: EMAIL_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: `"MaChip System" <${EMAIL_USER}>`,
+    to: email,
+    subject: "Welcome to MaChip - Your Account Details",
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #2c3e50;">Welcome to MaChip, ${name}!</h2>
+        <p>Your account has been successfully created. Here are your login details:</p>
+        <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #eee;">
+          <p style="margin: 5px 0;"><strong>User ID:</strong> ${displayId}</p>
+          <p style="margin: 5px 0;"><strong>Name:</strong> ${name}</p>
+          <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
+          <p style="margin: 5px 0;"><strong>Password:</strong> <span style="color: #e74c3c;">${password}</span></p>
+        </div>
+        <p style="margin-top: 20px;">Please login to your account using these credentials.</p>
+        <p style="font-size: 0.9em; color: #7f8c8d;"><em>Note: For security reasons, please change your password after your first login.</em></p>
+        <br/>
+        <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[EMAIL SENT] Welcome email sent to ${email}`);
+  } catch (error) {
+    console.error("[NODEMAILER ERROR]:", error.message);
+    throw new Error(`Failed to send welcome email: ${error.message}`);
+  }
+};
+
+/**
+ * Sends a payroll notification email with optional attachments.
+ * @param {Object} payrollData
+ * @param {string} payrollData.email
+ * @param {string} payrollData.name
+ * @param {string} payrollData.period
+ * @param {number} payrollData.netPay
+ * @param {Array}  payrollData.attachments
+ */
+exports.sendPayrollEmail = async ({ email, name, period, netPay, attachments = [] }) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.error("[EMAIL CONFIG ERROR]: Missing EMAIL_USER or EMAIL_PASS in .env file.");
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: {
+      user: EMAIL_USER,
+      pass: EMAIL_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: `"MaChip Payroll" <${EMAIL_USER}>`,
+    to: email,
+    subject: `Payroll Summary for Period: ${period}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #2c3e50;">Payroll Notification</h2>
+        <p>Hello ${name},</p>
+        <p>This is your net pay for this period (<strong>${period}</strong>):</p>
+        <div style="background: #eef9f1; padding: 20px; border-radius: 8px; border: 1px solid #c3e6cb; display: inline-block;">
+          <span style="font-size: 24px; font-weight: bold; color: #28a745;">₱${parseFloat(netPay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <p style="margin-top: 20px;">Attached is your official payslip PDF. You can also view your full records by logging into the MaChip portal.</p>
+        <br/>
+        <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
+      </div>
+    `,
+    attachments: attachments
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[PAYROLL EMAIL SENT] to ${email} for period ${period}`);
+  } catch (error) {
+    console.error(`[PAYROLL EMAIL ERROR] for ${email}:`, error.message);
+  }
+};
+
+/**
+ * Sends an Onfield Work assignment notification.
+ * @param {Object} data 
+ * @param {string} data.email
+ * @param {string} data.name
+ * @param {string} data.date
+ * @param {string} data.destination
+ * @param {number} data.noHrs
+ */
+exports.sendOnfieldEmail = async ({ email, name, date, destination, noHrs }) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.error("[EMAIL CONFIG ERROR]: Missing credentials.");
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  });
+
+  const mailOptions = {
+    from: `"MaChip Assignments" <${EMAIL_USER}>`,
+    to: email,
+    subject: `Onfield Work Assignment - ${date}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #2c3e50;">Onfield Work Assignment</h2>
+        <p>Hello ${name},</p>
+        <p>You have been assigned to an onfield work on <strong>${date}</strong>.</p>
+        <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; border: 1px solid #cce5ff;">
+          <p style="margin: 5px 0;"><strong>Destination:</strong> ${destination}</p>
+          <p style="margin: 5px 0;"><strong>Estimated Hours:</strong> ${noHrs} hrs</p>
+        </div>
+        <p style="margin-top: 20px;">Please ensure to log your attendance accordingly and provide any required documentation upon completion.</p>
+        <br/>
+        <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[ONFIELD EMAIL SENT] to ${email}`);
+  } catch (error) {
+    console.error(`[ONFIELD EMAIL ERROR] for ${email}:`, error.message);
+  }
+};
+

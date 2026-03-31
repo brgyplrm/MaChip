@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./employeeCalendar.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
@@ -6,10 +6,39 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
 const EmployeeCalendar = () => {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 1)); // Default to March 2026
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+  const userId = userData.user_Id;
 
   const monthName = currentDate.toLocaleString('default', { month: 'long' });
   const year = currentDate.getFullYear();
+  const monthIndex = currentDate.getMonth();
+
+  const fetchCalendarEvents = async () => {
+    setLoading(true);
+    try {
+      // Fetch for the whole year
+      const firstDay = `${year}-01-01`;
+      const lastDay = `${year}-12-31`;
+      
+      const response = await fetch(`http://localhost:4000/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}&user_Id=${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setEvents(data);
+      }
+    } catch (error) {
+      console.error("Error fetching calendar events:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userId) fetchCalendarEvents();
+  }, [currentDate, userId]);
 
   const changeMonth = (offset) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
@@ -20,6 +49,16 @@ const EmployeeCalendar = () => {
   const firstDayOfMonth = new Date(year, currentDate.getMonth(), 1).getDay();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
+
+  const getEventsForDay = (day) => {
+    return events.filter(e => {
+      if (!e.date) return false;
+      // Handle both YYYY-MM-DD and full ISO strings
+      const datePart = e.date.split('T')[0];
+      const [ey, em, ed] = datePart.split('-').map(Number);
+      return ed === day && (em - 1) === monthIndex && ey === year;
+    });
+  };
 
   return (
     <div className="home calendarPage employeeView">
@@ -34,12 +73,12 @@ const EmployeeCalendar = () => {
             </div>
           </div>
 
-          {/* Legend: Matches Admin for Consistency */}
           <div className="legendCard">
             <div className="legendItem"><span className="dot legal"></span> Legal Holiday</div>
             <div className="legendItem"><span className="dot special"></span> Special Holiday</div>
             <div className="legendItem"><span className="dot leave"></span> My Approved Leave</div>
             <div className="legendItem"><span className="dot field"></span> My Field Work</div>
+            <div className="legendItem"><span className="dot ot"></span> My Overtime</div>
           </div>
 
           <div className="calendarCard">
@@ -54,42 +93,74 @@ const EmployeeCalendar = () => {
               </div>
               <div className="gridBody">
                 {blanks.map(b => <div key={`blank-${b}`} className="cell empty"></div>)}
-                {days.map(d => (
-                  <div key={d} className="cell">
-                    <span className="dayNum">{d}</span>
-                    {/* Event indicators */}
-                    {monthName === "March" && d === 25 && <div className="event special">Araw ng Dabaw</div>}
-                    {monthName === "March" && d === 18 && <div className="event leave">Vacation Leave</div>}
-                    {monthName === "March" && d === 20 && <div className="event field">Field Work</div>}
-                  </div>
-                ))}
+                {days.map(d => {
+                  const dayEvents = getEventsForDay(d);
+                  const hasLeave = dayEvents.some(e => e.type === "Leave");
+                  const hasField = dayEvents.some(e => e.type === "Field Work");
+                  const hasOt = dayEvents.some(e => e.type === "Overtime");
+                  const hasHoliday = dayEvents.some(e => e.type === "Holiday");
+
+                  let cellClass = "cell";
+                  if (hasLeave) cellClass += " has-leave";
+                  else if (hasField) cellClass += " has-field";
+                  else if (hasOt) cellClass += " has-ot";
+                  else if (hasHoliday) cellClass += " has-holiday";
+
+                  return (
+                    <div key={d} className={cellClass}>
+                      <span className="dayNum">{d}</span>
+                      {dayEvents.map((e, i) => {
+                        let typeClass = "legal";
+                        if (e.type === "Holiday") {
+                          typeClass = e.details.toLowerCase().includes("special") ? "special" : "legal";
+                        } else if (e.type === "Leave") {
+                          typeClass = "leave";
+                        } else if (e.type === "Field Work") {
+                          typeClass = "field";
+                        } else if (e.type === "Overtime") {
+                          typeClass = "ot";
+                        }
+                        return (
+                          <div key={i} className={`event ${typeClass}`}>
+                            {e.name || e.details}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
 
           <div className="bottomSection">
             <div className="detailCard">
-              <h3>Upcoming Holidays</h3>
+              <h3>Holidays this Month</h3>
               <div className="listWrapper">
-                <div className="listItem">
-                  <div className="info">
-                    <p className="name">Araw ng Dabaw</p>
-                    <span className="subtext">3/25/2026 • Special</span>
+                {events.filter(e => e.type === "Holiday").map((h, idx) => (
+                  <div className="listItem" key={idx}>
+                    <div className="info">
+                      <p className="name">{h.name}</p>
+                      <span className="subtext">{h.date} • {h.details}</span>
+                    </div>
                   </div>
-                </div>
+                ))}
+                {events.filter(e => e.type === "Holiday").length === 0 && <p className="emptyText">No holidays this month.</p>}
               </div>
             </div>
 
             <div className="detailCard">
               <h3>My Field Work Assignments</h3>
               <div className="listWrapper">
-                <div className="listItem fieldWork">
-                  <div className="info">
-                    <p className="name">Client Site A</p>
-                    <span className="subtext">March 20, 2026</span>
-                    <p className="purpose">Project Meeting & Site Inspection</p>
+                {events.filter(e => e.type === "Field Work").map((f, idx) => (
+                  <div className="listItem fieldWork" key={idx}>
+                    <div className="info">
+                      <p className="name">{f.details}</p>
+                      <span className="subtext">{f.date}</span>
+                    </div>
                   </div>
-                </div>
+                ))}
+                {events.filter(e => e.type === "Field Work").length === 0 && <p className="emptyText">No field work assignments.</p>}
               </div>
             </div>
           </div>

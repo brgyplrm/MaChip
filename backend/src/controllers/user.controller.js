@@ -2,6 +2,7 @@ const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const bcrypt = require("bcryptjs");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
+const { validateEmailActive, sendWelcomeEmail } = require("../utils/emailService");
 
 // ── Get Next User ID ──────────────────────────────────────────────────────────
 exports.getNextUserId = async (req, res) => {
@@ -47,6 +48,13 @@ exports.registerUser = async (req, res) => {
         .json({ error: "Middle Name must not contain numbers." });
     }
 
+    // Validate email format and "active" status (MX records) before saving
+    try {
+      await validateEmailActive(user_Email);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
     // Check if email already exists (including soft-deleted users)
     const existingEmail = await sequelize.query(
       `SELECT "user_Id" FROM "User" WHERE "user_Email" = :user_Email`,
@@ -76,6 +84,9 @@ exports.registerUser = async (req, res) => {
       );
       user_Id = (result[0].maxId ? parseInt(result[0].maxId) : 0) + 1;
     }
+
+    // Prepare display ID for email
+    const displayId = `MACJ-${String(user_Id).padStart(3, "0")}`;
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -110,6 +121,23 @@ exports.registerUser = async (req, res) => {
         type: QueryTypes.INSERT,
       },
     );
+
+    // Send welcome email after successful registration
+    try {
+      await sendWelcomeEmail({
+        email: user_Email,
+        password: user_Password, // Send the plain password
+        name: `${req.body.user_FirstName} ${req.body.user_LastName}`,
+        displayId: displayId
+      });
+    } catch (emailError) {
+      console.error("[WELCOME EMAIL ERROR]:", emailError.message);
+      // We don't fail the registration if only the email fails, but we could return a warning
+      return res.status(201).json({ 
+        message: "User Registered, but welcome email failed to send.",
+        warning: emailError.message 
+      });
+    }
 
     // Fetch the created user to return
     const newUser = await sequelize.query(
