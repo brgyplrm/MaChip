@@ -12,7 +12,7 @@
 
       .tableCard {
         background: white;
-        padding: 30px;
+        padding: 15px 30px;
         border-radius: 20px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); // Subtle shadow
         margin-top: 20px;
@@ -21,18 +21,28 @@
           width: 100%;
           border-collapse: collapse;
           text-align: left;
+          table-layout: fixed;
 
           th {
-            padding: 15px 20px;
+            padding: 15px;
             color: #4a5568;
             font-size: 13px;
             font-weight: 700;
             text-transform: uppercase;
             border-bottom: 2px solid #f1f3f5;
+            text-align: left;
+
+            &:nth-child(1) { width: 120px; } // User ID
+            &:nth-child(2) { width: 200px; } // Full Name
+            &:nth-child(3) { width: 130px; } // Action (Pill)
+            &:nth-child(4) { width: 150px; } // MaChip ID
+            &:nth-child(5) { width: 120px; } // Date
+            &:nth-child(6) { width: 120px; } // Time
+            &:nth-child(7) { width: 100px; } // View Action
           }
 
           td {
-            padding: 18px 20px;
+            padding: 10px 20px;
             border-bottom: 1px solid #f1f3f5;
             color: #2d3748;
             font-size: 14px;
@@ -188,14 +198,14 @@
 
         .viewButton {
           text-decoration: none;
-          padding: 6px 10px;
+          padding: 5px 10px;
           border-radius: 5px;
           color: darkblue;
           width: 50px;
           text-align: center;
           border: 1px dotted rgba(0, 0, 139, 0.596);
+          margin-left: -15px;
           cursor: pointer;
-          margin: 10px;
         }
 
         .viewButton:hover {

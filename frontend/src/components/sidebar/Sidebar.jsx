@@ -1,21 +1,26 @@
 import "./sidebar.scss";
+// Icons
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsApplicationsIcon from "@mui/icons-material/SettingsApplications";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
-import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import CurrencyRubleOutlinedIcon from '@mui/icons-material/CurrencyRubleOutlined';
+import SecurityIcon from "@mui/icons-material/Security";
+import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
+import ArchiveIcon from '@mui/icons-material/Archive';
+
+// Libraries
 import { NavLink } from "react-router-dom";
-import ActionModal from "../actionModal/ActionModal"; // Import your component
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import TransactionLog from "../transactionLog/TransactionLog";
-import SecurityIcon from "@mui/icons-material/Security";
+
+//Components
+import ActionModal from "../actionModal/ActionModal";
 
 
 const Sidebar = () => {
@@ -65,8 +70,9 @@ const Sidebar = () => {
       <hr />
       <div className="center">
         <ul>
+
+          {/* 1st Category */}
           <p className="title">MAIN</p>
-          {/* Dashboard is now visible to everyone, but points to different routes */}
           <NavLink to={isEmployee ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
             <li>
               <DashboardIcon className="icon" />
@@ -79,64 +85,108 @@ const Sidebar = () => {
               <CalendarMonthOutlinedIcon className="icon" />
               <span>Calendar</span>
             </li>
-          </NavLink>
+          </NavLink><br />
 
-          {/* Admin and Staff Only Sections */}
+          {/* 2nd Category */}
+          {/* Admin Pages*/}
           {!isEmployee && (
             <>
               <p className="title">LISTS</p>
+
               <NavLink to="/users" style={{ textDecoration: "none" }}>
                 <li>
                   <PersonOutlineIcon className="icon" />
                   <span>Users</span>
                 </li>
               </NavLink>
-              <NavLink to="/logs" style={{ textDecoration: "none" }}>
+
+              <NavLink to="/archived" style={{ textDecoration: "none" }}>
                 <li>
-                  <PsychologyOutlinedIcon className="icon" />
-                  <span>Logs</span>
+                  <ArchiveIcon className="icon" />
+                  <span>Archived Users</span>
                 </li>
               </NavLink>
+
+              <NavLink to="/logs" style={{ textDecoration: "none" }}>
+                <li>
+                  <BadgeOutlinedIcon className="icon" />
+                  <span>Access Logs</span>
+                </li>
+              </NavLink>
+
             <NavLink to="/adminRequests" style={{ textDecoration: "none" }}>
               <li>
                 <PendingActionsIcon className="icon" />
                 <span>Requests</span>
               </li>
             </NavLink>
+
             <NavLink to="/payroll" style={{ textDecoration: "none" }}>
               <li>
                   <CurrencyRubleOutlinedIcon className="icon" />
                   <span>Payroll</span>
               </li>
             </NavLink>
+
             <NavLink to="/adminReports" style={{ textDecoration: "none" }}>
               <li>
                 <RequestQuoteOutlinedIcon className="icon" />
                 <span>Reports</span>
               </li>
-            </NavLink>
+            </NavLink><br />
             </>
           )}
 
-          {/* Employee only */}
-          <p className="title">USER</p>
+          {/* Admin only Pages */}
+          {!isEmployee && (
+            <>
+            <p className="title">SYSTEM LOGS</p>
+            <NavLink to="/auditLogs" style={{ textDecoration: "none" }}>
+              <li>
+                <SecurityIcon className="icon" />
+                <span>Audit</span>
+              </li>
+            </NavLink>
+
+            <NavLink to="/transactionLog" style={{ textDecoration: "none" }}>
+              <li>
+                <PsychologyOutlinedIcon className="icon" />
+                <span>Transaction</span>
+              </li>
+            </NavLink><br />
+            </>
+          )}
+
+          {/* Employee only Pages*/}
           {isEmployee && (
+            <>
+            <p className="title">LISTS</p>
             <NavLink to="/requests" style={{ textDecoration: "none" }}>
               <li>
                 <PendingActionsIcon className="icon" />
                 <span>Requests</span>
               </li>
             </NavLink>
-          )}
-          {isEmployee && (
+
             <NavLink to="/accessLogs" style={{ textDecoration: "none" }}>
               <li>
-                <RequestQuoteOutlinedIcon className="icon" />
+                <BadgeOutlinedIcon className="icon" />
                 <span>Access Logs</span>
+              </li>
+            </NavLink><br />
+            </>
+          )}
+
+          <p className="title">USER</p>
+
+          {!isEmployee && (
+            <NavLink to="/settings" style={{ textDecoration: "none" }}>
+              <li>
+                <SettingsApplicationsIcon className="icon" />
+                <span>Settings</span>
               </li>
             </NavLink>
           )}
-
 
           {/* Shared Routes */}
           <NavLink to="/notifications" style={{ textDecoration: "none" }}>
@@ -146,36 +196,12 @@ const Sidebar = () => {
             </li>
           </NavLink>
           
-          {/* Admin only Settings */}
-          {!isEmployee && (
-            <NavLink to="/settings" style={{ textDecoration: "none" }}>
-              <li>
-                <SettingsApplicationsIcon className="icon" />
-                <span>Settings</span>
-              </li>
-            </NavLink>,
-            
-            <NavLink to="/transactionLog" style={{ textDecoration: "none" }}>
-              <li>
-                <PsychologyOutlinedIcon className="icon" />
-                <span>Transaction Log</span>
-              </li>
-            </NavLink>,
-
-            <NavLink to="/auditLogs" style={{ textDecoration: "none" }}>
-              <li>
-                <SecurityIcon className="icon" />
-                <span>Audit Logs</span>
-              </li>
-            </NavLink>
-
-          )}
-          <NavLink to="/profile" style={{ textDecoration: "none" }}>
+          {/* <NavLink to="/profile" style={{ textDecoration: "none" }}>
             <li>
               <AccountCircleOutlinedIcon className="icon" />
               <span>Profile</span>
             </li>
-          </NavLink>
+          </NavLink> */}
           <div className="logoutItem" onClick={handleLogoutClick}>
           <li>
             <ExitToAppIcon className="icon" />

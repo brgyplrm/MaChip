@@ -26,6 +26,7 @@ import Payslip from "./pages/admin_reports/Payslip";
 import UserLogs from "./pages/emp_UserLogs/UserLogs";
 import TransactionLog from "./components/transactionLog/TransactionLog";
 import AuditLog from "./components/auditLog/AuditLog";
+import ArchivedUsers from "./pages/archivedUsers/ArchivedUsers";
 
 function App() {
   return (
@@ -197,6 +198,14 @@ function App() {
             }
           />
         </Route>
+        <Route
+            path="/archived"
+            element={
+              <ProtectedRoute allowedRoles={[1, 2]}>
+                <ArchivedUsers />
+              </ProtectedRoute>
+            }
+          />
 
         {/* Logs & Settings: Admin (1) & Staff (2) */}
         <Route

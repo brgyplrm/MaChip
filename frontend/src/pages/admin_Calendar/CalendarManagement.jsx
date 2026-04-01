@@ -11,6 +11,8 @@ import { useState, useEffect } from "react";
 import { formatUserId } from "../../utils/formatUserId";
 import Toast from "../../components/toast/Toast";
 import ActionModal from "../../components/actionModal/ActionModal";
+import InfoModal from "../../components/infoModal/InfoModal";
+import { useSelector } from "react-redux";
 
 
 const CalendarManagement = () => {
@@ -52,6 +54,31 @@ const CalendarManagement = () => {
     setShowDeleteModal(false);
     setUserToDelete(null);
   }
+  };
+
+  const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+  const userId = userData.user_Id;
+
+  const [selectedHolidayWork, setSelectedHolidayWork] = useState(null);
+  const [selectedFieldLog, setSelectedFieldLog] = useState(null);
+
+  // 1. Logic for Holiday Clicks
+  const handleHolidayClick = (holiday) => {
+    // Find field work scheduled on the same date as the holiday
+    const matchingWork = events.filter(e => 
+      e.type === "Field Work" && 
+      e.date.split('T')[0] === holiday.date.split('T')[0]
+    );
+
+    if (matchingWork.length > 0) {
+      setSelectedHolidayWork({ holiday, matchingWork });
+    }
+  };
+
+  // 2. Logic for Field Work Clicks
+  const handleFieldWorkClick = (fieldWork) => {
+    // In a real app, you might fetch specific logs here
+    setSelectedFieldLog(fieldWork);
   };
 
   
@@ -267,7 +294,7 @@ const CalendarManagement = () => {
                 </div>
                 <div className="listWrapper">
                 {getUpcomingHolidays().length > 0 ? getUpcomingHolidays().map((holiday, idx) => (
-                    <div className="listItem" key={idx}>
+                    <div className="listItem clickable" key={idx} onClick={() => handleHolidayClick(holiday)}>
                     <div className="info">
                         <p className="name">{holiday.name}</p>
                         <span className="subtext">
@@ -296,7 +323,7 @@ const CalendarManagement = () => {
                 </div>
                 <div className="listWrapper">
                 {events.filter(e => e.type === "Field Work").length > 0 ?events.filter(e => e.type === "Field Work").map((field, idx) => (
-                    <div className="listItem fieldWork" key={idx}>
+                    <div className="listItem fieldWork clickable" key={idx} onClick={() => handleFieldWorkClick(field)}>
                       <div className="info">
                         <p className="name">{field.name}</p>
                         <span className="subtext">{field.date}</span>
@@ -393,9 +420,7 @@ const CalendarManagement = () => {
               </div>
             </div>
           )}
-        </div>
-      </div>
-      <ActionModal
+           <ActionModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={confirmDelete}
@@ -403,6 +428,37 @@ const CalendarManagement = () => {
         title="Confirm Deletion"
         message="Are you sure you want to remove this calendar entry? This action cannot be undone."
       />
+      {/* Holiday Conflict Modal */}
+      <InfoModal 
+        isOpen={!!selectedHolidayWork} 
+        onClose={() => setSelectedHolidayWork(null)}
+        title={`Field Work on ${selectedHolidayWork?.holiday.name}`}
+      >
+        <div className="conflictList">
+          {selectedHolidayWork?.matchingWork.map((work, i) => (
+            <div key={i} className="workDetailItem">
+              <strong>Location:</strong> {work.details} <br/>
+              <strong>Assigned:</strong> {userData.user_FirstName} {userData.user_LastName}
+            </div>
+          ))}
+        </div>
+      </InfoModal>
+
+      {/* Field Work Log Modal */}
+      <InfoModal 
+        isOpen={!!selectedFieldLog} 
+        onClose={() => setSelectedFieldLog(null)}
+        title="Field Work Log Summary"
+      >
+        <div className="logSummary">
+          <div className="summaryRow"><span>Date:</span> <span>{selectedFieldLog?.date}</span></div>
+          <div className="summaryRow"><span>Task:</span> <span>{selectedFieldLog?.details}</span></div>
+          <hr />
+          <p className="statusNote">This assignment is automatically credited as 8 hours worked on-field.</p>
+        </div>
+      </InfoModal>
+        </div>
+      </div>
     </div>
   );
 };

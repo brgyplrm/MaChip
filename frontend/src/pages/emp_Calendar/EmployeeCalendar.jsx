@@ -5,10 +5,31 @@ import Navbar from "../../components/navbar/Navbar";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
+import InfoModal from "../../components/infoModal/InfoModal";
+
 const EmployeeCalendar = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedHolidayWork, setSelectedHolidayWork] = useState(null);
+  const [selectedFieldLog, setSelectedFieldLog] = useState(null);
+
+  const handleHolidayClick = (holiday) => {
+    // Find field work scheduled on the same date as the holiday
+    const matchingWork = events.filter(e => 
+      e.type === "Field Work" && 
+      e.date.split('T')[0] === holiday.date.split('T')[0]
+    );
+
+    if (matchingWork.length > 0) {
+      setSelectedHolidayWork({ holiday, matchingWork });
+    }
+  };
+
+  const handleFieldWorkClick = (fieldWork) => {
+    // In a real app, you might fetch specific logs here
+    setSelectedFieldLog(fieldWork);
+  };
 
   const userData = JSON.parse(localStorage.getItem("userData") || "{}");
   const userId = userData.user_Id;
@@ -149,7 +170,9 @@ const EmployeeCalendar = () => {
               <h3>Holidays this Month</h3>
               <div className="listWrapper">
                 {events.filter(e => e.type === "Holiday").map((h, idx) => (
-                  <div className="listItem" key={idx}>
+                  <div className="listItem clickable" 
+                        key={idx} 
+                        onClick={() => handleHolidayClick(h)}>
                     <div className="info">
                       <p className="name">{h.name}</p>
                       <span className="subtext">{h.date} • {h.details}</span>
@@ -164,7 +187,9 @@ const EmployeeCalendar = () => {
               <h3>My Field Work Assignments</h3>
               <div className="listWrapper">
                 {events.filter(e => e.type === "Field Work").map((f, idx) => (
-                  <div className="listItem fieldWork" key={idx}>
+                  <div className="listItem fieldWork clickable" 
+                        key={idx} 
+                        onClick={() => handleFieldWorkClick(f)}>
                     <div className="info">
                       <p className="name">{f.details}</p>
                       <span className="subtext">{f.date}</span>
@@ -178,7 +203,36 @@ const EmployeeCalendar = () => {
           </div>
         </div>
       </div>
-    </div>
+      {/* Holiday Conflict Modal */}
+        <InfoModal 
+          isOpen={!!selectedHolidayWork} 
+          onClose={() => setSelectedHolidayWork(null)}
+          title={`Field Work on ${selectedHolidayWork?.holiday.name}`}
+        >
+          <div className="conflictList">
+            {selectedHolidayWork?.matchingWork.map((work, i) => (
+              <div key={i} className="workDetailItem">
+                <strong>Location:</strong> {work.details} <br/>
+                <strong>Assigned:</strong> {userData.user_FirstName} {userData.user_LastName}
+              </div>
+            ))}
+          </div>
+        </InfoModal>
+
+        {/* Field Work Log Modal */}
+        <InfoModal 
+          isOpen={!!selectedFieldLog} 
+          onClose={() => setSelectedFieldLog(null)}
+          title="Field Work Log Summary"
+        >
+          <div className="logSummary">
+            <div className="summaryRow"><span>Date:</span> <span>{selectedFieldLog?.date}</span></div>
+            <div className="summaryRow"><span>Task:</span> <span>{selectedFieldLog?.details}</span></div>
+            <hr />
+            <p className="statusNote">This assignment is automatically credited as 8 hours worked on-field.</p>
+          </div>
+        </InfoModal>
+      </div>
   );
 };
 

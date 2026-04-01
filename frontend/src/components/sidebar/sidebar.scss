@@ -66,15 +66,16 @@
       display: flex;
       align-items: center;
       padding: 10px;
+      margin: 2px 0;
       cursor: pointer;
       gap: 10px;
       color: #2A174E; // Default color
 
       // Grouping hover and active logic
       &:hover {
-        background-color: #2A174E;
+        background-color: #623fa2;
         color: white; 
-        transition: background-color 0.3s ease, color 0.3s ease;
+        transition: background-color 0.5s ease, color 0.5s ease;
         border-radius: 12px 12px 0px 12px;
 
         .icon, span {

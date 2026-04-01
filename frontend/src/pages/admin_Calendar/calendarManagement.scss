@@ -185,7 +185,9 @@ $ot-blue: #e0f2fe;
             max-height: 250px; // Slightly smaller height for stacked view
             overflow-y: auto;
 
-            .listItem {
+            .listItem.clickable { 
+              cursor: pointer; 
+              transition: background 0.2s;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -194,6 +196,12 @@ $ot-blue: #e0f2fe;
             border: 1px solid #f0f0f0;
             border-radius: 12px;
             transition: transform 0.2s;
+
+            &:hover {
+              background-color: #f0ebfa;
+              border-color: $primary-purple;
+              transform: translateX(5px);
+            }
 
             .deleteBtn {
                 background: none; border: none; color: #888; cursor: pointer;
@@ -242,6 +250,62 @@ $ot-blue: #e0f2fe;
             button { flex: 1; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; }
             .submitBtn.purple { background: $primary-purple; color: white; border: none; }
             .submitBtn.orange { background: $orange-accent; color: white; border: none; }
+        }
+      }
+    }
+    .infoModalOverlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+
+      .infoModalContainer {
+        background: white;
+        width: 400px;
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+
+        .modalHeader {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid #eee;
+          padding-bottom: 15px;
+          margin-bottom: 20px;
+          
+          h2 { font-size: 18px; color: #2A174E; margin: 0; }
+          .closeIcon { cursor: pointer; color: #888; &:hover { color: #333; } }
+        }
+
+        .workDetailItem {
+          padding: 12px;
+          background: #fdfaf5;
+          border-radius: 8px;
+          margin-bottom: 10px;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+
+        .logSummary {
+          .summaryRow {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+            span:first-child { font-weight: bold; color: #666; }
+          }
+          .statusNote {
+            font-size: 12px;
+            font-style: italic;
+            color: #22c55e;
+            margin-top: 15px;
+          }
         }
       }
     }

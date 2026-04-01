@@ -92,16 +92,39 @@
         align-items: center;
         margin-right: 20px;
         position: relative;
+        cursor: pointer;
 
         .icon {
           font-size: 30px;
           color: white;
+          transition: all 0.2s ease;
+        }
+
+        &:hover {
+          .icon {
+            transform: scale(1.1); // Slightly enlarges the icon
+            color: #f0ebfa; // Subtle color change
+          }
+          
+          /* Optional: Shake animation for the bell */
+          .icon {
+            animation: bellShake 0.5s ease;
+          }
         }
 
         .avatar {
-          width: 40px;
-          height: 40px;
+          width: 45px;
+          height: 45px;
           border-radius: 50%;
+
+          object-fit: cover;    // Maintains aspect ratio while filling the circle
+          flex-shrink: 0;      // Prevents the circle from shrinking if the header is crowded
+          display: block;
+
+          &:hover {
+            transform: scale(1.1); // Slightly enlarges the avatar on hover
+            transition: all 0.2s ease;
+          }
         }
 
         .counter {
@@ -122,4 +145,12 @@
       }
     }
   }
+}
+@keyframes bellShake {
+  0% { transform: rotate(0); }
+  15% { transform: rotate(10deg); }
+  30% { transform: rotate(-10deg); }
+  45% { transform: rotate(5deg); }
+  60% { transform: rotate(-5deg); }
+  100% { transform: rotate(0); }
 }
