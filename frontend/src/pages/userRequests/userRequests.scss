@@ -1,5 +1,13 @@
 @use "sass:color";
 $primary-purple: #2A174E;
+$text-muted: #64748b;
+
+$pending-bg: #fff7ed;
+$pending-text: #c2410c;
+$approved-bg: #f0fdf4;
+$approved-text: #15803d;
+$rejected-bg: #fef2f2;
+$rejected-text: #b91c1c;
 
 .requestsPage {
   .homeContainer {
@@ -9,6 +17,46 @@ $primary-purple: #2A174E;
       padding: 30px;
       max-width: 1200px;
       margin: 0 auto;
+
+      .statsRow {
+        display: flex;
+        gap: 20px;
+
+        .statCard {
+          flex: 1;
+          background: white;
+          padding: 20px;
+          border-radius: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+
+          .info {
+            span {
+              font-size: 14px;
+              font-weight: 600;
+              color: $text-muted;
+            }
+            p {
+              font-size: 28px;
+              font-weight: 800;
+              color: $primary-purple;
+              margin: 5px 0 0 0;
+            }
+          }
+
+          .icon {
+            font-size: 45px;
+            padding: 10px;
+            border-radius: 12px;
+
+            &.pending { background: $pending-bg; color: $pending-text; }
+            &.approved { background: $approved-bg; color: $approved-text; }
+            &.rejected { background: $rejected-bg; color: $rejected-text; }
+          }
+        }
+      }
 
       .requestsSplitLayout {
         display: flex;

@@ -2,6 +2,7 @@ import "./new.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom"; // 1. Import the hook
 import Toast from "../../components/toast/Toast";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 
@@ -25,6 +26,7 @@ const validateForm = (formData) => {
 };
 
 const New = ({ inputs, title }) => {
+  const navigate = useNavigate();
   const [file, setFile] = useState("");
   const [displayId, setDisplayId] = useState("");
   const [formData, setFormData] = useState({
@@ -108,6 +110,10 @@ const New = ({ inputs, title }) => {
 
       if (response.ok) {
         setToast({ message: "User added successfully!", type: "success" });
+
+        setTimeout(() => {
+          navigate("/users"); // Redirects to the User List page
+        }, 1100);
         // Optional: Reset form or redirect
         setFormData({
           user_Id: "",
@@ -249,6 +255,7 @@ const New = ({ inputs, title }) => {
             </div>
             </div>
             <div className="bottom-center">
+            <button className="cancelButton" onClick={() => navigate("/users")}>Cancel</button>
             <button className="submitButton" onClick={handleSubmit}>Add User</button>
             </div>
             </div>

@@ -15,6 +15,7 @@ import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodMo
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import { exportBatchToZip } from "../../utils/payrollExport";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 const PayrollPeriod = () => {
   const [payrolls, setPayrolls] = useState([]);
@@ -208,7 +209,12 @@ const PayrollPeriod = () => {
         <div className="wrapper">
           <div className="header">
             <div className="text">
-              <h1>Payroll Period ({currentPeriodLabel}) {selectedPeriodIdx === 0 ? "(Current)" : "(Previous)"}</h1>
+              <div className="titleWithBack">
+                <Link to="/payroll" className="backLink">
+                  <ArrowBackIcon className="backIcon" />
+                </Link>
+                <h1>Payroll Period ({currentPeriodLabel}) {selectedPeriodIdx === 0 ? "(Current)" : "(Previous)"}</h1>
+              </div>
               <span>Manage employee payroll and compensation</span>
             </div>
             <div className="headerActions">

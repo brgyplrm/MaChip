@@ -108,7 +108,9 @@
           .cardHeader {
             display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
             .titleGroup { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #2A174E; }
-            .viewAll { background: none; border: none; color: #7451f8; font-weight: 600; cursor: pointer; }
+            .viewAll { background: none; border: none; color: #2A174E; font-weight: 600; cursor: pointer; 
+              &:hover { text-decoration: none; color: #7451f8;}
+            }
           }
         }
 
@@ -195,8 +197,10 @@
           h3 { margin: 0; }
           .applyBtn { 
             background: #2A174E; color: white; padding: 10px 20px; border-radius: 10px; 
-            border: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+            border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; text-decoration: none;
             &:hover { background: #3e2472; }
+
+            .icon { width: 20px; height: 20px; }
           }
         }
 

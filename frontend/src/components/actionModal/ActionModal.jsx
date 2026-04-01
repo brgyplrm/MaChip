@@ -2,14 +2,17 @@ import React from "react";
 import "./actionModal.scss";
 import CloseIcon from "@mui/icons-material/Close";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import ReportGmailerrorredIcon from "@mui/icons-material/ReportGmailerrorred";
 
-const ActionModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+const ActionModal = ({ isOpen, onClose, onConfirm, title, message, variant = "primary" }) => {
   // Do not render anything if the modal is not active
   if (!isOpen) return null;
 
+  const Icon = variant === "danger" ? ReportGmailerrorredIcon : HelpOutlineIcon;
+
   return (
     <div className="modalOverlay">
-      <div className="modalContainer">
+      <div className={`modalContainer ${variant}`}>
         {/* Close button for manual dismissal */}
         <button className="closeBtn" onClick={onClose}>
           <CloseIcon />

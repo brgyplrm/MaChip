@@ -247,10 +247,12 @@ const Logs = () => {
                       <td>{row.log_Date}</td>
                       <td>{row.time}</td>
                       <td>
-                        <Link to={`/users/${row.user_Id}`} className="viewLink">
+                      <div className="cellAction">
+                        <Link to={`/users/${row.user_Id}`} className="viewButton">
                           View
                         </Link>
-                      </td>
+                      </div>
+                    </td>
                     </tr>
                   ))
                 ) : (

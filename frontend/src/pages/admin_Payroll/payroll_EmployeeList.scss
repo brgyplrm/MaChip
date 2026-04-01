@@ -18,6 +18,33 @@
         margin-bottom: 24px;
 
         .titleBlock {
+          .titleWithBack {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 4px;
+
+            .backLink {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 36px;
+              height: 36px;
+              border-radius: 50%;
+              background-color: transparent;
+              color: #2A174E; // Your primary purple
+              transition: all 0.2s ease;
+              text-decoration: none;
+
+              &:hover {
+                background-color: #f0ebfa; // Soft purple hover
+                transform: translateX(-3px); // Subtle "back" movement
+              }
+
+              .backIcon {
+                font-size: 22px;
+              }
+            }
           h1 {
             font-size: 24px;
             font-weight: 700;
@@ -29,6 +56,7 @@
             color: #888;
           }
         }
+      }
 
         .refreshBtn {
           display: flex;
@@ -54,6 +82,13 @@
           }
         }
       }
+
+      .infoAlert {
+      background-color: #eef7ff; border: 1px solid #c9e5ff; border-radius: 12px;
+      padding: 20px; margin-bottom: 30px;
+      .alertTitle { display: flex; align-items: center; gap: 10px; color: #004085; h3 { font-size: 16px; margin: 0; } }
+      p { color: #0056b3; font-size: 14px; margin-top: 8px; }
+    }
 
       // ── Summary Row ─────────────────────────────────
       .summaryRow {

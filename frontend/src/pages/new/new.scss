@@ -75,6 +75,11 @@
         }
       }
     }
-    .bottom-center { display: flex; justify-content: center; .submitButton { width: 150px; padding: 10px; background: #2a174e; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; &:hover { background: #45297e; } } }
+    .bottom-center { display: flex; justify-content: center; gap: 50px; margin-top: 20px;
+      .cancelButton { width: 150px; padding: 10px; background: #f1f3f5; color: #495057; border: 1.5px solid #ccc;; border-radius: 5px; font-weight: bold; box-shadow: 0px 0px 15px -10px rgba(0,0,0,0.75);
+        &:hover { background: #e9ecef;} 
+    }
+      .submitButton { width: 150px; padding: 10px; background: #2a174e; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; box-shadow: 0px 0px 15px -10px rgba(0,0,0,0.75);
+        &:hover { background: #45297e; } } }
   }
 }

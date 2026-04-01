@@ -299,13 +299,19 @@ const Payroll = () => {
           </div>
 
           <br />
-          <div className="sectionTitle">Previous Periods (Locked)</div><br />
-          <div className="previousPeriodsTable">
-            <table>
+          {/* src/pages/payroll/PayrollManagement.jsx */}
+
+          <div className="sectionTitle">Previous Periods (Locked)</div>
+          <div className="tableCard"> {/* Added consistent card wrapper */}
+            <table className="customPayrollTable"> {/* Renamed for specific styling */}
               <thead>
                 <tr>
-                  <th>PERIOD</th><th>DATE RANGE</th><th>EMPLOYEES</th>
-                  <th>TOTAL AMOUNT</th><th>STATUS</th><th>ACTIONS</th>
+                  <th>Period Label</th>
+                  <th>Date Range</th>
+                  <th>Employees</th>
+                  <th>Total Amount</th>
+                  <th>Status</th>
+                  <th className="actionHead">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -314,22 +320,28 @@ const Payroll = () => {
                     .filter(p => activePeriod && (p.startDate < activePeriod.startDate || p.employeeCount > 0))
                     .map((p, index) => (
                       <tr key={index}>
-                        <td>{p.label}</td>
+                        <td className="boldText">{p.label}</td>
                         <td>{`${new Date(p.startDate).toLocaleDateString()} - ${new Date(p.endDate).toLocaleDateString()}`}</td>
                         <td>{p.employeeCount || 0}</td>
-                        <td>₱{(parseFloat(p.totalAmount) || 0).toLocaleString()}</td>
-                        <td><span className="statusDraft">{p.status || "Draft"}</span></td>
+                        <td className="amountText">₱{(parseFloat(p.totalAmount) || 0).toLocaleString()}</td>
                         <td>
-                          <Link to="/payroll/payrollPeriod" style={{ textDecoration: "none" }}>
-                             <button className="viewBtn" style={{ background: "none", border: "none", color: "#6439ff", cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}>
-                               <VisibilityIcon style={{ fontSize: "18px" }} /> View
-                             </button>
-                          </Link>
+                          <span className={`statusPill ${p.status?.toLowerCase() || "draft"}`}>
+                            {p.status || "Draft"}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="cellAction">
+                            <Link to="/payroll/payrollPeriod" className="viewBtn">
+                              <VisibilityIcon className="icon" /> View Details
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))
                 ) : (
-                  <tr><td colSpan="6" className="emptyState">No previous periods found</td></tr>
+                  <tr>
+                    <td colSpan="6" className="noData">No previous periods found</td>
+                  </tr>
                 )}
               </tbody>
             </table>

@@ -8,6 +8,8 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
+import { useNavigate } from "react-router-dom";
+
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 
@@ -63,6 +65,8 @@ const Edit = ({ inputs, title }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [displayPic, setDisplayPic] = useState("");
 
+  const navigate = useNavigate();
+
   const userData = JSON.parse(localStorage.getItem("userData"));
   const isAdmin = userData?.user_RoleId === 1;
 
@@ -78,6 +82,15 @@ const Edit = ({ inputs, title }) => {
     () => setToast({ message: "", type: "success" }),
     [],
   );
+
+  const handleCancel = () => {
+  // Check if the current user is an Admin or Employee
+  if (isAdmin) {
+    navigate("/users"); // Admin goes back to the User Management list
+  } else {
+    navigate("/profile"); // Employee goes back to their personal dashboard
+  }
+};
 
   // Clear a single field error when the user edits it
   const clearError = (field) => setErrors((prev) => ({ ...prev, [field]: "" }));
@@ -369,6 +382,9 @@ const Edit = ({ inputs, title }) => {
       </div>
       {/* Bottom Center: Action Button */}
       <div className="bottom-center">
+        <button className="cancelButton" onClick={handleCancel}>
+          Cancel
+        </button>
         <button className="submitButton" onClick={handleUpdate}>
           Update Profile
         </button>

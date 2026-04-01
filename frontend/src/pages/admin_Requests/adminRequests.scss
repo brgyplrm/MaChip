@@ -155,6 +155,8 @@ $rejected-text: #b91c1c;
                   
                   &.VL { background: #e0e7ff; color: #4338ca; }
                   &.SL { background: #fee2e2; color: #b91c1c; }
+                  &.OW { background: #ffdab9; color: #ff6d00; }
+                  &.OT { background: #e0f2fe; color: #4fc2f7; }
                 }
 
                 .reqId {
@@ -195,6 +197,17 @@ $rejected-text: #b91c1c;
             border-bottom: 1px solid $border-color;
             padding-bottom: 20px;
             margin-bottom: 25px;
+
+            .statusBadge {
+              font-size: 12px;
+              font-weight: 700;
+              padding: 5px 15px;
+              border-radius: 20px;
+
+              &.pending { background: $pending-bg; color: $pending-text; }
+              &.approved { background: $approved-bg; color: $approved-text; }
+              &.rejected { background: $rejected-bg; color: $rejected-text; }
+            }
 
             .title {
               h3 {

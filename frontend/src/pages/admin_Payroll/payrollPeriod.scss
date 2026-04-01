@@ -15,7 +15,47 @@
         align-items: center;
         margin-bottom: 30px;
 
-        h1 { font-size: 24px; color: #2A174E; }
+        .text{
+          .titleWithBack {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 4px;
+
+            .backLink {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 36px;
+              height: 36px;
+              border-radius: 50%;
+              background-color: transparent;
+              color: #2A174E; // Your primary purple
+              transition: all 0.2s ease;
+              text-decoration: none;
+
+              &:hover {
+                background-color: #f0ebfa; // Soft purple hover
+                transform: translateX(-3px); // Subtle "back" movement
+              }
+
+              .backIcon {
+                font-size: 22px;
+              }
+            }
+          h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2A174E;
+            margin-bottom: 4px;
+          }
+          span {
+            font-size: 13px;
+            color: #888;
+          }
+        }
+      }
+
         span { color: #666; font-size: 14px; }
         .headerActions {
           display: flex;

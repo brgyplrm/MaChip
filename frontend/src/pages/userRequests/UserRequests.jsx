@@ -3,7 +3,6 @@ import "./userRequests.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import SendIcon from "@mui/icons-material/Send";
-import HistoryIcon from "@mui/icons-material/History";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
@@ -14,6 +13,8 @@ import { useRef } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { Link } from "react-router-dom";
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 
 const UserRequests = () => {
   const dtrRef = useRef();
@@ -170,9 +171,8 @@ const UserRequests = () => {
   }, [userData?.user_Id]);
 
   useEffect(() => {
-    if (activeTab === "history") {
-      fetchHistory();
-    } else if (activeTab === "dtr") {
+    fetchHistory();
+    if (activeTab === "dtr") {
       fetchDTR();
     }
   }, [activeTab]);
@@ -326,21 +326,30 @@ const UserRequests = () => {
         <Navbar />
         <div className="requestsWrapper">
           <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-          
-          <div className="tabHeader">
-            <button 
-              className={`tabBtn ${activeTab === "submit" ? "active" : ""}`} 
-              onClick={() => setActiveTab("submit")}
-            >
-              <SendIcon className="icon"/> Submit Request
-            </button>
-            <button 
-              className={`tabBtn ${activeTab === "dtr" ? "active" : ""}`} 
-              onClick={() => setActiveTab("dtr")}
-            >
-              <AccessTimeIcon className="icon"/> My DTR
-            </button>
-          </div>
+
+          <div className="statsRow">
+            <div className="statCard">
+              <div className="info">
+                <span>Pending Requests</span>
+                <p></p>
+              </div>
+              <HourglassEmptyIcon className="icon pending" />
+            </div>
+            <div className="statCard">
+              <div className="info">
+                <span>Approved Total</span>
+                <p></p>
+              </div>
+              <CheckCircleOutlineIcon className="icon approved" />
+            </div>
+            <div className="statCard">
+              <div className="info">
+                <span>Rejected Total</span>
+                <p></p>
+              </div>
+              <CancelOutlinedIcon className="icon rejected" />
+            </div>
+          </div><br />
           
           {/* Inside the contentSection in UserRequests.jsx */}
           <div className="contentSection">

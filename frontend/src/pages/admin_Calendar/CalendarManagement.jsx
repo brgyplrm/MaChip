@@ -10,6 +10,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useState, useEffect } from "react";
 import { formatUserId } from "../../utils/formatUserId";
 import Toast from "../../components/toast/Toast";
+import ActionModal from "../../components/actionModal/ActionModal";
+
 
 const CalendarManagement = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -18,6 +20,40 @@ const CalendarManagement = () => {
   const [loading, setLoading] = useState(false);
   const [modalType, setModalType] = useState(null);
   const [toast, setToast] = useState({ message: "", type: "success" });
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+
+  const initiateDelete = (user_Id) => {
+    setUserToDelete(user_Id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    const adminId = localStorage.getItem("token");
+    const endpoint = `http://localhost:4000/api/request/delete/${userToDelete}`;
+    try {
+    const response = await fetch(endpoint, {
+      method: "DELETE",
+      headers: { "x-admin-id": adminId },
+    });
+    
+    if (response.ok) {
+      // 2. Update the 'events' state (NOT 'data')
+      setEvents(prev => prev.filter((item) => item.id !== userToDelete));
+      setToast({ message: "Assignment deleted successfully.", type: "success" });
+    } else {
+      const result = await response.json();
+      setToast({ message: result.error || "Failed to delete.", type: "error" });
+    }
+  } catch (err) {
+    setToast({ message: "Could not connect to server.", type: "error" });
+  } finally {
+    setShowDeleteModal(false);
+    setUserToDelete(null);
+  }
+  };
+
   
   // Field Work Form State
   const [fieldWorkForm, setFieldWorkForm] = useState({
@@ -228,7 +264,6 @@ const CalendarManagement = () => {
             <div className="detailCard">
                 <div className="cardHeader">
                 <h3>Upcoming Holidays</h3>
-                <button className="viewAll">View Calendar</button>
                 </div>
                 <div className="listWrapper">
                 {getUpcomingHolidays().length > 0 ? getUpcomingHolidays().map((holiday, idx) => (
@@ -241,7 +276,11 @@ const CalendarManagement = () => {
                     </div>
                     <div className="icons">
                         <EditIcon className="edit" onClick={() => setModalType('editHoliday')} />
-                        <DeleteIcon className="delete" />
+                         <button 
+                             className="deleteBtn" 
+                             onClick={() => initiateDelete(holiday.id)}
+                             > <DeleteIcon className="delete" />
+                        </button>
                     </div>
                     </div>
                 )) : (
@@ -256,20 +295,23 @@ const CalendarManagement = () => {
                 <h3>Field Work Assignments</h3>
                 </div>
                 <div className="listWrapper">
-                {events.filter(e => e.type === "Field Work").length > 0 ? events.filter(e => e.type === "Field Work").map((field, idx) => (
+                {events.filter(e => e.type === "Field Work").length > 0 ?events.filter(e => e.type === "Field Work").map((field, idx) => (
                     <div className="listItem fieldWork" key={idx}>
                       <div className="info">
                         <p className="name">{field.name}</p>
                         <span className="subtext">{field.date}</span>
                         <p className="purpose">{field.details}</p>
                       </div>
-                      <div className="icons">
-                        <DeleteIcon className="delete" />
-                      </div>
+                        <button 
+                             className="deleteBtn" 
+                             onClick={() => initiateDelete(field.id)}
+                             > <DeleteIcon className="delete" />
+                        </button>
                     </div>
                 )) : (
                   <p style={{ textAlign: 'center', color: '#777', padding: '20px' }}>No field work assignments this month</p>
                 )}
+                
                 </div>
               </div>
             </div>
@@ -353,6 +395,14 @@ const CalendarManagement = () => {
           )}
         </div>
       </div>
+      <ActionModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        variant="danger"
+        title="Confirm Deletion"
+        message="Are you sure you want to remove this calendar entry? This action cannot be undone."
+      />
     </div>
   );
 };

@@ -11,6 +11,9 @@ import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import { formatUserId } from "../../utils/formatUserId";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { Link } from "react-router-dom";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);
@@ -130,7 +133,14 @@ const EmployeeList = () => {
           {/* ── Header ── */}
           <div className="pageHeader">
             <div className="titleBlock">
-              <h1>Employee Masterlist</h1>
+              <div className="titleWithBack">
+                <Link to="/payroll" className="backLink">
+                  <ArrowBackIcon className="backIcon" />
+                </Link>
+                <h1>
+                  Employee Masterlist
+                </h1>
+              </div>
               <span>Manage employee records and daily compensation rates</span>
             </div>
             <button
@@ -141,6 +151,17 @@ const EmployeeList = () => {
               <RefreshIcon />
               {refreshing ? "Refreshing..." : "Refresh"}
             </button>
+          </div>
+
+          <div className="infoAlert">
+            <div className="alertTitle">
+              <InfoOutlinedIcon className="icon" /> 
+              <h3>Employee Payroll Processing</h3>
+            </div>
+            <p>
+              Provide a daily rate to automatically calculate payroll for each employee. 
+              Employees without a daily rate will be excluded from payroll calculations.
+            </p>
           </div>
 
           {/* ── Summary Chips ── */}
@@ -326,7 +347,6 @@ const EmployeeList = () => {
               </table>
             )}
           </div>
-
         </div>
       </div>
 

@@ -126,6 +126,76 @@
         .emptyState { text-align: center; padding: 40px; color: #999; font-style: italic; }
       }
     }
+
+    .tableCard {
+      background: white;
+      padding: 20px 30px;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      margin-top: 20px;
+
+      .customPayrollTable {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+
+        th {
+          padding: 20px;
+          color: #4a5568;
+          font-size: 13px;
+          text-transform: uppercase;
+          font-weight: 700;
+          border-bottom: 1px solid #f1f3f5;
+        }
+
+        td {
+          padding: 20px;
+          border-bottom: 1px solid #f1f3f5;
+          font-size: 14px;
+          color: #2d3748;
+
+          &.boldText { font-weight: 700; color: #2A174E; }
+          &.amountText { font-weight: 600; color: #2d3748; }
+        }
+
+        .statusPill {
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 700;
+          text-transform: capitalize;
+          
+          &.completed { background-color: #def7ec; color: #03543f; } // Green
+          &.draft { background-color: #f1f3f5; color: #4a5568; }     // Gray
+          &.upcoming { background-color: #e1effe; color: #1e429f; } // Blue
+        }
+
+        .cellAction {
+          display: flex;
+          align-items: center;
+
+          .viewBtn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: #2A174E;
+            border: 1px solid #2A174E;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            transition: 0.2s;
+
+            .icon { font-size: 18px; }
+            &:hover { background: #2A174E; color: white; }
+          }
+        }
+
+        tr:hover { background-color: #fcfcfd; }
+        .noData { text-align: center; padding: 40px; color: #999; }
+      }
+    }
     }
   }
 }

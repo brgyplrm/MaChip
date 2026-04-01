@@ -25,8 +25,7 @@ $bg-cream: #fdfaf5;
           span { font-size: 13px; color: #888; }
         }
 
-        .statusBadge.approved {
-          background-color: #22c55e;
+        .statusBadge.approved, .statusBadge.rejected, .statusBadge.pending {
           color: white;
           padding: 8px 18px;
           border-radius: 20px;
@@ -36,6 +35,18 @@ $bg-cream: #fdfaf5;
           font-weight: bold;
           font-size: 14px;
           .icon { font-size: 18px; }
+        }
+
+        .statusBadge.approved {
+          background-color: #22c55e;
+        }
+
+        .statusBadge.rejected {
+          background-color: #ef4444;
+        }
+
+        .statusBadge.pending {
+          background-color: #f59e0b;
         }
       }
 

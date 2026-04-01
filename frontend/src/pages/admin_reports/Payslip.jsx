@@ -6,6 +6,8 @@ import PrintIcon from "@mui/icons-material/Print";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 const Payslip = () => {
   const { id } = useParams(); // Using 'id' from App.jsx route /adminReports/payslip/:id
@@ -82,7 +84,12 @@ const Payslip = () => {
         <Navbar />
         <div className="payslipWrapper">
           <div className="headerActions">
-            <h1>Payslip Preview</h1>
+            <div className="titleWithBack">
+              <Link to="/adminReports" className="backLink">
+                <ArrowBackIcon className="backIcon" />
+              </Link>
+              <h1>Payslip Preview</h1>
+            </div>
             <button className="downloadBtn" onClick={handleDownloadPDF}>
               <PrintIcon /> Export to PDF
             </button>

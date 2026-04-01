@@ -321,6 +321,10 @@ const AdminRequests = () => {
                                 : "N/A"}
                             </p>
                         </div>
+                        <div className="detailBox">
+                          <label>Admin ID</label>
+                          <p>{current.admin_id}</p>
+                        </div>
                       </>
                     )}
                     {(current.SL_proof_File || current.OW_proof_File) && (

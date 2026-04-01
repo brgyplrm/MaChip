@@ -11,6 +11,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import Toast from "../../components/toast/Toast";
 import { Link } from "react-router-dom";
+import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
 
 const EmployeeHome = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -176,7 +177,7 @@ const EmployeeHome = () => {
               <h3>My Leave Requests</h3>
               <Link to="/requests">
                 <button className="applyBtn">
-                  Apply for a leave <ArrowRightAltIcon />
+                  Apply for a leave <ChevronRightOutlinedIcon className="icon" />
                 </button>
               </Link>
             </div>
