@@ -128,10 +128,12 @@ const PayrollDetails = () => {
           {/* Header Section */}
           <div className="pageHeader">
             <div className="left">
-              <ArrowBackIcon className="backIcon" onClick={() => navigate(-1)} />
-              <div className="titleText">
-                <h1>Payroll Details</h1>
-                <span>Payroll ID: {payroll.payrollId}</span>
+              <div className="titleWithBack">
+                <ArrowBackIcon className="backLink" onClick={() => navigate(-1)} />
+                <div className="titleText">
+                  <h1>Payroll Details</h1>
+                  <span>Payroll ID: {payroll.payrollId}</span>
+                </div>
               </div>
             </div>
             <span className={`statusBadge ${payroll.PaystatusName?.toLowerCase()}`}>

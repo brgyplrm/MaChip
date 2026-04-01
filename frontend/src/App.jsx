@@ -24,7 +24,8 @@ import CalendarRedirect from "./components/calendarredirect/CalendarRedirect";
 import AdminReports from "./pages/admin_reports/AdminReports";
 import Payslip from "./pages/admin_reports/Payslip";
 import UserLogs from "./pages/emp_UserLogs/UserLogs";
-
+import TransactionLog from "./components/transactionLog/TransactionLog";
+import AuditLog from "./components/auditLog/AuditLog";
 
 function App() {
   return (
@@ -214,6 +215,25 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="transactionLog"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2]}>
+              <TransactionLog />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="auditLogs"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <AuditLog />
+            </ProtectedRoute>
+          }
+        />
+
 
         {/* Profile & Notifications: All Roles (1, 2, 3) */}
         <Route

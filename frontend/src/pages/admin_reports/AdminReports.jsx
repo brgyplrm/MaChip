@@ -11,9 +11,9 @@ import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import { Link } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import { exportBatchToZip } from "../../utils/payrollExport";
+import { useLocation } from "react-router-dom";
 
 const Reports = () => {
-  const [activeReport, setActiveReport] = useState("attendance");
   const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedEmployee, setSelectedEmployee] = useState("All Employees");
@@ -25,6 +25,9 @@ const Reports = () => {
   const [payrollData, setPayrollData] = useState([]);
   const [calendarData, setCalendarData] = useState([]);
   const [loading, setLoading] = useState(false);
+
+    const location = useLocation();
+  const [activeReport, setActiveReport] = useState("attendance");
 
   const fetchPayrollPeriods = useCallback(async () => {
     try {
@@ -117,6 +120,12 @@ const Reports = () => {
     else if (activeReport === "payroll") fetchPayrollReport();
     else if (activeReport === "calendar") fetchCalendarReport();
   }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport]);
+
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveReport(location.state.activeTab);
+    }
+  }, [location.state]);
 
   const exportToCSV = () => {
     let dataToExport = [];
@@ -372,7 +381,8 @@ const Reports = () => {
                             <td><span className={`status ${r.statusName.toLowerCase()}`}>{r.statusName}</span></td>
                             <td className="no-print">
                                 <div className="actions">
-                                <Link title="View Payslip" to={`/adminReports/payslip/${r.payrollId}`}>
+                                <Link title="View Payslip" to={`/adminReports/payslip/${r.payrollId}`}
+                                      state={{ fromTab: activeReport }}>
                                     <ReceiptLongIcon className="payslipIcon" />
                                 </Link>
                                 </div>

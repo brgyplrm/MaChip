@@ -6,6 +6,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import SaveIcon from "@mui/icons-material/Save";
 import { Link } from "react-router-dom";
+import TransactionLog from "../../components/transactionLog/TransactionLog";
 
 const Settings = () => {
   const [realTime, setRealTime] = useState(new Date());
@@ -73,23 +74,6 @@ const Settings = () => {
         <div className="settingsWrapper">
           <h1 className="title">System Settings</h1>
           <div className="content">
-            {/* Left Section: Account/User Info */}
-            <div className="item">
-              <h2 className="itemTitle">Profile Settings</h2>
-              <div className="details">
-                <div className="detailItem">
-                  <span className="itemKey">Admin Name:</span>
-                  <span className="itemValue">Accounting Admin</span>
-                </div>
-                <div className="detailItem">
-                  <span className="itemKey">Email:</span>
-                  <span className="itemValue">machip67@gmail.com</span>
-                </div>
-                <Link to="/users/edit/userid">
-                  <button className="editButton">Update Profile</button>
-                </Link>
-              </div>
-            </div>
 
             {/* Right Section: System Preferences */}
             <div className="item">

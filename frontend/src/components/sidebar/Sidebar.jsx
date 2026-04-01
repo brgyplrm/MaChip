@@ -14,6 +14,8 @@ import { NavLink } from "react-router-dom";
 import ActionModal from "../actionModal/ActionModal"; // Import your component
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import TransactionLog from "../transactionLog/TransactionLog";
+import SecurityIcon from "@mui/icons-material/Security";
 
 
 const Sidebar = () => {
@@ -151,7 +153,22 @@ const Sidebar = () => {
                 <SettingsApplicationsIcon className="icon" />
                 <span>Settings</span>
               </li>
+            </NavLink>,
+            
+            <NavLink to="/transactionLog" style={{ textDecoration: "none" }}>
+              <li>
+                <PsychologyOutlinedIcon className="icon" />
+                <span>Transaction Log</span>
+              </li>
+            </NavLink>,
+
+            <NavLink to="/auditLogs" style={{ textDecoration: "none" }}>
+              <li>
+                <SecurityIcon className="icon" />
+                <span>Audit Logs</span>
+              </li>
             </NavLink>
+
           )}
           <NavLink to="/profile" style={{ textDecoration: "none" }}>
             <li>

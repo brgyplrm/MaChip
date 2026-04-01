@@ -5,8 +5,7 @@ import Navbar from "../../components/navbar/Navbar";
 import PrintIcon from "@mui/icons-material/Print";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { useParams } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 const Payslip = () => {
@@ -14,6 +13,9 @@ const Payslip = () => {
   const payslipRef = useRef();
   const [payroll, setPayroll] = useState(null);
   const [loading, setLoading] = useState(true);
+  const location = useLocation(); // Initialize location
+
+  const previousTab = location.state?.fromTab || "attendance";
 
   useEffect(() => {
     const fetchPayrollDetails = async () => {
@@ -85,7 +87,7 @@ const Payslip = () => {
         <div className="payslipWrapper">
           <div className="headerActions">
             <div className="titleWithBack">
-              <Link to="/adminReports" className="backLink">
+              <Link to="/adminReports" state={{ activeTab: previousTab }} className="backLink">
                 <ArrowBackIcon className="backIcon" />
               </Link>
               <h1>Payslip Preview</h1>
