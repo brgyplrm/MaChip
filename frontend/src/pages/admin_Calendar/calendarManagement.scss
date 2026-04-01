@@ -67,137 +67,121 @@ $ot-blue: #e0f2fe;
         &.ot { background: #e0f2fe; border: 1px solid #7dd3fc; }
       }
     }
+    .mainContentSplit {
+      display: flex;
+      gap: 25px;
+      align-items: flex-start; // Prevents tables from stretching to calendar height
+      margin-top: 20px;
 
-    .calendarCard {
-      background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-      
-      .calendarHeader {
-        background: linear-gradient(90deg, #ff9800, #ffb74d); color: white;
-        display: flex; justify-content: space-between; align-items: center; padding: 15px 30px;
-        h2 { font-size: 20px; margin: 0; }
-        .arrow { cursor: pointer; }
-      }
-
-      .calendarGridContainer {
-        .gridHeader {
-          display: grid; grid-template-columns: repeat(7, 1fr);
-          background: #f8f9fa; border-bottom: 1px solid #eee;
-          span { padding: 15px; text-align: center; font-weight: bold; color: #555; }
-        }
-        .gridBody {
-          display: grid; grid-template-columns: repeat(7, 1fr);
-          .cell {
-            height: 110px; border: 1px solid #f0f0f0; padding: 10px; transition: background 0.3s;
-
-            &.has-leave { background-color: rgba(220, 252, 231, 0.3); }
-            &.has-field { background-color: rgba(255, 237, 213, 0.3); }
-            &.has-ot { background-color: rgba(224, 242, 254, 0.3); }
-            &.has-holiday { background-color: rgba(254, 226, 226, 0.2); }
-
-            .dayNum { display: block; margin-bottom: 5px; font-weight: bold; }
-            .event {
-              font-size: 10px; padding: 4px; border-radius: 4px; margin-top: 4px;
-              white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-              &.leave { background: #dcfce7; color: #166534; }
-              &.special { background: #f3e8ff; color: #6b21a8; }
-              &.legal { background: #fee2e2; color: #b91c1c; } /* Red for Regular/Legal */
-              &.field { background: #ffedd5; color: #9a3412; }
-              &.ot { background: #e0f2fe; color: #0369a1; }
+      .leftCalendarColumn {
+        flex: 2.5;
+        
+        .calendarCard {
+          background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+          margin-bottom: 0; // Remove bottom margin to align with right column
+          
+          .calendarHeader {
+            background: linear-gradient(90deg, #ff9800, #ffb74d); color: white;
+            display: flex; justify-content: space-between; align-items: center; padding: 15px 30px;
+            h2 { font-size: 20px; margin: 0; }
+            .arrow { cursor: pointer; }
+          }
+    
+          .calendarGridContainer {
+            .gridHeader {
+              display: grid; grid-template-columns: repeat(7, 1fr);
+              background: #f8f9fa; border-bottom: 1px solid #eee;
+              span { padding: 15px; text-align: center; font-weight: bold; color: #555; }
             }
-            &.is-today {
-            background-color: #fff9db !important; // Light yellow glow
-            border: 2px solid #ff8c00; // Your orange-accent border
-            position: relative;
+            .gridBody {
+              display: grid; grid-template-columns: repeat(7, 1fr);
+              .cell {
+                height: 110px; border: 1px solid #f0f0f0; padding: 10px; transition: background 0.3s;
 
-            .dayNum {
-              background-color: #ff8c00; // Orange background for the number
-              color: white;
-              width: 24px;
-              height: 24px;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              margin: 0 auto 5px;
+                &.has-leave { background-color: rgba(220, 252, 231, 0.3); }
+                &.has-field { background-color: rgba(255, 237, 213, 0.3); }
+                &.has-ot { background-color: rgba(224, 242, 254, 0.3); }
+                &.has-holiday { background-color: rgba(254, 226, 226, 0.2); }
 
-              display:flex;
-              align-items: center;
-              justify-content: center;
-              margin-left: -2px;
-              margin-right: -2px;
-              margin-bottom: 10px;
-            }
+                .dayNum { display: block; margin-bottom: 5px; font-weight: bold; }
+                .event {
+                  font-size: 10px; padding: 4px; border-radius: 4px; margin-top: 4px;
+                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                  &.leave { background: #dcfce7; color: #166534; }
+                  &.special { background: #f3e8ff; color: #6b21a8; }
+                  &.legal { background: #fee2e2; color: #b91c1c; } /* Red for Regular/Legal */
+                  &.field { background: #ffedd5; color: #9a3412; }
+                  &.ot { background: #e0f2fe; color: #0369a1; }
+                }
+                &.is-today {
+                background-color: #fff9db !important; // Light yellow glow
+                border: 2px solid #ff8c00; // Your orange-accent border
+                position: relative;
 
-            /* Adds a "Today" indicator label */
-            &::after {
-              content: "TODAY";
-              position: absolute;
-              top: 16px;
-              right: 50px;
-              font-size: 8px;
-              font-weight: 800;
-              color: #ff8c00;
-              letter-spacing: 0.5px;
+                .dayNum {
+                  background-color: #ff8c00; // Orange background for the number
+                  color: white;
+                  width: 24px;
+                  height: 24px;
+                  border-radius: 50%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  margin: 0 auto 5px;
+
+                  display:flex;
+                  align-items: center;
+                  justify-content: center;
+                  margin-left: -2px;
+                  margin-right: -2px;
+                  margin-bottom: 10px;
+                }
+
+                /* Adds a "Today" indicator label */
+                &::after {
+                  content: "TODAY";
+                  position: absolute;
+                  top: 16px;
+                  right: 45px;
+                  font-size: 8px;
+                  font-weight: 800;
+                  color: #ff8c00;
+                  letter-spacing: 0.5px;
+                }
+              }
             }
           }
-          }
+        }
         }
       }
-    }
-
-    /* Modal Styles */
-    .modalOverlay {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; z-index: 1000;
-      .modalContainer {
-        background: white; width: 450px; padding: 30px; border-radius: 20px;
-        .modalHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .inputGroup { 
-            margin-bottom: 15px; 
-            label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 14px; }
-            input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
-        }
-        .modalActions {
-            display: flex; gap: 15px; margin-top: 20px;
-            button { flex: 1; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-            .submitBtn.purple { background: $primary-purple; color: white; border: none; }
-            .submitBtn.orange { background: $orange-accent; color: white; border: none; }
-        }
-      }
-    }
-
-    /* Bottom Section Layout */
-    .bottomSection {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 25px;
-    margin-top: 30px;
-
-    .detailCard {
-        background: white;
-        padding: 25px;
-        border-radius: 20px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-
-        .cardHeader {
+      .rightTablesColumn {
+        flex: 1; // Tables take less space
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
+        flex-direction: column; // Aligns tables as rows
+        gap: 20px;
 
-        h3 { font-size: 18px; color: $primary-purple; margin: 0; }
-        .viewAll { background: none; border: none; color: #7451f8; font-weight: 600; cursor: pointer; }
-        }
+        .detailCard {
+          background: white;
+          padding: 20px;
+          border-radius: 20px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+          width: 100%; // Ensures cards fill the column width
 
-        .listWrapper {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        max-height: 350px;
-        overflow-y: auto;
-        padding-right: 5px;
+          .cardHeader {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
 
-        .listItem {
+            h3 { font-size: 18px; color: $primary-purple; margin: 0; }
+            .viewAll { background: none; border: none; color: #7451f8; font-weight: 600; cursor: pointer; }
+            }
+
+          .listWrapper {
+            max-height: 250px; // Slightly smaller height for stacked view
+            overflow-y: auto;
+
+            .listItem {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -224,8 +208,30 @@ $ot-blue: #e0f2fe;
             .delete:hover { color: #ef4444; }
             }
         }
+          }
         }
+      }
     }
+
+    /* Modal Styles */
+    .modalOverlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; z-index: 1000;
+      .modalContainer {
+        background: white; width: 450px; padding: 30px; border-radius: 20px;
+        .modalHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .inputGroup { 
+            margin-bottom: 15px; 
+            label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 14px; }
+            input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+        }
+        .modalActions {
+            display: flex; gap: 15px; margin-top: 20px;
+            button { flex: 1; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+            .submitBtn.purple { background: $primary-purple; color: white; border: none; }
+            .submitBtn.orange { background: $orange-accent; color: white; border: none; }
+        }
+      }
     }
   }
 }

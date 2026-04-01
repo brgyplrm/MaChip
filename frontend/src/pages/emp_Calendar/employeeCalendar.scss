@@ -30,60 +30,106 @@ $ot-blue: #e0f2fe;
       }
     }
 
-    .calendarCard {
-      background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-      
-      .calendarHeader {
-        background: linear-gradient(90deg, #ff9800, #ffb74d); color: white;
-        display: flex; justify-content: space-between; align-items: center; padding: 15px 30px;
-        h2 { font-size: 20px; margin: 0; }
-        .arrow { cursor: pointer; }
-      }
+    .mainContentSplit {
+      display: flex;
+      gap: 25px;
+      align-items: flex-start; // Prevents tables from stretching to calendar height
+      margin-top: 20px;
 
-      .calendarGridContainer {
-        .gridHeader {
-          display: grid; grid-template-columns: repeat(7, 1fr);
-          background: #f8f9fa; border-bottom: 1px solid #eee;
-          span { padding: 15px; text-align: center; font-weight: bold; color: #555; }
+      .leftCalendarColumn {
+        flex: 2.5;
+
+      .calendarCard {
+        background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        
+        .calendarHeader {
+          background: linear-gradient(90deg, #ff9800, #ffb74d); color: white;
+          display: flex; justify-content: space-between; align-items: center; padding: 15px 30px;
+          h2 { font-size: 20px; margin: 0; }
+          .arrow { cursor: pointer; }
         }
-        .gridBody {
-          display: grid; grid-template-columns: repeat(7, 1fr);
-          .cell {
-            height: 110px; border: 1px solid #f0f0f0; padding: 10px; transition: background 0.3s;
-            
-            &.has-leave { background-color: rgba(220, 252, 231, 0.3); }
-            &.has-field { background-color: rgba(255, 237, 213, 0.3); }
-            &.has-ot { background-color: rgba(224, 242, 254, 0.3); }
-            &.has-holiday { background-color: rgba(254, 226, 226, 0.2); }
 
-            .dayNum { display: block; margin-bottom: 5px; font-weight: bold; }
-            .event {
-              font-size: 10px; padding: 4px; border-radius: 4px; margin-top: 4px;
-              white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-              &.leave { background: #dcfce7; color: #166534; }
-              &.special { background: #f3e8ff; color: #6b21a8; }
-              &.legal { background: #fee2e2; color: #b91c1c; }
-              &.field { background: #ffedd5; color: #9a3412; }
-              &.ot { background: #e0f2fe; color: #0369a1; }
+        .calendarGridContainer {
+          .gridHeader {
+            display: grid; grid-template-columns: repeat(7, 1fr);
+            background: #f8f9fa; border-bottom: 1px solid #eee;
+            span { padding: 15px; text-align: center; font-weight: bold; color: #555; }
+          }
+          .gridBody {
+            display: grid; grid-template-columns: repeat(7, 1fr);
+            .cell {
+              height: 110px; border: 1px solid #f0f0f0; padding: 10px; transition: background 0.3s;
+              
+              &.has-leave { background-color: rgba(220, 252, 231, 0.3); }
+              &.has-field { background-color: rgba(255, 237, 213, 0.3); }
+              &.has-ot { background-color: rgba(224, 242, 254, 0.3); }
+              &.has-holiday { background-color: rgba(254, 226, 226, 0.2); }
+
+              .dayNum { display: block; margin-bottom: 5px; font-weight: bold; }
+              .event {
+                font-size: 10px; padding: 4px; border-radius: 4px; margin-top: 4px;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                &.leave { background: #dcfce7; color: #166534; }
+                &.special { background: #f3e8ff; color: #6b21a8; }
+                &.legal { background: #fee2e2; color: #b91c1c; }
+                &.field { background: #ffedd5; color: #9a3412; }
+                &.ot { background: #e0f2fe; color: #0369a1; }
+              }
             }
+
+            &.is-today {
+                background-color: #fff9db !important; // Light yellow glow
+                border: 2px solid #ff8c00; // Your orange-accent border
+                position: relative;
+
+                .dayNum {
+                  background-color: #ff8c00; // Orange background for the number
+                  color: white;
+                  width: 24px;
+                  height: 24px;
+                  border-radius: 50%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  margin: 0 auto 15px;
+                }
+
+                /* Adds a "Today" indicator label */
+                &::after {
+                  content: "TODAY";
+                  position: absolute;
+                  top: 16px;
+                  right: 45px;
+                  font-size: 8px;
+                  font-weight: 800;
+                  color: #ff8c00;
+                  letter-spacing: 0.5px;
+                }
+              }
+
           }
         }
       }
     }
 
-    .bottomSection {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-top: 30px;
-      .detailCard {
-        background: white; padding: 25px; border-radius: 20px;
-        h3 { font-size: 18px; color: $primary-purple; margin-bottom: 20px; }
-        .listItem {
-          display: flex; justify-content: space-between; padding: 15px; background: #fdfdfd;
-          border: 1px solid #f0f0f0; border-radius: 12px;
-          .name { font-weight: 700; color: #333; margin: 0; }
-          .subtext { font-size: 12px; color: #777; }
-          .purpose { font-size: 13px; color: #555; margin-top: 4px; font-style: italic; }
+     .rightTablesColumn {
+        flex: 1; // Tables take less space
+        display: flex;
+        flex-direction: column; // Aligns tables as rows
+        gap: 20px;
+
+          .detailCard {
+            background: white; padding: 25px; border-radius: 20px;
+            h3 { font-size: 18px; color: $primary-purple; margin-bottom: 20px; }
+            .listItem {
+              display: flex; justify-content: space-between; padding: 15px; background: #fdfdfd;
+              border: 1px solid #f0f0f0; border-radius: 12px;
+              .name { font-weight: 700; color: #333; margin: 0; }
+              .subtext { font-size: 12px; color: #777; }
+              .purpose { font-size: 13px; color: #555; margin-top: 4px; font-style: italic; }
+            }
         }
-      }
     }
+  }
   }
 }

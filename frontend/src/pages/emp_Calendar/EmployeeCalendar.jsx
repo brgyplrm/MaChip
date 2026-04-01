@@ -81,6 +81,8 @@ const EmployeeCalendar = () => {
             <div className="legendItem"><span className="dot ot"></span> My Overtime</div>
           </div>
 
+      <div className="mainContentSplit">
+        <div className="leftCalendarColumn">
           <div className="calendarCard">
             <div className="calendarHeader">
               <ChevronLeftIcon className="arrow" onClick={() => changeMonth(-1)} />
@@ -100,7 +102,14 @@ const EmployeeCalendar = () => {
                   const hasOt = dayEvents.some(e => e.type === "Overtime");
                   const hasHoliday = dayEvents.some(e => e.type === "Holiday");
 
+                  const today = new Date();
+                      const isToday = 
+                        d === today.getDate() && 
+                        monthIndex === today.getMonth() && 
+                        year === today.getFullYear();
+
                   let cellClass = "cell";
+                  if (isToday) cellClass += " is-today";
                   if (hasLeave) cellClass += " has-leave";
                   else if (hasField) cellClass += " has-field";
                   else if (hasOt) cellClass += " has-ot";
@@ -132,8 +141,10 @@ const EmployeeCalendar = () => {
               </div>
             </div>
           </div>
+          </div>
 
-          <div className="bottomSection">
+
+          <div className="rightTablesColumn">
             <div className="detailCard">
               <h3>Holidays this Month</h3>
               <div className="listWrapper">
@@ -163,6 +174,7 @@ const EmployeeCalendar = () => {
                 {events.filter(e => e.type === "Field Work").length === 0 && <p className="emptyText">No field work assignments.</p>}
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>

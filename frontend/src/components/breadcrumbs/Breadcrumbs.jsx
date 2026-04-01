@@ -23,14 +23,15 @@ const Breadcrumbs = () => {
     "editPayroll": "Edit Payroll",
     "adminReports": "Reports & Export",
     "payslip": "Employee Payslip",
-    "adminRequests": "Request Management",  
-    "calendar": "Calendar Management",
+    "adminRequests": "Request",  
+    "calendar": "Calendar",
     "users": "User List",
     "profile": "My Profile",
     "newUser": "Add New User",
     "employeeList": "Employee List",
     "payrollPeriod": "Payroll Period",
     "employeeHome": "Dashboard",
+    "AccessLogs": "Access Logs",
   };
 
   return (

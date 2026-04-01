@@ -10,6 +10,32 @@ $primary-purple: #2A174E;
       max-width: 1200px;
       margin: 0 auto;
 
+      .requestsSplitLayout {
+        display: flex;
+        gap: 30px;
+        align-items: flex-start; /* Prevents history from stretching to form height */
+
+        .formColumn {
+          flex: 1.2; /* Form is slightly wider */
+          position: sticky;
+          top: 20px; /* Keeps the form visible while scrolling history */
+        }
+
+        .historyColumn {
+          flex: 1;
+          max-height: 800px; /* Limits history height */
+          overflow-y: auto; /* Adds scrollbar for history only */
+          padding-right: 10px;
+
+          .requestsList {
+            .leaveLog {
+              padding: 12px; /* Slimmer logs for the sidebar view */
+              .text .date { font-size: 14px; }
+            }
+          }
+        }
+      }
+
       .dtrSection {
         background-color: #f7f1e3; // Manila card base color
         padding: 40px;
@@ -112,6 +138,7 @@ $primary-purple: #2A174E;
         .tabBtn {
           display: flex;
           align-items: center;
+          width: 189px;
           gap: 8px;
           padding: 12px 25px;
           border-radius: 10px;
@@ -141,10 +168,33 @@ $primary-purple: #2A174E;
       .formGroup {
         margin-bottom: 20px;
         label { display: block; font-weight: 700; margin-bottom: 10px; font-size: 14px; color: #444; margin-right: 30px;}
-        select, textarea, input[type="date"], input[type="number"], input[type="time"] {
-          width: 90%; padding: 12px; border: 1px solid #eee; border-radius: 8px; background: #fdfdfd;
+        select, textarea, input[type="number"] {
+          width: 90%; 
+          padding: 12px; 
+          border: 1px solid #eee; 
+          border-radius: 8px; 
+          background: #fdfdfd;
           &:focus { border-color: $primary-purple; outline: none; }
         }
+
+        input[type="time"]{
+          width: 70%; 
+          padding: 12px; 
+          border: 1px solid #eee; 
+          border-radius: 8px; 
+          background: #fdfdfd;
+          &:focus { border-color: $primary-purple; outline: none; }
+        }
+
+        input[type="date"] {
+          width: 75%; 
+          padding: 12px; 
+          border: 1px solid #eee; 
+          border-radius: 8px; 
+          background: #fdfdfd;
+          &:focus { border-color: $primary-purple; outline: none; }
+        }
+
         textarea { height: 100px; resize: none; }
         
         &.checkboxGroup {

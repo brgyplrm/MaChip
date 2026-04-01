@@ -335,155 +335,145 @@ const UserRequests = () => {
               <SendIcon className="icon"/> Submit Request
             </button>
             <button 
-              className={`tabBtn ${activeTab === "history" ? "active" : ""}`} 
-              onClick={() => setActiveTab("history")}
-            >
-              <HistoryIcon className="icon"/> Request History
-            </button>
-            <button 
               className={`tabBtn ${activeTab === "dtr" ? "active" : ""}`} 
               onClick={() => setActiveTab("dtr")}
             >
               <AccessTimeIcon className="icon"/> My DTR
             </button>
           </div>
-
+          
+          {/* Inside the contentSection in UserRequests.jsx */}
           <div className="contentSection">
-            {activeTab === "submit" && (
-              <div className="requestCard">
-                <h2 className="cardTitle">Submit New Report Request</h2>
-                <form onSubmit={handleSubmit}>
-                  <div className="formGroup">
-                    <label>Request Type</label>
-                    <select name="emp_reqTypeId" value={formData.emp_reqTypeId} onChange={handleInputChange} required>
-                      <option value="" disabled>Select request type</option>
-                      <option value="1">Overtime (OT)</option>
-                      <option value="3">Vacation Leave (VL)</option>
-                      <option value="4">Sick Leave (SL)</option>
-                    </select>
-                  </div>
-
-                  {/* Overtime Specific Fields (Type 1) */}
-                  {formData.emp_reqTypeId === "1" && (
-                    <div className="conditionalFields">
-                      <div className="formRow">
-                        <div className="formGroup">
-                          <label>OT Date</label>
-                          <input type="date" name="otDate" onChange={handleInputChange} required />
-                        </div>
-                      </div>
-                      <div className="formRow">
-                        <div className="formGroup">
-                          <label>Time From {formData.hrFrom && <span style={{color: "#2A174E", fontSize: "12px", marginLeft: "5px"}}>({parseInt(formData.hrFrom.split(":")[0]) >= 12 ? "PM" : "AM"})</span>}</label>
-                          <input type="time" name="hrFrom" onChange={handleInputChange} required />
-                        </div>
-                        <div className="formGroup">
-                          <label>Time To {formData.hrTo && <span style={{color: "#2A174E", fontSize: "12px", marginLeft: "5px"}}>({parseInt(formData.hrTo.split(":")[0]) >= 12 ? "PM" : "AM"})</span>}</label>
-                          <input type="time" name="hrTo" onChange={handleInputChange} required />
-                        </div>
-                      </div>
-                      <div className="formRow">
-                        <div className="formGroup">
-                          <label>Total Hours</label>
-                          <input type="number" name="totalHrs" value={formData.totalHrs} readOnly className="readOnlyInput" />
-                        </div>
-                      </div>
+            {activeTab !== "dtr" ? (
+              /* Side-by-Side Flex Container */
+              <div className="requestsSplitLayout">
+                
+                {/* Left Column: The Form */}
+                <div className="requestCard formColumn">
+                  <h2 className="cardTitle">Submit New Request</h2>
+                  <form onSubmit={handleSubmit}>
+                    <div className="formGroup">
+                      <label>Request Type</label>
+                      <select name="emp_reqTypeId" value={formData.emp_reqTypeId} onChange={handleInputChange} required>
+                        <option value="" disabled>Select request type</option>
+                        <option value="1">Overtime (OT)</option>
+                        <option value="3">Vacation Leave (VL)</option>
+                        <option value="4">Sick Leave (SL)</option>
+                      </select>
                     </div>
-                  )}
 
-                  {/* Conditional Fields for Leave (Types 3 and 4) */}
-                  {(formData.emp_reqTypeId === "3" || formData.emp_reqTypeId === "4") && (
-                    <div className="conditionalFields">
-                      <div className="formRow">
-                        <div className="formGroup">
-                          <label>Start Date</label>
-                          <input type="date" name="leaveStartDate" value={formData.leaveStartDate} onChange={handleInputChange} required />
-                        </div>
-                        <div className="formGroup">
-                          <label>End Date</label>
-                          <input type="date" name="leaveEndDate" value={formData.leaveEndDate} onChange={handleInputChange} required />
-                        </div>
-                      </div>
-                      
-                      <div className="formRow">
-                        <div className="formGroup">
-                          <label>Number of Days</label>
-                          <input type="number" name="noDays" value={formData.noDays} readOnly className="readOnlyInput" />
-                        </div>
-
-                        {formData.emp_reqTypeId === "4" && (
-                          <div className="formGroup fileUploadGroup">
-                            <label className="fileLabel" htmlFor="proofFile">
-                              <CloudUploadIcon /> {formData.proofFile ? formData.proofFile.name : "Upload Medical Certificate"}
-                            </label>
-                            <input type="file" id="proofFile" name="proofFile" onChange={handleInputChange} style={{ display: 'none' }} />
+                     {/* Overtime Specific Fields (Type 1) */}
+                      {formData.emp_reqTypeId === "1" && (
+                        <div className="conditionalFields">
+                          <div className="formRow">
+                            <div className="formGroup">
+                              <label>OT Date</label>
+                              <input type="date" name="otDate" onChange={handleInputChange} required />
+                            </div>
                           </div>
-                        )}
-                      </div>
+                          <div className="formRow">
+                            <div className="formGroup">
+                              <label>Time From {formData.hrFrom && <span style={{color: "#2A174E", fontSize: "12px", marginLeft: "5px"}}>({parseInt(formData.hrFrom.split(":")[0]) >= 12 ? "PM" : "AM"})</span>}</label>
+                              <input type="time" name="hrFrom" onChange={handleInputChange} required />
+                            </div>
+                            <div className="formGroup">
+                              <label>Time To {formData.hrTo && <span style={{color: "#2A174E", fontSize: "12px", marginLeft: "5px"}}>({parseInt(formData.hrTo.split(":")[0]) >= 12 ? "PM" : "AM"})</span>}</label>
+                              <input type="time" name="hrTo" onChange={handleInputChange} required />
+                            </div>
+                          </div>
+                          <div className="formRow">
+                            <div className="formGroup">
+                              <label>Total Hours</label>
+                              <input type="number" name="totalHrs" value={formData.totalHrs} readOnly className="readOnlyInput" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Conditional Fields for Leave (Types 3 and 4) */}
+                      {(formData.emp_reqTypeId === "3" || formData.emp_reqTypeId === "4") && (
+                        <div className="conditionalFields">
+                          <div className="formRow">
+                            <div className="formGroup">
+                              <label>Start Date</label>
+                              <input type="date" name="leaveStartDate" value={formData.leaveStartDate} onChange={handleInputChange} required />
+                            </div>
+                            <div className="formGroup">
+                              <label>End Date</label>
+                              <input type="date" name="leaveEndDate" value={formData.leaveEndDate} onChange={handleInputChange} required />
+                            </div>
+                          </div>
+                          
+                          <div className="formRow">
+                            <div className="formGroup">
+                              <label>Number of Days</label>
+                              <input type="number" name="noDays" value={formData.noDays} readOnly className="readOnlyInput" />
+                            </div>
+
+                            {formData.emp_reqTypeId === "4" && (
+                              <div className="formGroup fileUploadGroup">
+                                <label className="fileLabel" htmlFor="proofFile">
+                                  <CloudUploadIcon /> {formData.proofFile ? formData.proofFile.name : "Upload Medical Certificate"}
+                                </label>
+                                <input type="file" id="proofFile" name="proofFile" onChange={handleInputChange} style={{ display: 'none' }} />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                    <div className="formGroup">
+                      <label>Description / Purpose</label>
+                      <textarea 
+                        name="remarks"
+                        placeholder="Please provide details..."
+                        value={formData.remarks}
+                        onChange={handleInputChange}
+                        required
+                      />
                     </div>
-                  )}
+                    <button type="submit" className="submitBtn">Submit Request</button>
+                  </form>
+                </div>
 
-                  <div className="formGroup">
-                    <label>Description / Purpose</label>
-                    <textarea 
-                      name="remarks"
-                      placeholder="Please provide details..."
-                      value={formData.remarks}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-
-                  <button type="submit" className="submitBtn">Submit Request</button>
-                </form>
-              </div>)}
-            {activeTab === "history" &&(
-              <div className="fullRequests">
-                <h2 className="cardTitle">All My Requests</h2>
-                <div className="requestsList">
-                  {loading ? (
-                    <p>Loading requests...</p>
-                  ) : historyRequests.length > 0 ? (
-                    historyRequests.map(req => {
-                      const statusClass = getStatusClass(req.status);
-                      const dates = req.VL_StartDate ? `${req.VL_StartDate} - ${req.VL_EndDate}` : 
+                {/* Right Column: History */}
+                <div className="fullRequests historyColumn">
+                  <h2 className="cardTitle">All My Requests</h2>
+                  <div className="requestsList">
+                    {loading ? (
+                      <p>Loading requests...</p>
+                    ) : historyRequests.length > 0 ? (
+                      historyRequests.slice(0, 10).map(req => { /* Showing latest 10 */
+                        const statusClass = getStatusClass(req.status);
+                        const dates = req.VL_StartDate ? `${req.VL_StartDate} - ${req.VL_EndDate}` : 
                                     req.SL_StartDate ? `${req.SL_StartDate} - ${req.SL_EndDate}` :
                                     req.OT_DateOf ? `${req.OT_DateOf} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})` : req.DateonField;
-                      const days = req.VL_NoDays || req.SL_NoDays || req.OW_NoDays || 1;
-
-                      return (
-                        /* 1. Wrap the entire log in a Link */
-                        <Link 
-                          to={`/requests/${req.emp_reqId}`} 
-                          key={req.emp_reqId} 
-                          style={{ textDecoration: 'none', color: 'inherit' }}
-                        >
-                          <div className={`leaveLog ${statusClass}`}>
-                            {statusClass === 'approved' && <CheckCircleIcon className="statusIcon approved" />}
-                            {statusClass === 'rejected' && <CancelIcon className="statusIcon rejected" />}
-                            {statusClass === 'pending' && <HourglassEmptyIcon className="statusIcon pending" />}
-                            
-                            <div className="typeBadge">{req.reqTypeName}</div>
-                            
-                            <div className="text">
-                              <p className="date">{dates}</p>
-                              <p className="desc">{req.remarks || "No details provided"} • {days} Day(s)</p>
+                        const days = req.VL_NoDays || req.SL_NoDays || req.OW_NoDays || 1;
+                        return (
+                          <Link to={`/requests/${req.emp_reqId}`} key={req.emp_reqId} style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <div className={`leaveLog ${statusClass}`}>
+                              {statusClass === 'approved' && <CheckCircleIcon className="statusIcon approved" />}
+                              {statusClass === 'rejected' && <CancelIcon className="statusIcon rejected" />}
+                              {statusClass === 'pending' && <HourglassEmptyIcon className="statusIcon pending" />}
+                              
+                              <div className="typeBadge">{req.reqTypeName}</div>
+                              <div className="text">
+                                <p className="date">{req.reqTypeName}</p>
+                                <p className="desc">{req.status} • {req.VL_NoDays || req.SL_NoDays || 1} Day(s)</p>
+                              </div>
                             </div>
-                            
-                            <span className={`badge ${statusClass}`}>{req.status}</span>
-                          </div>
-                        </Link>
-                      );
-                    })
-                  ) : (
-                    <p>No requests found.</p>
-                  )}
+                          </Link>
+                        );
+                      })
+                    ) : (
+                      <p>No requests found.</p>
+                    )}
+                  </div>
                 </div>
               </div>
-            )}
-            {activeTab === "dtr" && (
+            ) : (
+              /* DTR View remains full width */
               <div className="dtrSection">
-                {/* 4. Add the button at the top of the section */}
                 <div className="dtrHeader">
                     <h2 className="cardTitle">Daily Time Record</h2>
                     <button className="exportDtrBtn" onClick={handleDownloadDTR}>

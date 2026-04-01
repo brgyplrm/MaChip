@@ -161,69 +161,70 @@ const CalendarManagement = () => {
             <div className="legendItem"><span className="dot field"></span> Field Work</div>
             <div className="legendItem"><span className="dot ot"></span> Overtime</div>
           </div>
+          <div className="mainContentSplit">
+            <div className="leftCalendarColumn">
+              <div className="calendarCard">
+                <div className="calendarHeader">
+                  <ChevronLeftIcon className="arrow" onClick={() => changeMonth(-1)} />
+                  <h2>{`${monthName} ${year}`}</h2>
+                  <ChevronRightIcon className="arrow" onClick={() => changeMonth(1)} />
+                </div>
+                <div className="calendarGridContainer">
+                  <div className="gridHeader">
+                    <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                  </div>
+                  <div className="gridBody">
+                    {blanks.map(b => <div key={`blank-${b}`} className="cell empty"></div>)}
+                    {days.map(d => {
+                      const dayEvents = getEventsForDay(d);
+                      const hasLeave = dayEvents.some(e => e.type === "Leave");
+                      const hasField = dayEvents.some(e => e.type === "Field Work");
+                      const hasOt = dayEvents.some(e => e.type === "Overtime");
+                      const hasHoliday = dayEvents.some(e => e.type === "Holiday");
 
-          <div className="calendarCard">
-            <div className="calendarHeader">
-              <ChevronLeftIcon className="arrow" onClick={() => changeMonth(-1)} />
-              <h2>{`${monthName} ${year}`}</h2>
-              <ChevronRightIcon className="arrow" onClick={() => changeMonth(1)} />
-            </div>
-            <div className="calendarGridContainer">
-              <div className="gridHeader">
-                <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                      const today = new Date();
+                      const isToday = 
+                        d === today.getDate() && 
+                        monthIndex === today.getMonth() && 
+                        year === today.getFullYear();
+
+                      let cellClass = "cell";
+                      if (hasLeave) cellClass += " has-leave";
+                      else if (hasField) cellClass += " has-field";
+                      else if (hasOt) cellClass += " has-ot";
+                      else if (hasHoliday) cellClass += " has-holiday";
+                      if (isToday) cellClass += " is-today";
+
+                      return (
+                        <div key={d} className={cellClass}>
+                          <span className="dayNum">{d}</span>
+                          {dayEvents.map((e, i) => {
+                            let typeClass = "legal";
+                            if (e.type === "Holiday") {
+                              typeClass = e.details.toLowerCase().includes("special") ? "special" : "legal";
+                            } else if (e.type === "Leave") {
+                              typeClass = "leave";
+                            } else if (e.type === "Field Work") {
+                              typeClass = "field";
+                            } else if (e.type === "Overtime") {
+                              typeClass = "ot";
+                            }
+                            return (
+                              <div key={i} className={`event ${typeClass}`}>
+                                {e.name || e.details}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-              <div className="gridBody">
-                {blanks.map(b => <div key={`blank-${b}`} className="cell empty"></div>)}
-                {days.map(d => {
-                  const dayEvents = getEventsForDay(d);
-                  const hasLeave = dayEvents.some(e => e.type === "Leave");
-                  const hasField = dayEvents.some(e => e.type === "Field Work");
-                  const hasOt = dayEvents.some(e => e.type === "Overtime");
-                  const hasHoliday = dayEvents.some(e => e.type === "Holiday");
-
-                  const today = new Date();
-                  const isToday = 
-                    d === today.getDate() && 
-                    monthIndex === today.getMonth() && 
-                    year === today.getFullYear();
-
-                  let cellClass = "cell";
-                  if (hasLeave) cellClass += " has-leave";
-                  else if (hasField) cellClass += " has-field";
-                  else if (hasOt) cellClass += " has-ot";
-                  else if (hasHoliday) cellClass += " has-holiday";
-                  if (isToday) cellClass += " is-today";
-
-                  return (
-                    <div key={d} className={cellClass}>
-                      <span className="dayNum">{d}</span>
-                      {dayEvents.map((e, i) => {
-                        let typeClass = "legal";
-                        if (e.type === "Holiday") {
-                          typeClass = e.details.toLowerCase().includes("special") ? "special" : "legal";
-                        } else if (e.type === "Leave") {
-                          typeClass = "leave";
-                        } else if (e.type === "Field Work") {
-                          typeClass = "field";
-                        } else if (e.type === "Overtime") {
-                          typeClass = "ot";
-                        }
-                        return (
-                          <div key={i} className={`event ${typeClass}`}>
-                            {e.name || e.details}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
             </div>
-          </div>
 
-          {/* Bottom Section: Side-by-Side Lists */}
-            <div className="bottomSection">
-            {/* Holidays List Card */}
+            <div className="rightTablesColumn">
+               {/* Holidays List Card */}
             <div className="detailCard">
                 <div className="cardHeader">
                 <h3>Upcoming Holidays</h3>
@@ -270,8 +271,9 @@ const CalendarManagement = () => {
                   <p style={{ textAlign: 'center', color: '#777', padding: '20px' }}>No field work assignments this month</p>
                 )}
                 </div>
+              </div>
             </div>
-            </div>
+          </div>
 
           {/* Popup Modals */}
           {modalType && (
