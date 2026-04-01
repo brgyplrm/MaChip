@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import SaveIcon from "@mui/icons-material/Save";
+import { Link } from "react-router-dom";
 
 const Settings = () => {
   const [realTime, setRealTime] = useState(new Date());
@@ -78,13 +79,15 @@ const Settings = () => {
               <div className="details">
                 <div className="detailItem">
                   <span className="itemKey">Admin Name:</span>
-                  <span className="itemValue">Main Locksmith</span>
+                  <span className="itemValue">Accounting Admin</span>
                 </div>
                 <div className="detailItem">
                   <span className="itemKey">Email:</span>
-                  <span className="itemValue">admin@keymedia.com</span>
+                  <span className="itemValue">machip67@gmail.com</span>
                 </div>
-                <button className="editButton">Update Profile</button>
+                <Link to="/users/edit/userid">
+                  <button className="editButton">Update Profile</button>
+                </Link>
               </div>
             </div>
 
@@ -147,11 +150,11 @@ const Settings = () => {
             </div>
           </div>
 
-          <div className="dangerZone">
+          {/*<div className="dangerZone">
             <h2 className="itemTitle">Danger Zone</h2>
             <p>Once you delete the system logs, there is no going back.</p>
             <button className="deleteBtn">Clear All Activity Logs</button>
-          </div>
+          </div>*/}
         </div>
       </div>
     </div>

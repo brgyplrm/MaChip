@@ -183,7 +183,7 @@ function App() {
           <Route
             path="edit/:userId"
             element={
-              <ProtectedRoute allowedRoles={[1, 2]}>
+              <ProtectedRoute allowedRoles={[1, 2, 3]}>
                 <Edit inputs={userInputs} title="Edit User Profile" />
               </ProtectedRoute>
             }

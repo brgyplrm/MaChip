@@ -3,6 +3,7 @@
   padding: 20px;
 
   .datagrid {
+    border-radius: 15px;
     .MuiDataGrid-cell{
         display: flex !important;
         align-items: center !important;
@@ -17,6 +18,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    font-weight: 700;
 
     .link{
       text-decoration: none;

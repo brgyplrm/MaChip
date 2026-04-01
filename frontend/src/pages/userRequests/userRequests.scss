@@ -187,7 +187,7 @@ $primary-purple: #2A174E;
         }
 
         input[type="date"] {
-          width: 75%; 
+          width: 85%; 
           padding: 12px; 
           border: 1px solid #eee; 
           border-radius: 8px; 
@@ -207,6 +207,7 @@ $primary-purple: #2A174E;
           .fileLabel {
             display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px;
             background: #f8f9fa; border: 2px dashed #ccc; border-radius: 8px; cursor: pointer;
+            margin-top: 17px; width: 85%;
             &:hover { border-color: $primary-purple; color: $primary-purple; }
           }
         }

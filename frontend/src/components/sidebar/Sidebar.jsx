@@ -11,11 +11,44 @@ import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import CurrencyRubleOutlinedIcon from '@mui/icons-material/CurrencyRubleOutlined';
 import { NavLink } from "react-router-dom";
+import ActionModal from "../actionModal/ActionModal"; // Import your component
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
 
 const Sidebar = () => {
   const userDataString = localStorage.getItem("userData");
   const userData = userDataString ? JSON.parse(userDataString) : null;
   const isEmployee = userData?.user_RoleId === 3;
+  const [showLogoutModal, setShowLogoutModal] = useState(false); // Modal state
+  const navigate = useNavigate();
+  
+
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true); // Open the modal instead of navigating
+  };
+
+  const confirmLogout = async () => {
+      try {
+        // 1. Optional: Tell your backend (Express/Flask) to end the session
+        // Based on your port 4000 setup
+        await fetch("http://localhost:4000/api/users/logout", {
+          method: "POST",
+        });
+
+        // 2. Clear local storage/Session storage
+        localStorage.removeItem("token");
+        localStorage.removeItem("userData");
+
+        // 3. Redirect back to the login page you just created
+        navigate("/login");
+      } catch (err) {
+        console.error("Logout failed:", err);
+        // Fallback: clear local data anyway
+        localStorage.clear();
+        navigate("/login");
+      }
+    };
 
   return (
     <div className="sidebar">
@@ -126,14 +159,22 @@ const Sidebar = () => {
               <span>Profile</span>
             </li>
           </NavLink>
-          <NavLink to="/logout" style={{ textDecoration: "none" }}>
-            <li>
-              <ExitToAppIcon className="icon" />
-              <span>Logout</span>
-            </li>
-          </NavLink>
+          <div className="logoutItem" onClick={handleLogoutClick}>
+          <li>
+            <ExitToAppIcon className="icon" />
+            <span>Logout</span>
+          </li>
+          </div>
         </ul>
       </div>
+
+      <ActionModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={confirmLogout}
+        title="Confirm Logout"
+        message="Are you sure you want to log out of the MaChip system?"
+      />
     </div>
   );
 };

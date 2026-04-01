@@ -1,6 +1,8 @@
 .new {
   width: 100%;
   display: flex;
+  background-color: #fdfaf5;
+
 
   .newContainer {
     flex: 6;
@@ -26,6 +28,8 @@
       margin: 20px;
       display: flex;
       border-radius: 10px;
+      align-items: center; 
+      min-height: 300px;
 
       .leftIdentity {
         flex: 1;

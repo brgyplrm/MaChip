@@ -63,6 +63,9 @@ const Edit = ({ inputs, title }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [displayPic, setDisplayPic] = useState("");
 
+  const userData = JSON.parse(localStorage.getItem("userData"));
+  const isAdmin = userData?.user_RoleId === 1;
+
   // field-level error messages
   const [errors, setErrors] = useState({});
 
@@ -303,59 +306,63 @@ const Edit = ({ inputs, title }) => {
               </div>
             </div>
           </div>
-            {inputs.map((input) => (
-            <div className="formInput" key={input.id}>
-              <label>{input.label}</label>
-              <div className="inputActionWrapper">
-                {/* Logic for Employment Status Dropdown */}
-                {input.type === "select" ? (
-                  <select 
-                    id={input.id} 
-                    value={formData[input.id] || ""} 
-                    onChange={handleInput}
-                  >
-                   <option value="" disabled>Select {input.label}</option>
-                        {/* If you updated formSource, use input.options.map here */}
-                        {input.id === "user_EmploymentStatus" && (
-                          <>
-                            <option value="Regular">Regular</option>
-                            <option value="Part-time">Part-time</option>
-                            <option value="Intern / OJT">Intern / OJT</option>
-                          </>
-                        )}
-                        {input.id === "user_Role" && (
-                          <>
-                            <option value="Employee">Employee</option>
-                            <option value="Admin">Admin</option>
-                          </>
-                        )}
-                  </select>
-                ) : (
-                  /* Logic for Password with Eye Icon */
-                  <>
-                    <input
-                      id={input.id}
-                      type={input.id === "user_Password" && showPassword ? "text" : input.type}
-                      placeholder={input.placeholder}
-                      value={formData[input.id] || ""}
-                      onChange={handleInput}
-                      readOnly={input.label === "User ID" || input.label === "MaChip ID"}
-                    />
-                    {input.id === "user_Password" && (
-                      <div className="eyeIcon" onClick={() => setShowPassword(!showPassword)}>
-                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                      </div>
-                    )}
-                  </>
-                )}
 
-                {input.label === "MaChip ID" && (
-                  <button type="button" className="scanBtn" onClick={handleScanRFID}>
-                    RE-SCAN
-                  </button>
-                )}
+          {inputs
+            .filter((input) => {
+              // If not admin, hide these specific administrative fields
+              if (!isAdmin) {
+                return !["user_EmploymentStatus", "user_Role", "user_MachipId"].includes(input.id);
+              }
+              return true;
+            })
+            .map((input) => (
+              <div className="formInput" key={input.id}>
+                <label>{input.label}</label>
+                <div className="inputActionWrapper">
+                          {/* Logic for Employment Status Dropdown */}
+                  {input.type === "select" ? (
+                    <select id={input.id} value={formData[input.id] || ""} onChange={handleInput}>
+                      <option value="" disabled>Select {input.label}</option>
+                                  {/* If you updated formSource, use input.options.map here */}
+                                  {input.id === "user_EmploymentStatus" && (
+                                    <>
+                                      <option value="Regular">Regular</option>
+                                      <option value="Part-time">Part-time</option>
+                                      <option value="Intern / OJT">Intern / OJT</option>
+                                    </>
+                                  )}
+                                  {input.id === "user_Role" && (
+                                    <>
+                                      <option value="Employee">Employee</option>
+                                      <option value="Admin">Admin</option>
+                                    </>
+                                  )}
+                    </select>
+                  ) : (
+                    <>
+                      <input
+                        id={input.id}
+                        type={input.id === "user_Password" && showPassword ? "text" : input.type}
+                        value={formData[input.id] || ""}
+                        onChange={handleInput}
+                        readOnly={input.label === "User ID"} // User ID remains read-only for everyone
+                      />
+                      {input.id === "user_Password" && (
+                                <div className="eyeIcon" onClick={() => setShowPassword(!showPassword)}>
+                                  {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                                </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Re-Scan button: Only visible to Admin */}
+                  {isAdmin && input.label === "MaChip ID" && (
+                    <button type="button" className="scanBtn" onClick={handleScanRFID}>
+                      RE-SCAN
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
           ))}
           </form>
         </div>

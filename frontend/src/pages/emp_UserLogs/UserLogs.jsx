@@ -20,7 +20,6 @@ const UserLogs = () => {
         <div className="wrapper">
           <div className="header">
             <div className="title">
-              <HistoryIcon className="icon" />
               <h1>Access Logs</h1>
             </div>
             <button className="exportBtn">Export CSV</button>

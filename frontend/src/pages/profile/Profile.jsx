@@ -113,10 +113,6 @@ const Profile = () => {
                 <span className="label">MaChip ID</span>
                 <span className="value">{user.user_MachipId || "—"}</span>
               </div>
-              <div className="detailBox">
-                <span className="label">Username</span>
-                <span className="value">{user.user_Username || "—"}</span>
-              </div>
             </div>
           </div>
 

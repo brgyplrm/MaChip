@@ -1,6 +1,8 @@
 .notifications {
   display: flex;
   width: 100%;
+  background-color: #fdfaf5;
+
 
   .notificationsContainer {
     flex: 6;
@@ -16,6 +18,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        font-weight: 700;
 
         .markReadBtn {
           background-color: #2A174E;
