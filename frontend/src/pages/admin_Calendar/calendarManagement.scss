@@ -104,6 +104,42 @@ $ot-blue: #e0f2fe;
               &.field { background: #ffedd5; color: #9a3412; }
               &.ot { background: #e0f2fe; color: #0369a1; }
             }
+            &.is-today {
+            background-color: #fff9db !important; // Light yellow glow
+            border: 2px solid #ff8c00; // Your orange-accent border
+            position: relative;
+
+            .dayNum {
+              background-color: #ff8c00; // Orange background for the number
+              color: white;
+              width: 24px;
+              height: 24px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin: 0 auto 5px;
+
+              display:flex;
+              align-items: center;
+              justify-content: center;
+              margin-left: -2px;
+              margin-right: -2px;
+              margin-bottom: 10px;
+            }
+
+            /* Adds a "Today" indicator label */
+            &::after {
+              content: "TODAY";
+              position: absolute;
+              top: 16px;
+              right: 50px;
+              font-size: 8px;
+              font-weight: 800;
+              color: #ff8c00;
+              letter-spacing: 0.5px;
+            }
+          }
           }
         }
       }

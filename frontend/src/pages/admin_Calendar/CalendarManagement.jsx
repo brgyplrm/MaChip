@@ -8,7 +8,6 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from '@mui/icons-material/Close';
 import { useState, useEffect } from "react";
-import Breadcrumbs from "../../components/breadcrumbs/Breadcrumbs";
 import { formatUserId } from "../../utils/formatUserId";
 import Toast from "../../components/toast/Toast";
 
@@ -182,11 +181,18 @@ const CalendarManagement = () => {
                   const hasOt = dayEvents.some(e => e.type === "Overtime");
                   const hasHoliday = dayEvents.some(e => e.type === "Holiday");
 
+                  const today = new Date();
+                  const isToday = 
+                    d === today.getDate() && 
+                    monthIndex === today.getMonth() && 
+                    year === today.getFullYear();
+
                   let cellClass = "cell";
                   if (hasLeave) cellClass += " has-leave";
                   else if (hasField) cellClass += " has-field";
                   else if (hasOt) cellClass += " has-ot";
                   else if (hasHoliday) cellClass += " has-holiday";
+                  if (isToday) cellClass += " is-today";
 
                   return (
                     <div key={d} className={cellClass}>
