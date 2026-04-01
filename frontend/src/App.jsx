@@ -17,7 +17,6 @@ import EmployeeCalendar from "./pages/emp_Calendar/EmployeeCalendar";
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
 import Settings from "./pages/settings/Settings";
-import Logout from "./pages/logout/Logout";
 import { Routes, Route } from "react-router-dom";
 import { userInputs } from "./utils/formSource";
 import ProtectedRoute from "./components/protectedroute/ProtectedRoute";
@@ -233,7 +232,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="logout" element={<Logout />} />
       </Routes>
     </div>
   );

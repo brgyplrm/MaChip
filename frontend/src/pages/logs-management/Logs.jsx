@@ -1,8 +1,6 @@
 import "./logs.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
-import { DataGrid } from "@mui/x-data-grid";
-import { logColumns } from "../../utils/logSource";
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
@@ -10,12 +8,39 @@ import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
 
 const Logs = () => {
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedUser, setSelectedUser] = useState("");
+  const rowsPerPage = 10;
+
   const [logData, setLogData] = useState([]);
   const [users, setUsers] = useState([]); // State for dropdown list
-  const [selectedUser, setSelectedUser] = useState(""); // State for filter
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
-  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredData = logData.filter((item) => {
+    const query = searchQuery.toLowerCase();
+
+    const matchesSearch =
+      item.user_Id_formatted?.toLowerCase().includes(query) ||
+      item.user_Id?.toString().toLowerCase().includes(query) ||
+      item.fullName?.toLowerCase().includes(query) ||
+      item.action?.toLowerCase().includes(query) ||
+      item.log_type?.toLowerCase().includes(query) ||
+      item.machip_id?.toLowerCase().includes(query);
+
+    const matchesUser =
+      selectedUser === "" || item.user_Id?.toString() === selectedUser;
+
+    return matchesSearch && matchesUser;
+  });
+
+  const indexOfLastRow = currentPage * rowsPerPage;
+  const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+
+  const currentRows = filteredData.slice(indexOfFirstRow, indexOfLastRow);
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage);  
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -34,22 +59,7 @@ const Logs = () => {
     [],
   );
 
-  const filteredData = logData.filter((item) => {
-    const query = searchQuery.toLowerCase();
-
-    const matchesSearch =
-      item.user_Id_formatted?.toLowerCase().includes(query) ||
-      item.user_Id?.toString().toLowerCase().includes(query) ||
-      item.fullName?.toLowerCase().includes(query) ||
-      item.action?.toLowerCase().includes(query) ||
-      item.log_type?.toLowerCase().includes(query) ||
-      item.machip_id?.toLowerCase().includes(query);
-
-    const matchesUser =
-      selectedUser === "" || item.user_Id?.toString() === selectedUser;
-
-    return matchesSearch && matchesUser;
-  });
+  
 
   // Fetch all logs from the backend
   const fetchLogs = useCallback(async () => {
@@ -209,16 +219,65 @@ const Logs = () => {
               </button>
             </div>
           </div>
-          <DataGrid
-            className="datagrid"
-            rows={filteredData}
-            columns={logColumns.concat(actionColumn)}
-            pageSize={10}
-            rowsPerPageOptions={[10]}
-            checkboxSelection
-            getRowId={(row) => row.user_loggingId}
-            getRowHeight={() => "auto"}
-          />
+          <div className="tableCard">
+            <table className="customLogsTable">
+              <thead>
+                <tr>
+                  <th>User ID</th>
+                  <th>Full Name</th>
+                  <th>Action</th>
+                  <th>MaChip ID</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentRows.length > 0 ? (
+                  currentRows.map((row) => (
+                    <tr key={row.user_loggingId}>
+                      <td className="boldText">{row.user_Id_formatted}</td>
+                      <td>{row.fullName}</td>
+                      <td>
+                        <span className={`pill ${row.log_type.toLowerCase().includes("in") ? "clock-in" : "clock-out"}`}>
+                          {row.log_type}
+                        </span>
+                      </td>
+                      <td className="subtleText">{row.machip_id}</td>
+                      <td>{row.log_Date}</td>
+                      <td>{row.time}</td>
+                      <td>
+                        <Link to={`/users/${row.user_Id}`} className="viewLink">
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="7" className="noData">No logs found</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* NEW: Pagination Controls */}
+            <div className="paginationControls">
+              <button 
+                disabled={currentPage === 1} 
+                onClick={() => setCurrentPage(prev => prev - 1)}
+              >
+                Previous
+              </button>
+              <span>Page {currentPage} of {totalPages}</span>
+              <button 
+                disabled={currentPage === totalPages} 
+                onClick={() => setCurrentPage(prev => prev + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
