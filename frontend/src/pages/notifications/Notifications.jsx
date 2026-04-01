@@ -4,6 +4,9 @@ import Navbar from "../../components/navbar/Navbar";
 import { DataGrid } from "@mui/x-data-grid";
 import { notificationColumns } from "../../utils/notificationSource";
 import { useState, useEffect } from "react";
+import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
+import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -62,21 +65,41 @@ const Notifications = () => {
       <Sidebar />
       <div className="notificationsContainer">
         <Navbar />
-        <div className="listContainer">
-          <div className="datatableTitle">
-            System Notifications
-            <button className="markReadBtn" onClick={handleMarkAllRead}>Mark all as read</button>
+        <div className="wrapper">
+          <div className="notifHeader">
+            <div className="title">
+              <h1>System Notifications</h1>
+            </div>
+            <button className="markAllBtn" onClick={handleMarkAllRead}>
+              <DoneAllIcon className="btnIcon" /> Mark all as read
+            </button>
           </div>
-          <DataGrid
-            className="datagrid"
-            rows={notifications}
-            columns={notificationColumns}
-            pageSize={10}
-            rowsPerPageOptions={[10]}
-            checkboxSelection
-            onRowClick={(params) => handleMarkAsRead(params.row.notifId)}
-            getRowHeight={() => "auto"}
-          />
+
+          <div className="notifCard">
+            <div className="notifList">
+              {notifications.length > 0 ? (
+                notifications.map((notif) => (
+                  <div 
+                    key={notif.notifId} 
+                    className={`notifItem ${notif.isRead ? 'read' : 'unread'}`}
+                    onClick={() => !notif.isRead && handleMarkAsRead(notif.notifId)}
+                  >
+                    <div className="statusIndicator">
+                      {!notif.isRead && <FiberManualRecordIcon className="dot" />}
+                    </div>
+                    <div className="content">
+                      <p className="message">{notif.message}</p>
+                      <span className="timestamp">
+                        {new Date(notif.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="noNotifs">No notifications found.</div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

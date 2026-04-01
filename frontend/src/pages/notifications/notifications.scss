@@ -7,61 +7,108 @@
   .notificationsContainer {
     flex: 6;
 
-    .listContainer {
-      padding: 20px;
+    .wrapper {
+      padding: 30px 40px;
 
-      .datatableTitle {
-        width: 100%;
-        font-size: 24px;
-        color: #2A174E;
-        margin-bottom: 10px;
+      .notifHeader {
         display: flex;
-        align-items: center;
         justify-content: space-between;
-        font-weight: 700;
+        align-items: center;
+        margin-bottom: 25px;
 
-        .markReadBtn {
-          background-color: #2A174E;
-          color: white;
-          border: none;
-          padding: 8px 15px;
-          border-radius: 5px;
-          cursor: pointer;
-          font-size: 14px;
+        .title {
+          display: flex; align-items: center; gap: 12px; color: #2A174E;
+          h1 { font-size: 22px; font-weight: 700; margin: 0; }
+          .icon { font-size: 28px; }
+        }
 
-          &:hover {
-            background-color: #502c92;
-          }
+        .markAllBtn {
+          display: flex; align-items: center; gap: 8px;
+          background: transparent; border: 1.5px solid #2A174E; color: #2A174E;
+          padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer;
+          transition: 0.2s;
+          &:hover { background: #2A174E; color: white; }
+          .btnIcon { font-size: 18px; }
         }
       }
 
-      .datagrid {
-        height: 600px;
-        .MuiDataGrid-row {
-          cursor: pointer;
-          &:hover {
-            background-color: #f5f5f5;
+      .notifCard {
+        background: white; border-radius: 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        max-height: 700px; overflow-y: auto;
+
+        /* src/pages/notifications/notifications.scss */
+
+        .notifList {
+          .notifItem {
+            display: flex; 
+            gap: 15px; 
+            padding: 20px;
+            border-bottom: 1px solid #f1f3f5; 
+            cursor: pointer; 
+            transition: all 0.2s ease;
+            
+            /* Create the base colored bar on the left */
+            border-left: 5px solid transparent; 
+
+            &:hover { 
+              background-color: #f9faff; 
+            }
+
+            /* UNREAD STATE: Bold text and Orange bar */
+            &.unread { 
+              background-color: #fcfcfd; 
+              border-left-color: #ff8c00; // Your orange accent
+              
+              .message { 
+                font-weight: 700; 
+                color: #333; 
+              }
+              
+              .statusIndicator .dot {
+                color: #ff8c00;
+                opacity: 1;
+              }
+            }
+
+            /* READ STATE: Muted text and Gray bar */
+            &.read {
+              border-left-color: #e2e8f0; // Subtle gray for read items
+              
+              .message { 
+                font-weight: 400; 
+                color: #777; 
+              }
+              
+              .statusIndicator .dot {
+                opacity: 0; // Hide the dot but keep the spacing
+              }
+            }
+
+            .statusIndicator {
+              width: 20px; 
+              display: flex;
+              justify-content: center;
+              padding-top: 4px;
+              
+              .dot { 
+                font-size: 12px; 
+              }
+            }
+
+            .content {
+              flex: 1;
+              .message { 
+                font-size: 14px; 
+                line-height: 1.5; 
+                margin: 0 0 5px; 
+              }
+              .timestamp { 
+                font-size: 12px; 
+                color: #aaa; 
+              }
+            }
           }
-        }
-        .MuiDataGrid-cell {
-          display: flex !important;
-          align-items: center !important;
-          padding: 12px 0;
-        }
-      }
-
-      .cellWithStatus {
-        padding: 5px 10px;
-        border-radius: 5px;
-        font-size: 12px;
-
-        &.unread {
-          background-color: rgba(255, 0, 0, 0.1);
-          color: crimson;
-        }
-        &.read {
-          background-color: rgba(0, 128, 0, 0.1);
-          color: green;
         }
       }
     }
