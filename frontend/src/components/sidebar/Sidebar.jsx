@@ -83,7 +83,7 @@ const Sidebar = () => {
             </>
           )}
 
-          {/* Employee only Requests */}
+          {/* Employee only */}
           <p className="title">USER</p>
           {isEmployee && (
             <NavLink to="/requests" style={{ textDecoration: "none" }}>
@@ -93,6 +93,15 @@ const Sidebar = () => {
               </li>
             </NavLink>
           )}
+          {isEmployee && (
+            <NavLink to="/accessLogs" style={{ textDecoration: "none" }}>
+              <li>
+                <RequestQuoteOutlinedIcon className="icon" />
+                <span>Access Logs</span>
+              </li>
+            </NavLink>
+          )}
+
 
           {/* Shared Routes */}
           <NavLink to="/notifications" style={{ textDecoration: "none" }}>

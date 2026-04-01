@@ -3,6 +3,7 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import { Link } from "react-router-dom";
+import ForgotPasswordModal from "../../components/forgotPassword/ForgotPasswordModal";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ const Login = () => {
   const [errors, setErrors] = useState({});
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -128,7 +130,7 @@ const Login = () => {
       <div className="loginContainer">
         <div className="top">
           <img src="/logo2.png" alt="MAC-J Logo" className="logo" />
-          <h1>MaChip Login</h1>
+          <h1>Login</h1>
           <hr />
         </div>
 
@@ -176,7 +178,9 @@ const Login = () => {
               <span className="fieldError">{errors.password}</span>
             )}
             <div className="forgotPasswordContainer">
-              <Link to="/forgot-password">Forgot Password?</Link>
+              <span className="link" onClick={() => setIsModalOpen(true)}>
+                Forgot Password?
+              </span>
             </div>
           </div>
 
@@ -185,6 +189,10 @@ const Login = () => {
           </button>
         </form>
       </div>
+      <ForgotPasswordModal 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+        />
     </div>
   );
 };

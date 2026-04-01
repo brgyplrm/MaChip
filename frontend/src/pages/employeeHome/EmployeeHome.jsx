@@ -10,6 +10,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import Toast from "../../components/toast/Toast";
+import { Link } from "react-router-dom";
 
 const EmployeeHome = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -117,7 +118,12 @@ const EmployeeHome = () => {
                 <HistoryIcon className="icon" />
                 <span>Recent Attendance Activity</span>
               </div>
-              <button className="viewAll">See History</button>
+              <Link to="/accessLogs">
+                <button className="viewAll">
+                  See History
+                </button>
+              </Link>
+              
             </div>
             <div className="activityList">
               <p style={{padding: '10px', color: '#64748b', fontSize: '13px'}}>Recent logs will appear here...</p>
@@ -168,7 +174,11 @@ const EmployeeHome = () => {
           <div className="leavesSection">
             <div className="sectionHeader">
               <h3>My Leave Requests</h3>
-              <button className="applyBtn">Apply for a leave <ArrowRightAltIcon /></button>
+              <Link to="/requests">
+                <button className="applyBtn">
+                  Apply for a leave <ArrowRightAltIcon />
+                </button>
+              </Link>
             </div>
             
             {loading ? (

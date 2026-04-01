@@ -7,7 +7,6 @@ import Breadcrumbs from "../../components/breadcrumbs/Breadcrumbs";
 
 
 const Navbar = () => {
-  const location = useLocation();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const [unreadCount, setUnreadCount] = useState(0);
   let currentLink = "";
@@ -31,19 +30,6 @@ const Navbar = () => {
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
   }, [userData?.user_Id]);
-
-  // Logic to split URL into breadcrumb links
-  const crumbs = location.pathname.split("/")
-    .filter((crumb) => crumb !== "")
-    .map((crumb) => {
-      currentLink += `/${crumb}`;
-      return (
-        <div className="crumb" key={crumb}>
-          <NavigateNextIcon className="separator" />
-          <Link to={currentLink}>{crumb.charAt(0).toUpperCase() + crumb.slice(1)}</Link>
-        </div>
-      );
-    });
 
   return (
     <div className="navbar">

@@ -1,0 +1,85 @@
+.logsListPage {
+  display: flex;
+  background-color: #f8f9fa;
+
+  .logsListContainer {
+    flex: 6;
+
+    .wrapper {
+      padding: 20px 40px;
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+
+        .title {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          color: #2A174E;
+          h1 { font-size: 22px; font-weight: 700; }
+          .icon { font-size: 28px; }
+        }
+
+        .exportBtn {
+          background-color: transparent;
+          border: 1.5px solid #2A174E;
+          color: #2A174E;
+          padding: 8px 18px;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: 0.2s;
+          &:hover { background-color: #2A174E; color: white; }
+        }
+      }
+
+      .tableWrapper {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+
+        .logsTable {
+          width: 100%;
+          border-collapse: collapse;
+          text-align: left;
+
+          th {
+            padding: 15px;
+            background-color: #fcfcfd;
+            border-bottom: 2px solid #f1f3f5;
+            color: #4a5568;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+          }
+
+          td {
+            padding: 15px;
+            border-bottom: 1px solid #f1f3f5;
+            color: #2d3748;
+            font-size: 14px;
+          }
+
+          .userIdCell { font-weight: 700; color: #2A174E; }
+          .detailsCell { color: #718096; }
+
+          .actionTag {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            
+            &.clock-in { background: #def7ec; color: #03543f; }
+            &.clock-out { background: #fde8e8; color: #9b1c1c; }
+          }
+
+          tr:hover { background-color: #f9faff; }
+        }
+      }
+    }
+  }
+}

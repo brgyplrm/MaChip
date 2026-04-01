@@ -9,6 +9,12 @@ const Breadcrumbs = () => {
   // Splits the URL path into segments and removes empty strings
   const pathnames = location.pathname.split("/").filter((x) => x);
 
+  const userData = JSON.parse(localStorage.getItem("userData"));
+  const isEmployee = userData?.user_RoleId === 3; // Check for Employee role
+  
+  const homePath = isEmployee ? "/employeeHome" : "/";
+  const homeLabel = isEmployee ? "Home" : "Home";
+
   // Map of technical route paths to user-friendly display names
   const breadcrumbNameMap = {
     "payroll": "Payroll Management",
@@ -24,17 +30,19 @@ const Breadcrumbs = () => {
     "newUser": "Add New User",
     "employeeList": "Employee List",
     "payrollPeriod": "Payroll Period",
+    "employeeHome": "Dashboard",
   };
 
   return (
     <nav className="breadcrumbs">
       {/* Root Home Link */}
-      <Link to="/" className="breadcrumb-link">
+      <Link to={homePath} className="breadcrumb-link">
         <HomeIcon className="home-icon" />
-        <span>Home</span>
+        <span>{homeLabel}</span>
       </Link>
 
       {pathnames.map((value, index) => {
+        if (isEmployee && value === "employeeHome") return null;
         const last = index === pathnames.length - 1;
         // Construct the cumulative URL for each breadcrumb segment
         const to = `/${pathnames.slice(0, index + 1).join("/")}`;
