@@ -197,15 +197,15 @@ function App() {
               </ProtectedRoute>
             }
           />
-        </Route>
-        <Route
-            path="/archived"
+          <Route
+            path="archived"
             element={
               <ProtectedRoute allowedRoles={[1, 2]}>
                 <ArchivedUsers />
               </ProtectedRoute>
             }
           />
+        </Route>
 
         {/* Logs & Settings: Admin (1) & Staff (2) */}
         <Route

@@ -7,10 +7,12 @@ import { useState, useEffect } from "react";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
+import { useNavigate } from "react-router-dom";
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
   const userData = JSON.parse(localStorage.getItem("userData"));
+  const navigate = useNavigate();
 
   const fetchNotifications = async () => {
     if (!userData?.user_Id) return;
@@ -60,6 +62,15 @@ const Notifications = () => {
     }
   };
 
+  const handleNotifClick = (notif) => {
+    if (!notif.isRead) {
+      handleMarkAsRead(notif.notifId);
+    }
+    if (notif.title === "Password Reset Request" && notif.targetId) {
+      navigate(`/users/edit/${notif.targetId}`);
+    }
+  };
+
   return (
     <div className="notifications">
       <Sidebar />
@@ -82,7 +93,7 @@ const Notifications = () => {
                   <div 
                     key={notif.notifId} 
                     className={`notifItem ${notif.isRead ? 'read' : 'unread'}`}
-                    onClick={() => !notif.isRead && handleMarkAsRead(notif.notifId)}
+                    onClick={() => handleNotifClick(notif)}
                   >
                     <div className="statusIndicator">
                       {!notif.isRead && <FiberManualRecordIcon className="dot" />}

@@ -10,7 +10,6 @@ import { Link } from "react-router-dom";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodModal";
-import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 
 const Payroll = () => {
   const [payrolls, setPayrolls] = useState([]);
@@ -50,10 +49,9 @@ const Payroll = () => {
       const year = current.getFullYear();
       const month = current.getMonth();
       
-      // Strict logic for 1st half (1-15) and 2nd half (16-End)
       if (current.getDate() <= 15) {
         start = new Date(year, month, 16);
-        end = new Date(year, month + 1, 0); // Last day of same month
+        end = new Date(year, month + 1, 0); 
         half = "2nd Half";
       } else {
         start = new Date(year, month + 1, 1);
@@ -80,7 +78,7 @@ const Payroll = () => {
 
   const handleCreatePeriod = async (periodData) => {
     try {
-      const response = await fetch("http://localhost:4000/api/system/payroll-periods", {
+      const response = await fetch("/api/system/payroll-periods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -91,111 +89,62 @@ const Payroll = () => {
       });
 
       if (response.ok) {
-        const newPeriod = {
-          month: periodData.month,
-          year: periodData.year,
-          periodText: periodData.periodText,
-          startDate: periodData.startDate,
-          endDate: periodData.endDate,
-          status: "Draft",
-          employees: "Not calculated",
-          amount: "Not calculated"
-        };
-        
-        setActivePeriod(newPeriod);
-        
-        // Use endDate to generate what strictly follows
-        const upcoming = generateUpcomingPeriods(periodData.endDate, 3);
-        setUpcomingPeriods(upcoming);
         setIsCreateModalOpen(false);
-        // Refresh to get actual DB data (including periodId)
         fetchActive();
       } else {
-        alert("Failed to save payroll period to database.");
+        alert("Failed to save payroll period.");
       }
     } catch (error) {
       console.error("Error saving period:", error);
-      alert("Error saving payroll period.");
     }
   };
-
-  const fetchPayrolls = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    try {
-      const response = await fetch("http://localhost:4000/api/payroll/all");
-      const data = await response.json();
-      if (response.ok) {
-        setPayrolls(data);
-        
-        const totalNet = data.reduce((sum, p) => sum + parseFloat(p.netPay || 0), 0);
-        const totalEarn = data.reduce((sum, p) => sum + parseFloat(p.totalEarnings || 0), 0);
-        const totalDed = data.reduce((sum, p) => sum + parseFloat(p.totalDeductions || 0), 0);
-        
-        setStats({
-          totalNetPay: totalNet,
-          totalEarnings: totalEarn,
-          totalDeductions: totalDed
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching payrolls:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const handleRefresh = () => fetchPayrolls(true);
 
   const fetchActive = async () => {
+    setLoading(true);
     try {
-      // 1. Get System Time (handles mock time)
-      const timeRes = await fetch("http://localhost:4000/api/system/time");
-      const { systemTime } = await timeRes.json();
-      const today = new Date(systemTime);
-      const todayStr = formatLocalISO(today);
-
-      // 2. Get all periods
-      const response = await fetch("http://localhost:4000/api/system/payroll-periods");
+      const response = await fetch("/api/system/payroll-periods");
       const data = await response.json();
       
       if (response.ok && data.length > 0) {
         setAllPeriods(data);
-        // Find the period that includes "today"
-        let active = data.find(p => todayStr >= p.startDate && todayStr <= p.endDate);
         
-        // If no period includes today, take the most recent one
-        if (!active) active = data[0];
+        // ACTIVE = The most recent DRAFT period
+        const draftPeriods = data.filter(p => p.status === 'Draft');
+        const active = draftPeriods[0]; 
 
-        const [startY, startM, startD] = active.startDate.split('-').map(Number);
-        const [endY, endM, endD] = active.endDate.split('-').map(Number);
-        const startObj = new Date(startY, startM - 1, startD);
-        const endObj = new Date(endY, endM - 1, endD);
-        
-        setActivePeriod({
-          month: startObj.toLocaleString('en-US', { month: 'long' }),
-          year: startY,
-          periodText: `${startObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${endObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
-          startDate: active.startDate,
-          endDate: active.endDate,
-          status: active.status || "Draft",
-          employees: active.employeeCount !== undefined ? active.employeeCount : "Not calculated",
-          amount: active.totalAmount !== undefined ? `₱${parseFloat(active.totalAmount).toLocaleString()}` : "Not calculated"
-        });
+        if (active) {
+          const [startY, startM, startD] = active.startDate.split('-').map(Number);
+          const [endY, endM, endD] = active.endDate.split('-').map(Number);
+          const startObj = new Date(startY, startM - 1, startD);
+          const endObj = new Date(endY, endM - 1, endD);
+          
+          setActivePeriod({
+            id: active.periodId,
+            month: startObj.toLocaleString('en-US', { month: 'long' }),
+            year: startY,
+            periodText: `${startObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${endObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+            startDate: active.startDate,
+            endDate: active.endDate,
+            status: active.status,
+            employees: active.employeeCount,
+            amount: `₱${parseFloat(active.totalAmount).toLocaleString()}`
+          });
+        } else {
+          setActivePeriod(null);
+        }
 
-        // Generate upcoming based on the LATEST period in the database
         setUpcomingPeriods(generateUpcomingPeriods(data[0].endDate, 3));
-      } else {
-        setUpcomingPeriods(generateUpcomingPeriods(todayStr, 3));
       }
     } catch (error) {
-      console.error("Error fetching active period:", error);
+      console.error("Error fetching periods:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleRefresh = () => fetchActive();
+
   useEffect(() => {
-    fetchPayrolls();
     fetchActive();
   }, []);
 
@@ -227,20 +176,9 @@ const Payroll = () => {
                 onClick={handleRefresh}
                 disabled={refreshing}
               >
-                <RefreshIcon /> {refreshing ? "Refreshing..." : "Refresh"}
+                <RefreshIcon /> Refresh
               </button>
             </div>
-          </div>
-
-          <div className="infoAlert">
-            <div className="alertTitle">
-              <InfoOutlinedIcon className="icon" /> 
-              <h3>Batch Payroll Processing</h3>
-            </div>
-            <p>
-              Create a new payroll period to automatically calculate payroll for all employees based on their daily rates and attendance records. 
-              Once processed, the period will be locked and cannot be edited.
-            </p>
           </div>
 
           <div className="periodsGrid">
@@ -258,9 +196,9 @@ const Payroll = () => {
                   </div>
                   <div className="cardDetails">
                     <div className="detailRow"><label>Employees:</label><span>{activePeriod.employees}</span></div>
-                    <div className="detailRow"><label>Total Possible Pay:</label><span>{activePeriod.amount}</span></div>
+                    <div className="detailRow"><label>Estimated Pay:</label><span>{activePeriod.amount}</span></div>
                   </div>
-                  <Link to="/payroll/payrollPeriod" style={{ textDecoration: "none" }}>
+                  <Link to={`/payroll/payrollPeriod?periodId=${activePeriod.id}`} style={{ textDecoration: "none" }}>
                     <button className="processBtn">
                       <VisibilityIcon /> Process Payroll
                     </button>
@@ -268,7 +206,7 @@ const Payroll = () => {
                 </div>
               ) : (
                 <div className="noActivePeriod">
-                  <p>No active payroll period. Click "Payroll Schedule" or use the next period card to create one.</p>
+                  <p>No draft payroll periods. Use the next period card to start one.</p>
                 </div>
               )}
             </div>
@@ -299,8 +237,6 @@ const Payroll = () => {
           </div>
 
           <br />
-          {/* src/pages/payroll/PayrollManagement.jsx */}
-
           <div className="sectionTitle">Previous Periods (Locked)</div>
           <div className="tableCard">
             <table className="customPayrollTable">
@@ -315,9 +251,9 @@ const Payroll = () => {
                 </tr>
               </thead>
               <tbody>
-                {allPeriods.filter(p => activePeriod && (p.startDate < activePeriod.startDate || p.employeeCount > 0)).length > 0 ? (
+                {allPeriods.filter(p => p.status !== 'Draft' || (activePeriod && p.periodId !== activePeriod.id)).length > 0 ? (
                   allPeriods
-                    .filter(p => activePeriod && (p.startDate < activePeriod.startDate || p.employeeCount > 0))
+                    .filter(p => p.status !== 'Draft' || (activePeriod && p.periodId !== activePeriod.id))
                     .map((p, index) => (
                       <tr key={index}>
                         <td className="boldText">{p.label}</td>
@@ -326,12 +262,12 @@ const Payroll = () => {
                         <td className="amountText">₱{(parseFloat(p.totalAmount) || 0).toLocaleString()}</td>
                         <td>
                           <span className={`statusPill ${p.status?.toLowerCase() || "draft"}`}>
-                            {p.status || "Draft"}
+                            {p.status}
                           </span>
                         </td>
                         <td>
                           <div className="cellAction">
-                            <Link to="/payroll/payrollPeriod" className="viewBtn">
+                            <Link to={`/payroll/payrollPeriod?periodId=${p.periodId}`} className="viewBtn">
                               <VisibilityIcon className="icon" /> View Details
                             </Link>
                           </div>

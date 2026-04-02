@@ -8,22 +8,41 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const handleResetRequest = (e) => {
+  const handleResetRequest = async (e) => {
     e.preventDefault();
-    console.log("Requesting reset for:", email);
-    // Reset API call logic here
+    try {
+      const response = await fetch("/api/users/request-password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert(data.message);
+        onClose();
+      } else {
+        alert(data.error || "Failed to send reset request.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network error.");
+    }
   };
 
   return (
     <div className="modalOverlay">
       <div className="modalContent forgotModal">
-        <button className="closeBtn" onClick={onClose}><CloseIcon /></button>
+        <button className="closeBtn" onClick={onClose}>
+          <CloseIcon />
+        </button>
         <div className="modalHeader">
           <img src="/logo.png" alt="Logo" className="logo" />
           <h2>Reset Password</h2>
-          <p>Provide your email address to receive a link to reset your password.</p>
+          <p>
+            Provide your email address to receive a link to reset your password.
+          </p>
         </div>
-        
+
         <form onSubmit={handleResetRequest}>
           <div className="inputItem">
             <label>Email Address:</label>
@@ -35,7 +54,9 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
               required
             />
           </div>
-          <button type="submit" className="confirmBtn">Send Reset Link</button>
+          <button type="submit" className="confirmBtn">
+            Send Reset Password
+          </button>
         </form>
       </div>
     </div>

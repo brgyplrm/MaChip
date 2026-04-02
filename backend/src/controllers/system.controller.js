@@ -105,8 +105,51 @@ exports.createPayrollPeriod = async (req, res) => {
     }
 };
 
+const ensureCurrentPeriodExists = async () => {
+    try {
+        const now = await getSystemTime();
+        const year = now.getFullYear();
+        const month = now.getMonth(); // 0-indexed
+        const day = now.getDate();
+
+        let startDate, endDate, label;
+
+        if (day <= 15) {
+            startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+            endDate = `${year}-${String(month + 1).padStart(2, '0')}-15`;
+            label = `${now.toLocaleString('default', { month: 'long' })} 1-15, ${year}`;
+        } else {
+            startDate = `${year}-${String(month + 1).padStart(2, '0')}-16`;
+            // Get last day of month
+            const lastDay = new Date(year, month + 1, 0).getDate();
+            endDate = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
+            label = `${now.toLocaleString('default', { month: 'long' })} 16-${lastDay}, ${year}`;
+        }
+
+        // Check if this specific period already exists
+        const existing = await PayrollPeriod.findOne({
+            where: { startDate, endDate }
+        });
+
+        if (!existing) {
+            console.log(`[SYSTEM] Auto-creating missing payroll period: ${label}`);
+            await PayrollPeriod.create({
+                startDate,
+                endDate,
+                label,
+                status: 'Draft'
+            });
+        }
+    } catch (error) {
+        console.error("[ERROR] ensureCurrentPeriodExists:", error.message);
+    }
+};
+
 exports.getPayrollPeriods = async (req, res) => {
     try {
+        // Automatically check and create current period before returning list
+        await ensureCurrentPeriodExists();
+
         const periods = await sequelize.query(
             `SELECT 
                 pp."periodId",

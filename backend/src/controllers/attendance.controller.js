@@ -303,18 +303,40 @@ exports.viewUserLogs = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
 
-    const dailyRows = reports.map((report) => {
+    const dailyRows = await Promise.all(reports.map(async (report) => {
       const inArr = JSON.parse(report.time_Logged_inArr || "[]");
       const outArr = JSON.parse(report.time_Logged_outArr || "[]");
+      
+      let time_In = inArr[0] ?? null;
+      let time_Out = outArr[outArr.length - 1] ?? null;
+      let attendanceStatus = report.attendanceStatusName ?? "—";
+
+      // If no logs, check if there was an approved Onfield Work for this day
+      if (!time_In && !time_Out) {
+        const onfield = await sequelize.query(
+          `SELECT ow.* FROM "Onfield_Work" ow
+           JOIN "emp_Request" er ON ow."emp_reqId" = er."emp_reqId"
+           WHERE er."user_Id" = :user_Id AND ow."DateonField" = :logDate
+           AND er."emp_reqStatusId" = 2`,
+          { replacements: { user_Id, logDate: report.log_Date }, type: QueryTypes.SELECT }
+        );
+
+        if (onfield.length > 0) {
+          time_In = "08:30:00";
+          time_Out = "17:30:00";
+          attendanceStatus = "On-Field";
+        }
+      }
+
       return {
         sessionId: `${report.user_id}-${report.log_Date}`,
         log_Date: report.log_Date,
-        time_In: inArr[0] ?? null,
-        time_Out: outArr[outArr.length - 1] ?? null,
+        time_In,
+        time_Out,
         logStatus: report.loggedStatusName,
-        attendanceStatus: report.attendanceStatusName ?? "—",
+        attendanceStatus,
       };
-    });
+    }));
 
     res.status(200).json(dailyRows);
   } catch (error) {
@@ -487,7 +509,7 @@ exports.getMonthlyAttendanceStats = async (req, res) => {
     const stats = await sequelize.query(
       `SELECT 
          TO_CHAR(TO_DATE(EXTRACT(MONTH FROM "log_Date")::text, 'MM'), 'Month') AS name,
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 1) AS "OnTime",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5)) AS "OnTime",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "Late",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "Absent",
          EXTRACT(MONTH FROM "log_Date") as month_num
@@ -514,7 +536,7 @@ exports.getMonthlyAttendanceStatsByUser = async (req, res) => {
     const stats = await sequelize.query(
       `SELECT 
          TO_CHAR(TO_DATE(EXTRACT(MONTH FROM "log_Date")::text, 'MM'), 'Month') AS name,
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 1) AS "OnTime",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5)) AS "OnTime",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "Late",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "Absent",
          EXTRACT(MONTH FROM "log_Date") as month_num
@@ -526,6 +548,99 @@ exports.getMonthlyAttendanceStatsByUser = async (req, res) => {
     );
 
     res.status(200).json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Get Employee Dashboard Stats (Consolidated) ────────────────────────────────
+exports.getEmployeeDashboardStats = async (req, res) => {
+  const { user_Id } = req.params;
+  try {
+    await ensureAbsentsMarked();
+    const now = await getSystemTime();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    // 1. Attendance Stats for Current Month
+    const attendanceStats = await sequelize.query(
+      `SELECT 
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "absentCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5)) AS "onTimeCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateCount"
+       FROM "employee_Logging_report"
+       WHERE "user_id" = :user_Id 
+       AND EXTRACT(YEAR FROM "log_Date") = :currentYear
+       AND EXTRACT(MONTH FROM "log_Date") = :currentMonth`,
+      { replacements: { user_Id, currentYear, currentMonth }, type: QueryTypes.SELECT }
+    );
+
+    // 2. Recent Attendance Logs (Last 5)
+    const recentLogs = await sequelize.query(
+      `SELECT r.*, a."statusName" as "attendanceStatus"
+       FROM "employee_Logging_report" r
+       LEFT JOIN "attendance_status" a ON r."attendance_StatusId" = a."statusId"
+       WHERE r."user_id" = :user_Id
+       ORDER BY r."log_Date" DESC
+       LIMIT 5`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+
+    // 3. Leave Balances (Yearly Consumed vs Total)
+    const leaveBalance = await sequelize.query(
+      `SELECT * FROM "Leave_Balance" 
+       WHERE "user_Id" = :user_Id AND "year" = :currentYear`,
+      { replacements: { user_Id, currentYear }, type: QueryTypes.SELECT }
+    );
+
+    // 4. Leave Requests for the CURRENT MONTH
+    const monthlyRequests = await sequelize.query(
+      `SELECT
+        er."emp_reqId",
+        er."emp_reqTypeId",
+        rt."reqTypeName",
+        rs."reqStatName" as "status",
+        er."date_Filed",
+        er.remarks,
+        ot."OT_DateOf",
+        vl."StartDate" as "VL_StartDate",
+        vl."EndDate" as "VL_EndDate",
+        sl."StartDate" as "SL_StartDate",
+        sl."EndDate" as "SL_EndDate",
+        ow."DateonField"
+      FROM "emp_Request" er
+      LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+      LEFT JOIN "request_Status" rs ON er."emp_reqStatusId" = rs."reqStatId"
+      LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
+      LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+      LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+      LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+      WHERE er."user_Id" = :user_Id
+      AND EXTRACT(YEAR FROM er."date_Filed") = :currentYear
+      AND EXTRACT(MONTH FROM er."date_Filed") = :currentMonth
+      ORDER BY er."date_Filed" DESC`,
+      { replacements: { user_Id, currentYear, currentMonth }, type: QueryTypes.SELECT }
+    );
+
+    res.status(200).json({
+      attendance: {
+        absent: parseInt(attendanceStats[0].absentCount || 0),
+        onTime: parseInt(attendanceStats[0].onTimeCount || 0),
+        late: parseInt(attendanceStats[0].lateCount || 0),
+        monthName: now.toLocaleString('default', { month: 'long' })
+      },
+      leaveBalance: leaveBalance[0] || {
+        VL_total: 7, VL_used: 0, VL_balance: 7,
+        SL_total: 7, SL_used: 0, SL_balance: 7
+      },
+      recentLogs: recentLogs.map(log => ({
+        date: log.log_Date,
+        status: log.attendanceStatus || "—",
+        timeIn: JSON.parse(log.time_Logged_inArr || "[]")[0] || "—",
+        timeOut: JSON.parse(log.time_Logged_outArr || "[]").pop() || "—"
+      })),
+      monthlyRequests: monthlyRequests
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -550,7 +665,8 @@ exports.getDashboardStats = async (req, res) => {
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 1) AS "onTimeCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "absentCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 4) AS "onLeaveCount"
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 4) AS "onLeaveCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 5) AS "onFieldCount"
        FROM "employee_Logging_report"
        WHERE "log_Date" = :todayStr`,
       { replacements: { todayStr }, type: QueryTypes.SELECT },
@@ -563,6 +679,7 @@ exports.getDashboardStats = async (req, res) => {
       lateArrivalsCount: parseInt(stats[0].lateArrivalsCount || 0),
       absentCount: parseInt(stats[0].absentCount || 0),
       onLeaveCount: parseInt(stats[0].onLeaveCount || 0),
+      onFieldCount: parseInt(stats[0].onFieldCount || 0),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

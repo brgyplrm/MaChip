@@ -15,7 +15,7 @@ const Single = () => {
     const fetchUser = async () => {
       try {
         const response = await fetch(
-          `http://localhost:4000/api/users/${userId}`,
+          `/api/users/${userId}`,
         );
         if (response.ok) {
           const data = await response.json();
@@ -47,7 +47,7 @@ const Single = () => {
             {user ? (
               <div className="item">
                 <img
-                  src="https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&dpr=3&h=750&w=1260"
+                  src={user.user_ProfilePic ? `/api/uploads/${user.user_ProfilePic}` : "/avatar.webp"}
                   alt=""
                   className="itemImg"
                 />

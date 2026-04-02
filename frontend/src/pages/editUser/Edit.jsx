@@ -64,11 +64,13 @@ const Edit = ({ inputs, title }) => {
   const [formData, setFormData] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [displayPic, setDisplayPic] = useState("");
+  const [showAdminConfirm, setShowAdminConfirm] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
 
   const navigate = useNavigate();
 
-  const userData = JSON.parse(localStorage.getItem("userData"));
-  const isAdmin = userData?.user_RoleId === 1;
+  const currentUser = JSON.parse(localStorage.getItem("userData"));
+  const isAdmin = currentUser?.user_RoleId === 1;
 
   // field-level error messages
   const [errors, setErrors] = useState({});
@@ -83,48 +85,42 @@ const Edit = ({ inputs, title }) => {
     [],
   );
 
-  const handleCancel = () => {
-  // Check if the current user is an Admin or Employee
-  if (isAdmin) {
-    navigate("/users"); // Admin goes back to the User Management list
-  } else {
-    navigate("/profile"); // Employee goes back to their personal dashboard
-  }
-};
+  // Map values to IDs for database sync
+  const roleMap = { "Admin": 1, "Staff": 2, "Employee": 3 };
+  const reverseRoleMap = { 1: "Admin", 2: "Staff", 3: "Employee" };
+  const statusMap = { "Regular": 1, "Intern / OJT": 2, "Part-time": 3 };
+  const reverseStatusMap = { 1: "Regular", 2: "Intern / OJT", 3: "Part-time" };
 
-  // Clear a single field error when the user edits it
+  const handleCancel = () => {
+    if (isAdmin) navigate("/users");
+    else navigate("/profile");
+  };
+
   const clearError = (field) => setErrors((prev) => ({ ...prev, [field]: "" }));
 
-  // Fetch existing user data on mount
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const response = await fetch(
-          `http://localhost:4000/api/users/${userId}`,
-        );
+        const response = await fetch(`/api/users/${userId}`);
         if (response.ok) {
           const data = await response.json();
-          // Keep password blank so the user must intentionally re-enter it
           const { user_Password, ...otherData } = data;
-          setFormData(otherData);
-          if (data.user_ProfilePic) {
-            setDisplayPic(`http://localhost:4000/uploads/${data.user_ProfilePic}`);
-          }
-        } else {
-          setToast({
-            message: "Failed to load user data. Please refresh.",
-            type: "error",
+          
+          // Ensure we have display strings for the dropdowns
+          setFormData({
+            ...otherData,
+            user_Role: reverseRoleMap[data.user_RoleId] || "Employee",
+            user_EmploymentStatus: reverseStatusMap[data.user_EmploymentStatusId] || "Regular"
           });
+
+          if (data.user_ProfilePic) {
+            setDisplayPic(`/api/uploads/${data.user_ProfilePic}`);
+          }
         }
       } catch (err) {
         console.error("Error fetching user data:", err);
-        setToast({
-          message: "Could not connect to the server while loading user data.",
-          type: "error",
-        });
       }
     };
-
     fetchUserData();
   }, [userId]);
 
@@ -136,9 +132,7 @@ const Edit = ({ inputs, title }) => {
 
   const handleScanRFID = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:4000/api/users/generateRfid",
-      );
+      const response = await fetch("/api/users/generateRfid");
       if (response.ok) {
         const data = await response.json();
         setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
@@ -163,72 +157,86 @@ const Edit = ({ inputs, title }) => {
   };
 
   const handleUpdate = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
 
-    // 1. Validate
-    const validationErrors = validateForm(formData);
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      setToast({
-        message: "Please fix the highlighted errors before saving.",
-        type: "error",
-      });
+    // 1. Check if promoting to Admin
+    if (formData.user_Role === "Admin" && reverseRoleMap[formData.user_RoleId] !== "Admin" && !showAdminConfirm) {
+      setShowAdminConfirm(true);
       return;
     }
 
-    const data = new FormData();
+    // 2. Validate
+    const validationErrors = validateForm(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setToast({ message: "Please fix the highlighted errors.", type: "error" });
+      return;
+    }
+
+    const submissionData = new FormData();
     Object.keys(formData).forEach((key) => {
+      // Exclude these because we map them manually below, or they are not needed in body
+      if (["user_RoleId", "user_EmploymentStatusId", "user_Role", "user_EmploymentStatus"].includes(key)) return;
+      
       if (formData[key] !== null && formData[key] !== undefined) {
-        data.append(key, formData[key]);
+        submissionData.append(key, formData[key]);
       }
     });
 
+    // Map the string values to their numeric IDs for the backend
+    submissionData.append("user_RoleId", roleMap[formData.user_Role] || 3);
+    submissionData.append("user_EmploymentStatusId", statusMap[formData.user_EmploymentStatus] || 1);
+
     if (file) {
-      data.append("user_ProfilePic", file);
+      submissionData.append("user_ProfilePic", file);
     }
 
-    // 2. Submit
+    // If we're doing the admin password check
+    if (showAdminConfirm) {
+      submissionData.append("adminConfirmPassword", adminPassword);
+    }
+
+    const operatorId = currentUser?.user_Id || currentUser?.userId;
+    console.log("[DEBUG] Sending update request:", {
+      targetUserId: userId,
+      operatorId,
+      newRole: formData.user_Role,
+      hasConfirmPass: !!adminPassword
+    });
+
     try {
-      const response = await fetch(
-        `http://localhost:4000/api/users/updateUser/${userId}`,
-        {
-          method: "PUT",
-          body: data,
+      const response = await fetch(`/api/users/updateUser/${userId}`, {
+        method: "PUT",
+        headers: {
+          "x-admin-id": operatorId,
         },
-      );
+        body: submissionData,
+      });
 
       if (response.ok) {
-        const result = await response.json();
-        setToast({
-          message: "User profile updated successfully!",
-          type: "success",
-        });
-        // Update display pic if changed
-        if (result.data && result.data.user_ProfilePic) {
-          setDisplayPic(`http://localhost:4000/uploads/${result.data.user_ProfilePic}`);
-        }
-        // Clear the password field after a successful update
-        setFormData((prev) => ({ ...prev, user_Password: "" }));
-        setErrors({});
-        setFile("");
+        setToast({ message: "User profile updated successfully!", type: "success" });
+        setShowAdminConfirm(false);
+        setAdminPassword("");
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        setToast({
-          message: "Failed to update: " + (errorData.error || "Unknown error."),
-          type: "error",
-        });
+        const errorData = await response.json();
+        setToast({ message: errorData.error || "Failed to update.", type: "error" });
       }
     } catch (err) {
-      console.error("Error updating user:", err);
-      setToast({
-        message: "Could not connect to the server. Please try again.",
-        type: "error",
-      });
+      setToast({ message: "Connection error.", type: "error" });
     }
   };
 
+  const confirmAdminPromotion = () => {
+    if (!adminPassword) {
+      setToast({ message: "Please enter your password to confirm.", type: "error" });
+      return;
+    }
+    handleUpdate();
+  };
+
  return (
-  <div className="new"> {/* Reusing the 'new' class for layout consistency */}
+  <div className="new">
+    <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
     <Sidebar />
     <div className="newContainer">
       <Navbar />
@@ -245,7 +253,7 @@ const Edit = ({ inputs, title }) => {
                   file
                     ? URL.createObjectURL(file)
                     : formData.user_ProfilePic
-                      ? `http://localhost:4000/uploads/${formData.user_ProfilePic}`
+                      ? `/api/uploads/${formData.user_ProfilePic}`
                       : "/avatar.webp"
                 }
                 alt="Profile Preview"
@@ -322,9 +330,9 @@ const Edit = ({ inputs, title }) => {
 
           {inputs
             .filter((input) => {
-              // If not admin, hide these specific administrative fields
+              // If not admin, hide administrative fields and password change option
               if (!isAdmin) {
-                return !["user_EmploymentStatus", "user_Role", "user_MachipId"].includes(input.id);
+                return !["user_EmploymentStatus", "user_Role", "user_MachipId", "user_Password"].includes(input.id);
               }
               return true;
             })
@@ -390,6 +398,33 @@ const Edit = ({ inputs, title }) => {
         </button>
       </div>
     </div>
+
+    {/* Admin Confirmation Modal */}
+    {showAdminConfirm && (
+      <div className="adminConfirmOverlay">
+        <div className="adminConfirmModal">
+          <h2>Admin Promotion Required</h2>
+          <p>You are about to promote this user to <b>Admin</b>. This grants full system access.</p>
+          <p className="subtext">Please enter your current admin password to verify this action:</p>
+          <input
+            type="password"
+            placeholder="Confirm Admin Password"
+            value={adminPassword}
+            onChange={(e) => setAdminPassword(e.target.value)}
+            className="adminPassInput"
+            autoFocus
+          />
+          <div className="modalButtons">
+            <button className="cancel" onClick={() => { setShowAdminConfirm(false); setAdminPassword(""); }}>
+              Cancel
+            </button>
+            <button className="confirm" onClick={confirmAdminPromotion}>
+              Confirm Promotion
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   </div>
 );
 };

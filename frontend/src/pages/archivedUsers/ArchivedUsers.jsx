@@ -1,88 +1,126 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import "./archivedUsers.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import SearchIcon from "@mui/icons-material/Search";
 import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import PermanentDeleteModal from "../../components/permanentDeleteModal/PermanentDeleteModal";
+import Toast from "../../components/toast/Toast";
 
 const ArchivedUsers = () => {
+  const [showPermDelete, setShowPermDelete] = useState(false);
+  const [targetUser, setTargetUser] = useState(null);
+  const [archivedUsers, setArchivedUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState({ message: "", type: "success" });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState("All Types");
 
-    const [showPermDelete, setShowPermDelete] = useState(false);
-    const [targetUser, setTargetUser] = useState("");
+  const dismissToast = useCallback(
+    () => setToast({ message: "", type: "success" }),
+    [],
+  );
 
-  const [archivedUsers, setArchivedUsers] = useState([
-    { id: 1, name: "John Smith", email: "john.smith@example.com", type: "Employee", date: "Mar 15, 2026, 10:30 AM", by: "Admin" },
-    { id: 2, name: "Lisa Anderson", email: "lisa.anderson@example.com", type: "Admin", date: "Feb 28, 2026, 02:20 PM", by: "Admin" }
-  ]);
+  const fetchArchivedUsers = async () => {
+    try {
+      const response = await fetch("/api/users/archived");
+      if (response.ok) {
+        const data = await response.json();
+        setArchivedUsers(data);
+      }
+    } catch (err) {
+      console.error("Error fetching archived users:", err);
+    }
+  };
 
-  // Summary logic based on the provided screenshot
-  const stats = {
-    total: archivedUsers.length,
-    employees: archivedUsers.filter(u => u.type === "Employee").length,
-    admins: archivedUsers.filter(u => u.type === "Admin").length,
+  useEffect(() => {
+    fetchArchivedUsers();
+  }, []);
+
+  const handleRestore = async (user) => {
+    try {
+      const response = await fetch(`/api/users/restoreUser/${user.user_Id}`, {
+        method: "PATCH",
+      });
+      if (response.ok) {
+        setArchivedUsers((prev) => prev.filter((u) => u.user_Id !== user.user_Id));
+        setToast({ message: `${user.user_FirstName} ${user.user_LastName} restored successfully.`, type: "success" });
+      } else {
+        const err = await response.json();
+        setToast({ message: err.message || "Failed to restore user.", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Network error.", type: "error" });
+    }
   };
 
   const handleActualPermanentDelete = async () => {
-  // Ensure we have a target user selected
-  if (!userToDelete) return;
+    if (!targetUser) return;
 
-  const adminId = localStorage.getItem("token"); // Identify the admin performing the action
-  setLoading(true);
+    const adminId = localStorage.getItem("token");
+    setLoading(true);
 
-  try {
-    // 1. Call the backend permanent delete endpoint
-    const response = await fetch(
-      `http://localhost:4000/api/users/permanentDelete/${userToDelete.id}`,
-      {
-        method: "DELETE",
-        headers: { 
-          "x-admin-id": adminId,
-          "Content-Type": "application/json"
-        },
+    try {
+      const response = await fetch(
+        `/api/users/forceDelete/${targetUser.user_Id}`,
+        {
+          method: "DELETE",
+          headers: { 
+            "x-admin-id": adminId,
+            "Content-Type": "application/json"
+          },
+        }
+      );
+
+      if (response.ok) {
+        setArchivedUsers((prev) => prev.filter((u) => u.user_Id !== targetUser.user_Id));
+        setToast({
+          message: `${targetUser.user_FirstName} ${targetUser.user_LastName} has been permanently removed.`,
+          type: "success",
+        });
+      } else {
+        const errorData = await response.json();
+        setToast({
+          message: errorData.error || "Failed to delete user.",
+          type: "error",
+        });
       }
-    );
-
-    if (response.ok) {
-      // 2. Remove the deleted user from the local list
-      setArchivedUsers((prev) => prev.filter((user) => user.id !== userToDelete.id));
-
-      // 3. Show success feedback
-      setToast({
-        message: `${userToDelete.name} has been permanently removed from the system.`,
-        type: "success",
-      });
-    } else {
-      // 4. Handle backend errors (e.g., unauthorized or database constraints)
-      const errorData = await response.json();
-      setToast({
-        message: errorData.error || "Failed to permanently delete user.",
-        type: "error",
-      });
+    } catch (err) {
+      setToast({ message: "Network error.", type: "error" });
+    } finally {
+      setLoading(false);
+      setShowPermDelete(false);
+      setTargetUser(null);
     }
-  } catch (err) {
-    console.error("Critical Deletion Error:", err);
-    setToast({
-      message: "Network error. Please check your connection.",
-      type: "error",
-    });
-  } finally {
-    // 5. Cleanup: Close the modal and reset state
-    setLoading(false);
-    setShowPermDelete(false);
-    setUserToDelete(null);
-  }
-};
+  };
 
-const initiatePermanentDelete = (user) => {
-  setTargetUser(user);     // Store the user object to show their name in the modal
-  setShowPermDelete(true); // Open the modal
-};
+  const initiatePermanentDelete = (user) => {
+    setTargetUser(user);
+    setShowPermDelete(true);
+  };
+
+  // Filter and Search Logic
+  const filteredUsers = archivedUsers.filter(u => {
+    const fullName = `${u.user_FirstName} ${u.user_LastName}`.toLowerCase();
+    const email = (u.user_Email || "").toLowerCase();
+    const query = searchQuery.toLowerCase();
+
+    const matchesSearch = fullName.includes(query) || email.includes(query);
+    const matchesFilter = filterType === "All Types" || u.user_Role === (filterType === "Employees" ? "Employee" : "Admin");
+
+    return matchesSearch && matchesFilter;
+  });
+
+  const stats = {
+    total: archivedUsers.length,
+    employees: archivedUsers.filter(u => u.user_Role === "Employee").length,
+    admins: archivedUsers.filter(u => u.user_Role === "Admin").length,
+  };
 
   return (
     <div className="archives">
+      <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
       <Sidebar />
       <div className="archivesContainer">
         <Navbar />
@@ -94,7 +132,6 @@ const initiatePermanentDelete = (user) => {
             </div>
           </div>
 
-          {/* Summary Cards at Bottom */}
           <div className="summaryRow">
             <div className="statCard">
               <label>Total Archived</label>
@@ -110,14 +147,22 @@ const initiatePermanentDelete = (user) => {
             </div>
           </div><br />
 
-          {/* Filter Bar matching provided screenshot */}
           <div className="filterCard">
             <div className="searchBox">
               <SearchIcon className="icon" />
-              <input type="text" placeholder="Search by name, email, or guardian email..." />
+              <input 
+                type="text" 
+                placeholder="Search by name or email..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
             <div className="dropdownWrapper">
-               <select className="typeSelect">
+               <select 
+                 className="typeSelect" 
+                 value={filterType}
+                 onChange={(e) => setFilterType(e.target.value)}
+               >
                   <option>All Types</option>
                   <option>Employees</option>
                   <option>Admins</option>
@@ -125,7 +170,6 @@ const initiatePermanentDelete = (user) => {
             </div>
           </div>
 
-          {/* Archives Table */}
           <div className="tableCard">
             <table className="customArchiveTable">
               <thead>
@@ -134,30 +178,31 @@ const initiatePermanentDelete = (user) => {
                   <th>Email</th>
                   <th>User Type</th>
                   <th>Archived Date</th>
-                  <th>Archived By</th>
                   <th className="actionHead">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {archivedUsers.map((user) => (
-                  <tr key={user.id}>
-                    <td className="boldText">{user.name}</td>
-                    <td>{user.email}</td>
+                {filteredUsers.length > 0 ? filteredUsers.map((user) => (
+                  <tr key={user.user_Id}>
+                    <td className="boldText">{user.user_FirstName} {user.user_LastName}</td>
+                    <td>{user.user_Email || "—"}</td>
                     <td>
-                      <span className="typeBadge">{user.type}</span>
+                      <span className="typeBadge">{user.user_Role}</span>
                     </td>
-                    <td>{user.date}</td>
-                    <td>{user.by}</td>
+                    <td>{user.deletedAt ? new Date(user.deletedAt).toLocaleString() : "—"}</td>
                     <td>
                       <div className="cellAction">
-                        <button className="restoreBtn"><RestoreIcon /> Restore</button>
-                        <button className="deleteBtn"
-                                onClick={() => initiatePermanentDelete(user)}>
+                        <button className="restoreBtn" onClick={() => handleRestore(user)}><RestoreIcon /> Restore</button>
+                        <button className="deleteBtn" onClick={() => initiatePermanentDelete(user)}>
                             <DeleteOutlineIcon /> Delete</button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>No archived users found.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -167,7 +212,8 @@ const initiatePermanentDelete = (user) => {
         isOpen={showPermDelete}
         onClose={() => setShowPermDelete(false)}
         onConfirm={handleActualPermanentDelete}
-        itemName={targetUser.name} // Passes the name for the prompt
+        itemName={targetUser ? `${targetUser.user_FirstName} ${targetUser.user_LastName}` : ""}
+        loading={loading}
         />
     </div>
   );

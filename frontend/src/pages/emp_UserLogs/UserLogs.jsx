@@ -1,324 +1,135 @@
-import React from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import "./UserLogs.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import HistoryIcon from '@mui/icons-material/History';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import { useRef } from "react";
-import { useState, useEffect } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { formatUserId } from "../../utils/formatUserId";
+import { useSystemTime } from "../../context/SystemTimeContext";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 const UserLogs = () => {
-  // Mock data representing the table rows
-  const logs = [
-    { id: 1, user: "Kathleen Smith", userId: "MACJ-001", action: "Clock-In",  date: "2026-04-01", time: "08:30 AM" },
-    { id: 2, user: "John Doe", userId: "MACJ-005", action: "Clock-Out", date: "2026-04-01", time: "10:15 AM" },
-    { id: 3, user: "Kathleen Smith", userId: "MACJ-001", action: "Clock-Out", date: "2026-04-01", time: "05:00 PM" },
-  ];
-
-   const dtrRef = useRef();
+  const dtrRef = useRef();
+  const { systemToday } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const [activeTab, setActiveTab] = useState("submit"); // 'submit' or 'history'
   const [toast, setToast] = useState({ message: "", type: "success" });
-  const [historyRequests, setHistoryRequests] = useState([]);
+  const [rawLogs, setRawLogs] = useState([]);
   const [dtrData, setDtrData] = useState([]);
   const [loading, setLoading] = useState(false);
-  
-  // Dynamic DTR Date Range (1-15 or 16-EOM)
-  const getPayrollDates = () => {
-    const today = new Date();
-    const day = today.getDate();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    
+
+  const formatToYYYYMMDD = (date) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getPayrollDates = (referenceDate) => {
+    const date = new Date(referenceDate);
+    const day = date.getDate();
+    const year = date.getFullYear();
+    const month = date.getMonth();
+
     if (day <= 15) {
       return {
-        start: new Date(year, month, 1).toISOString().split('T')[0],
-        end: new Date(year, month, 15).toISOString().split('T')[0],
-        payEnding: `${today.toLocaleString('en-US', { month: 'long' }).toUpperCase()} 15, ${year}`
+        start: formatToYYYYMMDD(new Date(year, month, 1)),
+        end: formatToYYYYMMDD(new Date(year, month, 15)),
+        payEnding: `${date.toLocaleString('en-US', { month: 'long' }).toUpperCase()} 1-15, ${year}`
       };
     } else {
       const lastDay = new Date(year, month + 1, 0).getDate();
       return {
-        start: new Date(year, month, 16).toISOString().split('T')[0],
-        end: new Date(year, month + 1, 0).toISOString().split('T')[0],
-        payEnding: `${today.toLocaleString('en-US', { month: 'long' }).toUpperCase()} ${lastDay}, ${year}`
+        start: formatToYYYYMMDD(new Date(year, month, 16)),
+        end: formatToYYYYMMDD(new Date(year, month + 1, 0)),
+        payEnding: `${date.toLocaleString('en-US', { month: 'long' }).toUpperCase()} 16-${lastDay}, ${year}`
       };
     }
   };
 
-  const payroll = getPayrollDates();
+  const payroll = getPayrollDates(systemToday);
   const [dtrStartDate, setDtrStartDate] = useState(payroll.start);
   const [dtrEndDate, setDtrEndDate] = useState(payroll.end);
-  const [balance, setBalance] = useState({ VL_balance: 0, SL_balance: 0 });
 
-  // 3. Add the PDF Export function
+  // Sync state if systemToday changes significantly
+  useEffect(() => {
+    const p = getPayrollDates(systemToday);
+    setDtrStartDate(p.start);
+    setDtrEndDate(p.end);
+  }, [systemToday.getDate(), systemToday.getMonth()]);
+
   const handleDownloadDTR = async () => {
     const element = dtrRef.current;
     if (!element) return;
-
     try {
-      const canvas = await html2canvas(element, { 
-        scale: 2, // Higher quality
-        useCORS: true, 
-        backgroundColor: "#f7f1e3" // Matches your SCSS card color
-      });
-      
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#fdfaf5" });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`DTR_${userData?.user_LastName || "Report"}.pdf`);
+      pdf.save(`DTR_${userData?.user_LastName}_${dtrStartDate}.pdf`);
     } catch (error) {
       setToast({ message: "Failed to generate PDF", type: "error" });
     }
   };
 
-  const [formData, setFormData] = useState({
-    user_Id: userData?.user_Id || "",
-    emp_reqTypeId: "",
-    remarks: "",
-    // Leave fields
-    leaveStartDate: "",
-    leaveEndDate: "",
-    noDays: 0,
-    // OT fields
-    otDate: "",
-    hrFrom: "",
-    hrTo: "",
-    totalHrs: 0,
-    proofFile: null,
-  });
-
-  useEffect(() => {
-    if (formData.hrFrom && formData.hrTo) {
-      const [h1, m1] = formData.hrFrom.split(":").map(Number);
-      const [h2, m2] = formData.hrTo.split(":").map(Number);
-      
-      if (!isNaN(h1) && !isNaN(h2)) {
-        let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-        if (diff < 0) diff += 24 * 60; // Handle overnight OT
-        
-        const calculatedHrs = (diff / 60).toFixed(2);
-        setFormData(prev => ({ 
-          ...prev, 
-          totalHrs: calculatedHrs
-        }));
-      }
-    } else {
-      if (formData.totalHrs !== "0.00" && formData.totalHrs !== 0) {
-        setFormData(prev => ({ ...prev, totalHrs: "0.00" }));
-      }
-    }
-  }, [formData.hrFrom, formData.hrTo, formData.emp_reqTypeId]);
-
-  // Fetch Balance
-  const fetchBalance = async () => {
+  // Fetch Raw Logs (for the table)
+  const fetchRawLogs = async () => {
     if (!userData?.user_Id) return;
     try {
-      const response = await fetch(`http://localhost:4000/api/request/balance/${userData.user_Id}`);
+      const response = await fetch(`/api/attendance/logs/${userData.user_Id}`);
       if (response.ok) {
         const data = await response.json();
-        setBalance(data);
+        // Filter logs for current period using split to ignore time/timezone
+        const filtered = data.filter(log => {
+          const logDate = log.log_Date.split('T')[0];
+          return logDate >= dtrStartDate && logDate <= dtrEndDate;
+        });
+        setRawLogs(filtered);
       }
-    } catch (error) {
-      console.error("Error fetching balance:", error);
-    }
+    } catch (error) { console.error("Error fetching raw logs:", error); }
   };
 
-  // Fetch History
-  const fetchHistory = async () => {
-    if (!userData?.user_Id) return;
-    setLoading(true);
-    try {
-      const response = await fetch(`http://localhost:4000/api/request/${userData.user_Id}`);
-      const data = await response.json();
-      if (response.ok) {
-        setHistoryRequests(data);
-      } else {
-        console.error("Failed to fetch history:", data.error);
-      }
-    } catch (error) {
-      console.error("Error fetching history:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch DTR
+  // Fetch DTR Summarized Data
   const fetchDTR = async () => {
     if (!userData?.user_Id) return;
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:4000/api/attendance/report?startDate=${dtrStartDate}&endDate=${dtrEndDate}&user_Id=${userData.user_Id}`);
-      const data = await response.json();
+      const response = await fetch(`/api/attendance/report?startDate=${dtrStartDate}&endDate=${dtrEndDate}&user_Id=${userData.user_Id}`);
       if (response.ok) {
+        const data = await response.json();
         setDtrData(data);
       }
-    } catch (error) {
-      console.error("Error fetching DTR:", error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { console.error("Error fetching DTR:", error); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => {
-    fetchBalance();
-  }, [userData?.user_Id]);
+    fetchRawLogs();
+    fetchDTR();
+  }, [userData?.user_Id, dtrStartDate, dtrEndDate]);
 
-  useEffect(() => {
-    fetchHistory();
-    if (activeTab === "dtr") {
-      fetchDTR();
-    }
-  }, [activeTab]);
-
-  // Helper to map log data to the DTR grid (15 days or current range)
   const getDtrLogsForDay = (dayNum) => {
     const targetDate = new Date(dtrStartDate);
     targetDate.setDate(dayNum);
-    const dateStr = targetDate.toISOString().split('T')[0];
-    return dtrData.find(d => d.log_Date.split('T')[0] === dateStr);
-  };
-
-  // Automated Day Calculation
-  useEffect(() => {
-    if (formData.leaveStartDate && formData.leaveEndDate) {
-      const start = new Date(formData.leaveStartDate);
-      const end = new Date(formData.leaveEndDate);
-      const diffTime = end - start;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-      setFormData((prev) => ({
-        ...prev,
-        noDays: diffDays > 0 ? diffDays : 0,
-      }));
-    }
-  }, [formData.leaveStartDate, formData.leaveEndDate]);
-
-  const handleInputChange = (e) => {
-    const { name, value, type, checked, files } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : type === "file" ? files[0] : value,
-    }));
+    const dateStr = formatToYYYYMMDD(targetDate);
+    return dtrData.find(d => {
+      const dDate = d.log_Date.split('T')[0];
+      return dDate === dateStr;
+    });
   };
 
   const formatTime = (time) => {
-    if (!time) return "";
+    if (!time || time === "—") return "";
     const [hours, minutes] = time.split(":");
     const h = parseInt(hours, 10);
     const ampm = h >= 12 ? "PM" : "AM";
     const hour12 = h % 12 || 12;
     return `${hour12}:${minutes} ${ampm}`;
   };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Check balance for warning
-    let isInsufficient = false;
-    if (formData.emp_reqTypeId === "3" && formData.noDays > balance.VL_balance) {
-      isInsufficient = true;
-    } else if (formData.emp_reqTypeId === "4" && formData.noDays > balance.SL_balance) {
-      isInsufficient = true;
-    }
-
-    // Check VL 3-day filing rule
-    let isLateFiling = false;
-    if (formData.emp_reqTypeId === "3") {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const startDate = new Date(formData.leaveStartDate);
-      const diffTime = startDate - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays < 3) {
-        isLateFiling = true;
-      }
-    }
-
-    const formDataToSubmit = new FormData();
-    formDataToSubmit.append("user_Id", userData.user_Id);
-    formDataToSubmit.append("emp_reqTypeId", formData.emp_reqTypeId);
-    formDataToSubmit.append("remarks", formData.remarks); // Used as fallback for purpose/reason
-    formDataToSubmit.append("purpose", formData.remarks);
-    formDataToSubmit.append("reason", formData.remarks);
-    
-    if (formData.emp_reqTypeId === "1") {
-      formDataToSubmit.append("OT_DateOf", formData.otDate);
-      formDataToSubmit.append("HrFrom", formData.hrFrom);
-      formDataToSubmit.append("HrTo", formData.hrTo);
-      formDataToSubmit.append("Total_Hrs", formData.totalHrs);
-    } else {
-      formDataToSubmit.append("StartDate", formData.leaveStartDate);
-      formDataToSubmit.append("EndDate", formData.leaveEndDate);
-      formDataToSubmit.append("NoDays", formData.noDays);
-    }
-    
-    if (formData.proofFile) {
-      formDataToSubmit.append("proofFile", formData.proofFile);
-    }
-
-    try {
-      const response = await fetch("http://localhost:4000/api/request", {
-        method: "POST",
-        body: formDataToSubmit,
-        // Important: Don't set Content-Type header when using FormData, 
-        // the browser will set it automatically with the correct boundary
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        let finalMessage = "Request submitted successfully!";
-        if (isInsufficient && isLateFiling) {
-          finalMessage = "Warning: Insufficient balance & late filing. Request submitted but may be rejected.";
-        } else if (isInsufficient) {
-          finalMessage = "Warning: Insufficient balance. Request submitted but may be rejected.";
-        } else if (isLateFiling) {
-          finalMessage = "Warning: Vacation Leave must be filed 3 days in advance. Request submitted but may be rejected.";
-        }
-
-        setToast({ 
-          message: finalMessage, 
-          type: (isInsufficient || isLateFiling) ? "error" : "success" 
-        });
-        // Reset form
-        setFormData({
-          user_Id: userData?.user_Id || "",
-          emp_reqTypeId: "",
-          remarks: "",
-          leaveStartDate: "",
-          leaveEndDate: "",
-          noDays: 0,
-          otDate: "",
-          hrFrom: "",
-          hrTo: "",
-          totalHrs: 0,
-          proofFile: null,
-        });
-        fetchBalance();
-      } else {
-        setToast({ message: result.error || "Failed to submit request", type: "error" });
-      }
-    } catch (error) {
-      setToast({ message: "Error connecting to server", type: "error" });
-    }
-  };
-
-  const getStatusClass = (status) => {
-    if (!status) return "pending";
-    const s = status.toLowerCase();
-    if (s.includes("approve")) return "approved";
-    if (s.includes("reject") || s.includes("denied")) return "rejected";
-    return "pending";
-  };
-
 
   return (
     <div className="logsListPage">
@@ -328,68 +139,84 @@ const UserLogs = () => {
         <div className="wrapper">
           <div className="header">
             <div className="title">
-              <h1>Access Logs</h1>
+              <h1>Access Logs & DTR</h1>
+              <span className="subtitle">Period: {payroll.payEnding}</span>
             </div>
-            <button className="exportBtn">Export DTR</button>
+            <button className="exportBtn" onClick={handleDownloadDTR}>Export DTR (PDF)</button>
           </div>
 
-          {/* NEW: Side-by-Side Wrapper */}
         <div className="splitLayout">
-          
-          {/* Left Side: Access Logs Table */}
+          {/* Left Side: Raw Logs Table */}
           <div className="tableWrapper">
             <div className="cardHeader">
-               <h3>Recent Access Logs</h3>
+               <h3>Attendance History</h3>
             </div>
             <table className="logsTable">
               <thead>
                 <tr>
-                  <th>User ID</th>
-                  <th>Full Name</th>
-                  <th>Action</th>
                   <th>Date</th>
-                  <th>Time</th>
+                  <th>Time In</th>
+                  <th>Time Out</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id}>
-                    <td className="userIdCell">{log.userId}</td>
-                    <td>{log.user}</td>
-                    <td>
-                      <span className={`actionTag ${log.action.toLowerCase()}`}>
-                        {log.action}
-                      </span>
-                    </td>
-                    <td>{log.date}</td>
-                    <td className="timeCell">{log.time}</td>
-                  </tr>
-                ))}
+                {Array.from({ length: (new Date(dtrEndDate).getDate() - new Date(dtrStartDate).getDate() + 1) }, (_, i) => {
+                  const dayNum = new Date(dtrStartDate).getDate() + i;
+                  const targetDate = new Date(dtrStartDate);
+                  targetDate.setDate(dayNum);
+                  const dateStr = formatToYYYYMMDD(targetDate);
+                  const todayStr = formatToYYYYMMDD(systemToday);
+                  
+                  // Find existing log for this date (split ensures we only compare date part)
+                  const log = rawLogs.find(l => l.log_Date.split('T')[0] === dateStr);
+                  
+                  // Determine status for days without logs
+                  let displayStatus = log ? log.attendanceStatus : "—";
+                  if (!log) {
+                    if (dateStr > todayStr) displayStatus = "Upcoming";
+                    else {
+                      const dayOfWeek = targetDate.getDay();
+                      displayStatus = (dayOfWeek === 0) ? "Sunday" : "No Record";
+                    }
+                  }
+
+                  return (
+                    <tr key={dateStr} className={dateStr === todayStr ? "currentDayRow" : ""}>
+                      <td className="dateCell">
+                        {targetDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                      </td>
+                      <td className="timeCell">{log?.time_In || "—"}</td>
+                      <td className="timeCell">{log?.time_Out || "—"}</td>
+                      <td>
+                        <span className={`actionTag ${(displayStatus || "").toLowerCase().replace(" ","")}`}>
+                          {displayStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
-          {/* Right Side: DTR Section (The code you provided) */}
+          {/* Right Side: DTR Section */}
           <div className="dtrSection">
             <div className="dtrHeader">
               <h2 className="cardTitle">Daily Time Record</h2>
             </div>
-            
+
             <div className="timeCardContainer" ref={dtrRef}>
               <div className="cardTopHeader">
                 <div className="headerLine">
-                  <div className="field">No. <span>______</span></div>
-                  <div className="field">Pay Ending <span></span></div>
+                  <div className="field">No. <span>{formatUserId(userData?.user_Id)}</span></div>
+                  <div className="field">Pay Ending <span>{payroll.payEnding}</span></div>
                 </div>
                 <div className="headerLine">
-                  <div className="field">Name <span></span></div>
-                  <div className="field">Position <span>__________</span></div>
+                  <div className="field">Name <span>{userData?.user_FirstName} {userData?.user_LastName}</span></div>
+                  <div className="field">Position <span>Employee</span></div>
                 </div>
-                <div className="headerLine">
-                      <div className="field">Dept. <span>__________</span></div>
-                      <div className="field">Age <span>____</span></div>
-                </div>
-                {/* Summary Table: Earnings and Deductions */}
+
                   <table className="summaryTable">
                     <thead>
                       <tr>
@@ -405,21 +232,15 @@ const UserLogs = () => {
                         <td className="label">Reg.</td><td className="empty"></td><td className="empty"></td><td className="empty"></td><td className="label">Fines</td><td className="empty"></td>
                       </tr>
                       <tr>
-                        <td className="label">Over.</td><td className="empty"></td><td className="empty"></td><td className="empty"></td><td className="label">Withholding Tax</td><td className="empty"></td>
-                      </tr>
-                      <tr>
-                        <td className="label" colSpan="3">Total Earnings</td><td className="empty">{dtrData.reduce((sum, d) => sum + parseFloat(d.hoursWorked || 0), 0).toFixed(2)} hrs</td><td className="label">S.S.S.</td><td className="empty"></td>
-                      </tr>
-                      <tr>
-                        <td className="label" colSpan="3">Less Deductions</td><td className="empty"></td><td className="empty" colSpan="2"></td>
+                        <td className="label">Total Hrs</td><td className="empty" colSpan="3">{dtrData.reduce((sum, d) => sum + parseFloat(d.hoursWorked || 0), 0).toFixed(2)} hrs</td><td className="label">Tax</td><td className="empty"></td>
                       </tr>
                       <tr className="finalRow">
-                        <td className="label" colSpan="3">NET PAY</td><td className="empty"></td><td className="label">TOTAL</td><td className="empty"></td>
+                        <td className="label" colSpan="3">NET PAY</td><td className="empty">TBD</td><td className="label">TOTAL</td><td className="empty"></td>
                       </tr>
                     </tbody>
                   </table>
               </div>
-              {/* Main Attendance Grid */}
+
                   <table className="mainAttendanceGrid">
                     <thead>
                       <tr>
@@ -434,35 +255,36 @@ const UserLogs = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {/* Generate rows based on the current period range */}
                       {Array.from({ length: (new Date(dtrEndDate).getDate() - new Date(dtrStartDate).getDate() + 1) }, (_, i) => {
                         const dayNum = new Date(dtrStartDate).getDate() + i;
                         const log = getDtrLogsForDay(dayNum);
-                        
-                        let morningIn = "", morningOut = "", afternoonIn = "", afternoonOut = "";
-                        
+
+                        let morningIn = "", morningOut = "12:00", afternoonIn = "13:00", afternoonOut = "";
+
                         if (log && log.time_In !== "—") {
                           const hour = parseInt(log.time_In.split(":")[0]);
                           if (hour < 12) morningIn = log.time_In;
                           else afternoonIn = log.time_In;
                         }
-                        
+
                         if (log && log.time_Out !== "—") {
                           const hour = parseInt(log.time_Out.split(":")[0]);
                           if (hour < 13) morningOut = log.time_Out;
                           else afternoonOut = log.time_Out;
                         }
 
+                        const isWeekend = new Date(new Date(dtrStartDate).getFullYear(), new Date(dtrStartDate).getMonth(), dayNum).getDay() === 0;
+
                         return (
-                          <tr key={dayNum}>
+                          <tr key={dayNum} className={isWeekend ? "weekend" : ""}>
                             <td className="dayCol">{dayNum}</td>
                             <td>{morningIn}</td>
-                            <td>{morningOut}</td>
-                            <td>{afternoonIn}</td>
+                            <td>{log ? morningOut : ""}</td>
+                            <td>{log ? afternoonIn : ""}</td>
                             <td>{afternoonOut}</td>
                             <td></td>
                             <td></td>
-                            <td>{log ? log.hoursWorked : ""}</td>
+                            <td className="totalCol">{log ? log.hoursWorked : ""}</td>
                           </tr>
                         );
                       })}
@@ -477,8 +299,8 @@ const UserLogs = () => {
                   </div>
             </div>
           </div>
-          
-        </div> {/* End splitLayout */}
+
+        </div>
         </div>
       </div>
     </div>

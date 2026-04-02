@@ -4,11 +4,13 @@ import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import { useSystemTime } from "../../context/SystemTimeContext";
 
 import InfoModal from "../../components/infoModal/InfoModal";
 
 const EmployeeCalendar = () => {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const { systemToday } = useSystemTime();
+  const [currentDate, setCurrentDate] = useState(new Date(systemToday.getFullYear(), systemToday.getMonth(), 1));
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedHolidayWork, setSelectedHolidayWork] = useState(null);
@@ -45,7 +47,7 @@ const EmployeeCalendar = () => {
       const firstDay = `${year}-01-01`;
       const lastDay = `${year}-12-31`;
       
-      const response = await fetch(`http://localhost:4000/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}&user_Id=${userId}`);
+      const response = await fetch(`/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}&user_Id=${userId}`);
       if (response.ok) {
         const data = await response.json();
         setEvents(data);
@@ -123,11 +125,10 @@ const EmployeeCalendar = () => {
                   const hasOt = dayEvents.some(e => e.type === "Overtime");
                   const hasHoliday = dayEvents.some(e => e.type === "Holiday");
 
-                  const today = new Date();
-                      const isToday = 
-                        d === today.getDate() && 
-                        monthIndex === today.getMonth() && 
-                        year === today.getFullYear();
+                  const isToday = 
+                    d === systemToday.getDate() && 
+                    monthIndex === systemToday.getMonth() && 
+                    year === systemToday.getFullYear();
 
                   let cellClass = "cell";
                   if (isToday) cellClass += " is-today";

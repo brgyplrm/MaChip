@@ -17,6 +17,7 @@ router.get("/status/:user_Id", attendanceController.StatusLogic);
 
 router.get("/monthly-stats", attendanceController.getMonthlyAttendanceStats);
 router.get("/monthly-stats/:user_Id", attendanceController.getMonthlyAttendanceStatsByUser);
+router.get("/employee-dashboard/:user_Id", attendanceController.getEmployeeDashboardStats);
 
 router.delete("/all", attendanceController.deleteAllLogs);
 

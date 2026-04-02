@@ -15,11 +15,18 @@ router.get("/generateRfid", userController.generateRfid);
 // This creates the URL: http://localhost:4000/api/users/all
 router.get("/all", userController.viewAllUsers);
 
+// GET archived users (soft-deleted)
+router.get("/archived", userController.viewArchivedUsers);
+
 // GET user by user_Id
 router.get("/:user_Id", userController.viewUserById);
-
 // DELETE user by user_Id (soft delete — sets deletedAt)
 router.delete("/deleteUser/:user_Id", userController.deleteUser);
+
+// Password Reset Request
+router.post("/request-password-reset", userController.requestPasswordReset);
+
+// Force Delete
 
 // RESTORE a soft-deleted user (clears deletedAt)
 router.patch("/restoreUser/:user_Id", userController.restoreUser);

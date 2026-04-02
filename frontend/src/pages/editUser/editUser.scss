@@ -285,6 +285,60 @@
   }
 }
 
+.adminConfirmOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+
+  .adminConfirmModal {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    width: 400px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    text-align: center;
+
+    h2 { margin-bottom: 15px; color: #2A174E; font-size: 20px; }
+    p { margin-bottom: 10px; color: #555; font-size: 14px; }
+    .subtext { font-size: 12px; color: #888; font-style: italic; }
+
+    .adminPassInput {
+      width: 100%;
+      padding: 12px;
+      margin: 20px 0;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      outline: none;
+      &:focus { border-color: #2A174E; }
+    }
+
+    .modalButtons {
+      display: flex;
+      gap: 10px;
+      
+      button {
+        flex: 1;
+        padding: 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        border: none;
+
+        &.cancel { background: #eee; color: #333; }
+        &.confirm { background: #2A174E; color: white; }
+        &:hover { opacity: 0.9; }
+      }
+    }
+  }
+}
+
 // ── Animations ────────────────────────────────────────────────────────────────
 @keyframes fadeInDown {
   from {

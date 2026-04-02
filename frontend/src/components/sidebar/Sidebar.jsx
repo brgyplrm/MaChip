@@ -100,13 +100,6 @@ const Sidebar = () => {
                 </li>
               </NavLink>
 
-              <NavLink to="/archived" style={{ textDecoration: "none" }}>
-                <li>
-                  <ArchiveIcon className="icon" />
-                  <span>Archived Users</span>
-                </li>
-              </NavLink>
-
               <NavLink to="/logs" style={{ textDecoration: "none" }}>
                 <li>
                   <BadgeOutlinedIcon className="icon" />

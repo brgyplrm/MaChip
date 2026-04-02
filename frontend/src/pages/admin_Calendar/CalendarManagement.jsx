@@ -13,10 +13,12 @@ import Toast from "../../components/toast/Toast";
 import ActionModal from "../../components/actionModal/ActionModal";
 import InfoModal from "../../components/infoModal/InfoModal";
 import { useSelector } from "react-redux";
+import { useSystemTime } from "../../context/SystemTimeContext";
 
 
 const CalendarManagement = () => {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const { systemToday } = useSystemTime();
+  const [currentDate, setCurrentDate] = useState(new Date(systemToday.getFullYear(), systemToday.getMonth(), 1));
   const [events, setEvents] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -234,7 +236,7 @@ const CalendarManagement = () => {
   };
 
   const getUpcomingHolidays = () => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = systemToday.toISOString().split('T')[0];
     return events
       .filter(h => h.type === "Holiday" && h.date >= todayStr)
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -291,11 +293,10 @@ const CalendarManagement = () => {
                       const hasOt = dayEvents.some(e => e.type === "Overtime");
                       const hasHoliday = dayEvents.some(e => e.type === "Holiday");
 
-                      const today = new Date();
                       const isToday = 
-                        d === today.getDate() && 
-                        monthIndex === today.getMonth() && 
-                        year === today.getFullYear();
+                        d === systemToday.getDate() && 
+                        monthIndex === systemToday.getMonth() && 
+                        year === systemToday.getFullYear();
 
                       let cellClass = "cell";
                       if (hasLeave) cellClass += " has-leave";

@@ -5,13 +5,22 @@ const { getSystemTime } = require("./systemTime.js");
 /**
  * Ensures all users who haven't logged in for the current system date
  * are marked as absent if it's past the cutoff time (5:30 PM),
- * or marked as 'On Leave' if they have an approved leave request.
+ * marked as 'On-Field' if they have approved field work,
+ * or skipped if they have an approved leave request.
  */
 async function ensureAbsentsMarked() {
   try {
     const now = await getSystemTime();
-    const todayStr = now.toISOString().split("T")[0];
+    
+    // Manual format to YYYY-MM-DD in LOCAL time (Asia/Manila)
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const todayStr = `${year}-${month}-${day}`;
+    
     const dayOfWeek = now.getDay(); // 0 = Sunday
+
+    console.log(`[DEBUG] ensureAbsentsMarked triggered for: ${todayStr} (Day: ${dayOfWeek})`);
 
     // 1. Get all active users
     const users = await sequelize.query(
@@ -34,7 +43,49 @@ async function ensureAbsentsMarked() {
       );
 
       // If no report exists, it means they haven't logged in at all today
-      if (!existingReport[0]) {
+      if (existingReport.length === 0) {
+        // 3. Check for approved On-Field Work FIRST (This happens regardless of cutoff time)
+        const onfieldResult = await sequelize.query(
+          `SELECT ow.* FROM "Onfield_Work" ow
+           JOIN "emp_Request" er ON ow."emp_reqId" = er."emp_reqId"
+           WHERE er."user_Id" = :userId 
+           AND ow."DateonField" = :todayStr
+           AND er."emp_reqStatusId" = 2 -- Approved
+           LIMIT 1`,
+          { replacements: { userId, todayStr }, type: QueryTypes.SELECT }
+        );
+
+        if (onfieldResult.length > 0) {
+          console.log(`[DEBUG] Auto-crediting On-Field Work for user ${userId} on ${todayStr}`);
+          
+          // Insert start log (Status 1 = Clock In)
+          await sequelize.query(
+            `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
+             VALUES (:userId, :todayStr, '08:30:00', 1, 5)
+             ON CONFLICT DO NOTHING`, 
+            { replacements: { userId, todayStr }, type: QueryTypes.INSERT }
+          );
+          
+          // Insert end log (Status 2 = Clock Out)
+          await sequelize.query(
+            `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
+             VALUES (:userId, :todayStr, '17:30:00', 2, 5)
+             ON CONFLICT DO NOTHING`,
+            { replacements: { userId, todayStr }, type: QueryTypes.INSERT }
+          );
+          
+          // Create summary report (Status 5 = On-Field)
+          await sequelize.query(
+            `INSERT INTO "employee_Logging_report" 
+              ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr", "attendance_StatusId", "logged_StatusId")
+             VALUES (:userId, :todayStr, '["08:30:00"]', '["17:30:00"]', 5, 2)
+             ON CONFLICT ("user_id", "log_Date") DO NOTHING`,
+            { replacements: { userId, todayStr }, type: QueryTypes.INSERT }
+          );
+          continue; 
+        }
+
+        // 4. Check if they have ANY logs (just in case they have logs but no report)
         const logs = await sequelize.query(
           `SELECT * FROM "user_logging"
            WHERE "user_id" = :userId AND "log_Date" = :todayStr
@@ -42,12 +93,10 @@ async function ensureAbsentsMarked() {
           { replacements: { userId, todayStr }, type: QueryTypes.SELECT }
         );
 
-        if (!logs[0]) {
-          // Only mark as Absent (status 3) if past cutoff and not a Sunday
+        if (logs.length === 0) {
+          // 5. Only mark as Absent (status 3) if past cutoff and not a Sunday
           if (now >= cutoffTime && dayOfWeek !== 0) {
             // Check if user is actually on leave - if so, don't mark as absent
-            // We don't insert "On Leave" into the database here because the user
-            // wants it to show ONLY in the individual Last Activity Log (handled in the controller)
             const leaveResult = await sequelize.query(
               `SELECT er."emp_reqTypeId"
                FROM "emp_Request" er
@@ -64,11 +113,13 @@ async function ensureAbsentsMarked() {
             );
 
             if (leaveResult.length === 0) {
+              console.log(`[DEBUG] Marking user ${userId} as Absent for ${todayStr}`);
               // Mark as Absent (status 3)
               await sequelize.query(
                 `INSERT INTO "user_logging"
                   ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
-                 VALUES (:userId, :todayStr, '17:30:00', 2, 3)`,
+                 VALUES (:userId, :todayStr, '17:30:00', 2, 3)
+                 ON CONFLICT DO NOTHING`,
                 { replacements: { userId, todayStr }, type: QueryTypes.INSERT }
               );
 
@@ -86,7 +137,7 @@ async function ensureAbsentsMarked() {
       }
     }
   } catch (error) {
-    console.error("Error in ensureAbsentsMarked:", error);
+    console.error("[ERROR] ensureAbsentsMarked:", error);
   }
 }
 

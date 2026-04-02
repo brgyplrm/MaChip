@@ -177,3 +177,47 @@ exports.sendOnfieldEmail = async ({ email, name, date, destination, noHrs }) => 
   }
 };
 
+/**
+ * Sends a notification email when an admin updates a user's password.
+ */
+exports.sendPasswordUpdateEmail = async ({ email, newPassword, name }) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.error("[EMAIL CONFIG ERROR]: Missing credentials.");
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  });
+
+  const mailOptions = {
+    from: `"MaChip Support" <${EMAIL_USER}>`,
+    to: email,
+    subject: "Security Alert: Password Updated",
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #2c3e50;">Password Updated</h2>
+        <p>Hello ${name},</p>
+        <p>Your password has been updated by an administrator as per your request or for security purposes.</p>
+        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; color: #856404;">
+          <p style="margin: 5px 0;"><strong>New Password:</strong> <span style="font-family: monospace; font-size: 1.2em;">${newPassword}</span></p>
+        </div>
+        <p style="margin-top: 20px;">If you did not expect this change, please contact the IT department immediately.</p>
+        <p>Please login to your account using your new password.</p>
+        <br/>
+        <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[PASSWORD UPDATE EMAIL SENT] to ${email}`);
+  } catch (error) {
+    console.error(`[PASSWORD UPDATE EMAIL ERROR] for ${email}:`, error.message);
+  }
+};
+

@@ -12,6 +12,18 @@
     justify-content: space-between;
     font-weight: 700;
 
+    .titleActions {
+      display: flex;
+      gap: 15px;
+
+      .archiveLink {
+        background-color: transparent;
+        border: 2px solid #2A174E;
+        color: #2A174E;
+        &:hover { background-color: #2A174E; color: white; }
+      }
+    }
+
     .link{
       background-color: #2A174E;
       color: white;

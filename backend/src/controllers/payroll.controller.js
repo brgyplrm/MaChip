@@ -85,6 +85,16 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     reportMap[dateStr] = r;
   });
 
+  // 4.5 Get On-Field Work assignments
+  const onfieldDays = await sequelize.query(
+    `SELECT ow."DateonField" FROM "Onfield_Work" ow
+     JOIN "emp_Request" er ON ow."emp_reqId" = er."emp_reqId"
+     WHERE er."user_Id" = :user_Id AND er."emp_reqStatusId" = 2
+     AND ow."DateonField" BETWEEN :period_Start AND :period_End`,
+    { replacements: { user_Id, period_Start, period_End }, type: QueryTypes.SELECT }
+  );
+  const onfieldMap = new Set(onfieldDays.map(d => d.DateonField));
+
   let absence_Days = 0; 
   let tardiness_Mins = 0;
   let paidLeave_Days = 0;
@@ -96,6 +106,11 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     if (approvedLeaveDaysMap.has(dateStr)) {
       if (approvedLeaveDaysMap.get(dateStr)) paidLeave_Days++;
       else unpaidLeave_Days++;
+      continue;
+    }
+
+    // Skip absence check if it was an On-Field day
+    if (onfieldMap.has(dateStr)) {
       continue;
     }
 
@@ -477,6 +492,14 @@ exports.generateBatchPayroll = async (req, res) => {
       processedCount++;
     }
 
+    // 7. Update the PayrollPeriod status to 'Released'
+    if (periodId) {
+      await sequelize.query(
+        `UPDATE "PayrollPeriod" SET "status" = 'Released', "updatedAt" = :now WHERE "periodId" = :periodId`,
+        { replacements: { periodId, now: nowStr }, type: QueryTypes.UPDATE }
+      );
+    }
+
     res.status(201).json({ 
       message: "Batch payroll generated successfully.",
       processed: processedCount,
@@ -641,6 +664,12 @@ exports.releasePayroll = async (req, res) => {
 // ── View Payroll by ID ────────────────────────────────────────────────────────
 exports.getPayrollById = async (req, res) => {
   const { payrollId } = req.params;
+  
+  // Safety check for non-numeric IDs (like 'preview-X')
+  if (isNaN(parseInt(payrollId))) {
+    return res.status(400).json({ error: "Invalid payroll ID format." });
+  }
+
   try {
     const payroll = await sequelize.query(
       `SELECT

@@ -3,16 +3,17 @@ import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import AssignmentLateIcon from "@mui/icons-material/AssignmentLate";
 import { useState, useEffect, useCallback } from "react";
+import { useSystemTime } from "../../context/SystemTimeContext";
 
-// Returns milliseconds from now until the next 12:00 AM (midnight)
-const msUntilMidnight = () => {
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0); // moves to 00:00:00 of the next day
-  return midnight - now;
+// Returns milliseconds from current time until the next 12:00 AM (midnight)
+const msUntilMidnight = (currentTime) => {
+  const midnight = new Date(currentTime);
+  midnight.setHours(24, 0, 0, 0); 
+  return midnight - currentTime;
 };
 
 const Widget = ({ type }) => {
+  const { systemToday } = useSystemTime();
   const [amount, setAmount] = useState(0);
 
   const fetchStats = useCallback(async () => {
@@ -53,7 +54,7 @@ const Widget = ({ type }) => {
     const midnightTimeout = setTimeout(() => {
       setAmount(0); // instant visual reset at 12:00 AM
       fetchStats(); // confirm with the backend (should return 0)
-    }, msUntilMidnight());
+    }, msUntilMidnight(systemToday));
 
     return () => {
       clearInterval(pollInterval);

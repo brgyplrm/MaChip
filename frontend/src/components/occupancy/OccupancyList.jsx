@@ -5,16 +5,17 @@ import MeetingRoomOutlinedIcon from "@mui/icons-material/MeetingRoomOutlined";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { formatUserId } from "../../utils/formatUserId";
+import { useSystemTime } from "../../context/SystemTimeContext";
 
-// Returns milliseconds from now until the next 12:00 AM (midnight)
-const msUntilMidnight = () => {
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0); // moves to 00:00:00 of the next day
-  return midnight - now;
+// Returns milliseconds from current time until the next 12:00 AM (midnight)
+const msUntilMidnight = (currentTime) => {
+  const midnight = new Date(currentTime);
+  midnight.setHours(24, 0, 0, 0); 
+  return midnight - currentTime;
 };
 
 const OccupancyList = () => {
+  const { systemToday } = useSystemTime();
   const [users, setUsers] = useState([]);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -25,7 +26,7 @@ const OccupancyList = () => {
     setLoading(true);
     try {
       const response = await fetch(
-        "http://localhost:4000/api/attendance/occupancy",
+        "/api/attendance/occupancy",
       );
       if (response.ok) {
         const data = await response.json();
@@ -61,12 +62,12 @@ const OccupancyList = () => {
         // Instant visual reset at 12:00 AM
         setUsers([]);
         setCount(0);
-        setLastUpdated(new Date());
+        setLastUpdated(new Date(systemToday));
         // Confirm with backend (will return empty for the new day)
         fetchOccupancy();
         // Re-schedule for the following midnight (24 hrs from now)
         scheduleMidnightReset();
-      }, msUntilMidnight());
+      }, msUntilMidnight(systemToday));
     };
 
     scheduleMidnightReset();

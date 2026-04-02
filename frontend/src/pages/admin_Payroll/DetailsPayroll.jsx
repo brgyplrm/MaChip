@@ -26,14 +26,14 @@ const PayrollDetails = () => {
     const fetchPayrollDetails = async () => {
       setLoading(true);
       try {
-        if (payrollId.startsWith("live-")) {
+        if (payrollId.startsWith("live-") || payrollId.startsWith("preview-")) {
           const userId = payrollId.split("-")[1];
           // 1. Get Employee Info
-          const empRes = await fetch(`http://localhost:4000/api/users/${userId}`);
+          const empRes = await fetch(`/api/users/${userId}`);
           const emp = await empRes.json();
 
           // 2. Get Live Preview
-          const prevRes = await fetch(`http://localhost:4000/api/payroll/preview?user_Id=${userId}&period_Start=${periodStart}&period_End=${periodEnd}`);
+          const prevRes = await fetch(`/api/payroll/preview?user_Id=${userId}&period_Start=${periodStart}&period_End=${periodEnd}`);
           const preview = await prevRes.json();
 
           if (empRes.ok && prevRes.ok) {
@@ -70,14 +70,14 @@ const PayrollDetails = () => {
               paidLeave_Days: preview.paidLeave_Days,
               totalDeductions: tardinessDed + absenceDed,
               netPay: (basicPay + otPay) - (tardinessDed + absenceDed),
-              PaystatusName: "Live",
+              PaystatusName: "Draft",
               createdAt: new Date(),
               updatedAt: new Date()
             });
           }
         } else {
           // Standard DB fetch
-          const response = await fetch(`http://localhost:4000/api/payroll/${payrollId}`);
+          const response = await fetch(`/api/payroll/${payrollId}`);
           const data = await response.json();
           if (response.ok) {
             setPayroll(data);

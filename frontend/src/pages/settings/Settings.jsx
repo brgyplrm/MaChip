@@ -7,8 +7,10 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import SaveIcon from "@mui/icons-material/Save";
 import { Link } from "react-router-dom";
 import TransactionLog from "../../components/transactionLog/TransactionLog";
+import { useSystemTime } from "../../context/SystemTimeContext";
 
 const Settings = () => {
+  const { refreshSystemTime } = useSystemTime();
   const [realTime, setRealTime] = useState(new Date());
   const [mockEnabled, setMockEnabled] = useState(false);
   const [mockTime, setMockTime] = useState("");
@@ -23,7 +25,7 @@ const Settings = () => {
     // Fetch current settings
     const fetchSettings = async () => {
       try {
-        const response = await fetch("http://localhost:4000/api/system/settings");
+        const response = await fetch("/api/system/settings");
         const data = await response.json();
         if (response.ok && data) {
           setMockEnabled(data.mockTimeEnabled);
@@ -47,7 +49,7 @@ const Settings = () => {
 
   const handleSaveSettings = async () => {
     try {
-      const response = await fetch("http://localhost:4000/api/system/settings", {
+      const response = await fetch("/api/system/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -56,6 +58,7 @@ const Settings = () => {
         }),
       });
       if (response.ok) {
+        await refreshSystemTime();
         alert("System settings updated successfully!");
       } else {
         alert("Failed to update settings.");

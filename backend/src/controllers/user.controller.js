@@ -2,7 +2,7 @@ const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const bcrypt = require("bcryptjs");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
-const { validateEmailActive, sendWelcomeEmail } = require("../utils/emailService");
+const { validateEmailActive, sendWelcomeEmail, sendPasswordUpdateEmail } = require("../utils/emailService");
 
 // ── Get Next User ID ──────────────────────────────────────────────────────────
 exports.getNextUserId = async (req, res) => {
@@ -171,6 +171,22 @@ exports.viewAllUsers = async (req, res) => {
   }
 };
 
+// ── View Archived Users (Soft-Deleted) ────────────────────────────────────────
+exports.viewArchivedUsers = async (req, res) => {
+  try {
+    const users = await sequelize.query(
+      `SELECT u.*, r."roleName" AS "user_Role" 
+       FROM "User" u
+       LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
+       WHERE u."deletedAt" IS NOT NULL`,
+      { type: QueryTypes.SELECT },
+    );
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // ── View User By ID ───────────────────────────────────────────────────────────
 exports.viewUserById = async (req, res) => {
   const { user_Id } = req.params;
@@ -213,8 +229,7 @@ exports.deleteUser = async (req, res) => {
       { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE },
     );
 
-    // result[1] = number of affected rows
-    if (result[1] > 0) {
+    if (result) {
       res.status(200).json({ message: "User soft-deleted successfully." });
     } else {
       res.status(404).json({ message: "User not found." });
@@ -272,16 +287,23 @@ exports.forceDeleteUser = async (req, res) => {
       return res.status(400).json({ error: "Cannot delete your own account" });
     }
 
-    const result = await sequelize.query(
+    // 1. Check if user exists
+    const user = await sequelize.query(
+      `SELECT "user_Id" FROM "User" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT },
+    );
+
+    if (user.length === 0) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    // 2. Perform hard delete
+    await sequelize.query(
       `DELETE FROM "User" WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.DELETE },
     );
 
-    if (result[1] > 0) {
-      res.status(200).json({ message: "User permanently deleted." });
-    } else {
-      res.status(404).json({ message: "User not found." });
-    }
+    res.status(200).json({ message: "User permanently deleted." });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -290,74 +312,178 @@ exports.forceDeleteUser = async (req, res) => {
 // ── Update User ───────────────────────────────────────────────────────────────
 exports.updateUser = async (req, res) => {
   const { user_Id } = req.params;
+  console.log("[DEBUG] Received body in updateUser:", req.body);
   const {
     user_FirstName,
     user_LastName,
     user_MiddleName,
     user_MachipId,
     user_RoleId,
+    user_EmploymentStatusId,
+    user_Email,
     user_Password,
+    adminConfirmPassword,
   } = req.body || {};
 
   try {
+    // 1. Admin Promotion Security Check
+    if (user_RoleId && parseInt(user_RoleId) === 1) {
+      console.log(`[DEBUG] Promotion to Admin request for user ${user_Id}`);
+      
+      const existing = await sequelize.query(
+        `SELECT "user_RoleId" FROM "User" WHERE "user_Id" = :targetId`,
+        { replacements: { targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
+      );
+
+      if (existing.length > 0 && existing[0].user_RoleId !== 1) {
+        const operatorIdStr = req.headers["x-admin-id"];
+        const operatorId = parseInt(operatorIdStr);
+
+        if (isNaN(operatorId)) {
+          return res.status(403).json({ error: "Authorized Admin ID required." });
+        }
+
+        if (!adminConfirmPassword) {
+          return res.status(403).json({ error: "Password confirmation required to promote to Admin." });
+        }
+
+        const operator = await sequelize.query(
+          `SELECT "user_Password" FROM "User" WHERE "user_Id" = :opId`,
+          { replacements: { opId: operatorId }, type: QueryTypes.SELECT }
+        );
+
+        if (operator.length === 0) {
+          return res.status(403).json({ error: "Authorized admin not found." });
+        }
+
+        const isMatch = await bcrypt.compare(adminConfirmPassword, operator[0].user_Password);
+        if (!isMatch) {
+          return res.status(403).json({ error: "Invalid admin password. Promotion denied." });
+        }
+      }
+    }
+
     if (user_MiddleName && /\d/.test(user_MiddleName)) {
-      return res
-        .status(400)
-        .json({ error: "Middle Name must not contain numbers." });
+      return res.status(400).json({ error: "Middle Name must not contain numbers." });
     }
 
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    // Dynamically build SET clause depending on whether password is provided
-    let setClause = `
-      "user_FirstName" = :user_FirstName,
-      "user_LastName"  = :user_LastName,
-      "user_MiddleName"= :user_MiddleName,
-      "user_MachipId"  = :user_MachipId,
-      "user_RoleId"    = :user_RoleId,
-      "updatedAt"      = :now
-    `;
-
+    // Build replacements object with explicit types
     const replacements = {
-      user_Id,
-      user_FirstName,
-      user_LastName,
-      user_MiddleName: user_MiddleName || null,
-      user_MachipId,
-      user_RoleId,
-      now: nowStr,
+      targetId: parseInt(user_Id),
+      firstName: user_FirstName,
+      lastName: user_LastName,
+      middleName: user_MiddleName || null,
+      machipId: user_MachipId,
+      roleId: parseInt(user_RoleId),
+      statusId: parseInt(user_EmploymentStatusId),
+      email: user_Email,
+      updatedAt: nowStr
     };
+
+    let sql = `
+      UPDATE "User" SET 
+        "user_FirstName" = :firstName,
+        "user_LastName"  = :lastName,
+        "user_MiddleName"= :middleName,
+        "user_MachipId"  = :machipId,
+        "user_RoleId"    = :roleId,
+        "user_EmploymentStatusId" = :statusId,
+        "user_Email"     = :email,
+        "updatedAt"      = :updatedAt
+    `;
 
     if (user_Password && user_Password.trim() !== "") {
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(user_Password, salt);
-      setClause += `, "user_Password" = :user_Password`;
-      replacements.user_Password = hashedPassword;
+      replacements.hashedPass = await bcrypt.hash(user_Password, salt);
+      sql += `, "user_Password" = :hashedPass`;
     }
 
     if (req.file) {
-      setClause += `, "user_ProfilePic" = :user_ProfilePic`;
-      replacements.user_ProfilePic = req.file.filename;
+      replacements.profilePic = req.file.filename;
+      sql += `, "user_ProfilePic" = :profilePic`;
     }
 
-    const result = await sequelize.query(
-      `UPDATE "User" SET ${setClause} WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
-      { replacements, type: QueryTypes.UPDATE },
+    sql += ` WHERE "user_Id" = :targetId AND "deletedAt" IS NULL`;
+
+    await sequelize.query(sql, { replacements, type: QueryTypes.UPDATE });
+
+    const updatedUserResult = await sequelize.query(
+      `SELECT * FROM "User" WHERE "user_Id" = :targetId`,
+      { replacements: { targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
     );
 
-    if (result[1] > 0) {
-      const updatedUser = await sequelize.query(
-        `SELECT * FROM "User" WHERE "user_Id" = :user_Id`,
-        { replacements: { user_Id }, type: QueryTypes.SELECT },
-      );
-      res
-        .status(200)
-        .json({ message: "User updated successfully", data: updatedUser[0] });
-    } else {
-      res.status(404).json({ message: "User not found" });
+    const updatedUser = updatedUserResult[0];
+
+    // 2. Send email if password was updated
+    if (user_Password && user_Password.trim() !== "" && updatedUser) {
+      try {
+        await sendPasswordUpdateEmail({
+          email: updatedUser.user_Email,
+          newPassword: user_Password, // Send the plain password
+          name: `${updatedUser.user_FirstName} ${updatedUser.user_LastName}`
+        });
+      } catch (emailErr) {
+        console.error("[EMAIL ERROR] Failed to send password update email:", emailErr.message);
+      }
     }
+
+    res.status(200).json({ message: "User updated successfully", data: updatedUser });
+
   } catch (error) {
+    console.error("[UPDATE USER ERROR]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Request Password Reset ───────────────────────────────────────────────────
+exports.requestPasswordReset = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    // 1. Find user by email
+    const user = await sequelize.query(
+      `SELECT "user_Id", "user_FirstName", "user_LastName" FROM "User" WHERE "user_Email" = :email AND "deletedAt" IS NULL`,
+      { replacements: { email }, type: QueryTypes.SELECT }
+    );
+
+    if (user.length === 0) {
+      return res.status(404).json({ error: "No active user found with that email address." });
+    }
+
+    const targetUser = user[0];
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    // 2. Find all Admins (RoleId = 1)
+    const admins = await sequelize.query(
+      `SELECT "user_Id" FROM "User" WHERE "user_RoleId" = 1 AND "deletedAt" IS NULL`,
+      { type: QueryTypes.SELECT }
+    );
+
+    // 3. Create notifications for all admins
+    for (const admin of admins) {
+      await sequelize.query(
+        `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
+         VALUES (:adminId, :title, :message, false, :targetId, :now, :now)`,
+        {
+          replacements: {
+            adminId: admin.user_Id,
+            title: "Password Reset Request",
+            message: `User ${targetUser.user_FirstName} ${targetUser.user_LastName} (ID: ${targetUser.user_Id}) has requested a password reset.`,
+            targetId: targetUser.user_Id,
+            now: nowStr
+          },
+          type: QueryTypes.INSERT
+        }
+      );
+    }
+
+    res.status(200).json({ message: "Reset request sent to administrators." });
+  } catch (error) {
+    console.error("[RESET REQUEST ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -467,4 +593,3 @@ exports.updateDailyRate = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-

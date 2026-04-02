@@ -79,9 +79,21 @@
               border-radius: 6px;
               font-size: 12px;
               font-weight: 700;
+              white-space: nowrap;
               
-              &.clock-in { background: #def7ec; color: #03543f; }
-              &.clock-out { background: #fde8e8; color: #9b1c1c; }
+              &.ontime, &.clock-in { background: #def7ec; color: #03543f; }
+              &.late, &.clock-out { background: #fde8e8; color: #9b1c1c; }
+              &.on-field, &.onfield { background: #e1effe; color: #1e429f; }
+              &.absent { background: #fdf2f2; color: #9b1c1c; border: 1px solid #f8b4b4; }
+              &.sunday { background: #f3f4f6; color: #4b5563; }
+              &.upcoming { background: #fff; color: #9ca3af; border: 1px dashed #d1d5db; }
+              &.norecord { background: #fffbeb; color: #92400e; }
+            }
+
+            tr.currentDayRow {
+              background-color: #f0f7ff;
+              outline: 2px solid #2A174E;
+              outline-offset: -2px;
             }
 
             tr:hover { background-color: #f9faff; }

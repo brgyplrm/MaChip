@@ -15,11 +15,12 @@ import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
 
 const EmployeeHome = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const [leaveBalance, setLeaveBalance] = useState({
-    VL_total: 7, VL_used: 0, VL_balance: 7,
-    SL_total: 7, SL_used: 0, SL_balance: 7,
+  const [dashboardStats, setDashboardStats] = useState({
+    attendance: { absent: 0, onTime: 0, late: 0, monthName: "" },
+    leaveBalance: { VL_total: 7, VL_used: 0, VL_balance: 7, SL_total: 7, SL_used: 0, SL_balance: 7 },
+    recentLogs: [],
+    monthlyRequests: []
   });
-  const [recentRequests, setRecentRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ message: "", type: "success" });
 
@@ -27,16 +28,13 @@ const EmployeeHome = () => {
     const fetchDashboardData = async () => {
       if (!userData?.user_Id) return;
       try {
-        const [balanceRes, requestsRes, notifRes] = await Promise.all([
-          fetch(`/api/request/balance/${userData.user_Id}`),
-          fetch(`/api/request/${userData.user_Id}`),
+        const [statsRes, notifRes] = await Promise.all([
+          fetch(`/api/attendance/employee-dashboard/${userData.user_Id}`),
           fetch(`/api/notifications/unread-count/${userData.user_Id}`)
         ]);
 
-        if (balanceRes.ok) setLeaveBalance(await balanceRes.json());
-        if (requestsRes.ok) {
-          const data = await requestsRes.json();
-          setRecentRequests(data.slice(0, 3));
+        if (statsRes.ok) {
+          setDashboardStats(await statsRes.json());
         }
         if (notifRes.ok) {
           const notifData = await notifRes.json();
@@ -56,6 +54,11 @@ const EmployeeHome = () => {
     fetchDashboardData();
   }, [userData?.user_Id]);
 
+  const att = dashboardStats.attendance;
+  const balance = dashboardStats.leaveBalance;
+  const recentRequests = dashboardStats.monthlyRequests;
+  const totalTrackedDays = att.absent + att.onTime + att.late || 1;
+
   return (
     <div className="home">
       <Sidebar />
@@ -68,26 +71,26 @@ const EmployeeHome = () => {
         />
         <div className="contentWrapper">
           
-          {/* Top Section: Attendance Overview (Restored) */}
+          {/* Top Section: Attendance Overview */}
           <div className="statsHeader">
             <div className="statCardGroup">
                 <div className="statCircle">
                     <CircularProgressbar 
-                        value={1} maxValue={30} text="1" 
+                        value={att.absent} maxValue={20} text={`${att.absent}`} 
                         styles={buildStyles({ pathColor: `#ff4d4f`, textColor: '#2A174E', trailColor: '#eee' })}
                     />
                     <span className="label">Days Absent</span>
                 </div>
                 <div className="statCircle">
                     <CircularProgressbar 
-                        value={70} maxValue={200} text={`70`} 
+                        value={att.late} maxValue={20} text={`${att.late}`} 
                         styles={buildStyles({ pathColor: `#FFA500`, textColor: '#2A174E' })}
                     />
-                    <span className="label">Late Arrival (Mins)</span>
+                    <span className="label">Late Arrivals</span>
                 </div>
                 <div className="statCircle">
                     <CircularProgressbar 
-                        value={8} maxValue={10} text="8" 
+                        value={att.onTime} maxValue={20} text={`${att.onTime}`} 
                         styles={buildStyles({ pathColor: `#22c55e`, textColor: '#2A174E' })}
                     />
                     <span className="label">On-Time</span>
@@ -95,18 +98,18 @@ const EmployeeHome = () => {
             </div>
 
             <div className="statProgressBars">
-                <h3 className="sectionTitle">Attendance Overview</h3>
+                <h3 className="sectionTitle">Attendance Overview ({att.monthName})</h3>
                 <div className="progressItem">
-                    <div className="info"><span>Absent</span><span className="count">1 / 30</span></div>
-                    <div className="bar"><div className="fill absent" style={{width: '3%'}}></div></div>
+                    <div className="info"><span>Absent</span><span className="count">{att.absent} days</span></div>
+                    <div className="bar"><div className="fill absent" style={{width: `${(att.absent/totalTrackedDays)*100}%`}}></div></div>
                 </div>
                 <div className="progressItem">
-                    <div className="info"><span>Late Arrival</span><span className="count">70 / 200</span></div>
-                    <div className="bar"><div className="fill late" style={{width: '35%'}}></div></div>
+                    <div className="info"><span>Late</span><span className="count">{att.late} days</span></div>
+                    <div className="bar"><div className="fill late" style={{width: `${(att.late/totalTrackedDays)*100}%`}}></div></div>
                 </div>
                 <div className="progressItem">
-                    <div className="info"><span>On-Time</span><span className="count">8 / 10</span></div>
-                    <div className="bar"><div className="fill ontime" style={{width: '80%'}}></div></div>
+                    <div className="info"><span>On-Time / On-Field</span><span className="count">{att.onTime} days</span></div>
+                    <div className="bar"><div className="fill ontime" style={{width: `${(att.onTime/totalTrackedDays)*100}%`}}></div></div>
                 </div>
             </div>
           </div>
@@ -127,7 +130,26 @@ const EmployeeHome = () => {
               
             </div>
             <div className="activityList">
-              <p style={{padding: '10px', color: '#64748b', fontSize: '13px'}}>Recent logs will appear here...</p>
+              {dashboardStats.recentLogs.length > 0 ? (
+                dashboardStats.recentLogs.map((log, idx) => (
+                  <div className="activityRow" key={idx}>
+                    <div className="userAvatar">{userData.user_FirstName?.charAt(0)}</div>
+                    <div className="logDetails">
+                      <div className="mainInfo">
+                        <p className="name">{new Date(log.date).toLocaleDateString(undefined, {weekday: 'long', month: 'short', day: 'numeric'})}</p>
+                      </div>
+                      <p className="subInfo">{log.timeIn} to {log.timeOut}</p>
+                    </div>
+                    <div className="logTime">
+                      <span className={`statusBadge ${log.status.toLowerCase().includes('time') || log.status.toLowerCase().includes('field') ? 'in' : 'out'}`}>
+                        {log.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p style={{padding: '10px', color: '#64748b', fontSize: '13px'}}>No recent logs found.</p>
+              )}
             </div>
           </div>
 
@@ -147,28 +169,29 @@ const EmployeeHome = () => {
                             <div className="info">
                             <span>Vacation Leave (VL)</span>
                             <span className="count">
-                                {Math.min(leaveBalance.VL_used, leaveBalance.VL_total)} / {leaveBalance.VL_total}
+                                {Math.min(balance.VL_used, balance.VL_total)} / {balance.VL_total}
                             </span>
                             </div>
                             <div className="bar">
-                            <div className="fill vl" style={{width: `${Math.min((leaveBalance.VL_used / leaveBalance.VL_total) * 100, 100)}%`}}></div>
+                            <div className="fill vl" style={{width: `${Math.min((balance.VL_used / balance.VL_total) * 100, 100)}%`}}></div>
                             </div>
                         </div>
                         <div className="progressItem">
                             <div className="info">
                             <span>Sick Leave (SL)</span>
                             <span className="count">
-                                {Math.min(leaveBalance.SL_used, leaveBalance.SL_total)} / {leaveBalance.SL_total}
+                                {Math.min(balance.SL_used, balance.SL_total) || 0} / {balance.SL_total}
                             </span>
                             </div>
                             <div className="bar">
-                            <div className="fill sl" style={{width: `${Math.min((leaveBalance.SL_used / leaveBalance.SL_total) * 100, 100)}%`}}></div>
+                            <div className="fill sl" style={{width: `${Math.min((balance.SL_used / balance.SL_total) * 100, 100) || 0}%`}}></div>
                             </div>
                         </div>
                     </div>
                 )}
               </div>
             </div>
+
           </div>
 
           {/* Bottom Leaves Section */}
@@ -189,18 +212,25 @@ const EmployeeHome = () => {
                   <div className="skeleton box" style={{height: '80px'}}></div>
               </div>
             ) : recentRequests.length > 0 ? (
-              recentRequests.map(req => (
-                <div className={`leaveLog ${req.status?.toLowerCase()}`} key={req.emp_reqId}>
-                  {req.status?.toLowerCase().includes("approve") ? <CheckCircleIcon className="statusIcon" /> : 
-                   req.status?.toLowerCase().includes("reject") ? <CancelIcon className="statusIcon" /> : 
-                   <HourglassEmptyIcon className="statusIcon" />}
-                  <div className="text">
-                    <p className="date">{req.VL_StartDate || req.SL_StartDate} - {req.VL_EndDate || req.SL_EndDate}</p>
-                    <p className="desc">{req.reqTypeName}: {req.remarks || "No description"}</p>
+              recentRequests.map(req => {
+                let dateDisplay = "";
+                if (req.emp_reqTypeId === 1) dateDisplay = req.OT_DateOf;
+                else if (req.emp_reqTypeId === 2) dateDisplay = req.DateonField;
+                else dateDisplay = `${req.VL_StartDate || req.SL_StartDate} to ${req.VL_EndDate || req.SL_EndDate}`;
+
+                return (
+                  <div className={`leaveLog ${req.status?.toLowerCase()}`} key={req.emp_reqId}>
+                    {req.status?.toLowerCase().includes("approve") ? <CheckCircleIcon className="statusIcon" /> : 
+                     req.status?.toLowerCase().includes("reject") ? <CancelIcon className="statusIcon" /> : 
+                     <HourglassEmptyIcon className="statusIcon" />}
+                    <div className="text">
+                      <p className="date">{dateDisplay}</p>
+                      <p className="desc">{req.reqTypeName}: {req.remarks || "No description"}</p>
+                    </div>
+                    <span className="badge">{req.status}</span>
                   </div>
-                  <span className="badge">{req.status}</span>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p>No recent leave requests.</p>
             )}
