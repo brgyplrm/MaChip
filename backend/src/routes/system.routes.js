@@ -6,6 +6,8 @@ router.get("/settings", systemController.getSystemSettings);
 router.post("/settings", systemController.updateSystemSettings);
 router.get("/time", systemController.getSystemTime);
 router.get("/holidays", systemController.getHolidays);
+router.post("/holidays", systemController.createHoliday);
+router.delete("/holidays/:holidayId", systemController.deleteHoliday);
 router.post("/sync-holidays", systemController.syncHolidays);
 
 router.get("/payroll-periods", systemController.getPayrollPeriods);

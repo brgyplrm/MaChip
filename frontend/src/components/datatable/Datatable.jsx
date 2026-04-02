@@ -1,11 +1,10 @@
+import React from "react";
 import "./datatable.scss";
-import { DataGrid } from "@mui/x-data-grid";
-import { userColumns } from "../../utils/datatableSource";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
-import ActionModal from "../../components/ActionModal/ActionModal";
+import ActionModal from "../../components/actionModal/ActionModal";
 
 const Datatable = () => {
   const [data, setData] = useState([]);
@@ -28,7 +27,7 @@ const Datatable = () => {
     const adminId = localStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://localhost:4000/api/users/deleteUser/${userToDelete}`,
+        `/api/users/deleteUser/${userToDelete}`,
         {
           method: "DELETE",
           headers: { "x-admin-id": adminId },
@@ -54,7 +53,7 @@ const Datatable = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await fetch("http://localhost:4000/api/users/all");
+        const response = await fetch("/api/users/all");
         if (response.ok) {
           const users = await response.json();
           setData(users);
@@ -65,64 +64,7 @@ const Datatable = () => {
     };
     fetchUsers();
   }, []);
-  const handleDelete = async (user_Id) => {
-    const adminId = localStorage.getItem("token");
-    try {
-      const response = await fetch(
-        `http://localhost:4000/api/users/deleteUser/${user_Id}`,
-        {
-          method: "DELETE",
-          headers: {
-            "x-admin-id": adminId,
-          },
-        },
-      );
-      if (response.ok) {
-        setData(data.filter((item) => item.user_Id !== user_Id));
-        setToast({
-          message: "User deleted successfully.",
-          type: "success",
-        });
-      } else {
-        const result = await response.json();
-        setToast({
-          message: result.error || "Failed to delete user.",
-          type: "error",
-        });
-      }
-    } catch (err) {
-      console.error("Error deleting user:", err);
-      setToast({
-        message: "Could not connect to the server.",
-        type: "error",
-      });
-    }
-  };
-  const actionColumn = [
-    {
-      field: "action",
-      headerName: "Action",
-      width: 200,
-      renderCell: (params) => {
-        return (
-          <div className="cellAction">
-            <Link
-              to={`/users/${params.row.user_Id}`}
-              style={{ textDecoration: "none" }}
-            >
-              <div className="viewButton">View</div>
-            </Link>
-            <div
-              className="deleteButton"
-              onClick={() => handleDelete(params.row.user_Id)}
-            >
-              Delete
-            </div>
-          </div>
-        );
-      },
-    },
-  ];
+
   return (
     <div className="datatable">
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />

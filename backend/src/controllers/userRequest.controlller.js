@@ -16,7 +16,7 @@ exports.getCalendarReport = async (req, res) => {
 
     // 1. Fetch Holidays
     const holidays = await sequelize.query(
-      `SELECT 'Holiday' as "type", "date", "name", "type" as "details", NULL as "endDate"
+      `SELECT "holidayId" as "id", 'Holiday' as "type", "date", "name", "type" as "details", NULL as "endDate"
        FROM "Holiday"
        WHERE "date" BETWEEN :startDate AND :endDate`,
       { replacements, type: QueryTypes.SELECT }
@@ -24,7 +24,7 @@ exports.getCalendarReport = async (req, res) => {
 
     // 2. Fetch Field Work
     const fieldWorks = await sequelize.query(
-      `SELECT 'Field Work' as "type", ow."DateonField" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", ow."destination" as "details", NULL as "endDate"
+      `SELECT er."emp_reqId" as "id", 'Field Work' as "type", ow."DateonField" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", ow."destination" as "details", NULL as "endDate"
        FROM "Onfield_Work" ow
        JOIN "emp_Request" er ON ow."emp_reqId" = er."emp_reqId"
        JOIN "User" u ON er."user_Id" = u."user_Id"
@@ -36,7 +36,7 @@ exports.getCalendarReport = async (req, res) => {
 
     // 3. Fetch Vacation Leaves
     const vacationLeaves = await sequelize.query(
-      `SELECT 'Leave' as "type", vl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Vacation Leave' as "details", vl."EndDate" as "endDate"
+      `SELECT er."emp_reqId" as "id", 'Leave' as "type", vl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Vacation Leave' as "details", vl."EndDate" as "endDate"
        FROM "Vacation_Leave" vl
        JOIN "emp_Request" er ON vl."emp_reqId" = er."emp_reqId"
        JOIN "User" u ON er."user_Id" = u."user_Id"
@@ -48,7 +48,7 @@ exports.getCalendarReport = async (req, res) => {
 
     // 4. Fetch Sick Leaves
     const sickLeaves = await sequelize.query(
-      `SELECT 'Leave' as "type", sl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Sick Leave' as "details", sl."EndDate" as "endDate"
+      `SELECT er."emp_reqId" as "id", 'Leave' as "type", sl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Sick Leave' as "details", sl."EndDate" as "endDate"
        FROM "Sick_Leave" sl
        JOIN "emp_Request" er ON sl."emp_reqId" = er."emp_reqId"
        JOIN "User" u ON er."user_Id" = u."user_Id"
@@ -60,7 +60,7 @@ exports.getCalendarReport = async (req, res) => {
 
     // 5. Fetch Overtime
     const overtime = await sequelize.query(
-      `SELECT 'Overtime' as "type", ot."OT_DateOf" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", CAST(ot."Total_Hrs" AS VARCHAR) || ' hrs OT' as "details", NULL as "endDate"
+      `SELECT er."emp_reqId" as "id", 'Overtime' as "type", ot."OT_DateOf" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", CAST(ot."Total_Hrs" AS VARCHAR) || ' hrs OT' as "details", NULL as "endDate"
        FROM "Overtime_Request" ot
        JOIN "emp_Request" er ON ot."emp_reqId" = er."emp_reqId"
        JOIN "User" u ON er."user_Id" = u."user_Id"
@@ -759,6 +759,41 @@ exports.GetRequestDetails = async (req, res) => {
     }
 
     res.status(200).json(request[0]);
+    } catch (error) {
+    res.status(500).json({ error: error.message });
+    }
+    };
+
+    exports.DeleteRequest = async (req, res) => {
+    const { requestId } = req.params;
+    const adminId = req.headers["x-admin-id"];
+
+    if (!adminId) {
+    return res.status(403).json({ error: "Admin ID is required." });
+    }
+
+    try {
+    // 1. Find the request to know its type
+    const request = await sequelize.query(
+      `SELECT "emp_reqTypeId" FROM "emp_Request" WHERE "emp_reqId" = :requestId`,
+      { replacements: { requestId }, type: QueryTypes.SELECT }
+    );
+
+    if (request.length === 0) {
+      return res.status(404).json({ error: "Request not found." });
+    }
+
+    // 2. Delete child records first (Sequelize CASCADE might handle this, but explicit is safer for SQL)
+    const typeId = request[0].emp_reqTypeId;
+    if (typeId === 1) await sequelize.query(`DELETE FROM "Overtime_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
+    else if (typeId === 2) await sequelize.query(`DELETE FROM "Onfield_Work" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
+    else if (typeId === 3) await sequelize.query(`DELETE FROM "Vacation_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
+    else if (typeId === 4) await sequelize.query(`DELETE FROM "Sick_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
+
+    // 3. Delete parent request
+    await sequelize.query(`DELETE FROM "emp_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
+
+    res.status(200).json({ message: "Request deleted successfully." });
     } catch (error) {
     res.status(500).json({ error: error.message });
     }

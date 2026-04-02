@@ -1,10 +1,17 @@
 import React from "react";
-import "./actionModal.scss";
+import "./ActionModal.scss";
 import CloseIcon from "@mui/icons-material/Close";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import ReportGmailerrorredIcon from "@mui/icons-material/ReportGmailerrorred";
 
-const ActionModal = ({ isOpen, onClose, onConfirm, title, message, variant = "primary" }) => {
+const ActionModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  variant = "primary",
+}) => {
   // Do not render anything if the modal is not active
   if (!isOpen) return null;
 
@@ -22,10 +29,12 @@ const ActionModal = ({ isOpen, onClose, onConfirm, title, message, variant = "pr
           <div className="iconWrapper">
             <HelpOutlineIcon className="mainIcon" />
           </div>
-          
+
           <h2>{title || "Confirm Action"}</h2>
-          <p>{message || "Are you sure you want to proceed with this action?"}</p>
-          
+          <p>
+            {message || "Are you sure you want to proceed with this action?"}
+          </p>
+
           <div className="modalActions">
             <button className="cancelBtn" onClick={onClose}>
               Cancel

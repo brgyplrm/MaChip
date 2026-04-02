@@ -24,36 +24,43 @@ const CalendarManagement = () => {
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
+  const [itemToDelete, setItemToDelete] = useState(null); // { id, type }
 
-  const initiateDelete = (user_Id) => {
-    setUserToDelete(user_Id);
+  const initiateDelete = (id, type) => {
+    setItemToDelete({ id, type });
     setShowDeleteModal(true);
   };
 
   const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    const { id, type } = itemToDelete;
     const adminId = localStorage.getItem("token");
-    const endpoint = `http://localhost:4000/api/request/delete/${userToDelete}`;
-    try {
-    const response = await fetch(endpoint, {
-      method: "DELETE",
-      headers: { "x-admin-id": adminId },
-    });
     
-    if (response.ok) {
-      // 2. Update the 'events' state (NOT 'data')
-      setEvents(prev => prev.filter((item) => item.id !== userToDelete));
-      setToast({ message: "Assignment deleted successfully.", type: "success" });
-    } else {
-      const result = await response.json();
-      setToast({ message: result.error || "Failed to delete.", type: "error" });
+    // Choose endpoint based on type
+    const endpoint = type === 'Holiday' 
+      ? `/api/system/holidays/${id}`
+      : `/api/request/delete/${id}`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "DELETE",
+        headers: { "x-admin-id": adminId },
+      });
+      
+      if (response.ok) {
+        setEvents(prev => prev.filter((item) => item.id !== id || item.type !== type));
+        setToast({ message: `${type} deleted successfully.`, type: "success" });
+        fetchCalendarEvents(); // Refresh fully to be sure
+      } else {
+        const result = await response.json();
+        setToast({ message: result.error || "Failed to delete.", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Could not connect to server.", type: "error" });
+    } finally {
+      setShowDeleteModal(false);
+      setItemToDelete(null);
     }
-  } catch (err) {
-    setToast({ message: "Could not connect to server.", type: "error" });
-  } finally {
-    setShowDeleteModal(false);
-    setUserToDelete(null);
-  }
   };
 
   const userData = JSON.parse(localStorage.getItem("userData") || "{}");
@@ -90,6 +97,45 @@ const CalendarManagement = () => {
     hours: 8
   });
 
+  // Holiday Form State
+  const [holidayForm, setHolidayForm] = useState({
+    name: "",
+    date: "",
+    type: "Regular Holiday"
+  });
+
+  const handleHolidaySubmit = async (e) => {
+    e.preventDefault();
+    if (!holidayForm.name || !holidayForm.date) {
+      setToast({ message: "Please fill in all fields.", type: "error" });
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/system/holidays", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: holidayForm.name,
+          date: holidayForm.date,
+          type: holidayForm.type
+        }),
+      });
+
+      if (response.ok) {
+        setToast({ message: "Holiday added successfully!", type: "success" });
+        setModalType(null);
+        setHolidayForm({ name: "", date: "", type: "Regular Holiday" });
+        fetchCalendarEvents();
+      } else {
+        const err = await response.json();
+        setToast({ message: err.error || "Failed to add holiday.", type: "error" });
+      }
+    } catch (error) {
+      setToast({ message: "Connection error.", type: "error" });
+    }
+  };
+
   const handleFieldWorkSubmit = async (e) => {
     e.preventDefault();
     if (!fieldWorkForm.userId || !fieldWorkForm.date || !fieldWorkForm.location) {
@@ -98,7 +144,7 @@ const CalendarManagement = () => {
     }
 
     try {
-      const response = await fetch("http://localhost:4000/api/request", {
+      const response = await fetch("/api/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -137,7 +183,7 @@ const CalendarManagement = () => {
       const firstDay = `${year}-01-01`;
       const lastDay = `${year}-12-31`;
       
-      const response = await fetch(`http://localhost:4000/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}`);
+      const response = await fetch(`/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}`);
       if (response.ok) {
         const data = await response.json();
         setEvents(data);
@@ -151,7 +197,7 @@ const CalendarManagement = () => {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch("http://localhost:4000/api/users/all");
+      const response = await fetch("/api/users/all");
       if (response.ok) {
         const data = await response.json();
         setEmployees(data);
@@ -305,7 +351,10 @@ const CalendarManagement = () => {
                         <EditIcon className="edit" onClick={() => setModalType('editHoliday')} />
                          <button 
                              className="deleteBtn" 
-                             onClick={() => initiateDelete(holiday.id)}
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               initiateDelete(holiday.id, 'Holiday');
+                             }}
                              > <DeleteIcon className="delete" />
                         </button>
                     </div>
@@ -331,7 +380,10 @@ const CalendarManagement = () => {
                       </div>
                         <button 
                              className="deleteBtn" 
-                             onClick={() => initiateDelete(field.id)}
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               initiateDelete(field.id, field.type);
+                             }}
                              > <DeleteIcon className="delete" />
                         </button>
                     </div>
@@ -352,7 +404,7 @@ const CalendarManagement = () => {
                   <h2>{modalType.includes('Holiday') ? (modalType.startsWith('add') ? 'Add' : 'Edit') + ' Holiday' : 'Add Field Work'}</h2>
                   <CloseIcon className="closeIcon" onClick={() => setModalType(null)} />
                 </div>
-                <form className="modalForm" onSubmit={modalType === 'addFieldWork' ? handleFieldWorkSubmit : (e) => e.preventDefault()}>
+                <form className="modalForm" onSubmit={modalType === 'addFieldWork' ? handleFieldWorkSubmit : handleHolidaySubmit}>
                   <div className="inputGroup">
                     <label>{modalType === 'addFieldWork' ? 'Select Employee' : 'Holiday Name'}</label>
                     {modalType === 'addFieldWork' ? (
@@ -369,22 +421,40 @@ const CalendarManagement = () => {
                         ))}
                       </select>
                     ) : (
-                      <input type="text" placeholder="Enter name" />
+                      <input 
+                        type="text" 
+                        placeholder="Enter name" 
+                        value={holidayForm.name}
+                        onChange={(e) => setHolidayForm({...holidayForm, name: e.target.value})}
+                        required
+                      />
                     )}
                   </div>
                   <div className="inputGroup">
                     <label>Date</label>
                     <input 
                       type="date" 
-                      value={modalType === 'addFieldWork' ? fieldWorkForm.date : ""}
-                      onChange={(e) => modalType === 'addFieldWork' && setFieldWorkForm({...fieldWorkForm, date: e.target.value})}
+                      value={modalType === 'addFieldWork' ? fieldWorkForm.date : holidayForm.date}
+                      onChange={(e) => {
+                        if (modalType === 'addFieldWork') {
+                          setFieldWorkForm({...fieldWorkForm, date: e.target.value});
+                        } else {
+                          setHolidayForm({...holidayForm, date: e.target.value});
+                        }
+                      }}
                       required
                     />
                   </div>
                   {modalType.includes('Holiday') ? (
                     <div className="inputGroup">
                       <label>Type</label>
-                      <select><option>Regular Holiday</option><option>Special Holiday</option></select>
+                      <select 
+                        value={holidayForm.type}
+                        onChange={(e) => setHolidayForm({...holidayForm, type: e.target.value})}
+                      >
+                        <option>Regular Holiday</option>
+                        <option>Special Holiday</option>
+                      </select>
                     </div>
                   ) : (
                     <>

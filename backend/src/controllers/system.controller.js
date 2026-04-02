@@ -28,6 +28,38 @@ exports.getHolidays = async (req, res) => {
   }
 };
 
+exports.createHoliday = async (req, res) => {
+  try {
+    const { name, date, type } = req.body;
+    if (!name || !date || !type) {
+      return res.status(400).json({ error: "Name, date, and type are required." });
+    }
+    const holiday = await Holiday.create({ name, date, type });
+    res.status(201).json(holiday);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.deleteHoliday = async (req, res) => {
+  try {
+    const { holidayId } = req.params;
+    
+    if (!holidayId || holidayId === "undefined") {
+      return res.status(400).json({ error: "Invalid Holiday ID provided." });
+    }
+
+    const deleted = await Holiday.destroy({ where: { holidayId: parseInt(holidayId) } });
+    if (deleted) {
+      res.status(200).json({ message: "Holiday deleted successfully." });
+    } else {
+      res.status(404).json({ error: "Holiday not found." });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.getSystemSettings = async (req, res) => {
   try {
     const settings = await SystemSettings.findOne();

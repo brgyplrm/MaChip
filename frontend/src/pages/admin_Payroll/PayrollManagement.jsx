@@ -302,8 +302,8 @@ const Payroll = () => {
           {/* src/pages/payroll/PayrollManagement.jsx */}
 
           <div className="sectionTitle">Previous Periods (Locked)</div>
-          <div className="tableCard"> {/* Added consistent card wrapper */}
-            <table className="customPayrollTable"> {/* Renamed for specific styling */}
+          <div className="tableCard">
+            <table className="customPayrollTable">
               <thead>
                 <tr>
                   <th>Period Label</th>
