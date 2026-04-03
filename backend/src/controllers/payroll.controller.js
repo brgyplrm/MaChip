@@ -12,46 +12,62 @@ const WORK_HRS_PER_DAY = 8; // standard hours per day
 
 // ── Internal Helper: Compute Period Stats ─────────────────────────────────────
 async function computePeriodStats(user_Id, period_Start, period_End) {
-  // 1. Get all working days (Mon–Sat)
-  const workingDays = await sequelize.query(
+  const now = await getSystemTime();
+  const yearNow = now.getFullYear();
+  const monthNow = String(now.getMonth() + 1).padStart(2, "0");
+  const dayNow = String(now.getDate()).padStart(2, "0");
+  const todayStr = `${yearNow}-${monthNow}-${dayNow}`;
+
+  // 1. Get all dates in period
+  const allDaysResult = await sequelize.query(
     `SELECT generate_series(
        :period_Start::date,
        :period_End::date,
        '1 day'::interval
-     )::date AS work_date`,
+     )::date::text AS work_date`,
     { replacements: { period_Start, period_End }, type: QueryTypes.SELECT },
   );
+  const allDays = allDaysResult.map(d => d.work_date);
 
-  const validWorkDays = workingDays.filter((d) => {
-    // Robust Sunday exclusion: Parse as UTC to avoid local timezone shifts
-    const [y, m, day] = d.work_date.split("-").map(Number);
-    const dateObj = new Date(Date.UTC(y, m - 1, day));
+  // Define totalScheduledDays (exclude Sundays)
+  const totalScheduledDays = allDays.filter(dateStr => {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dateObj = new Date(Date.UTC(y, m - 1, d));
     return dateObj.getUTCDay() !== 0; // 0 = Sunday
+  }).length;
+
+  // 2. Get holidays in period
+  const holidays = await sequelize.query(
+    `SELECT *, "date"::text FROM "Holiday" WHERE "date" BETWEEN :period_Start AND :period_End`,
+    { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+  );
+  const holidayMap = {};
+  holidays.forEach(h => { 
+    const dStr = typeof h.date === 'string' ? h.date : h.date.toISOString().split('T')[0];
+    holidayMap[dStr] = h; 
   });
 
-  const totalScheduledDays = validWorkDays.length;
-
-  // 2. Get attendance logs (from user_logging for exact timings)
+  // 3. Get attendance logs
   const logs = await sequelize.query(
     `SELECT
-       DATE("log_Date") AS log_date,
-       MIN(CASE WHEN "logged_StatusId" = 1 THEN "time_Logged" END) AS first_in
+       DATE("log_Date")::text AS log_date,
+       MIN(CASE WHEN "logged_StatusId" = 1 THEN "time_Logged" END) AS first_in,
+       MAX(CASE WHEN "logged_StatusId" IN (2, 6) THEN "time_Logged" END) AS last_out,
+       MAX("attendance_StatusId") AS att_status
      FROM "user_logging"
      WHERE "user_id" = :user_Id
      AND DATE("log_Date") BETWEEN :period_Start AND :period_End
      GROUP BY DATE("log_Date")`,
     { replacements: { user_Id, period_Start, period_End }, type: QueryTypes.SELECT },
   );
-
   const logMap = {};
   logs.forEach((l) => { 
     const dateStr = typeof l.log_date === 'string' ? l.log_date : l.log_date.toISOString().split('T')[0];
     logMap[dateStr] = l; 
   });
 
-  // 3. Get approved leaves (unpaid and paid)
-  const approvedLeaveDaysMap = new Map(); // date -> { withPay: boolean }
-  
+  // 4. Get approved leaves
+  const approvedLeaveDaysMap = new Map(); 
   const leaveRecords = await sequelize.query(
     `SELECT "StartDate", "EndDate", "WithPayID" FROM "Vacation_Leave" 
      WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)
@@ -60,7 +76,6 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
      WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)`,
     { replacements: { user_Id }, type: QueryTypes.SELECT }
   );
-
   leaveRecords.forEach(lr => {
     let curr = new Date(lr.StartDate);
     let end = new Date(lr.EndDate);
@@ -70,24 +85,9 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     }
   });
 
-  // 4. Get explicit statuses from employee_Logging_report (including Absent status 3)
-  const reports = await sequelize.query(
-    `SELECT "log_Date", "attendance_StatusId" 
-     FROM "employee_Logging_report"
-     WHERE "user_id" = :user_Id
-     AND "log_Date" BETWEEN :period_Start AND :period_End`,
-    { replacements: { user_Id, period_Start, period_End }, type: QueryTypes.SELECT }
-  );
-  
-  const reportMap = {};
-  reports.forEach(r => {
-    const dateStr = typeof r.log_Date === 'string' ? r.log_Date : r.log_Date.toISOString().split('T')[0];
-    reportMap[dateStr] = r;
-  });
-
-  // 4.5 Get On-Field Work assignments
+  // 5. Get On-Field Work
   const onfieldDays = await sequelize.query(
-    `SELECT ow."DateonField" FROM "Onfield_Work" ow
+    `SELECT ow."DateonField"::text FROM "Onfield_Work" ow
      JOIN "emp_Request" er ON ow."emp_reqId" = er."emp_reqId"
      WHERE er."user_Id" = :user_Id AND er."emp_reqStatusId" = 2
      AND ow."DateonField" BETWEEN :period_Start AND :period_End`,
@@ -99,44 +99,92 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
   let tardiness_Mins = 0;
   let paidLeave_Days = 0;
   let unpaidLeave_Days = 0;
+  let legalHol_Days = 0;     // Regular Holiday Worked
+  let specialHol_Days = 0;   // Special Holiday Worked
+  let legalHol_NotWorked = 0; // Regular Holiday Not Worked (Paid 100%)
+  let specialHol_NotWorked = 0; // Special Holiday Not Worked (Unpaid)
+  let actual_Worked_Days = 0; // Days with logs or on-field
+  let actual_Worked_Hrs = 0;
 
-  for (const day of validWorkDays) {
-    const dateStr = day.work_date; // Assuming it's already YYYY-MM-DD from Postgres
+  for (let i = 0; i < allDays.length; i++) {
+    const dateStr = allDays[i];
+    const isFuture = dateStr > todayStr;
+    const isToday = dateStr === todayStr;
+
+    const holiday = holidayMap[dateStr];
+    const log = logMap[dateStr];
+    const isOnField = onfieldMap.has(dateStr);
     
-    if (approvedLeaveDaysMap.has(dateStr)) {
+    // A day is "worked" only if there's a log that isn't an "Absent" status (3), or it's On-Field
+    const isAbsentStatus = log && log.att_status === 3;
+    const worked = (!!log && !isAbsentStatus) || isOnField;
+    const isLeave = approvedLeaveDaysMap.has(dateStr);
+
+    // Skip future days unless they have an approved leave
+    if (isFuture && !isLeave) continue;
+
+    // ── Handle Worked Days (Normal or Holiday) ──────────────────────────
+    if (worked) {
+      actual_Worked_Days++;
+      let dailyTardiness = 0;
+      if (log && log.first_in) {
+        const [gh, gm] = GRACE_END.split(":").map(Number);
+        const [lh, lm] = log.first_in.split(":").map(Number);
+        const graceMinutes = gh * 60 + gm;
+        const loginMinutes = lh * 60 + lm;
+        if (loginMinutes > graceMinutes) {
+          dailyTardiness = loginMinutes - graceMinutes;
+          tardiness_Mins += dailyTardiness;
+        }
+      }
+      actual_Worked_Hrs += (WORK_HRS_PER_DAY - (dailyTardiness / 60));
+
+      if (holiday) {
+        if (holiday.type === "Regular Holiday") legalHol_Days++;
+        else specialHol_Days++;
+      }
+      continue; // Move to next day
+    }
+
+    // ── Handle Holidays Not Worked ──────────────────────────────────────
+    if (holiday) {
+      if (!isFuture) {
+        if (holiday.type === "Regular Holiday") {
+          // Rule #2: Absent on Regular Holiday = No Deduction + Count as Worked Day
+          actual_Worked_Days++;
+          actual_Worked_Hrs += WORK_HRS_PER_DAY;
+          legalHol_NotWorked++;
+        } else {
+          // Rule #3: Absent on Special Holiday = Deduction
+          specialHol_NotWorked++;
+        }
+      }
+      continue;
+    }
+
+    // ── Handle Non-Holiday Scheduled Days ────────────────────────────────
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dateObj = new Date(Date.UTC(y, m - 1, d));
+    const isSunday = dateObj.getUTCDay() === 0;
+    if (isSunday) continue;
+
+    if (isLeave) {
       if (approvedLeaveDaysMap.get(dateStr)) paidLeave_Days++;
       else unpaidLeave_Days++;
       continue;
     }
 
-    // Skip absence check if it was an On-Field day
-    if (onfieldMap.has(dateStr)) {
-      continue;
-    }
-
-    const report = reportMap[dateStr];
-    const log = logMap[dateStr];
-
-    // Check if explicitly marked Absent (3) in report OR no logs/first_in
-    if ((report && report.attendance_StatusId === 3)) {
+    // Rule #1: Absence logic for normal days (not worked, not holiday, not leave)
+    const isAfterCutoff = now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 30);
+    if (!isFuture && (!isToday || isAfterCutoff)) {
       absence_Days++;
-    } else if (log && log.first_in) {
-      const [gh, gm] = GRACE_END.split(":").map(Number);
-      const [lh, lm] = log.first_in.split(":").map(Number);
-      const graceMinutes = gh * 60 + gm;
-      const loginMinutes = lh * 60 + lm;
-      if (loginMinutes > graceMinutes) {
-        tardiness_Mins += loginMinutes - graceMinutes;
-
-        console.log(`Tardiness of user ${user_Id}: ${tardiness_Mins} minutes`);
-      }
     }
   }
 
-  // 5. Get approved OT
-  const overtimeResult = await sequelize.query(
-    `SELECT COALESCE(SUM(ot."Total_Hrs"), 0) AS "total_OT_hrs"
-     FROM "Overtime_Request" ot
+  // 6. Get approved OT and verify presence
+  // ... (keeping OT logic)
+  const overtimeRequests = await sequelize.query(
+    `SELECT ot.* FROM "Overtime_Request" ot
      JOIN "emp_Request" er ON er."emp_reqId" = ot."emp_reqId"
      WHERE ot."user_Id" = :user_Id
      AND ot."OT_DateOf" BETWEEN :period_Start AND :period_End
@@ -144,13 +192,102 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     { replacements: { user_Id, period_Start, period_End }, type: QueryTypes.SELECT },
   );
 
+  let verified_OT_Hrs = 0;
+  for (const req of overtimeRequests) {
+    const dateStr = typeof req.OT_DateOf === 'string' ? req.OT_DateOf : req.OT_DateOf.toISOString().split('T')[0];
+    
+    // Find any log that proves they were working after the OT start time
+    const presenceLog = await sequelize.query(
+      `SELECT "time_Logged" FROM "user_logging"
+       WHERE "user_id" = :user_Id AND "log_Date" = :dateStr
+       AND "logged_StatusId" IN (2, 6)
+       AND "time_Logged" > :otStart
+       ORDER BY "time_Logged" DESC
+       LIMIT 1`,
+      { 
+        replacements: { 
+          user_Id, 
+          dateStr, 
+          otStart: req.HrFrom 
+        }, 
+        type: QueryTypes.SELECT 
+      }
+    );
+
+    if (presenceLog.length > 0) {
+      verified_OT_Hrs += parseFloat(req.Total_Hrs);
+    }
+  }
+
   return {
+    NoDays_Worked: actual_Worked_Days,
+    NoHrs_Worked: Math.round(actual_Worked_Hrs * 100) / 100,
     totalScheduledDays,
-    absence_Days, 
+    absence_Days,
     paidLeave_Days,
     unpaidLeave_Days,
     tardiness_Mins,
-    OT_Hrs: parseFloat(overtimeResult[0].total_OT_hrs) || 0
+    legalHol_Days,
+    specialHol_Days,
+    legalHol_NotWorked,
+    specialHol_NotWorked,
+    holidaysTotal: holidays.length,
+    OT_Hrs: verified_OT_Hrs,
+    workedHolidays: { regular: legalHol_Days, special: specialHol_Days },
+  };
+}
+
+// ── Internal Helper: Calculate Full Payroll Stats ─────────────────────────────
+async function calculatePayrollStats(user_Id, period_Start, period_End, customDailyRate = null) {
+  const stats = await computePeriodStats(user_Id, period_Start, period_End);
+  
+  // Get user's current daily rate if not provided
+  let dailyRate = customDailyRate;
+  if (dailyRate === null) {
+    const user = await sequelize.query(
+      `SELECT "dailyRate" FROM "User" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    dailyRate = user[0]?.dailyRate || 0;
+  }
+
+  const ratePerHr = dailyRate / WORK_HRS_PER_DAY;
+  const ratePerMin = ratePerHr / 60;
+
+  // 1. Basic Pay (Top-down: Full scheduled period)
+  const basicPay = stats.totalScheduledDays * dailyRate;
+
+  // 2. Holiday Premiums (Extra pay)
+  const legalHol_Amnt = (stats.legalHol_Days * dailyRate);
+  const specialHol_Amnt = (stats.specialHol_Days * dailyRate * 0.3);
+
+  // 3. Other Earnings
+  const OT_Amnt = stats.OT_Hrs * ratePerHr;
+  
+  // 4. Deductions
+  const absence_Amnt = stats.absence_Days * dailyRate;
+  const tardiness_Amnt = stats.tardiness_Mins * ratePerMin;
+  const unpaidLeave_Amnt = stats.unpaidLeave_Days * dailyRate;
+  const specialHol_Ded = stats.specialHol_NotWorked * dailyRate;
+
+  const totalEarnings = basicPay + legalHol_Amnt + specialHol_Amnt + OT_Amnt;
+  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + specialHol_Ded;
+  const netPay = totalEarnings - totalDeductions;
+
+  return {
+    ...stats,
+    dailyRate,
+    ratePerHr,
+    basicPay,
+    legalHol_Amnt,
+    specialHol_Amnt,
+    OT_Amnt,
+    absence_Amnt,
+    tardiness_Amnt,
+    unpaidLeave_Amnt,
+    totalEarnings,
+    totalDeductions,
+    netPay
   };
 }
 
@@ -162,8 +299,8 @@ exports.getPayrollPreview = async (req, res) => {
   }
 
   try {
-    const stats = await computePeriodStats(user_Id, period_Start, period_End);
-    res.status(200).json(stats);
+    const fullStats = await calculatePayrollStats(user_Id, period_Start, period_End);
+    res.status(200).json(fullStats);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -176,7 +313,8 @@ exports.generatePayroll = async (req, res) => {
     // Allow frontend to send manual values
     NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDeductions, netPay,
     OT_Hrs, OT_Amnt, absence_Amnt, tardiness_Amnt, unpaidLeave_Amnt,
-    absence_Days, paidLeave_Days, unpaidLeave_Days, tardiness_Mins
+    absence_Days, paidLeave_Days, unpaidLeave_Days, tardiness_Mins,
+    legalHol_Amnt, specialHol_Amnt
   } = req.body;
 
   if (!user_Id || !period_Start || !period_End || !ratePerHr) {
@@ -187,7 +325,6 @@ exports.generatePayroll = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    // Find the corresponding PayrollPeriod ID
     const periodRow = await sequelize.query(
         `SELECT "periodId" FROM "PayrollPeriod" 
          WHERE "startDate" = :period_Start AND "endDate" = :period_End LIMIT 1`,
@@ -195,76 +332,39 @@ exports.generatePayroll = async (req, res) => {
       );
     const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
 
-    // If frontend didn't send calculations, compute them (fallback)
     let finalStats = { 
         NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDeductions, netPay,
         OT_Hrs, OT_Amnt, absence_Amnt, tardiness_Amnt, unpaidLeave_Amnt,
-        absence_Days, paidLeave_Days, unpaidLeave_Days, tardiness_Mins
+        absence_Days, paidLeave_Days, unpaidLeave_Days, tardiness_Mins,
+        legalHol_Amnt, specialHol_Amnt
     };
 
     if (NoDays_Worked === undefined) {
-        const stats = await computePeriodStats(user_Id, period_Start, period_End);
-        const ratePerDay = ratePerHr * WORK_HRS_PER_DAY;
-        const ratePerMin = ratePerHr / 60;
-
-        // Initial logic: Combined absences (true absences + unpaid leaves)
-        const combined_Absences = stats.absence_Days + stats.unpaidLeave_Days;
-
-        const calculated_NoDays = stats.totalScheduledDays - combined_Absences;
-        const calculated_NoHrs = calculated_NoDays * WORK_HRS_PER_DAY;
-        const calculated_Basic = calculated_NoHrs * ratePerHr;
-
-        // Total deduction amount for combined absences
-        const calculated_AbsAmnt = combined_Absences * ratePerDay;
-        const calculated_TardAmnt = stats.tardiness_Mins * ratePerMin;
-        const calculated_OTAmnt = stats.OT_Hrs * ratePerHr;
-
-        const calculated_Ded = calculated_AbsAmnt + calculated_TardAmnt;
-        const calculated_Earn = calculated_Basic + calculated_OTAmnt;
-        const calculated_Net = calculated_Earn - calculated_Ded;
-
-        finalStats = {
-            NoDays_Worked: calculated_NoDays,
-            NoHrs_Worked: calculated_NoHrs,
-            basicPay: calculated_Basic,
-            totalEarnings: calculated_Earn,
-            totalDeductions: calculated_Ded,
-            netPay: calculated_Net,
-            OT_Hrs: stats.OT_Hrs,
-            OT_Amnt: calculated_OTAmnt,
-            absence_Amnt: calculated_AbsAmnt,
-            tardiness_Amnt: calculated_TardAmnt,
-            unpaidLeave_Amnt: 0, // Bundled into absence_Amnt
-            absence_Days: combined_Absences,
-            paidLeave_Days: stats.paidLeave_Days,
-            unpaidLeave_Days: stats.unpaidLeave_Days,
-            tardiness_Mins: stats.tardiness_Mins
-        };
+        finalStats = await calculatePayrollStats(user_Id, period_Start, period_End, dailyRate);
     }
 
     const payrollResult = await sequelize.query(
       `INSERT INTO "Payroll"
         ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
          "dailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
+         "holidaysTotal", "holidaysRegularWorked", "holidaysSpecialWorked",
          "status", "createdAt", "updatedAt")
        VALUES
         (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
          :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDeductions, :netPay,
+         :holidaysTotal, :holidaysRegularWorked, :holidaysSpecialWorked,
          1, :now, :now)
        RETURNING *`,
       {
         replacements: {
-          user_Id, 
-          periodId,
-          period_Start, period_End, 
-          NoDays_Worked: finalStats.NoDays_Worked, 
-          NoHrs_Worked: finalStats.NoHrs_Worked,
-          dailyRate: dailyRate || 0, 
-          ratePerHr,
-          basicPay: finalStats.basicPay, 
-          totalEarnings: finalStats.totalEarnings, 
-          totalDeductions: finalStats.totalDeductions, 
-          netPay: finalStats.netPay,
+          user_Id, periodId, period_Start, period_End, 
+          NoDays_Worked: finalStats.NoDays_Worked, NoHrs_Worked: finalStats.NoHrs_Worked,
+          dailyRate: dailyRate || 0, ratePerHr,
+          basicPay: finalStats.basicPay, totalEarnings: finalStats.totalEarnings, 
+          totalDeductions: finalStats.totalDeductions, netPay: finalStats.netPay,
+          holidaysTotal: finalStats.holidaysTotal || 0,
+          holidaysRegularWorked: finalStats.holidaysRegularWorked || 0,
+          holidaysSpecialWorked: finalStats.holidaysSpecialWorked || 0,
           now: nowStr
         },
         type: QueryTypes.INSERT,
@@ -274,9 +374,13 @@ exports.generatePayroll = async (req, res) => {
     const payrollId = payrollResult[0][0]?.payrollId || payrollResult[0].payrollId || payrollResult[0][0];
 
     await sequelize.query(
-      `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt")
-       VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt)`,
-      { replacements: { payrollId, user_Id, OT_Hrs: finalStats.OT_Hrs, OT_Amnt: finalStats.OT_Amnt }, type: QueryTypes.INSERT }
+      `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt")
+       VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt)`,
+      { replacements: { 
+          payrollId, user_Id, 
+          OT_Hrs: finalStats.OT_Hrs, OT_Amnt: finalStats.OT_Amnt,
+          legalHol_Amnt: finalStats.legalHol_Amnt, specialHol_Amnt: finalStats.specialHol_Amnt 
+        }, type: QueryTypes.INSERT }
     );
 
     await sequelize.query(
@@ -292,7 +396,7 @@ exports.generatePayroll = async (req, res) => {
           tardiness_Mins: finalStats.tardiness_Mins,
           tardiness_Amnt: finalStats.tardiness_Amnt,
           unpaidLeave_Days: finalStats.unpaidLeave_Days,
-          unpaidLeave_Amnt: 0, // Already included in absence_Amnt
+          unpaidLeave_Amnt: finalStats.unpaidLeave_Amnt,
           paidLeave_Days: finalStats.paidLeave_Days
         },
         type: QueryTypes.INSERT,
@@ -307,8 +411,6 @@ exports.generatePayroll = async (req, res) => {
 // ── Generate Batch Payroll ──────────────────────────────────────────────────
 exports.generateBatchPayroll = async (req, res) => {
   const { period_Start, period_End } = req.body;
-  console.log(`[DEBUG] generateBatchPayroll: start=${period_Start}, end=${period_End}`);
-
   if (!period_Start || !period_End) {
     return res.status(400).json({ error: "period_Start and period_End are required." });
   }
@@ -317,121 +419,75 @@ exports.generateBatchPayroll = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    // 0. Find the corresponding PayrollPeriod ID
     const periodRow = await sequelize.query(
       `SELECT "periodId" FROM "PayrollPeriod" 
        WHERE "startDate" = :period_Start AND "endDate" = :period_End LIMIT 1`,
       { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
     );
     const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
-    console.log(`[DEBUG] Found periodId: ${periodId}`);
 
-    // 1. Get all active employees (not deleted and have a dailyRate > 0)
     const employees = await sequelize.query(
       `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email", "dailyRate" FROM "User" 
-       WHERE "deletedAt" IS NULL AND "dailyRate" > 0`,
+        WHERE "deletedAt" IS NULL AND "dailyRate" > 0`, 
       { type: QueryTypes.SELECT }
     );
-    console.log(`[DEBUG] Found eligible employees: ${employees.length}`);
 
     let processedCount = 0;
     let skippedCount = 0;
 
     for (const emp of employees) {
-      // 2. Check if payroll already exists for this user and period
-      // We check by period dates AND periodId if available
       const existing = await sequelize.query(
         `SELECT "payrollId" FROM "Payroll" 
          WHERE "user_Id" = :user_Id 
          AND (("period_Start" = :period_Start AND "period_End" = :period_End) OR ("periodId" = :periodId))`,
-        { 
-          replacements: { 
-            user_Id: emp.user_Id, 
-            period_Start, 
-            period_End,
-            periodId: periodId || -1 // avoid null comparison issues
-          }, 
-          type: QueryTypes.SELECT 
-        }
+        { replacements: { user_Id: emp.user_Id, period_Start, period_End, periodId: periodId || -1 }, type: QueryTypes.SELECT }
       );
 
       if (existing.length > 0) {
-        console.log(`[DEBUG] Skipping user ${emp.user_FirstName} (${emp.user_Id}) - payroll exists.`);
         skippedCount++;
         continue;
       }
 
-      console.log(`[DEBUG] Processing user ${emp.user_FirstName} (${emp.user_Id})...`);
-      // 3. Compute stats
-      const stats = await computePeriodStats(emp.user_Id, period_Start, period_End);
-      const dailyRate = emp.dailyRate;
-      const ratePerHr = dailyRate / WORK_HRS_PER_DAY;
-      const ratePerMin = ratePerHr / 60;
+      const fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, emp.dailyRate);
 
-      const combined_Absences = stats.absence_Days + stats.unpaidLeave_Days;
-      const calculated_NoDays = stats.totalScheduledDays - combined_Absences;
-      const calculated_NoHrs = calculated_NoDays * WORK_HRS_PER_DAY;
-      const calculated_Basic = calculated_NoHrs * ratePerHr;
-
-      const calculated_AbsAmnt = combined_Absences * dailyRate;
-      const calculated_TardAmnt = stats.tardiness_Mins * ratePerMin;
-      const calculated_OTAmnt = stats.OT_Hrs * ratePerHr;
-
-      const calculated_Ded = calculated_AbsAmnt + calculated_TardAmnt;
-      const calculated_Earn = calculated_Basic + calculated_OTAmnt;
-      const calculated_Net = calculated_Earn - calculated_Ded;
-
-      // 4. Insert into Payroll
       const payrollResult = await sequelize.query(
         `INSERT INTO "Payroll"
           ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
            "dailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
+           "holidaysTotal", "holidaysRegularWorked", "holidaysSpecialWorked",
            "status", "createdAt", "updatedAt")
          VALUES
           (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
            :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDeductions, :netPay,
+           :holidaysTotal, :holidaysRegularWorked, :holidaysSpecialWorked,
            2, :now, :now)
          RETURNING "payrollId"`,
         {
           replacements: {
-            user_Id: emp.user_Id, 
-            periodId,
-            period_Start, period_End,
-            NoDays_Worked: calculated_NoDays,
-            NoHrs_Worked: calculated_NoHrs,
-            dailyRate, ratePerHr,
-            basicPay: calculated_Basic,
-            totalEarnings: calculated_Earn,
-            totalDeductions: calculated_Ded,
-            netPay: calculated_Net,
+            user_Id: emp.user_Id, periodId, period_Start, period_End,
+            NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
+            dailyRate: fullStats.dailyRate, ratePerHr: fullStats.ratePerHr,
+            basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
+            totalDeductions: fullStats.totalDeductions, netPay: fullStats.netPay,
+            holidaysTotal: fullStats.holidaysTotal || 0,
+            holidaysRegularWorked: fullStats.legalHol_Days || 0,
+            holidaysSpecialWorked: fullStats.specialHol_Days || 0,
             now: nowStr
           },
           type: QueryTypes.INSERT
         }
       );
 
-      // Handle different return formats from INSERT ... RETURNING in different environments
-      let payrollId;
-      if (Array.isArray(payrollResult) && payrollResult[0]) {
-          if (Array.isArray(payrollResult[0]) && payrollResult[0][0]) {
-              payrollId = payrollResult[0][0].payrollId || payrollResult[0][0];
-          } else {
-              payrollId = payrollResult[0].payrollId || payrollResult[0];
-          }
-      }
-      
-      if (!payrollId) {
-          console.error(`[ERROR] Failed to get payrollId for user ${emp.user_Id}`);
-          throw new Error(`Failed to generate payrollId for user ${emp.user_Id}`);
-      }
+      let payrollId = payrollResult[0][0]?.payrollId || payrollResult[0].payrollId || payrollResult[0][0];
 
-      console.log(`[DEBUG] Generated payrollId: ${payrollId}`);
-
-      // 5. Insert Earnings & Deductions
       await sequelize.query(
-        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt")
-         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt)`,
-        { replacements: { payrollId, user_Id: emp.user_Id, OT_Hrs: stats.OT_Hrs, OT_Amnt: calculated_OTAmnt }, type: QueryTypes.INSERT }
+        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt")
+         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt)`,
+        { replacements: { 
+            payrollId, user_Id: emp.user_Id, 
+            OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt, 
+            legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt 
+          }, type: QueryTypes.INSERT }
       );
 
       await sequelize.query(
@@ -442,57 +498,46 @@ exports.generateBatchPayroll = async (req, res) => {
         {
           replacements: {
             payrollId,
-            absence_Hrs: combined_Absences * WORK_HRS_PER_DAY,
-            absence_Amnt: calculated_AbsAmnt,
-            tardiness_Mins: stats.tardiness_Mins,
-            tardiness_Amnt: calculated_TardAmnt,
-            unpaidLeave_Days: stats.unpaidLeave_Days,
-            unpaidLeave_Amnt: 0,
-            paidLeave_Days: stats.paidLeave_Days
+            absence_Hrs: fullStats.absence_Days * WORK_HRS_PER_DAY,
+            absence_Amnt: fullStats.absence_Amnt,
+            tardiness_Mins: fullStats.tardiness_Mins,
+            tardiness_Amnt: fullStats.tardiness_Amnt,
+            unpaidLeave_Days: fullStats.unpaidLeave_Days,
+            unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
+            paidLeave_Days: fullStats.paidLeave_Days
           },
           type: QueryTypes.INSERT
         }
       );
 
-      // 6. Send notification email with PDF attachment asynchronously
+      // Send Email after generation
       if (emp.user_Email) {
-        const payrollDataForPDF = {
+        const emailData = {
+          ...fullStats,
           user_FirstName: emp.user_FirstName,
           user_LastName: emp.user_LastName,
+          payrollId,
           period_Start,
-          period_End,
-          NoDays_Worked: calculated_NoDays,
-          NoHrs_Worked: calculated_NoHrs,
-          basicPay: calculated_Basic,
-          OT_Hrs: stats.OT_Hrs,
-          OT_Amnt: calculated_OTAmnt,
-          absence_Hrs: combined_Absences * WORK_HRS_PER_DAY,
-          absence_Amnt: calculated_AbsAmnt,
-          tardiness_Mins: stats.tardiness_Mins,
-          tardiness_Amnt: calculated_TardAmnt,
-          totalEarnings: calculated_Earn,
-          totalDeductions: calculated_Ded,
-          netPay: calculated_Net
+          period_End
         };
-
-        generatePayslipPDF(payrollDataForPDF).then(pdfBuffer => {
+        
+        generatePayslipPDF(emailData).then(pdfBuffer => {
           return sendPayrollEmail({
             email: emp.user_Email,
             name: `${emp.user_FirstName} ${emp.user_LastName}`,
             period: `${period_Start} to ${period_End}`,
-            netPay: calculated_Net,
+            netPay: fullStats.netPay,
             attachments: [{
-              filename: `Payslip_${emp.user_LastName}_${period_Start}.pdf`,
+              filename: `Payslip_${emp.user_LastName}_${payrollId}.pdf`,
               content: pdfBuffer
             }]
           });
-        }).catch(err => console.error(`[BATCH EMAIL/PDF FAILED] user ${emp.user_Id}:`, err.message));
+        }).catch(err => console.error(`[BATCH EMAIL FAILED] user ${emp.user_Id}:`, err.message));
       }
 
       processedCount++;
     }
 
-    // 7. Update the PayrollPeriod status to 'Released'
     if (periodId) {
       await sequelize.query(
         `UPDATE "PayrollPeriod" SET "status" = 'Released', "updatedAt" = :now WHERE "periodId" = :periodId`,
@@ -506,10 +551,10 @@ exports.generateBatchPayroll = async (req, res) => {
       skipped: skippedCount
     });
   } catch (error) {
-    console.error("[ERROR] generateBatchPayroll:", error);
     res.status(500).json({ error: error.message });
   }
 };
+
 
 // ── Get Eligible Employees Count ─────────────────────────────────────────────
 exports.getEligibleEmployeesCount = async (req, res) => {
@@ -522,7 +567,7 @@ exports.getEligibleEmployeesCount = async (req, res) => {
   try {
     const result = await sequelize.query(
       `SELECT COUNT("user_Id") AS "count" FROM "User" 
-       WHERE "deletedAt" IS NULL AND "dailyRate" > 0
+        WHERE "deletedAt" IS NULL AND "dailyRate" > 0 
        AND "user_Id" NOT IN (
          SELECT "user_Id" FROM "Payroll" 
          WHERE "period_Start" = :period_Start AND "period_End" = :period_End
@@ -567,7 +612,9 @@ exports.getPayrollByUser = async (req, res) => {
     const payrolls = await sequelize.query(
       `SELECT
          p.*,
-         e."OT_Hrs", e."OT_Amnt",
+         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
+         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
+         e."incentives", e."allowance",
          d."absence_Hrs", d."absence_Amnt",
          d."tardiness_Mins", d."tardiness_Amnt",
          d."unpaidLeave_Days", d."unpaidLeave_Amnt", d."paidLeave_Days",
@@ -674,7 +721,9 @@ exports.getPayrollById = async (req, res) => {
     const payroll = await sequelize.query(
       `SELECT
          p.*,
-         e."OT_Hrs", e."OT_Amnt",
+         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
+         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
+         e."incentives", e."allowance",
          d."absence_Hrs", d."absence_Amnt",
          d."tardiness_Mins", d."tardiness_Amnt",
          d."unpaidLeave_Days", d."unpaidLeave_Amnt", d."paidLeave_Days",
@@ -781,4 +830,3 @@ exports.getPayrollReport = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-

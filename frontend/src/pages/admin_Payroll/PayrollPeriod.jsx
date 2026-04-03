@@ -81,19 +81,6 @@ const PayrollPeriod = () => {
         const preview = await prevRes.json();
 
         if (prevRes.ok) {
-          const ratePerHr = emp.dailyRate / 8;
-          const ratePerMin = ratePerHr / 60;
-          const combinedAbsences = (preview.absence_Days || 0) + (preview.unpaidLeave_Days || 0);
-          const daysWorked = (preview.totalScheduledDays || 0) - combinedAbsences;
-          const basicPay = daysWorked * 8 * ratePerHr;
-          const otPay = (preview.OT_Hrs || 0) * ratePerHr;
-          const tardinessDed = (preview.tardiness_Mins || 0) * ratePerMin;
-          const absenceDed = combinedAbsences * emp.dailyRate;
-
-          const earnings = basicPay + otPay;
-          const deductions = tardinessDed + absenceDed;
-          const net = earnings - deductions;
-
           livePayrolls.push({
             payrollId: `preview-${emp.user_Id}`,
             user_FirstName: emp.user_FirstName,
@@ -101,18 +88,18 @@ const PayrollPeriod = () => {
             user_Id: emp.user_Id,
             period_Start: period.startDate,
             period_End: period.endDate,
-            NoDays_Worked: daysWorked,
-            NoHrs_Worked: daysWorked * 8,
-            basicPay: basicPay,
-            totalEarnings: earnings,
-            totalDeductions: deductions,
-            netPay: net,
+            NoDays_Worked: preview.NoDays_Worked,
+            NoHrs_Worked: preview.NoHrs_Worked,
+            basicPay: preview.basicPay,
+            totalEarnings: preview.totalEarnings,
+            totalDeductions: preview.totalDeductions,
+            netPay: preview.netPay,
             PaystatusName: "Draft"
           });
 
-          totalNet += net;
-          totalEarn += earnings;
-          totalDed += deductions;
+          totalNet += preview.netPay;
+          totalEarn += preview.totalEarnings;
+          totalDed += preview.totalDeductions;
         }
       }
       setPayrolls(livePayrolls);

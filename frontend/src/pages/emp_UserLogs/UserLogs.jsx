@@ -260,17 +260,28 @@ const UserLogs = () => {
                         const log = getDtrLogsForDay(dayNum);
 
                         let morningIn = "", morningOut = "12:00", afternoonIn = "13:00", afternoonOut = "";
+                        let otIn = "", otOut = "";
 
-                        if (log && log.time_In !== "—") {
-                          const hour = parseInt(log.time_In.split(":")[0]);
-                          if (hour < 12) morningIn = log.time_In;
-                          else afternoonIn = log.time_In;
-                        }
+                        if (log) {
+                          // Regular Time
+                          const tIn = log.time_In;
+                          const tOut = log.time_Out;
+                          
+                          if (tIn && tIn !== "—") {
+                            const hour = parseInt(tIn.split(":")[0]);
+                            if (hour < 12) morningIn = formatTime(tIn);
+                            else afternoonIn = formatTime(tIn);
+                          }
 
-                        if (log && log.time_Out !== "—") {
-                          const hour = parseInt(log.time_Out.split(":")[0]);
-                          if (hour < 13) morningOut = log.time_Out;
-                          else afternoonOut = log.time_Out;
+                          if (tOut && tOut !== "—") {
+                            const hour = parseInt(tOut.split(":")[0]);
+                            if (hour < 13) morningOut = formatTime(tOut);
+                            else afternoonOut = formatTime(tOut);
+                          }
+
+                          // Overtime
+                          if (log.ot_In && log.ot_In !== "—") otIn = formatTime(log.ot_In);
+                          if (log.ot_Out && log.ot_Out !== "—") otOut = formatTime(log.ot_Out);
                         }
 
                         const isWeekend = new Date(new Date(dtrStartDate).getFullYear(), new Date(dtrStartDate).getMonth(), dayNum).getDay() === 0;
@@ -282,8 +293,8 @@ const UserLogs = () => {
                             <td>{log ? morningOut : ""}</td>
                             <td>{log ? afternoonIn : ""}</td>
                             <td>{afternoonOut}</td>
-                            <td></td>
-                            <td></td>
+                            <td>{otIn}</td>
+                            <td>{otOut}</td>
                             <td className="totalCol">{log ? log.hoursWorked : ""}</td>
                           </tr>
                         );

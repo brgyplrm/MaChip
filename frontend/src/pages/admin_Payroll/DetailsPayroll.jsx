@@ -37,39 +37,35 @@ const PayrollDetails = () => {
           const preview = await prevRes.json();
 
           if (empRes.ok && prevRes.ok) {
-            const ratePerHr = emp.dailyRate / 8;
-            const ratePerMin = ratePerHr / 60;
-            const combinedAbsences = (preview.absence_Days || 0) + (preview.unpaidLeave_Days || 0);
-            const daysWorked = (preview.totalScheduledDays || 0) - combinedAbsences;
-            const basicPay = daysWorked * 8 * ratePerHr;
-            const otPay = (preview.OT_Hrs || 0) * ratePerHr;
-            const tardinessDed = (preview.tardiness_Mins || 0) * ratePerMin;
-            const absenceDed = combinedAbsences * emp.dailyRate;
-
             setPayroll({
               payrollId: "LIVE-PREVIEW",
               user_FirstName: emp.user_FirstName,
               user_LastName: emp.user_LastName,
               user_Id: emp.user_Id,
-              ratePerHr: ratePerHr,
-              dailyRate: emp.dailyRate,
+              ratePerHr: preview.ratePerHr,
+              dailyRate: preview.dailyRate,
               period_Start: periodStart,
               period_End: periodEnd,
-              NoDays_Worked: daysWorked,
-              NoHrs_Worked: daysWorked * 8,
-              basicPay: basicPay,
+              NoDays_Worked: preview.NoDays_Worked,
+              NoHrs_Worked: preview.NoHrs_Worked,
+              basicPay: preview.basicPay,
               OT_Hrs: preview.OT_Hrs,
-              OT_Amnt: otPay,
-              totalEarnings: basicPay + otPay,
-              absence_Hrs: combinedAbsences * 8,
-              absence_Amnt: absenceDed,
+              OT_Amnt: preview.OT_Amnt,
+              legalHol_Amnt: preview.legalHol_Amnt,
+              specialHol_Amnt: preview.specialHol_Amnt,
+              totalEarnings: preview.totalEarnings,
+              absence_Hrs: preview.absence_Days * 8,
+              absence_Amnt: preview.absence_Amnt,
               tardiness_Mins: preview.tardiness_Mins,
-              tardiness_Amnt: tardinessDed,
+              tardiness_Amnt: preview.tardiness_Amnt,
               unpaidLeave_Days: preview.unpaidLeave_Days,
-              unpaidLeave_Amnt: preview.unpaidLeave_Days * emp.dailyRate,
+              unpaidLeave_Amnt: preview.unpaidLeave_Amnt,
               paidLeave_Days: preview.paidLeave_Days,
-              totalDeductions: tardinessDed + absenceDed,
-              netPay: (basicPay + otPay) - (tardinessDed + absenceDed),
+              holidaysTotal: preview.holidaysTotal || 0,
+              holidaysRegularWorked: preview.legalHol_Days || 0,
+              holidaysSpecialWorked: preview.specialHol_Days || 0,
+              totalDeductions: preview.totalDeductions,
+              netPay: preview.netPay,
               PaystatusName: "Draft",
               createdAt: new Date(),
               updatedAt: new Date()
@@ -190,6 +186,14 @@ const PayrollDetails = () => {
                 <label>Hours Worked</label>
                 <p>{payroll.NoHrs_Worked} hours</p>
               </div>
+              <div className="infoItem holidayInfo">
+                <label>Holiday Total</label>
+                <p>{payroll.holidaysTotal || 0} days</p>
+              </div>
+              <div className="infoItem holidayInfo">
+                <label>Worked Holidays</label>
+                <p>Regular: {payroll.holidaysRegularWorked || 0} | Special: {payroll.holidaysSpecialWorked || 0}</p>
+              </div>
             </div>
           </div>
 
@@ -202,8 +206,7 @@ const PayrollDetails = () => {
             <div className="breakdownList">
               <div className="row"><span>Basic Pay</span><p>₱{parseFloat(payroll.basicPay).toLocaleString()}</p></div>
               <div className="row"><span>Overtime ({payroll.OT_Hrs} hrs)</span><p>₱{parseFloat(payroll.OT_Amnt || 0).toLocaleString()}</p></div>
-              {payroll.restDay_OT_Amnt > 0 && <div className="row"><span>Rest Day OT ({payroll.restDay_OT_Hrs} hrs)</span><p>₱{parseFloat(payroll.restDay_OT_Amnt).toLocaleString()}</p></div>}
-              {payroll.nightDiff_Amnt > 0 && <div className="row"><span>Night Differential ({payroll.nightDiff_Hrs} hrs)</span><p>₱{parseFloat(payroll.nightDiff_Amnt).toLocaleString()}</p></div>}
+              {payroll.legalHol_Amnt > 0 && <div className="row"><span>Regular Holiday Pay</span><p>₱{parseFloat(payroll.legalHol_Amnt).toLocaleString()}</p></div>}
               {payroll.specialHol_Amnt > 0 && <div className="row"><span>Special Holiday Pay</span><p>₱{parseFloat(payroll.specialHol_Amnt).toLocaleString()}</p></div>}
               {payroll.incentives > 0 && <div className="row"><span>Incentives</span><p>₱{parseFloat(payroll.incentives).toLocaleString()}</p></div>}
               {payroll.allowance > 0 && <div className="row"><span>Allowance</span><p>₱{parseFloat(payroll.allowance).toLocaleString()}</p></div>}
