@@ -1,6 +1,7 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime } = require("./systemTime.js");
+const { logTransaction } = require("./logger");
 
 /**
  * Ensures all users who haven't logged in for the current system date
@@ -58,6 +59,8 @@ async function ensureAbsentsMarked() {
         if (onfieldResult.length > 0) {
           console.log(`[DEBUG] Auto-crediting On-Field Work for user ${userId} on ${todayStr}`);
           
+          await logTransaction(userId, null, "AUTO_ONFIELD_CREDIT", `Auto-credited On-Field Work for user ${userId} on ${todayStr}`, { date: todayStr });
+
           // Insert start log (Status 1 = Clock In)
           await sequelize.query(
             `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
@@ -114,6 +117,9 @@ async function ensureAbsentsMarked() {
 
             if (leaveResult.length === 0) {
               console.log(`[DEBUG] Marking user ${userId} as Absent for ${todayStr}`);
+              
+              await logTransaction(userId, null, "AUTO_ABSENT_MARK", `Auto-marked user ${userId} as Absent for ${todayStr}`, { date: todayStr });
+
               // Mark as Absent (status 3)
               await sequelize.query(
                 `INSERT INTO "user_logging"

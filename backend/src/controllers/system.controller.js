@@ -2,6 +2,7 @@ const { sequelize, SystemSettings, Holiday, PayrollPeriod } = require("../config
 const { getSystemTime } = require("../utils/systemTime.js");
 const { QueryTypes } = require("sequelize");
 const { syncHolidaysService } = require('../utils/holidaySyncService');
+const { logAudit } = require("../utils/logger");
 
 exports.syncHolidays = async (req, res) => {
     try {
@@ -35,6 +36,10 @@ exports.createHoliday = async (req, res) => {
       return res.status(400).json({ error: "Name, date, and type are required." });
     }
     const holiday = await Holiday.create({ name, date, type });
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "CREATE_HOLIDAY", "Holiday", holiday.holidayId, null, holiday.toJSON());
+
     res.status(201).json(holiday);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -49,8 +54,12 @@ exports.deleteHoliday = async (req, res) => {
       return res.status(400).json({ error: "Invalid Holiday ID provided." });
     }
 
+    const holiday = await Holiday.findOne({ where: { holidayId: parseInt(holidayId) } });
+
     const deleted = await Holiday.destroy({ where: { holidayId: parseInt(holidayId) } });
     if (deleted) {
+      const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+      await logAudit(req, currentAdminId, "DELETE_HOLIDAY", "Holiday", parseInt(holidayId), holiday ? holiday.toJSON() : null, null);
       res.status(200).json({ message: "Holiday deleted successfully." });
     } else {
       res.status(404).json({ error: "Holiday not found." });
@@ -73,11 +82,19 @@ exports.updateSystemSettings = async (req, res) => {
   const { mockTimeEnabled, mockTimeValue } = req.body;
   try {
     const settings = await SystemSettings.findOne();
+    let oldSettings = null;
+    let newSettings;
+
     if (!settings) {
-      await SystemSettings.create({ mockTimeEnabled, mockTimeValue });
+      newSettings = await SystemSettings.create({ mockTimeEnabled, mockTimeValue });
     } else {
-      await settings.update({ mockTimeEnabled, mockTimeValue });
+      oldSettings = settings.toJSON();
+      newSettings = await settings.update({ mockTimeEnabled, mockTimeValue });
     }
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "UPDATE_SETTINGS", "SystemSettings", newSettings.settingId, oldSettings, newSettings.toJSON());
+
     res.status(200).json({ message: "System settings updated successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -98,6 +115,10 @@ exports.createPayrollPeriod = async (req, res) => {
         const { startDate, endDate, label } = req.body;
         console.log("[DEBUG] Creating payroll period:", { startDate, endDate, label });
         const period = await PayrollPeriod.create({ startDate, endDate, label });
+
+        const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+        await logAudit(req, currentAdminId, "CREATE_PAYROLL_PERIOD", "PayrollPeriod", period.periodId, null, period.toJSON());
+
         res.status(201).json(period);
     } catch (error) {
         console.error("[ERROR] createPayrollPeriod:", error);
@@ -181,5 +202,41 @@ exports.getPayrollPeriods = async (req, res) => {
         console.error("[ERROR] getPayrollPeriods:", error);
         res.status(500).json({ error: error.message });
     }
+};
+
+exports.getAuditLogs = async (req, res) => {
+  try {
+    const logs = await sequelize.query(
+      `SELECT
+         a.*,
+         u."user_FirstName", u."user_LastName"
+       FROM "Audit_Log" a
+       LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
+       ORDER BY a."createdAt" DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getTransactionLogs = async (req, res) => {
+  try {
+    const logs = await sequelize.query(
+      `SELECT
+         t.*,
+         u."user_FirstName" AS "emp_FirstName", u."user_LastName" AS "emp_LastName",
+         a."user_FirstName" AS "admin_FirstName", a."user_LastName" AS "admin_LastName"
+       FROM "Transaction_Log" t
+       LEFT JOIN "User" u ON u."user_Id" = t."user_Id"
+       LEFT JOIN "User" a ON a."user_Id" = t."initiated_By"
+       ORDER BY t."createdAt" DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 

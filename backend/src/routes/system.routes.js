@@ -13,4 +13,7 @@ router.post("/sync-holidays", systemController.syncHolidays);
 router.get("/payroll-periods", systemController.getPayrollPeriods);
 router.post("/payroll-periods", systemController.createPayrollPeriod);
 
+router.get("/audit-logs", systemController.getAuditLogs);
+router.get("/transaction-logs", systemController.getTransactionLogs);
+
 module.exports = router;

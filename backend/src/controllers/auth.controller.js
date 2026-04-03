@@ -1,6 +1,7 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const bcrypt = require("bcryptjs");
+const { logAudit } = require("../utils/logger");
 
 exports.loginUser = async (req, res) => {
   const { user_Id, password } = req.body || {};
@@ -50,6 +51,10 @@ exports.loginUser = async (req, res) => {
 
     // Strip password before sending back to client
     const { user_Password, ...userData } = user;
+
+    if (user.user_RoleId === 1 || user.user_Role === "Admin") {
+      await logAudit(req, user.user_Id, "LOGIN", null, null, null, null);
+    }
 
     return res
       .status(200)

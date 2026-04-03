@@ -1,7 +1,8 @@
-const { sequelize } = require("../config/sequelize");
+const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { sendOnfieldEmail } = require("../utils/emailService");
+const { logAudit, logTransaction } = require("../utils/logger");
 
 exports.getCalendarReport = async (req, res) => {
   let { startDate, endDate, user_Id } = req.query;
@@ -389,6 +390,9 @@ exports.UserCreateRequest = async (req, res) => {
     const typeNameMap = { 1: "Overtime", 2: "Onfield Work", 3: "Vacation Leave", 4: "Sick Leave" };
     const typeName = typeNameMap[finalReqTypeId] || "Request";
 
+    // Log transaction
+    await logTransaction(finalUserId, null, "REQUEST_SUBMISSION", `${typeName} submitted by user ${finalUserId}`, { type: typeName, requestId: emp_reqId });
+
     await sequelize.query(
       `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "createdAt", "updatedAt")
        VALUES (:userId, :title, :message, false, :now, :now)`,
@@ -550,6 +554,12 @@ exports.UpdateStatusRequest = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    const oldRequestResult = await sequelize.query(
+      `SELECT * FROM "emp_Request" WHERE "emp_reqId" = :emp_reqId`,
+      { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+    );
+    const oldRequest = oldRequestResult[0];
+
     // 1. Update the parent request status
     await sequelize.query(
       `UPDATE "emp_Request"
@@ -570,6 +580,14 @@ exports.UpdateStatusRequest = async (req, res) => {
         type: QueryTypes.UPDATE,
       },
     );
+
+    const newRequestResult = await sequelize.query(
+      `SELECT * FROM "emp_Request" WHERE "emp_reqId" = :emp_reqId`,
+      { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+    );
+    const newRequest = newRequestResult[0];
+
+    await logAudit(req, processedBy, "UPDATE_REQUEST_STATUS", "emp_Request", emp_reqId, oldRequest, newRequest);
 
     // 2. If it's a Leave request and withPayId is provided, update the child table
     if (withPayId) {

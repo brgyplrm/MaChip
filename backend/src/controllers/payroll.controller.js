@@ -3,6 +3,7 @@ const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { sendPayrollEmail } = require("../utils/emailService");
 const { generatePayslipPDF } = require("../utils/pdfGenerator");
+const { logAudit, logTransaction } = require("../utils/logger");
 
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -373,6 +374,10 @@ exports.generatePayroll = async (req, res) => {
 
     const payrollId = payrollResult[0][0]?.payrollId || payrollResult[0].payrollId || payrollResult[0][0];
 
+    // Log individual transaction
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(user_Id, currentAdminId, "PAYROLL_GEN", `Generated payroll for period ${period_Start} to ${period_End}`, { netPay: finalStats.netPay, payrollId });
+
     await sequelize.query(
       `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt")
        VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt)`,
@@ -545,6 +550,10 @@ exports.generateBatchPayroll = async (req, res) => {
       );
     }
 
+    // Log the Batch Action
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "BATCH_PAYROLL_GEN", `Generated batch payroll for period ${period_Start} to ${period_End}`, { processedCount, periodId });
+
     res.status(201).json({ 
       message: "Batch payroll generated successfully.",
       processed: processedCount,
@@ -680,14 +689,21 @@ exports.releasePayroll = async (req, res) => {
       { replacements: { payrollId }, type: QueryTypes.SELECT }
     );
 
+    if (payrollInfo.length === 0) {
+      return res.status(404).json({ error: "Payroll not found." });
+    }
+
+    const p = payrollInfo[0];
+
     await sequelize.query(
       `UPDATE "Payroll" SET "status" = 2, "updatedAt" = :now WHERE "payrollId" = :payrollId`,
       { replacements: { payrollId, now: nowStr }, type: QueryTypes.UPDATE },
     );
 
-    if (payrollInfo.length > 0 && payrollInfo[0].user_Email) {
-      const p = payrollInfo[0];
-      
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(p.user_Id, currentAdminId, "PAYROLL_RELEASE", `Released payroll ID ${p.payrollId}`, { netPay: p.netPay, period: `${p.period_Start} to ${p.period_End}` });
+
+    if (p.user_Email) {
       generatePayslipPDF(p).then(pdfBuffer => {
         return sendPayrollEmail({
           email: p.user_Email,
@@ -759,6 +775,14 @@ exports.updatePayroll = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    const oldPayroll = await sequelize.query(
+      `SELECT p.*, e.*, d.* FROM "Payroll" p
+       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
+       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+       WHERE p."payrollId" = :payrollId LIMIT 1`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+
     await sequelize.query(
       `UPDATE "Payroll"
        SET "dailyRate" = :dailyRate, "ratePerHr" = :ratePerHr, "NoDays_Worked" = :NoDays_Worked,
@@ -790,6 +814,17 @@ exports.updatePayroll = async (req, res) => {
           absence_Hrs: (parseFloat(absence_Days) || 0) * 8
         }, type: QueryTypes.UPDATE }
     );
+
+    const newPayroll = await sequelize.query(
+      `SELECT p.*, e.*, d.* FROM "Payroll" p
+       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
+       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+       WHERE p."payrollId" = :payrollId LIMIT 1`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "UPDATE_PAYROLL", "Payroll", payrollId, oldPayroll[0], newPayroll[0]);
 
     res.status(200).json({ message: "Payroll updated successfully" });
   } catch (error) {

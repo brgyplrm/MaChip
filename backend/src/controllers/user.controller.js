@@ -3,6 +3,7 @@ const { QueryTypes } = require("sequelize");
 const bcrypt = require("bcryptjs");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { validateEmailActive, sendWelcomeEmail, sendPasswordUpdateEmail } = require("../utils/emailService");
+const { logAudit } = require("../utils/logger");
 
 // ── Get Next User ID ──────────────────────────────────────────────────────────
 exports.getNextUserId = async (req, res) => {
@@ -145,6 +146,8 @@ exports.registerUser = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
 
+    await logAudit(req, req.user?.user_Id || 1, "CREATE_USER", "User", user_Id, null, newUser[0]);
+
     res.status(201).json({ message: "User Registered!", data: newUser[0] });
   } catch (error) {
     console.error("[REGISTER USER ERROR]:", error);
@@ -230,6 +233,8 @@ exports.deleteUser = async (req, res) => {
     );
 
     if (result) {
+      const user = await sequelize.query(`SELECT * FROM "User" WHERE "user_Id" = :user_Id`, { replacements: { user_Id }, type: QueryTypes.SELECT });
+      await logAudit(req, currentAdminId || 1, "SOFT_DELETE_USER", "User", user_Id, user[0], null);
       res.status(200).json({ message: "User soft-deleted successfully." });
     } else {
       res.status(404).json({ message: "User not found." });
@@ -303,6 +308,8 @@ exports.forceDeleteUser = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.DELETE },
     );
 
+    await logAudit(req, currentAdminId || 1, "PERMANENT_DELETE_USER", "User", user_Id, user[0], null);
+
     res.status(200).json({ message: "User permanently deleted." });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -367,6 +374,12 @@ exports.updateUser = async (req, res) => {
       return res.status(400).json({ error: "Middle Name must not contain numbers." });
     }
 
+    const oldUserResult = await sequelize.query(
+      `SELECT * FROM "User" WHERE "user_Id" = :targetId`,
+      { replacements: { targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
+    );
+    const oldUser = oldUserResult[0];
+
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
@@ -416,6 +429,9 @@ exports.updateUser = async (req, res) => {
     );
 
     const updatedUser = updatedUserResult[0];
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "UPDATE_USER", "User", user_Id, oldUser, updatedUser);
 
     // 2. Send email if password was updated
     if (user_Password && user_Password.trim() !== "" && updatedUser) {
@@ -558,6 +574,8 @@ exports.updateDailyRate = async (req, res) => {
       });
     }
 
+    const oldRateData = { dailyRate: currentRate, previousDailyRate: existing[0].previousDailyRate };
+
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
@@ -583,6 +601,10 @@ exports.updateDailyRate = async (req, res) => {
        WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
+
+    const newRateData = { dailyRate: updated[0].dailyRate, previousDailyRate: updated[0].previousDailyRate };
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "UPDATE_DAILY_RATE", "User", user_Id, oldRateData, newRateData);
 
     res.status(200).json({
       message: "Daily rate updated successfully.",
