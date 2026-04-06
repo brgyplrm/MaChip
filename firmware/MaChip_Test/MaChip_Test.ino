@@ -72,7 +72,7 @@ void loop() {
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
 
-  delay(1000);
+  delay(1000); // Debounce
 }
 
 void sendScanToBackend(String uid) {
@@ -80,38 +80,47 @@ void sendScanToBackend(String uid) {
   http.begin(serverName);
   http.addHeader("Content-Type", "application/json");
 
+  // Create JSON payload
   StaticJsonDocument<200> doc;
   doc["uid"] = uid;
   String requestBody;
   serializeJson(doc, requestBody);
 
+  Serial.println("Sending request to backend...");
   int httpResponseCode = http.POST(requestBody);
 
   if (httpResponseCode > 0) {
     String response = http.getString();
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    Serial.println("Response: " + response);
+
+    // Parse JSON response
     StaticJsonDocument<200> resDoc;
     DeserializationError error = deserializeJson(resDoc, response);
 
     if (!error) {
       bool success = resDoc["success"];
-      bool isCapture = resDoc["isCapture"] | false;
+      const char* name = resDoc["name"];
+      const char* action = resDoc["action"];
 
-      if (isCapture) {
-        Serial.println("UID Captured for registration mode.");
-        captureFeedback();
-      } else if (success) {
+      if (success) {
         Serial.print("Access Granted: ");
-        Serial.println(resDoc["name"].as<const char*>());
+        Serial.print(name);
+        Serial.print(" (");
+        Serial.print(action);
+        Serial.println(")");
+        
         grantAccessFeedback();
       } else {
-        Serial.println("Access Denied.");
+        Serial.println("Access Denied: " + String(resDoc["message"].as<const char*>()));
         denyAccessFeedback();
       }
     }
   } else {
     Serial.print("Error on sending POST: ");
     Serial.println(httpResponseCode);
-    denyAccessFeedback();
+    denyAccessFeedback(); // Treat connection error as denied
   }
 
   http.end();
@@ -129,17 +138,4 @@ void denyAccessFeedback() {
   tone(BUZZER, 500, 1000);
   delay(1000);
   digitalWrite(RED_LED, LOW);
-}
-
-void captureFeedback() {
-  // Rapid blink both LEDs to indicate "Captured"
-  for(int i=0; i<3; i++) {
-    digitalWrite(GREEN_LED, HIGH);
-    digitalWrite(RED_LED, HIGH);
-    tone(BUZZER, 1500, 100);
-    delay(100);
-    digitalWrite(GREEN_LED, LOW);
-    digitalWrite(RED_LED, LOW);
-    delay(100);
-  }
 }
