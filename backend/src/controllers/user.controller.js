@@ -22,16 +22,6 @@ exports.getNextUserId = async (req, res) => {
   }
 };
 
-// ── Generate RFID ─────────────────────────────────────────────────────────────
-exports.generateRfid = async (req, res) => {
-  try {
-    const generatedRfid = Math.random().toString(36).substr(2, 9).toUpperCase();
-    res.status(200).json({ rfid: generatedRfid });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
 // ── Register User ─────────────────────────────────────────────────────────────
 exports.registerUser = async (req, res) => {
   try {

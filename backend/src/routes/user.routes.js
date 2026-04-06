@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/user.controller.js");
+const rfidController = require("../controllers/rfid.controller.js");
 const upload = require("../middleware/upload.js");
 
 // URL will be: http://localhost:4000/api/users/registerUser
@@ -10,7 +11,7 @@ router.post("/registerUser", upload.single("user_ProfilePic"), userController.re
 router.get("/nextId", userController.getNextUserId);
 
 // Route for generating RFID
-router.get("/generateRfid", userController.generateRfid);
+router.get("/generateRfid", rfidController.generateRfid);
 
 // This creates the URL: http://localhost:4000/api/users/all
 router.get("/all", userController.viewAllUsers);

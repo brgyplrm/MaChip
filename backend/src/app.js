@@ -1,4 +1,5 @@
-process.env.TZ = "Asia/Manila";
+require('dotenv').config({ path: './.env' }); // Load .env
+process.env.TZ = process.env.TZ || "Asia/Manila";
 const express = require("express");
 const cors = require("cors");
 const { connectDB, sequelize } = require("./config/sequelize"); // Import connectDB and sequelize
@@ -88,6 +89,10 @@ app.use("/api/notifications", notificationRoutes);
 // Routes for system settings
 const systemRoutes = require("./routes/system.routes.js");
 app.use("/api/system", systemRoutes);
+
+// Routes for RFID/ESP32
+const rfidRoutes = require("./routes/rfid.routes.js");
+app.use("/api/rfid", rfidRoutes);
 
 // ── Error Handling Middleware ────────────────────────────────────────────────
 app.use((err, req, res, next) => {
