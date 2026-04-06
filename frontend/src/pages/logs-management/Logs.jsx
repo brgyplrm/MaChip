@@ -105,10 +105,14 @@ const Logs = () => {
     }
   }, []);
 
-  // Load logs on mount
+  // Load logs on mount and start polling
   useEffect(() => {
     fetchLogs();
     fetchUsers();
+
+    // Set up polling every 5 seconds for real-time RFID updates
+    const interval = setInterval(fetchLogs, 1000);
+    return () => clearInterval(interval);
   }, [fetchLogs, fetchUsers]);
 
   const handleGenerateLogs = async (forcedStatus) => {

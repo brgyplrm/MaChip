@@ -48,8 +48,18 @@ void setup() {
 void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     WiFi.begin(ssid, password);
-    delay(2000);
-    return;
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+        delay(500);
+        Serial.print(".");
+        attempts++;
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\nWiFi Connected! IP: " + WiFi.localIP().toString());
+    } else {
+        Serial.println("\nWiFi FAILED. Check SSID/password.");
+    }
   }
 
   if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {

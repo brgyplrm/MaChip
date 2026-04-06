@@ -17,7 +17,7 @@ const List = ({ userId }) => {
     if (!userId) return;
 
     const fetchUserLogs = async () => {
-      setLoading(true);
+      // Don't show loading spinner on every background poll, only on first load
       try {
         const response = await fetch(
           `http://localhost:4000/api/attendance/logs/${userId}`,
@@ -38,6 +38,10 @@ const List = ({ userId }) => {
     };
 
     fetchUserLogs();
+    
+    // Set up polling
+    const interval = setInterval(fetchUserLogs, 5000);
+    return () => clearInterval(interval);
   }, [userId]);
 
   const getLogStatusClass = (logStatus) => {

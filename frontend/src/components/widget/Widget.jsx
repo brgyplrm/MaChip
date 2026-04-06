@@ -46,8 +46,8 @@ const Widget = ({ type }) => {
     // 1. Fetch immediately on mount
     fetchStats();
 
-    // 2. Poll every 60 seconds so the counts stay live throughout the day
-    const pollInterval = setInterval(fetchStats, 60000);
+    // 2. Poll every 5 seconds so the counts stay live throughout the day
+    const pollInterval = setInterval(fetchStats, 5000);
 
     // 3. At exactly midnight, reset to 0 then re-fetch (backend returns 0 for
     //    the new day since there are no logs yet) — this fires once per day

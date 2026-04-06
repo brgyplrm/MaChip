@@ -48,9 +48,9 @@ const OccupancyList = () => {
     fetchOccupancy();
   }, [fetchOccupancy]);
 
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 5 seconds
   useEffect(() => {
-    const interval = setInterval(fetchOccupancy, 30000);
+    const interval = setInterval(fetchOccupancy, 5000);
     return () => clearInterval(interval);
   }, [fetchOccupancy]);
 
