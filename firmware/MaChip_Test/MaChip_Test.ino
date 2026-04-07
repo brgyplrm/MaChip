@@ -40,9 +40,27 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("\nWiFi Connected!");
-
+  
+  startupFeedback();
+  errorFeedback(); // ← ADD THIS
+  
   Serial.println("MAChip RFID Reader Online");
   Serial.println("Scan a card...");
+}
+
+void startupFeedback() {
+  int notes[] = {1000, 1500, 2000, 2500};
+  for (int i = 0; i < 4; i++) {
+    tone(BUZZER, notes[i], 100);
+    delay(120);
+  }
+}
+
+void errorFeedback() {
+  for (int i = 0; i < 3; i++) {
+    tone(BUZZER, 1000, 100);
+    delay(200);
+  }
 }
 
 void loop() {
@@ -138,14 +156,14 @@ void sendScanToBackend(String uid) {
 
 void grantAccessFeedback() {
   digitalWrite(GREEN_LED, HIGH);
-  tone(BUZZER, 2000, 200);
-  delay(1000);
+  tone(BUZZER, 2000, 100); delay(150);
+  tone(BUZZER, 2500, 100); delay(1000); // rising = positive feel
   digitalWrite(GREEN_LED, LOW);
 }
 
 void denyAccessFeedback() {
   digitalWrite(RED_LED, HIGH);
-  tone(BUZZER, 500, 1000);
-  delay(1000);
+  tone(BUZZER, 800, 200); delay(250);
+  tone(BUZZER, 400, 400); delay(1000); // falling = negative feel
   digitalWrite(RED_LED, LOW);
 }

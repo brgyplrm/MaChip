@@ -31,6 +31,7 @@ const New = ({ inputs, title }) => {
   const [file, setFile] = useState("");
   const [displayId, setDisplayId] = useState("");
   const [showRfidModal, setShowRfidModal] = useState(false);
+  const [rfidError, setRfidError] = useState("");
   const [formData, setFormData] = useState({
     user_Id: "",
     user_FirstName: "",
@@ -72,24 +73,27 @@ const New = ({ inputs, title }) => {
     // 1. Open the modal immediately
     setShowRfidModal(true); 
     setFormData(prev => ({ ...prev, user_MachipId: "" }));
+    setRfidError("");
 
     try {
       const response = await fetch("http://localhost:4000/api/users/generateRfid");
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
-        
         // 2. Update the form data with the scanned ID
         setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
-        
         setToast({
           message: `New MaChip scanned: ${data.rfid}`,
           type: "success",
         });
       } else {
-        setToast({ message: "Failed to scan RFID. Please try again.", type: "error" });
+        setRfidError(data.error || "Failed to scan RFID. Please try again.");
+        if (data.rfid) setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
+        setToast({ message: data.error || "Failed to scan RFID.", type: "error" });
       }
     } catch (err) {
       console.error("Error scanning RFID:", err);
+      setRfidError("An error occurred while scanning.");
       setToast({ message: "An error occurred while scanning.", type: "error" });
     }
   };
@@ -281,6 +285,7 @@ const New = ({ inputs, title }) => {
           onClose={() => setShowRfidModal(false)}
           onRescan={handleScanRFID}
           scannedId={formData.user_MachipId} 
+          error={rfidError}
         />
       </div>
     );

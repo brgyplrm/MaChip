@@ -38,12 +38,14 @@ $success-green: #22c55e;
         position: relative;
 
         &.success { background: rgba(34, 197, 94, 0.1); }
+        &.error { background: rgba(239, 68, 68, 0.1); }
         
         .mainIcon {
           font-size: 50px;
           color: #94a3b8;
           z-index: 2;
           &.success { color: $success-green; }
+          &.error { color: #ef4444; }
         }
 
         /* Pulse Animation */
@@ -55,6 +57,12 @@ $success-green: #22c55e;
       h2 { font-size: 22px; color: #1e293b; margin-bottom: 10px; }
       p { font-size: 14px; color: #64748b; line-height: 1.5; margin-bottom: 30px; }
 
+      .idResultContainer {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+      }
+
       .idResultBox {
         background: #f1f5f9;
         padding: 15px;
@@ -62,10 +70,25 @@ $success-green: #22c55e;
         opacity: 0.5;
         transition: 0.3s;
 
+        &.current {
+          opacity: 0.8;
+          background: #fafafa;
+          border: 1px dashed #cbd5e1;
+          .idValue { color: #64748b; font-size: 16px; }
+          &:hover { opacity: 1; }
+        }
+
         &.visible { 
           opacity: 1; 
           background: rgba(34, 197, 94, 0.05); 
           border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        &.error {
+          opacity: 1;
+          background: rgba(239, 68, 68, 0.05);
+          border: 1px solid rgba(239, 68, 68, 0.2);
+          .idValue { color: #ef4444; }
         }
 
         label { display: block; font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 700; margin-bottom: 5px; }

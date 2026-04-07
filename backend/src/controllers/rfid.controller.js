@@ -216,11 +216,24 @@ exports.generateRfid = async (req, res) => {
   const startTime = Date.now();
   const checkInterval = setInterval(() => {
     if (captureSession.scannedUid) {
-      clearInterval(checkInterval);
       const uid = captureSession.scannedUid;
       captureSession.scannedUid = null;
       captureSession.isCapturing = false;
-      return res.status(200).json({ rfid: uid });
+      clearInterval(checkInterval);
+
+      // Check if this UID is already assigned to another user
+      User.findOne({ where: { user_MachipId: uid, deletedAt: null } })
+        .then(user => {
+          if (user) {
+            return res.status(400).json({ error: "MaChip ID is already assigned to another user.", rfid: uid });
+          }
+          return res.status(200).json({ rfid: uid });
+        })
+        .catch(err => {
+          console.error("[RFID] Database check error:", err);
+          return res.status(500).json({ error: "Internal Server Error checking RFID." });
+        });
+      return;
     }
 
     if (Date.now() - startTime > 30000) {

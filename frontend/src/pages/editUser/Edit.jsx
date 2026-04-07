@@ -9,6 +9,7 @@ import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import { useNavigate } from "react-router-dom";
+import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
 
 
 // ── Validation helpers ────────────────────────────────────────────────────────
@@ -66,6 +67,9 @@ const Edit = ({ inputs, title }) => {
   const [displayPic, setDisplayPic] = useState("");
   const [showAdminConfirm, setShowAdminConfirm] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
+  const [showRfidModal, setShowRfidModal] = useState(false);
+  const [rfidError, setRfidError] = useState("");
+  const [originalMachipId, setOriginalMachipId] = useState("");
 
   const navigate = useNavigate();
 
@@ -112,6 +116,7 @@ const Edit = ({ inputs, title }) => {
             user_Role: reverseRoleMap[data.user_RoleId] || "Employee",
             user_EmploymentStatus: reverseStatusMap[data.user_EmploymentStatusId] || "Regular"
           });
+          setOriginalMachipId(data.user_MachipId || "");
 
           if (data.user_ProfilePic) {
             setDisplayPic(`/api/uploads/${data.user_ProfilePic}`);
@@ -131,24 +136,40 @@ const Edit = ({ inputs, title }) => {
   };
 
   const handleScanRFID = async () => {
+    setShowRfidModal(true);
+    setFormData((prev) => ({ ...prev, user_MachipId: "" }));
+    setRfidError("");
     try {
       const response = await fetch("/api/users/generateRfid");
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
-        setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
-        clearError("user_MachipId");
-        setToast({
-          message: `New MaChip scanned! ID updated to: ${data.rfid}`,
-          type: "success",
-        });
+        if (data.rfid === originalMachipId) {
+          setRfidError("Same card used. Please try a different MaChip.");
+          setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
+          setToast({
+            message: "Same card used. Please try a different MaChip.",
+            type: "error",
+          });
+        } else {
+          setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
+          clearError("user_MachipId");
+          setToast({
+            message: `New MaChip scanned! ID updated to: ${data.rfid}`,
+            type: "success",
+          });
+        }
       } else {
+        setRfidError(data.error || "Failed to scan RFID. Please try again.");
+        if (data.rfid) setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
         setToast({
-          message: "Failed to scan RFID. Please try again.",
+          message: data.error || "Failed to scan RFID.",
           type: "error",
         });
       }
     } catch (err) {
       console.error("Error scanning RFID:", err);
+      setRfidError("An error occurred while scanning.");
       setToast({
         message: "An error occurred while scanning the chip.",
         type: "error",
@@ -425,6 +446,15 @@ const Edit = ({ inputs, title }) => {
         </div>
       </div>
     )}
+
+    <RfidScanModal 
+      isOpen={showRfidModal} 
+      onClose={() => setShowRfidModal(false)}
+      onRescan={handleScanRFID}
+      scannedId={formData.user_MachipId} 
+      error={rfidError}
+      currentId={originalMachipId}
+    />
   </div>
 );
 };
