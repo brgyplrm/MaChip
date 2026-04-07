@@ -15,6 +15,7 @@ import html2canvas from "html2canvas";
 import { Link } from "react-router-dom";
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
+import { formatUserId } from "../../utils/formatUserId";
 
 const UserRequests = () => {
   const dtrRef = useRef();
@@ -494,7 +495,7 @@ const UserRequests = () => {
                   {/* Top Header Fields */}
                   <div className="cardTopHeader">
                     <div className="headerLine">
-                      <div className="field">No. <span>______</span></div>
+                      <div className="field">No. <span>{formatUserId(userData?.user_Id)}</span></div>
                       <div className="field">Pay Ending <span>{payroll.payEnding}</span></div>
                     </div>
                     <div className="headerLine">

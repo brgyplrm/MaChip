@@ -37,10 +37,11 @@ const Sidebar = () => {
 
   const confirmLogout = async () => {
       try {
-        // 1. Optional: Tell your backend (Express/Flask) to end the session
-        // Based on your port 4000 setup
+        // 1. Tell backend to log logout event
         await fetch("http://localhost:4000/api/users/logout", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_Id: userData?.user_Id }),
         });
 
         // 2. Clear local storage/Session storage

@@ -6,6 +6,9 @@ const { connectDB, sequelize } = require("./config/sequelize"); // Import connec
 
 const app = express();
 
+// Trust proxy for correct IP handling behind nginx/lb
+app.set("trust proxy", true);
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -38,7 +41,7 @@ app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
 // Connect to the database
-connectDB().then(() => {
+connectDB().then(async () => {
   console.log("[INIT] System startup: Syncing holidays...");
   const { syncHolidaysService } = require("./utils/holidaySyncService");
   syncHolidaysService().catch(err => console.error("[INIT] Initial Holiday Sync Failed:", err.message));

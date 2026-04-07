@@ -7,6 +7,7 @@ import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import AttachmentIcon from "@mui/icons-material/Attachment";
 import Toast from "../../components/toast/Toast";
+import { formatUserId } from "../../utils/formatUserId";
 
 const AdminRequests = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -323,7 +324,7 @@ const AdminRequests = () => {
                         </div>
                         <div className="detailBox">
                           <label>Admin ID</label>
-                          <p>{current.admin_id}</p>
+                          <p>{formatUserId(current.admin_id)}</p>
                         </div>
                       </>
                     )}

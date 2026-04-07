@@ -7,6 +7,7 @@ import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PermanentDeleteModal from "../../components/permanentDeleteModal/PermanentDeleteModal";
 import Toast from "../../components/toast/Toast";
+import { formatUserId } from "../../utils/formatUserId";
 
 const ArchivedUsers = () => {
   const [showPermDelete, setShowPermDelete] = useState(false);
@@ -174,6 +175,7 @@ const ArchivedUsers = () => {
             <table className="customArchiveTable">
               <thead>
                 <tr>
+                  <th>User ID</th>
                   <th>Name</th>
                   <th>Email</th>
                   <th>User Type</th>
@@ -184,6 +186,7 @@ const ArchivedUsers = () => {
               <tbody>
                 {filteredUsers.length > 0 ? filteredUsers.map((user) => (
                   <tr key={user.user_Id}>
+                    <td className="boldText">{formatUserId(user.user_Id)}</td>
                     <td className="boldText">{user.user_FirstName} {user.user_LastName}</td>
                     <td>{user.user_Email || "—"}</td>
                     <td>

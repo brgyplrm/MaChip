@@ -376,7 +376,7 @@ exports.generatePayroll = async (req, res) => {
 
     // Log individual transaction
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(user_Id, currentAdminId, "PAYROLL_GEN", `Generated payroll for period ${period_Start} to ${period_End}`, { netPay: finalStats.netPay, payrollId });
+    await logTransaction(user_Id, currentAdminId, "PAYROLL_GEN", `Generated payroll for period ${period_Start} to ${period_End}`, { netPay: finalStats.netPay, payrollId }, req);
 
     await sequelize.query(
       `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt")
@@ -552,7 +552,7 @@ exports.generateBatchPayroll = async (req, res) => {
 
     // Log the Batch Action
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "BATCH_PAYROLL_GEN", `Generated batch payroll for period ${period_Start} to ${period_End}`, { processedCount, periodId });
+    await logTransaction(null, currentAdminId, "BATCH_PAYROLL_GEN", `Generated batch payroll for period ${period_Start} to ${period_End}`, { processedCount, periodId }, req);
 
     res.status(201).json({ 
       message: "Batch payroll generated successfully.",
@@ -701,7 +701,7 @@ exports.releasePayroll = async (req, res) => {
     );
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(p.user_Id, currentAdminId, "PAYROLL_RELEASE", `Released payroll ID ${p.payrollId}`, { netPay: p.netPay, period: `${p.period_Start} to ${p.period_End}` });
+    await logTransaction(p.user_Id, currentAdminId, "PAYROLL_RELEASE", `Released payroll ID ${p.payrollId}`, { netPay: p.netPay, period: `${p.period_Start} to ${p.period_End}` }, req);
 
     if (p.user_Email) {
       generatePayslipPDF(p).then(pdfBuffer => {
@@ -824,7 +824,7 @@ exports.updatePayroll = async (req, res) => {
     );
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logAudit(req, currentAdminId, "UPDATE_PAYROLL", "Payroll", payrollId, oldPayroll[0], newPayroll[0]);
+    await logAudit(req, currentAdminId, "Payroll", "UPDATE_PAYROLL", "Payroll", payrollId, oldPayroll[0], newPayroll[0]);
 
     res.status(200).json({ message: "Payroll updated successfully" });
   } catch (error) {

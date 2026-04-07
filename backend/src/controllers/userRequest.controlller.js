@@ -391,7 +391,7 @@ exports.UserCreateRequest = async (req, res) => {
     const typeName = typeNameMap[finalReqTypeId] || "Request";
 
     // Log transaction
-    await logTransaction(finalUserId, null, "REQUEST_SUBMISSION", `${typeName} submitted by user ${finalUserId}`, { type: typeName, requestId: emp_reqId });
+    await logTransaction(finalUserId, null, "REQUEST_SUBMISSION", `${typeName} submitted by user ${finalUserId}`, { type: typeName, requestId: emp_reqId }, req);
 
     await sequelize.query(
       `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "createdAt", "updatedAt")
@@ -587,7 +587,7 @@ exports.UpdateStatusRequest = async (req, res) => {
     );
     const newRequest = newRequestResult[0];
 
-    await logAudit(req, processedBy, "UPDATE_REQUEST_STATUS", "emp_Request", emp_reqId, oldRequest, newRequest);
+    await logAudit(req, processedBy, "Requests", "UPDATE_REQUEST_STATUS", "emp_Request", emp_reqId, oldRequest, newRequest);
 
     // 2. If it's a Leave request and withPayId is provided, update the child table
     if (withPayId) {

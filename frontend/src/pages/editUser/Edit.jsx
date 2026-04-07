@@ -262,7 +262,7 @@ const Edit = ({ inputs, title }) => {
     <div className="newContainer">
       <Navbar />
       <div className="top">
-        <h1>{title} (ID: {userId})</h1>
+        <h1>{title} (ID: {formatUserId(userId)})</h1>
       </div>
       <div className="bottom">
         {/* Left Side: Profile Picture Preview */}

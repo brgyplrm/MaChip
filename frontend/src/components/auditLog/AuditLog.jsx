@@ -8,6 +8,7 @@ import FilterListIcon from "@mui/icons-material/FilterList";
 import SecurityIcon from "@mui/icons-material/Security";
 import CloseIcon from "@mui/icons-material/Close";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import { formatUserId } from "../../utils/formatUserId";
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
@@ -50,12 +51,65 @@ const AuditLogs = () => {
     activeAdmins: new Set(logs.map(l => l.user_Id)).size,
   };
 
-  const renderJsonTree = (data) => {
-    if (!data) return <span>null</span>;
+  const DiffViewer = ({ oldVal, newVal }) => {
+    const oldObj = oldVal || {};
+    const newObj = newVal || {};
+    
+    // Get all unique keys from both objects
+    const allKeys = Array.from(new Set([...Object.keys(oldObj), ...Object.keys(newObj)]))
+      .filter(key => !["createdAt", "updatedAt", "deletedAt"].includes(key)) // Filter noisy fields
+      .sort();
+
+    const sensitiveFields = ["user_Password", "password", "user_MachipId", "rfid", "uid", "adminPassword", "admin_Password"];
+
+    const formatValue = (key, val) => {
+      if (val === undefined || val === null) return <span className="empty">—</span>;
+      if (sensitiveFields.includes(key)) return <span className="redacted">[REDACTED]</span>;
+      return typeof val === "object" ? JSON.stringify(val) : String(val);
+    };
+
     return (
-      <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-        {JSON.stringify(data, null, 2)}
-      </pre>
+      <div className="diffTableContainer">
+        <table className="diffTable">
+          <thead>
+            <tr>
+              <th>Field Name</th>
+              <th>Previous Value</th>
+              <th>New Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allKeys.map(key => {
+              const prev = oldObj[key];
+              const current = newObj[key];
+              const isChanged = JSON.stringify(prev) !== JSON.stringify(current);
+              
+              return (
+                <tr key={key} className={isChanged ? "changedRow" : "unchangedRow"}>
+                  <td className="fieldName">{key.replace(/_/g, " ")}</td>
+                  <td className="oldValue">
+                    <span className={isChanged ? "strikethrough" : ""}>
+                      {formatValue(key, prev)}
+                    </span>
+                  </td>
+                  <td className="newValue">
+                    <span className={isChanged ? "highlight" : ""}>
+                      {formatValue(key, current)}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+            {allKeys.length === 0 && (
+              <tr>
+                <td colSpan="3" style={{textAlign: "center", padding: "20px", color: "#888"}}>
+                  No field data available for this action.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     );
   };
 
@@ -127,6 +181,7 @@ const AuditLogs = () => {
                 <thead>
                   <tr>
                     <th>Timestamp</th>
+                    <th>Module</th>
                     <th>Administrator</th>
                     <th>Action Category</th>
                     <th>Target</th>
@@ -138,13 +193,20 @@ const AuditLogs = () => {
                   {filteredLogs.map((log) => (
                     <tr key={log.auditId}>
                       <td className="timeCell">{new Date(log.createdAt).toLocaleString()}</td>
-                      <td className="adminCell">{log.user_FirstName} {log.user_LastName} (ID: {log.user_Id})</td>
+                      <td className="moduleCell">
+                        <span className={`moduleBadge ${(log.module || "System").toLowerCase().replace(/ /g, "")}`}>
+                          {log.module || "System"}
+                        </span>
+                      </td>
+                      <td className="adminCell">{log.user_FirstName} {log.user_LastName} ({formatUserId(log.user_Id)})</td>
                       <td>
                         <span className={`actionBadge ${log.action.toLowerCase().replace(/_/g, "")}`}>
                           {log.action.replace(/_/g, " ")}
                         </span>
                       </td>
-                      <td className="boldText">{log.target_Table || "System"} {log.target_Id ? `#${log.target_Id}` : ""}</td>
+                      <td className="boldText">
+                        {log.target_Table || "System"} {log.target_Id ? `#${log.target_Table === "User" ? formatUserId(log.target_Id) : log.target_Id}` : ""}
+                      </td>
                       <td className="subtleText">{log.ip_Address || "Local"}</td>
                       <td>
                         <button className="viewDetailsBtn" onClick={() => setSelectedLog(log)} style={{background: "none", border: "none", cursor: "pointer", color: "#6439ff", display: "flex", alignItems: "center", gap: "5px"}}>
@@ -172,18 +234,14 @@ const AuditLogs = () => {
               <CloseIcon className="closeIcon" onClick={() => setSelectedLog(null)} />
             </div>
             <div className="modalBody">
-              <div className="diffContainer" style={{display: "flex", gap: "20px", marginTop: "15px"}}>
-                <div className="diffBox" style={{flex: 1, padding: "15px", background: "#f8f9fa", borderRadius: "8px", border: "1px solid #eee"}}>
-                  <h4 style={{color: "#d32f2f", marginBottom: "10px"}}>Previous Value</h4>
-                  <div style={{fontSize: "13px", color: "#555", overflowX: "auto"}}>
-                    {renderJsonTree(selectedLog.old_Value)}
-                  </div>
-                </div>
-                <div className="diffBox" style={{flex: 1, padding: "15px", background: "#f8f9fa", borderRadius: "8px", border: "1px solid #eee"}}>
-                  <h4 style={{color: "#2e7d32", marginBottom: "10px"}}>New Value</h4>
-                  <div style={{fontSize: "13px", color: "#555", overflowX: "auto"}}>
-                    {renderJsonTree(selectedLog.new_Value)}
-                  </div>
+              <DiffViewer 
+                oldVal={selectedLog.old_Value} 
+                newVal={selectedLog.new_Value} 
+              />
+              <div className="modalFooter">
+                <div className="metaInfo">
+                  <span><strong>Target:</strong> {selectedLog.target_Table} #{selectedLog.target_Table === "User" ? formatUserId(selectedLog.target_Id) : selectedLog.target_Id}</span>
+                  <span><strong>IP:</strong> {selectedLog.ip_Address || "Local"}</span>
                 </div>
               </div>
             </div>

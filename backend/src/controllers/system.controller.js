@@ -38,7 +38,7 @@ exports.createHoliday = async (req, res) => {
     const holiday = await Holiday.create({ name, date, type });
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logAudit(req, currentAdminId, "CREATE_HOLIDAY", "Holiday", holiday.holidayId, null, holiday.toJSON());
+    await logAudit(req, currentAdminId, "System Settings", "CREATE_HOLIDAY", "Holiday", holiday.holidayId, null, holiday.toJSON());
 
     res.status(201).json(holiday);
   } catch (error) {
@@ -59,7 +59,7 @@ exports.deleteHoliday = async (req, res) => {
     const deleted = await Holiday.destroy({ where: { holidayId: parseInt(holidayId) } });
     if (deleted) {
       const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-      await logAudit(req, currentAdminId, "DELETE_HOLIDAY", "Holiday", parseInt(holidayId), holiday ? holiday.toJSON() : null, null);
+      await logAudit(req, currentAdminId, "System Settings", "DELETE_HOLIDAY", "Holiday", parseInt(holidayId), holiday ? holiday.toJSON() : null, null);
       res.status(200).json({ message: "Holiday deleted successfully." });
     } else {
       res.status(404).json({ error: "Holiday not found." });
@@ -93,7 +93,7 @@ exports.updateSystemSettings = async (req, res) => {
     }
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logAudit(req, currentAdminId, "UPDATE_SETTINGS", "SystemSettings", newSettings.settingId, oldSettings, newSettings.toJSON());
+    await logAudit(req, currentAdminId, "System Settings", "UPDATE_SETTINGS", "SystemSettings", newSettings.settingId, oldSettings, newSettings.toJSON());
 
     res.status(200).json({ message: "System settings updated successfully" });
   } catch (error) {
@@ -117,7 +117,7 @@ exports.createPayrollPeriod = async (req, res) => {
         const period = await PayrollPeriod.create({ startDate, endDate, label });
 
         const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-        await logAudit(req, currentAdminId, "CREATE_PAYROLL_PERIOD", "PayrollPeriod", period.periodId, null, period.toJSON());
+        await logAudit(req, currentAdminId, "System Settings", "CREATE_PAYROLL_PERIOD", "PayrollPeriod", period.periodId, null, period.toJSON());
 
         res.status(201).json(period);
     } catch (error) {

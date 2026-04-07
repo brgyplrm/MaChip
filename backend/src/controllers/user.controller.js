@@ -136,7 +136,7 @@ exports.registerUser = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
 
-    await logAudit(req, req.user?.user_Id || 1, "CREATE_USER", "User", user_Id, null, newUser[0]);
+    await logAudit(req, req.user?.user_Id || 1, "User Management", "CREATE_USER", "User", user_Id, null, newUser[0]);
 
     res.status(201).json({ message: "User Registered!", data: newUser[0] });
   } catch (error) {
@@ -224,7 +224,7 @@ exports.deleteUser = async (req, res) => {
 
     if (result) {
       const user = await sequelize.query(`SELECT * FROM "User" WHERE "user_Id" = :user_Id`, { replacements: { user_Id }, type: QueryTypes.SELECT });
-      await logAudit(req, currentAdminId || 1, "SOFT_DELETE_USER", "User", user_Id, user[0], null);
+      await logAudit(req, currentAdminId || 1, "User Management", "SOFT_DELETE_USER", "User", user_Id, user[0], null);
       res.status(200).json({ message: "User soft-deleted successfully." });
     } else {
       res.status(404).json({ message: "User not found." });
@@ -262,6 +262,9 @@ exports.restoreUser = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
 
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "User Management", "RESTORE_USER", "User", user_Id, user[0], restored[0]);
+
     res
       .status(200)
       .json({ message: "User restored successfully.", data: restored[0] });
@@ -298,7 +301,7 @@ exports.forceDeleteUser = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.DELETE },
     );
 
-    await logAudit(req, currentAdminId || 1, "PERMANENT_DELETE_USER", "User", user_Id, user[0], null);
+    await logAudit(req, currentAdminId || 1, "User Management", "PERMANENT_DELETE_USER", "User", user_Id, user[0], null);
 
     res.status(200).json({ message: "User permanently deleted." });
   } catch (error) {
@@ -421,7 +424,7 @@ exports.updateUser = async (req, res) => {
     const updatedUser = updatedUserResult[0];
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logAudit(req, currentAdminId, "UPDATE_USER", "User", user_Id, oldUser, updatedUser);
+    await logAudit(req, currentAdminId, "User Management", "UPDATE_USER", "User", user_Id, oldUser, updatedUser);
 
     // 2. Send email if password was updated
     if (user_Password && user_Password.trim() !== "" && updatedUser) {
@@ -594,7 +597,7 @@ exports.updateDailyRate = async (req, res) => {
 
     const newRateData = { dailyRate: updated[0].dailyRate, previousDailyRate: updated[0].previousDailyRate };
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logAudit(req, currentAdminId, "UPDATE_DAILY_RATE", "User", user_Id, oldRateData, newRateData);
+    await logAudit(req, currentAdminId, "User Management", "UPDATE_DAILY_RATE", "User", user_Id, oldRateData, newRateData);
 
     res.status(200).json({
       message: "Daily rate updated successfully.",

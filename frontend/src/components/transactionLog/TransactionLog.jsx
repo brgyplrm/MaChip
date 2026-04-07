@@ -7,6 +7,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import CloseIcon from "@mui/icons-material/Close";
+import { formatUserId } from "../../utils/formatUserId";
 
 const TransactionLog = () => {
   const [transactions, setTransactions] = useState([]);
@@ -47,14 +48,56 @@ const TransactionLog = () => {
     total: transactions.length,
     payrollReleases: transactions.filter(t => t.event_Type === "PAYROLL_RELEASE").length,
     batchRuns: transactions.filter(t => t.event_Type === "BATCH_PAYROLL_GEN").length,
+    unauthorizedScans: transactions.filter(t => t.event_Type === "UNAUTHORIZED_SCAN").length,
   };
 
-  const renderJsonTree = (data) => {
-    if (!data) return <span>null</span>;
+  const maskDescription = (desc, type) => {
+    if (type !== "UNAUTHORIZED_SCAN") return desc;
+    // Unauthorized scan description might contain the raw UID, but the backend now sends masked
+    // If it's old data, we might want to mask it here too.
+    return desc; // Relying on backend masking for new logs
+  };
+
+  const MetadataTable = ({ data }) => {
+    if (!data) return <span className="emptyText">No metadata available</span>;
+    
+    const sensitiveFields = ["user_Password", "password", "user_MachipId", "rfid", "uid", "adminPassword", "admin_Password"];
+    const allKeys = Object.keys(data)
+      .filter(key => !["createdAt", "updatedAt", "deletedAt"].includes(key)) // Filter noisy fields
+      .sort();
+
     return (
-      <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-        {JSON.stringify(data, null, 2)}
-      </pre>
+      <div className="diffTableContainer">
+        <table className="diffTable">
+          <thead>
+            <tr>
+              <th style={{ width: "40%" }}>Property</th>
+              <th style={{ width: "60%" }}>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allKeys.map(key => {
+              const val = data[key];
+              const isSensitive = sensitiveFields.includes(key);
+              
+              return (
+                <tr key={key} className="unchangedRow">
+                  <td className="fieldName">{key.replace(/_/g, " ")}</td>
+                  <td className="newValue">
+                    {isSensitive ? (
+                      <span className="redacted">[REDACTED]</span>
+                    ) : key === "result" ? (
+                      <span className={`resultBadge ${String(val).toLowerCase()}`}>{val}</span>
+                    ) : (
+                      <span>{typeof val === "object" ? JSON.stringify(val) : String(val)}</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     );
   };
 
@@ -88,6 +131,10 @@ const TransactionLog = () => {
               <label>Batch Runs</label>
               <p className="value pendingText">{stats.batchRuns}</p>
             </div>
+            <div className="statCard">
+              <label>Unauthorized Scans</label>
+              <p className="value rejectedText">{stats.unauthorizedScans}</p>
+            </div>
           </div>
 
           {/* Filter Bar */}
@@ -118,22 +165,33 @@ const TransactionLog = () => {
               <table className="customLogTable">
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>User / Target</th>
-                    <th>Action</th>
+                    <th>Timestamp</th>
+                    <th>Initiated By</th>
+                    <th>Event Category</th>
+                    <th>Description</th>
+                    <th>IP Address</th>
                     <th>Details</th>
-                    <th>Metadata</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredData.map((t) => (
                     <tr key={t.transId}>
                       <td className="dateCell">{new Date(t.createdAt).toLocaleString()}</td>
-                      <td className="userCell">{t.emp_FirstName ? `${t.emp_FirstName} ${t.emp_LastName}` : "System / Batch"}</td>
-                      <td>
-                        <span className="statusPill completed">{t.event_Type.replace(/_/g, " ")}</span>
+                      <td className="userCell">
+                        {t.emp_FirstName 
+                          ? `${t.emp_FirstName} ${t.emp_LastName} (${formatUserId(t.user_Id)})` 
+                          : t.event_Type === "UNAUTHORIZED_SCAN" 
+                            ? `Unknown Device`
+                            : "System"
+                        }
                       </td>
-                      <td className="subtleText">{t.description}</td>
+                      <td>
+                        <span className={`statusPill ${t.event_Type.toLowerCase().replace(/_/g, "")}`}>
+                          {t.event_Type.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="subtleText">{maskDescription(t.description, t.event_Type)}</td>
+                      <td className="subtleText">{t.ip_Address || t.metadata?.deviceIp || "Local"}</td>
                       <td>
                         <button className="viewDetailsBtn" onClick={() => setSelectedLog(t)} style={{background: "none", border: "none", cursor: "pointer", color: "#6439ff", display: "flex", alignItems: "center", gap: "5px"}}>
                           <VisibilityIcon fontSize="small"/> View
@@ -142,7 +200,7 @@ const TransactionLog = () => {
                     </tr>
                   ))}
                   {filteredData.length === 0 && (
-                    <tr><td colSpan="5" style={{textAlign: "center", padding: "20px"}}>No transactions found</td></tr>
+                    <tr><td colSpan="6" style={{textAlign: "center", padding: "20px"}}>No transactions found</td></tr>
                   )}
                 </tbody>
               </table>
@@ -157,14 +215,18 @@ const TransactionLog = () => {
           <div className="auditModalContent">
             <div className="modalHeader">
               <h3>Transaction Details: {selectedLog.event_Type.replace(/_/g, " ")}</h3>
-              <CloseIcon className="closeIcon" onClick={() => setSelectedLog(null)} style={{cursor: "pointer"}}/>
+              <CloseIcon className="closeIcon" onClick={() => setSelectedLog(null)} />
             </div>
-            <div className="modalBody" style={{marginTop: "15px"}}>
-              <div className="diffBox" style={{padding: "15px", background: "#f8f9fa", borderRadius: "8px", border: "1px solid #eee"}}>
-                <h4 style={{color: "#333", marginBottom: "10px"}}>Metadata</h4>
-                <div style={{fontSize: "13px", color: "#555", overflowX: "auto"}}>
-                  {renderJsonTree(selectedLog.metadata)}
+            <div className="modalBody">
+              <MetadataTable data={selectedLog.metadata} />
+              
+              <div className="modalFooter" style={{marginTop: "20px", paddingTop: "15px", borderTop: "1px solid #f1f3f5", fontSize: "12px", color: "#718096"}}>
+                <div style={{display: "flex", gap: "20px"}}>
+                  <span><strong>Event:</strong> {selectedLog.event_Type}</span>
+                  {selectedLog.user_Id && <span><strong>User ID:</strong> {formatUserId(selectedLog.user_Id)}</span>}
+                  <span><strong>IP Address:</strong> {selectedLog.ip_Address || selectedLog.metadata?.deviceIp || "Local"}</span>
                 </div>
+                <p style={{marginTop: "10px", fontStyle: "italic"}}>"{selectedLog.description}"</p>
               </div>
             </div>
           </div>

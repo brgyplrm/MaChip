@@ -1,7 +1,17 @@
-const { sequelize, User } = require("../config/sequelize.js");
+const { sequelize, User, Notification } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime } = require("../utils/systemTime.js");
 const { logTransaction } = require("../utils/logger");
+
+const maskUid = (uid, isAuthorized) => {
+  if (isAuthorized) return "[REDACTED]";
+  if (!uid) return "****";
+  const parts = uid.split(":");
+  if (parts.length >= 2) {
+    return `****:${parts[parts.length-2]}:${parts[parts.length-1]}`;
+  }
+  return `****${uid.slice(-4)}`;
+};
 
 // Global state for registration/capture mode
 let captureSession = {
@@ -11,7 +21,7 @@ let captureSession = {
 };
 
 exports.scanRFID = async (req, res) => {
-  const { uid } = req.body;
+  const { uid, action } = req.body; // action can be "clock_in" or "clock_out"
 
   if (!uid) {
     return res.status(400).json({ success: false, message: "No UID provided" });
@@ -21,7 +31,7 @@ exports.scanRFID = async (req, res) => {
   if (captureSession.isCapturing && Date.now() < captureSession.expiresAt) {
     console.log(`[RFID] Captured UID for registration: ${uid}`);
     captureSession.scannedUid = uid;
-    captureSession.isCapturing = false; // Capture only one
+    captureSession.isCapturing = false;
     return res.status(200).json({ 
       success: true, 
       message: "UID Captured for Registration",
@@ -43,19 +53,41 @@ exports.scanRFID = async (req, res) => {
     });
 
     if (!user) {
-      console.log(`[RFID] Unknown card scanned: ${uid}`);
-      return res.status(404).json({ success: false, message: "Unauthorized Card" });
+      console.log(`[RFID] Unknown card scanned: ${uid} from ${req.ip}`);
+      const masked = maskUid(uid, false);
+      const esp32Ip = req.ip || req.socket.remoteAddress || "Unknown ESP32";
+
+      await logTransaction(null, null, "UNAUTHORIZED_SCAN", `Unauthorized MaChip (${masked}) scanned from ${esp32Ip}`, { 
+        uid: masked,
+        deviceIp: esp32Ip,
+        result: "Denied",
+        role: "Unknown"
+      }, req);
+
+      try {
+        const admins = await User.findAll({ where: { user_RoleId: 1, deletedAt: null } });
+        const notifications = admins.map(admin => ({
+          user_Id: admin.user_Id,
+          title: "Unauthorized RFID Scan",
+          message: `An unauthorized MaChip (ID: ${masked}) was scanned from device ${esp32Ip} at ${now.toLocaleTimeString()}.`,
+          isRead: false
+        }));
+        await Notification.bulkCreate(notifications);
+      } catch (notifErr) {
+        console.error("[RFID] Failed to create notifications:", notifErr);
+      }
+
+      return res.status(404).json({ success: false, message: "User Not Registered" });
     }
 
     const target_user_Id = user.user_Id;
 
-    // Reuse logic from markAttendance to determine status
+    // 2. Check last transaction/status for this user today
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(now);
     todayEnd.setHours(23, 59, 59, 999);
 
-    // Get last log of the day
     const lastLogs = await sequelize.query(
       `SELECT * FROM "user_logging"
        WHERE "user_id" = :target_user_Id
@@ -66,23 +98,31 @@ exports.scanRFID = async (req, res) => {
     );
 
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
+    const isCurrentlyIn = lastStatus === 1 || lastStatus === 4 || lastStatus === 5;
 
-    // Lunch window check
-    const totalMinutes = now.getHours() * 60 + now.getMinutes();
-    const isLunchWindow = totalMinutes >= 720 && totalMinutes < 780;
-
-    // Determine next status (Auto-detect)
-    let nextStatus;
-    if (!lastStatus || [2, 3, 6].includes(lastStatus)) {
-      nextStatus = 1; 
-    } else {
-      if (isLunchWindow && [1, 4].includes(lastStatus)) {
-        nextStatus = 3; 
-      } else {
-        nextStatus = 2; 
+    // 3. Validation based on explicit action from ESP32
+    if (action === "clock_in") {
+      if (isCurrentlyIn) {
+        return res.status(400).json({ success: false, message: "Already Clocked In", name: user.user_FirstName });
+      }
+    } else if (action === "clock_out") {
+      if (!isCurrentlyIn) {
+        return res.status(400).json({ success: false, message: "Not Clocked In", name: user.user_FirstName });
       }
     }
 
+    // Determine nextStatus based on action and current time (Lunch logic)
+    let nextStatus;
+    const totalMinutes = now.getHours() * 60 + now.getMinutes();
+    const isLunchWindow = totalMinutes >= 720 && totalMinutes < 780;
+
+    if (action === "clock_in") {
+      nextStatus = (isLunchWindow && lastStatus === 3) ? 4 : 1;
+    } else {
+      nextStatus = (isLunchWindow && lastStatus === 1) ? 3 : 2;
+    }
+
+    // 4. Record Attendance
     const firstLoginToday = await sequelize.query(
       `SELECT * FROM "user_logging"
        WHERE "user_id" = :target_user_Id
@@ -98,7 +138,6 @@ exports.scanRFID = async (req, res) => {
       attendanceVal = now.getHours() < 9 ? 1 : 2; 
     }
 
-    // ── Insert into user_logging ────────────────────────────────────────────
     await sequelize.query(
       `INSERT INTO "user_logging"
         ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
@@ -116,7 +155,7 @@ exports.scanRFID = async (req, res) => {
       },
     );
 
-    // ── Upsert employee_Logging_report ──────────────────────────────────────
+    // 5. Update Reporting
     const isEntry = [1, 4, 5].includes(nextStatus);
     let reportLoggedStatus = nextStatus;
     if (nextStatus === 4 || nextStatus === 5) reportLoggedStatus = 1;
@@ -151,9 +190,7 @@ exports.scanRFID = async (req, res) => {
     } else {
       const inArr  = JSON.parse(existingReport[0].time_Logged_inArr  || "[]");
       const outArr = JSON.parse(existingReport[0].time_Logged_outArr || "[]");
-
-      if (isEntry) inArr.push(timeStr);
-      else outArr.push(timeStr);
+      if (isEntry) inArr.push(timeStr); else outArr.push(timeStr);
 
       await sequelize.query(
         `UPDATE "employee_Logging_report"
@@ -163,35 +200,30 @@ exports.scanRFID = async (req, res) => {
              "attendance_StatusId" = COALESCE("attendance_StatusId", :attendance_StatusId)
          WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`,
         {
-          replacements: {
-            inArr: JSON.stringify(inArr),
-            outArr: JSON.stringify(outArr),
-            reportLoggedStatus,
-            attendance_StatusId: attendanceVal,
-            target_user_Id,
-            todayStr,
-          },
+          replacements: { inArr: JSON.stringify(inArr), outArr: JSON.stringify(outArr), reportLoggedStatus, attendance_StatusId: attendanceVal, target_user_Id, todayStr },
           type: QueryTypes.UPDATE,
         },
       );
     }
 
-    const statusLabels = {
-      1: "Clock In",
-      2: "Clock Out",
-      3: "Out For Lunch",
-      4: "In From Lunch",
-      5: "Overtime-In",
-      6: "Overtime-Out",
-    };
+    const statusLabels = { 1: "Clock In", 2: "Clock Out", 3: "Out For Lunch", 4: "In From Lunch", 5: "Overtime-In", 6: "Overtime-Out" };
+    const attendanceResult = attendanceVal === 1 ? "On-Time" : attendanceVal === 2 ? "Late" : "N/A";
+    const esp32Ip = req.ip || req.socket.remoteAddress || "Unknown ESP32";
 
-    // Log transaction
-    await logTransaction(target_user_Id, null, "RFID_SCAN", `${statusLabels[nextStatus]} via RFID`, { uid, status: statusLabels[nextStatus], time: timeStr });
+    // 6. Log Transaction
+    await logTransaction(target_user_Id, null, "RFID_SCAN", `${statusLabels[nextStatus]} via RFID`, { 
+      uid: maskUid(uid, true),
+      status: statusLabels[nextStatus], 
+      time: timeStr,
+      role: "Employee",
+      result: attendanceResult,
+      deviceIp: esp32Ip
+    }, req);
 
     return res.status(200).json({
       success: true,
       name: user.user_FirstName,
-      action: statusLabels[nextStatus]
+      message: statusLabels[nextStatus]
     });
 
   } catch (error) {
@@ -200,19 +232,8 @@ exports.scanRFID = async (req, res) => {
   }
 };
 
-// ── CAPTURE LOGIC ───────────────────────────────────────────────────────────
-
 exports.generateRfid = async (req, res) => {
-  // Start capture mode
-  captureSession = {
-    isCapturing: true,
-    scannedUid: null,
-    expiresAt: Date.now() + 30000 // 30 seconds timeout
-  };
-
-  console.log("[RFID] Registration mode active for 30 seconds...");
-
-  // Poll for the scanned UID (simple implementation with a loop/timeout)
+  captureSession = { isCapturing: true, scannedUid: null, expiresAt: Date.now() + 30000 };
   const startTime = Date.now();
   const checkInterval = setInterval(() => {
     if (captureSession.scannedUid) {
@@ -220,22 +241,12 @@ exports.generateRfid = async (req, res) => {
       captureSession.scannedUid = null;
       captureSession.isCapturing = false;
       clearInterval(checkInterval);
-
-      // Check if this UID is already assigned to another user
-      User.findOne({ where: { user_MachipId: uid, deletedAt: null } })
-        .then(user => {
-          if (user) {
-            return res.status(400).json({ error: "MaChip ID is already assigned to another user.", rfid: uid });
-          }
-          return res.status(200).json({ rfid: uid });
-        })
-        .catch(err => {
-          console.error("[RFID] Database check error:", err);
-          return res.status(500).json({ error: "Internal Server Error checking RFID." });
-        });
+      User.findOne({ where: { user_MachipId: uid, deletedAt: null } }).then(user => {
+        if (user) return res.status(400).json({ error: "MaChip ID is already assigned to another user.", rfid: uid });
+        return res.status(200).json({ rfid: uid });
+      }).catch(err => res.status(500).json({ error: "Internal Server Error" }));
       return;
     }
-
     if (Date.now() - startTime > 30000) {
       clearInterval(checkInterval);
       captureSession.isCapturing = false;

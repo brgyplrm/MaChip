@@ -52,9 +52,11 @@ exports.loginUser = async (req, res) => {
     // Strip password before sending back to client
     const { user_Password, ...userData } = user;
 
-    if (user.user_RoleId === 1 || user.user_Role === "Admin") {
-      await logAudit(req, user.user_Id, "LOGIN", null, null, null, null);
-    }
+    // Log login for ALL users (Admin and Employee)
+    await logAudit(req, user.user_Id, "Authentication", "LOGIN", null, null, null, {
+      name: `${user.user_FirstName} ${user.user_LastName}`,
+      role: user.user_Role
+    });
 
     return res
       .status(200)
@@ -64,5 +66,38 @@ exports.loginUser = async (req, res) => {
     return res
       .status(500)
       .json({ error: "An internal server error occurred." });
+  }
+};
+
+exports.logoutUser = async (req, res) => {
+  const { user_Id } = req.body || {};
+
+  try {
+    if (user_Id) {
+      // Get user details for the audit log
+      const result = await sequelize.query(
+        `SELECT u.*, r."roleName" as "user_Role"
+         FROM "User" u
+         LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
+         WHERE u."user_Id" = :user_Id`,
+        {
+          replacements: { user_Id },
+          type: QueryTypes.SELECT,
+        },
+      );
+
+      if (result.length > 0) {
+        const user = result[0];
+        await logAudit(req, user.user_Id, "Authentication", "LOGOUT", null, null, null, {
+          name: `${user.user_FirstName} ${user.user_LastName}`,
+          role: user.user_Role
+        });
+      }
+    }
+
+    return res.status(200).json({ message: "Logout successful." });
+  } catch (error) {
+    console.error("[LOGOUT ERROR]:", error.message);
+    return res.status(500).json({ error: "Failed to log logout event." });
   }
 };

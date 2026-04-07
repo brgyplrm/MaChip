@@ -3,6 +3,7 @@ import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
+import { formatUserId } from "../../utils/formatUserId";
 
 const Edit = ({ inputs, title }) => {
   const [file, setFile] = useState("");
@@ -66,7 +67,7 @@ const Edit = ({ inputs, title }) => {
       <div className="newContainer">
         <Navbar />
         <div className="top">
-          <h1>{title} (ID: {userId})</h1>
+          <h1>{title} (ID: {formatUserId(userId)})</h1>
         </div>
         <div className="bottom">
           <div className="right">

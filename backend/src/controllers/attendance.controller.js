@@ -335,7 +335,7 @@ exports.markAttendance = async (req, res) => {
     };
 
     // Log transaction
-    await logTransaction(target_user_Id, null, "ATTENDANCE_LOG", `${statusLabels[nextStatus]} for user ${target_user_Id}`, { status: statusLabels[nextStatus], time: finalTimeStr, method: log_Type || "Manual/RFID" });
+    await logTransaction(target_user_Id, null, "ATTENDANCE_LOG", `${statusLabels[nextStatus]} for user ${target_user_Id}`, { status: statusLabels[nextStatus], time: finalTimeStr, method: log_Type || "Manual/RFID" }, req);
 
     return res.status(201).json({
       message: `${statusLabels[nextStatus]} recorded successfully`,
@@ -519,7 +519,7 @@ exports.deleteAllLogs = async (req, res) => {
     });
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logAudit(req, currentAdminId, "DELETE_ALL_ATTENDANCE", "user_logging", null, null, null);
+    await logAudit(req, currentAdminId, "Attendance", "DELETE_ALL_ATTENDANCE", "user_logging", null, null, null);
 
     res
       .status(200)

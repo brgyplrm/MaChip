@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatUserId } from '../../utils/formatUserId';
 
 function Register() {
   // This replaces all your document.getElements
@@ -18,6 +19,7 @@ function Register() {
         const response = await fetch('/api/users/nextId');
         if (response.ok) {
           const data = await response.json();
+          // Assuming backend might already format it, but formatUserId ensures consistency
           setUserData(prev => ({ ...prev, user_Id: data.nextId }));
         }
       } catch (err) {
@@ -40,7 +42,7 @@ function Register() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData)
       });
-      
+
       const data = await response.json();
       if (response.ok) {
         alert("User Registered!");
@@ -73,11 +75,11 @@ function Register() {
         <input 
           type="text" 
           id="user_Id" 
-          value={userData.user_Id} 
+          value={formatUserId(userData.user_Id)} 
           readOnly 
           style={{ backgroundColor: '#f0f0f0' }} 
         /><br/>
-        
+
         <input type="text" id="user_FirstName" placeholder="First Name" value={userData.user_FirstName} onChange={handleChange} required /><br/>
         <input type="text" id="user_LastName" placeholder="Last Name" value={userData.user_LastName} onChange={handleChange} required /><br/>
         <input type="text" id="user_MiddleName" placeholder="Middle Name" value={userData.user_MiddleName} onChange={handleChange} /><br/>
