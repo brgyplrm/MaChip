@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom"; // 1. Import the hook
 import Toast from "../../components/toast/Toast";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
+import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[a-zA-Z\s]+$/;
@@ -29,6 +30,7 @@ const New = ({ inputs, title }) => {
   const navigate = useNavigate();
   const [file, setFile] = useState("");
   const [displayId, setDisplayId] = useState("");
+  const [showRfidModal, setShowRfidModal] = useState(false);
   const [formData, setFormData] = useState({
     user_Id: "",
     user_FirstName: "",
@@ -67,14 +69,29 @@ const New = ({ inputs, title }) => {
   };
 
   const handleScanRFID = async () => {
+    // 1. Open the modal immediately
+    setShowRfidModal(true); 
+    setFormData(prev => ({ ...prev, user_MachipId: "" }));
+
     try {
       const response = await fetch("http://localhost:4000/api/users/generateRfid");
       if (response.ok) {
         const data = await response.json();
+        
+        // 2. Update the form data with the scanned ID
         setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
-        setToast({ message: "MaChip scanned!", type: "success" });
+        
+        setToast({
+          message: `New MaChip scanned: ${data.rfid}`,
+          type: "success",
+        });
+      } else {
+        setToast({ message: "Failed to scan RFID. Please try again.", type: "error" });
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("Error scanning RFID:", err);
+      setToast({ message: "An error occurred while scanning.", type: "error" });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -257,10 +274,16 @@ const New = ({ inputs, title }) => {
             <div className="bottom-center">
             <button className="cancelButton" onClick={() => navigate("/users")}>Cancel</button>
             <button className="submitButton" onClick={handleSubmit}>Add User</button>
-            </div>
-            </div>
-            </div>
-            );
-            };
+          </div>
+        </div>
+        <RfidScanModal 
+          isOpen={showRfidModal} 
+          onClose={() => setShowRfidModal(false)}
+          onRescan={handleScanRFID}
+          scannedId={formData.user_MachipId} 
+        />
+      </div>
+    );
+  };
 
-            export default New;
+export default New;

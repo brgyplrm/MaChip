@@ -1,0 +1,119 @@
+$primary-purple: #2A174E;
+$success-green: #22c55e;
+
+.rfidModalOverlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  backdrop-filter: blur(6px);
+
+  .rfidModalContainer {
+    background: white;
+    width: 420px;
+    border-radius: 28px;
+    padding: 40px;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+
+    .closeBtn {
+      position: absolute;
+      top: 20px; right: 20px;
+      background: none; border: none; color: #cbd5e1; cursor: pointer;
+      &:hover { color: #64748b; }
+    }
+
+    .rfidModalContent {
+      .scanIconWrapper {
+        width: 100px; height: 100px;
+        margin: 0 auto 25px;
+        background: #f8fafc;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        position: relative;
+
+        &.success { background: rgba(34, 197, 94, 0.1); }
+        
+        .mainIcon {
+          font-size: 50px;
+          color: #94a3b8;
+          z-index: 2;
+          &.success { color: $success-green; }
+        }
+
+        /* Pulse Animation */
+        .pulse {
+          animation: scanPulse 2s infinite;
+        }
+      }
+
+      h2 { font-size: 22px; color: #1e293b; margin-bottom: 10px; }
+      p { font-size: 14px; color: #64748b; line-height: 1.5; margin-bottom: 30px; }
+
+      .idResultBox {
+        background: #f1f5f9;
+        padding: 15px;
+        border-radius: 12px;
+        opacity: 0.5;
+        transition: 0.3s;
+
+        &.visible { 
+          opacity: 1; 
+          background: rgba(34, 197, 94, 0.05); 
+          border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        label { display: block; font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 700; margin-bottom: 5px; }
+        .idValue { font-family: monospace; font-size: 18px; color: $primary-purple; font-weight: 700; }
+      }
+    }
+
+    .rfidModalActions {
+      margin-top: 35px;
+      display: flex; gap: 12px;
+      button { flex: 1; padding: 14px; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+      .cancelBtn { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+      .confirmBtn { background: $success-green; color: white; border: none; &:hover { background: #16a34a; } }
+        button {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .rescanBtn {
+            background: white;
+            border: 1.5px solid #ccc;
+            color: #666;
+            &:hover { background: #f8fafc; border-color: #999; }
+        }
+
+        .confirmBtn {
+            background: #800000; // Match your dark red theme
+            color: white;
+            border: none;
+            &:hover { background: #600000; }
+        }
+
+        .cancelBtn {
+            background: #f1f3f5;
+            border: none;
+            color: #495057;
+        }
+    }
+
+  }
+}
+
+@keyframes scanPulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
