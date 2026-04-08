@@ -7,3 +7,4 @@ backend/uploads/*
 !backend/uploads/.gitkeep
 firmware/MaChip_Test/arduino_secrets.h
 GEMINI.md
+db_reset.js

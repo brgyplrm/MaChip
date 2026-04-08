@@ -19,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       timestamps: true,
       freezeTableName: true,
-    }
+    },
   );
 
   const Holiday = sequelize.define(
@@ -46,28 +46,46 @@ module.exports = (sequelize, DataTypes) => {
     {
       timestamps: false,
       freezeTableName: true,
-    }
+    },
   );
 
-  const Audit_Log = sequelize.define("Audit_Log", {
-    auditId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-    user_Id: { type: DataTypes.SMALLINT, allowNull: false },
-    action: { type: DataTypes.STRING, allowNull: false },
-    target_Table: { type: DataTypes.STRING },
-    target_Id: { type: DataTypes.INTEGER },
-    old_Value: { type: DataTypes.JSONB },
-    new_Value: { type: DataTypes.JSONB },
-    ip_Address: { type: DataTypes.STRING },
-  }, { timestamps: true, freezeTableName: true });
+  const Audit_Log = sequelize.define(
+    "Audit_Log",
+    {
+      auditId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      user_Id: { type: DataTypes.SMALLINT, allowNull: false },
+      action: { type: DataTypes.STRING, allowNull: false },
+      target_Table: { type: DataTypes.STRING },
+      target_Id: { type: DataTypes.INTEGER },
+      old_Value: { type: DataTypes.JSONB },
+      new_Value: { type: DataTypes.JSONB },
+      ip_Address: { type: DataTypes.STRING(45) },
+      module: { type: DataTypes.STRING },
+    },
+    { timestamps: true, freezeTableName: true },
+  );
 
-  const Transaction_Log = sequelize.define("Transaction_Log", {
-    transId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-    user_Id: { type: DataTypes.SMALLINT },
-    initiated_By: { type: DataTypes.SMALLINT },
-    event_Type: { type: DataTypes.STRING, allowNull: false },
-    description: { type: DataTypes.TEXT },
-    metadata: { type: DataTypes.JSONB },
-  }, { timestamps: true, freezeTableName: true });
-  
+  const Transaction_Log = sequelize.define(
+    "Transaction_Log",
+    {
+      transId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      user_Id: { type: DataTypes.SMALLINT },
+      initiated_By: { type: DataTypes.SMALLINT },
+      event_Type: { type: DataTypes.STRING, allowNull: false },
+      description: { type: DataTypes.TEXT },
+      metadata: { type: DataTypes.JSONB },
+      ip_Address: { type: DataTypes.STRING(45) },
+    },
+    { timestamps: true, freezeTableName: true },
+  );
+
   return { SystemSettings, Holiday, Audit_Log, Transaction_Log };
 };

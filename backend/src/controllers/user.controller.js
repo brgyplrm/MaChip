@@ -56,14 +56,14 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ error: "Email already exists." });
     }
 
-    // Check if MaChip ID already exists
+    // Check if MaChip ID already exists in ACTIVE users
     const existingMachip = await sequelize.query(
-      `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :user_MachipId`,
+      `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :user_MachipId AND "deletedAt" IS NULL`,
       { replacements: { user_MachipId }, type: QueryTypes.SELECT },
     );
 
     if (existingMachip.length > 0) {
-      return res.status(400).json({ error: "MaChip ID is already assigned to another user." });
+      return res.status(400).json({ error: "MaChip ID is already assigned to another active user." });
     }
 
     // Get next ID if not provided by frontend (though frontend sends it)
@@ -216,10 +216,24 @@ exports.deleteUser = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    // 1. Get current user info to handle MachipId prefixing
+    const userResult = await sequelize.query(
+      `SELECT "user_MachipId" FROM "User" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    
+    if (userResult.length === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const currentMachipId = userResult[0].user_MachipId;
+    // Append unique suffix to MachipId to free it up for others
+    const archivedMachipId = currentMachipId ? `${currentMachipId}-ARCHIVED-${user_Id}` : null;
+
     const result = await sequelize.query(
-      `UPDATE "User" SET "deletedAt" = :now
+      `UPDATE "User" SET "deletedAt" = :now, "user_MachipId" = :archivedMachipId
        WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
-      { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE },
+      { replacements: { user_Id, now: nowStr, archivedMachipId }, type: QueryTypes.UPDATE },
     );
 
     if (result) {
@@ -252,9 +266,30 @@ exports.restoreUser = async (req, res) => {
       return res.status(400).json({ message: "User is not deleted." });
     }
 
+    const currentMachipId = user[0].user_MachipId;
+    let targetMachipId = null;
+
+    if (currentMachipId) {
+      // If it has our new suffix, strip it. If not, try the ID as-is.
+      targetMachipId = currentMachipId.includes("-ARCHIVED-") 
+        ? currentMachipId.split("-ARCHIVED-")[0] 
+        : currentMachipId;
+      
+      // Check if this ID is already assigned to an ACTIVE user
+      const taken = await sequelize.query(
+        `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :targetMachipId AND "deletedAt" IS NULL AND "user_Id" != :user_Id`,
+        { replacements: { targetMachipId, user_Id }, type: QueryTypes.SELECT }
+      );
+
+      if (taken.length > 0) {
+        // ID is taken by someone else, restore user without a card
+        targetMachipId = null;
+      }
+    }
+
     await sequelize.query(
-      `UPDATE "User" SET "deletedAt" = NULL WHERE "user_Id" = :user_Id`,
-      { replacements: { user_Id }, type: QueryTypes.UPDATE },
+      `UPDATE "User" SET "deletedAt" = NULL, "user_MachipId" = :targetMachipId WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id, targetMachipId }, type: QueryTypes.UPDATE },
     );
 
     const restored = await sequelize.query(

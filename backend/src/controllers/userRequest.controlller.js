@@ -130,6 +130,35 @@ exports.UserCreateRequest = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
     const todayStr = now.toISOString().split("T")[0];
+
+    // --- PAYROLL PERIOD BLOCK CHECK ---
+    let periodCheckSql = "";
+    let periodReplacements = {};
+
+    if (finalReqTypeId === 1 && finalOTDate) {
+      periodCheckSql = `SELECT label FROM "PayrollPeriod" WHERE :date BETWEEN "startDate" AND "endDate" AND "status" IN ('Processing', 'Released', 'Closed') LIMIT 1`;
+      periodReplacements = { date: finalOTDate };
+    } else if (finalReqTypeId === 2 && finalDateOnField) {
+      periodCheckSql = `SELECT label FROM "PayrollPeriod" WHERE :date BETWEEN "startDate" AND "endDate" AND "status" IN ('Processing', 'Released', 'Closed') LIMIT 1`;
+      periodReplacements = { date: finalDateOnField };
+    } else if ((finalReqTypeId === 3 || finalReqTypeId === 4) && StartDate && EndDate) {
+      periodCheckSql = `SELECT label FROM "PayrollPeriod" WHERE ("startDate" <= :EndDate AND "endDate" >= :StartDate) AND "status" IN ('Processing', 'Released', 'Closed') LIMIT 1`;
+      periodReplacements = { StartDate, EndDate };
+    }
+
+    if (periodCheckSql) {
+      const closedPeriod = await sequelize.query(periodCheckSql, { 
+        replacements: periodReplacements, 
+        type: QueryTypes.SELECT 
+      });
+      if (closedPeriod.length > 0) {
+        return res.status(400).json({ 
+          error: `This is a past period (${closedPeriod[0].label}). Requests can no longer be filed for finalized or processing payrolls.` 
+        });
+      }
+    }
+    // ----------------------------------
+
     const currentYear = now.getFullYear();
 
     let systemRemarks = [];
