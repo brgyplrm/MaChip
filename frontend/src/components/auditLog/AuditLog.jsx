@@ -122,7 +122,6 @@ const AuditLogs = () => {
           <div className="header">
             <div className="titleText">
               <div className="iconTitle">
-                <SecurityIcon className="mainIcon" />
                 <h1>System Audit Logs</h1>
               </div>
               <span>Monitor administrative activities and security events</span>

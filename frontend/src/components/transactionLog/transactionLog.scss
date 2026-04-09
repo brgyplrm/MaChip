@@ -15,9 +15,10 @@ $primary-purple: #2A174E;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 25px;
+        margin-top: 15px;
 
-        h1 { font-size: 24px; color: #333; margin-bottom: 5px; }
-        span { color: #888; font-size: 14px; }
+        h1 { font-size: 28px; color: $primary-purple; margin-bottom: 5px; }
+        span { color: #555; font-size: 15px; }
 
         .exportBtn {
           display: flex; align-items: center; gap: 8px;

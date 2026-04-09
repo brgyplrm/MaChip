@@ -15,8 +15,11 @@
         align-items: center;
         margin-bottom: 30px;
 
-        h1 { font-size: 24px; color: #2A174E; }
-        span { color: #666; font-size: 14px; }
+        .text {
+          margin-top: 15px;
+          h1 { font-size: 28px; color: #2A174E; }
+          span { color: #555; font-size: 15px; }
+        }
         .headerActions {
           display: flex;
           gap: 10px;

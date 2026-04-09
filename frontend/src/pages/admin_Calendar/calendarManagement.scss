@@ -11,6 +11,7 @@ $ot-blue: #e0f2fe;
       display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;
 
       h1 { font-size: 28px; color: $primary-purple; margin: 0; }
+      span { color: #555; font-size: 15px; margin-top: 4px; }
 
       .actions {
         display: flex;         /* Aligns buttons in a row */

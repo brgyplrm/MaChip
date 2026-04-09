@@ -157,7 +157,7 @@ const Payroll = () => {
           <div className="header">
             <div className="text">
               <h1>Payroll Management</h1>
-              <span>Manage employee payroll and compensation</span>
+              <span>Manage employee payroll and periods</span>
             </div>
             <div className="headerActions">
                <Link to="/payroll/employeeList" style={{ textDecoration: "none" }}>

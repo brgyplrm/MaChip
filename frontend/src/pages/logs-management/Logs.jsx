@@ -180,7 +180,10 @@ const Logs = () => {
         <Navbar />
         <div className="datatable">
           <div className="datatableTitle">
-            User Logging Activity
+            <div className="title">
+              <h1>User Logging Activity</h1>
+              <span>Track user logins</span>
+            </div>
             <div className="filterSection">
               <div className="searchWrapper">
                 <input

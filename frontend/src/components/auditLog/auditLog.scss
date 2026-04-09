@@ -14,6 +14,7 @@ $primary-purple: #2A174E;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 25px;
+        margin-top: 15px;
 
         .iconTitle {
           display: flex;
@@ -21,9 +22,9 @@ $primary-purple: #2A174E;
           gap: 12px;
           color: $primary-purple;
           .mainIcon { font-size: 32px; }
-          h1 { font-size: 24px; margin: 0; }
+          h1 { font-size: 28px; margin: 0; }
         }
-        span { color: #888; font-size: 14px; display: block; margin-top: 4px; }
+        span { color: #555; font-size: 15px; display: block; margin-top: 4px; }
 
         .exportBtn {
           display: flex; align-items: center; gap: 8px;

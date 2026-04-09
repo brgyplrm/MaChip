@@ -400,31 +400,13 @@
     }
   }
 
-  // ── Toast ─────────────────────────────────────────
+  // ── Toast ────────────────────────────────────────
   .toast {
-    position: fixed;
-    bottom: 28px;
-    right: 28px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 20px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 500;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-    z-index: 9999;
-    animation: slideUp 0.25s ease;
+    background: #15803d;
+    color: white;
 
-    svg { font-size: 16px; }
-
-    &.success {
-      background: #2A174E;
-      color: white;
-    }
-    &.error {
-      background: #dc2626;
-      color: white;
+    @keyframes fadeOut {
+      to { opacity: 0; }
     }
   }
 }

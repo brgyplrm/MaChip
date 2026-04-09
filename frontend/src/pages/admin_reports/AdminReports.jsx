@@ -193,7 +193,7 @@ const Reports = () => {
           <div className="header">
             <div className="text">
               <h1>Reports & Export</h1>
-              <span>Generate and export attendance, payroll, and calendar reports</span>
+              <span>Generate and export attendance and payroll</span>
             </div>
             <div className="buttonGroup">
                 <button className="exportBtn csv" onClick={exportToCSV}>
