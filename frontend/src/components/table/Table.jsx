@@ -8,6 +8,7 @@ import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 import { useState, useEffect } from "react";
 import { formatTime12h } from "../../utils/formatTime";
+import { fetchWithAuth } from "../../utils/api";
 
 const List = ({ userId }) => {
   const [rows, setRows] = useState([]);
@@ -19,8 +20,8 @@ const List = ({ userId }) => {
     const fetchUserLogs = async () => {
       // Don't show loading spinner on every background poll, only on first load
       try {
-        const response = await fetch(
-          `http://localhost:4000/api/attendance/logs/${userId}`,
+        const response = await fetchWithAuth(
+          `/api/attendance/logs/${userId}`,
         );
         if (response.ok) {
           const data = await response.json();

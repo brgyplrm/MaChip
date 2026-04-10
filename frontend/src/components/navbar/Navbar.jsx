@@ -4,6 +4,7 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext'; // New Icon
 import { Link, useLocation } from "react-router-dom"; // Added useLocation
 import { useState, useEffect } from "react";
 import Breadcrumbs from "../../components/breadcrumbs/Breadcrumbs";
+import { fetchWithAuth } from "../../utils/api";
 
 
 const Navbar = () => {
@@ -14,7 +15,7 @@ const Navbar = () => {
   const fetchUnreadCount = async () => {
     if (!userData?.user_Id) return;
     try {
-      const response = await fetch(`/api/notifications/unread-count/${userData.user_Id}`);
+      const response = await fetchWithAuth(`/api/notifications/unread-count/${userData.user_Id}`);
       if (response.ok) {
         const data = await response.json();
         setUnreadCount(data.count);

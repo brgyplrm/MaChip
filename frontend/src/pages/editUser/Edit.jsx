@@ -10,6 +10,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import { useNavigate } from "react-router-dom";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
+import { fetchWithAuth } from "../../utils/api";
 
 
 // ── Validation helpers ────────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ const Edit = ({ inputs, title }) => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const response = await fetch(`/api/users/${userId}`);
+        const response = await fetchWithAuth(`/api/users/${userId}`);
         if (response.ok) {
           const data = await response.json();
           const { user_Password, ...otherData } = data;
@@ -136,7 +137,7 @@ const Edit = ({ inputs, title }) => {
     setFormData((prev) => ({ ...prev, user_MachipId: "" }));
     setRfidError("");
     try {
-      const response = await fetch("/api/users/generateRfid");
+      const response = await fetchWithAuth("/api/users/generateRfid");
       const data = await response.json();
 
       if (response.ok) {
@@ -222,11 +223,8 @@ const Edit = ({ inputs, title }) => {
     });
 
     try {
-      const response = await fetch(`/api/users/updateUser/${userId}`, {
+      const response = await fetchWithAuth(`/api/users/updateUser/${userId}`, {
         method: "PUT",
-        headers: {
-          "x-admin-id": operatorId,
-        },
         body: submissionData,
       });
 

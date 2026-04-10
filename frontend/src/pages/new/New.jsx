@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom"; // 1. Import the hook
 import Toast from "../../components/toast/Toast";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
+import { fetchWithAuth } from "../../utils/api";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[a-zA-Z\s]+$/;
@@ -51,7 +52,7 @@ const New = ({ inputs, title }) => {
   useEffect(() => {
     const fetchNextId = async () => {
       try {
-        const response = await fetch("http://localhost:4000/api/users/nextId");
+        const response = await fetchWithAuth("/api/users/nextId");
         if (response.ok) {
           const data = await response.json();
           setFormData((prev) => ({ ...prev, user_Id: data.nextId }));
@@ -75,7 +76,7 @@ const New = ({ inputs, title }) => {
     setRfidError("");
 
     try {
-      const response = await fetch("http://localhost:4000/api/users/generateRfid");
+      const response = await fetchWithAuth("/api/users/generateRfid");
       const data = await response.json();
 
       if (response.ok) {
@@ -123,7 +124,7 @@ const New = ({ inputs, title }) => {
     }
 
     try {
-      const response = await fetch("http://localhost:4000/api/users/registerUser", {
+      const response = await fetchWithAuth("/api/users/registerUser", {
         method: "POST",
         body: data, // Sending FormData automatically sets multipart/form-data
       });
@@ -148,7 +149,7 @@ const New = ({ inputs, title }) => {
         });
         setFile("");
         // Re-fetch next ID
-        const nextIdResponse = await fetch("http://localhost:4000/api/users/nextId");
+        const nextIdResponse = await fetchWithAuth("/api/users/nextId");
         if (nextIdResponse.ok) {
           const nextIdData = await nextIdResponse.json();
           setFormData((prev) => ({ ...prev, user_Id: nextIdData.nextId }));

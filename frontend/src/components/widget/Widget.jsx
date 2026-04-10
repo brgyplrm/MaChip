@@ -4,6 +4,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import AssignmentLateIcon from "@mui/icons-material/AssignmentLate";
 import { useState, useEffect, useCallback } from "react";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import { fetchWithAuth } from "../../utils/api";
 
 // Returns milliseconds from current time until the next 12:00 AM (midnight)
 const msUntilMidnight = (currentTime) => {
@@ -18,7 +19,7 @@ const Widget = ({ type }) => {
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         "/api/attendance/stats",
       );
       if (response.ok) {

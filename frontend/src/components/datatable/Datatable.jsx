@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import ActionModal from "../../components/actionModal/ActionModal";
+import { fetchWithAuth } from "../../utils/api";
 
 const Datatable = () => {
   const [data, setData] = useState([]);
@@ -24,13 +25,11 @@ const Datatable = () => {
   };
 
   const confirmArchive = async () => {
-    const adminId = localStorage.getItem("token");
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `/api/users/deleteUser/${userToArchive}`,
         {
           method: "DELETE",
-          headers: { "x-admin-id": adminId },
         }
       );
       
@@ -52,7 +51,7 @@ const Datatable = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await fetch("/api/users/all");
+        const response = await fetchWithAuth("/api/users/all");
         if (response.ok) {
           const users = await response.json();
           setData(users);
