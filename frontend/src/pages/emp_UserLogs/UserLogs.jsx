@@ -308,14 +308,15 @@ const UserLogs = () => {
                         const dayNum = targetDate.getDate();
                         const isSunday = targetDate.getDay() === 0;
 
-                        if (isSunday) return null;
-
                         const log = getDtrLogsForDay(dayNum);
 
                         let morningIn = "", morningOut = "", afternoonIn = "", afternoonOut = "";
                         let otIn = "", otOut = "";
 
-                        if (log) {
+                        // If Sunday, keep empty even if there's a log
+                        if (isSunday) {
+                          // keep empty
+                        } else if (log) {
                           morningIn = log.morning_In !== "—" ? log.morning_In : "";
                           morningOut = log.morning_Out !== "—" ? log.morning_Out : "";
                           afternoonIn = log.afternoon_In !== "—" ? log.afternoon_In : "";
@@ -324,10 +325,8 @@ const UserLogs = () => {
                           otOut = log.ot_Out !== "—" ? log.ot_Out : "";
                         }
 
-                        const isWeekend = targetDate.getDay() === 0;
-
                         return (
-                          <tr key={dayNum} className={isWeekend ? "weekend" : ""}>
+                          <tr key={dayNum} className={isSunday ? "weekend" : ""}>
                             <td className="dayCol">{dayNum}</td>
                             <td>{morningIn}</td>
                             <td>{morningOut}</td>
@@ -335,7 +334,7 @@ const UserLogs = () => {
                             <td>{afternoonOut}</td>
                             <td>{otIn}</td>
                             <td>{otOut}</td>
-                            <td className="totalCol">{log ? log.hoursWorked : ""}</td>
+                            <td className="totalCol">{!isSunday && log ? log.hoursWorked : ""}</td>
                           </tr>
                         );
                       })}

@@ -135,7 +135,7 @@ const Reports = () => {
 
     if (activeReport === "attendance") {
       headers = ["Employee MaChip ID", "Employee Name", "Date", "Time In", "Time Out", "Hours Worked", "Status", "Remarks"];
-      dataToExport = attendanceData.map(r => [r.machipId, r.userName, r.log_Date, r.time_In, r.time_Out, r.hours_worked, r.status, r.remarks]);
+      dataToExport = attendanceData.map(r => [r.machipId, r.userName, r.log_Date, r.time_In, r.time_Out, r.hoursWorked, r.status, r.remarks]);
     } else if (activeReport === "payroll") {
       headers = ["Payroll ID", "Employee Name", "Period Start", "Period End", "Days Worked", "Hours Worked", "Net Pay", "Status"];
       dataToExport = payrollData.map(r => [r.payrollId, `${r.user_FirstName} ${r.user_LastName}`, r.period_Start, r.period_End, r.NoDays_Worked, r.NoHrs_Worked, r.netPay, r.statusName]);
@@ -223,20 +223,15 @@ const Reports = () => {
               <FilterListIcon /> Filters
             </div>
             <div className="filterInputs">
-              {activeReport === "payroll" ? (
+              {(activeReport === "payroll" || activeReport === "attendance") ? (
                 <div className="inputGroup">
                   <label>Payroll Period</label>
                   <select value={selectedPeriod} onChange={handlePeriodChange}>
                     <option value="custom">-- Select Period --</option>
                     {payrollPeriods.map(p => {
-                      const [startY, startM, startD] = p.startDate.split('-').map(Number);
-                      const [endY, endM, endD] = p.endDate.split('-').map(Number);
-                      const startObj = new Date(startY, startM - 1, startD);
-                      const month = startObj.toLocaleString('en-US', { month: 'short' });
-                      const label = `${month} ${startD}-${endD}, ${startY}`;
                       return (
                         <option key={p.periodId} value={p.periodId}>
-                          {label}
+                          {p.label}
                         </option>
                       );
                     })}
@@ -245,7 +240,7 @@ const Reports = () => {
                 </div>
               ) : null}
 
-              {(activeReport !== "payroll" || selectedPeriod === "custom") && (
+              {(activeReport === "calendar" || selectedPeriod === "custom") && (
                 <>
                   <div className="inputGroup">
                     <label>Date From</label>

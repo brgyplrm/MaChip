@@ -2,7 +2,9 @@ const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { sendPayrollEmail } = require("../utils/emailService");
-const { generatePayslipPDF } = require("../utils/pdfGenerator");
+const { generatePayslipPDF, generateDtrPDF } = require("../utils/pdfGenerator");
+const { generateDTRPDF } = require("../utils/dtrGenerator");
+const { getAttendanceReportInternal } = require("./attendance.controller");
 const { logAudit, logTransaction } = require("../utils/logger");
 
 
@@ -515,29 +517,56 @@ exports.generateBatchPayroll = async (req, res) => {
         }
       );
 
-      // Send Email after generation
+      // ── Email: Payslip + DTR ──────────────────────────────────────────────
       if (emp.user_Email) {
-        const emailData = {
+        const payslipData = {
           ...fullStats,
           user_FirstName: emp.user_FirstName,
-          user_LastName: emp.user_LastName,
+          user_LastName:  emp.user_LastName,
           payrollId,
           period_Start,
-          period_End
+          period_End,
         };
-        
-        generatePayslipPDF(emailData).then(pdfBuffer => {
-          return sendPayrollEmail({
-            email: emp.user_Email,
-            name: `${emp.user_FirstName} ${emp.user_LastName}`,
-            period: `${period_Start} to ${period_End}`,
-            netPay: fullStats.netPay,
-            attachments: [{
-              filename: `Payslip_${emp.user_LastName}_${payrollId}.pdf`,
-              content: pdfBuffer
-            }]
-          });
-        }).catch(err => console.error(`[BATCH EMAIL FAILED] user ${emp.user_Id}:`, err.message));
+
+        // Build a file-name-safe period label e.g. "March01-15_2026"
+        const [pStart, pEnd] = [new Date(period_Start + "T00:00:00"), new Date(period_End + "T00:00:00")];
+        const monthName = pStart.toLocaleString("en-PH", { month: "long" });
+        const periodTag = `${monthName}${String(pStart.getDate()).padStart(2,"0")}-${String(pEnd.getDate()).padStart(2,"0")}_${pStart.getFullYear()}`;
+
+        // Fetch attendance rows for this employee's DTR
+        const dtrRows = await getAttendanceReportInternal(period_Start, period_End, emp.user_Id);
+
+        Promise.all([
+          generatePayslipPDF(payslipData),
+          generateDTRPDF({
+            employee:     { user_Id: emp.user_Id, user_FirstName: emp.user_FirstName, user_LastName: emp.user_LastName },
+            dtrData:      dtrRows,
+            period_Start,
+            period_End,
+            netPay:       fullStats.netPay,
+          }),
+        ])
+          .then(([payslipBuffer, dtrBuffer]) =>
+            sendPayrollEmail({
+              email:  emp.user_Email,
+              name:   `${emp.user_FirstName} ${emp.user_LastName}`,
+              period: `${period_Start} to ${period_End}`,
+              netPay: fullStats.netPay,
+              attachments: [
+                {
+                  filename: `${emp.user_LastName}_${emp.user_FirstName}_${periodTag}_Payslip.pdf`,
+                  content:  payslipBuffer,
+                },
+                {
+                  filename: `${emp.user_LastName}_${emp.user_FirstName}_${periodTag}_DTR.pdf`,
+                  content:  dtrBuffer,
+                },
+              ],
+            })
+          )
+          .catch((err) =>
+            console.error(`[BATCH EMAIL FAILED] user ${emp.user_Id}:`, err.message)
+          );
       }
 
       processedCount++;
@@ -704,16 +733,27 @@ exports.releasePayroll = async (req, res) => {
     await logTransaction(p.user_Id, currentAdminId, "PAYROLL_RELEASE", `Released payroll ID ${p.payrollId}`, { netPay: p.netPay, period: `${p.period_Start} to ${p.period_End}` }, req);
 
     if (p.user_Email) {
-      generatePayslipPDF(p).then(pdfBuffer => {
+      const dtrData = await getAttendanceReportInternal(p.period_Start, p.period_End, p.user_Id);
+
+      Promise.all([
+        generatePayslipPDF(p),
+        generateDtrPDF(p, p.period_Start, p.period_End, dtrData)
+      ]).then(([payslipBuffer, dtrBuffer]) => {
         return sendPayrollEmail({
           email: p.user_Email,
           name: `${p.user_FirstName} ${p.user_LastName}`,
           period: `${p.period_Start} to ${p.period_End}`,
           netPay: p.netPay,
-          attachments: [{
-            filename: `Payslip_${p.user_LastName}_${p.payrollId}.pdf`,
-            content: pdfBuffer
-          }]
+          attachments: [
+            {
+              filename: `Payslip_${p.user_LastName}_${p.payrollId}.pdf`,
+              content: payslipBuffer
+            },
+            {
+              filename: `DTR_${p.user_LastName}_${p.period_Start}.pdf`,
+              content: dtrBuffer
+            }
+          ]
         });
       }).catch(err => console.error(`[RELEASE EMAIL/PDF FAILED] payroll ${payrollId}:`, err.message));
     }
