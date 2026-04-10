@@ -22,7 +22,6 @@ const validateForm = (formData) => {
   if (!formData.user_Password || formData.user_Password.length < 6) {
     errors.user_Password = "Min 6 characters.";
   }
-  if (!formData.user_MachipId.trim()) errors.user_MachipId = "Scan required.";
   return errors;
 };
 

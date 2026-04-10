@@ -102,6 +102,12 @@ emp_Request.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "
 User.hasMany(Leave_Balance, { foreignKey: "user_Id", sourceKey: "user_Id" });
 Leave_Balance.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
 
+User.hasMany(Transaction_Log, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Transaction_Log.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
+User.hasMany(Audit_Log, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Audit_Log.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
 // ── connectDB ─────────────────────────────────────────────────────────────────
 const connectDB = async () => {
   try {

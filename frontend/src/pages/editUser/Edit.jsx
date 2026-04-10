@@ -51,10 +51,6 @@ const validateForm = (formData) => {
     errors.user_Password = "New password must be at least 6 characters.";
   }
 
-  if (!formData.user_MachipId || !formData.user_MachipId.trim()) {
-    errors.user_MachipId = "MaChip ID is required. Please scan the chip.";
-  }
-
   return errors;
 };
 

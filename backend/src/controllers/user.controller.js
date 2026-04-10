@@ -27,9 +27,9 @@ exports.registerUser = async (req, res) => {
   try {
     const { user_FirstName, user_LastName, user_MachipId, user_Email, user_Password } = req.body || {};
 
-    if (!user_FirstName || !user_LastName || !user_MachipId || !user_Email || !user_Password) {
+    if (!user_FirstName || !user_LastName || !user_Email || !user_Password) {
       return res.status(400).json({
-        error: "Missing required fields (First Name, Last Name, Email, Password, or MaChip ID).",
+        error: "Missing required fields (First Name, Last Name, Email, or Password).",
       });
     }
 
@@ -56,14 +56,16 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ error: "Email already exists." });
     }
 
-    // Check if MaChip ID already exists in ACTIVE users
-    const existingMachip = await sequelize.query(
-      `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :user_MachipId AND "deletedAt" IS NULL`,
-      { replacements: { user_MachipId }, type: QueryTypes.SELECT },
-    );
+    // Check if MaChip ID already exists in ACTIVE users (only if provided)
+    if (user_MachipId) {
+      const existingMachip = await sequelize.query(
+        `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :user_MachipId AND "deletedAt" IS NULL`,
+        { replacements: { user_MachipId }, type: QueryTypes.SELECT },
+      );
 
-    if (existingMachip.length > 0) {
-      return res.status(400).json({ error: "MaChip ID is already assigned to another active user." });
+      if (existingMachip.length > 0) {
+        return res.status(400).json({ error: "MaChip ID is already assigned to another active user." });
+      }
     }
 
     // Get next ID if not provided by frontend (though frontend sends it)
@@ -400,6 +402,18 @@ exports.updateUser = async (req, res) => {
 
     if (user_MiddleName && /\d/.test(user_MiddleName)) {
       return res.status(400).json({ error: "Middle Name must not contain numbers." });
+    }
+
+    // Check if new MaChip ID is already assigned to another active user
+    if (user_MachipId) {
+      const existingMachip = await sequelize.query(
+        `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :user_MachipId AND "deletedAt" IS NULL AND "user_Id" != :targetId`,
+        { replacements: { user_MachipId, targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
+      );
+
+      if (existingMachip.length > 0) {
+        return res.status(400).json({ error: "MaChip ID is already assigned to another active user." });
+      }
     }
 
     const oldUserResult = await sequelize.query(
