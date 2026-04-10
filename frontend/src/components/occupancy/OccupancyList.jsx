@@ -6,6 +6,7 @@ import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { formatUserId } from "../../utils/formatUserId";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import { fetchWithAuth } from "../../utils/api";
 
 // Returns milliseconds from current time until the next 12:00 AM (midnight)
 const msUntilMidnight = (currentTime) => {
@@ -25,7 +26,7 @@ const OccupancyList = () => {
   const fetchOccupancy = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         "/api/attendance/occupancy",
       );
       if (response.ok) {

@@ -1,33 +1,14 @@
 import React, { useState, useEffect } from "react";
 import "./createPeriodModal.scss";
+import { useSystemTime } from "../../context/SystemTimeContext";
 
 const CreatePeriodModal = ({ isOpen, onClose, onCreate }) => {
-  const [month, setMonth] = useState("March");
-  const [year, setYear] = useState("2026");
-  const [periodHalf, setPeriodHalf] = useState("1"); // "1" for 1st-15th, "2" for 16th-End
-  const [periodText, setPeriodText] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const { systemToday } = useSystemTime();
+  const [selectedOption, setSelectedOption] = useState("current"); // "current" or "next"
+  const [options, setOptions] = useState({ current: null, next: null });
 
-  // Dynamically calculate the period text
   useEffect(() => {
-    const monthIndex = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
-    ].indexOf(month);
-    
-    let start, end;
-    if (periodHalf === "1") {
-      start = new Date(year, monthIndex, 1);
-      end = new Date(year, monthIndex, 15);
-    } else {
-      start = new Date(year, monthIndex, 16);
-      end = new Date(year, monthIndex + 1, 0); // Last day of month
-    }
-
-    const formatDate = (date) => {
-      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    };
+    if (!systemToday) return;
 
     const formatLocalISO = (date) => {
       const year = date.getFullYear();
@@ -36,52 +17,102 @@ const CreatePeriodModal = ({ isOpen, onClose, onCreate }) => {
       return `${year}-${month}-${day}`;
     };
 
-    setStartDate(formatLocalISO(start));
-    setEndDate(formatLocalISO(end));
-    setPeriodText(`${formatDate(start)} - ${formatDate(end)}`);
-  }, [month, year, periodHalf]);
+    const formatDateRange = (start, end) => {
+      return `${start.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+    };
+
+    const getLabel = (start, end) => {
+      const monthName = start.toLocaleString('default', { month: 'long' });
+      const dayRange = start.getDate() === 1 ? "1-15" : `16-${end.getDate()}`;
+      return `${monthName} ${dayRange}, ${start.getFullYear()}`;
+    };
+
+    // Calculate Current Period
+    let currentStart, currentEnd;
+    const year = systemToday.getFullYear();
+    const month = systemToday.getMonth();
+    if (systemToday.getDate() <= 15) {
+      currentStart = new Date(year, month, 1);
+      currentEnd = new Date(year, month, 15);
+    } else {
+      currentStart = new Date(year, month, 16);
+      currentEnd = new Date(year, month + 1, 0);
+    }
+
+    // Calculate Next Period
+    let nextStart, nextEnd;
+    if (currentStart.getDate() === 1) {
+      nextStart = new Date(year, month, 16);
+      nextEnd = new Date(year, month + 1, 0);
+    } else {
+      nextStart = new Date(year, month + 1, 1);
+      nextEnd = new Date(year, month + 1, 15);
+    }
+
+    setOptions({
+      current: {
+        startDate: formatLocalISO(currentStart),
+        endDate: formatLocalISO(currentEnd),
+        periodText: formatDateRange(currentStart, currentEnd),
+        label: getLabel(currentStart, currentEnd)
+      },
+      next: {
+        startDate: formatLocalISO(nextStart),
+        endDate: formatLocalISO(nextEnd),
+        periodText: formatDateRange(nextStart, nextEnd),
+        label: getLabel(nextStart, nextEnd)
+      }
+    });
+  }, [systemToday]);
 
   if (!isOpen) return null;
+
+  const currentSelection = selectedOption === "current" ? options.current : options.next;
 
   return (
     <div className="modalOverlay">
       <div className="modalContent">
         <h2>Create Payroll Period</h2>
+        <p className="modalSubtext">Only the current and next periods can be scheduled manually.</p>
         
-        <div className="formGroup">
-          <label>Month</label>
-          <select value={month} onChange={(e) => setMonth(e.target.value)}>
-            {["January", "February", "March", "April", "May", "June", 
-              "July", "August", "September", "October", "November", "December"
-            ].map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+        <div className="optionSelector">
+          <div 
+            className={`optionCard ${selectedOption === "current" ? "active" : ""}`}
+            onClick={() => setSelectedOption("current")}
+          >
+            <div className="radio"></div>
+            <div className="text">
+              <span className="type">Current Period</span>
+              <span className="label">{options.current?.label}</span>
+            </div>
+          </div>
+
+          <div 
+            className={`optionCard ${selectedOption === "next" ? "active" : ""}`}
+            onClick={() => setSelectedOption("next")}
+          >
+            <div className="radio"></div>
+            <div className="text">
+              <span className="type">Next Period</span>
+              <span className="label">{options.next?.label}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="formGroup">
-          <label>Year</label>
-          <select value={year} onChange={(e) => setYear(e.target.value)}>
-            <option value="2025">2025</option>
-            <option value="2026">2026</option>
-            <option value="2027">2027</option>
-          </select>
-        </div>
-
-        <div className="formGroup">
-          <label>Period Half</label>
-          <select value={periodHalf} onChange={(e) => setPeriodHalf(e.target.value)}>
-            <option value="1">1st Half (1st - 15th)</option>
-            <option value="2">2nd Half (16th - End)</option>
-          </select>
-        </div>
-
-        <div className="periodDisplay">
-          <strong>Period:</strong> {periodText}
-        </div>
+        {currentSelection && (
+          <div className="periodDisplay">
+            <strong>Selected Range:</strong> {currentSelection.periodText}
+          </div>
+        )}
 
         <div className="modalActions">
           <button className="cancelBtn" onClick={onClose}>Cancel</button>
-          <button className="createBtn" onClick={() => onCreate({ month, year, periodHalf, periodText, startDate, endDate })}>
-            Create Period
+          <button 
+            className="createBtn" 
+            disabled={!currentSelection}
+            onClick={() => onCreate(currentSelection)}
+          >
+            Create {selectedOption === "current" ? "Current" : "Next"} Period
           </button>
         </div>
       </div>

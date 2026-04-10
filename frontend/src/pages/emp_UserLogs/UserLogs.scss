@@ -22,6 +22,45 @@
           color: #2A174E;
           h1 { font-size: 22px; font-weight: 700; }
           .icon { font-size: 28px; }
+
+          .periodFilter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: 20px;
+            padding-left: 20px;
+            border-left: 1.5px solid #e2e8f0;
+
+            label {
+              font-size: 13px;
+              font-weight: 600;
+              color: #64748b;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+
+            select {
+              padding: 6px 12px;
+              border-radius: 6px;
+              border: 1.5px solid #e2e8f0;
+              background-color: white;
+              color: #2d3748;
+              font-size: 14px;
+              font-weight: 500;
+              cursor: pointer;
+              outline: none;
+              transition: all 0.2s;
+
+              &:hover {
+                border-color: #cbd5e1;
+              }
+
+              &:focus {
+                border-color: #2A174E;
+                box-shadow: 0 0 0 2px rgba(42, 23, 78, 0.1);
+              }
+            }
+          }
         }
 
         .exportBtn {

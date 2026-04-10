@@ -8,6 +8,7 @@ import FilterListIcon from "@mui/icons-material/FilterList";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import CloseIcon from "@mui/icons-material/Close";
 import { formatUserId } from "../../utils/formatUserId";
+import { fetchWithAuth } from "../../utils/api";
 
 const TransactionLog = () => {
   const [transactions, setTransactions] = useState([]);
@@ -19,7 +20,7 @@ const TransactionLog = () => {
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
-        const response = await fetch("/api/system/transaction-logs");
+        const response = await fetchWithAuth("/api/system/transaction-logs");
         const data = await response.json();
         if (response.ok) {
           setTransactions(data);

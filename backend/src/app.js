@@ -31,14 +31,15 @@ app.use((req, res, next) => {
 
 app.use(
   cors({
-    origin: "http://localhost:5173", // Your Vite/React URL
+    origin: true, // Allow any origin during development so colleagues can connect
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
   }),
 );
 
 app.use(express.static("public"));
-app.use("/uploads", express.static("uploads"));
+app.use("/api/uploads", express.static("uploads")); // Move this here and add /api prefix
+app.use("/uploads", express.static("uploads")); // Keep for compatibility
 
 // Connect to the database
 connectDB().then(async () => {
@@ -57,6 +58,9 @@ app.use("/api/auth", authRoutes);
 // Routes for RFID/ESP32 (Must be public for the device)
 const rfidRoutes = require("./routes/rfid.routes.js");
 app.use("/api/rfid", rfidRoutes);
+
+// Make system time public (needed before login)
+app.get("/api/system/time", require("./controllers/system.controller").getSystemTime);
 
 // Basic route for testing
 app.get("/Machip", (req, res) => {

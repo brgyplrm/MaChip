@@ -8,9 +8,26 @@ import { fetchWithAuth } from "../../utils/api";
 
 
 const Navbar = () => {
-  const userData = JSON.parse(localStorage.getItem("userData"));
+  const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
   const [unreadCount, setUnreadCount] = useState(0);
   let currentLink = "";
+
+  // 1. Fetch latest user details from server on mount
+  // This ensures the profile pic in the navbar syncs immediately after a change
+  const fetchUserLatest = async () => {
+    if (!userData?.user_Id) return;
+    try {
+      const response = await fetchWithAuth(`/api/users/${userData.user_Id}`);
+      if (response.ok) {
+        const data = await response.json();
+        const { user_Password, ...safeData } = data;
+        setUserData(safeData);
+        localStorage.setItem("userData", JSON.stringify(safeData));
+      }
+    } catch (err) {
+      console.error("Error syncing navbar profile:", err);
+    }
+  };
 
   const fetchUnreadCount = async () => {
     if (!userData?.user_Id) return;
@@ -26,10 +43,25 @@ const Navbar = () => {
   };
 
   useEffect(() => {
+    fetchUserLatest();
     fetchUnreadCount();
+
+    // Listen for storage changes (updates from other tabs/pages)
+    const handleStorageChange = () => {
+      setUserData(JSON.parse(localStorage.getItem("userData")));
+    };
+    window.addEventListener("storage", handleStorageChange);
+    // Custom event for same-tab updates
+    window.addEventListener("userUpdate", handleStorageChange);
+
     // Poll every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("userUpdate", handleStorageChange);
+    };
   }, [userData?.user_Id]);
 
   return (
@@ -48,7 +80,7 @@ const Navbar = () => {
           <Link to="/profile">
             <div className="item">
               <img 
-                src={userData?.user_ProfilePic ? `http://localhost:4000/uploads/${userData.user_ProfilePic}` : "/avatar.webp"} 
+                src={userData?.user_ProfilePic ? `/api/uploads/${userData.user_ProfilePic}` : "/avatar.webp"} 
                 alt="Profile" 
                 className="avatar" 
               />

@@ -51,6 +51,7 @@ const Single = () => {
                   src={user.user_ProfilePic ? `/api/uploads/${user.user_ProfilePic}` : "/avatar.webp"}
                   alt=""
                   className="itemImg"
+                  onError={(e) => { e.target.src = "/avatar.webp"; }}
                 />
                 <div className="details">
                   <h1

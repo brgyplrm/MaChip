@@ -7,6 +7,7 @@ import Featured from "../../components/featured/Featured";
 import Chart from "../../components/chart/Chart";
 import OccupancyList from "../../components/occupancy/OccupancyList";
 import Toast from "../../components/toast/Toast";
+import { fetchWithAuth } from "../../utils/api";
 
 const Home = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -17,7 +18,7 @@ const Home = () => {
     if (userData?.user_RoleId === 1) {
       const fetchPendingCount = async () => {
         try {
-          const response = await fetch("/api/request/pending-count");
+          const response = await fetchWithAuth("/api/request/pending-count");
           if (response.ok) {
             const data = await response.json();
             if (data.count > 0) {

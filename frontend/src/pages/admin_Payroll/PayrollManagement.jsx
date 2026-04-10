@@ -10,8 +10,11 @@ import { Link } from "react-router-dom";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodModal";
+import { fetchWithAuth } from "../../utils/api";
+import { useSystemTime } from "../../context/SystemTimeContext";
 
 const Payroll = () => {
+  const { systemToday } = useSystemTime();
   const [payrolls, setPayrolls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -33,7 +36,7 @@ const Payroll = () => {
   };
 
   // Helper to generate next N periods
-  const generateUpcomingPeriods = (startDate, count = 3) => {
+  const generateUpcomingPeriods = (startDate, count = 6) => {
     const periods = [];
     let current;
     
@@ -49,17 +52,21 @@ const Payroll = () => {
       const year = current.getFullYear();
       const month = current.getMonth();
       
-      if (current.getDate() <= 15) {
+      if (current.getDate() <= 15 && current.getDate() !== 0) { // If seed is 16th or before (end of 1st half)
+        // Next is 2nd Half: 17th to EOM
         start = new Date(year, month, 16);
         end = new Date(year, month + 1, 0); 
         half = "2nd Half";
       } else {
+        // Next is 1st Half: 1st to 16th
         start = new Date(year, month + 1, 1);
         end = new Date(year, month + 1, 15);
         half = "1st Half";
       }
       
       const monthName = start.toLocaleString('default', { month: 'long' });
+      const dayRange = start.getDate() === 1 ? "1-15" : `16-${end.getDate()}`;
+      const label = `${monthName} ${dayRange}, ${start.getFullYear()}`;
       const periodText = `${start.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
       
       periods.push({
@@ -67,24 +74,25 @@ const Payroll = () => {
         year: start.getFullYear(),
         half,
         periodText,
+        label,
         startDate: formatLocalISO(start),
         endDate: formatLocalISO(end)
       });
       
-      current = new Date(start);
+      current = new Date(end); // Seed next iteration with this period's end
     }
     return periods;
   };
 
   const handleCreatePeriod = async (periodData) => {
     try {
-      const response = await fetch("/api/system/payroll-periods", {
+      const response = await fetchWithAuth("/api/system/payroll-periods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           startDate: periodData.startDate,
           endDate: periodData.endDate,
-          label: `${periodData.month} ${periodData.year}`
+          label: periodData.label || `${periodData.month} ${periodData.year}`
         })
       });
 
@@ -102,10 +110,10 @@ const Payroll = () => {
   const fetchActive = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/system/payroll-periods");
+      const response = await fetchWithAuth("/api/system/payroll-periods");
       const data = await response.json();
       
-      if (response.ok && data.length > 0) {
+      if (response.ok) {
         setAllPeriods(data);
         
         // ACTIVE = The most recent DRAFT period
@@ -133,7 +141,28 @@ const Payroll = () => {
           setActivePeriod(null);
         }
 
-        setUpcomingPeriods(generateUpcomingPeriods(data[0].endDate, 3));
+        // Upcoming logic: ensure we don't show past months
+        let seedDate = data.length > 0 ? data[0].endDate : null;
+        
+        // If no periods or last period is before today's start, sync to today
+        if (systemToday) {
+          let currentStartSeed;
+          if (systemToday.getDate() <= 15) {
+            // If today is <= 15, current period is 1-15. Seed for NEXT is 15th.
+            currentStartSeed = new Date(systemToday.getFullYear(), systemToday.getMonth(), 0); // Seed as last day of prev month
+          } else {
+            // If today is > 15, current period is 16-EOM. Seed for NEXT is 15th of current month.
+            currentStartSeed = new Date(systemToday.getFullYear(), systemToday.getMonth(), 15);
+          }
+
+          if (!seedDate || new Date(seedDate) < currentStartSeed) {
+            seedDate = formatLocalISO(currentStartSeed);
+          }
+        }
+
+        if (seedDate) {
+          setUpcomingPeriods(generateUpcomingPeriods(seedDate, 3));
+        }
       }
     } catch (error) {
       console.error("Error fetching periods:", error);
@@ -145,8 +174,10 @@ const Payroll = () => {
   const handleRefresh = () => fetchActive();
 
   useEffect(() => {
-    fetchActive();
-  }, []);
+    if (systemToday) {
+      fetchActive();
+    }
+  }, [systemToday]);
 
   return (
     <div className="payroll">

@@ -7,6 +7,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { useSystemTime } from "../../context/SystemTimeContext";
 
 import InfoModal from "../../components/infoModal/InfoModal";
+import { fetchWithAuth } from "../../utils/api";
 
 const EmployeeCalendar = () => {
   const { systemToday } = useSystemTime();
@@ -47,7 +48,7 @@ const EmployeeCalendar = () => {
       const firstDay = `${year}-01-01`;
       const lastDay = `${year}-12-31`;
       
-      const response = await fetch(`/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}&user_Id=${userId}`);
+      const response = await fetchWithAuth(`/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}&user_Id=${userId}`);
       if (response.ok) {
         const data = await response.json();
         setEvents(data);

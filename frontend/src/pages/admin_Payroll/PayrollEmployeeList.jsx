@@ -14,6 +14,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Link } from "react-router-dom";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import { fetchWithAuth } from "../../utils/api";
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);
@@ -30,7 +31,7 @@ const EmployeeList = () => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const response = await fetch("http://localhost:4000/api/users/employees/masterlist");
+      const response = await fetchWithAuth("/api/users/employees/masterlist");
       const data = await response.json();
       if (response.ok) {
         setEmployees(data);
@@ -76,8 +77,8 @@ const EmployeeList = () => {
     }
     setSavingId(emp.user_Id);
     try {
-      const response = await fetch(
-        `http://localhost:4000/api/users/employees/${emp.user_Id}/daily-rate`,
+      const response = await fetchWithAuth(
+        `/api/users/employees/${emp.user_Id}/daily-rate`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

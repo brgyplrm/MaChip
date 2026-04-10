@@ -8,6 +8,7 @@ import html2canvas from "html2canvas";
 import { formatUserId } from "../../utils/formatUserId";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { fetchWithAuth } from "../../utils/api";
 
 const UserLogs = () => {
   const dtrRef = useRef();
@@ -17,6 +18,8 @@ const UserLogs = () => {
   const [rawLogs, setRawLogs] = useState([]);
   const [dtrData, setDtrData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [payrollPeriods, setPayrollPeriods] = useState([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState("current");
 
   const formatToYYYYMMDD = (date) => {
     const d = new Date(date);
@@ -48,16 +51,53 @@ const UserLogs = () => {
     }
   };
 
-  const payroll = getPayrollDates(systemToday);
-  const [dtrStartDate, setDtrStartDate] = useState(payroll.start);
-  const [dtrEndDate, setDtrEndDate] = useState(payroll.end);
+  const currentPayroll = getPayrollDates(systemToday);
+  const [dtrStartDate, setDtrStartDate] = useState(currentPayroll.start);
+  const [dtrEndDate, setDtrEndDate] = useState(currentPayroll.end);
+  const [payEndingLabel, setPayEndingLabel] = useState(currentPayroll.payEnding);
 
-  // Sync state if systemToday changes significantly
+  // Fetch Payroll Periods
   useEffect(() => {
-    const p = getPayrollDates(systemToday);
-    setDtrStartDate(p.start);
-    setDtrEndDate(p.end);
-  }, [systemToday.getDate(), systemToday.getMonth()]);
+    const fetchPeriods = async () => {
+      try {
+        const res = await fetchWithAuth("/api/system/payroll-periods");
+        if (res.ok) {
+          const data = await res.json();
+          setPayrollPeriods(data);
+        }
+      } catch (err) { console.error("Error fetching periods:", err); }
+    };
+    fetchPeriods();
+  }, []);
+
+  // Sync state if systemToday changes significantly (only if "current" is selected)
+  useEffect(() => {
+    if (selectedPeriodId === "current") {
+      const p = getPayrollDates(systemToday);
+      setDtrStartDate(p.start);
+      setDtrEndDate(p.end);
+      setPayEndingLabel(p.payEnding);
+    }
+  }, [systemToday.getDate(), systemToday.getMonth(), selectedPeriodId]);
+
+  const handlePeriodChange = (e) => {
+    const val = e.target.value;
+    setSelectedPeriodId(val);
+
+    if (val === "current") {
+      const p = getPayrollDates(systemToday);
+      setDtrStartDate(p.start);
+      setDtrEndDate(p.end);
+      setPayEndingLabel(p.payEnding);
+    } else {
+      const period = payrollPeriods.find(p => p.periodId.toString() === val);
+      if (period) {
+        setDtrStartDate(period.startDate);
+        setDtrEndDate(period.endDate);
+        setPayEndingLabel(period.label);
+      }
+    }
+  };
 
   const handleDownloadDTR = async () => {
     const element = dtrRef.current;
@@ -80,7 +120,7 @@ const UserLogs = () => {
   const fetchRawLogs = async () => {
     if (!userData?.user_Id) return;
     try {
-      const response = await fetch(`/api/attendance/logs/${userData.user_Id}`);
+      const response = await fetchWithAuth(`/api/attendance/logs/${userData.user_Id}`);
       if (response.ok) {
         const data = await response.json();
         // Filter logs for current period using split to ignore time/timezone
@@ -98,7 +138,7 @@ const UserLogs = () => {
     if (!userData?.user_Id) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/attendance/report?startDate=${dtrStartDate}&endDate=${dtrEndDate}&user_Id=${userData.user_Id}`);
+      const response = await fetchWithAuth(`/api/attendance/report?startDate=${dtrStartDate}&endDate=${dtrEndDate}&user_Id=${userData.user_Id}`);
       if (response.ok) {
         const data = await response.json();
         setDtrData(data);
@@ -140,7 +180,15 @@ const UserLogs = () => {
           <div className="header">
             <div className="title">
               <h1>Access Logs & DTR</h1>
-              <span className="subtitle">Period: {payroll.payEnding}</span>
+              <div className="periodFilter">
+                <label>View Period:</label>
+                <select value={selectedPeriodId} onChange={handlePeriodChange}>
+                  <option value="current">Current Period</option>
+                  {payrollPeriods.map(p => (
+                    <option key={p.periodId} value={p.periodId}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <button className="exportBtn" onClick={handleDownloadDTR}>Export DTR (PDF)</button>
           </div>
@@ -161,10 +209,9 @@ const UserLogs = () => {
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: (new Date(dtrEndDate).getDate() - new Date(dtrStartDate).getDate() + 1) }, (_, i) => {
-                  const dayNum = new Date(dtrStartDate).getDate() + i;
+                {Array.from({ length: (Math.round((new Date(dtrEndDate) - new Date(dtrStartDate)) / (1000 * 60 * 60 * 24)) + 1) }, (_, i) => {
                   const targetDate = new Date(dtrStartDate);
-                  targetDate.setDate(dayNum);
+                  targetDate.setDate(targetDate.getDate() + i);
                   const dateStr = formatToYYYYMMDD(targetDate);
                   const todayStr = formatToYYYYMMDD(systemToday);
                   
@@ -210,7 +257,7 @@ const UserLogs = () => {
               <div className="cardTopHeader">
                 <div className="headerLine">
                   <div className="field">No. <span>{formatUserId(userData?.user_Id)}</span></div>
-                  <div className="field">Pay Ending <span>{payroll.payEnding}</span></div>
+                  <div className="field">Pay Ending <span>{payEndingLabel}</span></div>
                 </div>
                 <div className="headerLine">
                   <div className="field">Name <span>{userData?.user_FirstName} {userData?.user_LastName}</span></div>
@@ -255,43 +302,36 @@ const UserLogs = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {Array.from({ length: (new Date(dtrEndDate).getDate() - new Date(dtrStartDate).getDate() + 1) }, (_, i) => {
-                        const dayNum = new Date(dtrStartDate).getDate() + i;
+                      {Array.from({ length: (Math.round((new Date(dtrEndDate) - new Date(dtrStartDate)) / (1000 * 60 * 60 * 24)) + 1) }, (_, i) => {
+                        const targetDate = new Date(dtrStartDate);
+                        targetDate.setDate(targetDate.getDate() + i);
+                        const dayNum = targetDate.getDate();
+                        const isSunday = targetDate.getDay() === 0;
+
+                        if (isSunday) return null;
+
                         const log = getDtrLogsForDay(dayNum);
 
-                        let morningIn = "", morningOut = "12:00", afternoonIn = "13:00", afternoonOut = "";
+                        let morningIn = "", morningOut = "", afternoonIn = "", afternoonOut = "";
                         let otIn = "", otOut = "";
 
                         if (log) {
-                          // Regular Time
-                          const tIn = log.time_In;
-                          const tOut = log.time_Out;
-                          
-                          if (tIn && tIn !== "—") {
-                            const hour = parseInt(tIn.split(":")[0]);
-                            if (hour < 12) morningIn = formatTime(tIn);
-                            else afternoonIn = formatTime(tIn);
-                          }
-
-                          if (tOut && tOut !== "—") {
-                            const hour = parseInt(tOut.split(":")[0]);
-                            if (hour < 13) morningOut = formatTime(tOut);
-                            else afternoonOut = formatTime(tOut);
-                          }
-
-                          // Overtime
-                          if (log.ot_In && log.ot_In !== "—") otIn = formatTime(log.ot_In);
-                          if (log.ot_Out && log.ot_Out !== "—") otOut = formatTime(log.ot_Out);
+                          morningIn = log.morning_In !== "—" ? log.morning_In : "";
+                          morningOut = log.morning_Out !== "—" ? log.morning_Out : "";
+                          afternoonIn = log.afternoon_In !== "—" ? log.afternoon_In : "";
+                          afternoonOut = log.afternoon_Out !== "—" ? log.afternoon_Out : "";
+                          otIn = log.ot_In !== "—" ? log.ot_In : "";
+                          otOut = log.ot_Out !== "—" ? log.ot_Out : "";
                         }
 
-                        const isWeekend = new Date(new Date(dtrStartDate).getFullYear(), new Date(dtrStartDate).getMonth(), dayNum).getDay() === 0;
+                        const isWeekend = targetDate.getDay() === 0;
 
                         return (
                           <tr key={dayNum} className={isWeekend ? "weekend" : ""}>
                             <td className="dayCol">{dayNum}</td>
                             <td>{morningIn}</td>
-                            <td>{log ? morningOut : ""}</td>
-                            <td>{log ? afternoonIn : ""}</td>
+                            <td>{morningOut}</td>
+                            <td>{afternoonIn}</td>
                             <td>{afternoonOut}</td>
                             <td>{otIn}</td>
                             <td>{otOut}</td>

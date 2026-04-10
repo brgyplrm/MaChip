@@ -32,7 +32,7 @@ const RequestDetails = () => {
   useEffect(() => {
     const fetchDetails = async () => {
       try {
-        const response = await fetch(`/api/request/details/${requestId}`);
+        const response = await fetchWithAuth(`/api/request/details/${requestId}`);
         if (response.ok) {
           const data = await response.json();
           setRequest(data);
@@ -220,7 +220,7 @@ const RequestDetails = () => {
                 <div className="item">
                   <label>Proof Document</label>
                   <a 
-                    href={`/uploads/${request.SL_proof_File || request.OW_proof_File}`} 
+                    href={`/api/uploads/${request.SL_proof_File || request.OW_proof_File}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="attachmentLink"

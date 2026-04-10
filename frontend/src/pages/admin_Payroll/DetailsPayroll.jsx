@@ -10,6 +10,7 @@ import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
+import { fetchWithAuth } from "../../utils/api";
 
 const PayrollDetails = () => {
   const navigate = useNavigate();
@@ -29,11 +30,11 @@ const PayrollDetails = () => {
         if (payrollId.startsWith("live-") || payrollId.startsWith("preview-")) {
           const userId = payrollId.split("-")[1];
           // 1. Get Employee Info
-          const empRes = await fetch(`/api/users/${userId}`);
+          const empRes = await fetchWithAuth(`/api/users/${userId}`);
           const emp = await empRes.json();
 
           // 2. Get Live Preview
-          const prevRes = await fetch(`/api/payroll/preview?user_Id=${userId}&period_Start=${periodStart}&period_End=${periodEnd}`);
+          const prevRes = await fetchWithAuth(`/api/payroll/preview?user_Id=${userId}&period_Start=${periodStart}&period_End=${periodEnd}`);
           const preview = await prevRes.json();
 
           if (empRes.ok && prevRes.ok) {
@@ -73,7 +74,7 @@ const PayrollDetails = () => {
           }
         } else {
           // Standard DB fetch
-          const response = await fetch(`/api/payroll/${payrollId}`);
+          const response = await fetchWithAuth(`/api/payroll/${payrollId}`);
           const data = await response.json();
           if (response.ok) {
             setPayroll(data);

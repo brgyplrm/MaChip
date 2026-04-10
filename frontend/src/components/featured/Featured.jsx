@@ -5,6 +5,7 @@ import { CircularProgressbar } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpOutlinedIcon from "@mui/icons-material/KeyboardArrowUpOutlined";
+import { fetchWithAuth } from "../../utils/api";
 
 const Featured = () => {
   const [stats, setStats] = useState({
@@ -20,7 +21,7 @@ const Featured = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch("/api/attendance/stats");
+        const response = await fetchWithAuth("/api/attendance/stats");
         if (response.ok) {
           const data = await response.json();
           setStats(data);

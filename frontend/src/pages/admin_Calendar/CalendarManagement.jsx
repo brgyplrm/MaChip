@@ -14,6 +14,7 @@ import ActionModal from "../../components/actionModal/ActionModal";
 import InfoModal from "../../components/infoModal/InfoModal";
 import { useSelector } from "react-redux";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import { fetchWithAuth } from "../../utils/api";
 
 
 const CalendarManagement = () => {
@@ -36,7 +37,6 @@ const CalendarManagement = () => {
   const confirmDelete = async () => {
     if (!itemToDelete) return;
     const { id, type } = itemToDelete;
-    const adminId = localStorage.getItem("token");
     
     // Choose endpoint based on type
     const endpoint = type === 'Holiday' 
@@ -44,9 +44,8 @@ const CalendarManagement = () => {
       : `/api/request/delete/${id}`;
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetchWithAuth(endpoint, {
         method: "DELETE",
-        headers: { "x-admin-id": adminId },
       });
       
       if (response.ok) {
@@ -114,7 +113,7 @@ const CalendarManagement = () => {
     }
 
     try {
-      const response = await fetch("/api/system/holidays", {
+      const response = await fetchWithAuth("/api/system/holidays", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -146,7 +145,7 @@ const CalendarManagement = () => {
     }
 
     try {
-      const response = await fetch("/api/request", {
+      const response = await fetchWithAuth("/api/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -185,7 +184,7 @@ const CalendarManagement = () => {
       const firstDay = `${year}-01-01`;
       const lastDay = `${year}-12-31`;
       
-      const response = await fetch(`/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}`);
+      const response = await fetchWithAuth(`/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}`);
       if (response.ok) {
         const data = await response.json();
         setEvents(data);
@@ -199,7 +198,7 @@ const CalendarManagement = () => {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch("/api/users/all");
+      const response = await fetchWithAuth("/api/users/all");
       if (response.ok) {
         const data = await response.json();
         setEmployees(data);

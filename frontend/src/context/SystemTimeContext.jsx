@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, useCallback } from "react";
+import { fetchWithAuth } from "../utils/api";
 
 const SystemTimeContext = createContext();
 
@@ -8,7 +9,7 @@ export const SystemTimeProvider = ({ children }) => {
 
   const fetchSystemTime = useCallback(async () => {
     try {
-      const response = await fetch("/api/system/time");
+      const response = await fetchWithAuth("/api/system/time");
       if (response.ok) {
         const data = await response.json();
         const sysDate = new Date(data.systemTime);

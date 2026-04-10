@@ -12,6 +12,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ProcessPayrollModal from "../../components/procpayrollmodal/ProcessPayrollModal";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { fetchWithAuth } from "../../utils/api";
 
 const PayrollPeriod = () => {
   const [payrolls, setPayrolls] = useState([]);
@@ -36,7 +37,7 @@ const PayrollPeriod = () => {
     
     try {
       // 1. Fetch all periods to populate dropdown and find selected
-      const periodsRes = await fetch("/api/system/payroll-periods");
+      const periodsRes = await fetchWithAuth("/api/system/payroll-periods");
       const periodsData = await periodsRes.json();
       
       if (periodsRes.ok && periodsData.length > 0) {
@@ -69,7 +70,7 @@ const PayrollPeriod = () => {
 
   const fetchLivePreview = async (period) => {
     try {
-      const empRes = await fetch("/api/users/all");
+      const empRes = await fetchWithAuth("/api/users/all");
       const employees = await empRes.json();
       if (!empRes.ok) return;
 
@@ -77,7 +78,7 @@ const PayrollPeriod = () => {
       let totalNet = 0, totalEarn = 0, totalDed = 0;
 
       for (const emp of employees.filter(e => e.dailyRate > 0)) {
-        const prevRes = await fetch(`/api/payroll/preview?user_Id=${emp.user_Id}&period_Start=${period.startDate}&period_End=${period.endDate}`);
+        const prevRes = await fetchWithAuth(`/api/payroll/preview?user_Id=${emp.user_Id}&period_Start=${period.startDate}&period_End=${period.endDate}`);
         const preview = await prevRes.json();
 
         if (prevRes.ok) {
@@ -109,7 +110,7 @@ const PayrollPeriod = () => {
 
   const fetchSavedPayrolls = async (period) => {
     try {
-      const response = await fetch(`/api/payroll/report?startDate=${period.startDate}&endDate=${period.endDate}`);
+      const response = await fetchWithAuth(`/api/payroll/report?startDate=${period.startDate}&endDate=${period.endDate}`);
       const data = await response.json();
       if (response.ok) {
         setPayrolls(data);
@@ -125,7 +126,7 @@ const PayrollPeriod = () => {
     if (!selectedPeriod) return;
     try {
       setLoading(true);
-      const response = await fetch("/api/payroll/batch-generate", {
+      const response = await fetchWithAuth("/api/payroll/batch-generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

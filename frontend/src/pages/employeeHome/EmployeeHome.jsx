@@ -101,15 +101,15 @@ const EmployeeHome = () => {
             <div className="statProgressBars">
                 <h3 className="sectionTitle">Attendance Overview ({att.monthName})</h3>
                 <div className="progressItem">
-                    <div className="info"><span>Absent</span><span className="count">{att.absent} days</span></div>
+                    <div className="info"><span>Absent</span><span className="count">{att.absent} day(s)</span></div>
                     <div className="bar"><div className="fill absent" style={{width: `${(att.absent/totalTrackedDays)*100}%`}}></div></div>
                 </div>
                 <div className="progressItem">
-                    <div className="info"><span>Late</span><span className="count">{att.late} days</span></div>
+                    <div className="info"><span>Late</span><span className="count">{att.late} day(s)</span></div>
                     <div className="bar"><div className="fill late" style={{width: `${(att.late/totalTrackedDays)*100}%`}}></div></div>
                 </div>
                 <div className="progressItem">
-                    <div className="info"><span>On-Time / On-Field</span><span className="count">{att.onTime} days</span></div>
+                    <div className="info"><span>On-Time / On-Field</span><span className="count">{att.onTime} day(s)</span></div>
                     <div className="bar"><div className="fill ontime" style={{width: `${(att.onTime/totalTrackedDays)*100}%`}}></div></div>
                 </div>
             </div>

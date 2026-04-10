@@ -115,32 +115,26 @@ exports.registerUser = async (req, res) => {
       },
     );
 
-    // Send welcome email after successful registration
-    try {
-      await sendWelcomeEmail({
-        email: user_Email,
-        password: user_Password, // Send the plain password
-        name: `${req.body.user_FirstName} ${req.body.user_LastName}`,
-        displayId: displayId
-      });
-    } catch (emailError) {
-      console.error("[WELCOME EMAIL ERROR]:", emailError.message);
-      // We don't fail the registration if only the email fails, but we could return a warning
-      return res.status(201).json({ 
-        message: "User Registered, but welcome email failed to send.",
-        warning: emailError.message 
-      });
-    }
-
     // Fetch the created user to return
-    const newUser = await sequelize.query(
+    const newUserResult = await sequelize.query(
       `SELECT * FROM "User" WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
+    const newUser = newUserResult[0];
 
-    await logAudit(req, req.user?.user_Id || 1, "User Management", "CREATE_USER", "User", user_Id, null, newUser[0]);
+    await logAudit(req, req.user?.user_Id || 1, "User Management", "CREATE_USER", "User", user_Id, null, newUser);
 
-    res.status(201).json({ message: "User Registered!", data: newUser[0] });
+    // Send welcome email after successful registration (Non-blocking)
+    sendWelcomeEmail({
+      email: user_Email,
+      password: req.body.user_Password, // Use raw password
+      name: `${req.body.user_FirstName} ${req.body.user_LastName}`,
+      displayId: displayId
+    }).catch(emailError => {
+      console.error("[WELCOME EMAIL ERROR]:", emailError.message);
+    });
+
+    res.status(201).json({ message: "User Registered!", data: newUser });
   } catch (error) {
     console.error("[REGISTER USER ERROR]:", error);
     res.status(500).json({ 

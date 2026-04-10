@@ -45,6 +45,7 @@ const New = ({ inputs, title }) => {
   });
 
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   const dismissToast = useCallback(() => setToast({ message: "", type: "success" }), []);
@@ -65,7 +66,20 @@ const New = ({ inputs, title }) => {
 
   const handleInput = (e) => {
     const { id, value } = e.target;
-    setFormData((prev) => ({ ...prev, [id]: value }));
+    
+    setFormData((prev) => {
+      const updated = { ...prev, [id]: value };
+      
+      // Sync IDs when select values change
+      if (id === "user_Role") {
+        updated.user_RoleId = value === "Admin" ? 1 : value === "Staff" ? 2 : 3;
+      }
+      if (id === "user_EmploymentStatus") {
+        updated.user_EmploymentStatusId = value === "Regular" ? 1 : value === "Part-time" ? 2 : 3;
+      }
+      
+      return updated;
+    });
     setErrors((prev) => ({ ...prev, [id]: "" }));
   };
 
@@ -100,6 +114,8 @@ const New = ({ inputs, title }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
     const validationErrors = validateForm(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -107,16 +123,18 @@ const New = ({ inputs, title }) => {
       return;
     }
 
+    setLoading(true);
     const data = new FormData();
     // Append all fields from formData
     Object.keys(formData).forEach((key) => {
-      data.append(key, formData[key]);
+      if (formData[key] !== undefined && formData[key] !== null) {
+        data.append(key, formData[key]);
+      }
     });
     
-    // Map Employment Status to ID if necessary (assuming 1 for Employee)
-    if (formData.user_EmploymentStatus === "Employee") {
-      data.append("user_EmploymentStatusId", 1);
-    }
+    // Ensure IDs are present even if selects weren't touched
+    if (!formData.user_EmploymentStatusId) data.append("user_EmploymentStatusId", 1);
+    if (!formData.user_RoleId) data.append("user_RoleId", 3);
 
     // Append the file if it exists
     if (file) {
@@ -126,35 +144,15 @@ const New = ({ inputs, title }) => {
     try {
       const response = await fetchWithAuth("/api/users/registerUser", {
         method: "POST",
-        body: data, // Sending FormData automatically sets multipart/form-data
+        body: data,
       });
 
       if (response.ok) {
         setToast({ message: "User added successfully!", type: "success" });
 
         setTimeout(() => {
-          navigate("/users"); // Redirects to the User List page
+          navigate("/users");
         }, 1100);
-        // Optional: Reset form or redirect
-        setFormData({
-          user_Id: "",
-          user_FirstName: "",
-          user_LastName: "",
-          user_MiddleName: "",
-          user_EmploymentStatus: "Employee",
-          user_Email: "",
-          user_Password: "",
-          user_MachipId: "",
-          user_RoleId: 3,
-        });
-        setFile("");
-        // Re-fetch next ID
-        const nextIdResponse = await fetchWithAuth("/api/users/nextId");
-        if (nextIdResponse.ok) {
-          const nextIdData = await nextIdResponse.json();
-          setFormData((prev) => ({ ...prev, user_Id: nextIdData.nextId }));
-          setDisplayId(nextIdData.displayId);
-        }
       } else {
         const errorData = await response.json();
         setToast({ message: errorData.error || "Failed to add user.", type: "error" });
@@ -162,6 +160,8 @@ const New = ({ inputs, title }) => {
     } catch (err) {
       console.error(err);
       setToast({ message: "Something went wrong.", type: "error" });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -259,7 +259,6 @@ const New = ({ inputs, title }) => {
                         onChange={handleInput}
                       >
                         <option value="" disabled>Select {input.label}</option>
-                        {/* If you updated formSource, use input.options.map here */}
                         {input.id === "user_EmploymentStatus" && (
                           <>
                             <option value="Regular">Regular</option>
@@ -275,11 +274,14 @@ const New = ({ inputs, title }) => {
                         )}
                       </select>
                     ) : (
-                      <input
-                        id={input.id} type={input.type} placeholder={input.placeholder}
-                        value={input.id === "user_Id" ? displayId : formData[input.id]}
-                        onChange={handleInput} readOnly={input.label === "User ID" || input.label === "MaChip ID"}
-                      />
+                      <div style={{ width: "100%" }}>
+                        <input
+                          id={input.id} type={input.type} placeholder={input.placeholder}
+                          value={input.id === "user_Id" ? displayId : formData[input.id]}
+                          onChange={handleInput} readOnly={input.label === "User ID" || input.label === "MaChip ID"}
+                        />
+                        {errors[input.id] && <span className="error" style={{ color: "red", fontSize: "12px" }}>{errors[input.id]}</span>}
+                      </div>
                     )}
                     {input.label === "MaChip ID" && <button type="button" className="scanBtn" onClick={handleScanRFID}>SCAN</button>}
 
@@ -290,8 +292,10 @@ const New = ({ inputs, title }) => {
             </div>
             </div>
             <div className="bottom-center">
-            <button className="cancelButton" onClick={() => navigate("/users")}>Cancel</button>
-            <button className="submitButton" onClick={handleSubmit}>Add User</button>
+            <button className="cancelButton" onClick={() => navigate("/users")} disabled={loading}>Cancel</button>
+            <button className="submitButton" onClick={handleSubmit} disabled={loading}>
+              {loading ? "Adding..." : "Add User"}
+            </button>
           </div>
         </div>
         <RfidScanModal 

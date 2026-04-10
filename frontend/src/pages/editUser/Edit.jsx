@@ -232,6 +232,18 @@ const Edit = ({ inputs, title }) => {
         setToast({ message: "User profile updated successfully!", type: "success" });
         setShowAdminConfirm(false);
         setAdminPassword("");
+
+        // Refresh localStorage if updating own profile
+        if (currentUser?.user_Id === parseInt(userId)) {
+          const updatedRes = await fetchWithAuth(`/api/users/${userId}`);
+          if (updatedRes.ok) {
+            const updatedData = await updatedRes.json();
+            const { user_Password, ...safeData } = updatedData;
+            localStorage.setItem("userData", JSON.stringify(safeData));
+            // Trigger custom event for Navbar to update immediately
+            window.dispatchEvent(new Event("userUpdate"));
+          }
+        }
       } else {
         const errorData = await response.json();
         setToast({ message: errorData.error || "Failed to update.", type: "error" });

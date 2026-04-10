@@ -24,26 +24,35 @@ const UserRequests = () => {
   const [activeTab, setActiveTab] = useState("submit"); // 'submit' or 'history'
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [historyRequests, setHistoryRequests] = useState([]);
+  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0 });
   const [dtrData, setDtrData] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Calculate stats whenever history changes
+  useEffect(() => {
+    const pending = historyRequests.filter(r => r.emp_reqStatusId === 1).length;
+    const approved = historyRequests.filter(r => r.emp_reqStatusId === 2).length;
+    const rejected = historyRequests.filter(r => r.emp_reqStatusId === 3).length;
+    setStats({ pending, approved, rejected });
+  }, [historyRequests]);
   
-  // Dynamic DTR Date Range (1-15 or 16-EOM)
+  // Dynamic DTR Date Range (1-16 or 17-EOM)
   const getPayrollDates = () => {
     const today = new Date();
     const day = today.getDate();
     const year = today.getFullYear();
     const month = today.getMonth();
     
-    if (day <= 15) {
+    if (day <= 16) {
       return {
         start: new Date(year, month, 1).toISOString().split('T')[0],
-        end: new Date(year, month, 15).toISOString().split('T')[0],
-        payEnding: `${today.toLocaleString('en-US', { month: 'long' }).toUpperCase()} 15, ${year}`
+        end: new Date(year, month, 16).toISOString().split('T')[0],
+        payEnding: `${today.toLocaleString('en-US', { month: 'long' }).toUpperCase()} 16, ${year}`
       };
     } else {
       const lastDay = new Date(year, month + 1, 0).getDate();
       return {
-        start: new Date(year, month, 16).toISOString().split('T')[0],
+        start: new Date(year, month, 17).toISOString().split('T')[0],
         end: new Date(year, month + 1, 0).toISOString().split('T')[0],
         payEnding: `${today.toLocaleString('en-US', { month: 'long' }).toUpperCase()} ${lastDay}, ${year}`
       };
@@ -298,6 +307,11 @@ const UserRequests = () => {
       formDataToSubmit.append("HrFrom", formData.hrFrom);
       formDataToSubmit.append("HrTo", formData.hrTo);
       formDataToSubmit.append("Total_Hrs", formData.totalHrs);
+    } else if (formData.emp_reqTypeId === "2") {
+      formDataToSubmit.append("DateonField", formData.otDate);
+      formDataToSubmit.append("NoHrs", formData.totalHrs);
+      formDataToSubmit.append("NoDays", 1); // Default to 1 day for user-requested onfield
+      formDataToSubmit.append("destination", formData.remarks);
     } else {
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
       formDataToSubmit.append("EndDate", formData.leaveEndDate);
@@ -347,6 +361,7 @@ const UserRequests = () => {
           proofFile: null,
         });
         fetchBalance();
+        fetchHistory(); // Refresh history immediately
       } else {
         setToast({ message: result.error || "Failed to submit request", type: "error" });
       }
@@ -375,21 +390,21 @@ const UserRequests = () => {
             <div className="statCard">
               <div className="info">
                 <span>Pending Requests</span>
-                <p></p>
+                <p>{stats.pending}</p>
               </div>
               <HourglassEmptyIcon className="icon pending" />
             </div>
             <div className="statCard">
               <div className="info">
                 <span>Approved Total</span>
-                <p></p>
+                <p>{stats.approved}</p>
               </div>
               <CheckCircleOutlineIcon className="icon approved" />
             </div>
             <div className="statCard">
               <div className="info">
                 <span>Rejected Total</span>
-                <p></p>
+                <p>{stats.rejected}</p>
               </div>
               <CancelOutlinedIcon className="icon rejected" />
             </div>
@@ -442,7 +457,7 @@ const UserRequests = () => {
                           </div>
                         </div>
                       )}
-
+                      
                       {/* Conditional Fields for Leave (Types 3 and 4) */}
                       {(formData.emp_reqTypeId === "3" || formData.emp_reqTypeId === "4") && (
                         <div className="conditionalFields">
@@ -496,12 +511,21 @@ const UserRequests = () => {
                     {loading ? (
                       <p>Loading requests...</p>
                     ) : historyRequests.length > 0 ? (
-                      historyRequests.slice(0, 10).map(req => { /* Showing latest 10 */
+                      historyRequests.slice(0, 15).map(req => { /* Showing latest 15 */
                         const statusClass = getStatusClass(req.status);
-                        const dates = req.VL_StartDate ? `${req.VL_StartDate} - ${req.VL_EndDate}` : 
-                                    req.SL_StartDate ? `${req.SL_StartDate} - ${req.SL_EndDate}` :
-                                    req.OT_DateOf ? `${req.OT_DateOf} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})` : req.DateonField;
-                        const days = req.VL_NoDays || req.SL_NoDays || req.OW_NoDays || 1;
+                        
+                        // Determine what info to show based on type
+                        let detailText = "";
+                        if (req.emp_reqTypeId === 1) { // OT
+                          detailText = `${req.Total_Hrs} Hr(s) • ${req.OT_DateOf}`;
+                        } else if (req.emp_reqTypeId === 2) { // Field Work
+                          detailText = `${req.OW_NoDays} Day(s) • ${req.DateonField}`;
+                        } else { // Leaves
+                          const days = req.VL_NoDays || req.SL_NoDays || 1;
+                          const start = req.VL_StartDate || req.SL_StartDate;
+                          detailText = `${days} Day(s) • ${start}`;
+                        }
+
                         return (
                           <Link to={`/requests/${req.emp_reqId}`} key={req.emp_reqId} style={{ textDecoration: 'none', color: 'inherit' }}>
                             <div className={`leaveLog ${statusClass}`}>
@@ -512,7 +536,7 @@ const UserRequests = () => {
                               <div className="typeBadge">{req.reqTypeName}</div>
                               <div className="text">
                                 <p className="date">{req.reqTypeName}</p>
-                                <p className="desc">{req.status} • {req.VL_NoDays || req.SL_NoDays || 1} Day(s)</p>
+                                <p className="desc">{req.status} • {detailText}</p>
                               </div>
                             </div>
                           </Link>
@@ -598,21 +622,25 @@ const UserRequests = () => {
                     <tbody>
                       {/* Generate rows based on the current period range */}
                       {Array.from({ length: (new Date(dtrEndDate).getDate() - new Date(dtrStartDate).getDate() + 1) }, (_, i) => {
-                        const dayNum = new Date(dtrStartDate).getDate() + i;
+                        const targetDate = new Date(dtrStartDate);
+                        targetDate.setDate(targetDate.getDate() + i);
+                        const dayNum = targetDate.getDate();
+                        const isSunday = targetDate.getDay() === 0;
+
+                        if (isSunday) return null;
+
                         const log = getDtrLogsForDay(dayNum);
                         
                         let morningIn = "", morningOut = "", afternoonIn = "", afternoonOut = "";
-                        
-                        if (log && log.time_In !== "—") {
-                          const hour = parseInt(log.time_In.split(":")[0]);
-                          if (hour < 12) morningIn = log.time_In;
-                          else afternoonIn = log.time_In;
-                        }
-                        
-                        if (log && log.time_Out !== "—") {
-                          const hour = parseInt(log.time_Out.split(":")[0]);
-                          if (hour < 13) morningOut = log.time_Out;
-                          else afternoonOut = log.time_Out;
+                        let otIn = "", otOut = "";
+
+                        if (log) {
+                          morningIn = log.morning_In !== "—" ? log.morning_In : "";
+                          morningOut = log.morning_Out !== "—" ? log.morning_Out : "";
+                          afternoonIn = log.afternoon_In !== "—" ? log.afternoon_In : "";
+                          afternoonOut = log.afternoon_Out !== "—" ? log.afternoon_Out : "";
+                          otIn = log.ot_In !== "—" ? log.ot_In : "";
+                          otOut = log.ot_Out !== "—" ? log.ot_Out : "";
                         }
 
                         return (
@@ -622,8 +650,8 @@ const UserRequests = () => {
                             <td>{morningOut}</td>
                             <td>{afternoonIn}</td>
                             <td>{afternoonOut}</td>
-                            <td></td>
-                            <td></td>
+                            <td>{otIn}</td>
+                            <td>{otOut}</td>
                             <td>{log ? log.hoursWorked : ""}</td>
                           </tr>
                         );

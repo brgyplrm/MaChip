@@ -8,6 +8,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PermanentDeleteModal from "../../components/permanentDeleteModal/PermanentDeleteModal";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
+import { fetchWithAuth } from "../../utils/api";
 
 const ArchivedUsers = () => {
   const [showPermDelete, setShowPermDelete] = useState(false);
@@ -25,7 +26,7 @@ const ArchivedUsers = () => {
 
   const fetchArchivedUsers = async () => {
     try {
-      const response = await fetch("/api/users/archived");
+      const response = await fetchWithAuth("/api/users/archived");
       if (response.ok) {
         const data = await response.json();
         setArchivedUsers(data);
@@ -41,7 +42,7 @@ const ArchivedUsers = () => {
 
   const handleRestore = async (user) => {
     try {
-      const response = await fetch(`/api/users/restoreUser/${user.user_Id}`, {
+      const response = await fetchWithAuth(`/api/users/restoreUser/${user.user_Id}`, {
         method: "PATCH",
       });
       if (response.ok) {
@@ -59,18 +60,13 @@ const ArchivedUsers = () => {
   const handleActualPermanentDelete = async () => {
     if (!targetUser) return;
 
-    const adminId = localStorage.getItem("token");
     setLoading(true);
 
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `/api/users/forceDelete/${targetUser.user_Id}`,
         {
           method: "DELETE",
-          headers: { 
-            "x-admin-id": adminId,
-            "Content-Type": "application/json"
-          },
         }
       );
 

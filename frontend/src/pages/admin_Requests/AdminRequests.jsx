@@ -8,6 +8,7 @@ import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import AttachmentIcon from "@mui/icons-material/Attachment";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
+import { fetchWithAuth } from "../../utils/api";
 
 const AdminRequests = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -22,7 +23,7 @@ const AdminRequests = () => {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:4000/api/request/all");
+      const response = await fetchWithAuth("/api/request/all");
       const data = await response.json();
       if (response.ok) {
         setRequests(data);
@@ -54,8 +55,8 @@ const AdminRequests = () => {
 
   const handleStatusUpdate = async (emp_reqId, statusId) => {
     try {
-      const response = await fetch(
-        "http://localhost:4000/api/request/update-status",
+      const response = await fetchWithAuth(
+        "/api/request/update-status",
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },

@@ -9,6 +9,7 @@ import SecurityIcon from "@mui/icons-material/Security";
 import CloseIcon from "@mui/icons-material/Close";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { formatUserId } from "../../utils/formatUserId";
+import { fetchWithAuth } from "../../utils/api";
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
@@ -20,7 +21,7 @@ const AuditLogs = () => {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const response = await fetch("/api/system/audit-logs");
+        const response = await fetchWithAuth("/api/system/audit-logs");
         const data = await response.json();
         if (response.ok) {
           setLogs(data);

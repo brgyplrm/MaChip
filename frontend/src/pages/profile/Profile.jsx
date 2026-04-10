@@ -82,9 +82,10 @@ const Profile = () => {
             <div className="profileHeader">
               <div className="imageContainer">
                 <img
-                  src={user.user_ProfilePic ? `http://localhost:4000/uploads/${user.user_ProfilePic}` : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"}
+                  src={user.user_ProfilePic ? `/api/uploads/${user.user_ProfilePic}` : "/avatar.webp"}
                   alt="Profile"
                   className="profileImg"
+                  onError={(e) => { e.target.src = "/avatar.webp"; }}
                 />
               </div>
               <div className="mainInfo">

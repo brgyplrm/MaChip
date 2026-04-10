@@ -10,6 +10,7 @@ import {
   YAxis,
   Legend
 } from "recharts";
+import { fetchWithAuth } from "../../utils/api";
 
 const Chart = ({ aspect, title, userId }) => {
   const [data, setData] = useState([]);
@@ -21,7 +22,7 @@ const Chart = ({ aspect, title, userId }) => {
           ? `/api/attendance/monthly-stats/${userId}`
           : "/api/attendance/monthly-stats";
           
-        const response = await fetch(url);
+        const response = await fetchWithAuth(url);
         if (response.ok) {
           const stats = await response.json();
           // Trim whitespace from TO_CHAR names
