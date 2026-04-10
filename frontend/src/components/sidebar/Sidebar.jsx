@@ -38,7 +38,7 @@ const Sidebar = () => {
   const confirmLogout = async () => {
       try {
         // 1. Tell backend to log logout event
-        await fetch("http://localhost:4000/api/users/logout", {
+        await fetch("/api/auth/logout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_Id: userData?.user_Id }),

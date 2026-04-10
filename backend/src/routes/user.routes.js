@@ -8,9 +8,6 @@ const upload = require("../middleware/upload.js");
 // URL will be: http://localhost:4000/api/users/registerUser
 router.post("/registerUser", upload.single("user_ProfilePic"), userController.registerUser);
 
-// Logout
-router.post("/logout", authController.logoutUser);
-
 // Get the next auto-incremented user ID
 router.get("/nextId", userController.getNextUserId);
 

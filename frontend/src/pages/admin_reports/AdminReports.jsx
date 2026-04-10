@@ -12,6 +12,7 @@ import { Link } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import { exportBatchToZip } from "../../utils/payrollExport";
 import { useLocation } from "react-router-dom";
+import { fetchWithAuth } from "../../utils/api";
 
 const Reports = () => {
   const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0]);
@@ -31,7 +32,7 @@ const Reports = () => {
 
   const fetchPayrollPeriods = useCallback(async () => {
     try {
-      const response = await fetch("http://localhost:4000/api/system/payroll-periods");
+      const response = await fetchWithAuth("/api/system/payroll-periods");
       if (response.ok) {
         const data = await response.json();
         setPayrollPeriods(data);
@@ -55,7 +56,7 @@ const Reports = () => {
 
   const fetchEmployees = useCallback(async () => {
     try {
-      const response = await fetch("http://localhost:4000/api/users/all");
+      const response = await fetchWithAuth("/api/users/all");
       if (response.ok) {
         const data = await response.json();
         setEmployees(data);
@@ -68,7 +69,7 @@ const Reports = () => {
   const fetchAttendanceReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:4000/api/attendance/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      const response = await fetchWithAuth(`/api/attendance/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
       if (response.ok) {
         const data = await response.json();
         setAttendanceData(data);
@@ -83,7 +84,7 @@ const Reports = () => {
   const fetchPayrollReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:4000/api/payroll/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      const response = await fetchWithAuth(`/api/payroll/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
       if (response.ok) {
         const data = await response.json();
         setPayrollData(data);
@@ -98,7 +99,7 @@ const Reports = () => {
   const fetchCalendarReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:4000/api/request/report/calendar?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      const response = await fetchWithAuth(`/api/request/report/calendar?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
       if (response.ok) {
         const data = await response.json();
         setCalendarData(data);

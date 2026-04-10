@@ -12,6 +12,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import AttachmentIcon from "@mui/icons-material/Attachment";
 import { useNavigate, useParams } from "react-router-dom";
+import { fetchWithAuth } from "../../utils/api";
 
 const RequestDetails = () => {
   const navigate = useNavigate();

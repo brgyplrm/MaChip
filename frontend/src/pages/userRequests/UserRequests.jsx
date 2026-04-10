@@ -16,6 +16,7 @@ import { Link } from "react-router-dom";
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import { formatUserId } from "../../utils/formatUserId";
+import { fetchWithAuth } from "../../utils/api";
 
 const UserRequests = () => {
   const dtrRef = useRef();
@@ -57,7 +58,7 @@ const UserRequests = () => {
 
   const fetchPayrollPeriods = async () => {
     try {
-      const response = await fetch("http://localhost:4000/api/system/payroll-periods");
+      const response = await fetchWithAuth("/api/system/payroll-periods");
       if (response.ok) {
         const periods = await response.json();
         // Find the latest non-Draft period
@@ -143,7 +144,7 @@ const UserRequests = () => {
   const fetchBalance = async () => {
     if (!userData?.user_Id) return;
     try {
-      const response = await fetch(`http://localhost:4000/api/request/balance/${userData.user_Id}`);
+      const response = await fetchWithAuth(`\/api\/request/balance/${userData.user_Id}`);
       if (response.ok) {
         const data = await response.json();
         setBalance(data);
@@ -158,7 +159,7 @@ const UserRequests = () => {
     if (!userData?.user_Id) return;
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:4000/api/request/${userData.user_Id}`);
+      const response = await fetchWithAuth(`\/api\/request/${userData.user_Id}`);
       const data = await response.json();
       if (response.ok) {
         setHistoryRequests(data);
@@ -177,7 +178,7 @@ const UserRequests = () => {
     if (!userData?.user_Id) return;
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:4000/api/attendance/report?startDate=${dtrStartDate}&endDate=${dtrEndDate}&user_Id=${userData.user_Id}`);
+      const response = await fetchWithAuth(`\/api\/attendance/report?startDate=${dtrStartDate}&endDate=${dtrEndDate}&user_Id=${userData.user_Id}`);
       const data = await response.json();
       if (response.ok) {
         setDtrData(data);
@@ -308,7 +309,7 @@ const UserRequests = () => {
     }
 
     try {
-      const response = await fetch("http://localhost:4000/api/request", {
+      const response = await fetchWithAuth("/api/request", {
         method: "POST",
         body: formDataToSubmit,
         // Important: Don't set Content-Type header when using FormData, 

@@ -12,6 +12,7 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import Toast from "../../components/toast/Toast";
 import { Link } from "react-router-dom";
 import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
+import { fetchWithAuth } from "../../utils/api";
 
 const EmployeeHome = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -29,8 +30,8 @@ const EmployeeHome = () => {
       if (!userData?.user_Id) return;
       try {
         const [statsRes, notifRes] = await Promise.all([
-          fetch(`/api/attendance/employee-dashboard/${userData.user_Id}`),
-          fetch(`/api/notifications/unread-count/${userData.user_Id}`)
+          fetchWithAuth(`/api/attendance/employee-dashboard/${userData.user_Id}`),
+          fetchWithAuth(`/api/notifications/unread-count/${userData.user_Id}`)
         ]);
 
         if (statsRes.ok) {

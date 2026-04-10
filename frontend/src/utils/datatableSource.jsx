@@ -29,7 +29,7 @@ export const userColumns = [
         <div className="cellWithImg">
           <img 
             className="cellImg" 
-            src={user_ProfilePic ? `http://localhost:4000/uploads/${user_ProfilePic}` : "/avatar.webp"} 
+            src={user_ProfilePic ? `/uploads/${user_ProfilePic}` : "/avatar.webp"} 
             alt="avatar" 
           />
           {fullName}

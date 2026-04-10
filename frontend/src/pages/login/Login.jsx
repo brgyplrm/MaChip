@@ -83,7 +83,7 @@ const Login = () => {
 
       if (response.ok) {
         // 4. Persist session so ProtectedRoute can verify
-        localStorage.setItem("token", String(data.data.user_Id));
+        localStorage.setItem("token", data.token); // Store the JWT token
         localStorage.setItem("userData", JSON.stringify(data.data));
 
         setToast({

@@ -7,6 +7,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { formatUserId } from "../../utils/formatUserId";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { fetchWithAuth } from "../../utils/api";
 
 const Profile = () => {
   const [user, setUser] = useState(null);
@@ -14,14 +15,17 @@ const Profile = () => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const userId = localStorage.getItem("token"); // Token stores the numeric user_Id
+      const userDataString = localStorage.getItem("userData");
+      const userData = userDataString ? JSON.parse(userDataString) : null;
+      const userId = userData?.user_Id;
+
       if (!userId) {
         setLoading(false);
         return;
       }
 
       try {
-        const response = await fetch(`/api/users/${userId}`);
+        const response = await fetchWithAuth(`/api/users/${userId}`);
         if (response.ok) {
           const data = await response.json();
           setUser(data);

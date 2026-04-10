@@ -8,6 +8,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import { Link } from "react-router-dom";
 import TransactionLog from "../../components/transactionLog/TransactionLog";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import { fetchWithAuth } from "../../utils/api";
 
 const Settings = () => {
   const { refreshSystemTime } = useSystemTime();
@@ -25,7 +26,7 @@ const Settings = () => {
     // Fetch current settings
     const fetchSettings = async () => {
       try {
-        const response = await fetch("/api/system/settings");
+        const response = await fetchWithAuth("/api/system/settings");
         const data = await response.json();
         if (response.ok && data) {
           setMockEnabled(data.mockTimeEnabled);
@@ -49,7 +50,7 @@ const Settings = () => {
 
   const handleSaveSettings = async () => {
     try {
-      const response = await fetch("/api/system/settings", {
+      const response = await fetchWithAuth("/api/system/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

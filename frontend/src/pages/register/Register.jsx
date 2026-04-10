@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatUserId } from '../../utils/formatUserId';
+import { fetchWithAuth } from '../../utils/api';
 
 function Register() {
   // This replaces all your document.getElements
@@ -16,7 +17,7 @@ function Register() {
     // Fetch the next ID when the component mounts
     const fetchNextId = async () => {
       try {
-        const response = await fetch('/api/users/nextId');
+        const response = await fetchWithAuth('/api/users/nextId');
         if (response.ok) {
           const data = await response.json();
           // Assuming backend might already format it, but formatUserId ensures consistency
@@ -37,7 +38,7 @@ function Register() {
     e.preventDefault();
     try {
       // Notice we use the relative path because of the Vite Proxy
-      const response = await fetch('/api/users/registerUser', {
+      const response = await fetchWithAuth('/api/users/registerUser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData)
@@ -47,7 +48,7 @@ function Register() {
       if (response.ok) {
         alert("User Registered!");
         // Refresh the ID for the next registration
-        const nextIdResponse = await fetch('/api/users/nextId');
+        const nextIdResponse = await fetchWithAuth('/api/users/nextId');
         if (nextIdResponse.ok) {
           const nextIdData = await nextIdResponse.json();
           setUserData({

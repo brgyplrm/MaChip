@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "Root for MaChip Project",
   "scripts": {
-    "reset": "npm run reset:backend && npm run reset:frontend && npm install",
+    "reset": "npm run reset:backend && npm run reset:frontend && npm install && npm run db:reset",
     "reset:backend": "rimraf backend/node_modules backend/package-lock.json && npm install --prefix backend",
     "reset:frontend": "rimraf frontend/node_modules frontend/package-lock.json && npm install --prefix frontend --legacy-peer-deps",
+    "db:reset": "npm run db:reset --prefix backend",
     "backend": "npm start --prefix backend",
     "frontend": "npm run dev --prefix frontend",
     "dev": "concurrently \"npm run backend\" \"npm run frontend\""
@@ -21,9 +22,14 @@
     "axios": "^1.13.6",
     "bullmq": "^5.71.1",
     "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.4.1",
+    "express-rate-limit": "^8.3.2",
+    "helmet": "^8.1.0",
     "html2canvas": "^1.4.1",
     "ioredis": "^5.10.1",
+    "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.0",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.4"

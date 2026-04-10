@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
+import { fetchWithAuth } from "../../utils/api";
 
 const Logs = () => {
 
@@ -44,7 +45,7 @@ const Logs = () => {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const response = await fetch("http://localhost:4000/api/users/all");
+      const response = await fetchWithAuth("/api/users/all");
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
@@ -64,7 +65,7 @@ const Logs = () => {
   // Fetch all logs from the backend
   const fetchLogs = useCallback(async () => {
     try {
-      const response = await fetch("http://localhost:4000/api/attendance/all");
+      const response = await fetchWithAuth("/api/attendance/all");
       if (response.ok) {
         const logs = await response.json();
         const mapped = logs.map((log) => {
@@ -118,8 +119,8 @@ const Logs = () => {
   const handleGenerateLogs = async (forcedStatus) => {
     setLoading(true);
     try {
-      const response = await fetch(
-        "http://localhost:4000/api/attendance/mark",
+      const response = await fetchWithAuth(
+        "/api/attendance/mark",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

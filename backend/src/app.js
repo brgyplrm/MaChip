@@ -47,31 +47,28 @@ connectDB().then(async () => {
   syncHolidaysService().catch(err => console.error("[INIT] Initial Holiday Sync Failed:", err.message));
 });
 
+const authMiddleware = require("./middleware/auth");
+
+// --- Public Routes ---
+// Routes for authentication (includes Login and Logout)
+const authRoutes = require("./routes/auth.routes.js");
+app.use("/api/auth", authRoutes);
+
+// Routes for RFID/ESP32 (Must be public for the device)
+const rfidRoutes = require("./routes/rfid.routes.js");
+app.use("/api/rfid", rfidRoutes);
+
 // Basic route for testing
 app.get("/Machip", (req, res) => {
   res.json({ message: "Welcome to MaChip API." });
 });
 
-// New route for testing database queries
-app.get("/test-query", async (req, res) => {
-  try {
-    const [results, metadata] = await sequelize.query("SELECT 1+1 AS result");
-    res.json({ message: "Database query successful!", result: results });
-  } catch (error) {
-    console.error("Error during test query:", error);
-    res
-      .status(500)
-      .json({ message: "Database query failed.", error: error.message });
-  }
-});
+// --- Protected Routes (Require Token) ---
+app.use("/api", authMiddleware);
 
 // Routes for users
 const userRoutes = require("./routes/user.routes.js");
 app.use("/api/users", userRoutes);
-
-// Routes for authentication
-const authRoutes = require("./routes/auth.routes.js");
-app.use("/api/auth", authRoutes);
 
 // Routes for attendance
 const attendanceRoutes = require("./routes/attendance.routes.js");
@@ -93,9 +90,18 @@ app.use("/api/notifications", notificationRoutes);
 const systemRoutes = require("./routes/system.routes.js");
 app.use("/api/system", systemRoutes);
 
-// Routes for RFID/ESP32
-const rfidRoutes = require("./routes/rfid.routes.js");
-app.use("/api/rfid", rfidRoutes);
+// New route for testing database queries (now protected)
+app.get("/test-query", async (req, res) => {
+  try {
+    const [results, metadata] = await sequelize.query("SELECT 1+1 AS result");
+    res.json({ message: "Database query successful!", result: results });
+  } catch (error) {
+    console.error("Error during test query:", error);
+    res
+      .status(500)
+      .json({ message: "Database query failed.", error: error.message });
+  }
+});
 
 // ── Error Handling Middleware ────────────────────────────────────────────────
 app.use((err, req, res, next) => {

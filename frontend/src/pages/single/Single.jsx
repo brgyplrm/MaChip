@@ -6,6 +6,7 @@ import List from "../../components/table/Table";
 import { Link, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { formatUserId } from "../../utils/formatUserId";
+import { fetchWithAuth } from "../../utils/api";
 
 const Single = () => {
   const { userId } = useParams();
@@ -14,7 +15,7 @@ const Single = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await fetch(
+        const response = await fetchWithAuth(
           `/api/users/${userId}`,
         );
         if (response.ok) {

@@ -1,6 +1,7 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const { logAudit } = require("../utils/logger");
 
 exports.loginUser = async (req, res) => {
@@ -49,6 +50,17 @@ exports.loginUser = async (req, res) => {
       return res.status(403).json({ error: "Access denied." });
     }
 
+    // Generate JWT
+    const token = jwt.sign(
+      { 
+        user_Id: user.user_Id, 
+        user_RoleId: user.user_RoleId,
+        user_Role: user.user_Role 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+
     // Strip password before sending back to client
     const { user_Password, ...userData } = user;
 
@@ -60,7 +72,7 @@ exports.loginUser = async (req, res) => {
 
     return res
       .status(200)
-      .json({ message: "Login successful.", data: userData });
+      .json({ message: "Login successful.", token, data: userData });
   } catch (error) {
     console.error("[AUTH] Error:", error.message);
     return res
