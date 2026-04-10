@@ -78,31 +78,28 @@
   }
 
   void loop() {
-    // ── Check Clock IN reader (G5) ─────────────────────────────
-    // ── Check Clock IN reader (G5) ─────────────────────────────
-    if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
-      String uid = buildUID(rfidIN);
-      Serial.println("[CLOCK IN] Scanned UID: " + uid);
-      
-      // The server will check if this specific UID is already clocked in
-      sendScanToBackend(uid, "clock_in");
-      
-      rfidIN.PICC_HaltA();
-      rfidIN.PCD_StopCrypto1();
-    }
-
-      // ── Check Clock OUT reader (G26) ────────────────────────────
-    if (rfidOUT.PICC_IsNewCardPresent() && rfidOUT.PICC_ReadCardSerial()) {
-      String uid = buildUID(rfidOUT);
-      Serial.println("[CLOCK OUT] Scanned UID: " + uid);
-      
-      // The server will check if this specific UID is actually inside
-      sendScanToBackend(uid, "clock_out");
-      
-      rfidOUT.PICC_HaltA();
-      rfidOUT.PCD_StopCrypto1();
-    }
+  // We use G5 (rfidIN) for both Attendance AND Enrollment
+  if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
+    String uid = buildUID(rfidIN);
+    Serial.println("New Scan Detected: " + uid);
+    
+    // We send "auto_detect" to the backend
+    // The backend checks if the system is currently in 'Enrollment Mode'
+    sendScanToBackend(uid, "auto_detect"); 
+    
+    rfidIN.PICC_HaltA();
+    rfidIN.PCD_StopCrypto1();
+    delay(1500); // Prevent double-triggering
   }
+
+  // G26 (rfidOUT) stays strictly for Clock Out
+  if (rfidOUT.PICC_IsNewCardPresent() && rfidOUT.PICC_ReadCardSerial()) {
+    String uid = buildUID(rfidOUT);
+    sendScanToBackend(uid, "clock_out");
+    rfidOUT.PICC_HaltA();
+    rfidOUT.PCD_StopCrypto1();
+  }
+}
 
   // ── Send UID + action to backend ─────────────────────────
     void sendScanToBackend(String uid, String action) {

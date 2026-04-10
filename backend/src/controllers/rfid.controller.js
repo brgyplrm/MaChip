@@ -21,22 +21,27 @@ let captureSession = {
 };
 
 exports.scanRFID = async (req, res) => {
-  const { uid, action } = req.body; // action can be "clock_in" or "clock_out"
+  let { uid, action } = req.body; 
 
   if (!uid) {
     return res.status(400).json({ success: false, message: "No UID provided" });
   }
 
-  // ── CAPTURE MODE CHECK ──────────────────────────────────────────────────
-  if (captureSession.isCapturing && Date.now() < captureSession.expiresAt) {
+  // ── CAPTURE MODE CHECK (Only for auto_detect scans) ───────────────────────
+  if (action === "auto_detect" && captureSession.isCapturing && Date.now() < captureSession.expiresAt) {
     console.log(`[RFID] Captured UID for registration: ${uid}`);
     captureSession.scannedUid = uid;
     captureSession.isCapturing = false;
     return res.status(200).json({ 
       success: true, 
-      message: "UID Captured for Registration",
+      message: "UID Captured!",
       isCapture: true 
     });
+  }
+
+  // If action is auto_detect but not capturing, it's a normal clock_in
+  if (action === "auto_detect") {
+    action = "clock_in";
   }
 
   try {
