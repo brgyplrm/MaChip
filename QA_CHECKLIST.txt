@@ -1,0 +1,77 @@
+# MaChip (Microchip Attendance & Chip Payroll) - COMPREHENSIVE QA Checklist
+
+This checklist is an expanded version designed to catch edge cases, logic bugs, and security vulnerabilities.
+
+---
+
+## 1. User Management & Authentication
+### Admin Role - Edge Cases
+- [ ] **MachipId Collisions:** Attempt to register two users with the same RFID UID. (Expected: Error message).
+- [ ] **Duplicate Emails:** Register users with the same email address.
+- [ ] **Rate Change Mid-Cycle:** Change a user's `dailyRate` halfway through an active payroll period. Verify that past logs use the old rate and future logs (after update) use the new rate *if* the system allows, or check if it correctly snapshots at payroll generation.
+- [ ] **Re-activating Archived Users:** Archive a user, then try to create a new user with the same MachipId. Then try to "Restore" the archived user.
+- [ ] **Large Avatar Uploads:** Upload a 10MB+ profile picture. (Check for crash or handled error).
+
+### Backend/Security
+- [ ] **Auth Bypass:** Attempt to access `/api/admin/...` endpoints using a User-level JWT token.
+- [ ] **Invalid JWT:** Send a request with an expired or malformed token.
+- [ ] **SQL Injection:** Enter `' OR 1=1 --` in the user search bar or registration fields.
+
+---
+
+## 2. Attendance & Logging (The "Bug Hunters" Section)
+### Logic & Edge Cases
+- [ ] **The "Double In" Bug:** Use the frontend to Clock In, then immediately refresh and try to Clock In again before the system updates.
+- [ ] **Lunch Break Overlap:** Clock Out for lunch at 11:59 AM (Before the 12:00 window). Verify if it defaults to "Regular Out" instead of "Lunch Out".
+- [ ] **Midnight Shift/Late Out:** Clock Out at 1:00 AM the next day. Does it attribute the log to the previous day or create a mess in the current day?
+- [ ] **Sunday Scans:** Scan an RFID on a Sunday. Verify it logs but ensure Payroll ignores it (as per `GEMINI.md`).
+- [ ] **OT Auto-Transition:** If a user is clocked in and reaches 5:30 PM (17:30) with an approved OT request:
+    - [ ] Does the system automatically create the "Shift Out" and "OT In" logs?
+    - [ ] What if the user manual clocks out at 5:25 PM? (Should NOT trigger OT).
+
+### ESP32 Scanner Stress Test
+- [ ] **Rapid Fire Scans:** Scan the same card 5 times in 2 seconds. (Expected: Handle first scan, ignore/rate-limit others).
+- [ ] **Offline Mode:** Disconnect the ESP32 from WiFi, scan a card, then reconnect. (Verify if logs are cached or lost).
+- [ ] **Concurrent Scans:** Two different ESP32 devices scanning two different cards at the exact same millisecond.
+
+---
+
+## 3. User Request Module (Leaves/OT/Field)
+### Negative Testing (Try to break it)
+- [ ] **Overlapping Leaves:** Apply for Vacation Leave (April 10-15) and then try to apply for Sick Leave (April 12-14). (Expected: Blocked by backend).
+- [ ] **Negative Days:** Enter "-1" in the "Number of Days" field for leave.
+- [ ] **Past Dated OT:** Apply for OT for a date that has already been processed in a closed payroll period.
+- [ ] **Zero Balance:** Try to apply for a "With Pay" leave when `VL_balance` is 0. Verify if `systemRemarks` flag it.
+- [ ] **Filing Deadline:** Apply for VL only 1 day before the start date. (Expected: Flagged in `systemRemarks` for admin review).
+
+### File Handling
+- [ ] **Non-Image Proof:** Upload a `.exe` or `.zip` file as proof for a sick leave. (Expected: Rejected by Multer/Middleware).
+- [ ] **Filename Sanitization:** Upload a file named `my;secret'file.jpg`. Verify it's saved safely.
+
+---
+
+## 4. Payroll & Calculations (Financial Integrity)
+### Math & Edge Cases
+- [ ] **New Employee Mid-Period:** Hired on the 12th of the month. Run payroll for the 1st-15th. Verify they only get paid for 3 days.
+- [ ] **Zero Log Period:** Process payroll for a user who was on leave (Without Pay) for the entire period. (Expected: 0.00 Net Pay, no crash).
+- [ ] **Holiday & OT Stack:** Work OT on a Regular Holiday. Verify if it's (Daily Rate * 2) + (OT Rate).
+- [ ] **Rounding Errors:** Check for "Penny Off" bugs. If daily rate is 500.33, verify total for 11 days is exactly 5503.63 (or as per rounding policy).
+- [ ] **Immutable Snapshot:** 
+    1. Generate Payroll for March.
+    2. Change User's Daily Rate in April.
+    3. View/Print March Payslip. (Expected: March payslip STILL shows the OLD rate).
+
+---
+
+## 5. System & UI/UX
+- [ ] **Timezone Sync:** Ensure server time (`getSystemTime`) matches the Philippine Standard Time, regardless of where the dev machine is hosted.
+- [ ] **Loading States:** Verify "Processing..." spinners appear during Payroll generation to prevent double-clicks.
+- [ ] **Responsive Forms:** Check if the Employee Request form is usable on a smartphone (for field workers).
+- [ ] **Notification Spam:** Does an admin get 100 notifications if a user clicks "Submit" 100 times? (Check for debouncing).
+
+---
+
+## 6. Database & Integrity
+- [ ] **Soft Delete Leak:** Check if archived users still appear in the "Create Payroll" dropdown. (Expected: Filtered out).
+- [ ] **Orphaned Records:** Try to delete a request type that is currently being used by 100 requests. (Expected: Restricted or Soft Deleted).
+- [ ] **Ghost Notifications:** Mark a notification as read, then refresh. Ensure it stays read.

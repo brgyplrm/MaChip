@@ -83,7 +83,7 @@ function Register() {
         <input type="text" id="user_FirstName" placeholder="First Name" value={userData.user_FirstName} onChange={handleChange} required /><br/>
         <input type="text" id="user_LastName" placeholder="Last Name" value={userData.user_LastName} onChange={handleChange} required /><br/>
         <input type="text" id="user_MiddleName" placeholder="Middle Name" value={userData.user_MiddleName} onChange={handleChange} /><br/>
-        <input type="text" id="user_MachipId" placeholder="MaChip ID" value={userData.user_MachipId} onChange={handleChange} required /><br/>
+        <input type="text" id="user_MachipId" placeholder="MaChip ID" value={userData.user_MachipId} onChange={handleChange} /><br/>
         <select id="user_Role" value={userData.user_Role} onChange={handleChange}>
           <option value="Employee">Employee</option>
           <option value="Admin">Admin</option>

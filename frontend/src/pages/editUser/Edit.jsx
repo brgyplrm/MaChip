@@ -51,10 +51,6 @@ const validateForm = (formData) => {
     errors.user_Password = "New password must be at least 6 characters.";
   }
 
-  if (!formData.user_MachipId || !formData.user_MachipId.trim()) {
-    errors.user_MachipId = "MaChip ID is required. Please scan the chip.";
-  }
-
   return errors;
 };
 
@@ -286,7 +282,21 @@ const Edit = ({ inputs, title }) => {
                 <input
                   type="file"
                   id="file"
-                  onChange={(e) => setFile(e.target.files[0])}
+                  onChange={(e) => {
+                    const selectedFile = e.target.files[0];
+                    if (selectedFile) {
+                      const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+                      if (!allowedTypes.includes(selectedFile.type)) {
+                        setToast({ 
+                          message: "Invalid file format. Only png, jpg, and jpeg are allowed!", 
+                          type: "error" 
+                        });
+                        e.target.value = null; // Clear input
+                        return;
+                      }
+                      setFile(selectedFile);
+                    }
+                  }}
                   style={{ display: "none" }}
                 />
               </div>

@@ -53,6 +53,28 @@ const UserRequests = () => {
   const [dtrStartDate, setDtrStartDate] = useState(payroll.start);
   const [dtrEndDate, setDtrEndDate] = useState(payroll.end);
   const [balance, setBalance] = useState({ VL_balance: 0, SL_balance: 0 });
+  const [minAllowedDate, setMinAllowedDate] = useState("");
+
+  const fetchPayrollPeriods = async () => {
+    try {
+      const response = await fetch("http://localhost:4000/api/system/payroll-periods");
+      if (response.ok) {
+        const periods = await response.json();
+        // Find the latest non-Draft period
+        const latestClosed = periods
+          .filter(p => ["Processing", "Released", "Closed"].includes(p.status))
+          .sort((a, b) => new Date(b.endDate) - new Date(a.endDate))[0];
+        
+        if (latestClosed) {
+          const nextDate = new Date(latestClosed.endDate);
+          nextDate.setDate(nextDate.getDate() + 1);
+          setMinAllowedDate(nextDate.toISOString().split('T')[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching periods:", error);
+    }
+  };
 
   // 3. Add the PDF Export function
   const handleDownloadDTR = async () => {
@@ -169,6 +191,7 @@ const UserRequests = () => {
 
   useEffect(() => {
     fetchBalance();
+    fetchPayrollPeriods();
   }, [userData?.user_Id]);
 
   useEffect(() => {
@@ -191,18 +214,37 @@ const UserRequests = () => {
     if (formData.leaveStartDate && formData.leaveEndDate) {
       const start = new Date(formData.leaveStartDate);
       const end = new Date(formData.leaveEndDate);
-      const diffTime = end - start;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      
+      let count = 0;
+      let cur = new Date(start);
+      while (cur <= end) {
+        if (cur.getDay() !== 0) { // 0 is Sunday
+          count++;
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
 
       setFormData((prev) => ({
         ...prev,
-        noDays: diffDays > 0 ? diffDays : 0,
+        noDays: count,
       }));
     }
   }, [formData.leaveStartDate, formData.leaveEndDate]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked, files } = e.target;
+    
+    if (type === "file" && files && files[0]) {
+      const file = files[0];
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+      if (!allowedTypes.includes(file.type)) {
+        setToast({ message: "Invalid file format. Only png, jpg, and jpeg are allowed!", type: "error" });
+        // Clear input
+        e.target.value = null;
+        return;
+      }
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : type === "file" ? files[0] : value,
@@ -378,7 +420,7 @@ const UserRequests = () => {
                           <div className="formRow">
                             <div className="formGroup">
                               <label>OT Date</label>
-                              <input type="date" name="otDate" onChange={handleInputChange} required />
+                              <input type="date" name="otDate" min={minAllowedDate} onChange={handleInputChange} required />
                             </div>
                           </div>
                           <div className="formRow">
@@ -406,11 +448,11 @@ const UserRequests = () => {
                           <div className="formRow">
                             <div className="formGroup">
                               <label>Start Date</label>
-                              <input type="date" name="leaveStartDate" value={formData.leaveStartDate} onChange={handleInputChange} required />
+                              <input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required />
                             </div>
                             <div className="formGroup">
                               <label>End Date</label>
-                              <input type="date" name="leaveEndDate" value={formData.leaveEndDate} onChange={handleInputChange} required />
+                              <input type="date" name="leaveEndDate" min={minAllowedDate} value={formData.leaveEndDate} onChange={handleInputChange} required />
                             </div>
                           </div>
                           

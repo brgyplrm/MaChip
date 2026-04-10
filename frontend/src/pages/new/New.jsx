@@ -22,7 +22,6 @@ const validateForm = (formData) => {
   if (!formData.user_Password || formData.user_Password.length < 6) {
     errors.user_Password = "Min 6 characters.";
   }
-  if (!formData.user_MachipId.trim()) errors.user_MachipId = "Scan required.";
   return errors;
 };
 
@@ -192,7 +191,21 @@ const New = ({ inputs, title }) => {
                 <input
                   type="file"
                   id="file"
-                  onChange={(e) => setFile(e.target.files[0])}
+                  onChange={(e) => {
+                    const selectedFile = e.target.files[0];
+                    if (selectedFile) {
+                      const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+                      if (!allowedTypes.includes(selectedFile.type)) {
+                        setToast({ 
+                          message: "Invalid file format. Only png, jpg, and jpeg are allowed!", 
+                          type: "error" 
+                        });
+                        e.target.value = null; // Clear input
+                        return;
+                      }
+                      setFile(selectedFile);
+                    }
+                  }}
                   style={{ display: "none" }}
                 />
               </div>

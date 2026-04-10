@@ -60,7 +60,7 @@ const { Notification } = require("../models/notification.models")(
   DataTypes,
 );
 
-const { SystemSettings, Holiday } = require("../models/system.models")(
+const { SystemSettings, Holiday, Audit_Log, Transaction_Log } = require("../models/system.models")(
   sequelize,
   DataTypes,
 );
@@ -101,6 +101,12 @@ emp_Request.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "
 // User ↔ Leave Balance
 User.hasMany(Leave_Balance, { foreignKey: "user_Id", sourceKey: "user_Id" });
 Leave_Balance.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
+User.hasMany(Transaction_Log, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Transaction_Log.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
+User.hasMany(Audit_Log, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Audit_Log.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
 
 // ── connectDB ─────────────────────────────────────────────────────────────────
 const connectDB = async () => {
@@ -262,4 +268,6 @@ module.exports = {
   SystemSettings,
   Holiday,
   PayrollPeriod,
+  Audit_Log,
+  Transaction_Log,
 };

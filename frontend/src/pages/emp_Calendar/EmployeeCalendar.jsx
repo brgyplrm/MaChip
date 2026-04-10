@@ -73,13 +73,22 @@ const EmployeeCalendar = () => {
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
 
+  // Helper to get events for a specific day
   const getEventsForDay = (day) => {
+    const targetDateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    
     return events.filter(e => {
       if (!e.date) return false;
-      // Handle both YYYY-MM-DD and full ISO strings
-      const datePart = e.date.split('T')[0];
-      const [ey, em, ed] = datePart.split('-').map(Number);
-      return ed === day && (em - 1) === monthIndex && ey === year;
+      const startDateStr = e.date.split('T')[0];
+      
+      // For single day events (Holidays, OT, On-field Work if endDate is null)
+      if (!e.endDate) {
+        return startDateStr === targetDateStr;
+      }
+      
+      // For range events (Leaves, On-field Work)
+      const endDateStr = e.endDate.split('T')[0];
+      return targetDateStr >= startDateStr && targetDateStr <= endDateStr;
     });
   };
 
