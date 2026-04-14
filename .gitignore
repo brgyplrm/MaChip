@@ -8,3 +8,4 @@ backend/uploads/*
 firmware/MaChip_Test/arduino_secrets.h
 GEMINI.md
 db_reset.js
+QA_CHECKLIST.txt

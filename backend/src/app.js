@@ -1,4 +1,6 @@
-require('dotenv').config({ path: './.env' }); // Load .env
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') }); // Load .env
+console.log("[DEBUG] JWT_SECRET loaded:", process.env.JWT_SECRET ? "Yes" : "No");
 process.env.TZ = process.env.TZ || "Asia/Manila";
 const express = require("express");
 const cors = require("cors");

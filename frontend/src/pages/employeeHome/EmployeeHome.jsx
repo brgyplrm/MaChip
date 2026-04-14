@@ -198,7 +198,7 @@ const EmployeeHome = () => {
           {/* Bottom Leaves Section */}
           <div className="leavesSection">
             <div className="sectionHeader">
-              <h3>My Leave Requests</h3>
+              <h3>My Requests</h3>
               <Link to="/requests">
                 <button className="applyBtn">
                   Apply for a leave <ChevronRightOutlinedIcon className="icon" />

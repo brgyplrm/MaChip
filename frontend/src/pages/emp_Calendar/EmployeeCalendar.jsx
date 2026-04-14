@@ -178,19 +178,29 @@ const EmployeeCalendar = () => {
 
           <div className="rightTablesColumn">
             <div className="detailCard">
-              <h3>Holidays this Month</h3>
+              <h3>Upcoming Holidays</h3>
               <div className="listWrapper">
-                {events.filter(e => e.type === "Holiday").map((h, idx) => (
-                  <div className="listItem clickable" 
-                        key={idx} 
-                        onClick={() => handleHolidayClick(h)}>
-                    <div className="info">
-                      <p className="name">{h.name}</p>
-                      <span className="subtext">{h.date} • {h.details}</span>
+                {events
+                  .filter(e => {
+                    if (e.type !== "Holiday") return false;
+                    const eventDate = new Date(e.date);
+                    return eventDate.getMonth() === monthIndex && eventDate.getFullYear() === year;
+                  })
+                  .slice(0, 6) // Limit to 6 upcoming holidays
+                  .map((h, idx) => (
+                    <div className="listItem clickable" 
+                          key={idx} 
+                          onClick={() => handleHolidayClick(h)}>
+                      <div className="info">
+                        <p className="name">{h.name}</p>
+                        <span className="subtext">{new Date(h.date).toLocaleDateString()} • {h.details}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {events.filter(e => e.type === "Holiday").length === 0 && <p className="emptyText">No holidays this month.</p>}
+                  ))}
+                {events.filter(e => {
+                  const eventDate = new Date(e.date);
+                  return e.type === "Holiday" && eventDate.getMonth() === monthIndex && eventDate.getFullYear() === year;
+                }).length === 0 && <p className="emptyText">No holidays this month.</p>}
               </div>
             </div>
 
