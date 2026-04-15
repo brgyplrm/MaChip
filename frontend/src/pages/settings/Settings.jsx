@@ -11,6 +11,9 @@ import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
 
 const Settings = () => {
+  const userData = JSON.parse(localStorage.getItem("userData"));
+  const isAdmin = userData?.user_RoleId === 1;
+
   const { refreshSystemTime } = useSystemTime();
   const [realTime, setRealTime] = useState(new Date());
   const [mockEnabled, setMockEnabled] = useState(false);
@@ -95,7 +98,7 @@ const Settings = () => {
               </div>
             </div>
 
-            {/* New Section: System Time & Date */}
+            {/* Section: System Time & Date */}
             <div className="item timeSettings">
               <h2 className="itemTitle">System Time & Date</h2>
               <div className="details">
@@ -107,33 +110,37 @@ const Settings = () => {
                   </span>
                 </div>
 
-                <div className="detailItem">
-                  <span className="itemKey">Mock Time Enabled:</span>
-                  <label className="switch">
-                    <input 
-                      type="checkbox" 
-                      checked={mockEnabled}
-                      onChange={(e) => setMockEnabled(e.target.checked)}
-                    />
-                    <span className="slider round"></span>
-                  </label>
-                </div>
+                {isAdmin && (
+                  <>
+                    <div className="detailItem">
+                      <span className="itemKey">Mock Time Enabled:</span>
+                      <label className="switch">
+                        <input 
+                          type="checkbox" 
+                          checked={mockEnabled}
+                          onChange={(e) => setMockEnabled(e.target.checked)}
+                        />
+                        <span className="slider round"></span>
+                      </label>
+                    </div>
 
-                {mockEnabled && (
-                  <div className="detailItem">
-                    <span className="itemKey">Set Mock Date & Time:</span>
-                    <input 
-                      type="datetime-local" 
-                      className="timeInput"
-                      value={mockTime}
-                      onChange={(e) => setMockTime(e.target.value)}
-                    />
-                  </div>
+                    {mockEnabled && (
+                      <div className="detailItem">
+                        <span className="itemKey">Set Mock Date & Time:</span>
+                        <input 
+                          type="datetime-local" 
+                          className="timeInput"
+                          value={mockTime}
+                          onChange={(e) => setMockTime(e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    <button className="saveButton" onClick={handleSaveSettings}>
+                      <SaveIcon className="icon" /> Save Time Settings
+                    </button>
+                  </>
                 )}
-
-                <button className="saveButton" onClick={handleSaveSettings}>
-                  <SaveIcon className="icon" /> Save Time Settings
-                </button>
               </div>
             </div>
           </div>

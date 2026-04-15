@@ -120,6 +120,14 @@ const connectDB = async () => {
     await sequelize.sync();
     console.log("All models were synchronized successfully.");
 
+    // Manual migration for recommendedBy column
+    try {
+      await sequelize.query(`ALTER TABLE "emp_Request" ADD COLUMN IF NOT EXISTS "recommendedBy" SMALLINT;`);
+      console.log("Migration: recommendedBy column verified/added.");
+    } catch (err) {
+      console.error("Migration error (recommendedBy):", err.message);
+    }
+
     // ── Seed: SystemSettings ─────────────────────────────────────────────────
     try {
       const settingsCount = await SystemSettings.count();
@@ -172,7 +180,7 @@ const connectDB = async () => {
     if (roleCount === 0) {
       await user_Role.bulkCreate([
         { roleId: 1, roleName: "Admin" },
-        { roleId: 2, roleName: "Staff" },
+        { roleId: 2, roleName: "Supervisor" },
         { roleId: 3, roleName: "Employee" },
       ]);
       console.log("Seed: User Roles inserted.");
@@ -196,7 +204,6 @@ const connectDB = async () => {
         { reqStatId: 1, reqStatName: "Pending" },
         { reqStatId: 2, reqStatName: "Approved" },
         { reqStatId: 3, reqStatName: "Rejected" },
-        { reqStatId: 4, reqStatName: "Ca" },
       ]);
       console.log("Seed: Request Status inserted.");
     }
@@ -209,6 +216,7 @@ const connectDB = async () => {
         { reqTypeId: 2, reqTypeName: "Onfield Work" },
         { reqTypeId: 3, reqTypeName: "Vacation Leave" },
         { reqTypeId: 4, reqTypeName: "Sick Leave" },
+        { reqTypeId: 5, reqTypeName: "Log Correction" }
       ]);
       console.log("Seed: Request Type inserted.");
     }

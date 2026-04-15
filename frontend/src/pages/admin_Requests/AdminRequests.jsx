@@ -9,8 +9,10 @@ import AttachmentIcon from "@mui/icons-material/Attachment";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
+import { useNavigate } from "react-router-dom";
 
 const AdminRequests = () => {
+  const navigate = useNavigate();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -37,6 +39,9 @@ const AdminRequests = () => {
 
   useEffect(() => {
     fetchRequests();
+
+    window.addEventListener("dataRefresh", fetchRequests);
+    return () => window.removeEventListener("dataRefresh", fetchRequests);
   }, []);
 
   // Reset paymentStatus when selectedIdx or activeTab changes
@@ -79,7 +84,16 @@ const AdminRequests = () => {
           type: "success",
         });
         setAdminNote("");
-        fetchRequests(); // Refresh list
+
+        // Only Admin (Role 1) gets redirected to Edit Attendance upon final approval (Status 2)
+        if (userData?.user_RoleId === 1 && current?.emp_reqTypeId === 5 && statusId === 2) {
+          const logDate = current.LC_logDate.split("T")[0];
+          setTimeout(() => {
+            navigate(`/logs/edit/${current.user_Id}/${logDate}?from=adminRequests`);
+          }, 1500);
+        } else {
+          fetchRequests(); // Supervisor just refreshes the list
+        }
       } else {
         const err = await response.json();
         setToast({
@@ -92,11 +106,42 @@ const AdminRequests = () => {
     }
   };
 
-  // Filter based on active tab
-  // emp_reqStatusId: 1 = Pending, 2 = Approved, 3 = Rejected
+  // Filter based on active tab and role hierarchy
   const filteredRequests = requests.filter((req) => {
-    if (activeTab === "pending") return req.emp_reqStatusId === 1;
-    return req.emp_reqStatusId !== 1; // Completed (Approved or Rejected)
+    const isPending = req.emp_reqStatusId === 1;
+    const isRecommended = req.emp_reqStatusId === 4;
+    const isCompleted = req.emp_reqStatusId === 2 || req.emp_reqStatusId === 3;
+
+    // Basic status filter (Pending vs History)
+    let matchesTab = false;
+    if (activeTab === "pending") {
+      if (userData?.user_RoleId === 1) { // Admin sees Pending AND Recommended in Queue
+        matchesTab = isPending || isRecommended;
+      } else { // Supervisor only sees Pending in Queue
+        matchesTab = isPending;
+      }
+    } else { // Completed/History tab
+      if (userData?.user_RoleId === 1) {
+        matchesTab = isCompleted;
+      } else { // Supervisor sees Recommended AND Completed in History
+        matchesTab = isRecommended || isCompleted;
+      }
+    }
+
+    if (!matchesTab) return false;
+
+    // Role-based visibility
+    if (userData?.user_RoleId === 2) { // Supervisor
+      // Supervisors see requests from Employees (3) AND Admins (1)
+      return req.user_RoleId === 3 || req.user_RoleId === 1;
+    }
+
+    if (userData?.user_RoleId === 1) { // Admin
+      // Admins see everything (including their own requests)
+      return true;
+    }
+
+    return true;
   });
 
   const current =
@@ -110,6 +155,7 @@ const AdminRequests = () => {
     if (typeName.includes("Sick")) return "SL";
     if (typeName.includes("Overtime")) return "OT";
     if (typeName.includes("Onfield")) return "OW";
+    if (typeName.includes("Correction")) return "LC";
     return "REQ";
   };
 
@@ -121,7 +167,9 @@ const AdminRequests = () => {
         ? `${req.SL_StartDate} — ${req.SL_EndDate}`
         : req.OT_DateOf
           ? `${req.OT_DateOf} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
-          : req.DateonField;
+          : req.LC_logDate
+            ? req.LC_logDate
+            : req.DateonField;
   };
 
   return (
@@ -217,34 +265,42 @@ const AdminRequests = () => {
             <div className="requestDetailView">
               {current ? (
                 <>
-                  <div className="detailHeader">
+                    <div className="detailHeader">
                     <div className="title">
                       <h3>Review {current.reqTypeName}</h3>
                       <p>Submitted on {current.date_Filed}</p>
                     </div>
-                    {current.emp_reqStatusId === 1 && (
+                    {(current.emp_reqStatusId === 1 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
                       <div className="actions">
-                        <button
-                          className="approveBtn"
-                          onClick={() =>
-                            handleStatusUpdate(current.emp_reqId, 2)
-                          }
-                        >
-                          <CheckCircleOutlineIcon /> Approve
-                        </button>
-                        <button
-                          className="rejectBtn"
-                          onClick={() =>
-                            handleStatusUpdate(current.emp_reqId, 3)
-                          }
-                        >
-                          <CancelOutlinedIcon /> Reject
-                        </button>
+                        {current.user_Id === userData?.user_Id ? (
+                          <div className="statusBadge self">Self-Request</div>
+                        ) : (userData?.user_RoleId === 2 && current.user_RoleId === 1) ? (
+                          <div className="statusBadge management">Admin Review Required</div>
+                        ) : (
+                          <>
+                            <button
+                              className="approveBtn"
+                              onClick={() =>
+                                handleStatusUpdate(current.emp_reqId, 2)
+                              }
+                            >
+                              <CheckCircleOutlineIcon /> Approve
+                            </button>
+                            <button
+                              className="rejectBtn"
+                              onClick={() =>
+                                handleStatusUpdate(current.emp_reqId, 3)
+                              }
+                            >
+                              <CancelOutlinedIcon /> Reject
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
-                    {current.emp_reqStatusId !== 1 && (
+                    {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || current.emp_reqStatusId === 4) && (
                       <div
-                        className={`statusBadge ${current.status.toLowerCase()}`}
+                        className={`statusBadge ${current.status.toLowerCase().replace(/\s+/g, '')}`}
                       >
                         {current.status}
                       </div>
@@ -263,7 +319,9 @@ const AdminRequests = () => {
                           ? `${current.Total_Hrs || 0} Hrs`
                           : current.emp_reqTypeId === 2 // Onfield
                             ? `${current.OW_NoDays || 0} Day(s) (${current.OW_NoHrs || 0} Hrs)`
-                            : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
+                            : current.emp_reqTypeId === 5 // Log Correction
+                              ? `Correction for ${new Date(current.LC_logDate).toLocaleDateString()}`
+                              : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
                       </p>
                     </div>
 
@@ -280,7 +338,28 @@ const AdminRequests = () => {
                       </>
                     )}
 
-                    {current.emp_reqTypeId !== 1 && (
+                    {current.emp_reqTypeId === 5 && (
+                      <>
+                        <div className="detailBox">
+                          <label>Current In (System)</label>
+                          <p>{current.LC_currentIn || "No Log"}</p>
+                        </div>
+                        <div className="detailBox">
+                          <label>Current Out (System)</label>
+                          <p>{current.LC_currentOut || "No Log"}</p>
+                        </div>
+                        <div className="detailBox">
+                          <label>Claimed In</label>
+                          <p className="claimed">{formatTime(current.LC_claimedIn)}</p>
+                        </div>
+                        <div className="detailBox">
+                          <label>Claimed Out</label>
+                          <p className="claimed">{formatTime(current.LC_claimedOut)}</p>
+                        </div>
+                      </>
+                    )}
+
+                    {current.emp_reqTypeId !== 1 && current.emp_reqTypeId !== 5 && (
                       <>
                         <div className="detailBox">
                           <label>Payment Status</label>
@@ -324,16 +403,36 @@ const AdminRequests = () => {
                             </p>
                         </div>
                         <div className="detailBox">
-                          <label>Admin ID</label>
-                          <p>{formatUserId(current.admin_id)}</p>
+                          <label>Processed By</label>
+                          <p>{current.approverName ? `${current.approverName} (${formatUserId(current.processedBy)})` : "Pending Review"}</p>
+                        </div>
+                        <div className="detailBox">
+                          <label>Date Processed</label>
+                          <p>{current.date_Processed || "Pending"}</p>
                         </div>
                       </>
                     )}
-                    {(current.SL_proof_File || current.OW_proof_File) && (
+                    {current.emp_reqTypeId === 5 && (
+                      <>
+                        <div className="detailBox">
+                          <label>Recommended By</label>
+                          <p>{current.recommenderName ? `${current.recommenderName} (${formatUserId(current.recommendedBy)})` : "Pending Recommendation"}</p>
+                        </div>
+                        <div className="detailBox">
+                          <label>Approved By</label>
+                          <p>{current.approverName ? `${current.approverName} (${formatUserId(current.processedBy)})` : "Pending Approval"}</p>
+                        </div>
+                        <div className="detailBox">
+                          <label>Date Processed</label>
+                          <p>{current.date_Processed || "Pending"}</p>
+                        </div>
+                      </>
+                    )}
+                    {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File) && (
                       <div className="detailBox attachment">
                         <label>Attachment</label>
                         <a 
-                          href={`http://localhost:4000/uploads/${current.SL_proof_File || current.OW_proof_File}`} 
+                          href={`http://localhost:4000/uploads/${current.SL_proof_File || current.OW_proof_File || current.LC_proof_File}`} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="attachmentLink"

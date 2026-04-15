@@ -26,7 +26,18 @@ import ActionModal from "../actionModal/ActionModal";
 const Sidebar = () => {
   const userDataString = localStorage.getItem("userData");
   const userData = userDataString ? JSON.parse(userDataString) : null;
-  const isEmployee = userData?.user_RoleId === 3;
+  const roleId = userData?.user_RoleId;
+  
+  // Real roles
+  const isAdminRole = roleId === 1;
+  const isSupervisorRole = roleId === 2;
+  const isEmployeeRole = roleId === 3;
+
+  // View Mode Logic
+  const viewMode = localStorage.getItem("viewMode") || "management";
+  const isManagementView = viewMode === "management" && (isAdminRole || isSupervisorRole);
+  const isEmployeeView = isEmployeeRole || viewMode === "employee";
+
   const [showLogoutModal, setShowLogoutModal] = useState(false); // Modal state
   const navigate = useNavigate();
   
@@ -47,6 +58,7 @@ const Sidebar = () => {
         // 2. Clear local storage/Session storage
         localStorage.removeItem("token");
         localStorage.removeItem("userData");
+        localStorage.removeItem("viewMode");
 
         // 3. Redirect back to the login page you just created
         navigate("/login");
@@ -62,7 +74,7 @@ const Sidebar = () => {
     <div className="sidebar">
       <div className="top">
         {/* Updated logo link to go to appropriate dashboard */}
-        <NavLink to={isEmployee ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
+        <NavLink to={isEmployeeView ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
           <span className="logo">
             <img src="/images.png" alt="Logo" className="logo-img" />
           </span>
@@ -74,14 +86,14 @@ const Sidebar = () => {
 
           {/* 1st Category */}
           <p className="title">MAIN</p>
-          <NavLink to={isEmployee ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
+          <NavLink to={isEmployeeView ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
             <li>
               <DashboardIcon className="icon" />
               <span>Dashboard</span>
             </li>
           </NavLink>
 
-          <NavLink to="/calendar" style={{ textDecoration: "none" }}>
+          <NavLink to={isEmployeeView ? "/employeeCalendar" : "/calendar"} style={{ textDecoration: "none" }}>
             <li>
               <CalendarMonthOutlinedIcon className="icon" />
               <span>Calendar</span>
@@ -89,24 +101,28 @@ const Sidebar = () => {
           </NavLink><br />
 
           {/* 2nd Category */}
-          {/* Admin Pages*/}
-          {!isEmployee && (
+          {/* Management Pages (Admin & Supervisor) */}
+          {isManagementView && (
             <>
               <p className="title">LISTS</p>
 
-              <NavLink to="/users" style={{ textDecoration: "none" }}>
-                <li>
-                  <PersonOutlineIcon className="icon" />
-                  <span>Users</span>
-                </li>
-              </NavLink>
+              {isAdminRole && (
+                <NavLink to="/users" style={{ textDecoration: "none" }}>
+                  <li>
+                    <PersonOutlineIcon className="icon" />
+                    <span>Users</span>
+                  </li>
+                </NavLink>
+              )}
 
-              <NavLink to="/logs" style={{ textDecoration: "none" }}>
-                <li>
-                  <BadgeOutlinedIcon className="icon" />
-                  <span>Access Logs</span>
-                </li>
-              </NavLink>
+              {isAdminRole && (
+                <NavLink to="/logs" style={{ textDecoration: "none" }}>
+                  <li>
+                    <BadgeOutlinedIcon className="icon" />
+                    <span>Access Logs</span>
+                  </li>
+                </NavLink>
+              )}
 
             <NavLink to="/adminRequests" style={{ textDecoration: "none" }}>
               <li>
@@ -115,24 +131,28 @@ const Sidebar = () => {
               </li>
             </NavLink>
 
-            <NavLink to="/payroll" style={{ textDecoration: "none" }}>
-              <li>
-                  <CurrencyRubleOutlinedIcon className="icon" />
-                  <span>Payroll</span>
-              </li>
-            </NavLink>
+            {isAdminRole && (
+              <NavLink to="/payroll" style={{ textDecoration: "none" }}>
+                <li>
+                    <CurrencyRubleOutlinedIcon className="icon" />
+                    <span>Payroll</span>
+                </li>
+              </NavLink>
+            )}
 
-            <NavLink to="/adminReports" style={{ textDecoration: "none" }}>
-              <li>
-                <RequestQuoteOutlinedIcon className="icon" />
-                <span>Reports</span>
-              </li>
-            </NavLink><br />
+            {isAdminRole && (
+              <NavLink to="/adminReports" style={{ textDecoration: "none" }}>
+                <li>
+                  <RequestQuoteOutlinedIcon className="icon" />
+                  <span>Reports</span>
+                </li>
+              </NavLink>
+            )}<br />
             </>
           )}
 
           {/* Admin only Pages */}
-          {!isEmployee && (
+          {isManagementView && isAdminRole && (
             <>
             <p className="title">SYSTEM LOGS</p>
             <NavLink to="/auditLogs" style={{ textDecoration: "none" }}>
@@ -151,8 +171,8 @@ const Sidebar = () => {
             </>
           )}
 
-          {/* Employee only Pages*/}
-          {isEmployee && (
+          {/* Employee only Pages (Real Employees or Management in Employee Mode) */}
+          {isEmployeeView && (
             <>
             <p className="title">LISTS</p>
             <NavLink to="/requests" style={{ textDecoration: "none" }}>
@@ -173,7 +193,7 @@ const Sidebar = () => {
 
           <p className="title">USER</p>
 
-          {!isEmployee && (
+          {isManagementView && (
             <NavLink to="/settings" style={{ textDecoration: "none" }}>
               <li>
                 <SettingsApplicationsIcon className="icon" />

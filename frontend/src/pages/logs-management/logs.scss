@@ -21,7 +21,6 @@
           width: 100%;
           border-collapse: collapse;
           text-align: left;
-          table-layout: fixed;
 
           th {
             padding: 15px;
@@ -31,7 +30,11 @@
             text-transform: uppercase;
             border-bottom: 2px solid #f1f3f5;
             text-align: left;
+            white-space: nowrap;
+          }
 
+          /* Default widths for Raw Logs (7 columns) */
+          &.raw-mode th {
             &:nth-child(1) { width: 120px; } // User ID
             &:nth-child(2) { width: 200px; } // Full Name
             &:nth-child(3) { width: 130px; } // Action (Pill)
@@ -39,6 +42,16 @@
             &:nth-child(5) { width: 120px; } // Date
             &:nth-child(6) { width: 120px; } // Time
             &:nth-child(7) { width: 100px; } // View Action
+          }
+
+          /* Specific widths for Day Logs (11 columns) */
+          &.day-mode th {
+            &:nth-child(1) { width: 100px; } // #
+            &:nth-child(2) { width: 180px; } // Name
+            &:nth-child(3) { width: 90px; }  // Date
+            &:nth-child(4), &:nth-child(5), &:nth-child(6), &:nth-child(7), &:nth-child(8), &:nth-child(9) { width: 75px; } // Times
+            &:nth-child(10) { width: 120px; } // Status
+            &:nth-child(11) { width: 80px; }  // Action
           }
 
           td {
@@ -128,10 +141,8 @@
           display: flex;
           align-items: center;
           gap: 15px;
-          flex: 1;
-          margin-left: 20px;
+          margin-left: auto;
           margin-right: 20px;
-          justify-content: flex-end;
 
           .searchWrapper {
             width: 100%;
@@ -146,7 +157,6 @@
               outline: none;
               font-size: 14px;
               background-color: #f9f9f9;
-              margin-right: 100px;
 
               &::placeholder {
                 color: #999;
@@ -168,13 +178,18 @@
               font-size: 14px;
               outline: none;
               cursor: pointer;
-              margin-left: 35px;
 
               &:focus {
                 box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
               }
             }
           }
+        }
+
+        .buttonGroup {
+          display: flex;
+          align-items: center;
+          gap: 10px;
         }
 
         .headerButton {

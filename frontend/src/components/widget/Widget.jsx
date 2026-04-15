@@ -50,8 +50,10 @@ const Widget = ({ type }) => {
     // 2. Poll every 5 seconds so the counts stay live throughout the day
     const pollInterval = setInterval(fetchStats, 5000);
 
-    // 3. At exactly midnight, reset to 0 then re-fetch (backend returns 0 for
-    //    the new day since there are no logs yet) — this fires once per day
+    // 3. Listen for socket/real-time refresh
+    window.addEventListener("dataRefresh", fetchStats);
+
+    // 4. At exactly midnight, reset to 0 then re-fetch
     const midnightTimeout = setTimeout(() => {
       setAmount(0); // instant visual reset at 12:00 AM
       fetchStats(); // confirm with the backend (should return 0)
@@ -60,6 +62,7 @@ const Widget = ({ type }) => {
     return () => {
       clearInterval(pollInterval);
       clearTimeout(midnightTimeout);
+      window.removeEventListener("dataRefresh", fetchStats);
     };
   }, [fetchStats]);
 

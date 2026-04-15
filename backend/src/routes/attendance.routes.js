@@ -23,4 +23,7 @@ router.delete("/all", attendanceController.deleteAllLogs);
 
 router.get("/stats", attendanceController.getDashboardStats);
 
+router.put("/update/:user_Id/:date", attendanceController.updateAttendanceRecord);
+router.get("/record/:user_Id/:date", attendanceController.getSingleAttendanceRecord);
+
 module.exports = router;

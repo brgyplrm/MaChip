@@ -32,7 +32,11 @@ const Featured = () => {
         setLoading(false);
       }
     };
+
     fetchStats();
+
+    window.addEventListener("dataRefresh", fetchStats);
+    return () => window.removeEventListener("dataRefresh", fetchStats);
   }, []);
 
   const presentCount = stats.onTimeCount + stats.lateArrivalsCount;

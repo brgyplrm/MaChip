@@ -3,6 +3,7 @@ const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { sendOnfieldEmail } = require("../utils/emailService");
 const { logAudit, logTransaction } = require("../utils/logger");
+const { getIO } = require("../config/socket");
 
 exports.getCalendarReport = async (req, res) => {
   let { startDate, endDate, user_Id } = req.query;
@@ -108,6 +109,7 @@ exports.UserCreateRequest = async (req, res) => {
     NoHrs,
     destination,
     emp_reqStatusId,
+    remarks,
   } = req.body || {};
 
   const finalUserId = parseInt(userId || user_Id);
@@ -130,6 +132,8 @@ exports.UserCreateRequest = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
     const todayStr = now.toISOString().split("T")[0];
+
+    const finalRemarks = remarks || reason || purpose || null;
 
     // --- PAYROLL PERIOD BLOCK CHECK ---
     let periodCheckSql = "";
@@ -255,7 +259,7 @@ exports.UserCreateRequest = async (req, res) => {
           emp_reqTypeId: finalReqTypeId,
           emp_reqStatusId: finalStatus,
           date_Filed: todayStr,
-          remarks: reason || purpose || null,
+          remarks: finalRemarks,
           system_remarks: systemRemarks.length > 0 ? systemRemarks.join(" | ") : null,
           now: nowStr,
         },
@@ -301,7 +305,7 @@ exports.UserCreateRequest = async (req, res) => {
 
       const onfieldResult = await sequelize.query(
         `INSERT INTO "Onfield_Work"
-        ("emp_reqId", "user_Id", "DateonField", "NoDays", "NoHrs", "destination" , "proof_File")
+        ("emp_reqId", "user_Id", "DateonField", "NoDays", "NoHrs", "destination", "proof_File")
         VALUES (:emp_reqId, :userId, :DateonField, :NoDays, :NoHrs, :destination, :proof_File)
         RETURNING *`,
         {
@@ -412,29 +416,105 @@ exports.UserCreateRequest = async (req, res) => {
           type: QueryTypes.UPDATE,
         },
       );
+    }
+    // Log Correction
+    else if (finalReqTypeId === 5) {
+      const { logDate, currentIn, currentOut, claimedIn, claimedOut } = req.body;
+      const lcResult = await sequelize.query(
+        `INSERT INTO "LogCorrection_Request"
+        ("emp_reqId", "user_Id", "logDate", "currentIn", "currentOut", "claimedIn", "claimedOut", "reason", "proof_File")
+        VALUES (:emp_reqId, :userId, :logDate, :currentIn, :currentOut, :claimedIn, :claimedOut, :reason, :proof_File)
+        RETURNING *`,
+        {
+          replacements: {
+            emp_reqId,
+            userId: finalUserId,
+            logDate,
+            currentIn: currentIn || null,
+            currentOut: currentOut || null,
+            claimedIn,
+            claimedOut,
+            reason: finalRemarks,
+            proof_File: proof_File,
+          },
+          type: QueryTypes.INSERT,
+        },
+      );
+      childData = lcResult[0][0];
     } else {
       return res.status(400).json({ error: "Invalid Request Type" });
     }
 
-    const typeNameMap = { 1: "Overtime", 2: "Onfield Work", 3: "Vacation Leave", 4: "Sick Leave" };
+    // 4. Notifications
+    const typeNameMap = { 1: "Overtime", 2: "Onfield Work", 3: "Vacation Leave", 4: "Sick Leave", 5: "Log Correction" };
     const typeName = typeNameMap[finalReqTypeId] || "Request";
 
-    // Log transaction
-    await logTransaction(finalUserId, null, "REQUEST_SUBMISSION", `${typeName} submitted by user ${finalUserId}`, { type: typeName, requestId: emp_reqId }, req);
+    // Fetch requester details for the approver notifications
+    const requesterResult = await sequelize.query(
+      `SELECT "user_FirstName", "user_LastName", "user_RoleId" FROM "User" WHERE "user_Id" = :userId`,
+      { replacements: { userId: finalUserId }, type: QueryTypes.SELECT }
+    );
+    const requester = requesterResult[0];
+    const requesterName = `${requester.user_FirstName} ${requester.user_LastName}`;
+    const requesterRole = requester.user_RoleId;
 
+    // Log transaction
+    await logTransaction(finalUserId, null, "REQUEST_SUBMISSION", `${typeName} submitted by ${requesterName}`, { type: typeName, requestId: emp_reqId }, req);
+
+    // A. Confirmation to Requester
     await sequelize.query(
-      `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "createdAt", "updatedAt")
-       VALUES (:userId, :title, :message, false, :now, :now)`,
+      `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
+       VALUES (:userId, :title, :message, false, :targetId, :now, :now)`,
       {
         replacements: {
           userId: finalUserId,
           title: "Request Submitted",
           message: `Your ${typeName} request has been submitted and is currently pending review.`,
+          targetId: emp_reqId,
           now: nowStr,
         },
         type: QueryTypes.INSERT,
       },
     );
+
+    // B. Notification to Eligible Approvers
+    let approverQuery = "";
+    if (requesterRole === 3) { // Employee -> Notify Admins and Supervisors
+      approverQuery = `SELECT "user_Id" FROM "User" WHERE "user_RoleId" IN (1, 2) AND "deletedAt" IS NULL`;
+    } else if (requesterRole === 2) { // Supervisor -> Notify Admins
+      approverQuery = `SELECT "user_Id" FROM "User" WHERE "user_RoleId" = 1 AND "deletedAt" IS NULL`;
+    } else if (requesterRole === 1) { // Admin -> Notify other Admins
+      approverQuery = `SELECT "user_Id" FROM "User" WHERE "user_RoleId" = 1 AND "user_Id" != :userId AND "deletedAt" IS NULL`;
+    }
+
+    if (approverQuery) {
+      const approvers = await sequelize.query(approverQuery, { 
+        replacements: { userId: finalUserId }, 
+        type: QueryTypes.SELECT 
+      });
+
+      for (const approver of approvers) {
+        await sequelize.query(
+          `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
+           VALUES (:userId, :title, :message, false, :targetId, :now, :now)`,
+          {
+            replacements: {
+              userId: approver.user_Id,
+              title: "New Request for Review",
+              message: `${requesterName} has submitted a ${typeName} request that requires your review.`,
+              targetId: emp_reqId,
+              now: nowStr,
+            },
+            type: QueryTypes.INSERT,
+          }
+        );
+      }
+    }
+
+    // [SOCKET] Trigger real-time UI updates
+    const io = getIO();
+    io.emit("NEW_REQUEST");
+    io.to(`user_${finalUserId}`).emit("NOTIFICATION_UPDATE");
 
     return res.status(200).json({
       message: "Request created successfully",
@@ -483,7 +563,11 @@ exports.GetUserRequests = async (req, res) => {
         wpsl."withPayName" as "SL_withPayName",
         ow."DateonField",
         ow."NoDays" as "OW_NoDays",
-        ow."NoHrs" as "OW_NoHrs"
+        ow."NoHrs" as "OW_NoHrs",
+        er."processedBy",
+        er."recommendedBy",
+        ap."user_FirstName" || ' ' || ap."user_LastName" as "approverName",
+        rc."user_FirstName" || ' ' || rc."user_LastName" as "recommenderName"
       FROM "emp_Request" er
       LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
       LEFT JOIN "request_Status" rs ON er."emp_reqStatusId" = rs."reqStatId"
@@ -493,6 +577,9 @@ exports.GetUserRequests = async (req, res) => {
       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
       LEFT JOIN "withPay" wpsl ON sl."WithPayID" = wpsl."withPayId"
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+      LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
+      LEFT JOIN "User" ap ON er."processedBy" = ap."user_Id"
+      LEFT JOIN "User" rc ON er."recommendedBy" = rc."user_Id"
       WHERE er."user_Id" = :userId
       ORDER BY er."date_Filed" DESC`,
       {
@@ -516,6 +603,7 @@ exports.GetAllRequests = async (req, res) => {
       `SELECT
         er."emp_reqId",
         er."user_Id",
+        u."user_RoleId",
         u."user_FirstName" || ' ' || u."user_LastName" as "userName",
         er."emp_reqTypeId",
         rt."reqTypeName",
@@ -544,12 +632,24 @@ exports.GetAllRequests = async (req, res) => {
         ow."NoHrs" as "OW_NoHrs",
         ow."destination",
         ow."proof_File" as "OW_proof_File",
+        lc."logDate" as "LC_logDate",
+        lc."currentIn" as "LC_currentIn",
+        lc."currentOut" as "LC_currentOut",
+        lc."claimedIn" as "LC_claimedIn",
+        lc."claimedOut" as "LC_claimedOut",
+        lc."proof_File" as "LC_proof_File",
         lb."VL_balance",
         lb."SL_balance",
         lb."VL_used",
-        lb."SL_used"
-      FROM "emp_Request" er
+        lb."SL_used",
+        er."processedBy",
+        er."recommendedBy",
+        ap."user_FirstName" || ' ' || ap."user_LastName" as "approverName",
+        rc."user_FirstName" || ' ' || rc."user_LastName" as "recommenderName"
+        FROM "emp_Request" er
       INNER JOIN "User" u ON er."user_Id" = u."user_Id"
+      LEFT JOIN "User" ap ON er."processedBy" = ap."user_Id"
+      LEFT JOIN "User" rc ON er."recommendedBy" = rc."user_Id"
       LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
       LEFT JOIN "request_Status" rs ON er."emp_reqStatusId" = rs."reqStatId"
       LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
@@ -558,6 +658,7 @@ exports.GetAllRequests = async (req, res) => {
       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
       LEFT JOIN "withPay" wpsl ON sl."WithPayID" = wpsl."withPayId"
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+      LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
       LEFT JOIN "Leave_Balance" lb ON er."user_Id" = lb."user_Id" AND lb."year" = :currentYear
       ORDER BY er."date_Filed" DESC`,
       {
@@ -583,32 +684,106 @@ exports.UpdateStatusRequest = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    const oldRequestResult = await sequelize.query(
-      `SELECT * FROM "emp_Request" WHERE "emp_reqId" = :emp_reqId`,
-      { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+    // Fetch the request and the roles of both the requester and processor
+    const detailsResult = await sequelize.query(
+      `SELECT 
+        er.*, 
+        u."user_RoleId" AS "requesterRoleId",
+        p."user_RoleId" AS "processorRoleId"
+       FROM "emp_Request" er
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       JOIN "User" p ON p."user_Id" = :processedBy
+       WHERE er."emp_reqId" = :emp_reqId`,
+      { 
+        replacements: { emp_reqId, processedBy }, 
+        type: QueryTypes.SELECT 
+      }
     );
-    const oldRequest = oldRequestResult[0];
+
+    if (detailsResult.length === 0) {
+      return res.status(404).json({ error: "Request or Processor not found." });
+    }
+
+    const request = detailsResult[0];
+    const requesterRole = Number(request.requesterRoleId);
+    const processorRole = Number(request.processorRoleId);
+    const currentStatus = Number(request.emp_reqStatusId);
+    const requesterId = Number(request.user_Id);
+    const operatorId = Number(processedBy);
+    const isLogCorrection = Number(request.emp_reqTypeId) === 5;
+
+    console.log(`[DEBUG] UpdateStatusRequest: reqId=${emp_reqId}, requesterId=${requesterId}, operatorId=${operatorId}, requesterRole=${requesterRole}, processorRole=${processorRole}, currentStatus=${currentStatus}`);
+
+    // --- RBAC Approval Rules ---
+    let isAuthorized = false;
+    let finalStatusId = Number(emp_reqStatusId); // The status requested by frontend (2 or 3)
+
+    // ADMIN BYPASS: Admin can approve/reject ANY request except their own
+    if (processorRole === 1) {
+      if (operatorId !== requesterId) {
+        isAuthorized = true;
+      } else {
+        // Cannot approve own request
+        isAuthorized = false;
+      }
+    } 
+    // SUPERVISOR LOGIC
+    else if (processorRole === 2) {
+      // Supervisor can only process Employee (3) or Admin (1) requests
+      // and only if status is PENDING (1). 
+      // NOTE: Supervisors cannot approve their own requests because operatorId === requesterId would fail authorization.
+      if (operatorId !== requesterId && currentStatus === 1 && (requesterRole === 3 || requesterRole === 1)) {
+        isAuthorized = true;
+        // If Supervisor approves Log Correction, it goes to "Pending Final Approval" (4)
+        if (Number(emp_reqStatusId) === 2 && isLogCorrection) {
+          finalStatusId = 4;
+        }
+      }
+    }
+
+    if (!isAuthorized) {
+      const errorMsg = (processorRole === 1 && operatorId === requesterId)
+        ? "You cannot approve your own request."
+        : "You are not authorized to process this request based on role hierarchy or current status.";
+      return res.status(403).json({ error: errorMsg });
+    }
+
+    const oldRequest = request; // For audit log
 
     // 1. Update the parent request status
-    await sequelize.query(
-      `UPDATE "emp_Request"
-       SET "emp_reqStatusId" = :emp_reqStatusId,
-           "processedBy" = :processedBy,
-           "date_Processed" = :now,
-           "admin_remarks" = :admin_remarks,
-           "updatedAt" = :now
-       WHERE "emp_reqId" = :emp_reqId`,
-      {
-        replacements: {
-          emp_reqId,
-          emp_reqStatusId,
-          processedBy,
-          admin_remarks: remarks || null,
-          now: nowStr,
-        },
-        type: QueryTypes.UPDATE,
-      },
-    );
+    let updateQuery = `
+        UPDATE "emp_Request"
+        SET "emp_reqStatusId" = :finalStatusId,
+            "updatedAt" = :now
+    `;
+
+    const replacements = {
+      emp_reqId,
+      finalStatusId,
+      processedBy: operatorId,
+      admin_remarks: remarks || null,
+      now: nowStr,
+    };
+
+    // If Supervisor recommends (4), set recommendedBy
+    if (finalStatusId === 4) {
+      updateQuery += `, "recommendedBy" = :processedBy`;
+    } 
+    // If Admin approves/rejects (2 or 3), set processedBy and date_Processed
+    else if (finalStatusId === 2 || finalStatusId === 3) {
+      updateQuery += `, "processedBy" = :processedBy, "date_Processed" = :now`;
+      // If Admin provides admin_remarks, update it
+      if (remarks) {
+        updateQuery += `, "admin_remarks" = :admin_remarks`;
+      }
+    }
+
+    updateQuery += ` WHERE "emp_reqId" = :emp_reqId`;
+
+    await sequelize.query(updateQuery, {
+      replacements,
+      type: QueryTypes.UPDATE,
+    });
 
     const newRequestResult = await sequelize.query(
       `SELECT * FROM "emp_Request" WHERE "emp_reqId" = :emp_reqId`,
@@ -649,25 +824,55 @@ exports.UpdateStatusRequest = async (req, res) => {
        LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
        LEFT JOIN "User" u ON er."user_Id" = u."user_Id"
        LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+      LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
        WHERE er."emp_reqId" = :emp_reqId`,
       { replacements: { emp_reqId }, type: QueryTypes.SELECT }
     );
 
     if (requestInfo) {
-      const statusName = emp_reqStatusId === 2 ? "Approved" : "Rejected";
+      let statusName = "Pending";
+      if (finalStatusId === 2) statusName = "Approved";
+      else if (finalStatusId === 3) statusName = "Rejected";
+      else if (finalStatusId === 4) statusName = "Recommended";
+
+      // A. Notify Requester
       await sequelize.query(
-        `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "createdAt", "updatedAt")
-         VALUES (:userId, :title, :message, false, :now, :now)`,
+        `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
+         VALUES (:userId, :title, :message, false, :targetId, :now, :now)`,
         {
           replacements: {
             userId: requestInfo.user_Id,
             title: `Request ${statusName}`,
-            message: `Your ${requestInfo.reqTypeName} request has been ${statusName.toLowerCase()}.`,
+            message: finalStatusId === 4 
+              ? `Your ${requestInfo.reqTypeName} request has been recommended by a supervisor and is pending final Admin approval.`
+              : `Your ${requestInfo.reqTypeName} request has been ${statusName.toLowerCase()}.`,
+            targetId: emp_reqId,
             now: nowStr,
           },
           type: QueryTypes.INSERT,
         }
       );
+
+      // B. Notify Admins if status is now 4 (Recommended)
+      if (finalStatusId === 4) {
+        const admins = await sequelize.query(`SELECT "user_Id" FROM "User" WHERE "user_RoleId" = 1 AND "deletedAt" IS NULL`, { type: QueryTypes.SELECT });
+        for (const admin of admins) {
+          await sequelize.query(
+            `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
+             VALUES (:userId, :title, :message, false, :targetId, :now, :now)`,
+            {
+              replacements: {
+                userId: admin.user_Id,
+                title: "Final Approval Required",
+                message: `A Log Correction request from ${requestInfo.user_FirstName} ${requestInfo.user_LastName} has been recommended by a supervisor and requires your final approval.`,
+                targetId: emp_reqId,
+                now: nowStr,
+              },
+              type: QueryTypes.INSERT,
+            }
+          );
+        }
+      }
 
       // Email for Onfield Work Approval (Type 2)
       if (emp_reqStatusId === 2 && requestInfo.emp_reqTypeId === 2 && requestInfo.user_Email) {
@@ -681,6 +886,11 @@ exports.UpdateStatusRequest = async (req, res) => {
       }
     }
 
+    // [SOCKET] Trigger real-time UI updates
+    const io = getIO();
+    io.emit("REQUEST_STATUS_UPDATED");
+    io.to(`user_${requestInfo.user_Id}`).emit("NOTIFICATION_UPDATE");
+
     res.status(200).json({ message: "Request status updated successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -688,12 +898,40 @@ exports.UpdateStatusRequest = async (req, res) => {
 };
 
 exports.GetPendingCount = async (req, res) => {
+  const userId = req.user?.user_Id;
+  const roleId = req.user?.user_RoleId;
+
   try {
-    const result = await sequelize.query(
-      `SELECT COUNT(*) as count FROM "emp_Request" WHERE "emp_reqStatusId" = 1`,
-      { type: QueryTypes.SELECT }
-    );
-    res.status(200).json({ count: parseInt(result[0].count) });
+    let query = "";
+    let replacements = { userId };
+
+    if (roleId === 1) { // Admin
+      // Count all pending (1) AND recommended (4) requests except their own
+      query = `
+        SELECT COUNT(*)::int as count 
+        FROM "emp_Request" er
+        WHERE er."emp_reqStatusId" IN (1, 4) 
+        AND er."user_Id" != :userId
+      `;
+    } else if (roleId === 2) { // Supervisor
+      // Count only pending requests from Employees (Role 3)
+      query = `
+        SELECT COUNT(*)::int as count 
+        FROM "emp_Request" er
+        JOIN "User" u ON er."user_Id" = u."user_Id"
+        WHERE er."emp_reqStatusId" = 1 
+        AND u."user_RoleId" = 3
+      `;
+    } else {
+      return res.status(200).json({ count: 0 });
+    }
+
+    const result = await sequelize.query(query, { 
+      replacements, 
+      type: QueryTypes.SELECT 
+    });
+    
+    res.status(200).json({ count: result[0].count });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -779,10 +1017,19 @@ exports.GetRequestDetails = async (req, res) => {
         ow."NoHrs" as "OW_NoHrs",
         ow."destination",
         ow."proof_File" as "OW_proof_File",
+        lc."logDate" as "LC_logDate",
+        lc."currentIn" as "LC_currentIn",
+        lc."currentOut" as "LC_currentOut",
+        lc."claimedIn" as "LC_claimedIn",
+        lc."claimedOut" as "LC_claimedOut",
+        lc."proof_File" as "LC_proof_File",
         lb."VL_balance",
-        lb."SL_balance",
-        ap."user_FirstName" || ' ' || ap."user_LastName" as "approverName"
-      FROM "emp_Request" er
+        lb."SL_used",
+        er."processedBy",
+        er."recommendedBy",
+        ap."user_FirstName" || ' ' || ap."user_LastName" as "approverName",
+        rc."user_FirstName" || ' ' || rc."user_LastName" as "recommenderName"
+        FROM "emp_Request" er
       INNER JOIN "User" u ON er."user_Id" = u."user_Id"
       LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
       LEFT JOIN "request_Status" rs ON er."emp_reqStatusId" = rs."reqStatId"
@@ -792,8 +1039,10 @@ exports.GetRequestDetails = async (req, res) => {
       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
       LEFT JOIN "withPay" wpsl ON sl."WithPayID" = wpsl."withPayId"
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+      LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
       LEFT JOIN "Leave_Balance" lb ON er."user_Id" = lb."user_Id" AND lb."year" = :currentYear
       LEFT JOIN "User" ap ON er."processedBy" = ap."user_Id"
+      LEFT JOIN "User" rc ON er."recommendedBy" = rc."user_Id"
       WHERE er."emp_reqId" = CAST(:requestId AS INTEGER)`,
       {
         replacements: { requestId, currentYear },

@@ -44,7 +44,8 @@ module.exports = (sequelize, DataTypes) => {
       },
       date_Filed: { type: DataTypes.DATEONLY, allowNull: false },
       date_Processed: { type: DataTypes.DATEONLY, allowNull: true },
-      processedBy: { type: DataTypes.SMALLINT, allowNull: true }, // admin who acted
+      processedBy: { type: DataTypes.SMALLINT, allowNull: true }, // admin who gave final approval
+      recommendedBy: { type: DataTypes.SMALLINT, allowNull: true }, // supervisor who recommended
       remarks: { type: DataTypes.TEXT, allowNull: true }, // employee remarks
       admin_remarks: { type: DataTypes.TEXT, allowNull: true }, // admin notes
       system_remarks: { type: DataTypes.TEXT, allowNull: true }, // auto-generated warnings
@@ -53,9 +54,6 @@ module.exports = (sequelize, DataTypes) => {
   );
 
   // ── Overtime Request ──────────────────────────────────────────────────────
-  // Based on physical OT form:
-  // Request Date, Employee Name, Position, Overtime Needed From/To,
-  // Total Hr, Date of Overtime, Reasons, Supervisor Signature, Manager Approval
   const Overtime_Request = sequelize.define(
     "Overtime_Request",
     {
@@ -76,8 +74,6 @@ module.exports = (sequelize, DataTypes) => {
   );
 
   // ── Vacation Leave ────────────────────────────────────────────────────────
-  // Based on physical Leave Application Form:
-  // No. of Days, Date, Purpose, VL/SL balance tracking
   const Vacation_Leave = sequelize.define(
     "Vacation_Leave",
     {
@@ -137,7 +133,29 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: false, freezeTableName: true },
   );
 
-  // ── Leave Balance (per user per year) ─────────────────────────────────────
+  // ── Log Correction Request ────────────────────────────────────────────────
+  const LogCorrection_Request = sequelize.define(
+    "LogCorrection_Request",
+    {
+      log_corrId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      emp_reqId: { type: DataTypes.INTEGER, allowNull: false },
+      user_Id: { type: DataTypes.SMALLINT, allowNull: false },
+      logDate: { type: DataTypes.DATEONLY, allowNull: false },
+      currentIn: { type: DataTypes.TIME, allowNull: true },
+      currentOut: { type: DataTypes.TIME, allowNull: true },
+      claimedIn: { type: DataTypes.TIME, allowNull: false },
+      claimedOut: { type: DataTypes.TIME, allowNull: false },
+      reason: { type: DataTypes.TEXT, allowNull: false },
+      proof_File: { type: DataTypes.STRING, allowNull: true },
+    },
+    { timestamps: false, freezeTableName: true },
+  );
+
+  // ── Leave Balance ─────────────────────────────────────────────────────────
   const Leave_Balance = sequelize.define(
     "Leave_Balance",
     {
@@ -161,7 +179,7 @@ module.exports = (sequelize, DataTypes) => {
       indexes: [
         {
           unique: true,
-          fields: ["user_Id", "year"], // one balance row per user per year
+          fields: ["user_Id", "year"],
           name: "unique_user_year_balance",
         },
       ],
@@ -221,26 +239,29 @@ module.exports = (sequelize, DataTypes) => {
     foreignKey: "emp_reqId",
     as: "request",
   });
+
+  emp_Request.hasOne(LogCorrection_Request, {
+    foreignKey: "emp_reqId",
+    sourceKey: "emp_reqId",
+  });
+  LogCorrection_Request.belongsTo(emp_Request, {
+    foreignKey: "emp_reqId",
+    as: "request",
+  });
+
   Vacation_Leave.belongsTo(withPay, {
     foreignKey: "WithPayID",
     targetKey: "withPayId",
     as: "withPayType",
-  });
-  withPay.hasMany(Vacation_Leave, {
-    foreignKey: "WithPayID",
-    sourceKey: "withPayId",
   });
   Sick_Leave.belongsTo(withPay, {
     foreignKey: "WithPayID",
     targetKey: "withPayId",
     as: "withPayType",
   });
-  withPay.hasMany(Sick_Leave, {
-    foreignKey: "WithPayID",
-    sourceKey: "withPayId",
-  });
+  
+  
 
-  // ── Return ────────────────────────────────────────────────────────────────
   return {
     request_Status,
     request_Type,
@@ -250,6 +271,7 @@ module.exports = (sequelize, DataTypes) => {
     Vacation_Leave,
     Sick_Leave,
     Onfield_Work,
+    LogCorrection_Request,
     Leave_Balance,
   };
 };

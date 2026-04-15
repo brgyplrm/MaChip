@@ -3,10 +3,16 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') }); // Load .en
 console.log("[DEBUG] JWT_SECRET loaded:", process.env.JWT_SECRET ? "Yes" : "No");
 process.env.TZ = process.env.TZ || "Asia/Manila";
 const express = require("express");
+const http = require("http");
 const cors = require("cors");
-const { connectDB, sequelize } = require("./config/sequelize"); // Import connectDB and sequelize
+const { connectDB, sequelize } = require("./config/sequelize"); 
+const { initSocket } = require("./config/socket");
 
 const app = express();
+const server = http.createServer(app);
+
+// Initialize Socket.io
+initSocket(server);
 
 // Trust proxy for correct IP handling behind nginx/lb
 app.set("trust proxy", true);
@@ -142,6 +148,6 @@ setInterval(() => {
 
 // Define port and start server
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}.`);
 });

@@ -42,19 +42,30 @@ const UserRequests = () => {
     const day = today.getDate();
     const year = today.getFullYear();
     const month = today.getMonth();
+    const monthName = today.toLocaleString('en-US', { month: 'long' });
     
-    if (day <= 16) {
+    const formatDate = (d) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    if (day <= 15) {
+      const start = new Date(year, month, 1);
+      const end = new Date(year, month, 15);
       return {
-        start: new Date(year, month, 1).toISOString().split('T')[0],
-        end: new Date(year, month, 16).toISOString().split('T')[0],
-        payEnding: `${today.toLocaleString('en-US', { month: 'long' }).toUpperCase()} 16, ${year}`
+        start: formatDate(start),
+        end: formatDate(end),
+        payEnding: `${monthName} 1-15, ${year}`
       };
     } else {
-      const lastDay = new Date(year, month + 1, 0).getDate();
+      const start = new Date(year, month, 16);
+      const end = new Date(year, month + 1, 0); // Last day of month
       return {
-        start: new Date(year, month, 17).toISOString().split('T')[0],
-        end: new Date(year, month + 1, 0).toISOString().split('T')[0],
-        payEnding: `${today.toLocaleString('en-US', { month: 'long' }).toUpperCase()} ${lastDay}, ${year}`
+        start: formatDate(start),
+        end: formatDate(end),
+        payEnding: `${monthName} 16-${end.getDate()}, ${year}`
       };
     }
   };
@@ -125,7 +136,79 @@ const UserRequests = () => {
     hrTo: "",
     totalHrs: 0,
     proofFile: null,
+    // Log Correction fields
+    logCorrDate: "",
+    currentIn: "",
+    currentOut: "",
+    claimedIn: "",
+    claimedOut: "",
   });
+
+  const [currentPeriodLogs, setCurrentPeriodLogs] = useState([]);
+  const [periodDates, setPeriodDates] = useState([]);
+
+  // Fetch Current Period Logs for Log Correction
+  const fetchCurrentPeriodLogs = async () => {
+    if (!userData?.user_Id) return;
+    try {
+      const { start, end } = getPayrollDates();
+      
+      // Generate all dates in the range using local time
+      const dates = [];
+      const startDate = new Date(start + "T00:00:00");
+      const endDate = new Date(end + "T00:00:00");
+      
+      let curr = new Date(startDate);
+      while (curr <= endDate) {
+        const yyyy = curr.getFullYear();
+        const mm = String(curr.getMonth() + 1).padStart(2, '0');
+        const dd = String(curr.getDate()).padStart(2, '0');
+        dates.push(`${yyyy}-${mm}-${dd}`);
+        curr.setDate(curr.getDate() + 1);
+      }
+      setPeriodDates(dates);
+
+      const response = await fetchWithAuth(`/api/attendance/report?startDate=${start}&endDate=${end}&user_Id=${userData.user_Id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentPeriodLogs(data);
+      }
+    } catch (error) {
+      console.error("Error fetching logs for correction:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (formData.emp_reqTypeId === "5") {
+      fetchCurrentPeriodLogs();
+    }
+  }, [formData.emp_reqTypeId]);
+
+  const handleLogDateChange = (e) => {
+    const selectedDate = e.target.value;
+    const dateObj = new Date(selectedDate);
+    
+    // Check if Sunday (0)
+    if (dateObj.getUTCDay() === 0) {
+      setToast({ message: "Cannot file log correction for Sundays.", type: "error" });
+      setFormData(prev => ({
+        ...prev,
+        logCorrDate: "",
+        currentIn: "",
+        currentOut: "",
+      }));
+      return;
+    }
+
+    const log = currentPeriodLogs.find(l => l.log_Date.split('T')[0] === selectedDate);
+    
+    setFormData(prev => ({
+      ...prev,
+      logCorrDate: selectedDate,
+      currentIn: log ? (log.morning_In !== "—" ? log.morning_In : "") : "",
+      currentOut: log ? (log.afternoon_Out !== "—" ? log.afternoon_Out : "") : "",
+    }));
+  };
 
   useEffect(() => {
     if (formData.hrFrom && formData.hrTo) {
@@ -202,7 +285,16 @@ const UserRequests = () => {
   useEffect(() => {
     fetchBalance();
     fetchPayrollPeriods();
-  }, [userData?.user_Id]);
+
+    const handleRefresh = () => {
+      fetchBalance();
+      fetchHistory();
+      if (activeTab === "dtr") fetchDTR();
+    };
+
+    window.addEventListener("dataRefresh", handleRefresh);
+    return () => window.removeEventListener("dataRefresh", handleRefresh);
+  }, [userData?.user_Id, activeTab]);
 
   useEffect(() => {
     fetchHistory();
@@ -312,6 +404,13 @@ const UserRequests = () => {
       formDataToSubmit.append("NoHrs", formData.totalHrs);
       formDataToSubmit.append("NoDays", 1); // Default to 1 day for user-requested onfield
       formDataToSubmit.append("destination", formData.remarks);
+    } else if (formData.emp_reqTypeId === "5") {
+      formDataToSubmit.append("logDate", formData.logCorrDate);
+      formDataToSubmit.append("currentIn", formData.currentIn);
+      formDataToSubmit.append("currentOut", formData.currentOut);
+      formDataToSubmit.append("claimedIn", formData.claimedIn);
+      formDataToSubmit.append("claimedOut", formData.claimedOut);
+      formDataToSubmit.append("reason", formData.remarks);
     } else {
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
       formDataToSubmit.append("EndDate", formData.leaveEndDate);
@@ -359,6 +458,11 @@ const UserRequests = () => {
           hrTo: "",
           totalHrs: 0,
           proofFile: null,
+          logCorrDate: "",
+          currentIn: "",
+          currentOut: "",
+          claimedIn: "",
+          claimedOut: "",
         });
         fetchBalance();
         fetchHistory(); // Refresh history immediately
@@ -427,8 +531,60 @@ const UserRequests = () => {
                         <option value="1">Overtime (OT)</option>
                         <option value="3">Vacation Leave (VL)</option>
                         <option value="4">Sick Leave (SL)</option>
+                        <option value="5">Log Correction</option>
                       </select>
                     </div>
+
+                    {/* Log Correction Specific Fields (Type 5) */}
+                    {formData.emp_reqTypeId === "5" && (
+                      <div className="conditionalFields">
+                        <p className="periodNote">Current Period: {payroll.payEnding}</p>
+                        <div className="formRow">
+                          <div className="formGroup">
+                            <label>Date to Correct</label>
+                            <select name="logCorrDate" value={formData.logCorrDate} onChange={handleLogDateChange} required>
+                              <option value="" disabled>Select a date from this period</option>
+                              {periodDates.map(date => (
+                                <option key={date} value={date}>
+                                  {new Date(date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="formRow">
+                          <div className="formGroup">
+                            <label>Current In (System)</label>
+                            <input type="text" value={formData.currentIn || "No Log"} readOnly className="readOnlyInput" />
+                          </div>
+                          <div className="formGroup">
+                            <label>Current Out (System)</label>
+                            <input type="text" value={formData.currentOut || "No Log"} readOnly className="readOnlyInput" />
+                          </div>
+                        </div>
+
+                        <div className="formRow">
+                          <div className="formGroup">
+                            <label>Claimed Time-In</label>
+                            <input type="time" name="claimedIn" value={formData.claimedIn} onChange={handleInputChange} required />
+                          </div>
+                          <div className="formGroup">
+                            <label>Claimed Time-Out</label>
+                            <input type="time" name="claimedOut" value={formData.claimedOut} onChange={handleInputChange} required />
+                          </div>
+                        </div>
+
+                        <div className="formRow">
+                          <div className="formGroup fileUploadGroup fullWidth">
+                            <label className="fileLabel" htmlFor="proofFile">
+                              <CloudUploadIcon /> {formData.proofFile ? formData.proofFile.name : "Upload Proof (Photo/PDF)"}
+                            </label>
+                            <input type="file" id="proofFile" name="proofFile" accept="image/*,.pdf" onChange={handleInputChange} style={{ display: 'none' }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                      {/* Overtime Specific Fields (Type 1) */}
                       {formData.emp_reqTypeId === "1" && (

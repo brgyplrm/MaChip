@@ -52,7 +52,11 @@ const EmployeeHome = () => {
         setLoading(false);
       }
     };
+
     fetchDashboardData();
+
+    window.addEventListener("dataRefresh", fetchDashboardData);
+    return () => window.removeEventListener("dataRefresh", fetchDashboardData);
   }, [userData?.user_Id]);
 
   const att = dashboardStats.attendance;

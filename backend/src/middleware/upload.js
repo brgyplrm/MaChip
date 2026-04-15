@@ -20,16 +20,16 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter (only allow images: jpeg, jpg, png)
+// File filter (only allow images and pdf)
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png/;
+  const allowedTypes = /jpeg|jpg|png|pdf/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = allowedTypes.test(file.mimetype);
 
   if (extname && mimetype) {
     return cb(null, true);
   } else {
-    cb(new Error('Invalid file format. Only images (jpeg, jpg, png) are allowed!'));
+    cb(new Error('Invalid file format. Only images (jpeg, jpg, png) and PDF are allowed!'));
   }
 };
 

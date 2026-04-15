@@ -50,17 +50,16 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     holidayMap[dStr] = h; 
   });
 
-  // 3. Get attendance logs
+  // 3. Get attendance logs from the reporting table (which stores AM/PM breakdown)
   const logs = await sequelize.query(
     `SELECT
-       DATE("log_Date")::text AS log_date,
-       MIN(CASE WHEN "logged_StatusId" = 1 THEN "time_Logged" END) AS first_in,
-       MAX(CASE WHEN "logged_StatusId" IN (2, 6) THEN "time_Logged" END) AS last_out,
-       MAX("attendance_StatusId") AS att_status
-     FROM "user_logging"
+       "log_Date"::text AS log_date,
+       "time_Logged_inArr",
+       "time_Logged_outArr",
+       "attendance_StatusId" as att_status
+     FROM "employee_Logging_report"
      WHERE "user_id" = :user_Id
-     AND DATE("log_Date") BETWEEN :period_Start AND :period_End
-     GROUP BY DATE("log_Date")`,
+     AND "log_Date" BETWEEN :period_Start AND :period_End`,
     { replacements: { user_Id, period_Start, period_End }, type: QueryTypes.SELECT },
   );
   const logMap = {};
@@ -129,24 +128,42 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     // ── Handle Worked Days (Normal or Holiday) ──────────────────────────
     if (worked) {
       actual_Worked_Days++;
-      let dailyTardiness = 0;
-      if (log && log.first_in) {
-        const [gh, gm] = GRACE_END.split(":").map(Number);
-        const [lh, lm] = log.first_in.split(":").map(Number);
-        const graceMinutes = gh * 60 + gm;
-        const loginMinutes = lh * 60 + lm;
-        if (loginMinutes > graceMinutes) {
-          dailyTardiness = loginMinutes - graceMinutes;
-          tardiness_Mins += dailyTardiness;
+      let dailyHrs = 0;
+
+      if (isOnField) {
+        dailyHrs = 8.0;
+      } else if (log) {
+        const inArr = JSON.parse(log.time_Logged_inArr || "[]");
+        const morningIn = inArr[0];
+        const afternoonIn = inArr[1];
+
+        // Morning Session (Fixed 4.0 - tardiness)
+        if (morningIn && morningIn !== "—") {
+          dailyHrs += 4.0;
+          const [lh, lm] = morningIn.split(":").map(Number);
+          const loginMinutes = lh * 60 + lm;
+          const graceMinutes = 8 * 60 + 35; // 8:35 AM
+
+          if (loginMinutes > graceMinutes) {
+            const minsLate = loginMinutes - graceMinutes;
+            tardiness_Mins += minsLate;
+            dailyHrs -= (minsLate / 60);
+          }
+        }
+
+        // Afternoon Session (Fixed 4.0)
+        if (afternoonIn && afternoonIn !== "—") {
+          dailyHrs += 4.0;
         }
       }
-      actual_Worked_Hrs += (WORK_HRS_PER_DAY - (dailyTardiness / 60));
+      
+      actual_Worked_Hrs += dailyHrs;
 
       if (holiday) {
         if (holiday.type === "Regular Holiday") legalHol_Days++;
         else specialHol_Days++;
       }
-      continue; // Move to next day
+      continue; 
     }
 
     // ── Handle Holidays Not Worked ──────────────────────────────────────

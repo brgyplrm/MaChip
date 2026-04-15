@@ -66,6 +66,8 @@ const CalendarManagement = () => {
 
   const userData = JSON.parse(localStorage.getItem("userData") || "{}");
   const userId = userData.user_Id;
+  const isAdmin = userData.user_RoleId === 1;
+  const isSupervisor = userData.user_RoleId === 2;
 
   const [selectedHolidayWork, setSelectedHolidayWork] = useState(null);
   const [selectedFieldLog, setSelectedFieldLog] = useState(null);
@@ -261,12 +263,14 @@ const CalendarManagement = () => {
           <div className="pageHeader">
             <div className="title">
               <h1>Calendar Management</h1>
-              <span>Manage holidays, leaves, and field work</span>
+              <span>Manage {isAdmin ? "holidays, leaves, and field work" : "field work assignments"}</span>
             </div>
             <div className="actions">
-              <button className="btn holiday" onClick={() => setModalType('addHoliday')}>
-                <AddIcon /> Add Holiday
-              </button>
+              {isAdmin && (
+                <button className="btn holiday" onClick={() => setModalType('addHoliday')}>
+                  <AddIcon /> Add Holiday
+                </button>
+              )}
               <button className="btn fieldWork" onClick={() => setModalType('addFieldWork')}>
                 <AddIcon /> Add Field Work
               </button>
@@ -356,17 +360,19 @@ const CalendarManagement = () => {
                           {new Date(holiday.date).toLocaleDateString()} • {holiday.type}
                         </span>
                     </div>
-                    <div className="icons">
-                        <EditIcon className="edit" onClick={() => setModalType('editHoliday')} />
-                         <button 
-                             className="deleteBtn" 
-                             onClick={(e) => {
-                               e.stopPropagation();
-                               initiateDelete(holiday.id, 'Holiday');
-                             }}
-                             > <DeleteIcon className="delete" />
-                        </button>
-                    </div>
+                    {isAdmin && (
+                      <div className="icons">
+                          <EditIcon className="edit" onClick={() => setModalType('editHoliday')} />
+                          <button 
+                              className="deleteBtn" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                initiateDelete(holiday.id, 'Holiday');
+                              }}
+                              > <DeleteIcon className="delete" />
+                          </button>
+                      </div>
+                    )}
                     </div>
                 )) : (
                   <p style={{ textAlign: 'center', color: '#777', padding: '20px' }}>No upcoming holidays</p>

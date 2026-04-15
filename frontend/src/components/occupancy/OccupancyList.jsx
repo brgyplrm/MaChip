@@ -44,9 +44,12 @@ const OccupancyList = () => {
     }
   }, []);
 
-  // Fetch on mount
+  // Fetch on mount and listen for real-time refreshes
   useEffect(() => {
     fetchOccupancy();
+
+    window.addEventListener("dataRefresh", fetchOccupancy);
+    return () => window.removeEventListener("dataRefresh", fetchOccupancy);
   }, [fetchOccupancy]);
 
   // Auto-refresh every 5 seconds

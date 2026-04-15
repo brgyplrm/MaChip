@@ -11,17 +11,17 @@ import { useNavigate } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
 
 const Notifications = () => {
+  const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
+  const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
   const [notifications, setNotifications] = useState([]);
-  const userData = JSON.parse(localStorage.getItem("userData"));
   const navigate = useNavigate();
 
   const fetchNotifications = async () => {
     if (!userData?.user_Id) return;
     try {
-      const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}`);
+      const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}?viewMode=${viewMode}`);
       if (response.ok) {
         const data = await response.json();
-        // Add id field for DataGrid if not present (DataGrid needs 'id' or a unique key)
         const formattedData = data.map(n => ({ ...n, id: n.notifId }));
         setNotifications(formattedData);
       }
@@ -32,7 +32,24 @@ const Notifications = () => {
 
   useEffect(() => {
     fetchNotifications();
-  }, [userData?.user_Id]);
+
+    const handleStorageChange = () => {
+      const updatedUserData = JSON.parse(localStorage.getItem("userData"));
+      const updatedViewMode = localStorage.getItem("viewMode") || "management";
+      setUserData(updatedUserData);
+      setViewMode(updatedViewMode);
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("notificationRefresh", fetchNotifications);
+    window.addEventListener("dataRefresh", fetchNotifications);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("notificationRefresh", fetchNotifications);
+      window.removeEventListener("dataRefresh", fetchNotifications);
+    };
+  }, [userData?.user_Id, viewMode]);
 
   const handleMarkAllRead = async () => {
     if (!userData?.user_Id) return;
@@ -67,8 +84,14 @@ const Notifications = () => {
     if (!notif.isRead) {
       handleMarkAsRead(notif.notifId);
     }
+
     if (notif.title === "Password Reset Request" && notif.targetId) {
       navigate(`/users/edit/${notif.targetId}`);
+    } else if (notif.title === "New Request for Review") {
+      navigate("/adminRequests");
+    } else if (notif.targetId) {
+      // General redirection for personal request status updates
+      navigate(`/requests/${notif.targetId}`);
     }
   };
 

@@ -139,6 +139,12 @@ const RequestDetails = () => {
                   <p>{request.DateonField}</p>
                 </div>
               )}
+              {request.emp_reqTypeId === 5 && (
+                <div className="item">
+                  <label>Log Date</label>
+                  <p>{request.LC_logDate}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -185,6 +191,28 @@ const RequestDetails = () => {
                 </>
               )}
 
+              {/* Log Correction Details */}
+              {request.emp_reqTypeId === 5 && (
+                <>
+                  <div className="item">
+                    <label>Current Time-In</label>
+                    <p>{request.LC_currentIn || "No Log"}</p>
+                  </div>
+                  <div className="item">
+                    <label>Current Time-Out</label>
+                    <p>{request.LC_currentOut || "No Log"}</p>
+                  </div>
+                  <div className="item">
+                    <label>Claimed Time-In</label>
+                    <p className="claimed">{formatTime(request.LC_claimedIn)}</p>
+                  </div>
+                  <div className="item">
+                    <label>Claimed Time-Out</label>
+                    <p className="claimed">{formatTime(request.LC_claimedOut)}</p>
+                  </div>
+                </>
+              )}
+
               {/* Leave Details (VL/SL) */}
               {(request.emp_reqTypeId === 3 || request.emp_reqTypeId === 4) && (
                 <>
@@ -210,7 +238,7 @@ const RequestDetails = () => {
           </div>
 
           {/* Attachments (If any) */}
-          {(request.SL_proof_File || request.OW_proof_File) && (
+          {(request.SL_proof_File || request.OW_proof_File || request.LC_proof_File) && (
             <div className="detailCard">
               <div className="cardHeader">
                 <AttachmentIcon className="headerIcon" />
@@ -220,7 +248,7 @@ const RequestDetails = () => {
                 <div className="item">
                   <label>Proof Document</label>
                   <a 
-                    href={`/api/uploads/${request.SL_proof_File || request.OW_proof_File}`} 
+                    href={`/api/uploads/${request.SL_proof_File || request.OW_proof_File || request.LC_proof_File}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="attachmentLink"
@@ -242,17 +270,17 @@ const RequestDetails = () => {
             </div>
           </div>
 
-          {/* Admin Decision Section (Only if processed) */}
+          {/* Decision Section (Only if processed) */}
           {request.emp_reqStatusId !== 1 && (
             <div className="detailCard">
               <div className="cardHeader">
                 <PersonIcon className="headerIcon" />
-                <h3>Admin Decision Information</h3>
+                <h3>Review Information</h3>
               </div>
               <div className="infoGrid">
                 <div className="item">
                   <label>Processed By</label>
-                  <p className="bold">{request.approverName || "System Admin"}</p>
+                  <p className="bold">{request.approverName ? `${request.approverName} (${formatUserId(request.processedBy)})` : "System"}</p>
                 </div>
                 <div className="item">
                   <label>Processed On</label>
@@ -260,8 +288,8 @@ const RequestDetails = () => {
                 </div>
               </div>
               <div className="commentsBox">
-                <label>Admin Note / Remarks</label>
-                <p>{request.admin_remarks || "No admin notes provided."}</p>
+                <label>Management Note / Remarks</label>
+                <p>{request.admin_remarks || "No additional notes provided."}</p>
               </div>
             </div>
           )}
@@ -287,7 +315,7 @@ const RequestDetails = () => {
                   <div className="content">
                     <p className="status">Request {request.status}</p>
                     <p className="date">{request.date_Processed}</p>
-                    <p className="sub">by {request.approverName || "System Admin"}</p>
+                    <p className="sub">Reviewed by {request.approverName} ({formatUserId(request.processedBy)})</p>
                   </div>
                 </div>
               )}

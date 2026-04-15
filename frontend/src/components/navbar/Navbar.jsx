@@ -1,7 +1,8 @@
 import "./navbar.scss";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
-import NavigateNextIcon from '@mui/icons-material/NavigateNext'; // New Icon
-import { Link, useLocation } from "react-router-dom"; // Added useLocation
+import NavigateNextIcon from '@mui/icons-material/NavigateNext'; 
+import SwitchAccountIcon from "@mui/icons-material/SwitchAccount";
+import { Link, useLocation, useNavigate } from "react-router-dom"; 
 import { useState, useEffect } from "react";
 import Breadcrumbs from "../../components/breadcrumbs/Breadcrumbs";
 import { fetchWithAuth } from "../../utils/api";
@@ -10,6 +11,25 @@ import { fetchWithAuth } from "../../utils/api";
 const Navbar = () => {
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
   const [unreadCount, setUnreadCount] = useState(0);
+  const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
+  const navigate = useNavigate();
+
+  const isManagement = userData?.user_RoleId === 1 || userData?.user_RoleId === 2;
+
+  const toggleViewMode = () => {
+    const newMode = viewMode === "management" ? "employee" : "management";
+    localStorage.setItem("viewMode", newMode);
+    setViewMode(newMode);
+    
+    // Redirect based on the new mode
+    if (newMode === "employee") {
+      navigate("/employeeHome");
+    } else {
+      navigate("/");
+    }
+    // Force a re-render of components listening to this
+    window.dispatchEvent(new Event("storage"));
+  };
   let currentLink = "";
 
   // 1. Fetch latest user details from server on mount
@@ -32,7 +52,8 @@ const Navbar = () => {
   const fetchUnreadCount = async () => {
     if (!userData?.user_Id) return;
     try {
-      const response = await fetchWithAuth(`/api/notifications/unread-count/${userData.user_Id}`);
+      const currentViewMode = localStorage.getItem("viewMode") || "management";
+      const response = await fetchWithAuth(`/api/notifications/unread-count/${userData.user_Id}?viewMode=${currentViewMode}`);
       if (response.ok) {
         const data = await response.json();
         setUnreadCount(data.count);
@@ -46,13 +67,25 @@ const Navbar = () => {
     fetchUserLatest();
     fetchUnreadCount();
 
-    // Listen for storage changes (updates from other tabs/pages)
+    // Listen for storage changes (updates from other tabs/pages/toggles)
     const handleStorageChange = () => {
-      setUserData(JSON.parse(localStorage.getItem("userData")));
+      const updatedUserData = JSON.parse(localStorage.getItem("userData"));
+      setUserData(updatedUserData);
+      const updatedViewMode = localStorage.getItem("viewMode") || "management";
+      setViewMode(updatedViewMode);
+      
+      // Force refresh of unread count when mode/user changes
+      fetchUnreadCount();
     };
+
+    const handleRefresh = () => {
+      fetchUnreadCount();
+    };
+
     window.addEventListener("storage", handleStorageChange);
-    // Custom event for same-tab updates
     window.addEventListener("userUpdate", handleStorageChange);
+    window.addEventListener("notificationRefresh", handleRefresh);
+    window.addEventListener("dataRefresh", handleRefresh);
 
     // Poll every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
@@ -61,6 +94,8 @@ const Navbar = () => {
       clearInterval(interval);
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("userUpdate", handleStorageChange);
+      window.removeEventListener("notificationRefresh", handleRefresh);
+      window.removeEventListener("dataRefresh", handleRefresh);
     };
   }, [userData?.user_Id]);
 
@@ -71,6 +106,16 @@ const Navbar = () => {
         <Breadcrumbs />
 
         <div className="items">
+          {isManagement && (
+            <div className="item viewToggle" onClick={toggleViewMode} style={{ cursor: "pointer", marginRight: "15px", display: "flex", alignItems: "center", gap: "5px" }}>
+              <SwitchAccountIcon className="icon" />
+              <span style={{ fontSize: "14px", fontWeight: "600" }}>
+                {viewMode === "management" 
+                  ? "Switch View" 
+                  : (userData?.user_RoleId === 1 ? "Return to Admin" : userData?.user_RoleId === 2 ? "Return to Supervisor" : "Return to Admin")}
+              </span>
+            </div>
+          )}
           <Link to="/notifications">
             <div className="item">
               <NotificationsNoneOutlinedIcon className="icon" />

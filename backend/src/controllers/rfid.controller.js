@@ -2,6 +2,7 @@ const { sequelize, User, Notification } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime } = require("../utils/systemTime.js");
 const { logTransaction } = require("../utils/logger");
+const { getIO } = require("../config/socket");
 
 const maskUid = (uid, isAuthorized) => {
   if (isAuthorized) return "[REDACTED]";
@@ -195,7 +196,8 @@ exports.scanRFID = async (req, res) => {
     } else {
       const inArr  = JSON.parse(existingReport[0].time_Logged_inArr  || "[]");
       const outArr = JSON.parse(existingReport[0].time_Logged_outArr || "[]");
-      if (isEntry) inArr.push(timeStr); else outArr.push(timeStr);
+      if (isEntry && !inArr.includes(timeStr)) inArr.push(timeStr); 
+      else if (!isEntry && !outArr.includes(timeStr)) outArr.push(timeStr);
 
       await sequelize.query(
         `UPDATE "employee_Logging_report"
@@ -224,6 +226,11 @@ exports.scanRFID = async (req, res) => {
       result: attendanceResult,
       deviceIp: esp32Ip
     }, req);
+
+    // [SOCKET] Trigger real-time UI updates
+    const io = getIO();
+    io.emit("NEW_ATTENDANCE_LOG", { userId: target_user_Id, status: statusLabels[nextStatus] });
+    io.to(`user_${target_user_Id}`).emit("NOTIFICATION_UPDATE");
 
     return res.status(200).json({
       success: true,

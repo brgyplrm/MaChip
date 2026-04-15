@@ -6,6 +6,7 @@ import List from "./pages/list/List";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
 import Edit from "./pages/editUser/Edit";
+import EditAttendance from "./pages/editAttendance/EditAttendance";
 import Logs from "./pages/logs-management/Logs";
 import AdminRequests from "./pages/admin_Requests/AdminRequests";
 import RequestDetails from "./pages/request_Details/RequestDetails";
@@ -37,7 +38,7 @@ function App() {
         <Route
           path="/employeeHome"
           element={
-            <ProtectedRoute allowedRoles={[3]}>
+            <ProtectedRoute allowedRoles={[1, 2, 3]}>
               <EmployeeHome/>
             </ProtectedRoute>
           }
@@ -46,7 +47,7 @@ function App() {
         <Route
           path="/adminRequests"
           element={
-            <ProtectedRoute allowedRoles={[1]}>
+            <ProtectedRoute allowedRoles={[1, 2]}>
               <AdminRequests />
             </ProtectedRoute>
           }
@@ -55,7 +56,7 @@ function App() {
         <Route
           path="/requests"
           element={
-            <ProtectedRoute allowedRoles={[3]}>
+            <ProtectedRoute allowedRoles={[1, 2, 3]}>
               <UserRequests />
             </ProtectedRoute>
           }
@@ -63,7 +64,7 @@ function App() {
         <Route
           path="/accessLogs"
           element={
-            <ProtectedRoute allowedRoles={[3]}>
+            <ProtectedRoute allowedRoles={[1, 2, 3]}>
               <UserLogs />
             </ProtectedRoute>
           }
@@ -72,13 +73,12 @@ function App() {
         <Route
           path="/requests/:requestId"
           element={
-            <ProtectedRoute allowedRoles={[1, 3]}>
+            <ProtectedRoute allowedRoles={[1, 2, 3]}>
               <RequestDetails />
             </ProtectedRoute>
           }
         />
 
-        {/* Payroll Management: Admin (1) & Staff (2) */}
         <Route
           path="/payroll"
           element={
@@ -97,7 +97,6 @@ function App() {
           }
         />
 
-
         <Route
           path="/payroll/employeeList"
           element={
@@ -115,7 +114,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-
 
         <Route
           path="/adminReports"
@@ -138,7 +136,7 @@ function App() {
         <Route
           path="/calendar"
           element={
-            <ProtectedRoute allowedRoles={[1, 3]}>
+            <ProtectedRoute allowedRoles={[1, 2, 3]}>
               <CalendarRedirect />
             </ProtectedRoute>
           }
@@ -147,7 +145,7 @@ function App() {
         <Route
           path="/employeeCalendar"
           element={
-            <ProtectedRoute allowedRoles={[3]}>
+            <ProtectedRoute allowedRoles={[1, 2, 3]}>
               <EmployeeCalendar />
             </ProtectedRoute>
           }
@@ -217,6 +215,14 @@ function App() {
           }
         />
         <Route
+          path="logs/edit/:userId/:date"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2]}>
+              <EditAttendance />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="settings"
           element={
             <ProtectedRoute allowedRoles={[1, 2]}>
@@ -242,7 +248,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-
 
         {/* Profile & Notifications: All Roles (1, 2, 3) */}
         <Route
