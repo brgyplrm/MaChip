@@ -7,14 +7,15 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from '@mui/icons-material/Close';
-import { useState, useEffect } from "react";
-import { formatUserId } from "../../utils/formatUserId";
 import Toast from "../../components/toast/Toast";
 import ActionModal from "../../components/actionModal/ActionModal";
 import InfoModal from "../../components/infoModal/InfoModal";
+import PageTransition from "../../components/pageTransition/PageTransition";
 import { useSelector } from "react-redux";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
+import { useState, useEffect } from "react";
+import { formatUserId } from "../../utils/formatUserId";
 
 
 const CalendarManagement = () => {
@@ -256,6 +257,7 @@ const CalendarManagement = () => {
       <Sidebar />
       <div className="homeContainer">
         <Navbar />
+        <PageTransition>
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         <div className="calendarWrapper">
           <div className="pageHeader">
@@ -537,6 +539,7 @@ const CalendarManagement = () => {
         </div>
       </InfoModal>
         </div>
+        </PageTransition>
       </div>
     </div>
   );

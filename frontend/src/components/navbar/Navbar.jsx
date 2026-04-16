@@ -69,7 +69,6 @@ const Navbar = () => {
       <div className="wrapper">
         {/* REPLACED SEARCH WITH BREADCRUMBS */}
         <Breadcrumbs />
-
         <div className="items">
           <Link to="/notifications">
             <div className="item">
