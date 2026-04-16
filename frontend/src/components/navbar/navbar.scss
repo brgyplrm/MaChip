@@ -5,7 +5,7 @@
   align-items: center;
   font-size: 14px;
   color: #555;
-  background: linear-gradient(to right, #ffffff 10%, #FFA500 100%);
+  background: #fff;
 
   .wrapper {
     width: 100%;
@@ -96,14 +96,14 @@
 
         .icon {
           font-size: 30px;
-          color: white;
+          color: #555;
           transition: all 0.2s ease;
         }
 
         &:hover {
           .icon {
             transform: scale(1.1); // Slightly enlarges the icon
-            color: #f0ebfa; // Subtle color change
+            color: #2A174E; // Subtle color change
           }
           
           /* Optional: Shake animation for the bell */

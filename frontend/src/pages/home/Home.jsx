@@ -9,6 +9,7 @@ import OccupancyList from "../../components/occupancy/OccupancyList";
 import Toast from "../../components/toast/Toast";
 import { fetchWithAuth } from "../../utils/api";
 import { Navigate } from "react-router-dom";
+import PageTransition from "../../components/pageTransition/PageTransition";
 
 const Home = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -51,6 +52,7 @@ const Home = () => {
       <Sidebar />
       <div className="homeContainer">
         <Navbar />
+        <PageTransition>
         <Toast 
           message={toast.message} 
           type={toast.type} 
@@ -69,6 +71,7 @@ const Home = () => {
         <div className="listContainer">
           <OccupancyList />
         </div>
+        </PageTransition>
       </div>
     </div>
   );

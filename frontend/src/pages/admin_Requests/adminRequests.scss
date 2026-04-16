@@ -18,9 +18,11 @@ $rejected-text: #b91c1c;
 .adminRequests {
   display: flex;
   background-color: $bg-light;
+  overflow-x: hidden;
 
   .homeContainer {
     flex: 6;
+    @media (max-width: 768px) { padding: 15px; }
 
     .adminWrapper {
       padding: 25px;
@@ -32,6 +34,9 @@ $rejected-text: #b91c1c;
       .statsRow {
         display: flex;
         gap: 20px;
+        @media (max-width: 768px) {
+        flex-direction: column; // Stack the 3 stat cards
+      }
 
         .statCard {
           flex: 1;
@@ -74,6 +79,24 @@ $rejected-text: #b91c1c;
         display: flex;
         gap: 25px;
         height: calc(100vh - 250px); // Ensures scrollable areas
+
+        @media (max-width: 1024px) {
+        flex-direction: column; // Stack List on top, Details on bottom
+
+        .leftColumn, .rightColumn {
+        @media (max-width: 1024px) {
+          width: 100%;
+          flex: none;
+        }
+      }
+
+      .leftColumn .filterBar {
+        @media (max-width: 480px) {
+          flex-direction: column;
+          align-items: stretch;
+        }
+      }
+      }
 
         // Left Sidebar: Request Queue
         .requestListSidebar {

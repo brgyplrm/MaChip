@@ -2,6 +2,7 @@
   display: flex;
   width: 100%;
   background-color: #fdfaf5;
+  overflow-x: hidden; // Prevent horizontal body scroll
 
   .logsContainer {
     flex: 6;
@@ -10,14 +11,19 @@
       height: 600px;
       padding: 20px;
 
+      @media (max-width: 768px) { padding: 10px; }
+
       .tableCard {
         background: white;
         padding: 15px 30px;
         border-radius: 20px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); // Subtle shadow
         margin-top: 20px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
 
         .customLogsTable {
+          min-width: 800px; /* Forces table to stay wide */
           width: 100%;
           border-collapse: collapse;
           text-align: left;
@@ -91,6 +97,11 @@
           margin-top: 20px;
           padding-top: 20px;
 
+          @media (max-width: 480px) {
+          flex-direction: column;
+          gap: 10px;
+        }
+
           span { font-size: 14px; color: #666; font-weight: 600; }
 
           button {
@@ -110,6 +121,22 @@
             &:hover:not(:disabled) {
               background-color: #502c92;
             }
+          }
+        }
+      }
+
+      .header {
+        @media (max-width: 768px) {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 15px;
+        }
+
+        .buttonGroup {
+          @media (max-width: 480px) {
+            width: 100%;
+            flex-direction: column;
+            .headerButton { width: 100%; justify-content: center; }
           }
         }
       }
@@ -143,6 +170,12 @@
           gap: 15px;
           margin-left: auto;
           margin-right: 20px;
+
+          @media (max-width: 768px) {
+          flex-direction: column;
+          align-items: stretch;
+          .searchWrapper, .dropdownWrapper { max-width: 100%; }
+        }
 
           .searchWrapper {
             width: 100%;
