@@ -17,6 +17,7 @@
 }
 
 .home {
+  overflow-x: hidden; // Prevent horizontal scroll
   .homeContainer {
     background-color: #fdfaf5;
 
@@ -24,6 +25,10 @@
       padding: 30px;
       max-width: 1400px;
       margin: 0 auto;
+
+      @media (max-width: 768px) {
+        padding: 15px; // Smaller padding for mobile
+      }
 
       .sectionTitle {
         font-size: 20px;
@@ -41,6 +46,14 @@
         border-radius: 20px;
         box-shadow: 0 4px 20px rgba(0,0,0,0.04);
         margin-bottom: 30px;
+
+        @media (max-width: 1024px) {
+          grid-template-columns: repeat(2, 1fr); // 2x2 grid on tablets
+        }
+        @media (max-width: 480px) {
+          grid-template-columns: 1fr; // Stacked on mobile
+          gap: 15px;
+        }
 
         .statCardGroup {
           display: flex;
@@ -227,6 +240,46 @@
           .statusIcon { font-size: 28px; }
           .text { flex: 1; .date { font-weight: 700; margin: 0; } .desc { font-size: 13px; color: #666; margin: 0; } }
           .badge { color: white; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        }
+      }
+      .mainContent {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 30px;
+
+        @media (max-width: 1024px) {
+          grid-template-columns: 1fr; // Stack left and right columns
+          gap: 20px;
+        }
+
+        .leftColumn {
+          display: flex;
+          flex-direction: column;
+          gap: 30px;
+
+          .attendanceCard {
+            .cardBody {
+              @media (max-width: 480px) {
+                flex-direction: column; // Stack the circular chart and the time boxes
+                align-items: center;
+              }
+
+              .timeBoxes {
+                @media (max-width: 480px) {
+                  width: 100%;
+                  flex-direction: column; // Stack the On-Time and Late boxes
+                }
+              }
+            }
+          }
+
+          .leaveBalances {
+            .balanceGrid {
+              @media (max-width: 480px) {
+                grid-template-columns: 1fr; // Stack Vacation and Sick leave boxes
+              }
+            }
+          }
         }
       }
     }

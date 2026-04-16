@@ -10,6 +10,7 @@ $rejected-bg: #fef2f2;
 $rejected-text: #b91c1c;
 
 .requestsPage {
+  overflow-x: hidden;
   .homeContainer {
     background-color: #fdfaf5;
 
@@ -18,9 +19,18 @@ $rejected-text: #b91c1c;
       max-width: 1200px;
       margin: 0 auto;
 
+      @media (max-width: 768px) {
+        padding: 15px;
+      }
+
       .statsRow {
         display: flex;
         gap: 20px;
+
+        @media (max-width: 768px) {
+          flex-direction: column; // Stack the top stat cards
+          gap: 15px;
+        }
 
         .statCard {
           flex: 1;
@@ -289,6 +299,66 @@ $rejected-text: #b91c1c;
           }
         }
       }
+
+      .mainSplit {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 30px;
+        margin-top: 25px;
+
+        @media (max-width: 1024px) {
+          grid-template-columns: 1fr; // Stack Form and History
+        }
+        
+        .requestFormCard {
+          form {
+            .formRow {
+              @media (max-width: 480px) {
+                flex-direction: column; // Stack side-by-side inputs (like Start/End Date)
+                gap: 15px;
+              }
+            }
+          }
+        }
+      }
+      .tableCard {
+          /* CRITICAL FIX FOR DTR TABLE */
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          padding: 15px;
+
+          .dtrPreview {
+            min-width: 700px; // Forces the DTR to stay wide and scrollable
+          }
+          
+          .dtrHeader {
+            @media (max-width: 480px) {
+              flex-direction: column;
+              align-items: flex-start;
+              gap: 10px;
+            }
+          }
+        }
+        
+        .historyCard {
+          .tabHeader {
+            @media (max-width: 480px) {
+              flex-direction: column; // Stack tabs on very small screens
+            }
+          }
+          
+          .leaveLog {
+            @media (max-width: 480px) {
+              flex-direction: column; // Stack icon, text, and badge
+              align-items: flex-start;
+              gap: 10px;
+              
+              .typeBadge {
+                align-self: flex-start;
+              }
+            }
+          }
+        }
     }
   }
 }
