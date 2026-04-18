@@ -121,6 +121,7 @@ $ot-blue: #e0f2fe;
           background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);
           margin-bottom: 0; 
           
+          
           .calendarHeader {
             background: linear-gradient(90deg, #ff9800, #ffb74d); color: white;
             display: flex; justify-content: space-between; align-items: center; padding: 15px 30px;
@@ -149,85 +150,117 @@ $ot-blue: #e0f2fe;
               }
             }
             .gridBody {
-              display: grid; grid-template-columns: repeat(7, 1fr);
-              .cell {
-                height: 110px; border: 1px solid #f0f0f0; padding: 10px; transition: background 0.3s;
+            display: grid; 
+            grid-template-columns: repeat(7, 1fr);
+            
+            .cell {
+              height: 110px; 
+              border: 1px solid #f0f0f0; 
+              padding: 10px; 
+              transition: background 0.3s;
+
+              /* 1. CRITICAL OVERFLOW FIXES */
+              min-width: 0;          /* Stops long text from forcing the column wider */
+              overflow-y: auto;      /* Allows scrolling if a day has many events */
+              overflow-x: hidden;    /* Prevents horizontal spillage */
+              display: flex;
+              flex-direction: column;
+
+              /* 2. Mini scrollbar for packed cells */
+              &::-webkit-scrollbar { width: 3px; }
+              &::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
+
+              @media (max-width: 480px) {
+                height: 85px; // Slightly taller to accommodate multiple events
+                padding: 4px 2px; 
+              }
+
+              /* Keep the background colors intact */
+              &.has-leave { background-color: rgba(220, 252, 231, 0.3); }
+              &.has-field { background-color: rgba(255, 237, 213, 0.3); }
+              &.has-ot { background-color: rgba(224, 242, 254, 0.3); }
+              &.has-holiday { background-color: rgba(254, 226, 226, 0.2); }
+
+              .dayNum { 
+                display: block; 
+                margin-bottom: 5px; 
+                font-weight: bold; 
+                flex-shrink: 0; /* Ensures the number never gets squished */
+
+                @media (max-width: 480px) { 
+                  font-size: 12px; margin-bottom: 2px; text-align: center; 
+                }
+              }
+
+              .event {
+                font-size: 10px; 
+                padding: 4px; 
+                border-radius: 4px; 
+                margin-top: 4px;
+                flex-shrink: 0; /* Ensures events don't collapse vertically */
+
+                /* 3. STRICT TEXT TRUNCATION */
+                white-space: nowrap; 
+                overflow: hidden; 
+                text-overflow: ellipsis;
+                width: 100%; /* Force it to stay within cell bounds */
 
                 @media (max-width: 480px) {
-                  height: 80px; // Reduce cell height
-                  padding: 4px 2px; // Reduce inner padding to maximize space
+                  font-size: 8px; 
+                  padding: 2px;
+                  margin-top: 2px;
                 }
 
-                &.has-leave { background-color: rgba(220, 252, 231, 0.3); }
-                &.has-field { background-color: rgba(255, 237, 213, 0.3); }
-                &.has-ot { background-color: rgba(224, 242, 254, 0.3); }
-                &.has-holiday { background-color: rgba(254, 226, 226, 0.2); }
+                &.leave { background: #dcfce7; color: #166534; }
+                &.special { background: #f3e8ff; color: #6b21a8; }
+                &.legal { background: #fee2e2; color: #b91c1c; }
+                &.field { background: #ffedd5; color: #9a3412; }
+                &.ot { background: #e0f2fe; color: #0369a1; }
+              }
 
-                .dayNum { 
-                  display: block; margin-bottom: 5px; font-weight: bold; 
-                  @media (max-width: 480px) { font-size: 12px; margin-bottom: 2px; text-align: center; }
-                }
-                .event {
-                  font-size: 10px; padding: 4px; border-radius: 4px; margin-top: 4px;
-                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+              &.is-today {
+                background-color: #fff9db !important; 
+                border: 2px solid #ff8c00; 
+                position: relative;
+
+                .dayNum {
+                  background-color: #ff8c00; 
+                  color: white;
+                  width: 24px;
+                  height: 24px;
+                  border-radius: 50%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  margin: 0 auto 10px;
 
                   @media (max-width: 480px) {
-                    font-size: 8px; // Tiny text for mobile calendar events
-                    padding: 2px;
-                    margin-top: 2px;
+                    width: 20px;
+                    height: 20px;
+                    font-size: 11px;
+                    margin-bottom: 12px;
                   }
-
-                  &.leave { background: #dcfce7; color: #166534; }
-                  &.special { background: #f3e8ff; color: #6b21a8; }
-                  &.legal { background: #fee2e2; color: #b91c1c; } 
-                  &.field { background: #ffedd5; color: #9a3412; }
-                  &.ot { background: #e0f2fe; color: #0369a1; }
                 }
 
-                &.is-today {
-                  background-color: #fff9db !important; 
-                  border: 2px solid #ff8c00; 
-                  position: relative;
+                &::after {
+                  content: "TODAY";
+                  position: absolute;
+                  top: 37px; 
+                  left: 50%;
+                  transform: translateX(-50%);
+                  font-size: 8px;
+                  font-weight: 800;
+                  color: #ff8c00;
+                  letter-spacing: 0.5px;
 
-                  .dayNum {
-                    background-color: #ff8c00; 
-                    color: white;
-                    width: 24px;
-                    height: 24px;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    margin: 0 auto 10px;
-
-                    @media (max-width: 480px) {
-                      width: 20px;
-                      height: 20px;
-                      font-size: 11px;
-                      margin-bottom: 12px;
-                    }
-                  }
-
-                  /* Responsive "Today" indicator */
-                  &::after {
-                    content: "TODAY";
-                    position: absolute;
-                    top: 26px; // Placed dynamically below the circle
-                    left: 50%;
-                    transform: translateX(-50%); // Perfectly centered
-                    font-size: 8px;
-                    font-weight: 800;
-                    color: #ff8c00;
-                    letter-spacing: 0.5px;
-
-                    @media (max-width: 480px) {
-                      top: 22px;
-                      font-size: 6px; // Smaller badge on mobile
-                    }
+                  @media (max-width: 480px) {
+                    top: 26px;
+                    font-size: 6px; 
                   }
                 }
               }
             }
+          }
           }
         }
       }
@@ -239,6 +272,7 @@ $ot-blue: #e0f2fe;
         gap: 20px;
         margin-right: 0; // Reset margin for responsive
         width: 100%;
+        min-width: 0;
 
         .detailCard {
           background: white;
@@ -246,6 +280,7 @@ $ot-blue: #e0f2fe;
           border-radius: 20px;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
           width: 100%; 
+          box-sizing: border-box;
 
           .cardHeader {
             display: flex;
@@ -260,6 +295,8 @@ $ot-blue: #e0f2fe;
             max-height: 250px; 
             overflow-y: auto;
 
+            &::-webkit-scrollbar { width: 4px; }
+
             .listItem.clickable { 
               cursor: pointer; 
               transition: background 0.2s, transform 0.2s;
@@ -270,10 +307,11 @@ $ot-blue: #e0f2fe;
               background: #fdfdfd;
               border: 1px solid #f0f0f0;
               border-radius: 12px;
+              width: 100%;
+              box-sizing: border-box;
 
               @media (max-width: 480px) {
-                padding: 12px;
-                flex-direction: column; // Stack details and actions on mobile
+                padding: 12px;// Stack details and actions on mobile
                 align-items: flex-start;
               }
 
@@ -313,10 +351,19 @@ $ot-blue: #e0f2fe;
     }
 
     /* Modals Responsive Fixes */
-    .modalOverlay, .infoModalOverlay {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; z-index: 2000;
+    .modalOverlay, .actionModalOverlay, .infoModalOverlay {
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      width: 100vw; 
+      height: 100vh;
+      background: rgba(0,0,0,0.4); 
       backdrop-filter: blur(4px);
+      box-sizing: border-box;
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      z-index: 9999;
       padding: 20px; // Prevent modal from hitting screen edges on mobile
 
       .modalContainer, .infoModalContainer {

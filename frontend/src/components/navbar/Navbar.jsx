@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Breadcrumbs from "../../components/breadcrumbs/Breadcrumbs";
 import { fetchWithAuth } from "../../utils/api";
+import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 
 
 const Navbar = () => {
@@ -100,37 +101,46 @@ const Navbar = () => {
   }, [userData?.user_Id]);
 
   return (
-    <div className="navbar">
+  <div className="navbar">
       <div className="wrapper">
-        {/* REPLACED SEARCH WITH BREADCRUMBS */}
         <Breadcrumbs />
 
         <div className="items">
-          {isManagement && (
-            <div className="item viewToggle" onClick={toggleViewMode} style={{ cursor: "pointer", marginRight: "15px", display: "flex", alignItems: "center", gap: "5px" }}>
-              <SwitchAccountIcon className="icon" />
-              <span style={{ fontSize: "14px", fontWeight: "600" }}>
-                {viewMode === "management" 
-                  ? "Switch View" 
-                  : (userData?.user_RoleId === 1 ? "Return to Admin" : userData?.user_RoleId === 2 ? "Return to Supervisor" : "Return to Admin")}
-              </span>
-            </div>
-          )}
-          <Link to="/notifications">
+          {/* 1. Notifications */}
+          <Link to="/notifications" style={{ textDecoration: 'none', color: 'inherit' }}>
             <div className="item">
               <NotificationsNoneOutlinedIcon className="icon" />
               {unreadCount > 0 && <div className="counter">{unreadCount}</div>}
             </div>
           </Link>
-          <Link to="/profile">
-            <div className="item">
-              <img 
-                src={userData?.user_ProfilePic ? `/api/uploads/${userData.user_ProfilePic}` : "/avatar.webp"} 
-                alt="Profile" 
-                className="avatar" 
-              />
+
+          {/* 2. Profile Dropdown Wrapper */}
+          <div className="item profileWrapper">
+            <img 
+              src={userData?.user_ProfilePic ? `/api/uploads/${userData.user_ProfilePic}` : "/avatar.webp"} 
+              alt="Profile" 
+              className="avatar" 
+            />
+            
+            {/* The Dropdown Menu */}
+            <div className="dropdownMenu">
+              <Link to="/profile" className="dropdownItem">
+                <AccountCircleOutlinedIcon className="icon" />
+                <span>Profile</span>
+              </Link>
+              
+              {isManagement && (
+                <div className="dropdownItem" onClick={toggleViewMode}>
+                  <SwitchAccountIcon className="icon" />
+                  <span>
+                    {viewMode === "management" 
+                      ? "Switch to Employee" 
+                      : (userData?.user_RoleId === 1 ? "Return to Admin" : "Return to Supervisor")}
+                  </span>
+                </div>
+              )}
             </div>
-          </Link>
+          </div>
         </div>
       </div>
     </div>
