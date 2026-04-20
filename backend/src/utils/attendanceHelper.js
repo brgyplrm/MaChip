@@ -19,8 +19,6 @@ async function ensureAbsentsMarked() {
     const cutoffTime = new Date(now);
     cutoffTime.setHours(17, 30, 0, 0);
 
-    console.log(`[SYSTEM] Background Task: ensureAbsentsMarked triggered for ${todayStr}`);
-
     // 1. Process On-Field Work (Bulk)
     // Find all users who have approved on-field work today but no report yet
     const onFieldUsers = await sequelize.query(
