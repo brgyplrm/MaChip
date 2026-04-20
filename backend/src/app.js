@@ -156,24 +156,29 @@ app.use(errorHandler);
 const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
 const { syncHolidaysService } = require("./utils/holidaySyncService");
 
-// Combined background check (Runs every 10 minutes)
+// Flag to ensure we only run once per day
+let lastAbsentCheckDate = null;
+
+// Background Task Manager (Runs every minute to check schedule)
 setInterval(() => {
   const now = new Date();
+  const dateStr = now.toDateString(); // e.g. "Mon Apr 20 2026"
   const hour = now.getHours();
-  const day = now.getDate();
+  const minute = now.getMinutes();
 
-  // 1. Mark Absents: Only run if it's 5:00 PM (17:00) or later
-  if (hour >= 17) {
-    console.log(`[BACKGROUND] ${now.toLocaleTimeString()}: Checking for absents...`);
+  // 1. Mark Absents: Run exactly once at 5:30 PM (17:30)
+  if (hour === 17 && minute === 30 && lastAbsentCheckDate !== dateStr) {
+    console.log(`[SCHEDULED] ${now.toLocaleTimeString()}: Executing Daily Absent Check...`);
+    lastAbsentCheckDate = dateStr; // Lock it for today
     ensureAbsentsMarked();
   }
 
-  // 2. Sync Holidays: Only on the 1st of the month at midnight (approx 12:00 AM - 12:10 AM)
-  if (day === 1 && hour === 0) {
-    console.log("[AUTO] Monthly Philippine Holiday Sync Triggered...");
+  // 2. Sync Holidays: Run exactly once on the 1st of the month at 12:01 AM
+  if (now.getDate() === 1 && hour === 0 && minute === 1) {
+    console.log("[SCHEDULED] Monthly Philippine Holiday Sync Triggered...");
     syncHolidaysService();
   }
-}, 10 * 60 * 1000); 
+}, 60 * 1000); // Check the schedule every minute
 
 // Define port and start server
 const PORT = process.env.PORT || 4000;

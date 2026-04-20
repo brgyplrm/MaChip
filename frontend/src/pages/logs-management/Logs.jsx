@@ -111,10 +111,11 @@ const Logs = () => {
     fetchLogs();
     fetchUsers();
 
-    // Set up polling every 5 seconds for real-time RFID updates
-    const interval = setInterval(fetchLogs, 1000);
+    // Set up polling every 30 seconds for real-time RFID updates
+    // (Reduced from 1s to 30s to prevent server overload)
+    const interval = setInterval(fetchLogs, 30000);
     return () => clearInterval(interval);
-  }, [fetchLogs, fetchUsers]);
+  }, []); // Only run on mount
 
   const handleGenerateLogs = async (forcedStatus) => {
     setLoading(true);
