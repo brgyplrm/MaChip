@@ -37,18 +37,19 @@ const Sidebar = () => {
 
   const confirmLogout = async () => {
       try {
-        // 1. Tell backend to log logout event
+        // 1. Tell backend to log logout event and clear HttpOnly cookie
         await fetch("/api/auth/logout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_Id: userData?.user_Id }),
+          credentials: "include", // Required to send/clear cookies
         });
 
-        // 2. Clear local storage/Session storage
+        // 2. Clear local storage
         localStorage.removeItem("token");
         localStorage.removeItem("userData");
 
-        // 3. Redirect back to the login page you just created
+        // 3. Redirect to login
         navigate("/login");
       } catch (err) {
         console.error("Logout failed:", err);

@@ -10,7 +10,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import Toast from "../../components/toast/Toast";
 import ActionModal from "../../components/actionModal/ActionModal";
 import InfoModal from "../../components/infoModal/InfoModal";
-import PageTransition from "../../components/pageTransition/PageTransition";
+//import PageTransition from "../../components/pageTransition/PageTransition";
 import { useSelector } from "react-redux";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
@@ -257,7 +257,7 @@ const CalendarManagement = () => {
       <Sidebar />
       <div className="homeContainer">
         <Navbar />
-        <PageTransition>
+        {/* <PageTransition> */}
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         <div className="calendarWrapper">
           <div className="pageHeader">
@@ -539,7 +539,7 @@ const CalendarManagement = () => {
         </div>
       </InfoModal>
         </div>
-        </PageTransition>
+        {/* </PageTransition> */}
       </div>
     </div>
   );

@@ -20,14 +20,10 @@ const validateForm = ({ rawId, password }) => {
 
   if (!rawId.trim()) {
     errors.user_Id = "User ID is required.";
-  } else if (isNaN(parseMacjId(rawId))) {
-    errors.user_Id = "User ID must follow the format MACJ-001.";
-  }
+  } 
 
   if (!password) {
     errors.password = "Password is required.";
-  } else if (password.length < 6) {
-    errors.password = "Password must be at least 6 characters.";
   }
 
   return errors;
@@ -77,13 +73,13 @@ const Login = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_Id: numericId, password }),
+        credentials: "include", // Allow server to set HttpOnly cookie
       });
 
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
-        // 4. Persist session so ProtectedRoute can verify
-        localStorage.setItem("token", data.token); // Store the JWT token
+        // 4. Persist only non-sensitive user data
         localStorage.setItem("userData", JSON.stringify(data.data));
 
         setToast({

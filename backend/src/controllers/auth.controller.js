@@ -62,6 +62,14 @@ exports.loginUser = async (req, res) => {
       { expiresIn: "8h" }
     );
 
+    // Set HttpOnly Cookie
+    res.cookie("machip_token", token, {
+      httpOnly: true,
+      secure: false, // Set to false for HTTP (LAN/Local)
+      sameSite: "Lax", // Works through the Vite proxy
+      maxAge: 8 * 60 * 60 * 1000, // 8 hours
+    });
+
     // Strip password before sending back to client
     const { user_Password, ...userData } = user;
 
@@ -73,7 +81,7 @@ exports.loginUser = async (req, res) => {
 
     return res
       .status(200)
-      .json({ message: "Login successful.", token, data: userData });
+      .json({ message: "Login successful.", data: userData });
   } catch (error) {
     console.error("[AUTH] Error:", error.message);
     return res
@@ -107,6 +115,13 @@ exports.logoutUser = async (req, res) => {
         });
       }
     }
+
+    // Clear HttpOnly Cookie
+    res.clearCookie("machip_token", {
+      httpOnly: true,
+      secure: false,
+      sameSite: "Lax",
+    });
 
     return res.status(200).json({ message: "Logout successful." });
   } catch (error) {

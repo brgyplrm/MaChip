@@ -4,12 +4,24 @@ console.log("[DEBUG] JWT_SECRET loaded:", process.env.JWT_SECRET ? "Yes" : "No")
 process.env.TZ = process.env.TZ || "Asia/Manila";
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const cookieParser = require("cookie-parser");
 const { connectDB, sequelize } = require("./config/sequelize"); // Import connectDB and sequelize
+const { generalLimiter } = require("./middleware/rateLimiter");
 
 const app = express();
 
-// Trust proxy for correct IP handling behind nginx/lb
-app.set("trust proxy", true);
+// Security Headers
+app.use(helmet());
+
+// Cookie Parser
+app.use(cookieParser());
+
+// Trust proxy for correct IP handling behind nginx/lb/router
+app.set("trust proxy", 1);
+
+// Global Rate Limiter
+app.use(generalLimiter);
 
 // Middleware
 app.use(express.json());
@@ -31,9 +43,32 @@ app.use((req, res, next) => {
   next();
 });
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://192.168.254.106:5173", // Your current LAN IP
+  // Add your Public IP or DuckDNS here once ready:
+  // "http://your-public-ip:5173",
+  // "http://machip.duckdns.org"
+];
+
 app.use(
   cors({
-    origin: true, // Allow any origin during development so colleagues can connect
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps, curl, or Postman)
+      if (!origin) {
+        console.log("[CORS] Allowing request with no origin (Direct/Server-to-Server)");
+        return callback(null, true);
+      }
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.warn(`[CORS] REJECTED: origin "${origin}" is not in whitelist.`);
+        // Don't throw a hard error object which crashes Express with 500, just fail CORS
+        callback(null, false);
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
   }),
@@ -71,6 +106,10 @@ app.get("/Machip", (req, res) => {
 
 // --- Protected Routes (Require Token) ---
 app.use("/api", authMiddleware);
+
+// --- Audit Logger (Logs every POST/PUT/DELETE for compliance) ---
+const requestLogger = require("./middleware/requestLogger");
+app.use("/api", requestLogger);
 
 // Routes for users
 const userRoutes = require("./routes/user.routes.js");
@@ -110,35 +149,31 @@ app.get("/test-query", async (req, res) => {
 });
 
 // ── Error Handling Middleware ────────────────────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error("[ERROR]:", err.message);
-  
-  // Handle Multer errors specifically if needed
-  if (err.code === "LIMIT_FILE_SIZE") {
-    return res.status(400).json({ error: "File size too large. Maximum limit is 5MB." });
-  }
-
-  res.status(400).json({ error: err.message || "An unexpected error occurred." });
-});
+const errorHandler = require("./middleware/errorHandler");
+app.use(errorHandler);
 
 // ── Background Tasks ──────────────────────────────────────────────────────────
 const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
 const { syncHolidaysService } = require("./utils/holidaySyncService");
 
-// Run every 5 minutes
-setInterval(() => {
-  console.log("[BACKGROUND] Running ensureAbsentsMarked...");
-  ensureAbsentsMarked();
-}, 5 * 60 * 1000);
-
-// Sync holidays automatically every 1st of the month at midnight
+// Combined background check (Runs every 10 minutes)
 setInterval(() => {
   const now = new Date();
-  if (now.getDate() === 1 && now.getHours() === 0) {
-    console.log("[AUTO] Syncing Philippine Holidays...");
+  const hour = now.getHours();
+  const day = now.getDate();
+
+  // 1. Mark Absents: Only run if it's 5:00 PM (17:00) or later
+  if (hour >= 17) {
+    console.log(`[BACKGROUND] ${now.toLocaleTimeString()}: Checking for absents...`);
+    ensureAbsentsMarked();
+  }
+
+  // 2. Sync Holidays: Only on the 1st of the month at midnight (approx 12:00 AM - 12:10 AM)
+  if (day === 1 && hour === 0) {
+    console.log("[AUTO] Monthly Philippine Holiday Sync Triggered...");
     syncHolidaysService();
   }
-}, 60 * 60 * 1000); // Check every hour
+}, 10 * 60 * 1000); 
 
 // Define port and start server
 const PORT = process.env.PORT || 4000;
