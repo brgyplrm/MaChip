@@ -40,7 +40,24 @@ const Sidebar = () => {
   const isEmployeeView = isEmployeeRole || viewMode === "employee";
 
   const [showLogoutModal, setShowLogoutModal] = useState(false); // Modal state
-const [isCollapsed, setIsCollapsed] = useState(window.innerWidth <= 768);  const navigate = useNavigate();
+  const [isCollapsed, setIsCollapsed] = useState(window.innerWidth <= 768);  const navigate = useNavigate();
+
+  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
+
+  const handleLogoClick = (e) => {
+    e.preventDefault();
+    if (window.innerWidth <= 768) {
+      setIsOverlayOpen(!isOverlayOpen); // Open overlay on mobile
+    } else {
+      navigate(isEmployeeView ? "/employeeHome" : "/"); // Navigate home on desktop
+    }
+  };
+
+  const closeOverlay = () => {
+    if (window.innerWidth <= 768) {
+      setIsOverlayOpen(false);
+    }
+  };
   
 useEffect(() => {
     const handleResize = () => {
@@ -86,14 +103,17 @@ useEffect(() => {
     };
 
   return (
-    <div className={`sidebar ${isCollapsed ? "collapsed" : ""}`}>
+    <>
+    {isOverlayOpen && <div className="sidebarBackdrop" onClick={closeOverlay}></div>}
+
+    <div className={`sidebar ${isCollapsed && !isOverlayOpen ? "collapsed" : ""} ${isOverlayOpen ? "mobileOverlay" : ""}`}>
       <div className="top">
         {/* NEW: Toggle Button */}
         <div className="toggleBtn" onClick={() => setIsCollapsed(!isCollapsed)}>
         </div>
 
         <NavLink to={isEmployeeView ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
-          <span className="logo">
+          <span className="logo" onClick={handleLogoClick} style={{ cursor: "pointer" }}>
             {/* Show small logo when collapsed, full logo when expanded */}
             {isCollapsed ? (
                <div className="smallLogo">
@@ -106,16 +126,17 @@ useEffect(() => {
         </NavLink>
       </div>
       <hr />
-      <div className="center">
+      <div className="center" onClick={closeOverlay}>
         <ul>
           {/* Main Category */}
-          <p className="title">{isCollapsed ? "..." : "MAIN"}</p>
-          <NavLink to={isEmployeeView ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
-            <li title="Dashboard"> {/* Added title for tooltip when collapsed */}
-              <DashboardIcon className="icon" />
-              <span>Dashboard</span>
-            </li>
-          </NavLink>
+          <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "MAIN"}</p>
+            
+            <NavLink to={isEmployeeView ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
+              <li title="Dashboard">
+                <DashboardIcon className="icon" />
+                <span>Dashboard</span>
+              </li>
+            </NavLink>
 
           <NavLink to={isEmployeeView ? "/employeeCalendar" : "/calendar"} style={{ textDecoration: "none" }}>
             <li title="Calendar">
@@ -249,6 +270,7 @@ useEffect(() => {
         message="Are you sure you want to log out of the MaChip system?"
       />
     </div>
+    </>
   );
 };
 

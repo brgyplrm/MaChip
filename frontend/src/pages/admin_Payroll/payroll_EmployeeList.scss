@@ -1,14 +1,20 @@
 .employeeList {
   display: flex;
   width: 100%;
+  overflow-x: hidden;
 
   .employeeListContainer {
     flex: 6;
     background-color: #fdfaf5;
     min-height: 100vh;
+    min-width: 0;
 
     .wrapper {
       padding: 24px;
+
+      @media (max-width: 768px) {
+        padding: 15px; // Reduce whitespace on mobile
+      }
 
       // ── Header ──────────────────────────────────────
       .pageHeader {
@@ -16,6 +22,11 @@
         justify-content: space-between;
         align-items: flex-start;
         margin-bottom: 24px;
+
+        @media (max-width: 768px) {
+          flex-direction: column; // Stack title and refresh button
+          gap: 15px;
+        }
 
         .titleBlock {
           .titleWithBack {
@@ -50,10 +61,19 @@
             font-weight: 700;
             color: #2A174E;
             margin-bottom: 4px;
+
+            @media (max-width: 480px) {
+                font-size: 20px; // Smaller font on 360px screens
+              }
           }
           span {
             font-size: 13px;
             color: #888;
+
+            @media (max-width: 480px) {
+              margin-left: 0;
+              margin-top: 5px;
+            }
           }
         }
       }
@@ -71,6 +91,11 @@
           font-weight: 500;
           cursor: pointer;
           transition: opacity 0.2s;
+
+          @media (max-width: 768px) {
+            width: 100%;
+            justify-content: center; // Full width button on mobile
+          }
 
           &:hover { opacity: 0.85; }
           &:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -95,6 +120,10 @@
         display: flex;
         gap: 14px;
         margin-bottom: 22px;
+
+        @media (max-width: 768px) {
+          flex-direction: column; // Stack the chips vertically on mobile
+        }
 
         .chip {
           display: flex;
@@ -146,6 +175,10 @@
           padding: 8px 12px;
           max-width: 360px;
 
+          @media (max-width: 768px) {
+            max-width: 100%; // Search bar takes full width on mobile
+          }
+
           .icon { color: #aaa; margin-right: 8px; font-size: 18px; }
 
           input {
@@ -167,6 +200,9 @@
         border-radius: 14px;
         overflow: hidden;
         box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
 
         .loadingState,
         .emptyState {

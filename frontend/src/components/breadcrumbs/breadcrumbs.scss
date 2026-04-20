@@ -14,7 +14,15 @@
     font-size: 14px;
     transition: all 0.2s ease;
 
-    .home-icon { font-size: 18px; }
+    @media (max-width: 768px) {
+        font-size: 12px; /* 1. Shrinks the overall text on mobile */
+      }
+
+    .home-icon { font-size: 18px; 
+        @media (max-width: 768px){
+        font-size: 15px;
+      }
+    }
 
     &:hover {
       color: #2A174E; // Your primary purple theme
@@ -31,5 +39,9 @@
     color: #2A174E; // Active page matches theme
     font-weight: 700;
     font-size: 14px;
+
+    @media (max-width: 768px){
+        font-size: 12px;
+    }
   }
 }

@@ -2,16 +2,149 @@
   display: flex;
   width: 100%;
   background-color: #fdfaf5;
+  min-height: 100vh;
   overflow-x: hidden; // Prevent horizontal body scroll
 
   .logsContainer {
     flex: 6;
+    width: 100%;
+    min-width: 0;
 
     .datatable {
-      height: 600px;
+      height: auto;
+      min-height: 600px;
       padding: 20px;
 
-      @media (max-width: 768px) { padding: 10px; }
+      @media (max-width: 768px) { padding: 10px 15px; }
+
+      .datatableTitle {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 25px;
+
+        @media (max-width: 768px) {
+          flex-wrap: nowrap; 
+          overflow-x: auto; 
+          padding-bottom: 10px; 
+        }
+
+        .title {
+          h1 {
+            font-size: 28px;
+            color: #2A174E;
+
+            @media (max-width: 480px) {
+              font-size: 22px; 
+            }
+          }
+
+          span {
+            font-size: 15px;
+            color: #555;
+          }
+        }
+
+        .filterSection {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          margin-left: auto;
+          margin-right: 20px;
+          margin-bottom: 20px;
+
+          @media (max-width: 768px) {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+          }
+
+          .searchWrapper {
+            width: 100%;
+            max-width: 250px;
+            min-width: 150px;
+
+            input {
+              width: 100%;
+              padding: 8px 15px;
+              border: 1px solid #2A174E;
+              border-radius: 20px;
+              outline: none;
+              font-size: 14px;
+              background-color: #f9f9f9;
+
+              &::placeholder {
+                color: #999;
+              }
+
+              &:focus {
+                box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
+              }
+            }
+          }
+
+          .dropdownWrapper {
+            .userSelect {
+              padding: 8px 12px;
+              border: 1px solid #2A174E;
+              border-radius: 8px;
+              background-color: #f9f9f9;
+              color: #2A174E;
+              font-size: 14px;
+              outline: none;
+              cursor: pointer;
+
+              &:focus {
+                box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
+              }
+            }
+          }
+
+          .exportButton {
+            @media (max-width: 768px) {
+              width: 100%;
+              justify-content: center;
+            }
+          }
+          .buttonGroup {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+
+            @media (max-width: 480px) {
+              width: 100%;
+              flex-direction: column;
+              .headerButton { width: 100%; justify-content: center; }
+            }
+          }
+
+          .headerButton {
+            background-color: #2A174E;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+
+            &:hover {
+              background-color: #502c92;
+            }
+
+            &:active {
+              transform: scale(0.95);
+            }
+
+            &:disabled {
+              background-color: gray;
+              cursor: not-allowed;
+            }
+          }
+        }
+      }
 
       .tableCard {
         background: white;
@@ -23,6 +156,7 @@
         -webkit-overflow-scrolling: touch;
 
         .customLogsTable {
+
           min-width: 800px; /* Forces table to stay wide */
           width: 100%;
           border-collapse: collapse;
@@ -38,6 +172,12 @@
             text-align: left;
             white-space: nowrap;
           }
+
+          .hideOnMobile {
+              @media (max-width: 768px) {
+                display: none;
+              }
+            }
 
           /* Default widths for Raw Logs (7 columns) */
           &.raw-mode th {
@@ -88,6 +228,12 @@
           }
 
           tr:hover { background-color: #fcfcfd; }
+          .noData {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-style: italic;
+          }
         }
         .paginationControls {
           display: flex;
@@ -98,11 +244,16 @@
           padding-top: 20px;
 
           @media (max-width: 480px) {
-          flex-direction: column;
-          gap: 10px;
+            flex-direction: row; /* Forces the buttons to stay side-by-side */
+            gap: 8px; /* Reduces gap so they fit on small screens */
+            flex-wrap: wrap;
         }
 
-          span { font-size: 14px; color: #666; font-weight: 600; }
+          span { font-size: 14px; color: #666; font-weight: 600; 
+            @media (max-width: 480px) {
+              font-size: 12px; /* Shrinks the 'Page X of Y' text slightly */
+            }
+          }
 
           button {
             background-color: #2A174E; // Your primary purple
@@ -112,6 +263,13 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 13px;
+            white-space: nowrap;
+
+            @media (max-width: 480px) {
+              padding: 8px 12px; /* Reduces button width padding on mobile */
+              font-size: 12px;
+              width: auto; /* Ensures button doesn't stretch */
+            }
 
             &:disabled {
               background-color: #ccc;
@@ -121,132 +279,6 @@
             &:hover:not(:disabled) {
               background-color: #502c92;
             }
-          }
-        }
-      }
-
-      .header {
-        @media (max-width: 768px) {
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 15px;
-        }
-
-        .buttonGroup {
-          @media (max-width: 480px) {
-            width: 100%;
-            flex-direction: column;
-            .headerButton { width: 100%; justify-content: center; }
-          }
-        }
-      }
-
-      .datatableTitle {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0px;
-        flex-wrap: wrap;
-
-          .title{
-              h1 {
-              font-size: 28px;
-              color: #2A174E;
-              margin-left: 10px;
-              margin-top: 15px;
-            }
-
-            span {
-              font-size: 15px;
-              color: #555;
-              margin-left: 10px;
-            }
-          }
-
-        .filterSection {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          margin-left: auto;
-          margin-right: 20px;
-
-          @media (max-width: 768px) {
-          flex-direction: column;
-          align-items: stretch;
-          .searchWrapper, .dropdownWrapper { max-width: 100%; }
-        }
-
-          .searchWrapper {
-            width: 100%;
-            max-width: 250px;
-            min-width: 150px;
-
-            input {
-              width: 100%;
-              padding: 8px 15px;
-              border: 1px solid #2A174E;
-              border-radius: 20px;
-              outline: none;
-              font-size: 14px;
-              background-color: #f9f9f9;
-
-              &::placeholder {
-                color: #999;
-              }
-
-              &:focus {
-                box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
-              }
-            }
-          }
-
-          .dropdownWrapper {
-            .userSelect {
-              padding: 8px 12px;
-              border: 1px solid #2A174E;
-              border-radius: 8px;
-              background-color: #f9f9f9;
-              color: #2A174E;
-              font-size: 14px;
-              outline: none;
-              cursor: pointer;
-
-              &:focus {
-                box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
-              }
-            }
-          }
-        }
-
-        .buttonGroup {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .headerButton {
-          background-color: #2A174E;
-          color: white;
-          border: none;
-          padding: 10px 20px;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background-color 0.3s ease;
-
-          &:hover {
-            background-color: #502c92;
-          }
-
-          &:active {
-            transform: scale(0.95);
-          }
-
-          &:disabled {
-            background-color: gray;
-            cursor: not-allowed;
           }
         }
       }

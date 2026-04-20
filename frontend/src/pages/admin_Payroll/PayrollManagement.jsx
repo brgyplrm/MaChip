@@ -7,7 +7,6 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import EventNoteIcon from "@mui/icons-material/EventNote";
 import { Link } from "react-router-dom";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodModal";
 import { fetchWithAuth } from "../../utils/api";

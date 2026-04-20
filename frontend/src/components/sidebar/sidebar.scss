@@ -1,3 +1,15 @@
+.sidebarBackdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 998;
+  backdrop-filter: blur(2px);
+  transition: opacity 0.3s ease;
+}
+
 .sidebar {
   flex: none; // Remove flex: 1 so we can strictly control width
   width: 250px; // Default expanded width
@@ -5,25 +17,54 @@
   min-height: 100vh;
   background-color: #FFF8EC;
   transition: width 0.3s ease; // Smooth animation
+  z-index: 999; /* Ensure it sits above the backdrop */
+
+  &.mobileOverlay {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    width: 250px;
+    box-shadow: 4px 0 25px rgba(0,0,0,0.15);
+  }
 
   &.collapsed {
     width: 80px; // Shrunken width
+    background-color: transparent;
+    border-right: none;
+    min-height: auto;
+    z-index: 1000;
+
+    @media (max-width: 768px) {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    hr, .center, .bottom {
+      display: none;
+    }
 
     .top {
       justify-content: center;
       padding: 0;
+      background-color: transparent;
       .logo-img { display: none; }
       .smallLogo {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 35px;
-        height: 35px;
+        width: 45px;
+        height: 45px;
         background: #2A174E;
         color: white;
         font-weight: bold;
         font-size: 20px;
         border-radius: 8px;
+
+        &:active {
+          transform: scale(0.9); /* Tiny click animation */
+        }
       }
     }
 

@@ -15,9 +15,20 @@
     align-items: center;
     justify-content: space-between;
 
+    @media (max-width: 768px) {
+      padding-left: 65px; 
+      padding: 0px 10px;
+    }
+
     .breadcrumbs {
       display: flex;
       align-items: center;
+
+      font-size: 14px;
+
+      @media (max-width: 768px) {
+        font-size: 12px; /* 1. Shrinks the overall text on mobile */
+      }
       
       a {
         text-decoration: none;

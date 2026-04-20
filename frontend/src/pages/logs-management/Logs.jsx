@@ -289,37 +289,35 @@ const Logs = () => {
                   ))}
                 </select>
               </div>
+              <div className="buttonGroup">
+                <button
+                  className="headerButton"
+                  onClick={() => {
+                    setViewMode(viewMode === "raw" ? "day" : "raw");
+                    setCurrentPage(1);
+                  }}
+                >
+                  {viewMode === "raw" ? "View in Day Logs" : "View Raw Logs"}
+                </button>
+                {viewMode === "raw" && (
+                  <>
+                    <button
+                      className="headerButton"
+                      onClick={() => handleGenerateLogs(1)}
+                      disabled={loading}
+                    >
+                      {loading ? "Processing..." : "Generate Clock In"}
+                    </button>
+                    <button
+                      className="headerButton"
+                      onClick={() => handleGenerateLogs(2)}
+                      disabled={loading}
+                    >
+                      {loading ? "Processing..." : "Generate Clock Out"}
+                    </button>
+                  </>
+                )}
             </div>
-            <div className="buttonGroup">
-              <button
-                className="headerButton"
-                onClick={() => {
-                  setViewMode(viewMode === "raw" ? "day" : "raw");
-                  setCurrentPage(1);
-                }}
-              >
-                {viewMode === "raw" ? "View in Day Logs" : "View Raw Logs"}
-              </button>
-              {viewMode === "raw" && (
-                <>
-                  <button
-                    className="headerButton"
-                    onClick={() => handleGenerateLogs(1)}
-                    disabled={loading}
-                    style={{ marginLeft: "10px" }}
-                  >
-                    {loading ? "Processing..." : "Generate Clock In"}
-                  </button>
-                  <button
-                    className="headerButton"
-                    onClick={() => handleGenerateLogs(2)}
-                    disabled={loading}
-                    style={{ marginLeft: "10px" }}
-                  >
-                    {loading ? "Processing..." : "Generate Clock Out"}
-                  </button>
-                </>
-              )}
             </div>
           </div>
           <div className="tableCard">
@@ -330,8 +328,8 @@ const Logs = () => {
                     <tr>
                       <th>User ID</th>
                       <th>Full Name</th>
-                      <th>Action</th>
-                      <th>MaChip ID</th>
+                      <th>Type</th>
+                      <th className="hideOnMobile">MaChip ID</th>
                       <th>Date</th>
                       <th>Time</th>
                       <th>Action</th>
@@ -348,7 +346,7 @@ const Logs = () => {
                               {row.log_type}
                             </span>
                           </td>
-                          <td className="subtleText">{row.machip_id}</td>
+                          <td className="subtleText hideOnMobile">{row.machip_id}</td>
                           <td>{row.log_Date}</td>
                           <td>{row.time}</td>
                           <td>
