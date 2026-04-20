@@ -4,26 +4,27 @@ const userController = require("../controllers/user.controller.js");
 const rfidController = require("../controllers/rfid.controller.js");
 const authController = require("../controllers/auth.controller.js");
 const upload = require("../middleware/upload.js");
+const { requireAdmin, requireAdminOrSupervisor } = require("../middleware/roleCheck.js");
 
 // URL will be: http://localhost:4000/api/users/registerUser
-router.post("/registerUser", upload.single("user_ProfilePic"), userController.registerUser);
+router.post("/registerUser", requireAdmin, upload.single("user_ProfilePic"), userController.registerUser);
 
 // Get the next auto-incremented user ID
-router.get("/nextId", userController.getNextUserId);
+router.get("/nextId", requireAdmin, userController.getNextUserId);
 
 // Route for generating RFID
-router.get("/generateRfid", rfidController.generateRfid);
+router.get("/generateRfid", requireAdmin, rfidController.generateRfid);
 
 // This creates the URL: http://localhost:4000/api/users/all
-router.get("/all", userController.viewAllUsers);
+router.get("/all", requireAdminOrSupervisor, userController.viewAllUsers);
 
 // GET archived users (soft-deleted)
-router.get("/archived", userController.viewArchivedUsers);
+router.get("/archived", requireAdmin, userController.viewArchivedUsers);
 
 // GET user by user_Id
-router.get("/:user_Id", userController.viewUserById);
+router.get("/:user_Id", requireAdminOrSupervisor, userController.viewUserById);
 // DELETE user by user_Id (soft delete — sets deletedAt)
-router.delete("/deleteUser/:user_Id", userController.deleteUser);
+router.delete("/deleteUser/:user_Id", requireAdmin, userController.deleteUser);
 
 // Password Reset Request
 router.post("/request-password-reset", userController.requestPasswordReset);
@@ -31,18 +32,18 @@ router.post("/request-password-reset", userController.requestPasswordReset);
 // Force Delete
 
 // RESTORE a soft-deleted user (clears deletedAt)
-router.patch("/restoreUser/:user_Id", userController.restoreUser);
+router.patch("/restoreUser/:user_Id", requireAdmin, userController.restoreUser);
 
 // PERMANENTLY delete a user (hard delete, cannot be undone)
-router.delete("/forceDelete/:user_Id", userController.forceDeleteUser);
+router.delete("/forceDelete/:user_Id", requireAdmin, userController.forceDeleteUser);
 
 //UPDATE user by user_Id
-router.put("/updateUser/:user_Id", upload.single("user_ProfilePic"), userController.updateUser);
+router.put("/updateUser/:user_Id", requireAdmin, upload.single("user_ProfilePic"), userController.updateUser);
 
 // GET employee masterlist with daily rate columns
-router.get("/employees/masterlist", userController.getMasterlist);
+router.get("/employees/masterlist", requireAdminOrSupervisor, userController.getMasterlist);
 
 // PATCH employee daily rate
-router.patch("/employees/:user_Id/daily-rate", userController.updateDailyRate);
+router.patch("/employees/:user_Id/daily-rate", requireAdmin, userController.updateDailyRate);
 
 module.exports = router;

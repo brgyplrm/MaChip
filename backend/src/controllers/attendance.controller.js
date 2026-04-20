@@ -1,7 +1,6 @@
 const { sequelize, Notification, User } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime } = require("../utils/systemTime.js");
-const { ensureAbsentsMarked } = require("../utils/attendanceHelper.js");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
 
@@ -358,7 +357,6 @@ exports.viewUserLogs = async (req, res) => {
   const { startDate, endDate } = req.query; // Optional filters
 
   try {
-    await ensureAbsentsMarked();
     
     // Fetch logs
     let query = `
@@ -508,7 +506,6 @@ exports.viewUserLogs = async (req, res) => {
 // ── View All Attendance ───────────────────────────────────────────────────────
 exports.viewAllAttendance = async (req, res) => {
   try {
-    await ensureAbsentsMarked();
     const logs = await sequelize.query(
       `SELECT
          ul."user_loggingId",
@@ -589,7 +586,6 @@ exports.StatusLogic = async (req, res) => {
 
   try {
     const now = await getSystemTime();
-    await ensureAbsentsMarked();
 
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
@@ -671,7 +667,6 @@ exports.StatusLogic = async (req, res) => {
 // ── Get Monthly Attendance Stats (Global) ────────────────────────────────────
 exports.getMonthlyAttendanceStats = async (req, res) => {
   try {
-    await ensureAbsentsMarked();
     const now = await getSystemTime();
     const currentYear = now.getFullYear();
     const stats = await sequelize.query(
@@ -698,7 +693,6 @@ exports.getMonthlyAttendanceStats = async (req, res) => {
 exports.getMonthlyAttendanceStatsByUser = async (req, res) => {
   const { user_Id } = req.params;
   try {
-    await ensureAbsentsMarked();
     const now = await getSystemTime();
     const currentYear = now.getFullYear();
     const stats = await sequelize.query(
@@ -725,7 +719,6 @@ exports.getMonthlyAttendanceStatsByUser = async (req, res) => {
 exports.getEmployeeDashboardStats = async (req, res) => {
   const { user_Id } = req.params;
   try {
-    await ensureAbsentsMarked();
     const now = await getSystemTime();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
@@ -817,7 +810,6 @@ exports.getEmployeeDashboardStats = async (req, res) => {
 // ── Get Dashboard Stats ───────────────────────────────────────────────────────
 exports.getDashboardStats = async (req, res) => {
   try {
-    await ensureAbsentsMarked();
     const now = await getSystemTime();
     const todayStr = now.toISOString().split("T")[0];
 
@@ -857,7 +849,6 @@ exports.getDashboardStats = async (req, res) => {
 // ── Get Office Occupancy ──────────────────────────────────────────────────────
 exports.getOfficeOccupancy = async (req, res) => {
   try {
-    await ensureAbsentsMarked();
     const now = await getSystemTime();
     const todayStr = now.toISOString().split("T")[0];
 
@@ -896,7 +887,6 @@ exports.getOfficeOccupancy = async (req, res) => {
 
 // ── Get Attendance Report Internal ──────────────────────────────────────────
 const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
-  await ensureAbsentsMarked();
   let query = `
     SELECT
       r.*,

@@ -1,9 +1,8 @@
 const jwt = require("jsonwebtoken");
 
 const authMiddleware = (req, res, next) => {
-  // Get token from header
-  const authHeader = req.header("Authorization");
-  const token = authHeader && authHeader.split(" ")[1]; // Bearer <token>
+  // Try to get token from HttpOnly cookie first, then fallback to header
+  const token = req.cookies.machip_token || (req.header("Authorization") && req.header("Authorization").split(" ")[1]);
 
   // Check if no token
   if (!token) {

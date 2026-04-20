@@ -52,9 +52,9 @@ const OccupancyList = () => {
     return () => window.removeEventListener("dataRefresh", fetchOccupancy);
   }, [fetchOccupancy]);
 
-  // Auto-refresh every 5 seconds
+  // Auto-refresh every 60 seconds (Reduced from 5s to prevent 429 errors)
   useEffect(() => {
-    const interval = setInterval(fetchOccupancy, 5000);
+    const interval = setInterval(fetchOccupancy, 60000);
     return () => clearInterval(interval);
   }, [fetchOccupancy]);
 

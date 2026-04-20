@@ -134,7 +134,7 @@ const Logs = () => {
       if (selectedUser) url += `&user_Id=${selectedUser}`;
       else url += `&user_Id=All Employees`;
 
-      const response = await fetchWithAuth(url);
+    const response = await fetchWithAuth(url);
       if (response.ok) {
         const data = await response.json();
         setDayLogsData(data);
@@ -155,7 +155,8 @@ const Logs = () => {
 
     if (viewMode === "raw") {
       fetchLogs();
-      const interval = setInterval(fetchLogs, 1000);
+      // Increased to 5s to prevent server overload, but keep it snappy for raw logs
+      const interval = setInterval(fetchLogs, 5000); 
       window.addEventListener("dataRefresh", handleRefresh);
       return () => {
         clearInterval(interval);
@@ -163,7 +164,7 @@ const Logs = () => {
       };
     } else {
       fetchDayLogs();
-      const interval = setInterval(fetchDayLogs, 5000);
+      const interval = setInterval(fetchDayLogs, 30000); // Day logs can be slower
       window.addEventListener("dataRefresh", handleRefresh);
       return () => {
         clearInterval(interval);

@@ -5,8 +5,11 @@ process.env.TZ = process.env.TZ || "Asia/Manila";
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
+const helmet = require("helmet");
+const cookieParser = require("cookie-parser");
 const { connectDB, sequelize } = require("./config/sequelize"); 
 const { initSocket } = require("./config/socket");
+const { generalLimiter } = require("./middleware/rateLimiter");
 
 const app = express();
 const server = http.createServer(app);
@@ -14,8 +17,17 @@ const server = http.createServer(app);
 // Initialize Socket.io
 initSocket(server);
 
-// Trust proxy for correct IP handling behind nginx/lb
-app.set("trust proxy", true);
+// Security Headers
+app.use(helmet());
+
+// Cookie Parser
+app.use(cookieParser());
+
+// Trust proxy for correct IP handling behind nginx/lb/router
+app.set("trust proxy", 1);
+
+// Global Rate Limiter
+app.use(generalLimiter);
 
 // Middleware
 app.use(express.json());
@@ -37,9 +49,32 @@ app.use((req, res, next) => {
   next();
 });
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://192.168.254.106:5173", // Your current LAN IP
+  // Add your Public IP or DuckDNS here once ready:
+  // "http://your-public-ip:5173",
+  // "http://machip.duckdns.org"
+];
+
 app.use(
   cors({
-    origin: true, // Allow any origin during development so colleagues can connect
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps, curl, or Postman)
+      if (!origin) {
+        console.log("[CORS] Allowing request with no origin (Direct/Server-to-Server)");
+        return callback(null, true);
+      }
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.warn(`[CORS] REJECTED: origin "${origin}" is not in whitelist.`);
+        // Don't throw a hard error object which crashes Express with 500, just fail CORS
+        callback(null, false);
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
   }),
@@ -77,6 +112,10 @@ app.get("/Machip", (req, res) => {
 
 // --- Protected Routes (Require Token) ---
 app.use("/api", authMiddleware);
+
+// --- Audit Logger (Logs every POST/PUT/DELETE for compliance) ---
+const requestLogger = require("./middleware/requestLogger");
+app.use("/api", requestLogger);
 
 // Routes for users
 const userRoutes = require("./routes/user.routes.js");
@@ -116,35 +155,38 @@ app.get("/test-query", async (req, res) => {
 });
 
 // ── Error Handling Middleware ────────────────────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error("[ERROR]:", err.message);
-  
-  // Handle Multer errors specifically if needed
-  if (err.code === "LIMIT_FILE_SIZE") {
-    return res.status(400).json({ error: "File size too large. Maximum limit is 5MB." });
-  }
-
-  res.status(400).json({ error: err.message || "An unexpected error occurred." });
-});
+const errorHandler = require("./middleware/errorHandler");
+app.use(errorHandler);
 
 // ── Background Tasks ──────────────────────────────────────────────────────────
 const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
 const { syncHolidaysService } = require("./utils/holidaySyncService");
+const { getSystemTime } = require("./utils/systemTime");
 
-// Run every 5 minutes
-setInterval(() => {
-  console.log("[BACKGROUND] Running ensureAbsentsMarked...");
-  ensureAbsentsMarked();
-}, 5 * 60 * 1000);
+// Flag to ensure we only run once per day
+let lastAbsentCheckDate = null;
 
-// Sync holidays automatically every 1st of the month at midnight
-setInterval(() => {
-  const now = new Date();
-  if (now.getDate() === 1 && now.getHours() === 0) {
-    console.log("[AUTO] Syncing Philippine Holidays...");
+// Background Task Manager (Runs every minute to check schedule)
+setInterval(async () => {
+  const now = await getSystemTime(); // Now respects Mock Time
+  const dateStr = now.toDateString(); 
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+
+  // 1. Mark Absents: Trigger exactly once at 5:30 PM (17:30)
+  // If Mock Time is jumped directly TO 17:30, it will trigger on the next tick.
+  if (hour === 17 && minute === 30 && lastAbsentCheckDate !== dateStr) {
+    console.log(`[SCHEDULED] ${now.toLocaleTimeString()}: Executing Daily Absent Check (System Date: ${dateStr})...`);
+    lastAbsentCheckDate = dateStr; 
+    ensureAbsentsMarked();
+  }
+
+  // 2. Sync Holidays: Run exactly once on the 1st of the month at 12:01 AM
+  if (now.getDate() === 1 && hour === 0 && minute === 1) {
+    console.log("[SCHEDULED] Monthly Philippine Holiday Sync Triggered...");
     syncHolidaysService();
   }
-}, 60 * 60 * 1000); // Check every hour
+}, 60 * 1000); 
 
 // Define port and start server
 const PORT = process.env.PORT || 4000;

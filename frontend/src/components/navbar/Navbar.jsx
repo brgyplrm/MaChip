@@ -104,7 +104,6 @@ const Navbar = () => {
       <div className="wrapper">
         {/* REPLACED SEARCH WITH BREADCRUMBS */}
         <Breadcrumbs />
-
         <div className="items">
           {isManagement && (
             <div className="item viewToggle" onClick={toggleViewMode} style={{ cursor: "pointer", marginRight: "15px", display: "flex", alignItems: "center", gap: "5px" }}>

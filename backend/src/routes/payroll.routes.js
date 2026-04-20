@@ -13,16 +13,17 @@ const {
   updatePayroll,
   getPayrollReport,
 } = require("../controllers/payroll.controller");
+const { requireAdmin } = require("../middleware/roleCheck.js");
 
-router.post("/generate", generatePayroll);
-router.post("/batch-generate", generateBatchPayroll);
-router.get("/eligible-count", getEligibleEmployeesCount);
-router.get("/preview", getPayrollPreview);
-router.get("/all", getAllPayrolls);
-router.get("/report", getPayrollReport);
-router.get("/user/:user_Id", getPayrollByUser);
-router.get("/:payrollId", getPayrollById);
-router.put("/update/:payrollId", updatePayroll);
-router.put("/release/:payrollId", releasePayroll);
+router.post("/generate", requireAdmin, generatePayroll);
+router.post("/batch-generate", requireAdmin, generateBatchPayroll);
+router.get("/eligible-count", requireAdmin, getEligibleEmployeesCount);
+router.get("/preview", requireAdmin, getPayrollPreview);
+router.get("/all", requireAdmin, getAllPayrolls);
+router.get("/report", requireAdmin, getPayrollReport);
+router.get("/user/:user_Id", requireAdmin, getPayrollByUser);
+router.get("/:payrollId", requireAdmin, getPayrollById);
+router.put("/update/:payrollId", requireAdmin, updatePayroll);
+router.put("/release/:payrollId", requireAdmin, releasePayroll);
 
 module.exports = router;
