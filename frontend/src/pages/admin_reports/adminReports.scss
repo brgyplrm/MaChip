@@ -1,3 +1,5 @@
+/* src/pages/adminReports/adminReports.scss */
+
 .reports {
   display: flex;
   width: 100%;
@@ -6,10 +8,13 @@
   .reportsContainer {
     flex: 6;
     background-color: #fdfaf5;
+    min-width: 0; /* CRITICAL: Allows flex children to shrink on mobile */
+
     @media (max-width: 768px) { padding: 15px; }
 
     .wrapper {
       padding: 25px;
+      @media (max-width: 768px) { padding: 10px; }
 
       .header {
         display: flex;
@@ -18,21 +23,15 @@
         margin-bottom: 25px;
 
         @media (max-width: 768px) {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 15px;
-      }
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 15px;
+        }
 
         .text {
           margin-top: 15px;
-          h1 {
-          font-size: 28px;
-          color: #2A174E;
-          }
-          span {
-            color: #555;
-            font-size: 15px;
-          }
+          h1 { font-size: 28px; color: #2A174E; @media (max-width: 480px){ font-size: 22px; } }
+          span { color: #555; font-size: 15px; }
         }
 
         .buttonGroup {
@@ -41,291 +40,88 @@
           gap: 10px;
 
           @media (max-width: 480px) {
-          width: 100%;
-          flex-direction: column;
-          .exportBtn { width: 100%; justify-content: center; }
-        }
+            width: 100%;
+            flex-direction: column;
+            .exportBtn { width: 100%; justify-content: center; }
+          }
         }
       }
 
       .exportBtn {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 9px 18px;
-        border-radius: 8px;
-        border: none;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-
-        &.zip {
-          background-color: #e6f7ff;
-          color: #004085;
-          border: 1.5px solid #b8daff;
-          &:hover { background-color: #bae7ff; }
-        }
-
-        &.csv {
-          background-color: #2A174E;
-          color: white;
-          &:hover { opacity: 0.9; }
-        }
-
-        &:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
+        display: flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        &.zip { background-color: #e6f7ff; color: #004085; border: 1.5px solid #b8daff; &:hover { background-color: #bae7ff; } }
+        &.csv { background-color: #2A174E; color: white; &:hover { opacity: 0.9; } }
+        &:disabled { opacity: 0.5; cursor: not-allowed; }
         svg { font-size: 18px; }
       }
 
       .tabs {
-        display: flex;
-        gap: 15px;
-        background: white;
-        padding: 10px;
-        border-radius: 12px;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
-
+        display: flex; gap: 15px; background: white; padding: 10px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+        flex-wrap: wrap; /* Allows tabs to wrap on tiny screens */
+        
         button {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 20px;
-          border: none;
-          background: transparent;
-          border-radius: 8px;
-          cursor: pointer;
-          font-weight: 600;
-          color: #555;
-
-          &.active {
-            background-color: #2a174e;
-            color: white;
-          }
+          display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 20px; border: none; background: transparent; border-radius: 8px; cursor: pointer; font-weight: 600; color: #555;
+          &.active { background-color: #2a174e; color: white; }
+          @media (max-width: 480px) { flex: 1; font-size: 13px; padding: 10px; }
         }
       }
 
-      .filtersCard,
-      .recordsCard {
-        background: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-        margin-bottom: 25px;
-      }
+      .filtersCard, .recordsCard { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); margin-bottom: 25px; @media (max-width: 768px) { padding: 15px; } }
 
       .filtersCard {
-        .title {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-weight: bold;
-          margin-bottom: 20px;
-          color: #555;
-        }
+        .title { display: flex; align-items: center; gap: 10px; font-weight: bold; margin-bottom: 20px; color: #555; }
         .filterInputs {
-          display: flex;
-          gap: 20px;
+          display: flex; gap: 20px;
+          
+          @media (max-width: 768px) { flex-direction: column; gap: 15px; } /* Stacks filters on mobile */
+
           .inputGroup {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            label {
-              font-size: 13px;
-              font-weight: 600;
-              color: #666;
-            }
-            input,
-            select {
-              padding: 10px;
-              border: 1px solid #ddd;
-              border-radius: 8px;
-              outline: none;
-            }
+            flex: 1; display: flex; flex-direction: column; gap: 8px;
+            label { font-size: 13px; font-weight: 600; color: #666; }
+            input, select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; width: 100%; box-sizing: border-box; }
           }
         }
       }
 
       .recordsCard {
-        h3 {
-          font-size: 18px;
-          margin-bottom: 5px;
+        .reportHeader {
+           @media (max-width: 768px) { flex-direction: column; gap: 15px; align-items: stretch !important; .exportBtn { width: 100%; justify-content: center; } }
         }
-        span {
-          font-size: 13px;
-          color: #888;
-          margin-bottom: 20px;
-          display: block;
-        }
+        h3 { font-size: 18px; margin-bottom: 5px; }
+        span { font-size: 13px; color: #888; margin-bottom: 20px; display: block; }
 
-        .reportsTable {
+        /* The new Wrapper applied in JSX */
+        .tableResponsiveWrapper {
           width: 100%;
-          border-collapse: collapse;
-          margin-top: 10px;
-          th {
-            text-align: left;
-            padding: 15px;
-            background: #f8f9fa;
-            color: #666;
-            font-size: 12px;
-          }
-          td {
-            padding: 15px;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 14px;
-          }
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          margin-bottom: 15px;
+          padding-bottom: 10px; /* Space for scrollbar */
 
-          .status {
-            padding: 4px 12px;
-            border-radius: 15px;
-            font-size: 12px;
-            font-weight: 600;
-            &.present {
-              background: #dcfce7;
-              color: #15803d;
-            }
-            &.late {
-              background: #fef3c7;
-              color: #92400e;
-            }
-            &.absent {
-              background: #fee2e2;
-              color: #b91c1c;
-            }
-          }
-          .pos {
-            color: #22c55e;
-            font-weight: 600;
-          } // Positive earnings
-          .neg {
-            color: #ef4444;
-            font-weight: 600;
-          } // Deductions
-          .bold {
-            font-weight: 700;
-            color: #333;
-          }
+          .reportsTable {
+            width: 100%; border-collapse: collapse; margin-top: 10px;
+            min-width: 900px; /* Forces table to stay wide */
 
-          /* Calendar Tag Colors */
-          .eventTag {
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 800;
-            text-transform: uppercase;
+            th { text-align: left; padding: 15px; background: #f8f9fa; color: #666; font-size: 12px; white-space: nowrap; }
+            td { padding: 15px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
 
-            &.holiday {
-              background: #fee2e2;
-              color: #b91c1c;
+            .status { padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: 600; white-space: nowrap;
+              &.present { background: #dcfce7; color: #15803d; } &.late { background: #fef3c7; color: #92400e; } &.absent { background: #fee2e2; color: #b91c1c; }
+              &.paid { background: #dcfce7; color: #15803d; } &.processed { background: #dbeafe; color: #1e40af; } &.draft { background: #f3f4f6; color: #374151; }
             }
-            &.leave {
-              background: #dcfce7;
-              color: #15803d;
-            }
-            &.fieldWork {
-              background: #ffedd5;
-              color: #9a3412;
-            }
-          }
+            .pos { color: #22c55e; font-weight: 600; } .neg { color: #ef4444; font-weight: 600; } .bold { font-weight: 700; color: #333; }
 
-          /* Status Badge Colors */
-          .status {
-            &.paid {
-              background: #dcfce7;
-              color: #15803d;
-            }
-            &.processed {
-              background: #dbeafe;
-              color: #1e40af;
-            }
-            &.draft {
-              background: #f3f4f6;
-              color: #374151;
-            }
-          }
-
-          .no-print {
-            display: table-cell;
-          }
-
-          .actions {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-
-            .payslipIcon {
-              color: #7451f8; // Deep purple/violet to highlight payslip action
-              cursor: pointer;
-              font-size: 20px;
-              transition: transform 0.2s ease;
-
-              &:hover {
-                transform: scale(1.1);
-                color: #2a174e;
-              }
-            }
+            .actions .payslipIcon { color: #7451f8; cursor: pointer; font-size: 20px; transition: 0.2s; &:hover { transform: scale(1.1); color: #2a174e; } }
           }
         }
 
         .summaryStats {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 20px;
-          margin-top: 30px;
-
-          @media (max-width: 1024px) {
-            grid-template-columns: repeat(2, 1fr); // 2x2 grid on tablet
-          }
-          @media (max-width: 480px) {
-            grid-template-columns: 1fr; // Stacked on mobile
-          }
-          .statBox {
-            background: #fdfaf5;
-            padding: 20px;
-            border-radius: 12px;
-            label {
-              font-size: 14px;
-              color: #666;
-            }
-            p {
-              font-size: 24px;
-              font-weight: bold;
-              margin-top: 10px;
-              &.presentText {
-                color: #22c55e;
-              }
-              &.absentText {
-                color: #ef4444;
-              }
-              &.lateText {
-                color: #f59e0b;
-              }
-            }
-          }
+          display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 30px;
+          @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
+          @media (max-width: 480px) { grid-template-columns: 1fr; }
+          .statBox { background: #fdfaf5; padding: 20px; border-radius: 12px; label { font-size: 14px; color: #666; } p { font-size: 24px; font-weight: bold; margin-top: 10px; &.presentText { color: #22c55e; } &.absentText { color: #ef4444; } &.lateText { color: #f59e0b; } } }
         }
       }
-
-      .filterSection {
-      @media (max-width: 768px) {
-        flex-direction: column;
-        align-items: stretch;
-      }
-    }
-
-    .tableCard {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 10px;
-
-      .customReportTable {
-        min-width: 1000px; /* Reports have many columns, ensure it scrolls */
-      }
-    }
     }
   }
 }

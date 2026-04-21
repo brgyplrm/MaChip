@@ -276,7 +276,8 @@ const Reports = () => {
                         <h3>Attendance Records</h3>
                         <span>Showing {attendanceData.length} records from {startDate} to {endDate}</span>
                     </div>
-                    <table className="reportsTable">
+                    <div className="tableResponsiveWrapper">
+                      <table className="reportsTable">
                       <thead>
                         <tr>
                           <th>EMPLOYEE ID</th>
@@ -309,6 +310,7 @@ const Reports = () => {
                         {attendanceData.length === 0 && <tr><td colSpan="8">No records found.</td></tr>}
                       </tbody>
                     </table>
+                    </div>
 
                     <div className="summaryStats">
                       <div className="statBox">
@@ -346,7 +348,8 @@ const Reports = () => {
                           <FileDownloadIcon /> Batch Export (ZIP)
                         </button>
                     </div>
-                    <table className="reportsTable payrollTable">
+                    <div className="tableResponsiveWrapper">
+                      <table className="reportsTable payrollTable">
                     <thead>
                         <tr>
                         <th>PAYROLL ID</th>
@@ -388,6 +391,7 @@ const Reports = () => {
                         {payrollData.length === 0 && <tr><td colSpan="11">No records found.</td></tr>}
                     </tbody>
                     </table>
+                    </div>
                   </>
                 )}
               </>

@@ -23,7 +23,6 @@ $rejected-text: #b91c1c;
   .homeContainer {
     flex: 6;
     min-width: 0;
-    @media (max-width: 768px) { padding: 15px; }
 
     .adminWrapper {
       padding: 25px;

@@ -136,40 +136,39 @@
   }
 }
 
+/* Add to the absolute bottom of new.scss */
+
 @media (max-width: 768px) {
   .new .newContainer .bottom {
     margin: 10px;
-    padding: 15px; /* Reduces the white card's inner spacing */
+    padding: 15px; 
+    flex-direction: column; /* Stacks Profile and Form */
+  }
+
+  .new .newContainer .bottom .leftIdentity {
+    border-right: none;
+    border-bottom: 1px solid #eee;
   }
 
   .new .newContainer .bottom .right {
-    padding-left: 0; /* CRITICAL: Removes the 30px desktop gap that squishes the form on mobile */
+    padding-left: 0; 
     padding-top: 20px;
   }
 
-  /* 1. Widens standard inputs (Email, Password, etc.) */
-  .new .newContainer .bottom .right form .formInput {
-    width: 100%; 
-  }
+  .new .newContainer .bottom .right form .fullNameSection { width: 100%; }
+  .new .newContainer .bottom .right form .fullNameSection .nameInputsRow { flex-direction: column; gap: 15px; width: 100%; }
+  .new .newContainer .bottom .right form .fullNameSection .nameInputsRow .nameGroup { width: 100%; }
+  .new .newContainer .bottom .right form .fullNameSection .nameInputsRow .nameGroup input { width: 100%; box-sizing: border-box; }
 
+  .new .newContainer .bottom .right form .formInput { width: 100%; }
   .new .newContainer .bottom .right form .formInput .inputActionWrapper input,
-  .new .newContainer .bottom .right form .formInput .inputActionWrapper select {
-    width: 100%; /* Forces the actual input boxes to stretch fully */
-  }
+  .new .newContainer .bottom .right form .formInput .inputActionWrapper select { width: 100%; box-sizing: border-box; }
 
-  /* 2. Widens the Full Name inputs by stacking them at 100% width */
-  .new .newContainer .bottom .right form .fullNameSection .nameInputsRow {
-    flex-direction: column; 
+  .new .newContainer .bottom-center {
+    flex-direction: column-reverse;
     gap: 15px;
-    width: 100%;
+    padding: 0 15px;
   }
-
-  .new .newContainer .bottom .right form .fullNameSection .nameInputsRow .nameGroup {
-    width: 100%;
-  }
-
-  .new .newContainer .bottom .right form .fullNameSection .nameInputsRow .nameGroup input {
-    width: 100%;
-    box-sizing: border-box; /* Ensures padding doesn't make it spill over */
-  }
+  .new .newContainer .bottom-center .submitButton,
+  .new .newContainer .bottom-center .cancelButton { width: 100%; }
 }

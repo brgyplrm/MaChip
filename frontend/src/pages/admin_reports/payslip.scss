@@ -1,98 +1,67 @@
+/* src/pages/adminReports/payslip.scss */
 $primary-purple: #2A174E;
 
 .payslipPage {
+  display: flex;
+  width: 100%;
+  overflow-x: hidden;
+
+  .homeContainer {
+    flex: 6;
+    min-width: 0; /* CRITICAL for mobile */
+  }
+
   .payslipWrapper {
     padding: 30px;
     background-color: #fdfaf5;
+    min-height: 100vh;
+
+    @media (max-width: 768px) { padding: 15px; }
 
     .headerActions {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 25px;
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;
 
-          .titleWithBack {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 4px;
+      @media (max-width: 600px) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+      }
 
-            .backLink {
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              width: 36px;
-              height: 36px;
-              border-radius: 50%;
-              background-color: transparent;
-              color: #2A174E; // Your primary purple
-              transition: all 0.2s ease;
-              text-decoration: none;
-
-              &:hover {
-                background-color: #f0ebfa; // Soft purple hover
-                transform: translateX(-3px); // Subtle "back" movement
-              }
-
-              .backIcon {
-                font-size: 22px;
-              }
-            }
-          h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #2A174E;
-            margin-bottom: 4px;
-          }
-          span {
-            font-size: 13px;
-            color: #888;
-          }
-        }
+      .titleWithBack {
+        display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+        .backLink { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background-color: transparent; color: #2A174E; transition: all 0.2s ease; text-decoration: none; &:hover { background-color: #f0ebfa; transform: translateX(-3px); } .backIcon { font-size: 22px; } }
+        h1 { font-size: 24px; font-weight: 700; color: #2A174E; margin-bottom: 4px; @media (max-width: 480px){ font-size: 20px;} }
+      }
 
       .downloadBtn {
-        display: flex; align-items: center; gap: 8px;
-        background: #22c55e; color: white; border: none;
-        padding: 10px 20px; border-radius: 8px; cursor: pointer;
-        font-weight: bold; &:hover { opacity: 0.9; }
+        display: flex; align-items: center; gap: 8px; background: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s;
+        @media (max-width: 600px) { width: 100%; justify-content: center; }
+        &:hover { opacity: 0.9; }
       }
     }
 
+    /* New Scroll Area applied in JSX */
+    .payslipScrollArea {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 20px; /* Breathing room for scrollbar */
+      border-radius: 8px;
+    }
+
     .payslipCard {
-      background: white; padding: 40px; width: 800px;
-      margin: 0 auto; border: 2px solid #b91c1c; // Red border from design
-      font-family: Arial, sans-serif;
+      background: white; padding: 40px; 
+      width: 800px; /* Locked physical size for html2canvas */
+      min-width: 800px;
+      margin: 0 auto; border: 2px solid #b91c1c; font-family: Arial, sans-serif;
 
-      .companyHeader {
-        text-align: center; color: #1e3a8a; margin-bottom: 30px;
-        h2 { font-size: 20px; font-weight: bold; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
-      }
+      .companyHeader { text-align: center; color: #1e3a8a; margin-bottom: 30px; h2 { font-size: 20px; font-weight: bold; border-bottom: 1px solid #ddd; padding-bottom: 10px; } }
 
-      .employeeInfo {
-        margin-bottom: 25px;
-        .row {
-          display: grid; grid-template-columns: 150px 20px 1fr;
-          margin-bottom: 8px; font-size: 14px;
-          .label { font-weight: bold; }
-          .val { text-transform: uppercase; }
-        }
-      }
+      .employeeInfo { margin-bottom: 25px; .row { display: grid; grid-template-columns: 150px 20px 1fr; margin-bottom: 8px; font-size: 14px; .label { font-weight: bold; } .val { text-transform: uppercase; } } }
 
-      .payslipTable {
-        width: 100%; border-collapse: collapse; font-size: 13px;
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background: #f8fafc; font-weight: bold; }
-        
-        .subtotal td { border-top: 2px solid #333; }
-        
-        .netPayRow {
-          td { border: none; font-size: 16px; }
-          .underline { border-bottom: 3px double #333; }
-        }
-      }
+      .payslipTable { width: 100%; border-collapse: collapse; font-size: 13px; th, td { border: 1px solid #ddd; padding: 10px; text-align: left; } th { background: #f8fafc; font-weight: bold; } .subtotal td { border-top: 2px solid #333; } .netPayRow { td { border: none; font-size: 16px; } .underline { border-bottom: 3px double #333; } } }
 
-      .signatureSection {
-        margin-top: 50px; font-size: 14px;
-        .signatureLine { width: 250px; border-bottom: 1.5px solid #333; margin-top: 40px; }
-      }
+      .signatureSection { margin-top: 50px; font-size: 14px; .signatureLine { width: 250px; border-bottom: 1.5px solid #333; margin-top: 40px; } }
     }
   }
 }

@@ -98,7 +98,8 @@ const Payslip = () => {
           </div>
 
           {/* This section is captured by html2canvas */}
-          <div className="payslipCard" ref={payslipRef}>
+          <div className="payslipScrollArea">
+            <div className="payslipCard" ref={payslipRef}>
             <div className="companyHeader">
               <h2>MAC-J INT'L., FORWARDING LTD., CO.</h2>
               <p>Unit 201, 2nd Floor, Ma. Natividad Bldg., 1007 M.H. Del Pilar St., Ermita, Manila</p>
@@ -179,6 +180,7 @@ const Payslip = () => {
               <div className="signatureLine"></div>
               <p className="employeeName">{payroll.user_FirstName} {payroll.user_LastName}</p>
             </div>
+          </div>
           </div>
         </div>
       </div>
