@@ -1,11 +1,14 @@
+/* src/pages/profile/profile.scss */
+
 .profile {
   display: flex;
   width: 100%;
   background-color: #fdfaf5;
-
+  overflow-x: hidden; // Prevents the page from swiping sideways
 
   .profileContainer {
     flex: 6;
+    min-width: 0; // CRITICAL: Allows flex items to shrink on mobile
 
     .profileWrapper {
       padding: 20px;
@@ -13,11 +16,19 @@
       flex-direction: column;
       gap: 20px;
 
+      @media (max-width: 768px) {
+        padding: 10px; // Reduce padding on smaller screens
+      }
+
       .heroSection {
         background-color: white;
         border-radius: 10px;
         padding: 30px;
         box-shadow: 2px 4px 10px 1px rgba(201, 201, 201, 0.47);
+
+        @media (max-width: 768px) {
+          padding: 20px;
+        }
 
         .profileHeader {
           display: flex;
@@ -27,6 +38,12 @@
           padding-bottom: 25px;
           margin-bottom: 25px;
           position: relative;
+
+          @media (max-width: 768px) {
+            flex-direction: column; // Stack the image, name, and button
+            text-align: center;
+            gap: 15px;
+          }
 
           .profileImg {
             width: 120px;
@@ -40,7 +57,11 @@
             .name {
               font-size: 28px;
               color: #2A174E;
-              margin: 0;
+              margin: 0 0 10px 0; // Added spacing before the role tag
+
+              @media (max-width: 480px) {
+                font-size: 22px; // Scale down font on phones
+              }
             }
             .roleTag {
               background-color: #8f8cdb32;
@@ -49,6 +70,7 @@
               border-radius: 20px;
               font-size: 14px;
               font-weight: 500;
+              display: inline-block;
             }
           }
 
@@ -58,6 +80,7 @@
             top: 0;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 5px;
             background-color: #2A174E;
             color: white;
@@ -66,6 +89,13 @@
             border-radius: 5px;
             cursor: pointer;
             transition: all 0.3s ease;
+
+            @media (max-width: 768px) {
+              position: relative; // Stops button from overlapping text on mobile
+              width: 100%;
+              padding: 12px;
+              margin-top: 10px;
+            }
             
             .icon { font-size: 18px; }
             &:hover { background-color: #4F2A94; }
@@ -84,10 +114,19 @@
           grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
           gap: 20px;
 
+          @media (max-width: 480px) {
+            grid-template-columns: 1fr; // Stacks details into a single column
+            gap: 15px;
+          }
+
           .detailBox {
             display: flex;
             flex-direction: column;
             gap: 5px;
+
+            @media (max-width: 768px) {
+              text-align: center; // Centers the text so it matches the stacked header
+            }
 
             .label {
               font-size: 12px;
@@ -143,6 +182,7 @@
             margin-top: 30px;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
             background-color: #2A174E;
             color: white;
@@ -154,10 +194,17 @@
             font-weight: 500;
             transition: background-color 0.3s ease;
 
+            @media (max-width: 480px) { width: 100%; }
+
             .icon { font-size: 20px; }
             &:hover { background-color: #4F2A94; }
           }
         }
+      }
+
+      .chartSection {
+        width: 100%;
+        overflow-x: auto; /* Safely scrolls the chart if it gets too wide */
       }
 
       .tableSection {
@@ -165,6 +212,12 @@
         padding: 20px;
         border-radius: 10px;
         box-shadow: 2px 4px 10px 1px rgba(201, 201, 201, 0.47);
+        overflow-x: auto; /* Safely adds a scrollbar for the table on mobile */
+        -webkit-overflow-scrolling: touch;
+
+        @media (max-width: 768px) {
+          padding: 10px;
+        }
 
         .tableTitle {
           font-weight: 500;
