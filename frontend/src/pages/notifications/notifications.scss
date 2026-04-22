@@ -8,7 +8,9 @@
     flex: 6;
 
     .wrapper {
-      padding: 30px 40px;
+      padding: 30px;
+
+      @media (max-width: 768px) { padding: 15px; }
 
       .notifHeader {
         display: flex;

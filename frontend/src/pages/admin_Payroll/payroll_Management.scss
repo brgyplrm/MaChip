@@ -6,11 +6,10 @@
   .payrollContainer {
     flex: 6;
     background-color: #fdfaf5;
-    @media (max-width: 768px) { padding: 15px; }
     min-width: 0;
 
     .wrapper {
-      padding: 30px;
+      padding: 15px;
 
       @media (max-width: 768px) { 
         padding: 15px; // Reduce whitespace on mobile

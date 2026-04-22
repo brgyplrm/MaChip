@@ -117,7 +117,7 @@ useEffect(() => {
             {/* Show small logo when collapsed, full logo when expanded */}
             {isCollapsed ? (
                <div className="smallLogo">
-                  M
+                  {!isOverlayOpen ? "M" : <img src="/images.png" alt="Logo" className="logo-img" />}
                </div>
             ) : (
                <img src="/images.png" alt="Logo" className="logo-img" />
@@ -148,7 +148,7 @@ useEffect(() => {
           {/* Management Lists */}
           {isManagementView && (
             <>
-              <p className="title">{isCollapsed ? "..." : "LISTS"}</p>
+              <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "LISTS"}</p>
 
               {isAdminRole && (
                 <NavLink to="/users" style={{ textDecoration: "none" }}>
@@ -198,7 +198,7 @@ useEffect(() => {
           {/* Admin only Pages */}
           {isManagementView && isAdminRole && (
             <>
-            <p className="title">{isCollapsed ? "..." : "SYSTEM LOGS"}</p>
+            <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "SYSTEM LOGS"}</p>
             <NavLink to="/auditLogs" style={{ textDecoration: "none" }}>
               <li title="Audit">
                 <SecurityIcon className="icon" />
@@ -218,7 +218,7 @@ useEffect(() => {
           {/* Employee only Pages */}
           {isEmployeeView && (
             <>
-            <p className="title">{isCollapsed ? "..." : "LISTS"}</p>
+            <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "LISTS"}</p>
             <NavLink to="/requests" style={{ textDecoration: "none" }}>
               <li title="Requests">
                 <PendingActionsIcon className="icon" />
@@ -235,7 +235,7 @@ useEffect(() => {
             </>
           )}
 
-          <p className="title">{isCollapsed ? "..." : "USER"}</p>
+          <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "USER"}</p>
 
           {isManagementView && (
             <NavLink to="/settings" style={{ textDecoration: "none" }}>
