@@ -7,27 +7,7 @@ import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
-
-const getCurrentPeriod = () => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const date = today.getDate();
-
-  let startDate, endDate;
-  if (date <= 15) {
-    startDate = new Date(year, month, 1);
-    endDate = new Date(year, month, 15);
-  } else {
-    startDate = new Date(year, month, 16);
-    endDate = new Date(year, month + 1, 0);
-  }
-  const pad = (n) => n.toString().padStart(2, '0');
-  return {
-    startDate: `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`,
-    endDate: `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`,
-  };
-};
+import { useSystemTime } from "../../context/SystemTimeContext";
 
 const formatDateStr = (dateStr) => {
   if (!dateStr) return "—";
@@ -36,16 +16,39 @@ const formatDateStr = (dateStr) => {
 };
 
 const Logs = () => {
+  const { systemToday } = useSystemTime();
   const [viewMode, setViewMode] = useState("raw"); // "raw" or "day"
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState("");
   const rowsPerPage = 10;
 
+  const getCurrentPeriod = useCallback((baseDate) => {
+    const today = baseDate || new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+
+    let startDate, endDate;
+    if (date <= 15) {
+      startDate = new Date(year, month, 1);
+      endDate = new Date(year, month, 15);
+    } else {
+      startDate = new Date(year, month, 16);
+      endDate = new Date(year, month + 1, 0);
+    }
+    const pad = (n) => n.toString().padStart(2, '0');
+    return {
+      startDate: `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`,
+      endDate: `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`,
+    };
+  }, []);
+
   const [logData, setLogData] = useState([]);
   const [dayLogsData, setDayLogsData] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: 'log_Date', direction: 'desc' });
-  const [period] = useState(getCurrentPeriod());
+  
+  const period = useMemo(() => getCurrentPeriod(systemToday), [systemToday, getCurrentPeriod]);
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -390,12 +393,12 @@ const Logs = () => {
                           <td className="boldText">{formatUserId(row.user_Id)}</td>
                           <td>{row.userName}</td>
                           <td>{formatDateStr(row.log_Date)}</td>
-                          <td>{row.morning_In}</td>
-                          <td>{row.morning_Out}</td>
-                          <td>{row.afternoon_In}</td>
-                          <td>{row.afternoon_Out}</td>
-                          <td>{row.ot_In}</td>
-                          <td>{row.ot_Out}</td>
+                          <td>{row.morning_In || "—"}</td>
+                          <td>{row.morning_Out || "—"}</td>
+                          <td>{row.afternoon_In || "—"}</td>
+                          <td>{row.afternoon_Out || "—"}</td>
+                          <td>{row.ot_In || "—"}</td>
+                          <td>{row.ot_Out || "—"}</td>
                           <td>
                             <span className={`pill ${row.status === "On Time" ? "clock-in" : (row.status?.toLowerCase().includes("absent") ? "clock-out" : "default")}`}>
                               {row.status}

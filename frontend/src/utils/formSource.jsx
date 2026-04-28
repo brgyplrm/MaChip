@@ -35,6 +35,12 @@ export const userInputs = [
     type: "text",
     placeholder: "e.g. MACHIP-XXXXXX",
   },
+  {
+    id: "account_Number",
+    label: "ATM / Account Number",
+    type: "text",
+    placeholder: "Enter Account Number",
+  },
 ];
 
 export const productInputs = [

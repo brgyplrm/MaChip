@@ -320,7 +320,7 @@ const AdminRequests = () => {
                           : current.emp_reqTypeId === 2 // Onfield
                             ? `${current.OW_NoDays || 0} Day(s) (${current.OW_NoHrs || 0} Hrs)`
                             : current.emp_reqTypeId === 5 // Log Correction
-                              ? `Correction for ${new Date(current.LC_logDate).toLocaleDateString()}`
+                              ? `${current.LC_correctionCategory || "Correction"} for ${new Date(current.LC_logDate).toLocaleDateString()}`
                               : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
                       </p>
                     </div>
@@ -340,6 +340,10 @@ const AdminRequests = () => {
 
                     {current.emp_reqTypeId === 5 && (
                       <>
+                        <div className="detailBox">
+                          <label>Category</label>
+                          <p className="categoryBadge">{current.LC_correctionCategory || "N/A"}</p>
+                        </div>
                         <div className="detailBox">
                           <label>Current In (System)</label>
                           <p>{current.LC_currentIn || "No Log"}</p>

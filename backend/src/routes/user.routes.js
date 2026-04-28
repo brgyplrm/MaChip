@@ -22,7 +22,7 @@ router.get("/all", requireAdminOrSupervisor, userController.viewAllUsers);
 router.get("/archived", requireAdmin, userController.viewArchivedUsers);
 
 // GET user by user_Id
-router.get("/:user_Id", requireAdminOrSupervisor, userController.viewUserById);
+router.get("/:user_Id", userController.viewUserById);
 // DELETE user by user_Id (soft delete — sets deletedAt)
 router.delete("/deleteUser/:user_Id", requireAdmin, userController.deleteUser);
 

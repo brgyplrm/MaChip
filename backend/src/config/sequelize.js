@@ -120,14 +120,16 @@ const connectDB = async () => {
     await sequelize.sync();
     console.log("All models were synchronized successfully.");
 
-    // Manual migration for recommendedBy column
+    // Manual migrations
     try {
       await sequelize.query(`ALTER TABLE "emp_Request" ADD COLUMN IF NOT EXISTS "recommendedBy" SMALLINT;`);
-      console.log("Migration: recommendedBy column verified/added.");
+      await sequelize.query(`ALTER TABLE "emp_Request" ADD COLUMN IF NOT EXISTS "last_escalated_at" TIMESTAMP;`);
+      await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "account_Number" VARCHAR(255);`);
+      await sequelize.query(`ALTER TABLE "LogCorrection_Request" ADD COLUMN IF NOT EXISTS "correctionCategory" VARCHAR(255);`);
+      console.log("Database migrations completed successfully.");
     } catch (err) {
-      console.error("Migration error (recommendedBy):", err.message);
+      console.error("Migration error:", err.message);
     }
-
     // ── Seed: SystemSettings ─────────────────────────────────────────────────
     try {
       const settingsCount = await SystemSettings.count();

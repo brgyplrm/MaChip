@@ -149,6 +149,7 @@ module.exports = (sequelize, DataTypes) => {
       currentOut: { type: DataTypes.TIME, allowNull: true },
       claimedIn: { type: DataTypes.TIME, allowNull: false },
       claimedOut: { type: DataTypes.TIME, allowNull: false },
+      correctionCategory: { type: DataTypes.STRING, allowNull: true }, // e.g. "Morning", "Afternoon", "Overtime"
       reason: { type: DataTypes.TEXT, allowNull: false },
       proof_File: { type: DataTypes.STRING, allowNull: true },
     },
