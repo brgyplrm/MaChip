@@ -10,6 +10,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
+import { exportToCSV } from "../../utils/csvExport";
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
@@ -17,6 +18,49 @@ const AuditLogs = () => {
   const [filterAction, setFilterAction] = useState("All Actions");
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
+
+  const handleExport = () => {
+    const headers = [
+      "Timestamp",
+      "Module",
+      "Administrator",
+      "Admin ID",
+      "Action Category",
+      "Target Table",
+      "Target ID",
+      "IP Address",
+      "Previous Values",
+      "New Values"
+    ];
+
+    const sensitiveFields = ["user_Password", "password", "user_MachipId", "rfid", "uid", "adminPassword", "admin_Password"];
+
+    const formatObjForCSV = (obj) => {
+      if (!obj || typeof obj !== 'object') return "";
+      return Object.entries(obj)
+        .filter(([key]) => !["createdAt", "updatedAt", "deletedAt"].includes(key))
+        .map(([key, val]) => {
+          const displayVal = sensitiveFields.includes(key) ? "[REDACTED]" : (typeof val === 'object' ? JSON.stringify(val) : val);
+          return `${key}: ${displayVal}`;
+        })
+        .join(" | ");
+    };
+
+    const data = filteredLogs.map(log => [
+      new Date(log.createdAt).toLocaleString(),
+      log.module || "System",
+      `${log.user_FirstName} ${log.user_LastName}`,
+      formatUserId(log.user_Id),
+      log.action,
+      log.target_Table || "System",
+      log.target_Id ? (log.target_Table === "User" ? formatUserId(log.target_Id) : log.target_Id) : "N/A",
+      log.ip_Address || "Local",
+      formatObjForCSV(log.old_Value),
+      formatObjForCSV(log.new_Value)
+    ]);
+
+    exportToCSV(headers, data, `Audit_Trail_${new Date().toISOString().split('T')[0]}.csv`);
+  };
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -127,7 +171,7 @@ const AuditLogs = () => {
               </div>
               <span>Monitor administrative activities and security events</span>
             </div>
-            <button className="exportBtn">
+            <button className="exportBtn" onClick={handleExport}>
               <FileDownloadIcon /> Export Audit Trail
             </button>
           </div>

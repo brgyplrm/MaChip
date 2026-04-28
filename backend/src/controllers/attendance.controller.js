@@ -1066,11 +1066,11 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
           const [h, m] = mInCandidate.split(":").map(Number);
           morning_In = h < 8 ? "08:00" : mInCandidate.substring(0, 5);
         }
-        morning_Out = outArr.find(t => t.substring(0, 5) < "13:30")?.substring(0, 5) || "—";
+        morning_Out = outArr.find(t => t.substring(0, 5) >= "11:30" && t.substring(0, 5) < "13:30")?.substring(0, 5) || "—";
 
         // Afternoon Session
-        afternoon_In = inArr.find(t => t.substring(0, 5) >= "12:00" && t.substring(0, 5) < otStart)?.substring(0, 5) || "—";
-        afternoon_Out = outArr.find(t => t.substring(0, 5) >= "12:00" && t.substring(0, 5) < otStart)?.substring(0, 5) || (hasApprovedOT && afternoon_In !== "—" ? otStart.substring(0, 5) : "—");
+        afternoon_In = inArr.find(t => t.substring(0, 5) >= "12:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || "—";
+        afternoon_Out = outArr.find(t => t.substring(0, 5) >= "13:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || (hasApprovedOT && afternoon_In !== "—" ? otStart.substring(0, 5) : "—");
         
         // Overtime Session (using joined data)
         if (hasApprovedOT) {
@@ -1165,16 +1165,15 @@ exports.getSingleAttendanceRecord = async (req, res) => {
     const hasApprovedOT = r.emp_reqStatusId === 2;
     const otStart = hasApprovedOT ? r.ot_HrFrom : "23:59:59";
 
-    const morning_In = inArr.find(t => t.substring(0, 5) < "12:00") || "";
-    const morning_Out = outArr.find(t => t.substring(0, 5) < "13:30") || "";
+    const morning_In = inArr.find(t => t.substring(0, 5) < "12:00")?.substring(0, 5) || "";
+    const morning_Out = outArr.find(t => t.substring(0, 5) >= "11:30" && t.substring(0, 5) < "13:30")?.substring(0, 5) || "";
     
-    const afternoon_In = inArr.find(t => t.substring(0, 5) >= "12:00" && t.substring(0, 5) < otStart) || "";
-    // If no afternoon out is found before OT starts, but they have approved OT and an afternoon in, default to OT start time
-    const afternoon_Out = outArr.find(t => t.substring(0, 5) >= "12:00" && t.substring(0, 5) < otStart) || (hasApprovedOT && afternoon_In ? otStart.substring(0, 5) : "");
+    const afternoon_In = inArr.find(t => t.substring(0, 5) >= "12:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || "";
+    const afternoon_Out = outArr.find(t => t.substring(0, 5) >= "13:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || (hasApprovedOT && afternoon_In ? otStart.substring(0, 5) : "");
     
     // OT In defaults to the approved HrFrom if no specific log exists at that time
-    const ot_In = hasApprovedOT ? (inArr.find(t => t.substring(0, 5) >= otStart) || otStart.substring(0, 5)) : "";
-    const ot_Out = hasApprovedOT ? (outArr.find(t => t.substring(0, 5) >= otStart) || "") : "";
+    const ot_In = hasApprovedOT ? (inArr.find(t => t.substring(0, 5) >= otStart)?.substring(0, 5) || otStart.substring(0, 5)) : "";
+    const ot_Out = hasApprovedOT ? (outArr.find(t => t.substring(0, 5) >= otStart)?.substring(0, 5) || "") : "";
 
     res.status(200).json({
       user_Id: r.user_id,

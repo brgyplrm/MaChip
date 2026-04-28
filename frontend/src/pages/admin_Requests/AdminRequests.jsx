@@ -436,7 +436,7 @@ const AdminRequests = () => {
                       <div className="detailBox attachment">
                         <label>Attachment</label>
                         <a 
-                          href={`http://localhost:4000/uploads/${current.SL_proof_File || current.OW_proof_File || current.LC_proof_File}`} 
+                          href={`/api/uploads/${current.SL_proof_File || current.OW_proof_File || current.LC_proof_File}`} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="attachmentLink"

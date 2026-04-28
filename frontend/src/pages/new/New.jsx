@@ -203,7 +203,7 @@ const New = ({ inputs, title }) => {
                   file
                     ? URL.createObjectURL(file)
                     : formData.user_ProfilePic
-                      ? `http://localhost:4000/uploads/${formData.user_ProfilePic}`
+                      ? `/api/uploads/${formData.user_ProfilePic}`
                       : "/avatar.webp"
                 }
                 alt="Profile Preview"

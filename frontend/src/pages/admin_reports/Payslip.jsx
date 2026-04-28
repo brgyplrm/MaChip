@@ -7,6 +7,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { useParams, Link, useLocation } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { fetchWithAuth } from "../../utils/api";
 
 const Payslip = () => {
   const { id } = useParams(); // Using 'id' from App.jsx route /adminReports/payslip/:id
@@ -21,7 +22,7 @@ const Payslip = () => {
     const fetchPayrollDetails = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:4000/api/payroll/${id}`);
+        const response = await fetchWithAuth(`/api/payroll/${id}`);
         const data = await response.json();
         if (response.ok) {
           setPayroll(data);

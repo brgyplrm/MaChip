@@ -9,6 +9,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import CloseIcon from "@mui/icons-material/Close";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
+import { exportToCSV } from "../../utils/csvExport";
 
 const TransactionLog = () => {
   const [transactions, setTransactions] = useState([]);
@@ -16,6 +17,52 @@ const TransactionLog = () => {
   const [actionFilter, setActionFilter] = useState("All Actions");
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
+
+  const handleExport = () => {
+    const headers = [
+      "Timestamp",
+      "Initiated By",
+      "Employee ID",
+      "Event Category",
+      "Description",
+      "IP Address",
+      "Metadata Details"
+    ];
+
+    const sensitiveFields = ["user_Password", "password", "user_MachipId", "rfid", "uid", "adminPassword", "admin_Password"];
+
+    const data = filteredData.map(t => {
+      const initiator = t.emp_FirstName 
+        ? `${t.emp_FirstName} ${t.emp_LastName}` 
+        : t.event_Type === "UNAUTHORIZED_SCAN" ? "Unknown Device" : "System";
+      
+      const empId = t.user_Id ? formatUserId(t.user_Id) : "N/A";
+
+      // Process metadata for CSV
+      let metadataStr = "";
+      if (t.metadata) {
+        metadataStr = Object.entries(t.metadata)
+          .filter(([key]) => !["createdAt", "updatedAt", "deletedAt"].includes(key))
+          .map(([key, val]) => {
+            const displayVal = sensitiveFields.includes(key) ? "[REDACTED]" : (typeof val === 'object' ? JSON.stringify(val) : val);
+            return `${key}: ${displayVal}`;
+          })
+          .join(" | ");
+      }
+
+      return [
+        new Date(t.createdAt).toLocaleString(),
+        initiator,
+        empId,
+        t.event_Type,
+        t.description,
+        t.ip_Address || t.metadata?.deviceIp || "Local",
+        metadataStr
+      ];
+    });
+
+    exportToCSV(headers, data, `Transaction_Logs_${new Date().toISOString().split('T')[0]}.csv`);
+  };
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -113,7 +160,7 @@ const TransactionLog = () => {
               <h1>Transaction Log</h1>
               <span>View and track all financial and system transactions</span>
             </div>
-            <button className="exportBtn">
+            <button className="exportBtn" onClick={handleExport}>
               <FileDownloadIcon className="icon" /> Export CSV
             </button>
           </div>

@@ -53,6 +53,7 @@ const CalendarManagement = () => {
   const confirmDelete = async () => {
     if (!itemToDelete) return;
     const { id, type } = itemToDelete;
+    console.log(`[DEBUG] Confirming delete for ${type} with ID: ${id}`);
     
     // Choose endpoint based on type
     const endpoint = type === 'Holiday' 
@@ -64,8 +65,13 @@ const CalendarManagement = () => {
         method: "DELETE",
       });
       
+      console.log(`[DEBUG] Delete response status: ${response.status}`);
       if (response.ok) {
-        setEvents(prev => prev.filter((item) => item.id !== id || item.type !== type));
+        setEvents(prev => {
+          const filtered = prev.filter((item) => !(item.id === id && item.type === type));
+          console.log(`[DEBUG] Events filtered. Old count: ${prev.length}, New count: ${filtered.length}`);
+          return filtered;
+        });
         setToast({ message: `${type} deleted successfully.`, type: "success" });
         fetchCalendarEvents(); // Refresh fully to be sure
       } else {

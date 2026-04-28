@@ -49,6 +49,7 @@ exports.createHoliday = async (req, res) => {
 exports.deleteHoliday = async (req, res) => {
   try {
     const { holidayId } = req.params;
+    console.log(`[DEBUG] Attempting to delete holiday with ID: ${holidayId}`);
     
     if (!holidayId || holidayId === "undefined") {
       return res.status(400).json({ error: "Invalid Holiday ID provided." });
@@ -57,6 +58,7 @@ exports.deleteHoliday = async (req, res) => {
     const holiday = await Holiday.findOne({ where: { holidayId: parseInt(holidayId) } });
 
     const deleted = await Holiday.destroy({ where: { holidayId: parseInt(holidayId) } });
+    console.log(`[DEBUG] Holiday.destroy result: ${deleted}`);
     if (deleted) {
       const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
       await logAudit(req, currentAdminId, "System Settings", "DELETE_HOLIDAY", "Holiday", parseInt(holidayId), holiday ? holiday.toJSON() : null, null);
