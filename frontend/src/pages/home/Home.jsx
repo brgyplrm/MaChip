@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
-import "./home.scss";
+// import "./home.scss"; // Removed in favor of Tailwind CSS
 import Widget from "../../components/widget/Widget";
 import Featured from "../../components/featured/Featured";
 import Chart from "../../components/chart/Chart";
@@ -83,9 +83,9 @@ const Home = () => {
   }, [userData?.user_RoleId]);
 
   return (
-    <div className="home">
+    <div className="flex w-full overflow-x-hidden bg-[#fdfaf5]">
       <Sidebar />
-      <div className="homeContainer">
+      <div className="flex-[6] w-full min-h-screen">
         <Navbar />
         <PageTransition>
         <Toast 
@@ -94,16 +94,21 @@ const Home = () => {
           onClose={() => setToast({ ...toast, message: "" })} 
           duration={5000}
         />
-        <div className="widgets">
+        {/* Widgets Grid */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] p-5 md:p-[15px] gap-5 md:gap-[15px]">
           <Widget type="officeOccupancy" amount={stats.officeOccupancy} loading={statsLoading} />
           <Widget type="onTime" amount={stats.onTimeCount} loading={statsLoading} />
           <Widget type="lateArrivals" amount={stats.lateArrivalsCount} loading={statsLoading} />
         </div>
-        <div className="charts">
+
+        {/* Charts Flexbox */}
+        <div className="flex flex-col lg:flex-row p-5 pt-[5px] md:p-[5px_15px] gap-5 md:gap-[15px]">
           <Featured stats={stats} loading={statsLoading} />
           <Chart title="Attendance Comparison Chart" aspect={2 / 1} />
         </div>
-        <div className="listContainer">
+
+        {/* Occupancy List Container */}
+        <div className="m-5 md:m-[15px] p-5 md:p-[15px] bg-[#8f8cdb32] rounded-[10px] shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)]">
           <OccupancyList />
         </div>
         </PageTransition>
