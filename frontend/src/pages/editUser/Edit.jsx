@@ -61,6 +61,7 @@ const Edit = ({ inputs, title }) => {
   const [file, setFile] = useState("");
   const [formData, setFormData] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [displayPic, setDisplayPic] = useState("");
   const [showAdminConfirm, setShowAdminConfirm] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
@@ -404,7 +405,12 @@ const Edit = ({ inputs, title }) => {
                     <>
                       <input
                         id={input.id}
-                        type={input.id === "user_Password" && showPassword ? "text" : input.type}
+                        type={
+                          (input.id === "user_Password" && showPassword) || 
+                          (input.id === "account_Number" && showAccountNumber) 
+                            ? "text" 
+                            : input.type
+                        }
                         value={formData[input.id] || ""}
                         onChange={handleInput}
                         readOnly={input.label === "User ID"} // User ID remains read-only for everyone
@@ -412,6 +418,11 @@ const Edit = ({ inputs, title }) => {
                       {input.id === "user_Password" && (
                                 <div className="eyeIcon" onClick={() => setShowPassword(!showPassword)}>
                                   {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                                </div>
+                      )}
+                      {input.id === "account_Number" && (
+                                <div className="eyeIcon" onClick={() => setShowAccountNumber(!showAccountNumber)}>
+                                  {showAccountNumber ? <VisibilityOffIcon /> : <VisibilityIcon />}
                                 </div>
                       )}
                     </>

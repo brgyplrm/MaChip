@@ -8,10 +8,12 @@
 const requireRole = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
+      console.warn(`[ROLE CHECK] Failed: No user in request for ${req.originalUrl}`);
       return res.status(401).json({ error: "Authentication required." });
     }
 
     if (!allowedRoles.includes(req.user.user_Role)) {
+      console.warn(`[ROLE CHECK] Forbidden: User ${req.user.user_Id} (${req.user.user_Role}) tried to access ${req.originalUrl}. Allowed: ${allowedRoles.join(", ")}`);
       return res.status(403).json({ error: `Forbidden: Access denied for role ${req.user.user_Role}` });
     }
 
@@ -21,16 +23,12 @@ const requireRole = (...allowedRoles) => {
 
 // Convenience helpers
 const requireAdmin = requireRole("Admin");
-const requireSupervisor = requireRole("Supervisor"); // For potential future use
-const requireStaff = requireRole("Staff");
+const requireSupervisor = requireRole("Supervisor"); 
 const requireAdminOrSupervisor = requireRole("Admin", "Supervisor");
-const requireAdminOrStaff = requireRole("Admin", "Staff");
 
 module.exports = {
   requireRole,
   requireAdmin,
   requireSupervisor,
-  requireStaff,
-  requireAdminOrSupervisor,
-  requireAdminOrStaff
+  requireAdminOrSupervisor
 };

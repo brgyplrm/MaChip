@@ -2,6 +2,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') }); // Load .env
 console.log("[DEBUG] JWT_SECRET loaded:", process.env.JWT_SECRET ? "Yes" : "No");
 process.env.TZ = process.env.TZ || "Asia/Manila";
+
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
@@ -9,7 +10,8 @@ const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
 const { connectDB, sequelize } = require("./config/sequelize"); 
 const { initSocket } = require("./config/socket");
-const { generalLimiter } = require("./middleware/rateLimiter");
+const { loginLimiter, generalLimiter, pollingLimiter, HIGH_FREQ_ROUTES } = require("./middleware/rateLimiter");
+const authMiddleware = require("./middleware/auth");
 
 const app = express();
 const server = http.createServer(app);
@@ -17,61 +19,37 @@ const server = http.createServer(app);
 // Initialize Socket.io
 initSocket(server);
 
-// Security Headers
-app.use(helmet());
-
-// Cookie Parser
-app.use(cookieParser());
-
-// Trust proxy for correct IP handling behind nginx/lb/router
+// 1. Trust proxy for correct IP handling behind nginx/lb/router
 app.set("trust proxy", 1);
 
-// Global Rate Limiter
-app.use(generalLimiter);
-
-// Middleware
+// 2. Parse body and cookies first
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-// Debug middleware to log requests
-app.use((req, res, next) => {
-  req.body = req.body || {};
-  console.log(`[DEBUG] ${req.method} ${req.url}`);
-  console.log(`[DEBUG] Content-Type: ${req.get("Content-Type")}`);
+// 3. Security Headers
+app.use(helmet());
 
-  // Mask sensitive fields like "password"
-  const bodyToLog = { ...req.body };
-  if (bodyToLog.password) {
-    bodyToLog.password = "***";
-  }
-  
-  console.log(`[DEBUG] Body:`, bodyToLog);
-  next();
-});
-
+// 4. CORS — must be before rate limiters so OPTIONS preflight isn't rate-limited
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-  "http://192.168.254.106:5173", // Your current LAN IP
-  // Add your Public IP or DuckDNS here once ready:
-  // "http://your-public-ip:5173",
-  // "http://machip.duckdns.org"
+  "http://192.168.254.106:5173",
+  "http://192.168.254.100:5173",
+  "http://192.168.254.101:5173",
+  "http://192.168.254.102:5173",
+  "http://192.168.1.100:5173",
+  "http://192.168.1.106:5173",
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps, curl, or Postman)
-      if (!origin) {
-        console.log("[CORS] Allowing request with no origin (Direct/Server-to-Server)");
-        return callback(null, true);
-      }
-      
-      if (allowedOrigins.indexOf(origin) !== -1) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith(".trycloudflare.com")) {
         callback(null, true);
       } else {
         console.warn(`[CORS] REJECTED: origin "${origin}" is not in whitelist.`);
-        // Don't throw a hard error object which crashes Express with 500, just fail CORS
         callback(null, false);
       }
     },
@@ -80,77 +58,67 @@ app.use(
   }),
 );
 
+// 5. Rate limiters (Now placed after body parsing and CORS)
+app.use("/api/auth/login", loginLimiter);
+
+HIGH_FREQ_ROUTES.forEach(route => {
+  app.use(route, pollingLimiter);
+});
+
+app.use("/api", generalLimiter);
+
+// 6. Debug middleware to log requests (after limiters to avoid logging rejected ones)
+app.use((req, res, next) => {
+  console.log(`[DEBUG] ${req.method} ${req.url}`);
+  const bodyToLog = { ...req.body };
+  if (bodyToLog.password) bodyToLog.password = "***";
+  console.log(`[DEBUG] Body:`, bodyToLog);
+  next();
+});
+
+// 7. Static files
 app.use(express.static("public"));
-app.use("/api/uploads", express.static("uploads")); // Move this here and add /api prefix
-app.use("/uploads", express.static("uploads")); // Keep for compatibility
+app.use("/api/uploads", express.static("uploads"));
+app.use("/uploads", express.static("uploads"));
 
-// Connect to the database
-connectDB().then(async () => {
-  console.log("[INIT] System startup: Syncing holidays...");
-  const { syncHolidaysService } = require("./utils/holidaySyncService");
-  syncHolidaysService().catch(err => console.error("[INIT] Initial Holiday Sync Failed:", err.message));
-});
-
-const authMiddleware = require("./middleware/auth");
-
-// --- Public Routes ---
-// Routes for authentication (includes Login and Logout)
+// 8. Public routes
 const authRoutes = require("./routes/auth.routes.js");
-app.use("/api/auth", authRoutes);
-
-// Routes for RFID/ESP32 (Must be public for the device)
 const rfidRoutes = require("./routes/rfid.routes.js");
+const systemController = require("./controllers/system.controller");
+
+app.use("/api/auth", authRoutes);
 app.use("/api/rfid", rfidRoutes);
+app.get("/api/system/time", systemController.getSystemTime);
+app.get("/Machip", (req, res) => res.json({ message: "Welcome to MaChip API." }));
 
-// Make system time public (needed before login)
-app.get("/api/system/time", require("./controllers/system.controller").getSystemTime);
-
-// Basic route for testing
-app.get("/Machip", (req, res) => {
-  res.json({ message: "Welcome to MaChip API." });
-});
-
-// --- Protected Routes (Require Token) ---
+// 9. Auth middleware gates everything below
 app.use("/api", authMiddleware);
 
-// --- Audit Logger (Logs every POST/PUT/DELETE for compliance) ---
+// 10. Protected Routes
 const requestLogger = require("./middleware/requestLogger");
 app.use("/api", requestLogger);
 
-// Routes for users
 const userRoutes = require("./routes/user.routes.js");
-app.use("/api/users", userRoutes);
-
-// Routes for attendance
 const attendanceRoutes = require("./routes/attendance.routes.js");
-app.use("/api/attendance", attendanceRoutes);
-
-// Routes for requests
 const requestRoutes = require("./routes/request.routes.js");
-app.use("/api/request", requestRoutes);
-
-// Routes for payroll
 const payrollRoutes = require("./routes/payroll.routes.js");
-app.use("/api/payroll", payrollRoutes);
-
-// Routes for notifications
 const notificationRoutes = require("./routes/notification.routes.js");
-app.use("/api/notifications", notificationRoutes);
-
-// Routes for system settings
 const systemRoutes = require("./routes/system.routes.js");
+
+app.use("/api/users", userRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/request", requestRoutes);
+app.use("/api/payroll", payrollRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api/system", systemRoutes);
 
 // New route for testing database queries (now protected)
 app.get("/test-query", async (req, res) => {
   try {
-    const [results, metadata] = await sequelize.query("SELECT 1+1 AS result");
+    const [results] = await sequelize.query("SELECT 1+1 AS result");
     res.json({ message: "Database query successful!", result: results });
   } catch (error) {
-    console.error("Error during test query:", error);
-    res
-      .status(500)
-      .json({ message: "Database query failed.", error: error.message });
+    res.status(500).json({ message: "Database query failed.", error: error.message });
   }
 });
 
@@ -158,37 +126,39 @@ app.get("/test-query", async (req, res) => {
 const errorHandler = require("./middleware/errorHandler");
 app.use(errorHandler);
 
-// ── Background Tasks ──────────────────────────────────────────────────────────
+// ── Database Connection and Background Tasks ──────────────────────────────────
+connectDB().then(async () => {
+  console.log("[INIT] System startup: Syncing holidays...");
+  const { syncHolidaysService } = require("./utils/holidaySyncService");
+  syncHolidaysService().catch(err => console.error("[INIT] Initial Holiday Sync Failed:", err.message));
+});
+
 const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
 const { syncHolidaysService } = require("./utils/holidaySyncService");
+const { checkPendingRequests } = require("./utils/requestEscalation");
 const { getSystemTime } = require("./utils/systemTime");
 
-// Flag to ensure we only run once per day
 let lastAbsentCheckDate = null;
 
-// Background Task Manager (Runs every minute to check schedule)
 setInterval(async () => {
-  const now = await getSystemTime(); // Now respects Mock Time
+  const now = await getSystemTime();
   const dateStr = now.toDateString(); 
   const hour = now.getHours();
   const minute = now.getMinutes();
 
-  // 1. Mark Absents: Trigger exactly once at 5:30 PM (17:30)
-  // If Mock Time is jumped directly TO 17:30, it will trigger on the next tick.
   if (hour === 17 && minute === 30 && lastAbsentCheckDate !== dateStr) {
-    console.log(`[SCHEDULED] ${now.toLocaleTimeString()}: Executing Daily Absent Check (System Date: ${dateStr})...`);
+    console.log(`[SCHEDULED] ${now.toLocaleTimeString()}: Executing Daily Absent Check...`);
     lastAbsentCheckDate = dateStr; 
     ensureAbsentsMarked();
   }
 
-  // 2. Sync Holidays: Run exactly once on the 1st of the month at 12:01 AM
   if (now.getDate() === 1 && hour === 0 && minute === 1) {
-    console.log("[SCHEDULED] Monthly Philippine Holiday Sync Triggered...");
     syncHolidaysService();
   }
+
+  checkPendingRequests();
 }, 60 * 1000); 
 
-// Define port and start server
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}.`);

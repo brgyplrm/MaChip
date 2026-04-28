@@ -221,3 +221,54 @@ exports.sendPasswordUpdateEmail = async ({ email, newPassword, name }) => {
   }
 };
 
+/**
+ * Sends a notification to an admin/supervisor about a new request.
+ */
+exports.sendRequestNotificationEmail = async ({ toEmail, approverName, requesterName, requestType, dateStr, duration, isEscalation = false }) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.error("[EMAIL CONFIG ERROR]: Missing credentials.");
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  });
+
+  const subject = isEscalation 
+    ? `URGENT: Pending Request Reminder - ${requesterName}`
+    : `New Request Filed - ${requesterName}`;
+
+  const mailOptions = {
+    from: `"MaChip System" <${EMAIL_USER}>`,
+    to: toEmail,
+    subject: subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: ${isEscalation ? '#e74c3c' : '#2c3e50'};">
+          ${isEscalation ? '⚠️ Escalated Pending Request' : '📄 New Request for Approval'}
+        </h2>
+        <p>Hello ${approverName},</p>
+        <p>${requesterName} has ${isEscalation ? 'a request that has been pending for over 8 hours' : 'filed a new request'}:</p>
+        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; margin: 20px 0;">
+          <p style="margin: 5px 0;"><strong>Type:</strong> ${requestType}</p>
+          <p style="margin: 5px 0;"><strong>Date:</strong> ${dateStr}</p>
+          ${duration ? `<p style="margin: 5px 0;"><strong>Duration/Details:</strong> ${duration}</p>` : ''}
+        </div>
+        <p style="margin-top: 20px;">Please log in to the MaChip portal to review and take action.</p>
+        <br/>
+        <p>Best Regards,<br/><strong>MaChip Notification System</strong></p>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[REQUEST EMAIL SENT] ${isEscalation ? '(ESCALATION)' : ''} to ${toEmail}`);
+  } catch (error) {
+    console.error(`[REQUEST EMAIL ERROR] to ${toEmail}:`, error.message);
+  }
+};
+

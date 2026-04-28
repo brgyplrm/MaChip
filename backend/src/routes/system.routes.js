@@ -11,7 +11,7 @@ router.post("/holidays", requireAdmin, systemController.createHoliday);
 router.delete("/holidays/:holidayId", requireAdmin, systemController.deleteHoliday);
 router.post("/sync-holidays", requireAdmin, systemController.syncHolidays);
 
-router.get("/payroll-periods", requireAdmin, systemController.getPayrollPeriods);
+router.get("/payroll-periods", systemController.getPayrollPeriods);
 router.post("/payroll-periods", requireAdmin, systemController.createPayrollPeriod);
 
 router.get("/audit-logs", requireAdmin, systemController.getAuditLogs);

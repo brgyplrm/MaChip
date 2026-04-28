@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { validateEmailActive, sendWelcomeEmail, sendPasswordUpdateEmail } = require("../utils/emailService");
 const { logAudit } = require("../utils/logger");
+const { encrypt, decrypt } = require("../utils/encryption");
 
 // ── Get Next User ID ──────────────────────────────────────────────────────────
 exports.getNextUserId = async (req, res) => {
@@ -25,7 +26,14 @@ exports.getNextUserId = async (req, res) => {
 // ── Register User ─────────────────────────────────────────────────────────────
 exports.registerUser = async (req, res) => {
   try {
-    const { user_FirstName, user_LastName, user_MachipId, user_Email, user_Password } = req.body || {};
+    const { 
+      user_FirstName, 
+      user_LastName, 
+      user_MachipId, 
+      user_Email, 
+      user_Password,
+      account_Number
+    } = req.body || {};
 
     if (!user_FirstName || !user_LastName || !user_Email || !user_Password) {
       return res.status(400).json({
@@ -70,7 +78,17 @@ exports.registerUser = async (req, res) => {
 
     // Get next ID if not provided by frontend (though frontend sends it)
     let user_Id = req.body.user_Id;
-    if (!user_Id) {
+    
+    if (user_Id) {
+      // Check if manually entered ID already exists
+      const existingId = await sequelize.query(
+        `SELECT "user_Id" FROM "User" WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id }, type: QueryTypes.SELECT },
+      );
+      if (existingId.length > 0) {
+        return res.status(400).json({ error: "User ID already exists. Please choose another or use the auto-generated one." });
+      }
+    } else {
       const result = await sequelize.query(
         `SELECT MAX("user_Id") AS "maxId" FROM "User"`,
         { type: QueryTypes.SELECT },
@@ -92,10 +110,10 @@ exports.registerUser = async (req, res) => {
     await sequelize.query(
       `INSERT INTO "User" (
         "user_Id", "user_FirstName", "user_LastName",
-        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", "createdAt", "updatedAt"
+        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", "account_Number", "createdAt", "updatedAt"
       ) VALUES (
         :user_Id, :user_FirstName, :user_LastName,
-        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, :now, :now
+        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, :account_Number, :now, :now
       )`,
       {
         replacements: {
@@ -109,6 +127,7 @@ exports.registerUser = async (req, res) => {
           user_RoleId: req.body.user_RoleId || 2,
           user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
           user_ProfilePic: req.file ? req.file.filename : null,
+          account_Number: encrypt(account_Number),
           now: nowStr,
         },
         type: QueryTypes.INSERT,
@@ -121,6 +140,9 @@ exports.registerUser = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
     const newUser = newUserResult[0];
+    if (newUser.account_Number) {
+      newUser.account_Number = decrypt(newUser.account_Number);
+    }
 
     await logAudit(req, req.user?.user_Id || 1, "User Management", "CREATE_USER", "User", user_Id, null, newUser);
 
@@ -154,7 +176,15 @@ exports.viewAllUsers = async (req, res) => {
        WHERE u."deletedAt" IS NULL`,
       { type: QueryTypes.SELECT },
     );
-    res.status(200).json(users);
+
+    const decryptedUsers = users.map(user => {
+      if (user.account_Number) {
+        user.account_Number = decrypt(user.account_Number);
+      }
+      return user;
+    });
+
+    res.status(200).json(decryptedUsers);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -170,7 +200,15 @@ exports.viewArchivedUsers = async (req, res) => {
        WHERE u."deletedAt" IS NOT NULL`,
       { type: QueryTypes.SELECT },
     );
-    res.status(200).json(users);
+
+    const decryptedUsers = users.map(user => {
+      if (user.account_Number) {
+        user.account_Number = decrypt(user.account_Number);
+      }
+      return user;
+    });
+
+    res.status(200).json(decryptedUsers);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -188,7 +226,11 @@ exports.viewUserById = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
     if (user.length > 0) {
-      res.status(200).json(user[0]);
+      const userData = user[0];
+      if (userData.account_Number) {
+        userData.account_Number = decrypt(userData.account_Number);
+      }
+      res.status(200).json(userData);
     } else {
       res.status(404).json({ error: "User not found" });
     }
@@ -354,6 +396,7 @@ exports.updateUser = async (req, res) => {
     user_Email,
     user_Password,
     adminConfirmPassword,
+    account_Number,
   } = req.body || {};
 
   try {
@@ -422,13 +465,14 @@ exports.updateUser = async (req, res) => {
     // Build replacements object with explicit types
     const replacements = {
       targetId: parseInt(user_Id),
-      firstName: user_FirstName,
-      lastName: user_LastName,
+      firstName: user_FirstName || null,
+      lastName: user_LastName || null,
       middleName: user_MiddleName || null,
-      machipId: user_MachipId,
-      roleId: parseInt(user_RoleId),
-      statusId: parseInt(user_EmploymentStatusId),
-      email: user_Email,
+      machipId: user_MachipId || null,
+      roleId: parseInt(user_RoleId) || 3,
+      statusId: parseInt(user_EmploymentStatusId) || 1,
+      email: user_Email || null,
+      accountNumber: encrypt(account_Number) || null,
       updatedAt: nowStr
     };
 
@@ -441,6 +485,7 @@ exports.updateUser = async (req, res) => {
         "user_RoleId"    = :roleId,
         "user_EmploymentStatusId" = :statusId,
         "user_Email"     = :email,
+        "account_Number" = :accountNumber,
         "updatedAt"      = :updatedAt
     `;
 
@@ -465,6 +510,9 @@ exports.updateUser = async (req, res) => {
     );
 
     const updatedUser = updatedUserResult[0];
+    if (updatedUser.account_Number) {
+      updatedUser.account_Number = decrypt(updatedUser.account_Number);
+    }
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logAudit(req, currentAdminId, "User Management", "UPDATE_USER", "User", user_Id, oldUser, updatedUser);
@@ -555,6 +603,7 @@ exports.getMasterlist = async (req, res) => {
          u."user_RoleId",
          u."user_EmploymentStatusId",
          u."user_ProfilePic",
+         u."account_Number",
          u."dailyRate",
          u."previousDailyRate",
          u."rateUpdatedAt",
@@ -569,7 +618,15 @@ exports.getMasterlist = async (req, res) => {
        ORDER BY u."user_Id" ASC`,
       { type: QueryTypes.SELECT },
     );
-    res.status(200).json(employees);
+
+    const decryptedEmployees = employees.map(emp => {
+      if (emp.account_Number) {
+        emp.account_Number = decrypt(emp.account_Number);
+      }
+      return emp;
+    });
+
+    res.status(200).json(decryptedEmployees);
   } catch (error) {
     console.error("[GET MASTERLIST ERROR]:", error);
     res.status(500).json({ error: error.message });

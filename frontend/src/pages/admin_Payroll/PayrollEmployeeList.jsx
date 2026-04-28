@@ -10,6 +10,8 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { formatUserId } from "../../utils/formatUserId";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Link } from "react-router-dom";
@@ -25,7 +27,23 @@ const EmployeeList = () => {
   const [editValue, setEditValue] = useState("");
   const [savingId, setSavingId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [visibleAccounts, setVisibleAccounts] = useState(new Set());
   const inputRef = useRef(null);
+
+  const toggleAccountVisibility = (id) => {
+    setVisibleAccounts((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      return newSet;
+    });
+  };
+
+  const maskAccountNumber = (acc) => {
+    if (!acc) return "—";
+    if (acc.length <= 4) return acc;
+    return `**** ${acc.slice(-4)}`;
+  };
 
   const fetchEmployees = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -200,8 +218,8 @@ const EmployeeList = () => {
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Employee No.</th>
-                    <th>Employee Name</th>
+                    <th>Emp</th>
+                    <th>Account Number</th>
                     <th>Position</th>
                     <th>Old Daily Rate</th>
                     <th>New Daily Rate</th>
@@ -226,26 +244,47 @@ const EmployeeList = () => {
                           {/* Row number */}
                           <td className="rowNum">{idx + 1}</td>
 
-                          {/* Employee No */}
-                          <td className="empNo">{formatUserId(emp.user_Id)}</td>
-
-                          {/* Name */}
+                          {/* Combined Name and ID */}
                           <td className="empName">
                             <div className="nameBlock">
                               <div className="avatar">
                                 {emp.user_FirstName?.[0]}{emp.user_LastName?.[0]}
                               </div>
-                              <div>
-                                <span className="name">
+                              <div className="flex flex-col">
+                                <span className="name font-semibold text-[#2A174E]">
                                   {emp.user_FirstName} {emp.user_LastName}
                                 </span>
-                                <span className="email">{emp.email}</span>
+                                <span className="text-xs text-gray-500 font-mono">
+                                  {formatUserId(emp.user_Id)}
+                                </span>
                               </div>
                             </div>
                           </td>
 
+                          {/* Account Number */}
+                          <td className="accountNo">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm min-w-[100px]">
+                                {visibleAccounts.has(emp.user_Id) 
+                                  ? (emp.account_Number || "—") 
+                                  : maskAccountNumber(emp.account_Number)}
+                              </span>
+                              {emp.account_Number && (
+                                <button 
+                                  onClick={() => toggleAccountVisibility(emp.user_Id)}
+                                  className="text-gray-400 hover:text-[#2A174E] transition-colors"
+                                  title={visibleAccounts.has(emp.user_Id) ? "Hide Account Number" : "Show Account Number"}
+                                >
+                                  {visibleAccounts.has(emp.user_Id) 
+                                    ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> 
+                                    : <VisibilityIcon sx={{ fontSize: 16 }} />}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+
                           {/* Position */}
-                          <td className="position">{emp.position || "—"}</td>
+                          <td className="position">{emp.user_Role || "—"}</td>
 
                           {/* Old Daily Rate */}
                           <td className="oldRate">

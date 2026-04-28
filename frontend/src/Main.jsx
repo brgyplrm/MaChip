@@ -4,6 +4,7 @@ import App from "./App";
 import { BrowserRouter } from "react-router-dom"; // Import this here
 import { SystemTimeProvider } from "./context/SystemTimeContext";
 import { RealTimeProvider } from "./context/RealTimeContext";
+import './tailwind.css'
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(

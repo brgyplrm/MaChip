@@ -5,6 +5,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom"; // 1. Import the hook
 import Toast from "../../components/toast/Toast";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
 import { fetchWithAuth } from "../../utils/api";
 
@@ -30,6 +32,8 @@ const New = ({ inputs, title }) => {
   const navigate = useNavigate();
   const [file, setFile] = useState("");
   const [displayId, setDisplayId] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [showRfidModal, setShowRfidModal] = useState(false);
   const [rfidError, setRfidError] = useState("");
   const [formData, setFormData] = useState({
@@ -41,6 +45,7 @@ const New = ({ inputs, title }) => {
     user_Email: "",
     user_Password: "",
     user_MachipId: "",
+    account_Number: "",
     user_RoleId: 3,
   });
 
@@ -70,6 +75,16 @@ const New = ({ inputs, title }) => {
     setFormData((prev) => {
       const updated = { ...prev, [id]: value };
       
+      // Handle manual User ID input
+      if (id === "user_Id") {
+        // Extract numbers from the input (handles both MACJ-001 and 1)
+        const numericMatch = value.match(/\d+/);
+        const numericId = numericMatch ? parseInt(numericMatch[0], 10) : "";
+        updated.user_Id = numericId;
+        // Keep the raw value for display during editing
+        setDisplayId(value);
+      }
+      
       // Sync IDs when select values change
       if (id === "user_Role") {
         updated.user_RoleId = value === "Admin" ? 1 : value === "Staff" ? 2 : 3;
@@ -80,7 +95,15 @@ const New = ({ inputs, title }) => {
       
       return updated;
     });
+
+    // If it was user_Id, we want to format it nicely when they blur, but let them type freely
     setErrors((prev) => ({ ...prev, [id]: "" }));
+  };
+
+  const handleIdBlur = () => {
+    if (formData.user_Id) {
+      setDisplayId(`MACJ-${String(formData.user_Id).padStart(3, "0")}`);
+    }
   };
 
   const handleScanRFID = async () => {
@@ -274,12 +297,31 @@ const New = ({ inputs, title }) => {
                         )}
                       </select>
                     ) : (
-                      <div style={{ width: "100%" }}>
+                      <div style={{ width: "100%", position: "relative" }}>
                         <input
-                          id={input.id} type={input.type} placeholder={input.placeholder}
+                          id={input.id} 
+                          type={
+                            (input.id === "user_Password" && showPassword) || 
+                            (input.id === "account_Number" && showAccountNumber) 
+                              ? "text" 
+                              : input.type
+                          } 
+                          placeholder={input.placeholder}
                           value={input.id === "user_Id" ? displayId : formData[input.id]}
-                          onChange={handleInput} readOnly={input.label === "User ID" || input.label === "MaChip ID"}
+                          onChange={handleInput}
+                          onBlur={input.id === "user_Id" ? handleIdBlur : undefined}
+                          readOnly={input.label === "MaChip ID"}
                         />
+                        {input.id === "user_Password" && (
+                          <div className="eyeIcon" style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", display: "flex", alignItems: "center", height: "100%", color: "gray" }} onClick={() => setShowPassword(!showPassword)}>
+                            {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                          </div>
+                        )}
+                        {input.id === "account_Number" && (
+                          <div className="eyeIcon" style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", display: "flex", alignItems: "center", height: "100%", color: "gray" }} onClick={() => setShowAccountNumber(!showAccountNumber)}>
+                            {showAccountNumber ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                          </div>
+                        )}
                         {errors[input.id] && <span className="error" style={{ color: "red", fontSize: "12px" }}>{errors[input.id]}</span>}
                       </div>
                     )}
