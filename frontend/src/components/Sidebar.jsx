@@ -85,8 +85,13 @@ const Sidebar = () => {
                 </svg>
               </button>
               
-              <Link to={homePath} className="flex ms-2 md:me-24 no-underline">
-                <span className="self-center text-xl font-black sm:text-2xl whitespace-nowrap text-[#2A174E] tracking-tight">MaChip</span>
+              <Link to={homePath} className="flex ms-2 md:me-24 no-underline items-center">
+                <span className="self-center text-xl font-black sm:text-2xl whitespace-nowrap text-[#2A174E] tracking-tight">
+                   <img 
+                  src="/logo2.png" 
+                  alt="MAC-J Logo" 
+                  className="w-[100px] max-[480px]:w-[150px] object-contain"/>
+                </span>
               </Link>
             </div>
 
@@ -199,7 +204,7 @@ const Sidebar = () => {
               </button>
               <ul className={`list-none p-0 mt-1 space-y-1 overflow-hidden transition-all duration-300 ${isServicesOpen ? "max-h-60" : "max-h-0"}`}>
                    <SidebarLink to={isManagement ? "/calendar" : "/employeeCalendar"} label="Calendar" active={isActive("/calendar") || isActive("/employeeCalendar")} />
-                   <SidebarLink to="/AccessLogs" label={isManagement ? "Access Logs" : "My Logs"} active={isActive("/AccessLogs") || isActive("/UserLogs")} />
+                   <SidebarLink to="/logs" label={isManagement ? "Access Logs" : "My Logs"} active={isActive("/AccessLogs") || isActive("/UserLogs")} />
                 </ul>
             </li>
           </ul>

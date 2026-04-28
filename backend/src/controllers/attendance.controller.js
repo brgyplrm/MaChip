@@ -812,6 +812,12 @@ exports.getDashboardStats = async (req, res) => {
   try {
     const now = await getSystemTime();
     const todayStr = now.toISOString().split("T")[0];
+    const roleId = req.user?.user_RoleId;
+    const currentUserId = req.user?.user_Id;
+    
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split("T")[0];
 
     const userCountResult = await sequelize.query(
       `SELECT COUNT(*) as total FROM "User" WHERE "deletedAt" IS NULL`,
@@ -826,11 +832,57 @@ exports.getDashboardStats = async (req, res) => {
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "absentCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 4) AS "onLeaveCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 5) AS "onFieldCount"
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 5) AS "onFieldCount",
+         COUNT(*) FILTER (WHERE "time_Logged_inArr" <> '[]') AS "enteredCount",
+         COUNT(*) FILTER (WHERE "time_Logged_outArr" <> '[]') AS "exitedCount"
        FROM "employee_Logging_report"
        WHERE "log_Date" = :todayStr`,
       { replacements: { todayStr }, type: QueryTypes.SELECT },
     );
+
+    const yesterdayStats = await sequelize.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 1) AS "onTimeCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount"
+       FROM "employee_Logging_report"
+       WHERE "log_Date" = :yesterdayStr`,
+      { replacements: { yesterdayStr }, type: QueryTypes.SELECT },
+    );
+
+    const calculateChange = (today, yesterday) => {
+      if (yesterday === 0) return today > 0 ? 100 : 0;
+      return Math.round(((today - yesterday) / yesterday) * 100);
+    };
+
+    const onTimeChange = calculateChange(
+      parseInt(stats[0].onTimeCount || 0),
+      parseInt(yesterdayStats[0].onTimeCount || 0)
+    );
+    const lateArrivalsChange = calculateChange(
+      parseInt(stats[0].lateArrivalsCount || 0),
+      parseInt(yesterdayStats[0].lateArrivalsCount || 0)
+    );
+
+    // Fetch Pending Requests Count
+    let pendingCount = 0;
+    if (roleId === 1 || roleId === 2) {
+      let pendingQuery = "";
+      let pendingReplacements = { currentUserId };
+      if (roleId === 1) { // Admin
+        pendingQuery = `SELECT COUNT(*)::int as count FROM "emp_Request" er WHERE er."emp_reqStatusId" IN (1, 4) AND er."user_Id" != :currentUserId`;
+      } else { // Supervisor
+        pendingQuery = `SELECT COUNT(*)::int as count FROM "emp_Request" er JOIN "User" u ON er."user_Id" = u."user_Id" WHERE er."emp_reqStatusId" = 1 AND u."user_RoleId" = 3`;
+      }
+      const pendingResult = await sequelize.query(pendingQuery, { replacements: pendingReplacements, type: QueryTypes.SELECT });
+      pendingCount = pendingResult[0].count;
+    }
+
+    // Projected Monthly Payroll (Sum of all user's dailyRate * 22 days)
+    const payrollResult = await sequelize.query(
+      `SELECT SUM("dailyRate" * 22) as projected FROM "User" WHERE "deletedAt" IS NULL`,
+      { type: QueryTypes.SELECT }
+    );
+    const projectedPayroll = Math.round(parseFloat(payrollResult[0].projected || 0));
 
     res.status(200).json({
       totalEmployees,
@@ -840,6 +892,12 @@ exports.getDashboardStats = async (req, res) => {
       absentCount: parseInt(stats[0].absentCount || 0),
       onLeaveCount: parseInt(stats[0].onLeaveCount || 0),
       onFieldCount: parseInt(stats[0].onFieldCount || 0),
+      enteredCount: parseInt(stats[0].enteredCount || 0),
+      exitedCount: parseInt(stats[0].exitedCount || 0),
+      onTimeChange,
+      lateArrivalsChange,
+      pendingCount,
+      projectedPayroll
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

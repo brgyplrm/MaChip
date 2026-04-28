@@ -174,7 +174,6 @@ const UserLogs = () => {
     <div className="logsListPage">
       <Sidebar />
       <div className="logsListContainer">
-        <Navbar />
         <div className="wrapper">
           <div className="header">
             <div className="title">

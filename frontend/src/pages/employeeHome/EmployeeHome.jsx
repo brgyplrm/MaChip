@@ -64,10 +64,12 @@ const EmployeeHome = () => {
   const totalTrackedDays = att.absent + att.onTime + att.late || 1;
 
   return (
-    <div className="home">
+    <div className="flex bg-[#fdfaf5] min-h-screen">
       <Sidebar />
-      <div className="homeContainer">
-        <Navbar />
+      {/* SPACER FOR FIXED SIDEBAR */}
+      <div className="hidden sm:block w-64 flex-shrink-0"></div>
+
+      <div className="flex-1 min-w-0 pt-20">
         <Toast 
           message={toast.message} 
           type={toast.type} 

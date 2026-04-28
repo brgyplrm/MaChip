@@ -253,7 +253,6 @@ const Logs = () => {
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
       <Sidebar />
       <div className="logsContainer">
-        <Navbar />
         <div className="datatable">
           <div className="datatableTitle">
             <div className="title">

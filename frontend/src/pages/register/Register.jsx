@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { formatUserId } from '../../utils/formatUserId';
 import { fetchWithAuth } from '../../utils/api';
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import Toast from "../../components/toast/Toast";
 import "./register.scss";
 
@@ -77,10 +76,12 @@ function Register() {
   };
 
   return (
-    <div className="home">
+    <div className="flex bg-[#fdfaf5] min-h-screen">
       <Sidebar />
-      <div className="homeContainer">
-        <Navbar />
+      {/* SPACER FOR FIXED SIDEBAR */}
+      <div className="hidden sm:block w-64 flex-shrink-0"></div>
+
+      <div className="flex-1 min-w-0 pt-20">
         <div className="register-container">
           <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
           

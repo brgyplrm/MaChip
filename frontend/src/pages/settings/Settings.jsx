@@ -76,7 +76,6 @@ const Settings = () => {
     <div className="settings">
       <Sidebar />
       <div className="settingsContainer">
-        <Navbar />
         <div className="settingsWrapper">
           <h1 className="title">System Settings</h1>
           <div className="content">
