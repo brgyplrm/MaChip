@@ -18,6 +18,7 @@ const keyByUser = (req) => {
   } catch (_) {
     // Token invalid or missing — fall back to IP
   }
+  // Use express-rate-limit's default IP detection which handles IPv6
   return req.ip;
 };
 
@@ -26,11 +27,11 @@ const keyByUser = (req) => {
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  keyGenerator: (req) => req.ip,
+  // Removing custom keyGenerator to let it use the internal safe IP logic
   message: { error: "Too many login attempts. Please try again after 15 minutes." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: true },
+  validate: { trustProxy: true, keyGeneratorIpFallback: false },
 });
 
 // ── HIGH_FREQ_ROUTES ──────────────────────────────────────────────────────────
@@ -52,7 +53,7 @@ const pollingLimiter = rateLimit({
   message: { error: "Excessive polling detected. Please slow down." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: true },
+  validate: { trustProxy: true, keyGeneratorIpFallback: false },
 });
 
 // ── General Limiter ───────────────────────────────────────────────────────────
@@ -64,7 +65,7 @@ const generalLimiter = rateLimit({
   message: { error: "Too many requests. Please slow down." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: true },
+  validate: { trustProxy: true, keyGeneratorIpFallback: false },
   skip: (req) =>
     HIGH_FREQ_ROUTES.some((route) =>
       req.baseUrl.concat(req.path).startsWith(route)
