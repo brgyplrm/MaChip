@@ -1,10 +1,7 @@
 import "./notifications.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
-import { DataGrid } from "@mui/x-data-grid";
-import { notificationColumns } from "../../utils/notificationSource";
 import { useState, useEffect } from "react";
-import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import { useNavigate } from "react-router-dom";
@@ -15,6 +12,11 @@ const Notifications = () => {
   const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
   const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
+
+  // --- PAGINATION STATE ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage] = useState(10);
+  const [goToValue, setGoToValue] = useState("");
 
   const fetchNotifications = async () => {
     if (!userData?.user_Id) return;
@@ -29,6 +31,26 @@ const Notifications = () => {
       console.error("Error fetching notifications:", err);
     }
   };
+
+  // --- PAGINATION LOGIC ---
+  const indexOfLastItem = currentPage * rowsPerPage;
+  const indexOfFirstItem = indexOfLastItem - rowsPerPage;
+  const currentNotifs = notifications.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(notifications.length / rowsPerPage) || 1;
+
+  const handleGoToPage = (e) => {
+    e.preventDefault();
+    const pageNum = parseInt(goToValue);
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      setCurrentPage(pageNum);
+      setGoToValue("");
+    }
+  };
+
+  const pageNumbers = [];
+  for (let i = 1; i <= totalPages; i++) {
+    pageNumbers.push(i);
+  }
 
   useEffect(() => {
     fetchNotifications();
@@ -50,6 +72,11 @@ const Notifications = () => {
       window.removeEventListener("dataRefresh", fetchNotifications);
     };
   }, [userData?.user_Id, viewMode]);
+
+  // Reset to page 1 when the user switches view modes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [viewMode]);
 
   const handleMarkAllRead = async () => {
     if (!userData?.user_Id) return;
@@ -90,7 +117,6 @@ const Notifications = () => {
     } else if (notif.title === "New Request for Review") {
       navigate("/adminRequests");
     } else if (notif.targetId) {
-      // General redirection for personal request status updates
       navigate(`/requests/${notif.targetId}`);
     }
   };
@@ -112,8 +138,8 @@ const Notifications = () => {
 
           <div className="notifCard">
             <div className="notifList">
-              {notifications.length > 0 ? (
-                notifications.map((notif) => (
+              {currentNotifs.length > 0 ? (
+                currentNotifs.map((notif) => (
                   <div 
                     key={notif.notifId} 
                     className={`notifItem ${notif.isRead ? 'read' : 'unread'}`}
@@ -134,6 +160,61 @@ const Notifications = () => {
                 <div className="noNotifs">No notifications found.</div>
               )}
             </div>
+          </div>
+
+          {/* PAGINATION UI --- */}
+          <div className="paginationWrapper">
+            <nav aria-label="Notification pagination" className="paginationNav">
+              <ul className="paginationList">
+                <li>
+                  <button 
+                    className="pageBtn prev" 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                  >
+                    Previous
+                  </button>
+                </li>
+                
+                {pageNumbers.map(number => (
+                  <li key={number}>
+                    <button 
+                      className={`pageBtn ${currentPage === number ? "active" : ""}`}
+                      onClick={() => setCurrentPage(number)}
+                    >
+                      {number}
+                    </button>
+                  </li>
+                ))}
+
+                <li>
+                  <button 
+                    className="pageBtn next" 
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                  >
+                    Next
+                  </button>
+                </li>
+              </ul>
+              
+              <form className="goToPageForm" onSubmit={handleGoToPage}>
+                <div className="formGroup">
+                  <label htmlFor="goToPage">Go to</label>
+                  <input 
+                    type="number" 
+                    id="goToPage" 
+                    placeholder={totalPages}
+                    value={goToValue}
+                    onChange={(e) => setGoToValue(e.target.value)}
+                    min="1"
+                    max={totalPages}
+                    required 
+                  />
+                  <span>page</span>
+                </div>
+              </form>
+            </nav>
           </div>
         </div>
       </div>

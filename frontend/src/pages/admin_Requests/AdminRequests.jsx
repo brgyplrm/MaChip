@@ -237,8 +237,10 @@ const AdminRequests = () => {
                   {filteredRequests.length})
                 </h4>
                 {loading ? (
-                  <p>Loading...</p>
-                ) : (
+                  <div className="loadingState">
+                    <p>Syncing requests...</p> 
+                  </div>
+                ) : filteredRequests.length > 0 ? (
                   filteredRequests.map((req, index) => (
                     <div
                       className={`requestItem ${selectedIdx === index ? "selected" : ""}`}
@@ -257,6 +259,19 @@ const AdminRequests = () => {
                       <p className="dateRange">{getDates(req)}</p>
                     </div>
                   ))
+                ): (
+                  // User-Friendly Empty State
+                  <div className="emptyQueueState">
+                    <div className="iconWrapper">
+                      <CheckCircleOutlineIcon className="checkIcon" />
+                    </div>
+                    <h5>All Caught Up!</h5>
+                    <p>
+                      {activeTab === "pending" 
+                        ? "There are no pending requests requiring your attention right now." 
+                        : "Your history is currently empty."}
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -312,6 +327,12 @@ const AdminRequests = () => {
                       <label>Employee Name</label>
                       <p>{current.userName}</p>
                     </div>
+
+                    <div className="detailBox highlighted">
+                      <label>Requested Schedule</label>
+                      <p className="eventDateText">{getDates(current)}</p>
+                    </div>
+                    
                     <div className="detailBox">
                       <label>Duration / Details</label>
                       <p>
@@ -476,8 +497,31 @@ const AdminRequests = () => {
                   )}
                 </>
               ) : (
-                <div className="noSelection">
-                  <p>Select a request to view details</p>
+                <div className="skeletonDetailView">
+                  <div className="skeletonHeader">
+                    <div className="skeletonTitle">
+                      <div className="skeletonLine long"></div>
+                      <div className="skeletonLine short"></div>
+                    </div>
+                    <div className="skeletonBadge"></div>
+                  </div>
+
+                  <div className="skeletonGrid">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="skeletonBox">
+                        <div className="skeletonLabel"></div>
+                        <div className="skeletonValue"></div>
+                      </div>
+                    ))}
+                    <div className="skeletonBox fullWidth">
+                      <div className="skeletonLabel"></div>
+                      <div className="skeletonValue large"></div>
+                    </div>
+                  </div>
+                  
+                  <div className="skeletonInstruction">
+                    <p>Select a request from the queue to review details</p>
+                  </div>
                 </div>
               )}
             </div>
