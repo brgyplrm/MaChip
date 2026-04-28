@@ -1,43 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import "./featured.scss";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { CircularProgressbar } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpOutlinedIcon from "@mui/icons-material/KeyboardArrowUpOutlined";
-import { fetchWithAuth } from "../../utils/api";
 
-const Featured = () => {
-  const [stats, setStats] = useState({
-    totalEmployees: 0,
-    officeOccupancy: 0,
-    onTimeCount: 0,
-    lateArrivalsCount: 0,
-    absentCount: 0,
-    onLeaveCount: 0
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await fetchWithAuth("/api/attendance/stats");
-        if (response.ok) {
-          const data = await response.json();
-          setStats(data);
-        }
-      } catch (error) {
-        console.error("Error fetching featured stats:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-
-    window.addEventListener("dataRefresh", fetchStats);
-    return () => window.removeEventListener("dataRefresh", fetchStats);
-  }, []);
+const Featured = ({ stats, loading }) => {
+  if (loading) {
+    return (
+      <div className="featured">
+        <div className="top">
+          <h1 className="title">Daily Attendance Summary</h1>
+        </div>
+        <div className="bottom">
+          <p>Loading summary...</p>
+        </div>
+      </div>
+    );
+  }
 
   const presentCount = stats.onTimeCount + stats.lateArrivalsCount;
   const attendancePercentage = stats.totalEmployees > 0 

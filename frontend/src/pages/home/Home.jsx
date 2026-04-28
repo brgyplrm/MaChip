@@ -15,11 +15,34 @@ const Home = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
   const viewMode = localStorage.getItem("viewMode") || "management";
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [stats, setStats] = useState({
+    totalEmployees: 0,
+    officeOccupancy: 0,
+    onTimeCount: 0,
+    lateArrivalsCount: 0,
+    absentCount: 0,
+    onLeaveCount: 0
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
 
   // If management role is in employee mode, redirect them to the employee dashboard
   if (viewMode === "employee") {
     return <Navigate to="/employeeHome" replace />;
   }
+
+  const fetchDashboardStats = async () => {
+    try {
+      const response = await fetchWithAuth("/api/attendance/stats");
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data);
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Show for both Admins (1) and Supervisors (2)
@@ -42,9 +65,21 @@ const Home = () => {
     };
 
     fetchPendingCount();
+    fetchDashboardStats();
 
-    window.addEventListener("dataRefresh", fetchPendingCount);
-    return () => window.removeEventListener("dataRefresh", fetchPendingCount);
+    // Poll every 60 seconds as a fallback
+    const interval = setInterval(fetchDashboardStats, 60000);
+
+    const handleRefresh = () => {
+      fetchPendingCount();
+      fetchDashboardStats();
+    };
+
+    window.addEventListener("dataRefresh", handleRefresh);
+    return () => {
+      window.removeEventListener("dataRefresh", handleRefresh);
+      clearInterval(interval);
+    };
   }, [userData?.user_RoleId]);
 
   return (
@@ -60,12 +95,12 @@ const Home = () => {
           duration={5000}
         />
         <div className="widgets">
-          <Widget type="officeOccupancy" />
-          <Widget type="onTime" />
-          <Widget type="lateArrivals" />
+          <Widget type="officeOccupancy" amount={stats.officeOccupancy} loading={statsLoading} />
+          <Widget type="onTime" amount={stats.onTimeCount} loading={statsLoading} />
+          <Widget type="lateArrivals" amount={stats.lateArrivalsCount} loading={statsLoading} />
         </div>
         <div className="charts">
-          <Featured />
+          <Featured stats={stats} loading={statsLoading} />
           <Chart title="Attendance Comparison Chart" aspect={2 / 1} />
         </div>
         <div className="listContainer">
