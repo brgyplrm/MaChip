@@ -279,7 +279,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
 
   // 2. Holiday Premiums (Extra pay)
   const legalHol_Amnt = (stats.legalHol_Days * dailyRate);
-  const specialHol_Amnt = (stats.specialHol_Days * dailyRate * 0.3);
+  const specialHol_Amnt = (stats.specialHol_Days * dailyRate * 0.25);
 
   // 3. Other Earnings
   const OT_Amnt = stats.OT_Hrs * ratePerHr;
