@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./userRequests.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import SendIcon from "@mui/icons-material/Send";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';

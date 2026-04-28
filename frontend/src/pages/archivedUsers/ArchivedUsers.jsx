@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import "./archivedUsers.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import SearchIcon from "@mui/icons-material/Search";
 import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';

@@ -1,6 +1,5 @@
 import "./new.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom"; // 1. Import the hook
 import Toast from "../../components/toast/Toast";

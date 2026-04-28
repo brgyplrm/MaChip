@@ -1,6 +1,5 @@
 import "./profile.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import Chart from "../../components/chart/Chart";
 import Table from "../../components/table/Table";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";

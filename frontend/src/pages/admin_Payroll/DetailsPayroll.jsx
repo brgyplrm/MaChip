@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./detailsPayroll.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";

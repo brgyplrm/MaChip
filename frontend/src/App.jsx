@@ -1,4 +1,4 @@
-import Home from "./pages/home/Home";
+import Home from "./pages/admin/Home";
 import EmployeeHome from "./pages/employeeHome/EmployeeHome";
 import UserRequests from "./pages/userRequests/UserRequests"; 
 import Login from "./pages/login/Login";

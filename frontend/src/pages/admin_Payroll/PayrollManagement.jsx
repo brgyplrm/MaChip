@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./payroll_Management.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
@@ -182,7 +181,6 @@ const Payroll = () => {
     <div className="payroll">
       <Sidebar />
       <div className="payrollContainer">
-        <Navbar />
         <div className="wrapper">
           <div className="header">
             <div className="text">

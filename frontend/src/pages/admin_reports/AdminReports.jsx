@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import "./adminReports.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import AssessmentIcon from "@mui/icons-material/Assessment";

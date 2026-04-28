@@ -1,6 +1,5 @@
 import "./single.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import Chart from "../../components/chart/Chart";
 import List from "../../components/table/Table";
 import { Link, useParams } from "react-router-dom";

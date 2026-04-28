@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./adminRequests.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";

@@ -1,6 +1,5 @@
 import "./editUser.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";

@@ -1,5 +1,5 @@
 import "./calendarManagement.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
+import Sidebar from "../../components/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -271,7 +271,6 @@ const CalendarManagement = () => {
     <div className="home calendarPage">
       <Sidebar />
       <div className="homeContainer">
-        <Navbar />
         <PageTransition>
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         <div className="calendarWrapper">

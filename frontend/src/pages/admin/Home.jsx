@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 // import "./home.scss"; // Removed in favor of Tailwind CSS
 import Widget from "../../components/widget/Widget";
 import Featured from "../../components/featured/Featured";
@@ -84,9 +83,8 @@ const Home = () => {
 
   return (
     <div className="flex w-full overflow-x-hidden bg-[#fdfaf5]">
-      <Sidebar />
+       <Sidebar />
       <div className="flex-[6] w-full min-h-screen">
-        <Navbar />
         <PageTransition>
         <Toast 
           message={toast.message} 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./employeeCalendar.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { useSystemTime } from "../../context/SystemTimeContext";

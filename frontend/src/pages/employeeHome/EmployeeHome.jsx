@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./employeeHome.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import HistoryIcon from '@mui/icons-material/History';

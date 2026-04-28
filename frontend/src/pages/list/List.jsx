@@ -1,6 +1,5 @@
 import "./list.scss"
-import Sidebar from "../../components/sidebar/Sidebar"
-import Navbar from "../../components/navbar/Navbar"
+import Sidebar from "../../components/Sidebar";
 import Datatable from "../../components/datatable/Datatable"
 //import PageTransition from "../../components/PageTransition/PageTransition"
 
@@ -9,7 +8,6 @@ const List = () => {
     <div className="list">
       <Sidebar/>
       <div className="listContainer">
-        <Navbar/>
         {/* <PageTransition> */}
           <Datatable/>
         {/* </PageTransition> */}

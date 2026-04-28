@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import "./UserLogs.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import HistoryIcon from '@mui/icons-material/History';
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";

@@ -1,6 +1,5 @@
 import "./notifications.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import { DataGrid } from "@mui/x-data-grid";
 import { notificationColumns } from "../../utils/notificationSource";
 import { useState, useEffect } from "react";

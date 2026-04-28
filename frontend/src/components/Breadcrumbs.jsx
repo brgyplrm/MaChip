@@ -2,7 +2,6 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import HomeIcon from "@mui/icons-material/Home";
-import "./breadcrumbs.scss";
 
 const Breadcrumbs = () => {
   const location = useLocation();
@@ -35,10 +34,14 @@ const Breadcrumbs = () => {
   };
 
   return (
-    <nav className="breadcrumbs">
+    <nav className="flex items-center py-2.5 gap-2 font-['Nunito',_sans-serif]">
       {/* Root Home Link */}
-      <Link to={homePath} className="breadcrumb-link">
-        <HomeIcon className="home-icon" />
+      <Link 
+        to={homePath} 
+        className="flex items-center gap-1.5 text-[#888] text-xs md:text-sm transition-all duration-200 ease-in hover:text-[#2A174E] hover:underline"
+      >
+        {/* We use !text-[15px] to ensure Tailwind overrides Material UI's default icon sizes */}
+        <HomeIcon className="!text-[15px] md:!text-[18px]" />
         <span>{homeLabel}</span>
       </Link>
 
@@ -52,13 +55,18 @@ const Breadcrumbs = () => {
 
         return (
           <React.Fragment key={to}>
-            <NavigateNextIcon className="separator" />
+            <NavigateNextIcon className="text-[#ccc] !text-[18px]" />
             {last ? (
               // Current page is text only (not clickable)
-              <span className="breadcrumb-current">{displayName}</span>
+              <span className="text-[#2A174E] font-bold text-xs md:text-sm">
+                {displayName}
+              </span>
             ) : (
               // Parent pages are clickable Links
-              <Link to={to} className="breadcrumb-link">
+              <Link 
+                to={to} 
+                className="flex items-center gap-1.5 text-[#888] text-xs md:text-sm transition-all duration-200 ease-in hover:text-[#2A174E] hover:underline"
+              >
                 {displayName}
               </Link>
             )}
