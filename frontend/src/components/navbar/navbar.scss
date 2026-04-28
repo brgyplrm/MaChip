@@ -5,11 +5,7 @@
   align-items: center;
   font-size: 14px;
   color: #555;
-<<<<<<< HEAD
-  background: #ffffff;
-=======
   background: #fff;
->>>>>>> machip-UIChanges
 
   .wrapper {
     width: 100%;
@@ -121,22 +117,14 @@
 
         .icon {
           font-size: 30px;
-<<<<<<< HEAD
-          color: #2A174E;
-=======
           color: #555;
->>>>>>> machip-UIChanges
           transition: all 0.2s ease;
         }
 
         &:hover {
           .icon {
             transform: scale(1.1); // Slightly enlarges the icon
-<<<<<<< HEAD
-            color: #4F2A94; // Subtle color change
-=======
             color: #2A174E; // Subtle color change
->>>>>>> machip-UIChanges
           }
           
           /* Optional: Shake animation for the bell */
