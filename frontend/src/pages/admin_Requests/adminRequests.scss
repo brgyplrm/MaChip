@@ -18,9 +18,11 @@ $rejected-text: #b91c1c;
 .adminRequests {
   display: flex;
   background-color: $bg-light;
+  overflow-x: hidden;
 
   .homeContainer {
     flex: 6;
+    min-width: 0;
 
     .adminWrapper {
       padding: 25px;
@@ -28,10 +30,15 @@ $rejected-text: #b91c1c;
       flex-direction: column;
       gap: 25px;
 
+      @media (max-width: 768px) { padding: 10px; }
+
       // Top Statistics Row
       .statsRow {
         display: flex;
         gap: 20px;
+        @media (max-width: 768px) {
+        flex-direction: column; // Stack the 3 stat cards
+      }
 
         .statCard {
           flex: 1;
@@ -75,6 +82,25 @@ $rejected-text: #b91c1c;
         gap: 25px;
         height: calc(100vh - 250px); // Ensures scrollable areas
 
+        @media (max-width: 1024px) {
+        flex-direction: column; // Stack List on top, Details on bottom
+        height: auto;
+
+        .leftColumn, .rightColumn {
+        @media (max-width: 1024px) {
+          width: 100%;
+          flex: none;
+        }
+      }
+
+      .leftColumn .filterBar {
+        @media (max-width: 480px) {
+          flex-direction: column;
+          align-items: stretch;
+        }
+      }
+      }
+
         // Left Sidebar: Request Queue
         .requestListSidebar {
           flex: 1.2;
@@ -84,6 +110,11 @@ $rejected-text: #b91c1c;
           flex-direction: column;
           overflow: hidden;
           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+
+          @media (max-width: 1024px) {
+            flex: none;
+            height: 350px; // Limits the list height on mobile so users can see the details box below it
+          }
 
           .tabHeader {
             display: flex;
@@ -190,6 +221,12 @@ $rejected-text: #b91c1c;
           overflow-y: auto;
           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
 
+          @media (max-width: 1024px) {
+            flex: none;
+            overflow-y: visible; 
+            padding: 20px;
+          }
+
           .detailHeader {
             display: flex;
             justify-content: space-between;
@@ -197,6 +234,11 @@ $rejected-text: #b91c1c;
             border-bottom: 1px solid $border-color;
             padding-bottom: 20px;
             margin-bottom: 25px;
+
+            @media (max-width: 768px) {
+              flex-direction: column; // Stacks Title and Actions vertically
+              gap: 15px;
+            }
 
             .statusBadge {
               font-size: 12px;
@@ -226,6 +268,10 @@ $rejected-text: #b91c1c;
               display: flex;
               gap: 12px;
 
+              @media (max-width: 768px) {
+                width: 100%; // Make actions area full width on mobile
+              }
+
               button {
                 display: flex;
                 align-items: center;
@@ -236,6 +282,10 @@ $rejected-text: #b91c1c;
                 font-weight: 700;
                 cursor: pointer;
                 transition: 0.2s;
+
+                @media (max-width: 768px) {
+                  flex: 1; // Makes Approve and Reject buttons exactly 50% width each
+                }
 
                 &.approveBtn {
                   background: #15803d;
@@ -248,6 +298,13 @@ $rejected-text: #b91c1c;
                   color: white;
                   &:hover { background: #991b1b; }
                 }
+
+                .statusBadge {
+                @media (max-width: 768px) {
+                  width: 100%;
+                  text-align: center;
+                }
+              }
               }
             }
           }
@@ -260,6 +317,16 @@ $rejected-text: #b91c1c;
             padding: 25px;
             border-radius: 12px;
             border: 1px solid #edf2f7;
+
+            @media (max-width: 1024px) {
+              grid-template-columns: repeat(2, 1fr); // 2 columns for tablets
+              padding: 15px;
+              gap: 15px;
+            }
+
+            @media (max-width: 600px) {
+              grid-template-columns: 1fr; // 1 column for phones
+            }
 
             .detailBox {
               label {

@@ -10,8 +10,13 @@ import CloseIcon from '@mui/icons-material/Close';
 import Toast from "../../components/toast/Toast";
 import ActionModal from "../../components/actionModal/ActionModal";
 import InfoModal from "../../components/infoModal/InfoModal";
+<<<<<<< HEAD
 //import PageTransition from "../../components/pageTransition/PageTransition";
 import { useSelector } from "react-redux";
+=======
+import { useState, useEffect } from "react";
+import { formatUserId } from "../../utils/formatUserId";
+>>>>>>> machip-UIChanges
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
 import { useState, useEffect } from "react";
@@ -29,6 +34,22 @@ const CalendarManagement = () => {
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null); // { id, type }
+  const [selectedDayDetails, setSelectedDayDetails] = useState(null);
+
+  const handleDayClick = (day) => {
+  const dayEvents = getEventsForDay(day);
+  
+  // Format the date nicely for the modal title (e.g., "Monday, April 15, 2026")
+  const dateObj = new Date(year, monthIndex, day);
+  const formattedDate = dateObj.toLocaleDateString(undefined, { 
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+  });
+
+  setSelectedDayDetails({
+    date: formattedDate,
+    events: dayEvents
+  });
+};
 
   const initiateDelete = (id, type) => {
     setItemToDelete({ id, type });
@@ -66,9 +87,7 @@ const CalendarManagement = () => {
   };
 
   const userData = JSON.parse(localStorage.getItem("userData") || "{}");
-  const userId = userData.user_Id;
   const isAdmin = userData.user_RoleId === 1;
-  const isSupervisor = userData.user_RoleId === 2;
 
   const [selectedHolidayWork, setSelectedHolidayWork] = useState(null);
   const [selectedFieldLog, setSelectedFieldLog] = useState(null);
@@ -320,7 +339,11 @@ const CalendarManagement = () => {
                       if (isToday) cellClass += " is-today";
 
                       return (
-                        <div key={d} className={cellClass}>
+                        <div 
+                            key={d} 
+                            className={`${cellClass} clickableCell`} // Added clickableCell class
+                            onClick={() => handleDayClick(d)}        // Trigger the modal
+                          >
                           <span className="dayNum">{d}</span>
                           {dayEvents.map((e, i) => {
                             let typeClass = "legal";
@@ -508,42 +531,81 @@ const CalendarManagement = () => {
             </div>
           )}
            <ActionModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={confirmDelete}
-        variant="danger"
-        title="Confirm Deletion"
-        message="Are you sure you want to remove this calendar entry? This action cannot be undone."
-      />
-      {/* Holiday Conflict Modal */}
-      <InfoModal 
-        isOpen={!!selectedHolidayWork} 
-        onClose={() => setSelectedHolidayWork(null)}
-        title={`Field Work on ${selectedHolidayWork?.holiday.name}`}
-      >
-        <div className="conflictList">
-          {selectedHolidayWork?.matchingWork.map((work, i) => (
-            <div key={i} className="workDetailItem">
-              <strong>Location:</strong> {work.details} <br/>
-              <strong>Assigned:</strong> {userData.user_FirstName} {userData.user_LastName}
-            </div>
-          ))}
-        </div>
-      </InfoModal>
+              isOpen={showDeleteModal}
+              onClose={() => setShowDeleteModal(false)}
+              onConfirm={confirmDelete}
+              variant="danger"
+              title="Confirm Deletion"
+              message="Are you sure you want to remove this calendar entry? This action cannot be undone."
+            />
+            {/* Holiday Conflict Modal */}
+            <InfoModal 
+              isOpen={!!selectedHolidayWork} 
+              onClose={() => setSelectedHolidayWork(null)}
+              title={`Field Work on ${selectedHolidayWork?.holiday.name}`}
+            >
+              <div className="conflictList">
+                {selectedHolidayWork?.matchingWork.map((work, i) => (
+                  <div key={i} className="workDetailItem">
+                    <strong>Location:</strong> {work.details} <br/>
+                    <strong>Assigned:</strong> {userData.user_FirstName} {userData.user_LastName}
+                  </div>
+                ))}
+              </div>
+            </InfoModal>
 
-      {/* Field Work Log Modal */}
-      <InfoModal 
-        isOpen={!!selectedFieldLog} 
-        onClose={() => setSelectedFieldLog(null)}
-        title="Field Work Log Summary"
-      >
-        <div className="logSummary">
-          <div className="summaryRow"><span>Date:</span> <span>{selectedFieldLog?.date}</span></div>
-          <div className="summaryRow"><span>Task:</span> <span>{selectedFieldLog?.details}</span></div>
-          <hr />
-          <p className="statusNote">This assignment is automatically credited as 8 hours worked on-field.</p>
-        </div>
-      </InfoModal>
+            {/* Field Work Log Modal */}
+            <InfoModal 
+              isOpen={!!selectedFieldLog} 
+              onClose={() => setSelectedFieldLog(null)}
+              title="Field Work Log Summary"
+            >
+              <div className="logSummary">
+                <div className="summaryRow"><span>Date:</span> <span>{selectedFieldLog?.date}</span></div>
+                <div className="summaryRow"><span>Task:</span> <span>{selectedFieldLog?.details}</span></div>
+                <hr />
+                <p className="statusNote">This assignment is automatically credited as 8 hours worked on-field.</p>
+              </div>
+            </InfoModal>
+
+            {/* Day Details Modal */}
+            <InfoModal 
+              isOpen={!!selectedDayDetails} 
+              onClose={() => setSelectedDayDetails(null)}
+              title={`Schedule for ${selectedDayDetails?.date}`}
+            >
+              <div className="dailyEventsList">
+                {selectedDayDetails?.events.length > 0 ? (
+                  selectedDayDetails.events.map((event, idx) => {
+                    // Determine class based on your existing logic
+                    let typeClass = "legal";
+                    if (event.type === "Holiday") {
+                      typeClass = event.details.toLowerCase().includes("special") ? "special" : "legal";
+                    } else if (event.type === "Leave") typeClass = "leave";
+                    else if (event.type === "Field Work") typeClass = "field";
+                    else if (event.type === "Overtime") typeClass = "ot";
+
+                    return (
+                      <div key={idx} className={`eventDetailItem ${typeClass}`}>
+                        <div className="eventHeader">
+                          <span className={`dot ${typeClass}`}></span>
+                          <strong>{event.type}</strong>
+                        </div>
+                        <p className="eventName">{event.name || event.details}</p>
+                        {/* Show extra details if it's field work */}
+                        {event.type === "Field Work" && (
+                          <p className="eventSubtext">Automatically credited as 8 hours on-field.</p>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="emptyDayState">
+                    <p>No events or assignments scheduled for this day.</p>
+                  </div>
+                )}
+              </div>
+            </InfoModal>
         </div>
         {/* </PageTransition> */}
       </div>

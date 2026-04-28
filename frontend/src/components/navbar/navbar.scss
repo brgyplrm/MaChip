@@ -5,7 +5,11 @@
   align-items: center;
   font-size: 14px;
   color: #555;
+<<<<<<< HEAD
   background: #ffffff;
+=======
+  background: #fff;
+>>>>>>> machip-UIChanges
 
   .wrapper {
     width: 100%;
@@ -15,9 +19,21 @@
     align-items: center;
     justify-content: space-between;
 
+    @media (min-width: 768px) {
+      padding-left: 65px; 
+      padding: 0px 10px;
+    }
+
     .breadcrumbs {
       display: flex;
       align-items: center;
+
+      font-size: 14px;
+
+      @media (max-width: 768px) {
+        font-size: 12px;
+        padding-left: 60px; /* 1. Shrinks the overall text on mobile */
+      }
       
       a {
         text-decoration: none;
@@ -93,17 +109,34 @@
         margin-right: 20px;
         position: relative;
         cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+            .icon {
+              transform: scale(1.1);
+              color: #2A174E;
+            }
+            .icon { animation: bellShake 0.5s ease; }
+          }
 
         .icon {
           font-size: 30px;
+<<<<<<< HEAD
           color: #2A174E;
+=======
+          color: #555;
+>>>>>>> machip-UIChanges
           transition: all 0.2s ease;
         }
 
         &:hover {
           .icon {
             transform: scale(1.1); // Slightly enlarges the icon
+<<<<<<< HEAD
             color: #4F2A94; // Subtle color change
+=======
+            color: #2A174E; // Subtle color change
+>>>>>>> machip-UIChanges
           }
           
           /* Optional: Shake animation for the bell */
@@ -142,6 +175,80 @@
           top: -5px;
           right: -5px;
         }
+        &.profileWrapper {
+            /* Create an invisible bridge so the menu doesn't close when the mouse leaves the avatar */
+            padding-bottom: 15px; 
+            margin-bottom: -15px;
+
+            &:hover {
+              .avatar {
+                transform: scale(1.05);
+                border-color: #2A174E;
+              }
+              .dropdownMenu {
+                visibility: visible;
+                opacity: 1;
+                transform: translateY(0);
+                pointer-events: auto;
+              }
+            }
+
+            .dropdownMenu {
+              position: absolute;
+              top: 100%;
+              right: 0;
+              background: white;
+              border-radius: 12px;
+              box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.12);
+              min-width: 200px;
+              display: flex;
+              flex-direction: column;
+              overflow: hidden;
+              z-index: 100;
+              
+              /* Animation properties */
+              visibility: hidden;
+              opacity: 0;
+              transform: translateY(10px);
+              transition: all 0.2s ease-in-out;
+              pointer-events: none;
+
+              .dropdownItem {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 14px 20px;
+                text-decoration: none;
+                color: #4a5568;
+                border-bottom: 1px solid #f1f3f5;
+                transition: background-color 0.2s ease;
+
+                &:last-child {
+                  border-bottom: none;
+                }
+
+                .icon {
+                  font-size: 20px;
+                  color: #2A174E;
+                  transition: transform 0.2s ease;
+                }
+
+                span {
+                  font-size: 14px;
+                  font-weight: 600;
+                }
+
+                &:hover {
+                  background-color: #f0ebfa;
+                  color: #2A174E;
+                  
+                  .icon {
+                    transform: scale(1.1);
+                  }
+                }
+              }
+            }
+          }
       }
     }
   }

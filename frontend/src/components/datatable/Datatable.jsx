@@ -84,8 +84,8 @@ const Datatable = () => {
               <th>User ID</th>
               <th>Full Name</th>
               <th>Role</th>
-              <th>MaChip ID</th>
-              <th>Email</th>
+              <th className="hideOnMobile">MaChip ID</th>
+              <th className="hideOnMobile">Email</th>
               <th className="actionHead">Actions</th>
             </tr>
           </thead>
@@ -96,8 +96,8 @@ const Datatable = () => {
                   <td className="boldText">{formatUserId(user.user_Id)}</td>
                   <td>{`${user.user_FirstName} ${user.user_LastName}`}</td>
                   <td>{user.user_Role}</td>
-                  <td className="subtleText">{user.user_MachipId || "—"}</td>
-                  <td className="emailCell">
+                  <td className="subtleText hideOnMobile">{user.user_MachipId || "—"}</td>
+                  <td className="emailCell hideOnMobile">
                     {user.user_Email || "—"}
                   </td>
                   <td>

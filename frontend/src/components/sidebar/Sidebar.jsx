@@ -13,10 +13,11 @@ import CurrencyRubleOutlinedIcon from '@mui/icons-material/CurrencyRubleOutlined
 import SecurityIcon from "@mui/icons-material/Security";
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import ArchiveIcon from '@mui/icons-material/Archive';
+import MenuIcon from "@mui/icons-material/Menu"; // NEW: Icon for the toggle button
 
 // Libraries
 import { NavLink } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Added useEffect
 import { useNavigate } from "react-router-dom";
 
 //Components
@@ -39,8 +40,39 @@ const Sidebar = () => {
   const isEmployeeView = isEmployeeRole || viewMode === "employee";
 
   const [showLogoutModal, setShowLogoutModal] = useState(false); // Modal state
-  const navigate = useNavigate();
+  const [isCollapsed, setIsCollapsed] = useState(window.innerWidth <= 768);  const navigate = useNavigate();
+
+  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
+
+  const handleLogoClick = (e) => {
+    e.preventDefault();
+    if (window.innerWidth <= 768) {
+      setIsOverlayOpen(!isOverlayOpen); // Open overlay on mobile
+    } else {
+      navigate(isEmployeeView ? "/employeeHome" : "/"); // Navigate home on desktop
+    }
+  };
+
+  const closeOverlay = () => {
+    if (window.innerWidth <= 768) {
+      setIsOverlayOpen(false);
+    }
+  };
   
+useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 768) { // Adjust this pixel value (e.g., 1024) if you want it to collapse sooner
+        setIsCollapsed(true);
+      } else {
+        setIsCollapsed(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    
+    // Cleanup listener on component unmount
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const handleLogoutClick = () => {
     setShowLogoutModal(true); // Open the modal instead of navigating
@@ -72,44 +104,56 @@ const Sidebar = () => {
     };
 
   return (
-    <div className="sidebar">
+    <>
+    {isOverlayOpen && <div className="sidebarBackdrop" onClick={closeOverlay}></div>}
+
+    <div className={`sidebar ${isCollapsed && !isOverlayOpen ? "collapsed" : ""} ${isOverlayOpen ? "mobileOverlay" : ""}`}>
       <div className="top">
-        {/* Updated logo link to go to appropriate dashboard */}
+        {/* NEW: Toggle Button */}
+        <div className="toggleBtn" onClick={() => setIsCollapsed(!isCollapsed)}>
+        </div>
+
         <NavLink to={isEmployeeView ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
-          <span className="logo">
-            <img src="/images.png" alt="Logo" className="logo-img" />
+          <span className="logo" onClick={handleLogoClick} style={{ cursor: "pointer" }}>
+            {/* Show small logo when collapsed, full logo when expanded */}
+            {isCollapsed ? (
+               <div className="smallLogo">
+                  {!isOverlayOpen ? "M" : <img src="/images.png" alt="Logo" className="logo-img" />}
+               </div>
+            ) : (
+               <img src="/images.png" alt="Logo" className="logo-img" />
+            )}
           </span>
         </NavLink>
       </div>
       <hr />
-      <div className="center">
+      <div className="center" onClick={closeOverlay}>
         <ul>
-
-          {/* 1st Category */}
-          <p className="title">MAIN</p>
-          <NavLink to={isEmployeeView ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
-            <li>
-              <DashboardIcon className="icon" />
-              <span>Dashboard</span>
-            </li>
-          </NavLink>
+          {/* Main Category */}
+          <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "MAIN"}</p>
+            
+            <NavLink to={isEmployeeView ? "/employeeHome" : "/"} style={{ textDecoration: "none" }}>
+              <li title="Dashboard">
+                <DashboardIcon className="icon" />
+                <span>Dashboard</span>
+              </li>
+            </NavLink>
 
           <NavLink to={isEmployeeView ? "/employeeCalendar" : "/calendar"} style={{ textDecoration: "none" }}>
-            <li>
+            <li title="Calendar">
               <CalendarMonthOutlinedIcon className="icon" />
               <span>Calendar</span>
             </li>
           </NavLink><br />
 
-          {/* 2nd Category */}
-          {/* Management Pages (Admin & Supervisor) */}
+          {/* Management Lists */}
           {isManagementView && (
             <>
-              <p className="title">LISTS</p>
+              <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "LISTS"}</p>
 
               {isAdminRole && (
                 <NavLink to="/users" style={{ textDecoration: "none" }}>
-                  <li>
+                  <li title="Users">
                     <PersonOutlineIcon className="icon" />
                     <span>Users</span>
                   </li>
@@ -118,7 +162,7 @@ const Sidebar = () => {
 
               {isAdminRole && (
                 <NavLink to="/logs" style={{ textDecoration: "none" }}>
-                  <li>
+                  <li title="Access Logs">
                     <BadgeOutlinedIcon className="icon" />
                     <span>Access Logs</span>
                   </li>
@@ -126,7 +170,7 @@ const Sidebar = () => {
               )}
 
             <NavLink to="/adminRequests" style={{ textDecoration: "none" }}>
-              <li>
+              <li title="Requests">
                 <PendingActionsIcon className="icon" />
                 <span>Requests</span>
               </li>
@@ -134,7 +178,7 @@ const Sidebar = () => {
 
             {isAdminRole && (
               <NavLink to="/payroll" style={{ textDecoration: "none" }}>
-                <li>
+                <li title="Payroll">
                     <CurrencyRubleOutlinedIcon className="icon" />
                     <span>Payroll</span>
                 </li>
@@ -143,7 +187,7 @@ const Sidebar = () => {
 
             {isAdminRole && (
               <NavLink to="/adminReports" style={{ textDecoration: "none" }}>
-                <li>
+                <li title="Reports">
                   <RequestQuoteOutlinedIcon className="icon" />
                   <span>Reports</span>
                 </li>
@@ -155,16 +199,16 @@ const Sidebar = () => {
           {/* Admin only Pages */}
           {isManagementView && isAdminRole && (
             <>
-            <p className="title">SYSTEM LOGS</p>
+            <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "SYSTEM LOGS"}</p>
             <NavLink to="/auditLogs" style={{ textDecoration: "none" }}>
-              <li>
+              <li title="Audit">
                 <SecurityIcon className="icon" />
                 <span>Audit</span>
               </li>
             </NavLink>
 
             <NavLink to="/transactionLog" style={{ textDecoration: "none" }}>
-              <li>
+              <li title="Transaction">
                 <PsychologyOutlinedIcon className="icon" />
                 <span>Transaction</span>
               </li>
@@ -172,19 +216,19 @@ const Sidebar = () => {
             </>
           )}
 
-          {/* Employee only Pages (Real Employees or Management in Employee Mode) */}
+          {/* Employee only Pages */}
           {isEmployeeView && (
             <>
-            <p className="title">LISTS</p>
+            <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "LISTS"}</p>
             <NavLink to="/requests" style={{ textDecoration: "none" }}>
-              <li>
+              <li title="Requests">
                 <PendingActionsIcon className="icon" />
                 <span>Requests</span>
               </li>
             </NavLink>
 
             <NavLink to="/accessLogs" style={{ textDecoration: "none" }}>
-              <li>
+              <li title="Access Logs">
                 <BadgeOutlinedIcon className="icon" />
                 <span>Access Logs</span>
               </li>
@@ -192,33 +236,26 @@ const Sidebar = () => {
             </>
           )}
 
-          <p className="title">USER</p>
+          <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "USER"}</p>
 
           {isManagementView && (
             <NavLink to="/settings" style={{ textDecoration: "none" }}>
-              <li>
+              <li title="Settings">
                 <SettingsApplicationsIcon className="icon" />
                 <span>Settings</span>
               </li>
             </NavLink>
           )}
 
-          {/* Shared Routes */}
           <NavLink to="/notifications" style={{ textDecoration: "none" }}>
-            <li>
+            <li title="Notifications">
               <NotificationsNoneIcon className="icon" />
               <span>Notifications</span>
             </li>
           </NavLink>
           
-          {/* <NavLink to="/profile" style={{ textDecoration: "none" }}>
-            <li>
-              <AccountCircleOutlinedIcon className="icon" />
-              <span>Profile</span>
-            </li>
-          </NavLink> */}
           <div className="logoutItem" onClick={handleLogoutClick}>
-          <li>
+          <li title="Logout">
             <ExitToAppIcon className="icon" />
             <span>Logout</span>
           </li>
@@ -234,6 +271,7 @@ const Sidebar = () => {
         message="Are you sure you want to log out of the MaChip system?"
       />
     </div>
+    </>
   );
 };
 

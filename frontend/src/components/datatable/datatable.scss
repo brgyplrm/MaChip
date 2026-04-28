@@ -1,32 +1,78 @@
+/* src/components/datatable/datatable.scss */
 .datatable {
-  height: 600px;
+  height: auto; // Removed fixed 600px height so it grows with content
+  min-height: 600px;
   padding: 20px;
+
+  @media (max-width: 768px) {
+    padding: 10px 15px; // Smaller padding on mobile
+  }
   
-  .datatableTitle{
+  .datatableTitle {
     width: 100%;
-    margin-bottom: 10px;
-    justify-content: space-between;
+    margin-bottom: 20px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap; // Allows items to wrap if needed
+    gap: 15px;
 
-    .title{
-        h1 {
+    @media (max-width: 768px) {
+      flex-direction: column; // Stack title and buttons vertically
+      align-items: flex-start;
+    }
+
+    .title {
+      h1 {
         font-size: 28px;
         color: #2A174E;
-        margin-left: 10px;
-        margin-top: 15px;
+        margin: 0;
+        
+        @media (max-width: 480px) { 
+          font-size: 22px; // Smaller font on 360-390px screens
+        }
       }
 
       span {
-        font-size: 15px;
+        font-size: 14px;
         color: #555;
-        margin-left: 10px;
+        margin-top: 4px;
+        display: block; // Ensures it drops below the h1
       }
     }
 
     .titleActions {
       display: flex;
-      gap: 15px;
+      gap: 10px;
+      flex-wrap: wrap;
+
+      @media (max-width: 480px) {
+        width: 100%; // Buttons take full width
+      }
+
+      .link, .archiveLink {
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+
+        @media (max-width: 480px) {
+          flex: 1; // Buttons split the width evenly (50/50)
+          padding: 10px;
+          font-size: 12px;
+        }
+      }
+
+      .link {
+        background-color: #2A174E;
+        color: white;
+        &:hover { background-color: #45297e; }
+      }
 
       .archiveLink {
         background-color: transparent;
@@ -35,26 +81,143 @@
         &:hover { background-color: #2A174E; color: white; }
       }
     }
+  }
 
-    .link{
-      background-color: #2A174E;
-      color: white;
-      padding: 10px 20px;
-      border-radius: 10px;
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 500;
-      transition: background 0.3s;
-      &:hover { background-color: #502c92; transition: all 0.3s ease;}
+  // Search and Filter Section
+  .filterSection {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    width: 100%;
+
+    @media (max-width: 768px) {
+      flex-direction: column; // Stack inputs on mobile
+      gap: 10px;
     }
 
-    .link:hover{
-      background-color: #502c92;
-      transition: all 0.3s ease;
+    .searchWrapper, .dropdownWrapper {
+      flex: 1;
+      max-width: 300px;
+
+      @media (max-width: 768px) {
+        max-width: 100%; // Take full width when stacked
+      }
+
+      input, select {
+        width: 100%;
+        padding: 10px 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        outline: none;
+        box-sizing: border-box;
+        font-size: 14px;
+        
+        &:focus { border-color: #2A174E; }
+      }
     }
   }
 
   .tableCard {
+    background: white;
+    padding: 20px;
+    border-radius: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    
+    /* CRITICAL MOBILE FIX: Allows the table to scroll sideways */
+    overflow-x: auto; 
+    -webkit-overflow-scrolling: touch;
+
+    @media (max-width: 768px) {
+      padding: 10px;
+      border-radius: 12px;
+    }
+
+    .customTable {
+      width: 100%;
+      min-width: 800px; /* Forces table to stay wide, triggering the scrollbar instead of squishing */
+      border-collapse: collapse;
+      text-align: left;
+
+      th {
+        padding: 15px;
+        color: #4a5568;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        border-bottom: 2px solid #f1f3f5;
+        white-space: nowrap; // Prevents header text from wrapping
+      }
+
+      td {
+        padding: 15px;
+        border-bottom: 1px solid #f1f3f5;
+        font-size: 14px;
+        color: #2d3748;
+
+        &.boldText { font-weight: 600; color: #333; }
+        &.subtleText { color: #718096; }
+        &.emailCell { color: #666; }
+      }
+
+      .cellAction {
+        display: flex;
+        gap: 10px;
+
+        button, .viewBtn {
+          padding: 6px 12px;
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          text-decoration: none;
+          transition: 0.2s;
+        }
+
+        .viewBtn {
+          background: #f0ebfa;
+          color: #2A174E;
+          &:hover { background: #e0d4f5; }
+        }
+
+        .archiveBtn {
+          background: #fee2e2;
+          color: #b91c1c;
+          border: none;
+          &:hover { background: #fecaca; }
+        }
+      }
+
+      tr:hover { background-color: #fcfcfd; }
+    }
+
+    .paginationControls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 15px;
+      margin-top: 20px;
+      padding-top: 20px;
+
+      @media (max-width: 480px) {
+        gap: 10px;
+        span { font-size: 12px; }
+      }
+
+      button {
+        background-color: #2A174E;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+
+        &:disabled { background-color: #ccc; cursor: not-allowed; }
+        &:hover:not(:disabled) { background-color: #45297e; }
+      }
+    }
+  }
+.tableCard {
     background: white;
     padding: 20px 30px;
     border-radius: 20px;
@@ -64,6 +227,10 @@
       width: 100%;
       border-collapse: collapse;
       text-align: left;
+
+      @media (max-width: 768px) {
+        min-width: 500px; /* Reduced since columns are hidden */
+      }
 
       th {
         padding: 20px;
@@ -126,75 +293,12 @@
       }
 
       tr:hover { background-color: #fcfcfd; }
-    }
-  }
 
-  .cellWithImg {
-    display: flex;
-    align-items: center;
-
-    .cellImg {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      object-fit: cover;
-      margin-right: 20px;
-    }
-  }
-
-  .cellWithStatus {
-    padding: 5px;
-    border-radius: 5px;
-    display: inline-block; 
-    width: 60px;
-    text-align: center;
-
-    &.active {
-      background-color: rgba(0, 128, 0, 0.05);
-      color: green;
-    }
-    &.inactive {
-      background-color: rgba(255, 0, 0, 0.05);
-      color: crimson;
-    }
-  }
-
-  .cellAction {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-
-    .viewButton {
-      padding: 4px 10px;
-      border-radius: 5px;
-      color: darkblue;
-      width: 50px;
-      text-align: center;
-      border: 1px dotted rgba(0, 0, 139, 0.596);
-      cursor: pointer;
-      margin: 10px;
-    }
-
-    .viewButton:hover {
-      background-color: rgba(0, 0, 139);
-      transition: all 0.3s ease;
-      color: white;
-    }
-    
-    .deleteButton {
-      padding: 4px 10px;
-      border-radius: 5px;
-      width: 50px;
-      text-align: center;
-      color: crimson;
-      border: 1px dotted rgba(220, 20, 60, 0.6);
-      cursor: pointer;
-    }
-
-    .deleteButton:hover {
-      background-color: rgba(220, 20, 60);
-      transition: all 0.3s ease;
-      color: white;
+      .hideOnMobile {
+        @media (max-width: 768px) {
+          display: none;
+        }
+      }
     }
   }
 }

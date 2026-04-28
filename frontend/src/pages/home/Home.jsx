@@ -9,7 +9,11 @@ import OccupancyList from "../../components/occupancy/OccupancyList";
 import Toast from "../../components/toast/Toast";
 import { fetchWithAuth } from "../../utils/api";
 import { Navigate } from "react-router-dom";
+<<<<<<< HEAD
 //import PageTransition from "../../components/PageTransition/PageTransition";
+=======
+import PageTransition from "../../components/pageTransition/PageTransition";
+>>>>>>> machip-UIChanges
 
 const Home = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -52,7 +56,11 @@ const Home = () => {
       <Sidebar />
       <div className="homeContainer">
         <Navbar />
+<<<<<<< HEAD
         {/* <PageTransition> */}
+=======
+        <PageTransition>
+>>>>>>> machip-UIChanges
         <Toast 
           message={toast.message} 
           type={toast.type} 
@@ -71,7 +79,11 @@ const Home = () => {
         <div className="listContainer">
           <OccupancyList />
         </div>
+<<<<<<< HEAD
         {/* </PageTransition> */}
+=======
+        </PageTransition>
+>>>>>>> machip-UIChanges
       </div>
     </div>
   );
