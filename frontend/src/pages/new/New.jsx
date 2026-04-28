@@ -75,6 +75,16 @@ const New = ({ inputs, title }) => {
     setFormData((prev) => {
       const updated = { ...prev, [id]: value };
       
+      // Handle manual User ID input
+      if (id === "user_Id") {
+        // Extract numbers from the input (handles both MACJ-001 and 1)
+        const numericMatch = value.match(/\d+/);
+        const numericId = numericMatch ? parseInt(numericMatch[0], 10) : "";
+        updated.user_Id = numericId;
+        // Keep the raw value for display during editing
+        setDisplayId(value);
+      }
+      
       // Sync IDs when select values change
       if (id === "user_Role") {
         updated.user_RoleId = value === "Admin" ? 1 : value === "Staff" ? 2 : 3;
@@ -85,7 +95,15 @@ const New = ({ inputs, title }) => {
       
       return updated;
     });
+
+    // If it was user_Id, we want to format it nicely when they blur, but let them type freely
     setErrors((prev) => ({ ...prev, [id]: "" }));
+  };
+
+  const handleIdBlur = () => {
+    if (formData.user_Id) {
+      setDisplayId(`MACJ-${String(formData.user_Id).padStart(3, "0")}`);
+    }
   };
 
   const handleScanRFID = async () => {
@@ -290,8 +308,9 @@ const New = ({ inputs, title }) => {
                           } 
                           placeholder={input.placeholder}
                           value={input.id === "user_Id" ? displayId : formData[input.id]}
-                          onChange={handleInput} 
-                          readOnly={input.label === "User ID" || input.label === "MaChip ID"}
+                          onChange={handleInput}
+                          onBlur={input.id === "user_Id" ? handleIdBlur : undefined}
+                          readOnly={input.label === "MaChip ID"}
                         />
                         {input.id === "user_Password" && (
                           <div className="eyeIcon" style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", display: "flex", alignItems: "center", height: "100%", color: "gray" }} onClick={() => setShowPassword(!showPassword)}>

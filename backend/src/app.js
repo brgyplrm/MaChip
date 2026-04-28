@@ -46,7 +46,7 @@ app.use(
   cors({
     origin: function (origin, callback) {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1) {
+      if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith(".trycloudflare.com")) {
         callback(null, true);
       } else {
         console.warn(`[CORS] REJECTED: origin "${origin}" is not in whitelist.`);

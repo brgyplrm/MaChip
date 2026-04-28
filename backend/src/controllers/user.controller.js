@@ -78,7 +78,17 @@ exports.registerUser = async (req, res) => {
 
     // Get next ID if not provided by frontend (though frontend sends it)
     let user_Id = req.body.user_Id;
-    if (!user_Id) {
+    
+    if (user_Id) {
+      // Check if manually entered ID already exists
+      const existingId = await sequelize.query(
+        `SELECT "user_Id" FROM "User" WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id }, type: QueryTypes.SELECT },
+      );
+      if (existingId.length > 0) {
+        return res.status(400).json({ error: "User ID already exists. Please choose another or use the auto-generated one." });
+      }
+    } else {
       const result = await sequelize.query(
         `SELECT MAX("user_Id") AS "maxId" FROM "User"`,
         { type: QueryTypes.SELECT },
