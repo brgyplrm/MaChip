@@ -9,8 +9,8 @@ const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
 const { connectDB, sequelize } = require("./config/sequelize"); 
 const { initSocket } = require("./config/socket");
-const { generalLimiter } = require("./middleware/rateLimiter");
-
+const { loginLimiter, generalLimiter, pollingLimiter, HIGH_FREQ_ROUTES } = require("./middleware/rateLimiter");
+const authMiddleware = require("./middleware/auth");
 const app = express();
 const server = http.createServer(app);
 
@@ -26,12 +26,21 @@ app.use(cookieParser());
 // Trust proxy for correct IP handling behind nginx/lb/router
 app.set("trust proxy", 1);
 
-// Global Rate Limiter
-app.use(generalLimiter);
+// Apply high-frequency limiter to specific routes BEFORE auth and general limiter
+HIGH_FREQ_ROUTES.forEach(route => {
+  app.use(route, pollingLimiter);
+});
+
+// Auth — strict limiter
+app.use("/api/auth/login", loginLimiter);
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+
+// All other API routes — relaxed limiter with polling skip
+app.use("/api", generalLimiter);  // must be BEFORE authMiddleware and route mounts
 
 // Debug middleware to log requests
 app.use((req, res, next) => {
@@ -52,10 +61,12 @@ app.use((req, res, next) => {
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-  "http://192.168.254.106:5173", // Your current LAN IP
-  // Add your Public IP or DuckDNS here once ready:
-  // "http://your-public-ip:5173",
-  // "http://machip.duckdns.org"
+  "http://192.168.254.106:5173",
+  "http://192.168.254.100:5173",
+  "http://192.168.254.101:5173",
+  "http://192.168.254.102:5173",
+  "http://192.168.1.100:5173",
+  "http://192.168.1.106:5173",
 ];
 
 app.use(
@@ -89,11 +100,9 @@ connectDB().then(async () => {
   console.log("[INIT] System startup: Syncing holidays...");
   const { syncHolidaysService } = require("./utils/holidaySyncService");
   syncHolidaysService().catch(err => console.error("[INIT] Initial Holiday Sync Failed:", err.message));
-});
+  });
 
-const authMiddleware = require("./middleware/auth");
-
-// --- Public Routes ---
+  // Import Routes
 // Routes for authentication (includes Login and Logout)
 const authRoutes = require("./routes/auth.routes.js");
 app.use("/api/auth", authRoutes);
@@ -161,6 +170,7 @@ app.use(errorHandler);
 // ── Background Tasks ──────────────────────────────────────────────────────────
 const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
 const { syncHolidaysService } = require("./utils/holidaySyncService");
+//const { checkPendingRequests } = require("./utils/requestEscalation");
 const { getSystemTime } = require("./utils/systemTime");
 
 // Flag to ensure we only run once per day
@@ -186,6 +196,9 @@ setInterval(async () => {
     console.log("[SCHEDULED] Monthly Philippine Holiday Sync Triggered...");
     syncHolidaysService();
   }
+
+  // 3. Request Escalation: Check for stalled pending requests
+  checkPendingRequests();
 }, 60 * 1000); 
 
 // Define port and start server

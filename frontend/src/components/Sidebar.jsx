@@ -11,6 +11,12 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import HistoryIcon from '@mui/icons-material/History';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import SwitchAccountIcon from "@mui/icons-material/SwitchAccount";
+import EditCalendarIcon from '@mui/icons-material/EditCalendar';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import ListAltIcon from '@mui/icons-material/ListAlt';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import SettingsIcon from '@mui/icons-material/Settings';
+import DescriptionIcon from '@mui/icons-material/Description';
 
 // Using relative paths to ensure resolution in the current build environment
 import Breadcrumbs from "./Breadcrumbs";
@@ -19,8 +25,11 @@ import { fetchWithAuth } from "../utils/api";
 const Sidebar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
-  const [isListsOpen, setIsListsOpen] = useState(true);
-  const [isServicesOpen, setIsServicesOpen] = useState(true);
+  
+  // Dropdown states
+  const [isUsersOpen, setIsUsersOpen] = useState(false);
+  const [isRequestsOpen, setIsRequestsOpen] = useState(false);
+  const [isPayrollOpen, setIsPayrollOpen] = useState(false);
   
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
   const [unreadCount, setUnreadCount] = useState(0);
@@ -30,6 +39,7 @@ const Sidebar = () => {
   const location = useLocation();
 
   const isManagement = (userData?.user_RoleId === 1 || userData?.user_RoleId === 2) && viewMode === "management";
+  const isAdmin = userData?.user_RoleId === 1 && viewMode === "management";
   const homePath = isManagement ? "/" : "/employeeHome";
   const isActive = (path) => location.pathname === path;
 
@@ -131,10 +141,10 @@ const Sidebar = () => {
                           <AccountCircleOutlinedIcon className="!text-[18px]" /> Profile
                         </Link>
                       </li>
-                      {isManagement && (
+                      {(userData?.user_RoleId === 1 || userData?.user_RoleId === 2) && (
                         <li>
                           <button onClick={toggleViewMode} className="flex items-center w-full gap-3 px-4 py-2 text-left hover:bg-[#f0ebfa] hover:text-[#2A174E]">
-                            <SwitchAccountIcon className="!text-[18px]" /> Switch Mode
+                            <SwitchAccountIcon className="!text-[18px]" /> {viewMode === "management" ? "Switch to Employee View" : "Switch to Management View"}
                           </button>
                         </li>
                       )}
@@ -160,7 +170,7 @@ const Sidebar = () => {
       >
         <div className="h-full px-3 pb-4 overflow-y-auto no-scrollbar">
           <ul className="space-y-1 font-medium list-none p-0 m-0">
-            {/* Dashboard Link */}
+            {/* Dashboard */}
             <li>
               <Link 
                 to={homePath} 
@@ -169,44 +179,150 @@ const Sidebar = () => {
                 }`}
               >
                 <DashboardIcon className={`!text-[22px] ${isActive(homePath) ? "text-[#2A174E]" : "text-gray-400 group-hover:text-[#2A174E]"}`} />
-                <span className="ms-3 text-[14px]">Dashboard</span>
+                <span className="ms-3 text-[14px] pl-2">Dashboard</span>
               </Link>
             </li>
 
-            {/* Management Section */}
+            {/* Calendar */}
+            <li>
+              <Link 
+                to={isManagement ? "/calendar" : "/employeeCalendar"} 
+                className={`flex items-center p-2.5 rounded-xl group transition-all no-underline ${
+                  isActive("/calendar") || isActive("/employeeCalendar") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500 hover:bg-gray-50 hover:text-[#2A174E]"
+                }`}
+              >
+                <EditCalendarIcon className={`!text-[22px] ${isActive("/calendar") || isActive("/employeeCalendar") ? "text-[#2A174E]" : "text-gray-400 group-hover:text-[#2A174E]"}`} />
+                <span className="ms-3 text-[14px] pl-2">Calendar</span>
+              </Link>
+            </li>
+
+            {/* Users (Dropdown) - Management Only */}
             {isManagement && (
-              <li className="pt-4">
+              <li>
                 <button 
-                  onClick={() => setIsListsOpen(!isListsOpen)}
-                  className="flex items-center w-full p-2.5 text-gray-400 rounded-xl group hover:bg-gray-50"
+                  onClick={() => setIsUsersOpen(!isUsersOpen)}
+                  className="flex items-center w-full p-2.5 text-gray-500 rounded-xl group hover:bg-gray-50 transition-all"
                 >
-                  <PersonOutlineIcon className="!text-[22px]" />
-                  <span className="flex-1 ms-3 text-left font-bold text-[10px] uppercase tracking-widest">Management</span>
-                  <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isListsOpen ? "rotate-180" : ""}`} />
+                  <PersonOutlineIcon className="!text-[22px] text-gray-400 group-hover:text-[#2A174E]" />
+                  <span className="flex-1 ms-3 text-left text-[14px] pl-2">Users</span>
+                  <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isUsersOpen ? "rotate-180" : ""}`} />
                 </button>
-                <ul className={`list-none p-0 mt-1 space-y-1 overflow-hidden transition-all duration-300 ${isListsOpen ? "max-h-60" : "max-h-0"}`}>
-                   <SidebarLink to="/users" label="User List" active={isActive("/users")} />
-                   <SidebarLink to="/payroll" label="Payroll" active={isActive("/payroll")} />
-                   <SidebarLink to="/adminRequests" label="Requests" active={isActive("/adminRequests")} />
+                <ul className={`list-none p-0 mt-1 space-y-1 overflow-hidden transition-all duration-300 ${isUsersOpen ? "max-h-40" : "max-h-0"}`}>
+                  <SidebarLink to="/users/newUser" label="Add New User" active={isActive("/users/newUser")} />
+                  <SidebarLink to="/users/archived" label="View Archived" active={isActive("/users/archived")} />
                 </ul>
               </li>
             )}
 
-            {/* Services Section */}
-            <li className="pt-2">
-              <button 
-                onClick={() => setIsServicesOpen(!isServicesOpen)}
-                className="flex items-center w-full p-2.5 text-gray-400 rounded-xl group hover:bg-gray-50"
+            {/* Access Logs */}
+            <li>
+              <Link 
+                to={isManagement ? "/logs" : "/accessLogs"} 
+                className={`flex items-center p-2.5 rounded-xl group transition-all no-underline ${
+                  isActive("/logs") || isActive("/accessLogs") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500 hover:bg-gray-50 hover:text-[#2A174E]"
+                }`}
               >
-                <CalendarMonthIcon className="!text-[22px]" />
-                <span className="flex-1 ms-3 text-left font-bold text-[10px] uppercase tracking-widest">Services</span>
-                <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isServicesOpen ? "rotate-180" : ""}`} />
-              </button>
-              <ul className={`list-none p-0 mt-1 space-y-1 overflow-hidden transition-all duration-300 ${isServicesOpen ? "max-h-60" : "max-h-0"}`}>
-                   <SidebarLink to={isManagement ? "/calendar" : "/employeeCalendar"} label="Calendar" active={isActive("/calendar") || isActive("/employeeCalendar")} />
-                   <SidebarLink to="/logs" label={isManagement ? "Access Logs" : "My Logs"} active={isActive("/AccessLogs") || isActive("/UserLogs")} />
-                </ul>
+                <HistoryIcon className={`!text-[22px] ${isActive("/logs") || isActive("/accessLogs") ? "text-[#2A174E]" : "text-gray-400 group-hover:text-[#2A174E]"}`} />
+                <span className="ms-3 text-[14px] pl-2">Access Logs</span>
+              </Link>
             </li>
+
+            {/* Requests (Dropdown) */}
+            <li>
+              <button 
+                onClick={() => setIsRequestsOpen(!isRequestsOpen)}
+                className="flex items-center w-full p-2.5 text-gray-500 rounded-xl group hover:bg-gray-50 transition-all"
+              >
+                <DescriptionIcon className="!text-[22px] text-gray-400 group-hover:text-[#2A174E]" />
+                <span className="flex-1 ms-3 text-left text-[14px] pl-2">Requests</span>
+                <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isRequestsOpen ? "rotate-180" : ""}`} />
+              </button>
+              <ul className={`list-none p-0 mt-1 space-y-1 overflow-hidden transition-all duration-300 ${isRequestsOpen ? "max-h-40" : "max-h-0"}`}>
+                <SidebarLink 
+                  to={isManagement ? "/adminRequests" : "/requests"} 
+                  label="History" 
+                  active={isActive("/adminRequests") || isActive("/requests")} 
+                />
+              </ul>
+            </li>
+
+            {/* Payroll (Dropdown) - Admin Only */}
+            {isAdmin && (
+              <li>
+                <button 
+                  onClick={() => setIsPayrollOpen(!isPayrollOpen)}
+                  className="flex items-center w-full p-2.5 text-gray-500 rounded-xl group hover:bg-gray-50 transition-all"
+                >
+                  <CreditCardIcon className="!text-[22px] text-gray-400 group-hover:text-[#2A174E]" />
+                  <span className="flex-1 ms-3 text-left text-[14px] pl-2">Payroll</span>
+                  <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isPayrollOpen ? "rotate-180" : ""}`} />
+                </button>
+                <ul className={`list-none p-0 mt-1 space-y-1 overflow-hidden transition-all duration-300 ${isPayrollOpen ? "max-h-40" : "max-h-0"}`}>
+                  <SidebarLink to="/payroll/employeeList" label="Employee List" active={isActive("/payroll/employeeList")} />
+                  <SidebarLink to="/payroll/payrollPeriod" label="Payroll Details" active={isActive("/payroll/payrollPeriod")} />
+                </ul>
+              </li>
+            )}
+
+            {/* Reports - Admin Only */}
+            {isAdmin && (
+              <li>
+                <Link 
+                  to="/adminReports" 
+                  className={`flex items-center p-2.5 rounded-xl group transition-all no-underline ${
+                    isActive("/adminReports") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500 hover:bg-gray-50 hover:text-[#2A174E]"
+                  }`}
+                >
+                  <AssessmentIcon className={`!text-[22px] ${isActive("/adminReports") ? "text-[#2A174E]" : "text-gray-400 group-hover:text-[#2A174E]"}`} />
+                  <span className="ms-3 text-[14px] pl-2">Reports</span>
+                </Link>
+              </li>
+            )}
+
+            {/* Audit - Admin Only */}
+            {isAdmin && (
+              <li>
+                <Link 
+                  to="/auditLogs" 
+                  className={`flex items-center p-2.5 rounded-xl group transition-all no-underline ${
+                    isActive("/auditLogs") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500 hover:bg-gray-50 hover:text-[#2A174E]"
+                  }`}
+                >
+                  <ListAltIcon className={`!text-[22px] ${isActive("/auditLogs") ? "text-[#2A174E]" : "text-gray-400 group-hover:text-[#2A174E]"}`} />
+                  <span className="ms-3 text-[14px] pl-2">Audit</span>
+                </Link>
+              </li>
+            )}
+
+            {/* Transaction - Management Only */}
+            {isManagement && (
+              <li>
+                <Link 
+                  to="/transactionLog" 
+                  className={`flex items-center p-2.5 rounded-xl group transition-all no-underline ${
+                    isActive("/transactionLog") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500 hover:bg-gray-50 hover:text-[#2A174E]"
+                  }`}
+                >
+                  <ReceiptLongIcon className={`!text-[22px] ${isActive("/transactionLog") ? "text-[#2A174E]" : "text-gray-400 group-hover:text-[#2A174E]"}`} />
+                  <span className="ms-3 text-[14px] pl-2">Transaction</span>
+                </Link>
+              </li>
+            )}
+
+            {/* Settings - Management Only */}
+            {isManagement && (
+              <li>
+                <Link 
+                  to="/settings" 
+                  className={`flex items-center p-2.5 rounded-xl group transition-all no-underline ${
+                    isActive("/settings") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500 hover:bg-gray-50 hover:text-[#2A174E]"
+                  }`}
+                >
+                  <SettingsIcon className={`!text-[22px] ${isActive("/settings") ? "text-[#2A174E]" : "text-gray-400 group-hover:text-[#2A174E]"}`} />
+                  <span className="ms-3 text-[14px] pl-2">Settings</span>
+                </Link>
+              </li>
+            )}
           </ul>
         </div>
       </aside>

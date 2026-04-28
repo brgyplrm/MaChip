@@ -159,24 +159,30 @@ const Home = () => {
 
           {/* Widgets Grid */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6">
-            <Widget 
+            <Link to ="/logs">
+              <Widget 
               type="officeOccupancy" 
               amount={stats.officeOccupancy} 
               loading={statsLoading} 
               description={`${stats.enteredCount || 0} entered, and ${stats.exitedCount || 0} exited`}
             />
-            <Widget
+            </Link>
+            <Link to ="/adminRequests">
+              <Widget
               type="pendingApprovals" 
               amount={stats.pendingCount} 
               loading={statsLoading} 
               description="Pending requests awaiting action"
             />
-            <Widget
-              type="payrollPreview" 
-              amount={`₱${(stats.projectedPayroll || 0).toLocaleString()}`} 
-              loading={statsLoading} 
-              description="Projected monthly payroll"
-            />
+            </Link>
+            <Link to ="/payroll">
+              <Widget
+                type="payrollPreview" 
+                amount={`₱${(stats.projectedPayroll || 0).toLocaleString()}`} 
+                loading={statsLoading} 
+                description="Projected monthly payroll"
+              />
+            </Link>
           </div>
 
           <div className="h-6"></div>
@@ -256,9 +262,10 @@ const Home = () => {
                   <h2 className="text-[#033A55]/80 font-medium">Next Payroll Run</h2>
                   <CalendarMonthIcon className="text-[#033A55]/40" />
                 </div>
-                <div className="text-5xl font-bold mb-2">
+                <div className="text-5xl font-bold mb-3">
                   {daysRemaining > 0 ? `${daysRemaining} Days Left` : "Processing..."}
                 </div>
+                <div className="h-1"></div>
                 <p className="text-[#033A55]/60 text-xs italic">Period: {nextPayroll?.label || "Calculating..."}</p>
                 <div className="h-4"></div>
               </div>
@@ -275,7 +282,7 @@ const Home = () => {
                 <div className="h-1"></div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-[#033A55]/60">Status</span>
-                  <span className="bg-green-500 text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">Active</span>
+                  <span className="bg-[#87F894] text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">Active</span>
                 </div>
               </div>
             </div>

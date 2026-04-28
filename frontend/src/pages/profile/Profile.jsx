@@ -48,7 +48,6 @@ const Profile = () => {
       <div className="profile">
         <Sidebar />
         <div className="profileContainer">
-          <Navbar />
           <div className="profileWrapper">
             <p>Loading profile...</p>
           </div>

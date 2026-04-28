@@ -9,6 +9,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import HistoryIcon from '@mui/icons-material/History';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import RateReviewIcon from '@mui/icons-material/RateReview';
+import Tooltip from "./Tooltip";
 
 const BottomNav = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -26,20 +27,20 @@ const BottomNav = () => {
                 transition-all duration-500 ease-in-out transform
                 ${isOpen ? 'opacity-100 scale-100 translate-y-0 w-[320px]' : 'opacity-0 scale-50 translate-y-10 w-0 pointer-events-none'}
             `}>
-                <Link to="/" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
+                <Link to="/newUser" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
                     <PersonAddIcon />
                 </Link>
-                <Link to="/payroll" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
+                <Link to="/logs" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
                     <HistoryIcon />
                 </Link>
                 
                 {/* Spacer for the toggle button */}
                 <div className="w-12 h-12"></div>
 
-                <Link to="/settings" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
+                <Link to="/payroll" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
                     <PaymentsIcon />
                 </Link>
-                <Link to="/profile" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
+                <Link to="/adminRequests" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
                     <RateReviewIcon />
                 </Link>
             </div>
