@@ -117,13 +117,9 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     const log = logMap[dateStr];
     const isOnField = onfieldMap.has(dateStr);
     
-    // A day is "worked" only if there's a log that isn't an "Absent" status (3), or it's On-Field
     const isAbsentStatus = log && log.att_status === 3;
     const worked = (!!log && !isAbsentStatus) || isOnField;
     const isLeave = approvedLeaveDaysMap.has(dateStr);
-
-    // Skip future days unless they have an approved leave
-    if (isFuture && !isLeave) continue;
 
     // ── Handle Worked Days (Normal or Holiday) ──────────────────────────
     if (worked) {

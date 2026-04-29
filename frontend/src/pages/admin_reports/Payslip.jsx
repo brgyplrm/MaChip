@@ -22,7 +22,7 @@ const Payslip = () => {
     const fetchPayrollDetails = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:4000/api/payroll/${id}`);
+        const response = await fetchWithAuth(`/api/payroll/${id}`);
         const data = await response.json();
         if (response.ok) {
           setPayroll(data);

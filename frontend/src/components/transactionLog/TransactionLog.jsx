@@ -9,6 +9,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import CloseIcon from "@mui/icons-material/Close";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
+import { exportToCSV } from "../../utils/csvExport";
 
 const TransactionLog = () => {
   const [transactions, setTransactions] = useState([]);
@@ -140,7 +141,7 @@ const TransactionLog = () => {
               <h1>Transaction Log</h1>
               <span>View and track all financial and system transactions</span>
             </div>
-            <button className="exportBtn">
+            <button className="exportBtn" onClick={handleExport}>
               <FileDownloadIcon className="icon" /> Export CSV
             </button>
           </div>

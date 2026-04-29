@@ -56,6 +56,44 @@ const Logs = () => {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
 
+  const handleExport = () => {
+    let headers = [];
+    let data = [];
+    let filename = "";
+
+    if (viewMode === "raw") {
+      headers = ["User ID", "Full Name", "Type", "MaChip ID", "Date", "Time", "Action"];
+      data = filteredData.map(row => [
+        row.user_Id_formatted,
+        row.fullName,
+        row.log_type,
+        row.machip_id,
+        row.log_Date,
+        row.time,
+        row.action
+      ]);
+      filename = `Raw_Logs_${new Date().toISOString().split('T')[0]}.csv`;
+    } else {
+      headers = ["User ID", "Name", "Date", "AM In", "AM Out", "PM In", "PM Out", "OT In", "OT Out", "Status", "Hours Worked"];
+      data = sortedDayLogs.map(row => [
+        formatUserId(row.user_Id),
+        row.userName,
+        row.log_Date.split('T')[0],
+        row.morning_In || "",
+        row.morning_Out || "",
+        row.afternoon_In || "",
+        row.afternoon_Out || "",
+        row.ot_In || "",
+        row.ot_Out || "",
+        row.status || "",
+        row.hoursWorked || "0"
+      ]);
+      filename = `Day_Logs_${period.startDate}_to_${period.endDate}.csv`;
+    }
+
+    exportToCSV(headers, data, filename);
+  };
+
   // Filter raw data
   const filteredData = logData.filter((item) => {
     const query = searchQuery.toLowerCase();

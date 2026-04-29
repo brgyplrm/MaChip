@@ -84,7 +84,9 @@ const EmployeeList = () => {
   };
 
   const handleSave = async (emp) => {
-    const newRate = parseFloat(editValue);
+    // Strip commas before parsing
+    const cleanValue = editValue.replace(/,/g, "");
+    const newRate = parseFloat(cleanValue);
     if (isNaN(newRate) || newRate <= 0) {
       showToast("Please enter a valid rate.", "error");
       return;
@@ -306,15 +308,13 @@ const EmployeeList = () => {
                                 <span className="peso">₱</span>
                                 <input
                                   ref={inputRef}
-                                  type="number"
+                                  type="text"
                                   value={editValue}
                                   onChange={(e) => setEditValue(e.target.value)}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter") handleSave(emp);
                                     if (e.key === "Escape") handleCancel();
                                   }}
-                                  min="0"
-                                  step="0.01"
                                 />
                               </div>
                             ) : (

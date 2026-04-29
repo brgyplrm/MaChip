@@ -64,15 +64,12 @@ const Login = () => {
 
     setLoading(true);
 
-    // 2. Parse the numeric ID from "MACJ-001" → 1
-    const numericId = parseMacjId(rawId);
-
     // 3. Submit to auth route
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_Id: numericId, password }),
+        body: JSON.stringify({ user_Id: rawId.trim(), password }),
         credentials: "include", // Allow server to set HttpOnly cookie
       });
 

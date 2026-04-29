@@ -9,6 +9,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
+import { exportToCSV } from "../../utils/csvExport";
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
