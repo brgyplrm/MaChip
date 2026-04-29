@@ -8,6 +8,7 @@ import html2canvas from "html2canvas";
 import { useParams, Link, useLocation } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import { fetchWithAuth } from "../../utils/api";
 
 const Payslip = () => {
   const { id } = useParams(); // Using 'id' from App.jsx route /adminReports/payslip/:id

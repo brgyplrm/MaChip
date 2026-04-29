@@ -135,20 +135,103 @@
           .dtrHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; .cardTitle { margin-bottom: 0 !important; } }
 
           .timeCardContainer {
-            width: 600px; // Locks dimensions for exact html2canvas print capture
-            min-width: 600px;
+            width: 100%; // Fit container
+            max-width: 700px;
             margin: 0 auto;
             color: #222;
+            padding-bottom: 20px; // Add space at the bottom
 
-            .cardTopHeader { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 10px; .headerLine { display: flex; justify-content: space-between; margin-bottom: 8px; .field { font-weight: bold; span { font-weight: normal; border-bottom: 1px solid #000; padding: 0 10px; } } } }
+            .cardTopHeader { 
+              border-bottom: 2px solid #000; 
+              padding-bottom: 10px; 
+              margin-bottom: 10px; 
+              .headerLine { 
+                display: flex; 
+                justify-content: space-between; 
+                margin-bottom: 8px; 
+                .field { 
+                  font-weight: bold; 
+                  span { 
+                    font-weight: normal; 
+                    border-bottom: 1px solid #000; 
+                    padding: 0 10px; 
+                  } 
+                } 
+              } 
+            }
 
-            table { width: 100%; border-collapse: collapse; margin-bottom: 10px; th, td { border: 1px solid #000; padding: 4px; font-size: 12px; } }
+            table { 
+              width: 100%; 
+              border-collapse: collapse; 
+              margin-bottom: 10px; 
+              th, td { 
+                border: 1px solid #000; 
+                padding: 4px; 
+                font-size: 12px; 
+              } 
+            }
 
-            .summaryTable { .verticalTh { writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; font-weight: bold; padding: 5px; } .label { text-align: left; font-weight: bold; padding-left: 10px; } .finalRow { font-weight: bold; } }
+            .summaryTable { 
+              .verticalTh { 
+                writing-mode: vertical-rl; 
+                transform: rotate(180deg); 
+                text-align: center; 
+                font-weight: bold; 
+                padding: 5px; 
+              } 
+              .label { 
+                text-align: left; 
+                font-weight: bold; 
+                padding-left: 10px; 
+              } 
+              .finalRow { 
+                font-weight: bold; 
+              } 
+            }
 
-            .mainAttendanceGrid { th { font-size: 11px; } .dayCol { background: #eee; font-weight: bold; width: 40px; text-align: center;} td { height: 25px; text-align: center;} }
+            .mainAttendanceGrid { 
+              th { 
+                font-size: 11px; 
+              } 
+              .dayCol { 
+                background: #eee; 
+                font-weight: bold; 
+                width: 40px; 
+                text-align: center;
+              } 
+              td { 
+                height: 25px; 
+                text-align: center;
+              } 
+            }
 
-            .cardFooter { margin-top: 15px; text-align: center; .certification { font-style: italic; font-size: 13px; margin-bottom: 30px; } .signatureLine { width: 250px; margin-left: auto; .line { border-bottom: 1.5px solid #000; margin-bottom: 5px; } span { font-size: 10px; font-weight: bold; } } .modelTag { text-align: left; font-size: 10px; margin-top: 10px; } }
+            .cardFooter { 
+              margin-top: 15px; 
+              text-align: center; 
+              padding-bottom: 20px; // Extra padding inside footer
+              .certification { 
+                font-style: italic; 
+                font-size: 13px; 
+                margin-bottom: 30px; 
+              } 
+              .signatureLine { 
+                width: 250px; 
+                margin: 0 auto; // Center it
+                .line { 
+                  border-bottom: 1.5px solid #000; 
+                  margin-bottom: 5px; 
+                } 
+                span { 
+                  font-size: 10px; 
+                  font-weight: bold; 
+                } 
+              } 
+              .modelTag { 
+                text-align: left; 
+                font-size: 10px; 
+                margin-top: 10px; 
+              } 
+            }
           }
         }
       }
