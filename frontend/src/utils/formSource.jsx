@@ -41,6 +41,12 @@ export const userInputs = [
     type: "text",
     placeholder: "Enter Account Number",
   },
+  {
+  id: "user_FingerprintId",
+  label: "Fingerprint ID",
+  type: "text",
+  placeholder: "Scan to register fingerprint",
+  },
 ];
 
 export const productInputs = [

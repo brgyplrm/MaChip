@@ -93,16 +93,35 @@ const PayrollDetails = () => {
   }, [payrollId, periodStart, periodEnd]);
 
   if (loading) return (
-    <div className="home payrollDetails">
-      <Sidebar />
-      <div className="homeContainer">
-        <Navbar />
-        <div className="detailsWrapper">
-          <p>Loading payroll details...</p>
+  <div className="home payrollDetails">
+    <Sidebar />
+    <div className="homeContainer">
+      <Navbar />
+      <div className="detailsWrapper skeletonWrapper">
+        {/* Skeleton Header */}
+        <div className="skeletonHeader">
+          <div className="skeletonTitle"></div>
+          <div className="skeletonBadge"></div>
         </div>
+
+        {/* Skeleton Info Cards */}
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="skeletonCard">
+            <div className="skeletonCircleTitle"></div>
+            <div className="skeletonGrid">
+              <div className="skeletonLine"></div>
+              <div className="skeletonLine"></div>
+              <div className="skeletonLine"></div>
+            </div>
+          </div>
+        ))}
+        
+        {/* Skeleton Net Pay */}
+        <div className="skeletonNetPay"></div>
       </div>
     </div>
-  );
+  </div>
+);
 
   if (!payroll) return (
     <div className="home payrollDetails">

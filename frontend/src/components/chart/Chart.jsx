@@ -55,12 +55,12 @@ const Chart = ({ aspect, title, userId }) => {
               <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorLate" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#FFA500" stopOpacity={0.8} />
-              <stop offset="95%" stopColor="#FFA500" stopOpacity={0} />
+              <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.8} />
+              <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorAbsent" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#ff4d4f" stopOpacity={0.8} />
-              <stop offset="95%" stopColor="#ff4d4f" stopOpacity={0} />
+              <stop offset="5%" stopColor="#3B4E17" stopOpacity={0.8} />
+              <stop offset="95%" stopColor="#3B4E17" stopOpacity={0} />
             </linearGradient>
           </defs>
           <XAxis dataKey="name" stroke="gray" />
@@ -71,14 +71,14 @@ const Chart = ({ aspect, title, userId }) => {
           <Area
             type="monotone"
             dataKey="OnTime"
-            stroke="#22c55e"
+            stroke="#3B4E17"
             fillOpacity={1}
             fill="url(#colorOnTime)"
           />
           <Area
             type="monotone"
             dataKey="Late"
-            stroke="#FFA500"
+            stroke="#D4AF37"
             fillOpacity={1}
             fill="url(#colorLate)"
           />

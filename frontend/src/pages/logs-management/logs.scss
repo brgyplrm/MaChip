@@ -53,6 +53,7 @@
           margin-left: auto;
           margin-right: 20px;
           margin-bottom: 20px;
+          width: 100%;
 
           @media (max-width: 768px) {
             flex-direction: column;
@@ -61,26 +62,39 @@
           }
 
           .searchWrapper {
-            width: 100%;
+            display: flex;         // Align children (icon and input) horizontally
+            align-items: center;    // Center them vertically
+            gap: 0px;         
             max-width: 250px;
             min-width: 150px;
+            border: 1px solid #2A174E; // Move border from input to the wrapper
+            border-radius: 10px;
+            padding: 0px 8px;     // Internal padding for the whole box
+            background-color: #f9f9f9;
+
+            @media (max-width: 768px){
+              width: 100%;
+            }
+
+            svg {                  // Styles for the SearchIcon
+              color: #2A174E;
+              font-size: 18px;
+            }
 
             input {
-              width: 100%;
-              padding: 8px 15px;
-              border: 1px solid #2A174E;
-              border-radius: 20px;
+              flex: 1;             // Allow input to take remaining space
+              border: none;        // Remove internal border
               outline: none;
-              font-size: 14px;
-              background-color: #f9f9f9;
+              font-size: 11px;
+              background: transparent; // Use wrapper background
 
               &::placeholder {
                 color: #999;
               }
+            }
 
-              &:focus {
-                box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
-              }
+            &:focus-within {       // Shadow effect when input is clicked
+              box-shadow: 0 0 5px rgba(42, 23, 78, 0.3);
             }
           }
 
@@ -111,11 +125,27 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            margin-left: auto;
+
+            .headerButton.view{
+                background-color: #fcfcfd;
+                border: 2px #2A174E solid;
+                color: #2A174E;
+
+                &:hover {
+                  color: white;
+                  background-color: #502c92;
+                  border: 2px #502c92 solid;
+                }
+              }
 
             @media (max-width: 480px) {
               width: 100%;
               flex-direction: column;
-              .headerButton { width: 100%; justify-content: center; }
+              margin-left: 0;
+              .headerButton { 
+                width: 100%; justify-content: center; 
+              }
             }
           }
 
@@ -129,6 +159,7 @@
             font-weight: 500;
             cursor: pointer;
             transition: background-color 0.3s ease;
+            
 
             &:hover {
               background-color: #502c92;
@@ -211,13 +242,19 @@
           }
 
           .pill {
+            display: inline-block; // Allows the background to wrap with the text
             padding: 5px 12px;
             border-radius: 8px;
             font-size: 12px;
             font-weight: 700;
+            line-height: 1.4; // Adds breathing room between lines
+            text-align: center;
+            word-wrap: break-word; // Ensures long words don't overflow
+            white-space: normal; // Allows the text to actually wrap into new lines
+            margin-left: -20px;
             
             &.clock-in { background-color: #def7ec; color: #03543f; } // Green
-            &.clock-out { background-color: #fde8e8; color: #9b1c1c; } // Red
+            &.clock-out { background-color: #fde8e8; color: #9b1c1c; } // Red[cite: 29]
           }
 
           .viewLink {
@@ -290,13 +327,13 @@
 
         .viewButton {
           text-decoration: none;
-          padding: 5px 10px;
+          padding: 5px 5px;
           border-radius: 5px;
           color: darkblue;
-          width: 50px;
+          width: 70px;
           text-align: center;
           border: 1px dotted rgba(0, 0, 139, 0.596);
-          margin-left: -15px;
+          margin-left: -11px;
           cursor: pointer;
         }
 
