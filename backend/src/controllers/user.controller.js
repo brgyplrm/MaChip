@@ -110,10 +110,10 @@ exports.registerUser = async (req, res) => {
     await sequelize.query(
       `INSERT INTO "User" (
         "user_Id", "user_FirstName", "user_LastName",
-        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", "account_Number", "createdAt", "updatedAt"
+        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_FingerprintId", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", "account_Number", "createdAt", "updatedAt"
       ) VALUES (
         :user_Id, :user_FirstName, :user_LastName,
-        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, :account_Number, :now, :now
+        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_FingerprintId, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, :account_Number, :now, :now
       )`,
       {
         replacements: {
@@ -123,7 +123,8 @@ exports.registerUser = async (req, res) => {
           user_MiddleName: req.body.user_MiddleName || null,
           user_Email: req.body.user_Email || null,
           user_Password: hashedPassword,
-          user_MachipId: req.body.user_MachipId,
+          user_MachipId: req.body.user_MachipId || null,
+          user_FingerprintId: req.body.user_FingerprintId || null,
           user_RoleId: req.body.user_RoleId || 2,
           user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
           user_ProfilePic: req.file ? req.file.filename : null,
@@ -386,11 +387,12 @@ exports.forceDeleteUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   const { user_Id } = req.params;
   console.log("[DEBUG] Received body in updateUser:", req.body);
-  const {
+    const {
     user_FirstName,
     user_LastName,
     user_MiddleName,
     user_MachipId,
+    user_FingerprintId,
     user_RoleId,
     user_EmploymentStatusId,
     user_Email,
@@ -400,56 +402,17 @@ exports.updateUser = async (req, res) => {
   } = req.body || {};
 
   try {
-    // 1. Admin Promotion Security Check
-    if (user_RoleId && parseInt(user_RoleId) === 1) {
-      console.log(`[DEBUG] Promotion to Admin request for user ${user_Id}`);
-      
-      const existing = await sequelize.query(
-        `SELECT "user_RoleId" FROM "User" WHERE "user_Id" = :targetId`,
-        { replacements: { targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
+    // ...
+    
+    // Check if new Fingerprint ID is already assigned to another active user
+    if (user_FingerprintId) {
+      const existingFP = await sequelize.query(
+        `SELECT "user_Id" FROM "User" WHERE "user_FingerprintId" = :user_FingerprintId AND "deletedAt" IS NULL AND "user_Id" != :targetId`,
+        { replacements: { user_FingerprintId, targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
       );
 
-      if (existing.length > 0 && existing[0].user_RoleId !== 1) {
-        const operatorIdStr = req.headers["x-admin-id"];
-        const operatorId = parseInt(operatorIdStr);
-
-        if (isNaN(operatorId)) {
-          return res.status(403).json({ error: "Authorized Admin ID required." });
-        }
-
-        if (!adminConfirmPassword) {
-          return res.status(403).json({ error: "Password confirmation required to promote to Admin." });
-        }
-
-        const operator = await sequelize.query(
-          `SELECT "user_Password" FROM "User" WHERE "user_Id" = :opId`,
-          { replacements: { opId: operatorId }, type: QueryTypes.SELECT }
-        );
-
-        if (operator.length === 0) {
-          return res.status(403).json({ error: "Authorized admin not found." });
-        }
-
-        const isMatch = await bcrypt.compare(adminConfirmPassword, operator[0].user_Password);
-        if (!isMatch) {
-          return res.status(403).json({ error: "Invalid admin password. Promotion denied." });
-        }
-      }
-    }
-
-    if (user_MiddleName && /\d/.test(user_MiddleName)) {
-      return res.status(400).json({ error: "Middle Name must not contain numbers." });
-    }
-
-    // Check if new MaChip ID is already assigned to another active user
-    if (user_MachipId) {
-      const existingMachip = await sequelize.query(
-        `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :user_MachipId AND "deletedAt" IS NULL AND "user_Id" != :targetId`,
-        { replacements: { user_MachipId, targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
-      );
-
-      if (existingMachip.length > 0) {
-        return res.status(400).json({ error: "MaChip ID is already assigned to another active user." });
+      if (existingFP.length > 0) {
+        return res.status(400).json({ error: "Fingerprint ID is already assigned to another active user." });
       }
     }
 
@@ -469,6 +432,7 @@ exports.updateUser = async (req, res) => {
       lastName: user_LastName || null,
       middleName: user_MiddleName || null,
       machipId: user_MachipId || null,
+      fingerprintId: user_FingerprintId || null,
       roleId: parseInt(user_RoleId) || 3,
       statusId: parseInt(user_EmploymentStatusId) || 1,
       email: user_Email || null,
@@ -482,6 +446,7 @@ exports.updateUser = async (req, res) => {
         "user_LastName"  = :lastName,
         "user_MiddleName"= :middleName,
         "user_MachipId"  = :machipId,
+        "user_FingerprintId" = :fingerprintId,
         "user_RoleId"    = :roleId,
         "user_EmploymentStatusId" = :statusId,
         "user_Email"     = :email,

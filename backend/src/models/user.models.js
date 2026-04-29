@@ -38,6 +38,7 @@ module.exports = (sequelize, DataTypes) => {
       user_Email: { type: DataTypes.STRING, allowNull: false, unique: true },
       user_Password: { type: DataTypes.STRING, allowNull: false },
       user_MachipId: { type: DataTypes.STRING, allowNull: true, unique: true },
+      user_FingerprintId: { type: DataTypes.INTEGER, allowNull: true, unique: true },
       user_RoleId: { type: DataTypes.SMALLINT, allowNull: false },
       user_EmploymentStatusId: { type: DataTypes.SMALLINT, allowNull: false },
       user_ProfilePic: { type: DataTypes.STRING, allowNull: true },

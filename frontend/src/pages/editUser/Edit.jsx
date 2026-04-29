@@ -57,7 +57,15 @@ const validateForm = (formData) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+const roleMap = { Employee: 3, Staff: 2, Admin: 1 };
+const reverseRoleMap = { 3: "Employee", 2: "Staff", 1: "Admin" };
+const statusMap = { Regular: 1, "Part-time": 2, "Intern / OJT": 3 };
+const reverseStatusMap = { 1: "Regular", 2: "Part-time", 3: "Intern / OJT" };
+
 const Edit = ({ inputs, title }) => {
+  const { userId } = useParams();
+  const navigate = useNavigate();
+
   const [file, setFile] = useState("");
   const [formData, setFormData] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -66,39 +74,21 @@ const Edit = ({ inputs, title }) => {
   const [showAdminConfirm, setShowAdminConfirm] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [showRfidModal, setShowRfidModal] = useState(false);
+  const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [rfidError, setRfidError] = useState("");
+  const [fingerprintError, setFingerprintError] = useState("");
   const [originalMachipId, setOriginalMachipId] = useState("");
+  const [originalFingerprintId, setOriginalFingerprintId] = useState("");
 
-  const navigate = useNavigate();
-
-  const currentUser = JSON.parse(localStorage.getItem("userData"));
-  const isAdmin = currentUser?.user_RoleId === 1;
-
-  // field-level error messages
   const [errors, setErrors] = useState({});
-
-  // toast notification: { message, type }
   const [toast, setToast] = useState({ message: "", type: "success" });
 
-  const { userId } = useParams();
+  const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
+  const isAdmin = currentUser?.user_RoleId === 1;
 
-  const dismissToast = useCallback(
-    () => setToast({ message: "", type: "success" }),
-    [],
-  );
-
-  // Map values to IDs for database sync
-  const roleMap = { "Admin": 1, "Staff": 2, "Employee": 3 };
-  const reverseRoleMap = { 1: "Admin", 2: "Staff", 3: "Employee" };
-  const statusMap = { "Regular": 1, "Intern / OJT": 2, "Part-time": 3 };
-  const reverseStatusMap = { 1: "Regular", 2: "Intern / OJT", 3: "Part-time" };
-
-  const handleCancel = () => {
-    if (isAdmin) navigate("/users");
-    else navigate("/profile");
-  };
-
-  const clearError = (field) => setErrors((prev) => ({ ...prev, [field]: "" }));
+  const dismissToast = useCallback(() => setToast({ message: "", type: "success" }), []);
+  const clearError = (id) => setErrors((prev) => ({ ...prev, [id]: "" }));
+  const handleCancel = () => navigate(-1);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -108,13 +98,13 @@ const Edit = ({ inputs, title }) => {
           const data = await response.json();
           const { user_Password, ...otherData } = data;
           
-          // Ensure we have display strings for the dropdowns
           setFormData({
             ...otherData,
             user_Role: reverseRoleMap[data.user_RoleId] || "Employee",
             user_EmploymentStatus: reverseStatusMap[data.user_EmploymentStatusId] || "Regular"
           });
           setOriginalMachipId(data.user_MachipId || "");
+          setOriginalFingerprintId(data.user_FingerprintId || "");
 
           if (data.user_ProfilePic) {
             setDisplayPic(`/api/uploads/${data.user_ProfilePic}`);
@@ -170,6 +160,38 @@ const Edit = ({ inputs, title }) => {
       setRfidError("An error occurred while scanning.");
       setToast({
         message: "An error occurred while scanning the chip.",
+        type: "error",
+      });
+    }
+  };
+
+  const handleScanFingerprint = async () => {
+    setShowFingerprintModal(true);
+    setFormData((prev) => ({ ...prev, user_FingerprintId: "" }));
+    setFingerprintError("");
+    try {
+      const response = await fetchWithAuth("/api/users/generateFingerprint");
+      const data = await response.json();
+
+      if (response.ok) {
+        setFormData((prev) => ({ ...prev, user_FingerprintId: data.fingerprintId }));
+        clearError("user_FingerprintId");
+        setToast({
+          message: `Fingerprint scanned! ID updated to slot: ${data.fingerprintId}`,
+          type: "success",
+        });
+      } else {
+        setFingerprintError(data.error || "Failed to scan Fingerprint. Please try again.");
+        setToast({
+          message: data.error || "Failed to scan Fingerprint.",
+          type: "error",
+        });
+      }
+    } catch (err) {
+      console.error("Error scanning Fingerprint:", err);
+      setFingerprintError("An error occurred while scanning.");
+      setToast({
+        message: "An error occurred while scanning the fingerprint.",
         type: "error",
       });
     }
@@ -434,6 +456,11 @@ const Edit = ({ inputs, title }) => {
                       RE-SCAN
                     </button>
                   )}
+                  {isAdmin && input.label === "Fingerprint ID" && (
+                    <button type="button" className="scanBtn" onClick={handleScanFingerprint}>
+                      RE-SCAN
+                    </button>
+                  )}
                 </div>
               </div>
           ))}
@@ -485,6 +512,15 @@ const Edit = ({ inputs, title }) => {
       scannedId={formData.user_MachipId} 
       error={rfidError}
       currentId={originalMachipId}
+    />
+    <RfidScanModal 
+      isOpen={showFingerprintModal} 
+      onClose={() => setShowFingerprintModal(false)}
+      onRescan={handleScanFingerprint}
+      scannedId={formData.user_FingerprintId} 
+      error={fingerprintError}
+      currentId={originalFingerprintId}
+      title="Fingerprint Scanner"
     />
   </div>
 );

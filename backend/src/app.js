@@ -84,10 +84,12 @@ app.use("/uploads", express.static("uploads"));
 // 8. Public routes
 const authRoutes = require("./routes/auth.routes.js");
 const rfidRoutes = require("./routes/rfid.routes.js");
+const espRoutes = require("./routes/esp.routes.js");
 const systemController = require("./controllers/system.controller");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/rfid", rfidRoutes);
+app.use("/api/esp", espRoutes);
 app.get("/api/system/time", systemController.getSystemTime);
 app.get("/Machip", (req, res) => res.json({ message: "Welcome to MaChip API." }));
 

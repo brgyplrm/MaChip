@@ -15,6 +15,9 @@ router.get("/nextId", requireAdmin, userController.getNextUserId);
 // Route for generating RFID
 router.get("/generateRfid", requireAdmin, rfidController.generateRfid);
 
+// Route for generating Fingerprint
+router.get("/generateFingerprint", requireAdmin, rfidController.generateFingerprint);
+
 // This creates the URL: http://localhost:4000/api/users/all
 router.get("/all", requireAdminOrSupervisor, userController.viewAllUsers);
 
