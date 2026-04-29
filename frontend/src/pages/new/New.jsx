@@ -46,6 +46,7 @@ const New = ({ inputs, title }) => {
     user_Password: "",
     user_MachipId: "",
     user_FingerprintId: "",
+    user_FingerprintTemplate: "",
     account_Number: "",
     user_RoleId: 3,
   });
@@ -61,16 +62,20 @@ const New = ({ inputs, title }) => {
 
   const handleScanFingerprint = async () => {
     setShowFingerprintModal(true); 
-    setFormData(prev => ({ ...prev, user_FingerprintId: "" }));
+    setFormData(prev => ({ ...prev, user_FingerprintId: "", user_FingerprintTemplate: "" }));
     setFingerprintError("");
 
     try {
-      // Assuming you have a similar endpoint for fingerprint generation
-      const response = await fetchWithAuth("/api/users/generateFingerprint");
+      // Pass the anticipated user_Id for context
+      const response = await fetchWithAuth(`/api/users/generateFingerprint?userId=${formData.user_Id}`);
       const data = await response.json();
 
       if (response.ok) {
-        setFormData((prev) => ({ ...prev, user_FingerprintId: data.fingerprintId }));
+        setFormData((prev) => ({ 
+          ...prev, 
+          user_FingerprintId: data.fingerprintId,
+          user_FingerprintTemplate: data.template || "" 
+        }));
         setToast({
           message: `Fingerprint registered: ${data.fingerprintId}`,
           type: "success",

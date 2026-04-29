@@ -110,10 +110,10 @@ exports.registerUser = async (req, res) => {
     await sequelize.query(
       `INSERT INTO "User" (
         "user_Id", "user_FirstName", "user_LastName",
-        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_FingerprintId", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", "account_Number", "createdAt", "updatedAt"
+        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_FingerprintId", "user_FingerprintTemplate", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", "account_Number", "createdAt", "updatedAt"
       ) VALUES (
         :user_Id, :user_FirstName, :user_LastName,
-        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_FingerprintId, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, :account_Number, :now, :now
+        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_FingerprintId, :user_FingerprintTemplate, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, :account_Number, :now, :now
       )`,
       {
         replacements: {
@@ -125,6 +125,7 @@ exports.registerUser = async (req, res) => {
           user_Password: hashedPassword,
           user_MachipId: req.body.user_MachipId || null,
           user_FingerprintId: req.body.user_FingerprintId || null,
+          user_FingerprintTemplate: req.body.user_FingerprintTemplate || null,
           user_RoleId: req.body.user_RoleId || 2,
           user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
           user_ProfilePic: req.file ? req.file.filename : null,
@@ -433,6 +434,7 @@ exports.updateUser = async (req, res) => {
       middleName: user_MiddleName || null,
       machipId: user_MachipId || null,
       fingerprintId: user_FingerprintId || null,
+      fingerprintTemplate: req.body.user_FingerprintTemplate || null,
       roleId: parseInt(user_RoleId) || 3,
       statusId: parseInt(user_EmploymentStatusId) || 1,
       email: user_Email || null,
@@ -447,6 +449,7 @@ exports.updateUser = async (req, res) => {
         "user_MiddleName"= :middleName,
         "user_MachipId"  = :machipId,
         "user_FingerprintId" = :fingerprintId,
+        "user_FingerprintTemplate" = :fingerprintTemplate,
         "user_RoleId"    = :roleId,
         "user_EmploymentStatusId" = :statusId,
         "user_Email"     = :email,

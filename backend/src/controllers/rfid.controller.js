@@ -37,8 +37,9 @@ exports.scanRFID = async (req, res) => {
     return res.status(400).json({ success: false, message: "No UID provided" });
   }
 
-  // ── CAPTURE MODE CHECK (Only for auto_detect scans) ───────────────────────
-  if (action === "auto_detect" && captureSession.isCapturing && Date.now() < captureSession.expiresAt) {
+  // ── CAPTURE MODE CHECK ───────────────────────────────────────────────────
+  // Captured regardless of action if session is active
+  if (captureSession.isCapturing && Date.now() < captureSession.expiresAt) {
     console.log(`[RFID] Captured UID for registration: ${uid}`);
     captureSession.scannedUid = uid;
     captureSession.isCapturing = false;
@@ -62,6 +63,18 @@ exports.scanRFID = async (req, res) => {
     const todayStr = `${year}-${month}-${day}`;
     const timeStr = now.toTimeString().split(" ")[0];
 
+    // ── 2FA Parsing (UID|FingerID) ──────────────────────────────────────────
+    let rfidUid = uid;
+    let scannedFingerId = null;
+    let is2FA = false;
+
+    if (uid.includes("|")) {
+      const parts = uid.split("|");
+      rfidUid = parts[0];
+      scannedFingerId = parseInt(parts[1]);
+      is2FA = true;
+    }
+
     // 1. Find User by MachipId or FingerprintId
     let user;
     if (action === "fingerprint_scan") {
@@ -70,7 +83,7 @@ exports.scanRFID = async (req, res) => {
       });
     } else {
       user = await User.findOne({
-        where: { user_MachipId: uid, deletedAt: null }
+        where: { user_MachipId: rfidUid, deletedAt: null }
       });
     }
 
@@ -102,6 +115,22 @@ exports.scanRFID = async (req, res) => {
       }
 
       return res.status(404).json({ success: false, message: "User Not Registered" });
+    }
+
+    // ── 2FA Verification ────────────────────────────────────────────────────
+    if (is2FA) {
+      if (user.user_FingerprintId !== scannedFingerId) {
+        console.log(`[2FA] Mismatch for ${user.user_FirstName}: Scanned card matches, but Fingerprint Slot ${scannedFingerId} does not belong to this user.`);
+        
+        await logTransaction(user.user_Id, null, "2FA_FAILURE", `2FA Mismatch: RFID matched but Fingerprint slot ${scannedFingerId} is incorrect.`, {
+          uid: maskUid(rfidUid, true),
+          fingerprintSlot: scannedFingerId,
+          result: "Denied"
+        }, req);
+
+        return res.status(401).json({ success: false, message: "2FA Verification Failed" });
+      }
+      console.log(`[2FA] Success for ${user.user_FirstName} (RFID + Fingerprint Slot ${scannedFingerId})`);
     }
 
     const target_user_Id = user.user_Id;
@@ -292,6 +321,9 @@ exports.generateRfid = async (req, res) => {
 };
 
 exports.generateFingerprint = async (req, res) => {
+  const { userId } = req.query;
+  console.log(`[FP-ADMIN] Starting enrollment session for User: ${userId || "temp_registration"}`);
+  
   try {
     const result = await sequelize.query(
       `SELECT MAX("user_FingerprintId") AS "maxSlot" FROM "User"`,
@@ -299,25 +331,37 @@ exports.generateFingerprint = async (req, res) => {
     );
     const nextSlot = (result[0].maxSlot ? parseInt(result[0].maxSlot) : 0) + 1;
     
+    // Explicitly reset the session to ensure no stale data
     fpCaptureSession = { 
       isCapturing: true, 
       scannedSlot: nextSlot, 
-      expiresAt: Date.now() + 60000, // 1 minute for fingerprint
-      success: false 
+      userId: userId || "temp_registration",
+      expiresAt: Date.now() + 60000, 
+      success: false,
+      template: null
     };
 
     const startTime = Date.now();
     const checkInterval = setInterval(() => {
-      if (fpCaptureSession.success) {
-        const slot = fpCaptureSession.scannedSlot;
-        fpCaptureSession = { isCapturing: false, scannedSlot: null, expiresAt: null, success: false };
+      if (!fpCaptureSession.isCapturing) {
         clearInterval(checkInterval);
-        return res.status(200).json({ fingerprintId: slot });
+        if (fpCaptureSession.success) {
+          console.log(`[FP-ADMIN] Enrollment SUCCESS for Slot ${fpCaptureSession.scannedSlot}`);
+          return res.status(200).json({ 
+            fingerprintId: fpCaptureSession.scannedSlot,
+            template: fpCaptureSession.template 
+          });
+        } else {
+          console.log(`[FP-ADMIN] Enrollment FAILED on device for Slot ${fpCaptureSession.scannedSlot}`);
+          return res.status(400).json({ error: "Enrollment failed. Ensure finger is placed correctly." });
+        }
       }
+
       if (Date.now() - startTime > 60000) {
         clearInterval(checkInterval);
         fpCaptureSession.isCapturing = false;
-        return res.status(408).json({ error: "Fingerprint scan timeout." });
+        console.log(`[FP-ADMIN] Enrollment TIMEOUT`);
+        return res.status(408).json({ error: "Scan timeout. Please try again." });
       }
     }, 1000);
   } catch (error) {
@@ -331,17 +375,72 @@ exports.getFingerprintSession = async (req, res) => {
     return res.status(200).json({
       active: true,
       slotId: fpCaptureSession.scannedSlot,
-      userId: "temp_registration"
+      userId: fpCaptureSession.userId || "temp_registration"
     });
   }
   return res.status(200).json({ active: false });
 };
 
 exports.confirmFingerprintEnroll = async (req, res) => {
-  const { slotId, success } = req.body;
+  const { slotId, success, template, userId } = req.body;
+  console.log(`[FP-RECEIVE] Slot: ${slotId}, Success: ${success}, User: ${userId}`);
+  if (template) {
+    console.log(`[FP-RECEIVE] Template received, length: ${template.length}`);
+   } else {
+     console.log(`[FP-RECEIVE] NO TEMPLATE DATA IN PACKET`);
+   }
   if (fpCaptureSession.isCapturing && parseInt(slotId) === fpCaptureSession.scannedSlot) {
     fpCaptureSession.success = success;
+    fpCaptureSession.isCapturing = false; // STOP the session so ESP32 doesn't loop
+    
+    if (success && template) {
+      // If userId is provided, we can link it immediately, otherwise it's handled by the registration flow
+      const targetUserId = userId || fpCaptureSession.userId;
+      if (targetUserId && targetUserId !== "temp_registration") {
+        try {
+          await sequelize.query(
+            `UPDATE "User" SET "user_FingerprintTemplate" = :template WHERE "user_Id" = :targetUserId`,
+            { replacements: { template, targetUserId }, type: QueryTypes.UPDATE }
+          );
+          console.log(`[FP] Template saved for user ${targetUserId}`);
+        } catch (err) {
+          console.error(`[FP] Failed to save template: ${err.message}`);
+        }
+      } else {
+        // Store template in session for the frontend to pick up during new user registration
+        fpCaptureSession.template = template;
+      }
+    }
+
     return res.status(200).json({ success: true });
   }
   return res.status(400).json({ success: false, message: "No active session for this slot." });
+};
+
+exports.getFingerprintTemplate = async (req, res) => {
+  const { uid } = req.params;
+
+  // Handle capture mode even during template fetch (for ESP32 Front reader logic)
+  if (captureSession.isCapturing && Date.now() < captureSession.expiresAt) {
+    console.log(`[RFID] Captured UID during template fetch: ${uid}`);
+    captureSession.scannedUid = uid;
+    captureSession.isCapturing = false;
+    return res.status(200).json({ success: true, isCapture: true, template: "CAPTURE_OK" });
+  }
+
+  try {
+    const [user] = await sequelize.query(
+      `SELECT "user_FingerprintTemplate" FROM "User" WHERE "user_MachipId" = :uid AND "deletedAt" IS NULL LIMIT 1`,
+      { replacements: { uid }, type: QueryTypes.SELECT }
+    );
+
+    if (!user || !user.user_FingerprintTemplate) {
+      return res.status(404).json({ success: false, message: "Template not found" });
+    }
+
+    return res.status(200).json({ success: true, template: user.user_FingerprintTemplate });
+  } catch (error) {
+    console.error("[FP DOWNLOAD ERROR]:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
 };

@@ -46,6 +46,7 @@ module.exports = (sequelize, DataTypes) => {
       dailyRate: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
       previousDailyRate: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
       rateUpdatedAt: { type: DataTypes.DATE, allowNull: true },
+      user_FingerprintTemplate: { type: DataTypes.TEXT, allowNull: true },
     },
     {
       timestamps: true,

@@ -122,10 +122,11 @@ const connectDB = async () => {
 
     // Manual migrations
     try {
-      await sequelize.query(`ALTER TABLE "emp_Request" ADD COLUMN IF NOT EXISTS "recommendedBy" SMALLINT;`);
+      await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "recommendedBy" SMALLINT;`);
       await sequelize.query(`ALTER TABLE "emp_Request" ADD COLUMN IF NOT EXISTS "last_escalated_at" TIMESTAMP;`);
       await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "account_Number" VARCHAR(255);`);
       await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "user_FingerprintId" INTEGER;`);
+      await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "user_FingerprintTemplate" TEXT;`);
       await sequelize.query(`ALTER TABLE "LogCorrection_Request" ADD COLUMN IF NOT EXISTS "correctionCategory" VARCHAR(255);`);
       console.log("Database migrations completed successfully.");
     } catch (err) {

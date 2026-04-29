@@ -170,11 +170,15 @@ const Edit = ({ inputs, title }) => {
     setFormData((prev) => ({ ...prev, user_FingerprintId: "" }));
     setFingerprintError("");
     try {
-      const response = await fetchWithAuth("/api/users/generateFingerprint");
+      const response = await fetchWithAuth(`/api/users/generateFingerprint?userId=${userId}`);
       const data = await response.json();
 
       if (response.ok) {
-        setFormData((prev) => ({ ...prev, user_FingerprintId: data.fingerprintId }));
+        setFormData((prev) => ({ 
+          ...prev, 
+          user_FingerprintId: data.fingerprintId,
+          user_FingerprintTemplate: data.template || "" 
+        }));
         clearError("user_FingerprintId");
         setToast({
           message: `Fingerprint scanned! ID updated to slot: ${data.fingerprintId}`,
