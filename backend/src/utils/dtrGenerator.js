@@ -86,15 +86,18 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
 
   body {
     font-family: Arial, sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     color: #111;
     background: #fff;
-    padding: 24px 28px;
+    padding: 15mm;
+    display: flex;
+    flex-direction: column;
+    min-height: 267mm;
   }
 
   /* ── Card top header ── */
   .cardTopHeader {
-    border: 1px solid #333;
+    border: 2px solid #333;
     margin-bottom: 0;
   }
 
@@ -102,7 +105,7 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
     display: flex;
     justify-content: space-between;
     border-bottom: 1px solid #555;
-    padding: 5px 8px;
+    padding: 8px 12px;
     gap: 16px;
   }
   .headerLine:last-of-type { border-bottom: none; }
@@ -111,12 +114,12 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
     display: flex;
     gap: 6px;
     flex: 1;
-    font-size: 11px;
-    color: #555;
+    font-size: 12px;
+    color: #444;
   }
   .field span {
     font-weight: bold;
-    color: #111;
+    color: #000;
     border-bottom: 1px solid #999;
     flex: 1;
     padding-bottom: 1px;
@@ -126,12 +129,12 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
   .summaryTable {
     width: 100%;
     border-collapse: collapse;
-    border-top: 1px solid #333;
-    font-size: 10.5px;
+    border-top: 2px solid #333;
+    font-size: 11px;
   }
   .summaryTable th, .summaryTable td {
     border: 1px solid #888;
-    padding: 3px 6px;
+    padding: 6px 8px;
     text-align: center;
   }
   .summaryTable .label { text-align: left; font-weight: normal; color: #555; }
@@ -152,13 +155,14 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
   .mainAttendanceGrid {
     width: 100%;
     border-collapse: collapse;
-    border: 1px solid #333;
+    border: 2px solid #333;
     border-top: none;
-    font-size: 10.5px;
+    font-size: 11px;
+    flex: 1;
   }
   .mainAttendanceGrid th, .mainAttendanceGrid td {
     border: 1px solid #aaa;
-    padding: 2.5px 4px;
+    padding: 7px 4px;
     text-align: center;
     min-width: 46px;
   }
@@ -166,6 +170,7 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
     background: #f5f5f5;
     font-size: 10px;
     font-weight: bold;
+    padding: 10px 4px;
   }
   .mainAttendanceGrid .dayCol   { font-weight: bold; width: 30px; background: #fafafa; }
   .mainAttendanceGrid .totalCol { font-weight: bold; background: #fafafa; }
@@ -173,14 +178,15 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
 
   /* ── Footer ── */
   .cardFooter {
-    border: 1px solid #333;
+    border: 2px solid #333;
     border-top: none;
-    padding: 10px 12px 16px;
+    padding: 20px 12px 30px;
   }
   .certification {
     font-size: 10px;
     color: #555;
-    margin-bottom: 18px;
+    margin-bottom: 25px;
+    text-align: center;
   }
   .signatureLine {
     display: flex;
