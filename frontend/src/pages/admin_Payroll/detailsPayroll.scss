@@ -6,8 +6,64 @@ $primary-purple: #2A174E;
 
     .detailsWrapper {
       padding: 30px;
-      max-width: 1000px;
-      margin: 0 auto;
+      max-width: 100%;
+      margin: 0;
+
+      @media (min-width: 1600px) {
+        padding: 30px 60px; 
+      }
+
+      /* detailsPayroll.scss addition */
+
+      .skeletonWrapper {
+        @keyframes shimmer {
+          0% { background-position: -468px 0; }
+          100% { background-position: 468px 0; }
+        }
+
+        .skeletonLine, .skeletonTitle, .skeletonBadge, .skeletonCard, .skeletonNetPay, .skeletonCircleTitle {
+          background: #f6f7f8;
+          background-image: linear-gradient(90deg, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+          background-repeat: no-repeat;
+          background-size: 800px 104px;
+          animation: shimmer 1.5s infinite linear;
+          border-radius: 8px;
+        }
+
+        .skeletonHeader {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 30px;
+          .skeletonTitle { width: 300px; height: 40px; }
+          .skeletonBadge { width: 100px; height: 30px; border-radius: 20px; }
+        }
+
+        .skeletonCard {
+          background: white;
+          padding: 25px;
+          margin-bottom: 25px;
+          height: 150px;
+          border-radius: 15px;
+          
+          .skeletonCircleTitle {
+            width: 150px; height: 20px; margin-bottom: 20px;
+          }
+
+          .skeletonGrid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            .skeletonLine { height: 35px; width: 100%; }
+          }
+        }
+
+        .skeletonNetPay {
+          height: 120px;
+          width: 100%;
+          margin-bottom: 25px;
+          border-radius: 15px;
+        }
+      }
 
       .pageHeader {
         display: flex;
@@ -57,7 +113,7 @@ $primary-purple: #2A174E;
         }
       }
 
-        .statusBadge.paid {
+        .statusBadge.released {
           background-color: #22c55e;
           color: white;
           padding: 6px 16px;
@@ -91,6 +147,15 @@ $primary-purple: #2A174E;
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           gap: 20px;
+          
+          @media (max-width: 1024px) {
+            grid-template-columns: repeat(2, 1fr); // 2 columns for tablets[cite: 34]
+          }
+
+          @media (max-width: 600px) {
+            grid-template-columns: 1fr; // Stacked for mobile[cite: 34]
+          }
+
           .infoItem {
             label { font-size: 12px; color: #888; display: block; margin-bottom: 5px; }
             p { font-size: 15px; font-weight: bold; color: #333; }

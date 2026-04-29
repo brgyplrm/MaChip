@@ -45,6 +45,7 @@ const New = ({ inputs, title }) => {
     user_Email: "",
     user_Password: "",
     user_MachipId: "",
+    user_FingerprintId: "",
     account_Number: "",
     user_RoleId: 3,
   });
@@ -54,6 +55,35 @@ const New = ({ inputs, title }) => {
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   const dismissToast = useCallback(() => setToast({ message: "", type: "success" }), []);
+
+  const [showFingerprintModal, setShowFingerprintModal] = useState(false);
+  const [fingerprintError, setFingerprintError] = useState("");
+
+  const handleScanFingerprint = async () => {
+    setShowFingerprintModal(true); 
+    setFormData(prev => ({ ...prev, user_FingerprintId: "" }));
+    setFingerprintError("");
+
+    try {
+      // Assuming you have a similar endpoint for fingerprint generation
+      const response = await fetchWithAuth("/api/users/generateFingerprint");
+      const data = await response.json();
+
+      if (response.ok) {
+        setFormData((prev) => ({ ...prev, user_FingerprintId: data.fingerprintId }));
+        setToast({
+          message: `Fingerprint registered: ${data.fingerprintId}`,
+          type: "success",
+        });
+      } else {
+        setFingerprintError(data.error || "Failed to scan fingerprint.");
+        setToast({ message: data.error || "Scan failed.", type: "error" });
+      }
+    } catch (err) {
+      setFingerprintError("An error occurred during scanning.");
+      setToast({ message: "An error occurred.", type: "error" });
+    }
+  };
 
   useEffect(() => {
     const fetchNextId = async () => {
@@ -310,7 +340,7 @@ const New = ({ inputs, title }) => {
                           value={input.id === "user_Id" ? displayId : formData[input.id]}
                           onChange={handleInput}
                           onBlur={input.id === "user_Id" ? handleIdBlur : undefined}
-                          readOnly={input.label === "MaChip ID"}
+                          readOnly={input.label === "MaChip ID" || input.label === "Fingerprint ID"}
                         />
                         {input.id === "user_Password" && (
                           <div className="eyeIcon" style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", display: "flex", alignItems: "center", height: "100%", color: "gray" }} onClick={() => setShowPassword(!showPassword)}>
@@ -325,7 +355,12 @@ const New = ({ inputs, title }) => {
                         {errors[input.id] && <span className="error" style={{ color: "red", fontSize: "12px" }}>{errors[input.id]}</span>}
                       </div>
                     )}
-                    {input.label === "MaChip ID" && <button type="button" className="scanBtn" onClick={handleScanRFID}>SCAN</button>}
+                    {input.label === "MaChip ID" && (
+                      <button type="button" className="scanBtn" onClick={handleScanRFID}>SCAN</button>
+                      )}
+                    {input.label === "Fingerprint ID" && (
+                      <button type="button" className="scanBtn" onClick={handleScanFingerprint}>SCAN</button>
+                    )}
 
                   </div>
                 </div>
@@ -346,6 +381,15 @@ const New = ({ inputs, title }) => {
           onRescan={handleScanRFID}
           scannedId={formData.user_MachipId} 
           error={rfidError}
+        />
+        <RfidScanModal 
+          isOpen={showFingerprintModal} 
+          onClose={() => setShowFingerprintModal(false)}
+          onRescan={handleScanFingerprint}
+          scannedId={formData.user_FingerprintId} 
+          error={fingerprintError}
+          // You might want to pass a title prop if your modal supports it
+          title="Fingerprint Scanner" 
         />
       </div>
     );

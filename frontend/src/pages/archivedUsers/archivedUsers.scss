@@ -17,9 +17,56 @@ $primary-purple: #2A174E;
       }
 
       .header {
-        margin-bottom: 25px;
-        h1 { font-size: 24px; color: #333; margin: 0; }
-        span { color: #888; font-size: 14px; }
+        .titleWithBack {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 4px;
+
+            .backLink {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 36px;
+              height: 36px;
+              border-radius: 50%;
+              background-color: transparent;
+              color: #2A174E; // Primary purple from your variables
+              transition: all 0.2s ease;
+              text-decoration: none;
+
+              &:hover {
+                background-color: #f0ebfa; // Soft purple hover matches employee list
+                transform: translateX(-3px); // Subtle "back" movement
+              }
+
+              .backIcon {
+                font-size: 22px;
+              }
+            }
+            .titleBlock {
+              display: flex;
+              flex-direction: column; // Forces description below h1
+
+              h1 {
+                font-size: 24px;
+                color: #333;
+                margin: 0;
+                line-height: 1.2;
+              }
+
+              .description {
+                color: #888;
+                font-size: 14px;
+                margin-top: 4px; // Space between title and description
+              }
+            }
+          }
+
+          span { 
+            color: #888; 
+            font-size: 14px;
+          }
 
         @media (max-width: 768px) {
           h1 { font-size: 22px; }
@@ -36,7 +83,32 @@ $primary-purple: #2A174E;
           align-items: stretch;
           gap: 15px;
 
-          .searchBox { width: 100%; input { width: 100%; } }
+          .searchBox { 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+            flex: 1;
+
+            .icon { 
+              color: #aaa; 
+              
+              // Add these new styles for the clickable icon
+              &.clickableIcon {
+                cursor: pointer;
+                transition: color 0.2s ease, transform 0.1s ease;
+
+                &:hover {
+                  color: $primary-purple; // Changes to your theme color on hover
+                }
+
+                &:active {
+                  transform: scale(0.9); // Slight "press" effect when clicked
+                }
+              }
+            }
+
+            input { border: none; outline: none; width: 80%; font-size: 14px; }
+          }
           .dropdownWrapper { width: 100%; .typeSelect { width: 100%; } }
         }
 

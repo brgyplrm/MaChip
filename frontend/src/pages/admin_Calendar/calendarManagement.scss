@@ -61,13 +61,24 @@ $ot-blue: #e0f2fe;
             justify-content: center; // Center text on mobile buttons
           }
 
-          &.holiday { background-color: #2A174E; }
+          &.holiday { 
+            border: 2px #2A174E solid; 
+            color: #2A174E;
+
+            &:hover{
+              background-color: #1D0C45;
+              color: #ffff;
+            }
+          }
           &.sync {
             background-color: #0d6efd; 
             .spinning { animation: spin 1s linear infinite; }
           }
-          &.fieldWork { background-color: #ff6d00; }
-          &:hover { opacity: 0.9; }
+          &.fieldWork { 
+            background-color: #ff6d00; 
+            &:hover { background-color: #932E00; }
+          }
+          
           
           @keyframes spin {
             from { transform: rotate(0deg); }
@@ -387,7 +398,48 @@ $ot-blue: #e0f2fe;
         .inputGroup { 
           margin-bottom: 15px; 
           label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 14px; }
-          input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+          input, select { 
+            width: 100%;
+            padding: 12px 15px; // More breathing room
+            border: 1px solid #e2e8f0; // Softer border color
+            border-radius: 10px; // Matches your card's rounded corners
+            background-color: #f8fafc;
+            font-size: 14px;
+            color: #334155;
+            transition: all 0.2s ease;
+            appearance: none;
+
+            &:focus {
+              outline: none;
+              border-color: $primary-purple;
+              background-color: #fff;
+              box-shadow: 0 0 0 3px rgba(42, 23, 78, 0.1); // Subtle purple glow
+            }
+
+            &::placeholder {
+              color: #94a3b8;
+            }
+          }
+          select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23475569'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1em;
+            option {
+              padding: 10px;
+              background-color: #ffffff;
+              color: #333;
+              
+              &:hover {
+                background-color: #f0ebfa; // Matches your hover theme[cite: 12]
+              }
+              
+              // Style for the "Choose Employee..." placeholder option
+              &:disabled {
+                color: gray;
+              }
+            }
+          }
         }
         
         .modalActions {
@@ -414,6 +466,72 @@ $ot-blue: #e0f2fe;
             span:first-child { font-weight: bold; color: #666; }
           }
           .statusNote { font-size: 12px; font-style: italic; color: #22c55e; margin-top: 15px; }
+        }
+      }
+    }
+    .dailyEventsList {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+
+      .eventDetailItem {
+        padding: 12px 16px;
+        border-radius: 10px;
+        background-color: #fdfdfd;
+        border: 1px solid #f0f0f0;
+        // Adds a thick colored bar on the left to match the category
+        border-left: 6px solid transparent; 
+
+        .eventHeader {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 4px;
+
+          .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+          }
+          
+          strong {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+        }
+
+        .eventName {
+          margin: 0;
+          color: #333;
+          font-size: 15px;
+        }
+
+        /* Legend Color Matching */
+        &.legal { 
+          border-left-color: #fca5a5; // Red/Pink for Regular Holiday
+          .dot { background: #fca5a5; }
+          strong { color: #b91c1c; }
+        }
+        &.special { 
+          border-left-color: #d8b4fe; // Purple for Special Holiday[cite: 10]
+          .dot { background: #d8b4fe; }
+          strong { color: #6b21a8; }
+        }
+        &.leave { 
+          border-left-color: #86efac; // Green for Leave[cite: 10]
+          .dot { background: #86efac; }
+          strong { color: #166534; }
+        }
+        &.field { 
+          border-left-color: #fdba74; // Orange for Field Work[cite: 10]
+          .dot { background: #fdba74; }
+          strong { color: #9a3412; }
+        }
+        &.ot { 
+          border-left-color: #7dd3fc; // Blue for Overtime[cite: 10]
+          .dot { background: #7dd3fc; }
+          strong { color: #0369a1; }
         }
       }
     }

@@ -18,51 +18,10 @@ const TransactionLog = () => {
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
 
-  const handleExport = () => {
-    const headers = [
-      "Timestamp",
-      "Initiated By",
-      "Employee ID",
-      "Event Category",
-      "Description",
-      "IP Address",
-      "Metadata Details"
-    ];
-
-    const sensitiveFields = ["user_Password", "password", "user_MachipId", "rfid", "uid", "adminPassword", "admin_Password"];
-
-    const data = filteredData.map(t => {
-      const initiator = t.emp_FirstName 
-        ? `${t.emp_FirstName} ${t.emp_LastName}` 
-        : t.event_Type === "UNAUTHORIZED_SCAN" ? "Unknown Device" : "System";
-      
-      const empId = t.user_Id ? formatUserId(t.user_Id) : "N/A";
-
-      // Process metadata for CSV
-      let metadataStr = "";
-      if (t.metadata) {
-        metadataStr = Object.entries(t.metadata)
-          .filter(([key]) => !["createdAt", "updatedAt", "deletedAt"].includes(key))
-          .map(([key, val]) => {
-            const displayVal = sensitiveFields.includes(key) ? "[REDACTED]" : (typeof val === 'object' ? JSON.stringify(val) : val);
-            return `${key}: ${displayVal}`;
-          })
-          .join(" | ");
-      }
-
-      return [
-        new Date(t.createdAt).toLocaleString(),
-        initiator,
-        empId,
-        t.event_Type,
-        t.description,
-        t.ip_Address || t.metadata?.deviceIp || "Local",
-        metadataStr
-      ];
-    });
-
-    exportToCSV(headers, data, `Transaction_Logs_${new Date().toISOString().split('T')[0]}.csv`);
-  };
+  // --- PAGINATION STATE ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage] = useState(10);
+  const [goToValue, setGoToValue] = useState("");
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -81,6 +40,7 @@ const TransactionLog = () => {
     fetchTransactions();
   }, []);
 
+  // Filtering Logic
   const filteredData = transactions.filter(t => {
     const matchesSearch = (t.emp_FirstName + " " + t.emp_LastName).toLowerCase().includes(searchTerm.toLowerCase()) || 
                           t.event_Type.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -89,9 +49,33 @@ const TransactionLog = () => {
     return matchesSearch && matchesAction;
   });
 
+  // --- PAGINATION LOGIC ---
+  const indexOfLastLog = currentPage * rowsPerPage;
+  const indexOfFirstLog = indexOfLastLog - rowsPerPage;
+  const currentLogs = filteredData.slice(indexOfFirstLog, indexOfLastLog);
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
+
+  // Reset to page 1 when search or filters change[cite: 25]
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, actionFilter]);
+
+  const handleGoToPage = (e) => {
+    e.preventDefault();
+    const pageNum = parseInt(goToValue);
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      setCurrentPage(pageNum);
+      setGoToValue("");
+    }
+  };
+
+  const pageNumbers = [];
+  for (let i = 1; i <= totalPages; i++) {
+    pageNumbers.push(i);
+  }
+
   const uniqueActions = ["All Actions", ...new Set(transactions.map(t => t.event_Type))];
 
-  // Summary Stats Logic
   const stats = {
     total: transactions.length,
     payrollReleases: transactions.filter(t => t.event_Type === "PAYROLL_RELEASE").length,
@@ -101,9 +85,7 @@ const TransactionLog = () => {
 
   const maskDescription = (desc, type) => {
     if (type !== "UNAUTHORIZED_SCAN") return desc;
-    // Unauthorized scan description might contain the raw UID, but the backend now sends masked
-    // If it's old data, we might want to mask it here too.
-    return desc; // Relying on backend masking for new logs
+    return desc; 
   };
 
   const MetadataTable = ({ data }) => {
@@ -111,7 +93,7 @@ const TransactionLog = () => {
     
     const sensitiveFields = ["user_Password", "password", "user_MachipId", "rfid", "uid", "adminPassword", "admin_Password"];
     const allKeys = Object.keys(data)
-      .filter(key => !["createdAt", "updatedAt", "deletedAt"].includes(key)) // Filter noisy fields
+      .filter(key => !["createdAt", "updatedAt", "deletedAt"].includes(key))
       .sort();
 
     return (
@@ -127,7 +109,6 @@ const TransactionLog = () => {
             {allKeys.map(key => {
               const val = data[key];
               const isSensitive = sensitiveFields.includes(key);
-              
               return (
                 <tr key={key} className="unchangedRow">
                   <td className="fieldName">{key.replace(/_/g, " ")}</td>
@@ -165,7 +146,6 @@ const TransactionLog = () => {
             </button>
           </div>
 
-          {/* Top Summary Cards */}
           <div className="summaryRow">
             <div className="statCard">
               <label>Total Transactions</label>
@@ -185,7 +165,6 @@ const TransactionLog = () => {
             </div>
           </div>
 
-          {/* Filter Bar */}
           <div className="filterCard">
             <div className="searchBox">
               <SearchIcon className="icon" />
@@ -207,7 +186,6 @@ const TransactionLog = () => {
             </div>
           </div>
 
-          {/* Transaction Table */}
           <div className="tableCard">
             {loading ? <p>Loading transaction logs...</p> : (
               <table className="customLogTable">
@@ -222,7 +200,8 @@ const TransactionLog = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.map((t) => (
+                  {/* CRITICAL: Mapping currentLogs for pagination[cite: 25] */}
+                  {currentLogs.map((t) => (
                     <tr key={t.transId}>
                       <td className="dateCell">{new Date(t.createdAt).toLocaleString()}</td>
                       <td className="userCell">
@@ -247,17 +226,68 @@ const TransactionLog = () => {
                       </td>
                     </tr>
                   ))}
-                  {filteredData.length === 0 && (
+                  {currentLogs.length === 0 && (
                     <tr><td colSpan="6" style={{textAlign: "center", padding: "20px"}}>No transactions found</td></tr>
                   )}
                 </tbody>
               </table>
             )}
           </div>
+
+          {/* Pagination UI[cite: 25] */}
+          <div className="paginationWrapper">
+            <nav aria-label="Transaction log pagination" className="paginationNav">
+              <ul className="paginationList">
+                <li>
+                  <button 
+                    className="pageBtn prev" 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                  >
+                    Previous
+                  </button>
+                </li>
+                {pageNumbers.map(number => (
+                  <li key={number}>
+                    <button 
+                      className={`pageBtn ${currentPage === number ? "active" : ""}`}
+                      onClick={() => setCurrentPage(number)}
+                    >
+                      {number}
+                    </button>
+                  </li>
+                ))}
+                <li>
+                  <button 
+                    className="pageBtn next" 
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                  >
+                    Next
+                  </button>
+                </li>
+              </ul>
+              <form className="goToPageForm" onSubmit={handleGoToPage}>
+                <div className="formGroup">
+                  <label htmlFor="goToPage">Go to</label>
+                  <input 
+                    type="number" 
+                    id="goToPage" 
+                    placeholder={totalPages}
+                    value={goToValue}
+                    onChange={(e) => setGoToValue(e.target.value)}
+                    min="1"
+                    max={totalPages}
+                    required 
+                  />
+                  <span>page</span>
+                </div>
+              </form>
+            </nav>
+          </div>
         </div>
       </div>
 
-      {/* JSON Metadata Modal */}
       {selectedLog && (
         <div className="auditModalOverlay">
           <div className="auditModalContent">
@@ -267,7 +297,6 @@ const TransactionLog = () => {
             </div>
             <div className="modalBody">
               <MetadataTable data={selectedLog.metadata} />
-              
               <div className="modalFooter" style={{marginTop: "20px", paddingTop: "15px", borderTop: "1px solid #f1f3f5", fontSize: "12px", color: "#718096"}}>
                 <div style={{display: "flex", gap: "20px"}}>
                   <span><strong>Event:</strong> {selectedLog.event_Type}</span>

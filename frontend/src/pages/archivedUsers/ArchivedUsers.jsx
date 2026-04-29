@@ -9,6 +9,8 @@ import PermanentDeleteModal from "../../components/permanentDeleteModal/Permanen
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { Link } from "react-router-dom";
 
 const ArchivedUsers = () => {
   const [showPermDelete, setShowPermDelete] = useState(false);
@@ -115,6 +117,12 @@ const ArchivedUsers = () => {
     admins: archivedUsers.filter(u => u.user_Role === "Admin").length,
   };
 
+  const handleSearchClick = () => {
+  // Example: You could trigger a refresh or simply log the query
+  console.log("Searching for:", searchQuery);
+  // fetchArchivedUsers(); // If you wanted to re-fetch from API on click
+};
+
   return (
     <div className="archives">
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
@@ -124,8 +132,15 @@ const ArchivedUsers = () => {
         <div className="wrapper">
           <div className="header">
             <div className="titleText">
-              <h1>Archived Users</h1>
-              <span>Manage archived user records - restore or permanently delete</span>
+              <div className="titleWithBack">
+                <Link to="/users" className="backLink">
+                  <ArrowBackIcon className="backIcon" />
+                </Link>
+              <div className="titleBlock">
+                  <h1>Archived Users</h1>
+                  <span className="description">Manage archived user records - restore or permanently delete</span>
+              </div>
+              </div>
             </div>
           </div>
 
@@ -146,7 +161,10 @@ const ArchivedUsers = () => {
 
           <div className="filterCard">
             <div className="searchBox">
-              <SearchIcon className="icon" />
+              <SearchIcon
+                className="icon clickableIcon" // Added a new class for styling
+                onClick={handleSearchClick}     // Added the click handler
+              />
               <input 
                 type="text" 
                 placeholder="Search by name or email..." 

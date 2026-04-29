@@ -8,8 +8,8 @@ import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
-import { exportToCSV } from "../../utils/csvExport";
-import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import SearchIcon from "@mui/icons-material/Search";
+
 
 const formatDateStr = (dateStr) => {
   if (!dateStr) return "—";
@@ -306,6 +306,7 @@ const Logs = () => {
             </div>
             <div className="filterSection">
               <div className="searchWrapper">
+                <SearchIcon />
                 <input
                   type="text"
                   placeholder="Search logs..."
@@ -335,14 +336,7 @@ const Logs = () => {
               </div>
               <div className="buttonGroup">
                 <button
-                  className="headerButton"
-                  onClick={handleExport}
-                >
-                  <FileDownloadIcon style={{fontSize: "18px", marginRight: "5px"}}/>
-                  Export CSV
-                </button>
-                <button
-                  className="headerButton"
+                  className="headerButton view"
                   onClick={() => {
                     setViewMode(viewMode === "raw" ? "day" : "raw");
                     setCurrentPage(1);
@@ -357,14 +351,14 @@ const Logs = () => {
                       onClick={() => handleGenerateLogs(1)}
                       disabled={loading}
                     >
-                      {loading ? "Processing..." : "Generate Clock In"}
+                      {loading ? "Processing..." : "Clock In"}
                     </button>
                     <button
                       className="headerButton"
                       onClick={() => handleGenerateLogs(2)}
                       disabled={loading}
                     >
-                      {loading ? "Processing..." : "Generate Clock Out"}
+                      {loading ? "Processing..." : "Clock Out"}
                     </button>
                   </>
                 )}

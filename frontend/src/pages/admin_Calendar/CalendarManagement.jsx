@@ -10,7 +10,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import Toast from "../../components/toast/Toast";
 import ActionModal from "../../components/actionModal/ActionModal";
 import InfoModal from "../../components/infoModal/InfoModal";
-import PageTransition from "../../components/pageTransition/PageTransition";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
 import { useState, useEffect } from "react";
@@ -18,6 +17,7 @@ import { formatUserId } from "../../utils/formatUserId";
 
 
 const CalendarManagement = () => {
+  // --- State Declarations ---
   const { systemToday } = useSystemTime();
   const [currentDate, setCurrentDate] = useState(new Date(systemToday.getFullYear(), systemToday.getMonth(), 1));
   const [events, setEvents] = useState([]);
@@ -27,92 +27,12 @@ const CalendarManagement = () => {
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null); // { id, type }
+  const [itemToDelete, setItemToDelete] = useState(null);
   const [selectedDayDetails, setSelectedDayDetails] = useState(null);
-
-  const handleDayClick = (day) => {
-  const dayEvents = getEventsForDay(day);
-  
-  // Format the date nicely for the modal title (e.g., "Monday, April 15, 2026")
-  const dateObj = new Date(year, monthIndex, day);
-  const formattedDate = dateObj.toLocaleDateString(undefined, { 
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
-  });
-
-  setSelectedDayDetails({
-    date: formattedDate,
-    events: dayEvents
-  });
-};
-
-  const initiateDelete = (id, type) => {
-    setItemToDelete({ id, type });
-    setShowDeleteModal(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!itemToDelete) return;
-    const { id, type } = itemToDelete;
-    console.log(`[DEBUG] Confirming delete for ${type} with ID: ${id}`);
-    
-    // Choose endpoint based on type
-    const endpoint = type === 'Holiday' 
-      ? `/api/system/holidays/${id}`
-      : `/api/request/delete/${id}`;
-
-    try {
-      const response = await fetchWithAuth(endpoint, {
-        method: "DELETE",
-      });
-      
-      console.log(`[DEBUG] Delete response status: ${response.status}`);
-      if (response.ok) {
-        setEvents(prev => {
-          const filtered = prev.filter((item) => !(item.id === id && item.type === type));
-          console.log(`[DEBUG] Events filtered. Old count: ${prev.length}, New count: ${filtered.length}`);
-          return filtered;
-        });
-        setToast({ message: `${type} deleted successfully.`, type: "success" });
-        fetchCalendarEvents(); // Refresh fully to be sure
-      } else {
-        const result = await response.json();
-        setToast({ message: result.error || "Failed to delete.", type: "error" });
-      }
-    } catch (err) {
-      setToast({ message: "Could not connect to server.", type: "error" });
-    } finally {
-      setShowDeleteModal(false);
-      setItemToDelete(null);
-    }
-  };
-
-  const userData = JSON.parse(localStorage.getItem("userData") || "{}");
-  const isAdmin = userData.user_RoleId === 1;
-
   const [selectedHolidayWork, setSelectedHolidayWork] = useState(null);
   const [selectedFieldLog, setSelectedFieldLog] = useState(null);
+  const [viewingHoliday, setViewingHoliday] = useState(null);
 
-  // 1. Logic for Holiday Clicks
-  const handleHolidayClick = (holiday) => {
-    // Find field work scheduled on the same date as the holiday
-    const matchingWork = events.filter(e => 
-      e.type === "Field Work" && 
-      e.date.split('T')[0] === holiday.date.split('T')[0]
-    );
-
-    if (matchingWork.length > 0) {
-      setSelectedHolidayWork({ holiday, matchingWork });
-    }
-  };
-
-  // 2. Logic for Field Work Clicks
-  const handleFieldWorkClick = (fieldWork) => {
-    // In a real app, you might fetch specific logs here
-    setSelectedFieldLog(fieldWork);
-  };
-
-  
-  // Field Work Form State
   const [fieldWorkForm, setFieldWorkForm] = useState({
     userId: "",
     date: "",
@@ -120,92 +40,26 @@ const CalendarManagement = () => {
     hours: 8
   });
 
-  // Holiday Form State
   const [holidayForm, setHolidayForm] = useState({
     name: "",
     date: "",
     type: "Regular Holiday"
   });
 
-  const handleHolidaySubmit = async (e) => {
-    e.preventDefault();
-    if (!holidayForm.name || !holidayForm.date) {
-      setToast({ message: "Please fill in all fields.", type: "error" });
-      return;
-    }
-
-    try {
-      const response = await fetchWithAuth("/api/system/holidays", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: holidayForm.name,
-          date: holidayForm.date,
-          type: holidayForm.type
-        }),
-      });
-
-      if (response.ok) {
-        setToast({ message: "Holiday added successfully!", type: "success" });
-        setModalType(null);
-        setHolidayForm({ name: "", date: "", type: "Regular Holiday" });
-        fetchCalendarEvents();
-      } else {
-        const err = await response.json();
-        setToast({ message: err.error || "Failed to add holiday.", type: "error" });
-      }
-    } catch (error) {
-      setToast({ message: "Connection error.", type: "error" });
-    }
-  };
-
-  const handleFieldWorkSubmit = async (e) => {
-    e.preventDefault();
-    if (!fieldWorkForm.userId || !fieldWorkForm.date || !fieldWorkForm.location) {
-      setToast({ message: "Please fill in all fields.", type: "error" });
-      return;
-    }
-
-    try {
-      const response = await fetchWithAuth("/api/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_Id: fieldWorkForm.userId,
-          emp_reqTypeId: 2, // Onfield Work
-          emp_reqStatusId: 2, // Auto-approve
-          DateonField: fieldWorkForm.date,
-          NoHrs: fieldWorkForm.hours,
-          destination: fieldWorkForm.location,
-          NoDays: 1,
-          purpose: "Admin Assigned Field Work"
-        }),
-      });
-
-      if (response.ok) {
-        setToast({ message: "Field work assigned and email sent!", type: "success" });
-        setModalType(null);
-        setFieldWorkForm({ userId: "", date: "", location: "", hours: 8 });
-        fetchCalendarEvents(); // Refresh
-      } else {
-        const err = await response.json();
-        setToast({ message: err.error || "Failed to assign field work.", type: "error" });
-      }
-    } catch (error) {
-      setToast({ message: "Connection error.", type: "error" });
-    }
-  };
-
+  // --- Constants ---
+  const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+  const isAdmin = userData.user_RoleId === 1;
   const monthName = currentDate.toLocaleString('default', { month: 'long' });
   const monthIndex = currentDate.getMonth();
   const year = currentDate.getFullYear();
+
+  // --- Logic Functions ---
 
   const fetchCalendarEvents = async () => {
     setLoading(true);
     try {
       const firstDay = `${year}-01-01`;
       const lastDay = `${year}-12-31`;
-      
       const response = await fetchWithAuth(`/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}`);
       if (response.ok) {
         const data = await response.json();
@@ -235,31 +89,117 @@ const CalendarManagement = () => {
     fetchEmployees();
   }, [currentDate]);
 
-  // Navigation Logic for all months
+  const handleDayClick = (day) => {
+    const dayEvents = getEventsForDay(day);
+    const dateObj = new Date(year, monthIndex, day);
+    const formattedDate = dateObj.toLocaleDateString(undefined, { 
+      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+    });
+
+    setSelectedDayDetails({
+      date: formattedDate,
+      events: dayEvents
+    });
+  };
+
+  const handleHolidayClick = (holiday) => {
+    const matchingWork = events.filter(e => 
+      e.type === "Field Work" && 
+      e.date.split('T')[0] === holiday.date.split('T')[0]
+    );
+
+    if (matchingWork.length > 0) {
+      setSelectedHolidayWork({ holiday, matchingWork });
+    } else {
+      setViewingHoliday(holiday);
+    }
+  };
+
+  const handleFieldWorkClick = (fieldWork) => {
+    setSelectedFieldLog(fieldWork);
+  };
+
+  const initiateDelete = (id, type) => {
+    setItemToDelete({ id, type });
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    const { id, type } = itemToDelete;
+    const endpoint = type === 'Holiday' ? `/api/system/holidays/${id}` : `/api/request/delete/${id}`;
+
+    try {
+      const response = await fetchWithAuth(endpoint, { method: "DELETE" });
+      if (response.ok) {
+        setEvents(prev => prev.filter((item) => item.id !== id || item.type !== type));
+        setToast({ message: `${type} deleted successfully.`, type: "success" });
+        fetchCalendarEvents();
+      }
+    } catch (err) {
+      setToast({ message: "Could not connect to server.", type: "error" });
+    } finally {
+      setShowDeleteModal(false);
+      setItemToDelete(null);
+    }
+  };
+
+  const handleHolidaySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetchWithAuth("/api/system/holidays", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(holidayForm),
+      });
+      if (response.ok) {
+        setToast({ message: "Holiday added successfully!", type: "success" });
+        setModalType(null);
+        fetchCalendarEvents();
+      }
+    } catch (error) {
+      setToast({ message: "Connection error.", type: "error" });
+    }
+  };
+
+  const handleFieldWorkSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetchWithAuth("/api/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_Id: fieldWorkForm.userId,
+          emp_reqTypeId: 2,
+          emp_reqStatusId: 2,
+          DateonField: fieldWorkForm.date,
+          NoHrs: fieldWorkForm.hours,
+          destination: fieldWorkForm.location,
+          NoDays: 1,
+          purpose: "Admin Assigned Field Work"
+        }),
+      });
+      if (response.ok) {
+        setToast({ message: "Field work assigned successfully!", type: "success" });
+        setModalType(null);
+        fetchCalendarEvents();
+      }
+    } catch (error) {
+      setToast({ message: "Connection error.", type: "error" });
+    }
+  };
+
+  // --- Helper Functions ---
   const changeMonth = (offset) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
   };
 
-  // Logic to generate the calendar grid
-  const daysInMonth = new Date(year, currentDate.getMonth() + 1, 0).getDate();
-  const firstDayOfMonth = new Date(year, currentDate.getMonth(), 1).getDay();
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
-
-  // Helper to get events for a specific day
   const getEventsForDay = (day) => {
     const targetDateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    
     return events.filter(e => {
       if (!e.date) return false;
       const startDateStr = e.date.split('T')[0];
-      
-      // For single day events (Holidays, OT, On-field Work if endDate is null)
-      if (!e.endDate) {
-        return startDateStr === targetDateStr;
-      }
-      
-      // For range events (Leaves, On-field Work)
+      if (!e.endDate) return startDateStr === targetDateStr;
       const endDateStr = e.endDate.split('T')[0];
       return targetDateStr >= startDateStr && targetDateStr <= endDateStr;
     });
@@ -273,12 +213,16 @@ const CalendarManagement = () => {
       .slice(0, 5);
   };
 
+  const daysInMonth = new Date(year, currentDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(year, currentDate.getMonth(), 1).getDay();
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
+
   return (
     <div className="home calendarPage">
       <Sidebar />
       <div className="homeContainer">
         <Navbar />
-        <PageTransition>
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         <div className="calendarWrapper">
           <div className="pageHeader">
@@ -492,8 +436,12 @@ const CalendarManagement = () => {
                         value={holidayForm.type}
                         onChange={(e) => setHolidayForm({...holidayForm, type: e.target.value})}
                       >
-                        <option>Regular Holiday</option>
-                        <option>Special Holiday</option>
+                        <option value="Regular Holiday" style={{ color: "#b91c1c" }}>
+                          Regular Holiday
+                        </option>
+                        <option value="Special Holiday" style={{ color: "#6b21a8" }}>
+                          Special Holiday
+                        </option>
                       </select>
                     </div>
                   ) : (
@@ -554,6 +502,27 @@ const CalendarManagement = () => {
               </div>
             </InfoModal>
 
+            {/* General Holiday Info Modal */}
+            <InfoModal 
+              isOpen={!!viewingHoliday} 
+              onClose={() => setViewingHoliday(null)}
+              title="Holiday Details"
+            >
+              <div className="logSummary">
+                <div className="summaryRow">
+                  <span>Holiday Name:</span> <span>{viewingHoliday?.name}</span>
+                </div>
+                <div className="summaryRow">
+                  <span>Date:</span> <span>{viewingHoliday ? new Date(viewingHoliday.date).toLocaleDateString() : ""}</span>
+                </div>
+                <div className="summaryRow">
+                  <span>Type:</span> <span>{viewingHoliday?.type}</span>
+                </div>
+                <hr />
+                <p className="statusNote">This is a non-working day. Attendance is not required.</p>
+              </div>
+            </InfoModal>
+
             {/* Field Work Log Modal */}
             <InfoModal 
               isOpen={!!selectedFieldLog} 
@@ -569,45 +538,42 @@ const CalendarManagement = () => {
             </InfoModal>
 
             {/* Day Details Modal */}
-            <InfoModal 
-              isOpen={!!selectedDayDetails} 
-              onClose={() => setSelectedDayDetails(null)}
-              title={`Schedule for ${selectedDayDetails?.date}`}
-            >
-              <div className="dailyEventsList">
-                {selectedDayDetails?.events.length > 0 ? (
-                  selectedDayDetails.events.map((event, idx) => {
-                    // Determine class based on your existing logic
-                    let typeClass = "legal";
-                    if (event.type === "Holiday") {
-                      typeClass = event.details.toLowerCase().includes("special") ? "special" : "legal";
-                    } else if (event.type === "Leave") typeClass = "leave";
-                    else if (event.type === "Field Work") typeClass = "field";
-                    else if (event.type === "Overtime") typeClass = "ot";
+              <InfoModal 
+                isOpen={!!selectedDayDetails} 
+                onClose={() => setSelectedDayDetails(null)}
+                title={`Schedule for ${selectedDayDetails?.date}`}
+              >
+                <div className="dailyEventsList">
+                  {selectedDayDetails?.events.length > 0 ? (
+                    selectedDayDetails.events.map((event, idx) => {
+                      // Step 1: Determine the CSS class based on event type
+                      let typeClass = "legal";
+                      if (event.type === "Holiday") {
+                        typeClass = event.details.toLowerCase().includes("special") ? "special" : "legal";
+                      } else if (event.type === "Leave") typeClass = "leave";
+                      else if (event.type === "Field Work") typeClass = "field";
+                      else if (event.type === "Overtime") typeClass = "ot";
 
-                    return (
-                      <div key={idx} className={`eventDetailItem ${typeClass}`}>
-                        <div className="eventHeader">
-                          <span className={`dot ${typeClass}`}></span>
-                          <strong>{event.type}</strong>
+                      return (
+                        // Step 2: Apply the type class here
+                        <div key={idx} className={`eventDetailItem ${typeClass}`}>
+                          <div className="eventHeader">
+                            {/* Step 3: Add the legend dot */}
+                            <span className={`dot ${typeClass}`}></span>
+                            <strong>{event.type}</strong>
+                          </div>
+                          <p className="eventName">{event.name || event.details}</p>
                         </div>
-                        <p className="eventName">{event.name || event.details}</p>
-                        {/* Show extra details if it's field work */}
-                        {event.type === "Field Work" && (
-                          <p className="eventSubtext">Automatically credited as 8 hours on-field.</p>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="emptyDayState">
-                    <p>No events or assignments scheduled for this day.</p>
-                  </div>
-                )}
-              </div>
-            </InfoModal>
+                      );
+                    })
+                  ) : (
+                    <div className="emptyDayState">
+                      <p>No events scheduled for this day.</p>
+                    </div>
+                  )}
+                </div>
+              </InfoModal>
         </div>
-        </PageTransition>
       </div>
     </div>
   );

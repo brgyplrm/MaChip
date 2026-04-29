@@ -8,8 +8,7 @@ import Chart from "../../components/chart/Chart";
 import OccupancyList from "../../components/occupancy/OccupancyList";
 import Toast from "../../components/toast/Toast";
 import { fetchWithAuth } from "../../utils/api";
-import { Navigate } from "react-router-dom";
-import PageTransition from "../../components/pageTransition/PageTransition";
+import { Navigate, Link } from "react-router-dom";
 
 const Home = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -87,7 +86,6 @@ const Home = () => {
       <Sidebar />
       <div className="homeContainer">
         <Navbar />
-        <PageTransition>
         <Toast 
           message={toast.message} 
           type={toast.type} 
@@ -95,9 +93,15 @@ const Home = () => {
           duration={5000}
         />
         <div className="widgets">
-          <Widget type="officeOccupancy" amount={stats.officeOccupancy} loading={statsLoading} />
-          <Widget type="onTime" amount={stats.onTimeCount} loading={statsLoading} />
-          <Widget type="lateArrivals" amount={stats.lateArrivalsCount} loading={statsLoading} />
+          <Link to={"/logs"}>
+              <Widget type="officeOccupancy" amount={stats.officeOccupancy} loading={statsLoading} />
+          </Link>
+          <Link to={"/logs"}>
+              <Widget type="onTime" amount={stats.onTimeCount} loading={statsLoading} />
+          </Link>
+          <Link to={"/logs"}>
+              <Widget type="lateArrivals" amount={stats.lateArrivalsCount} loading={statsLoading} />
+          </Link>
         </div>
         <div className="charts">
           <Featured stats={stats} loading={statsLoading} />
@@ -106,7 +110,6 @@ const Home = () => {
         <div className="listContainer">
           <OccupancyList />
         </div>
-        </PageTransition>
       </div>
     </div>
   );

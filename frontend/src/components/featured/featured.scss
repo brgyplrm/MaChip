@@ -6,6 +6,21 @@
   background-color: white;
   border-radius: 10px;
 
+  .CircularProgressbar-path {
+    stroke: #2A174E !important; 
+  }
+
+  /* Target the background trail */
+  .CircularProgressbar-trail {
+    stroke: #fdfaf5 !important;
+  }
+
+  /* Target the center text */
+  .CircularProgressbar-text {
+    fill: #2A174E !important;
+    font-weight: bold;
+  }
+
   .top {
     display: flex;
     align-items: center;
