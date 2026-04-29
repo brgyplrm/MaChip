@@ -88,6 +88,22 @@ const TransactionLog = () => {
     return desc; 
   };
 
+  const handleExport = () => {
+    const headers = ["Timestamp", "Initiated By", "Event Category", "Description", "IP Address"];
+    const data = filteredData.map(t => [
+      new Date(t.createdAt).toLocaleString(),
+      t.emp_FirstName 
+        ? `${t.emp_FirstName} ${t.emp_LastName} (${formatUserId(t.user_Id)})` 
+        : t.event_Type === "UNAUTHORIZED_SCAN" 
+          ? `Unknown Device`
+          : "System",
+      t.event_Type.replace(/_/g, " "),
+      maskDescription(t.description, t.event_Type),
+      t.ip_Address || t.metadata?.deviceIp || "Local"
+    ]);
+    exportToCSV(headers, data, `Transaction_Logs_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
   const MetadataTable = ({ data }) => {
     if (!data) return <span className="emptyText">No metadata available</span>;
     

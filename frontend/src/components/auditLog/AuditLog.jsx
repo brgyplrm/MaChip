@@ -82,6 +82,19 @@ const AuditLogs = () => {
     activeAdmins: new Set(logs.map(l => l.user_Id)).size,
   };
 
+  const handleExport = () => {
+    const headers = ["Timestamp", "Module", "Administrator", "Action", "Target Table", "Target ID"];
+    const data = filteredLogs.map(log => [
+      new Date(log.createdAt).toLocaleString(),
+      log.module || "System",
+      `${log.user_FirstName} ${log.user_LastName}`,
+      log.action,
+      log.target_Table,
+      log.target_Id
+    ]);
+    exportToCSV(headers, data, `Audit_Logs_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
   // DiffViewer remains a pure UI component
   const DiffViewer = ({ oldVal, newVal }) => {
     const oldObj = oldVal || {};
@@ -129,7 +142,7 @@ const AuditLogs = () => {
               <h1>System Audit Logs</h1>
               <span>Monitor administrative activities</span>
             </div>
-            <button className="exportBtn"><FileDownloadIcon /> Export</button>
+            <button className="exportBtn" onClick={handleExport}><FileDownloadIcon /> Export</button>
           </div>
 
           <div className="summaryRow">
