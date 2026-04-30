@@ -262,10 +262,6 @@ const CalendarManagement = () => {
       .slice(0, 5);
   };
 
-  const daysInMonth = new Date(year, currentDate.getMonth() + 1, 0).getDate();
-  const firstDayOfMonth = new Date(year, currentDate.getMonth(), 1).getDay();
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
 
   return (
     <div className="flex min-h-screen bg-[#fdfaf5] overflow-x-hidden">
