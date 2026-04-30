@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import "./adminRequests.scss";
 import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
@@ -10,6 +9,14 @@ import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { useNavigate } from "react-router-dom";
 
+// shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+
 const AdminRequests = () => {
   const navigate = useNavigate();
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -18,7 +25,7 @@ const AdminRequests = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [adminNote, setAdminNote] = useState("");
-  const [paymentStatus, setPaymentStatus] = useState(2); // 2 = Leave without Pay (default)
+  const [paymentStatus, setPaymentStatus] = useState("2"); // 2 = Leave without Pay (default) - String for Shadcn Select
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   const fetchRequests = async () => {
@@ -38,14 +45,13 @@ const AdminRequests = () => {
 
   useEffect(() => {
     fetchRequests();
-
     window.addEventListener("dataRefresh", fetchRequests);
     return () => window.removeEventListener("dataRefresh", fetchRequests);
   }, []);
 
   // Reset paymentStatus when selectedIdx or activeTab changes
   useEffect(() => {
-    setPaymentStatus(2); // Default to without pay
+    setPaymentStatus("2"); 
   }, [selectedIdx, activeTab]);
 
   const formatTime = (time) => {
@@ -71,7 +77,7 @@ const AdminRequests = () => {
             remarks: adminNote,
             withPayId:
               current?.emp_reqTypeId === 3 || current?.emp_reqTypeId === 4
-                ? paymentStatus
+                ? parseInt(paymentStatus)
                 : null,
           }),
         },
@@ -91,7 +97,7 @@ const AdminRequests = () => {
             navigate(`/logs/edit/${current.user_Id}/${logDate}?from=adminRequests`);
           }, 1500);
         } else {
-          fetchRequests(); // Supervisor just refreshes the list
+          fetchRequests(); 
         }
       } else {
         const err = await response.json();
@@ -111,32 +117,28 @@ const AdminRequests = () => {
     const isRecommended = req.emp_reqStatusId === 4;
     const isCompleted = req.emp_reqStatusId === 2 || req.emp_reqStatusId === 3;
 
-    // Basic status filter (Pending vs History)
     let matchesTab = false;
     if (activeTab === "pending") {
-      if (userData?.user_RoleId === 1) { // Admin sees Pending AND Recommended in Queue
+      if (userData?.user_RoleId === 1) { 
         matchesTab = isPending || isRecommended;
-      } else { // Supervisor only sees Pending in Queue
+      } else { 
         matchesTab = isPending;
       }
-    } else { // Completed/History tab
+    } else { 
       if (userData?.user_RoleId === 1) {
         matchesTab = isCompleted;
-      } else { // Supervisor sees Recommended AND Completed in History
+      } else { 
         matchesTab = isRecommended || isCompleted;
       }
     }
 
     if (!matchesTab) return false;
 
-    // Role-based visibility
-    if (userData?.user_RoleId === 2) { // Supervisor
-      // Supervisors see requests from Employees (3) AND Admins (1)
+    if (userData?.user_RoleId === 2) { 
       return req.user_RoleId === 3 || req.user_RoleId === 1;
     }
 
-    if (userData?.user_RoleId === 1) { // Admin
-      // Admins see everything (including their own requests)
+    if (userData?.user_RoleId === 1) { 
       return true;
     }
 
@@ -171,174 +173,184 @@ const AdminRequests = () => {
             : req.DateonField;
   };
 
+  const getStatusColor = (statusId) => {
+    if (statusId === 1 || statusId === 4) return "bg-orange-100 text-orange-800 hover:bg-orange-100";
+    if (statusId === 2) return "bg-green-100 text-green-800 hover:bg-green-100";
+    if (statusId === 3) return "bg-red-100 text-red-800 hover:bg-red-100";
+    return "bg-slate-100 text-slate-800";
+  };
+
+  const getTypeColor = (shortType) => {
+    switch (shortType) {
+      case "VL": return "bg-indigo-100 text-indigo-800 border-transparent";
+      case "SL": return "bg-red-100 text-red-800 border-transparent";
+      case "OW": return "bg-orange-100 text-orange-800 border-transparent";
+      case "OT": return "bg-blue-100 text-blue-800 border-transparent";
+      default: return "bg-slate-100 text-slate-800 border-transparent";
+    }
+  };
+
   return (
-    <div className="home adminRequests">
-      <Sidebar />
-      <div className="homeContainer">
-        <div className="adminWrapper">
-          <Toast
-            message={toast.message}
-            type={toast.type}
-            onClose={() => setToast({ ...toast, message: "" })}
-          />
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
+      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
+      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+        
+        {/* Statistics Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <Card className="shadow-sm border-0">
+            <CardContent className="p-6 flex justify-between items-center">
+              <div>
+                <span className="text-sm font-semibold text-slate-500">Pending Requests</span>
+                <p className="text-3xl font-bold text-[#2A174E] mt-1">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
+              </div>
+              <div className="bg-orange-50 text-orange-600 p-3 rounded-xl">
+                <HourglassEmptyIcon className="h-8 w-8" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-0">
+            <CardContent className="p-6 flex justify-between items-center">
+              <div>
+                <span className="text-sm font-semibold text-slate-500">Approved Total</span>
+                <p className="text-3xl font-bold text-[#2A174E] mt-1">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
+              </div>
+              <div className="bg-green-50 text-green-600 p-3 rounded-xl">
+                <CheckCircleOutlineIcon className="h-8 w-8" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-0">
+            <CardContent className="p-6 flex justify-between items-center">
+              <div>
+                <span className="text-sm font-semibold text-slate-500">Rejected Total</span>
+                <p className="text-3xl font-bold text-[#2A174E] mt-1">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
+              </div>
+              <div className="bg-red-50 text-red-600 p-3 rounded-xl">
+                <CancelOutlinedIcon className="h-8 w-8" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-          <div className="statsRow">
-            <div className="statCard">
-              <div className="info">
-                <span>Pending Requests</span>
-                <p>{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
-              </div>
-              <HourglassEmptyIcon className="icon pending" />
+        {/* Main Split Content */}
+        <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-220px)] min-h-[600px]">
+          
+          {/* Left: Request Queue */}
+          <Card className="w-full lg:w-1/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden">
+            <div className="flex border-b border-slate-100 bg-slate-50/50">
+              <button
+                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "pending" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                onClick={() => { setActiveTab("pending"); setSelectedIdx(0); }}
+              >
+                Pending
+              </button>
+              <button
+                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "completed" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                onClick={() => { setActiveTab("completed"); setSelectedIdx(0); }}
+              >
+                History
+              </button>
             </div>
-            <div className="statCard">
-              <div className="info">
-                <span>Approved Total</span>
-                <p>{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
-              </div>
-              <CheckCircleOutlineIcon className="icon approved" />
-            </div>
-            <div className="statCard">
-              <div className="info">
-                <span>Rejected Total</span>
-                <p>{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
-              </div>
-              <CancelOutlinedIcon className="icon rejected" />
-            </div>
-          </div>
-
-          <div className="mainContent">
-            {/* Left: Request Queue */}
-            <div className="requestListSidebar">
-              <div className="tabHeader">
-                <button
-                  className={activeTab === "pending" ? "active" : ""}
-                  onClick={() => {
-                    setActiveTab("pending");
-                    setSelectedIdx(0);
-                  }}
-                >
-                  Pending
-                </button>
-                <button
-                  className={activeTab === "completed" ? "active" : ""}
-                  onClick={() => {
-                    setActiveTab("completed");
-                    setSelectedIdx(0);
-                  }}
-                >
-                  History
-                </button>
-              </div>
-              <div className="listBody">
-                <h4>
-                  {activeTab === "pending" ? "Queue" : "Past Requests"} (
-                  {filteredRequests.length})
-                </h4>
-                {loading ? (
-                  <div className="loadingState">
-                    <p>Syncing requests...</p> 
-                  </div>
-                ) : filteredRequests.length > 0 ? (
-                  filteredRequests.map((req, index) => (
-                    <div
-                      className={`requestItem ${selectedIdx === index ? "selected" : ""}`}
-                      key={req.emp_reqId}
-                      onClick={() => setSelectedIdx(index)}
-                    >
-                      <div className="itemHeader">
-                        <span
-                          className={`typeTag ${getShortType(req.reqTypeName)}`}
-                        >
-                          {getShortType(req.reqTypeName)}
-                        </span>
-                        <span className="reqId">REQ-{req.emp_reqId}</span>
-                      </div>
-                      <p className="empName">{req.userName}</p>
-                      <p className="dateRange">{getDates(req)}</p>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">
+                {activeTab === "pending" ? "Queue" : "Past Requests"} ({filteredRequests.length})
+              </h4>
+              
+              {loading ? (
+                <div className="text-center py-8 text-slate-500 animate-pulse">Syncing requests...</div>
+              ) : filteredRequests.length > 0 ? (
+                filteredRequests.map((req, index) => (
+                  <div
+                    key={req.emp_reqId}
+                    onClick={() => setSelectedIdx(index)}
+                    className={`p-4 border rounded-xl cursor-pointer transition-all ${selectedIdx === index ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
+                        {getShortType(req.reqTypeName)}
+                      </Badge>
+                      <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
                     </div>
-                  ))
-                ): (
-                  // User-Friendly Empty State
-                  <div className="emptyQueueState">
-                    <div className="iconWrapper">
-                      <CheckCircleOutlineIcon className="checkIcon" />
-                    </div>
-                    <h5>All Caught Up!</h5>
-                    <p>
-                      {activeTab === "pending" 
-                        ? "There are no pending requests requiring your attention right now." 
-                        : "Your history is currently empty."}
-                    </p>
+                    <p className="font-bold text-slate-800 text-sm mb-1">{req.userName}</p>
+                    <p className="text-xs text-slate-500">{getDates(req)}</p>
                   </div>
-                )}
-              </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl mt-2">
+                  <div className="bg-green-100 text-green-600 p-4 rounded-full mb-4">
+                    <CheckCircleOutlineIcon className="h-8 w-8" />
+                  </div>
+                  <h5 className="font-bold text-[#2A174E] text-lg mb-2">All Caught Up!</h5>
+                  <p className="text-sm text-slate-500 max-w-[200px]">
+                    {activeTab === "pending" 
+                      ? "There are no pending requests requiring your attention right now." 
+                      : "Your history is currently empty."}
+                  </p>
+                </div>
+              )}
             </div>
+          </Card>
 
-            {/* Right: Detailed Review */}
-            <div className="requestDetailView">
+          {/* Right: Detailed Review */}
+          <Card className="w-full lg:w-2/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden">
+            <CardContent className="flex-1 overflow-y-auto p-6 md:p-8">
               {current ? (
                 <>
-                    <div className="detailHeader">
-                    <div className="title">
-                      <h3>Review {current.reqTypeName}</h3>
-                      <p>Submitted on {current.date_Filed}</p>
-                    </div>
-                    {(current.emp_reqStatusId === 1 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
-                      <div className="actions">
-                        {current.user_Id === userData?.user_Id ? (
-                          <div className="statusBadge self">Self-Request</div>
-                        ) : (userData?.user_RoleId === 2 && current.user_RoleId === 1) ? (
-                          <div className="statusBadge management">Admin Review Required</div>
-                        ) : (
-                          <>
-                            <button
-                              className="approveBtn"
-                              onClick={() =>
-                                handleStatusUpdate(current.emp_reqId, 2)
-                              }
-                            >
-                              <CheckCircleOutlineIcon /> Approve
-                            </button>
-                            <button
-                              className="rejectBtn"
-                              onClick={() =>
-                                handleStatusUpdate(current.emp_reqId, 3)
-                              }
-                            >
-                              <CancelOutlinedIcon /> Reject
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                    {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || current.emp_reqStatusId === 4) && (
-                      <div
-                        className={`statusBadge ${current.status.toLowerCase().replace(/\s+/g, '')}`}
-                      >
-                        {current.status}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="detailsGrid">
-                    <div className="detailBox">
-                      <label>Employee Name</label>
-                      <p>{current.userName}</p>
-                    </div>
-
-                    <div className="detailBox highlighted">
-                      <label>Requested Schedule</label>
-                      <p className="eventDateText">{getDates(current)}</p>
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
+                    <div>
+                      <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {current.reqTypeName}</h3>
+                      <p className="text-sm text-slate-500 mt-1">Submitted on {current.date_Filed}</p>
                     </div>
                     
-                    <div className="detailBox">
-                      <label>Duration / Details</label>
-                      <p>
-                        {current.emp_reqTypeId === 1 // Overtime
+                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+                      {(current.emp_reqStatusId === 1 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
+                        <>
+                          {current.user_Id === userData?.user_Id ? (
+                            <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-blue-100 text-blue-800">Self-Request</Badge>
+                          ) : (userData?.user_RoleId === 2 && current.user_RoleId === 1) ? (
+                            <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-purple-100 text-purple-800">Admin Review Required</Badge>
+                          ) : (
+                            <div className="flex gap-2 w-full">
+                              <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
+                                <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
+                              </Button>
+                              <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
+                                <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
+                              </Button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || current.emp_reqStatusId === 4) && (
+                        <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(current.emp_reqStatusId)}`}>
+                          {current.status}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-xl border border-slate-100 mb-8">
+                    
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employee Name</label>
+                      <p className="font-semibold text-slate-800">{current.userName}</p>
+                    </div>
+
+                    <div className="space-y-1 sm:col-span-2 xl:col-span-1 bg-white p-3 -m-3 rounded-lg border border-slate-200 shadow-sm">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Requested Schedule</label>
+                      <p className="font-bold text-[#2A174E]">{getDates(current)}</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duration / Details</label>
+                      <p className="font-semibold text-slate-800">
+                        {current.emp_reqTypeId === 1
                           ? `${current.Total_Hrs || 0} Hrs`
-                          : current.emp_reqTypeId === 2 // Onfield
+                          : current.emp_reqTypeId === 2
                             ? `${current.OW_NoDays || 0} Day(s) (${current.OW_NoHrs || 0} Hrs)`
-                            : current.emp_reqTypeId === 5 // Log Correction
+                            : current.emp_reqTypeId === 5
                               ? `${current.LC_correctionCategory || "Correction"} for ${new Date(current.LC_logDate).toLocaleDateString()}`
                               : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
                       </p>
@@ -346,186 +358,186 @@ const AdminRequests = () => {
 
                     {current.emp_reqTypeId === 1 && (
                       <>
-                        <div className="detailBox">
-                          <label>Time From</label>
-                          <p>{formatTime(current.HrFrom)}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Time From</label>
+                          <p className="font-semibold text-slate-800">{formatTime(current.HrFrom)}</p>
                         </div>
-                        <div className="detailBox">
-                          <label>Time To</label>
-                          <p>{formatTime(current.HrTo)}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Time To</label>
+                          <p className="font-semibold text-slate-800">{formatTime(current.HrTo)}</p>
                         </div>
                       </>
                     )}
 
                     {current.emp_reqTypeId === 5 && (
                       <>
-                        <div className="detailBox">
-                          <label>Category</label>
-                          <p className="categoryBadge">{current.LC_correctionCategory || "N/A"}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Category</label>
+                          <Badge variant="outline" className="mt-1">{current.LC_correctionCategory || "N/A"}</Badge>
                         </div>
-                        <div className="detailBox">
-                          <label>Current In (System)</label>
-                          <p>{current.LC_currentIn || "No Log"}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Current In (System)</label>
+                          <p className="font-semibold text-slate-800">{current.LC_currentIn || "No Log"}</p>
                         </div>
-                        <div className="detailBox">
-                          <label>Current Out (System)</label>
-                          <p>{current.LC_currentOut || "No Log"}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Current Out (System)</label>
+                          <p className="font-semibold text-slate-800">{current.LC_currentOut || "No Log"}</p>
                         </div>
-                        <div className="detailBox">
-                          <label>Claimed In</label>
-                          <p className="claimed">{formatTime(current.LC_claimedIn)}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Claimed In</label>
+                          <p className="font-bold text-blue-700">{formatTime(current.LC_claimedIn)}</p>
                         </div>
-                        <div className="detailBox">
-                          <label>Claimed Out</label>
-                          <p className="claimed">{formatTime(current.LC_claimedOut)}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Claimed Out</label>
+                          <p className="font-bold text-blue-700">{formatTime(current.LC_claimedOut)}</p>
                         </div>
                       </>
                     )}
 
                     {current.emp_reqTypeId !== 1 && current.emp_reqTypeId !== 5 && (
                       <>
-                        <div className="detailBox">
-                          <label>Payment Status</label>
-                          {current.emp_reqStatusId === 1 &&
-                          (current.emp_reqTypeId === 3 ||
-                            current.emp_reqTypeId === 4) ? (
-                            <select
-                              className="paymentDropdown"
-                              value={paymentStatus}
-                              onChange={(e) =>
-                                setPaymentStatus(parseInt(e.target.value))
-                              }
-                            >
-                              <option value={1}>Leave with Pay</option>
-                              <option value={2}>Leave without Pay</option>
-                              <option value={3}>Considered AWOL</option>
-                              <option value={4}>For Suspension</option>
-                              <option value={5}>For Dismissal</option>
-                            </select>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Status</label>
+                          {current.emp_reqStatusId === 1 && (current.emp_reqTypeId === 3 || current.emp_reqTypeId === 4) ? (
+                            <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                              <SelectTrigger className="bg-white h-8 mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">Leave with Pay</SelectItem>
+                                <SelectItem value="2">Leave without Pay</SelectItem>
+                                <SelectItem value="3">Considered AWOL</SelectItem>
+                                <SelectItem value="4">For Suspension</SelectItem>
+                                <SelectItem value="5">For Dismissal</SelectItem>
+                              </SelectContent>
+                            </Select>
                           ) : (
-                            <p>
-                              {current.VL_withPayName ||
-                                current.SL_withPayName ||
-                                "N/A"}
+                            <p className="font-semibold text-slate-800 mt-1">
+                              {current.VL_withPayName || current.SL_withPayName || "N/A"}
                             </p>
                           )}
                         </div>
-                        <div className="detailBox">
-                            <label>{current.emp_reqStatusId === 1 ? "Remaining Balance" : "Leave Used"}</label>
-                            <p className={
-                              (current.emp_reqStatusId === 1) && (
-                                (current.emp_reqTypeId === 3 && current.VL_balance < current.VL_NoDays) ||
-                                (current.emp_reqTypeId === 4 && current.SL_balance < current.SL_NoDays)
-                              ) ? "insufficient" : ""
-                            }>
-                              {current.emp_reqTypeId === 3 
-                                ? (current.emp_reqStatusId === 1 ? `${current.VL_balance || 0} VL Remaining` : `${current.VL_NoDays || 0} Day(s) Used`)
-                                : current.emp_reqTypeId === 4 
-                                ? (current.emp_reqStatusId === 1 ? `${current.SL_balance || 0} SL Remaining` : `${current.SL_NoDays || 0} Day(s) Used`)
-                                : "N/A"}
-                            </p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            {current.emp_reqStatusId === 1 ? "Remaining Balance" : "Leave Used"}
+                          </label>
+                          <p className={`font-semibold mt-1 ${(current.emp_reqStatusId === 1) && ((current.emp_reqTypeId === 3 && current.VL_balance < current.VL_NoDays) || (current.emp_reqTypeId === 4 && current.SL_balance < current.SL_NoDays)) ? "text-red-700 bg-red-100 px-2 py-0.5 rounded inline-block" : "text-slate-800"}`}>
+                            {current.emp_reqTypeId === 3 
+                              ? (current.emp_reqStatusId === 1 ? `${current.VL_balance || 0} VL Remaining` : `${current.VL_NoDays || 0} Day(s) Used`)
+                              : current.emp_reqTypeId === 4 
+                              ? (current.emp_reqStatusId === 1 ? `${current.SL_balance || 0} SL Remaining` : `${current.SL_NoDays || 0} Day(s) Used`)
+                              : "N/A"}
+                          </p>
                         </div>
-                        <div className="detailBox">
-                          <label>Processed By</label>
-                          <p>{current.approverName ? `${current.approverName} (${formatUserId(current.processedBy)})` : "Pending Review"}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Processed By</label>
+                          <p className="font-semibold text-slate-800">{current.approverName ? `${current.approverName} (${formatUserId(current.processedBy)})` : "Pending Review"}</p>
                         </div>
-                        <div className="detailBox">
-                          <label>Date Processed</label>
-                          <p>{current.date_Processed || "Pending"}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
+                          <p className="font-semibold text-slate-800">{current.date_Processed || "Pending"}</p>
                         </div>
                       </>
                     )}
+
                     {current.emp_reqTypeId === 5 && (
                       <>
-                        <div className="detailBox">
-                          <label>Recommended By</label>
-                          <p>{current.recommenderName ? `${current.recommenderName} (${formatUserId(current.recommendedBy)})` : "Pending Recommendation"}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Recommended By</label>
+                          <p className="font-semibold text-slate-800">{current.recommenderName ? `${current.recommenderName} (${formatUserId(current.recommendedBy)})` : "Pending Recommendation"}</p>
                         </div>
-                        <div className="detailBox">
-                          <label>Approved By</label>
-                          <p>{current.approverName ? `${current.approverName} (${formatUserId(current.processedBy)})` : "Pending Approval"}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Approved By</label>
+                          <p className="font-semibold text-slate-800">{current.approverName ? `${current.approverName} (${formatUserId(current.processedBy)})` : "Pending Approval"}</p>
                         </div>
-                        <div className="detailBox">
-                          <label>Date Processed</label>
-                          <p>{current.date_Processed || "Pending"}</p>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
+                          <p className="font-semibold text-slate-800">{current.date_Processed || "Pending"}</p>
                         </div>
                       </>
                     )}
+
                     {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File) && (
-                      <div className="detailBox attachment">
-                        <label>Attachment</label>
-                        <a 
-                          href={`/api/uploads/${current.SL_proof_File || current.OW_proof_File || current.LC_proof_File}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="attachmentLink"
-                        >
-                          <AttachmentIcon className="icon" />{" "}
-                          View Attachment
-                        </a>
+                      <div className="space-y-1 col-span-1 sm:col-span-2 xl:col-span-3">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachment</label>
+                        <div>
+                          <a 
+                            href={`/api/uploads/${current.SL_proof_File || current.OW_proof_File || current.LC_proof_File}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-[#2A174E] font-semibold hover:underline mt-1"
+                          >
+                            <AttachmentIcon className="mr-1 h-4 w-4" /> View Attachment
+                          </a>
+                        </div>
                       </div>
                     )}
-                    <div className="detailBox fullWidth">
-                        <label>Employee Remarks / Purpose</label>
-                        <p className="remarksText">"{current.remarks || "No details provided"}"</p>
+
+                    <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3 border-t border-slate-200 pt-4 mt-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employee Remarks / Purpose</label>
+                      <p className="text-sm text-slate-700 italic bg-white p-4 rounded-lg border border-slate-200">"{current.remarks || "No details provided"}"</p>
                     </div>
+
                     {current.system_remarks && (
-                      <div className="detailBox fullWidth systemNoteBox">
-                          <label>System Remarks Note:</label>
-                          <p className="remarksText errorNote">"{current.system_remarks}"</p>
+                      <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3">
+                        <label className="text-xs font-bold text-red-600 uppercase tracking-wider">System Remarks Note:</label>
+                        <p className="text-sm text-red-700 italic bg-red-50 p-4 rounded-lg border border-red-200">"{current.system_remarks}"</p>
                       </div>
                     )}
+
                     {current.admin_remarks && (
-                      <div className="detailBox fullWidth adminNoteBox">
-                        <label>Admin Note</label>
-                        <p className="remarksText">"{current.admin_remarks}"</p>
+                      <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Admin Note</label>
+                        <p className="text-sm text-slate-700 italic bg-white p-4 rounded-lg border border-slate-200">"{current.admin_remarks}"</p>
                       </div>
                     )}
                   </div>
 
                   {current.emp_reqStatusId === 1 && (
-                    <div className="adminDecision">
-                      <label>Admin Note (Optional)</label>
-                      <textarea
+                    <div className="space-y-3 mt-8">
+                      <label className="text-sm font-bold text-slate-800">Admin Note (Optional)</label>
+                      <Textarea
                         value={adminNote}
                         onChange={(e) => setAdminNote(e.target.value)}
                         placeholder="Reason for approval or rejection..."
-                      ></textarea>
+                        className="h-24 resize-none focus-visible:ring-[#2A174E]"
+                      />
                     </div>
                   )}
                 </>
               ) : (
-                <div className="skeletonDetailView">
-                  <div className="skeletonHeader">
-                    <div className="skeletonTitle">
-                      <div className="skeletonLine long"></div>
-                      <div className="skeletonLine short"></div>
+                <div className="space-y-8 p-4">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-6">
+                    <div className="space-y-3 w-full">
+                      <Skeleton className="h-8 w-[40%]" />
+                      <Skeleton className="h-4 w-[20%]" />
                     </div>
-                    <div className="skeletonBadge"></div>
-                  </div>
-
-                  <div className="skeletonGrid">
-                    {[...Array(6)].map((_, i) => (
-                      <div key={i} className="skeletonBox">
-                        <div className="skeletonLabel"></div>
-                        <div className="skeletonValue"></div>
-                      </div>
-                    ))}
-                    <div className="skeletonBox fullWidth">
-                      <div className="skeletonLabel"></div>
-                      <div className="skeletonValue large"></div>
-                    </div>
+                    <Skeleton className="h-10 w-24 rounded-full" />
                   </div>
                   
-                  <div className="skeletonInstruction">
-                    <p>Select a request from the queue to review details</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-xl border border-slate-100">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="space-y-2">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-5 w-full" />
+                      </div>
+                    ))}
+                    <div className="col-span-1 sm:col-span-2 xl:col-span-3 space-y-2 pt-4">
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-20 w-full rounded-lg" />
+                    </div>
+                  </div>
+
+                  <div className="text-center pt-8">
+                    <p className="text-slate-400 font-medium italic">Select a request from the queue to review details</p>
                   </div>
                 </div>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
+    </Sidebar>
     </div>
   );
 };

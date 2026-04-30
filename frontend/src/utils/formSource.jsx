@@ -30,16 +30,16 @@ export const userInputs = [
     placeholder: "Enter new password",
   },
   {
-    id: "user_MachipId",
-    label: "MaChip ID",
-    type: "text",
-    placeholder: "e.g. MACHIP-XXXXXX",
-  },
-  {
     id: "account_Number",
     label: "ATM / Account Number",
     type: "text",
     placeholder: "Enter Account Number",
+  },
+  {
+    id: "user_MachipId",
+    label: "MaChip ID",
+    type: "text",
+    placeholder: "e.g. MACHIP-XXXXXX",
   },
   {
   id: "user_FingerprintId",

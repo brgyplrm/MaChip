@@ -329,33 +329,49 @@ const Logs = () => {
               </div>
 
               {/* User Filter */}
-              <div className="w-full md:w-48">
-                <Select
-                  value={selectedUser}
-                  onValueChange={(val) => {
-                    setSelectedUser(val);
-                    setCurrentPage(1);
-                  }}
-                >
-                  <SelectTrigger className="border-[#2A174E]/30 focus:ring-[#2A174E] bg-white w-full">
-                    <SelectValue placeholder="All Users" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Users</SelectItem>
-                    {users.map((user) => (
-                      <SelectItem key={user.user_Id} value={user.user_Id.toString()}>
-                        {user.user_LastName}, {user.user_FirstName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="w-full md:w-48">
+                  <Select
+                    value={selectedUser}
+                    onValueChange={(val) => {
+                      setSelectedUser(val);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="border-[#2A174E]/30 focus:ring-[#2A174E] bg-white w-full">
+                      <SelectValue placeholder="All Users" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Users</SelectItem>
+                      {users.map((user) => (
+                        <SelectItem key={user.user_Id} value={user.user_Id.toString()}>
+                          {user.user_LastName}, {user.user_FirstName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(searchQuery !== "" || selectedUser !== "all") && (
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSelectedUser("all");
+                      setCurrentPage(1);
+                    }}
+                    className="text-slate-500 hover:text-red-500 transition-colors"
+                  >
+                    Clear
+                  </Button>
+                )}
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="flex flex-row items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
                 <Button
                   variant="outline"
-                  className="w-full md:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
+                  // CHANGED: Removed w-full, added flex-1 so it shares space equally with other buttons on mobile
+                  className="flex-1 md:flex-none border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
                   onClick={() => {
                     setViewMode(viewMode === "raw" ? "day" : "raw");
                     setCurrentPage(1);
@@ -367,18 +383,20 @@ const Logs = () => {
                 {viewMode === "raw" && (
                   <>
                     <Button
-                      className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]"
+                      // CHANGED: Removed w-full, added flex-1
+                      className="flex-1 md:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30]"
                       onClick={() => handleGenerateLogs(1)}
                       disabled={loading}
                     >
-                      {loading ? "Processing..." : "Clock In"}
+                      {loading ? "..." : "Clock In"} 
                     </Button>
                     <Button
-                      className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]"
+                      // CHANGED: Removed w-full, added flex-1
+                      className="flex-1 md:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30]"
                       onClick={() => handleGenerateLogs(2)}
                       disabled={loading}
                     >
-                      {loading ? "Processing..." : "Clock Out"}
+                      {loading ? "..." : "Clock Out"}
                     </Button>
                   </>
                 )}

@@ -1,13 +1,20 @@
-import "./new.scss";
 import Sidebar from "../../components/Sidebar";
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom"; // 1. Import the hook
+import { useNavigate } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
 import { fetchWithAuth } from "../../utils/api";
+
+// shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[a-zA-Z\s]+$/;
@@ -40,7 +47,8 @@ const New = ({ inputs, title }) => {
     user_FirstName: "",
     user_LastName: "",
     user_MiddleName: "",
-    user_EmploymentStatus: "Employee",
+    user_EmploymentStatus: "",
+    user_Role: "Employee",
     user_Email: "",
     user_Password: "",
     user_MachipId: "",
@@ -65,7 +73,6 @@ const New = ({ inputs, title }) => {
     setFingerprintError("");
 
     try {
-      // Pass the anticipated user_Id for context
       const response = await fetchWithAuth(`/api/users/generateFingerprint?userId=${formData.user_Id}`);
       const data = await response.json();
 
@@ -109,17 +116,13 @@ const New = ({ inputs, title }) => {
     setFormData((prev) => {
       const updated = { ...prev, [id]: value };
       
-      // Handle manual User ID input
       if (id === "user_Id") {
-        // Extract numbers from the input (handles both MACJ-001 and 1)
         const numericMatch = value.match(/\d+/);
         const numericId = numericMatch ? parseInt(numericMatch[0], 10) : "";
         updated.user_Id = numericId;
-        // Keep the raw value for display during editing
         setDisplayId(value);
       }
       
-      // Sync IDs when select values change
       if (id === "user_Role") {
         updated.user_RoleId = value === "Admin" ? 1 : value === "Staff" ? 2 : 3;
       }
@@ -130,7 +133,6 @@ const New = ({ inputs, title }) => {
       return updated;
     });
 
-    // If it was user_Id, we want to format it nicely when they blur, but let them type freely
     setErrors((prev) => ({ ...prev, [id]: "" }));
   };
 
@@ -141,7 +143,6 @@ const New = ({ inputs, title }) => {
   };
 
   const handleScanRFID = async () => {
-    // 1. Open the modal immediately
     setShowRfidModal(true); 
     setFormData(prev => ({ ...prev, user_MachipId: "" }));
     setRfidError("");
@@ -151,7 +152,6 @@ const New = ({ inputs, title }) => {
       const data = await response.json();
 
       if (response.ok) {
-        // 2. Update the form data with the scanned ID
         setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
         setToast({
           message: `New MaChip scanned: ${data.rfid}`,
@@ -182,18 +182,16 @@ const New = ({ inputs, title }) => {
 
     setLoading(true);
     const data = new FormData();
-    // Append all fields from formData
+    
     Object.keys(formData).forEach((key) => {
       if (formData[key] !== undefined && formData[key] !== null) {
         data.append(key, formData[key]);
       }
     });
     
-    // Ensure IDs are present even if selects weren't touched
     if (!formData.user_EmploymentStatusId) data.append("user_EmploymentStatusId", 1);
     if (!formData.user_RoleId) data.append("user_RoleId", 3);
 
-    // Append the file if it exists
     if (file) {
       data.append("user_ProfilePic", file);
     }
@@ -206,7 +204,6 @@ const New = ({ inputs, title }) => {
 
       if (response.ok) {
         setToast({ message: "User added successfully!", type: "success" });
-
         setTimeout(() => {
           navigate("/users");
         }, 1100);
@@ -222,162 +219,211 @@ const New = ({ inputs, title }) => {
     }
   };
 
+  const getStatusBadgeStyle = (status) => {
+    const formattedStatus = status?.toLowerCase().replace(" ", "") || "regular";
+    if (formattedStatus === "regular") return "bg-green-100 text-green-800 hover:bg-green-100";
+    if (formattedStatus === "part-time") return "bg-blue-100 text-blue-800 hover:bg-blue-100";
+    return "bg-amber-100 text-amber-800 hover:bg-amber-100"; // Intern/OJT
+  };
+
   return (
-    <div className="new">
-      <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
-      <Sidebar />
-      <div className="newContainer">
-        <div className="top"><h1>{title}</h1></div>
-        <div className="bottom">
-          <div className="leftIdentity">
-            <div className="imageContainer">
-              <img
-                src={
-                  file
-                    ? URL.createObjectURL(file)
-                    : formData.user_ProfilePic
-                      ? `/api/uploads/${formData.user_ProfilePic}`
-                      : "/avatar.webp"
-                }
-                alt="Profile Preview"
-              />
-              <div className="fileInput">
-                <label htmlFor="file">
-                  <DriveFolderUploadOutlinedIcon className="icon" /> <div className="fileInput-label">Image Upload</div>
-                </label>
-                <input
-                  type="file"
-                  id="file"
-                  onChange={(e) => {
-                    const selectedFile = e.target.files[0];
-                    if (selectedFile) {
-                      const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
-                      if (!allowedTypes.includes(selectedFile.type)) {
-                        setToast({ 
-                          message: "Invalid file format. Only png, jpg, and jpeg are allowed!", 
-                          type: "error" 
-                        });
-                        e.target.value = null; // Clear input
-                        return;
-                      }
-                      setFile(selectedFile);
-                    }
-                  }}
-                  style={{ display: "none" }}
-                />
-              </div>
-            </div>
-
-            {/* Real-time Name Display */}
-            <h1 className="userName">
-              {formData.user_FirstName || "First"} {formData.user_LastName || "Last"}
-            </h1>
-
-            {/* Real-time Role Display */}
-            <span className="userRole">
-              {formData.user_Role || "Select Role"}
-            </span>
-
-            {/* Real-time Employment Status Badge */}
-            <div className={`statusBadge ${formData.user_EmploymentStatus?.toLowerCase().replace(" ", "") || "regular"}`}>
-              {formData.user_EmploymentStatus || "Regular"}
-            </div>
-          </div>
-
-            
-            <div className="right">
-            <form onSubmit={handleSubmit}>
-              <div className="fullNameSection">
-                <label>Full Name <span className="requiredMark">*</span></label>
-                <div className="nameInputsRow">
-                  <div className="nameGroup">
-                    <input id="user_FirstName" placeholder="First Name" value={formData.user_FirstName} onChange={handleInput} />
-                    {errors.user_FirstName && <span className="error">{errors.user_FirstName}</span>}
-                  </div>
-                  <div className="nameGroup">
-                    <input id="user_MiddleName" placeholder="Middle Name" value={formData.user_MiddleName} onChange={handleInput} />
-                  </div>
-                  <div className="nameGroup">
-                    <input id="user_LastName" placeholder="Last Name" value={formData.user_LastName} onChange={handleInput} />
-                    {errors.user_LastName && <span className="error">{errors.user_LastName}</span>}
-                  </div>
-                </div>
-              </div>
-
-              {inputs.map((input) => (
-                <div className="formInput" key={input.id}>
-                  <label>{input.label}</label>
-                  <div className="inputActionWrapper">
-                    {input.type === "select" ? (
-                      <select 
-                        id={input.id} 
-                        value={formData[input.id] || ""} 
-                        onChange={handleInput}
-                      >
-                        <option value="" disabled>Select {input.label}</option>
-                        {input.id === "user_EmploymentStatus" && (
-                          <>
-                            <option value="Regular">Regular</option>
-                            <option value="Part-time">Part-time</option>
-                            <option value="Intern / OJT">Intern / OJT</option>
-                          </>
-                        )}
-                        {input.id === "user_Role" && (
-                          <>
-                            <option value="Employee">Employee</option>
-                            <option value="Admin">Admin</option>
-                          </>
-                        )}
-                      </select>
-                    ) : (
-                      <div style={{ width: "100%", position: "relative" }}>
-                        <input
-                          id={input.id} 
-                          type={
-                            (input.id === "user_Password" && showPassword) || 
-                            (input.id === "account_Number" && showAccountNumber) 
-                              ? "text" 
-                              : input.type
-                          } 
-                          placeholder={input.placeholder}
-                          value={input.id === "user_Id" ? displayId : formData[input.id]}
-                          onChange={handleInput}
-                          onBlur={input.id === "user_Id" ? handleIdBlur : undefined}
-                          readOnly={input.label === "MaChip ID" || input.label === "Fingerprint ID"}
-                        />
-                        {input.id === "user_Password" && (
-                          <div className="eyeIcon" style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", display: "flex", alignItems: "center", height: "100%", color: "gray" }} onClick={() => setShowPassword(!showPassword)}>
-                            {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                          </div>
-                        )}
-                        {input.id === "account_Number" && (
-                          <div className="eyeIcon" style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", display: "flex", alignItems: "center", height: "100%", color: "gray" }} onClick={() => setShowAccountNumber(!showAccountNumber)}>
-                            {showAccountNumber ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                          </div>
-                        )}
-                        {errors[input.id] && <span className="error" style={{ color: "red", fontSize: "12px" }}>{errors[input.id]}</span>}
-                      </div>
-                    )}
-                    {input.label === "MaChip ID" && (
-                      <button type="button" className="scanBtn" onClick={handleScanRFID}>SCAN</button>
-                      )}
-                    {input.label === "Fingerprint ID" && (
-                      <button type="button" className="scanBtn" onClick={handleScanFingerprint}>SCAN</button>
-                    )}
-
-                  </div>
-                </div>
-              ))}
-            </form>
-            </div>
-            </div>
-            <div className="bottom-center">
-            <button className="cancelButton" onClick={() => navigate("/users")} disabled={loading}>Cancel</button>
-            <button className="submitButton" onClick={handleSubmit} disabled={loading}>
-              {loading ? "Adding..." : "Add User"}
-            </button>
-          </div>
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
+      <Toast message={toast.message} type={toast.type} onClose={dismissToast} />  
+      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+        
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">{title}</h1>
         </div>
+        <div className="h-4"></div>
+
+        {/* Main Content Card */}
+        <Card className="shadow-sm border-0 bg-white overflow-hidden">
+          <div className="flex flex-col lg:flex-row">
+            
+            {/* Left Column: Identity Preview */}
+            <div className="w-full lg:w-1/3 bg-slate-50/50 border-b lg:border-b-0 lg:border-r border-slate-200 p-8 flex flex-col items-center">
+              <div className="relative mb-6">
+                <img
+                  src={
+                    file
+                      ? URL.createObjectURL(file)
+                      : formData.user_ProfilePic
+                        ? `/api/uploads/${formData.user_ProfilePic}`
+                        : "/avatar.webp"
+                  }
+                  alt="Profile Preview"
+                  className="w-32 h-32 rounded-full object-cover border-4 border-[#2A174E] shadow-sm"
+                />
+                <div className="h-4"></div>
+                <div className="absolute -bottom-2 w-full flex justify-center">
+                  <label htmlFor="file" className="cursor-pointer bg-white px-3 py-1 rounded-full shadow-md border border-slate-200 flex items-center gap-1 text-sm font-semibold text-[#2A174E] hover:text-[#45297e] transition-colors">
+                    <DriveFolderUploadOutlinedIcon fontSize="small" /> Upload
+                  </label>
+                  <input
+                    type="file"
+                    id="file"
+                    onChange={(e) => {
+                      const selectedFile = e.target.files[0];
+                      if (selectedFile) {
+                        const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+                        if (!allowedTypes.includes(selectedFile.type)) {
+                          setToast({ message: "Invalid format. Only PNG, JPG, and JPEG allowed!", type: "error" });
+                          e.target.value = null;
+                          return;
+                        }
+                        setFile(selectedFile);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </div>
+              </div>
+              <div className="h-4"></div>
+
+              <h2 className="text-xl font-bold text-[#2A174E] capitalize text-center mb-2">
+                {formData.user_FirstName || "First"} {formData.user_LastName || "Last"}
+              </h2>
+              <div className="h-4"></div>
+              <p className="text-sm font-medium text-slate-500 mb-4">
+                {formData.user_Role || "Select Role"}
+              </p>
+              <Badge variant="secondary" className={`font-bold uppercase tracking-wider ${getStatusBadgeStyle(formData.user_EmploymentStatus)}`}>
+                {formData.user_EmploymentStatus || "Regular"}
+              </Badge>
+            </div>
+
+            {/* Right Column: Form */}
+            <div className="w-full lg:w-2/3 p-6 md:p-8">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                
+                {/* Full Name Section */}
+                <div className="space-y-2">
+                  <Label className="text-slate-600 font-semibold">
+                    Full Name <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="h-1"></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <Input id="user_FirstName" placeholder="First Name" value={formData.user_FirstName} onChange={handleInput} className={`bg-white ${errors.user_FirstName ? "border-red-500" : ""}`} />
+                      {errors.user_FirstName && <span className="text-xs text-red-500">{errors.user_FirstName}</span>}
+                    </div>
+                    <div className="space-y-1">
+                      <Input id="user_MiddleName" placeholder="Middle Name" value={formData.user_MiddleName} onChange={handleInput} className="bg-white" />
+                    </div>
+                    <div className="space-y-1">
+                      <Input id="user_LastName" placeholder="Last Name" value={formData.user_LastName} onChange={handleInput} className={`bg-white ${errors.user_LastName ? "border-red-500" : ""}`} />
+                      {errors.user_LastName && <span className="text-xs text-red-500">{errors.user_LastName}</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="h-4"></div>
+
+                {/* Dynamic Inputs Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {inputs.map((input) => (
+                    <div key={input.id} className="space-y-2">
+                      <Label className="text-slate-600 font-semibold">{input.label} <span className="text-red-500">*</span></Label>
+                      <div className="h-1"></div>
+                      {input.type === "select" ? (
+                        <Select 
+                          value={formData[input.id] || ""} 
+                          onValueChange={(val) => handleInput({ target: { id: input.id, value: val } })}
+                        >
+                          <SelectTrigger className="bg-white w-full">
+                            <SelectValue placeholder={`Select ${input.label}`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {input.id === "user_EmploymentStatus" && (
+                              <>
+                                <SelectItem value="Regular">Regular</SelectItem>
+                                <SelectItem value="Part-time">Part-time</SelectItem>
+                                <SelectItem value="Intern / OJT">Intern / OJT</SelectItem>
+                              </>
+                            )}
+                            {input.id === "user_Role" && (
+                              <>
+                                <SelectItem value="Employee">Employee</SelectItem>
+                                <SelectItem value="Admin">Admin</SelectItem>
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="flex gap-2 relative">
+                          <div className="relative flex-1">
+                            <Input
+                              id={input.id}
+                              type={
+                                (input.id === "user_Password" && showPassword) || 
+                                (input.id === "account_Number" && showAccountNumber) 
+                                  ? "text" 
+                                  : input.type
+                              }
+                              placeholder={input.placeholder}
+                              value={input.id === "user_Id" ? displayId : formData[input.id]}
+                              onChange={handleInput}
+                              onBlur={input.id === "user_Id" ? handleIdBlur : undefined}
+                              readOnly={input.label === "MaChip ID" || input.label === "Fingerprint ID"}
+                              className={`bg-white ${errors[input.id] ? "border-red-500" : ""} ${input.label === "MaChip ID" || input.label === "Fingerprint ID" ? "bg-slate-100 text-slate-500" : ""}`}
+                            />
+                            
+                            {/* Visibility Toggles */}
+                            {input.id === "user_Password" && (
+                              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowPassword(!showPassword)}>
+                                {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                              </button>
+                            )}
+                            {input.id === "account_Number" && (
+                              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowAccountNumber(!showAccountNumber)}>
+                                {showAccountNumber ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Scan Buttons next to input */}
+                          {input.label === "MaChip ID" && (
+                            <Button type="button" variant="secondary" className="shrink-0 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanRFID}>
+                              SCAN
+                            </Button>
+                          )}
+                          {input.label === "Fingerprint ID" && (
+                            <Button type="button" variant="secondary" className="shrink-0 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanFingerprint}>
+                              SCAN
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      {errors[input.id] && <span className="text-xs text-red-500 block">{errors[input.id]}</span>}
+                    </div>
+                  ))}
+                </div>
+
+              </form>
+            </div>
+          </div>
+        </Card>
+        <div className="h-4"></div>
+        {/* Action Buttons */}
+        <div className="flex flex-col-reverse sm:flex-row justify-center gap-4 mt-8">
+          <Button 
+            variant="outline" 
+            className="w-full sm:w-40 border-slate-300 shadow-sm" 
+            onClick={() => navigate("/users")} 
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button 
+            className="w-full sm:w-40 bg-[#2A174E] hover:bg-[#1a0e30] text-white shadow-sm" 
+            onClick={handleSubmit} 
+            disabled={loading}
+          >
+            {loading ? "Adding..." : "Add User"}
+          </Button>
+        </div>
+
         <RfidScanModal 
           isOpen={showRfidModal} 
           onClose={() => setShowRfidModal(false)}
@@ -391,11 +437,12 @@ const New = ({ inputs, title }) => {
           onRescan={handleScanFingerprint}
           scannedId={formData.user_FingerprintId} 
           error={fingerprintError}
-          // You might want to pass a title prop if your modal supports it
           title="Fingerprint Scanner" 
         />
       </div>
-    );
-  };
+      </Sidebar>
+    </div>
+  );
+};
 
 export default New;

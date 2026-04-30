@@ -407,14 +407,14 @@ const CalendarManagement = () => {
               
               {/* Holidays List Card */}
               <Card className="shadow-sm border-0 bg-white">
-                <CardHeader className="pb-3">
+                <CardHeader className="py-0">
                   <CardTitle className="text-lg text-[#2A174E]">Upcoming Holidays</CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
                   <div className="max-h-[250px] overflow-y-auto pr-2 space-y-2">
                     {getUpcomingHolidays().length > 0 ? getUpcomingHolidays().map((holiday, idx) => (
                       <div 
-                        className="group cursor-pointer transition-all flex flex-col sm:flex-row justify-between sm:items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100" 
+                        className="group cursor-pointer transition-all flex flex-col sm:flex-row justify-between sm:items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 mb-5 border py-4" 
                         key={idx} 
                         onClick={() => handleHolidayClick(holiday)}
                       >
@@ -450,23 +450,23 @@ const CalendarManagement = () => {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg text-[#2A174E]">Field Work Assignments</CardTitle>
                 </CardHeader>
-                <CardContent className="px-4 pb-4">
+                <CardContent className="px-4 pb-0">
                   <div className="max-h-[250px] overflow-y-auto pr-2 space-y-2">
                     {events.filter(e => e.type === "Field Work").length > 0 ? events.filter(e => e.type === "Field Work").map((field, idx) => (
                       <div 
-                        className="group cursor-pointer transition-all flex flex-col sm:flex-row justify-between sm:items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100" 
+                        className="group cursor-pointer transition-all flex flex-row justify-between items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 gap-3 border" 
                         key={idx} 
                         onClick={() => handleFieldWorkClick(field)}
                       >
-                        <div>
-                          <p className="font-semibold text-sm text-slate-800">{field.name}</p>
-                          <span className="text-xs text-muted-foreground block">{field.date}</span>
-                          <p className="text-xs text-slate-500 mt-1 italic line-clamp-1">{field.details}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-slate-800 truncate">{field.name}</p>
+                          <span className="text-[11px] text-muted-foreground block truncate">{field.date}</span>
+                          <p className="text-[11px] text-slate-500 mt-0.5 italic truncate">{field.details}</p>
                         </div>
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-8 w-8 text-slate-500 hover:text-red-500 hover:bg-red-50 mt-2 sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity" 
+                          className="h-8 w-8 text-slate-500 hover:text-red-500 hover:bg-red-50 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity shrink-0" 
                           onClick={(e) => {
                             e.stopPropagation();
                             initiateDelete(field.id, field.type);
