@@ -1,7 +1,7 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
-const { sendOnfieldEmail } = require("../utils/emailService");
+const { sendOnfieldEmail, sendRequestNotificationEmail } = require("../utils/emailService");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
 
@@ -129,6 +129,16 @@ exports.UserCreateRequest = async (req, res) => {
   }
 
   try {
+    // --- ADMIN SELF-REQUEST GUARD ---
+    const requesterRoleCheck = await sequelize.query(
+      `SELECT "user_RoleId" FROM "User" WHERE "user_Id" = :userId`,
+      { replacements: { userId: finalUserId }, type: QueryTypes.SELECT }
+    );
+    
+    if (requesterRoleCheck.length > 0 && Number(requesterRoleCheck[0].user_RoleId) === 1) {
+      return res.status(403).json({ error: "Admins are not allowed to file requests." });
+    }
+    // --------------------------------
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
     const todayStr = now.toISOString().split("T")[0];
@@ -419,11 +429,11 @@ exports.UserCreateRequest = async (req, res) => {
     }
     // Log Correction
     else if (finalReqTypeId === 5) {
-      const { logDate, currentIn, currentOut, claimedIn, claimedOut } = req.body;
+      const { logDate, currentIn, currentOut, claimedIn, claimedOut, correctionCategory } = req.body;
       const lcResult = await sequelize.query(
         `INSERT INTO "LogCorrection_Request"
-        ("emp_reqId", "user_Id", "logDate", "currentIn", "currentOut", "claimedIn", "claimedOut", "reason", "proof_File")
-        VALUES (:emp_reqId, :userId, :logDate, :currentIn, :currentOut, :claimedIn, :claimedOut, :reason, :proof_File)
+        ("emp_reqId", "user_Id", "logDate", "currentIn", "currentOut", "claimedIn", "claimedOut", "correctionCategory", "reason", "proof_File")
+        VALUES (:emp_reqId, :userId, :logDate, :currentIn, :currentOut, :claimedIn, :claimedOut, :correctionCategory, :reason, :proof_File)
         RETURNING *`,
         {
           replacements: {
@@ -434,6 +444,7 @@ exports.UserCreateRequest = async (req, res) => {
             currentOut: currentOut || null,
             claimedIn,
             claimedOut,
+            correctionCategory: correctionCategory || null,
             reason: finalRemarks,
             proof_File: proof_File,
           },
@@ -477,14 +488,14 @@ exports.UserCreateRequest = async (req, res) => {
       },
     );
 
-    // B. Notification to Eligible Approvers
+    // B. Notification to Eligible Approvers (In-App and Email)
     let approverQuery = "";
     if (requesterRole === 3) { // Employee -> Notify Admins and Supervisors
-      approverQuery = `SELECT "user_Id" FROM "User" WHERE "user_RoleId" IN (1, 2) AND "deletedAt" IS NULL`;
+      approverQuery = `SELECT "user_Id", "user_Email", "user_FirstName", "user_LastName", "user_RoleId" FROM "User" WHERE "user_RoleId" IN (1, 2) AND "deletedAt" IS NULL`;
     } else if (requesterRole === 2) { // Supervisor -> Notify Admins
-      approverQuery = `SELECT "user_Id" FROM "User" WHERE "user_RoleId" = 1 AND "deletedAt" IS NULL`;
+      approverQuery = `SELECT "user_Id", "user_Email", "user_FirstName", "user_LastName", "user_RoleId" FROM "User" WHERE "user_RoleId" = 1 AND "deletedAt" IS NULL`;
     } else if (requesterRole === 1) { // Admin -> Notify other Admins
-      approverQuery = `SELECT "user_Id" FROM "User" WHERE "user_RoleId" = 1 AND "user_Id" != :userId AND "deletedAt" IS NULL`;
+      approverQuery = `SELECT "user_Id", "user_Email", "user_FirstName", "user_LastName", "user_RoleId" FROM "User" WHERE "user_RoleId" = 1 AND "user_Id" != :userId AND "deletedAt" IS NULL`;
     }
 
     if (approverQuery) {
@@ -493,7 +504,24 @@ exports.UserCreateRequest = async (req, res) => {
         type: QueryTypes.SELECT 
       });
 
+      // Prepare email details
+      let dateStr = "";
+      let duration = "";
+      if (finalReqTypeId === 1) { // OT
+        dateStr = finalOTDate;
+        duration = `${HrFrom} - ${HrTo} (${Total_Hrs} hrs)`;
+      } else if (finalReqTypeId === 2) { // Onfield
+        dateStr = finalDateOnField;
+        duration = `${destination || 'N/A'} (${NoHrs} hrs)`;
+      } else if (finalReqTypeId === 3 || finalReqTypeId === 4) { // Leave
+        dateStr = `${StartDate} to ${EndDate}`;
+        duration = `${finalNoDays} day(s)`;
+      } else if (finalReqTypeId === 5) { // Log Correction
+        dateStr = req.body.logDate;
+      }
+
       for (const approver of approvers) {
+        // 1. In-App Notification
         await sequelize.query(
           `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
            VALUES (:userId, :title, :message, false, :targetId, :now, :now)`,
@@ -508,6 +536,44 @@ exports.UserCreateRequest = async (req, res) => {
             type: QueryTypes.INSERT,
           }
         );
+
+        // 2. Email Notification (Tiered Logic)
+        // If Employee (Role 3), initially only Supervisor 2 receives the email.
+        // For our implementation, we'll send to all eligible approvers found by the query
+        // but we can filter specifically for Supervisor 2 if we have their ID.
+        // Given the requirement: "the email will be receive by the supervisor 2 that i have request"
+        // And "if the request last like 8hrs or 12 hrs the admin 1 and supervisor 1 will be receives"
+        
+        // Let's assume Supervisor 2 is user_Id 2 (based on your previous log showing Jane Doe with ID 2).
+        // If we don't want to hardcode, we notify all eligible ones, 
+        // OR we specifically target Supervisor 2 first. 
+        
+        // Logic: Send email if it's an immediate approver.
+        if (approver.user_Email) {
+          // If Employee requests, notify Supervisor 2 (user_Id 2) immediately.
+          // If Supervisor requests, notify Admin/Supervisor 1 immediately.
+          
+          let shouldSendImmediate = false;
+          if (requesterRole === 3 && approver.user_Id === 2) { // Employee -> Supervisor 2
+            shouldSendImmediate = true;
+          } else if (requesterRole === 2 && approver.user_RoleId === 1) { // Supervisor -> Admin
+            shouldSendImmediate = true;
+          } else if (requesterRole === 1 && approver.user_RoleId === 1) { // Admin -> Other Admins
+            shouldSendImmediate = true;
+          }
+
+          if (shouldSendImmediate) {
+            sendRequestNotificationEmail({
+              toEmail: approver.user_Email,
+              approverName: approver.user_FirstName,
+              requesterName: requesterName,
+              requestType: typeName,
+              dateStr: dateStr,
+              duration: duration,
+              isEscalation: false
+            }).catch(err => console.error("[EMAIL NOTIFICATION FAILED]:", err.message));
+          }
+        }
       }
     }
 
@@ -564,6 +630,12 @@ exports.GetUserRequests = async (req, res) => {
         ow."DateonField",
         ow."NoDays" as "OW_NoDays",
         ow."NoHrs" as "OW_NoHrs",
+        lc."logDate" as "LC_logDate",
+        lc."currentIn" as "LC_currentIn",
+        lc."currentOut" as "LC_currentOut",
+        lc."claimedIn" as "LC_claimedIn",
+        lc."claimedOut" as "LC_claimedOut",
+        lc."correctionCategory" as "LC_correctionCategory",
         er."processedBy",
         er."recommendedBy",
         ap."user_FirstName" || ' ' || ap."user_LastName" as "approverName",
@@ -637,6 +709,7 @@ exports.GetAllRequests = async (req, res) => {
         lc."currentOut" as "LC_currentOut",
         lc."claimedIn" as "LC_claimedIn",
         lc."claimedOut" as "LC_claimedOut",
+        lc."correctionCategory" as "LC_correctionCategory",
         lc."proof_File" as "LC_proof_File",
         lb."VL_balance",
         lb."SL_balance",
@@ -714,47 +787,38 @@ exports.UpdateStatusRequest = async (req, res) => {
 
     console.log(`[DEBUG] UpdateStatusRequest: reqId=${emp_reqId}, requesterId=${requesterId}, operatorId=${operatorId}, requesterRole=${requesterRole}, processorRole=${processorRole}, currentStatus=${currentStatus}`);
 
-    // --- RBAC Approval Rules ---
+    // --- RBAC Approval Rules (NEW HIERARCHY) ---
+    // Hierarchy: 
+    // Supervisor 1/2: Can approve/reject.
+    // Admin: Payroll/Management, can see but CANNOT approve/reject.
+    
     let isAuthorized = false;
-    let finalStatusId = Number(emp_reqStatusId); // The status requested by frontend (2 or 3)
+    let finalStatusId = Number(emp_reqStatusId);
 
-    // ADMIN BYPASS: Admin can approve/reject ANY request except their own
-    if (processorRole === 1) {
+    if (processorRole === 2) { // Supervisor
       if (operatorId !== requesterId) {
         isAuthorized = true;
       } else {
-        // Cannot approve own request
-        isAuthorized = false;
+        return res.status(403).json({ error: "You cannot approve your own request." });
       }
-    } 
-    // SUPERVISOR LOGIC
-    else if (processorRole === 2) {
-      // Supervisor can only process Employee (3) or Admin (1) requests
-      // and only if status is PENDING (1). 
-      // NOTE: Supervisors cannot approve their own requests because operatorId === requesterId would fail authorization.
-      if (operatorId !== requesterId && currentStatus === 1 && (requesterRole === 3 || requesterRole === 1)) {
-        isAuthorized = true;
-        // If Supervisor approves Log Correction, it goes to "Pending Final Approval" (4)
-        if (Number(emp_reqStatusId) === 2 && isLogCorrection) {
-          finalStatusId = 4;
-        }
-      }
+    } else if (processorRole === 1) { // Admin
+      return res.status(403).json({ error: "Admins (Payroll) are restricted to viewing only and cannot approve or reject requests." });
     }
 
     if (!isAuthorized) {
-      const errorMsg = (processorRole === 1 && operatorId === requesterId)
-        ? "You cannot approve your own request."
-        : "You are not authorized to process this request based on role hierarchy or current status.";
-      return res.status(403).json({ error: errorMsg });
+      return res.status(403).json({ error: "You are not authorized to process this request." });
     }
+    // --------------------------------------------
 
-    const oldRequest = request; // For audit log
+    const oldRequest = request; 
 
     // 1. Update the parent request status
     let updateQuery = `
         UPDATE "emp_Request"
         SET "emp_reqStatusId" = :finalStatusId,
-            "updatedAt" = :now
+            "updatedAt" = :now,
+            "processedBy" = :processedBy,
+            "date_Processed" = :now
     `;
 
     const replacements = {
@@ -765,17 +829,8 @@ exports.UpdateStatusRequest = async (req, res) => {
       now: nowStr,
     };
 
-    // If Supervisor recommends (4), set recommendedBy
-    if (finalStatusId === 4) {
-      updateQuery += `, "recommendedBy" = :processedBy`;
-    } 
-    // If Admin approves/rejects (2 or 3), set processedBy and date_Processed
-    else if (finalStatusId === 2 || finalStatusId === 3) {
-      updateQuery += `, "processedBy" = :processedBy, "date_Processed" = :now`;
-      // If Admin provides admin_remarks, update it
-      if (remarks) {
-        updateQuery += `, "admin_remarks" = :admin_remarks`;
-      }
+    if (remarks) {
+      updateQuery += `, "admin_remarks" = :admin_remarks`;
     }
 
     updateQuery += ` WHERE "emp_reqId" = :emp_reqId`;
@@ -784,6 +839,69 @@ exports.UpdateStatusRequest = async (req, res) => {
       replacements,
       type: QueryTypes.UPDATE,
     });
+
+    // --- AUTO-UPDATE ATTENDANCE FOR LOG CORRECTION ---
+    if (finalStatusId === 2 && isLogCorrection) {
+      const lcDetails = await sequelize.query(
+        `SELECT * FROM "LogCorrection_Request" WHERE "emp_reqId" = :emp_reqId`,
+        { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+      );
+
+      if (lcDetails.length > 0) {
+        const { logDate, claimedIn, claimedOut } = lcDetails[0];
+        
+        // 1. Update or Insert into employee_Logging_report
+        // Build update parts dynamically to avoid overwriting existing logs with empty ones if not provided in the request
+        let updateReportQuery = `
+          INSERT INTO "employee_Logging_report" 
+            ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr", "attendance_StatusId", "logged_StatusId")
+          VALUES (:userId, :logDate, :timeInArr, :timeOutArr, 1, 2)
+          ON CONFLICT ("user_id", "log_Date") 
+          DO UPDATE SET 
+            "attendance_StatusId" = 1,
+            "logged_StatusId" = 2
+        `;
+
+        const timeInArr = claimedIn ? JSON.stringify([claimedIn]) : "[]";
+        const timeOutArr = claimedOut ? JSON.stringify([claimedOut]) : "[]";
+
+        if (claimedIn) {
+          updateReportQuery += `, "time_Logged_inArr" = :timeInArr`;
+        }
+        if (claimedOut) {
+          updateReportQuery += `, "time_Logged_outArr" = :timeOutArr`;
+        }
+
+        await sequelize.query(updateReportQuery, {
+          replacements: {
+            userId: requesterId,
+            logDate,
+            timeInArr,
+            timeOutArr
+          },
+          type: QueryTypes.INSERT
+        });
+
+        // 2. Insert into user_logging for audit trail (In and Out)
+        if (claimedIn) {
+          await sequelize.query(
+            `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
+             VALUES (:userId, :logDate, :claimedIn, 1, 1)`,
+            { replacements: { userId: requesterId, logDate, claimedIn }, type: QueryTypes.INSERT }
+          );
+        }
+        if (claimedOut) {
+          await sequelize.query(
+            `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
+             VALUES (:userId, :logDate, :claimedOut, 2, 1)`,
+            { replacements: { userId: requesterId, logDate, claimedOut }, type: QueryTypes.INSERT }
+          );
+        }
+
+        await logTransaction(requesterId, operatorId, "LOG_CORRECTION_APPLIED", `Time logs corrected for ${logDate} via approved request #${emp_reqId}`, { logDate, claimedIn, claimedOut });
+      }
+    }
+    // --------------------------------------------------
 
     const newRequestResult = await sequelize.query(
       `SELECT * FROM "emp_Request" WHERE "emp_reqId" = :emp_reqId`,
@@ -833,9 +951,8 @@ exports.UpdateStatusRequest = async (req, res) => {
       let statusName = "Pending";
       if (finalStatusId === 2) statusName = "Approved";
       else if (finalStatusId === 3) statusName = "Rejected";
-      else if (finalStatusId === 4) statusName = "Recommended";
 
-      // A. Notify Requester
+    // A. Notify Requester
       await sequelize.query(
         `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
          VALUES (:userId, :title, :message, false, :targetId, :now, :now)`,
@@ -843,9 +960,7 @@ exports.UpdateStatusRequest = async (req, res) => {
           replacements: {
             userId: requestInfo.user_Id,
             title: `Request ${statusName}`,
-            message: finalStatusId === 4 
-              ? `Your ${requestInfo.reqTypeName} request has been recommended by a supervisor and is pending final Admin approval.`
-              : `Your ${requestInfo.reqTypeName} request has been ${statusName.toLowerCase()}.`,
+            message: `Your ${requestInfo.reqTypeName} request has been ${statusName.toLowerCase()}.`,
             targetId: emp_reqId,
             now: nowStr,
           },
@@ -853,29 +968,8 @@ exports.UpdateStatusRequest = async (req, res) => {
         }
       );
 
-      // B. Notify Admins if status is now 4 (Recommended)
-      if (finalStatusId === 4) {
-        const admins = await sequelize.query(`SELECT "user_Id" FROM "User" WHERE "user_RoleId" = 1 AND "deletedAt" IS NULL`, { type: QueryTypes.SELECT });
-        for (const admin of admins) {
-          await sequelize.query(
-            `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
-             VALUES (:userId, :title, :message, false, :targetId, :now, :now)`,
-            {
-              replacements: {
-                userId: admin.user_Id,
-                title: "Final Approval Required",
-                message: `A Log Correction request from ${requestInfo.user_FirstName} ${requestInfo.user_LastName} has been recommended by a supervisor and requires your final approval.`,
-                targetId: emp_reqId,
-                now: nowStr,
-              },
-              type: QueryTypes.INSERT,
-            }
-          );
-        }
-      }
-
       // Email for Onfield Work Approval (Type 2)
-      if (emp_reqStatusId === 2 && requestInfo.emp_reqTypeId === 2 && requestInfo.user_Email) {
+      if (finalStatusId === 2 && requestInfo.emp_reqTypeId === 2 && requestInfo.user_Email) {
         sendOnfieldEmail({
           email: requestInfo.user_Email,
           name: `${requestInfo.user_FirstName} ${requestInfo.user_LastName}`,
@@ -905,24 +999,16 @@ exports.GetPendingCount = async (req, res) => {
     let query = "";
     let replacements = { userId };
 
-    if (roleId === 1) { // Admin
-      // Count all pending (1) AND recommended (4) requests except their own
+    if (roleId === 2) { // Supervisor
+      // Count all pending requests (1) except their own
       query = `
         SELECT COUNT(*)::int as count 
         FROM "emp_Request" er
-        WHERE er."emp_reqStatusId" IN (1, 4) 
+        WHERE er."emp_reqStatusId" = 1 
         AND er."user_Id" != :userId
       `;
-    } else if (roleId === 2) { // Supervisor
-      // Count only pending requests from Employees (Role 3)
-      query = `
-        SELECT COUNT(*)::int as count 
-        FROM "emp_Request" er
-        JOIN "User" u ON er."user_Id" = u."user_Id"
-        WHERE er."emp_reqStatusId" = 1 
-        AND u."user_RoleId" = 3
-      `;
     } else {
+      // Admin (1) or Employee (3) see 0 pending for them to process
       return res.status(200).json({ count: 0 });
     }
 
@@ -1022,6 +1108,7 @@ exports.GetRequestDetails = async (req, res) => {
         lc."currentOut" as "LC_currentOut",
         lc."claimedIn" as "LC_claimedIn",
         lc."claimedOut" as "LC_claimedOut",
+        lc."correctionCategory" as "LC_correctionCategory",
         lc."proof_File" as "LC_proof_File",
         lb."VL_balance",
         lb."SL_used",

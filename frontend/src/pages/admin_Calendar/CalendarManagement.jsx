@@ -14,6 +14,7 @@ import { useState, useEffect } from "react";
 import { formatUserId } from "../../utils/formatUserId";
 
 const CalendarManagement = () => {
+  // --- State Declarations ---
   const { systemToday } = useSystemTime();
   const [currentDate, setCurrentDate] = useState(new Date(systemToday.getFullYear(), systemToday.getMonth(), 1));
   const [events, setEvents] = useState([]);
@@ -23,7 +24,7 @@ const CalendarManagement = () => {
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null); // { id, type }
+  const [itemToDelete, setItemToDelete] = useState(null);
   const [selectedDayDetails, setSelectedDayDetails] = useState(null);
 
   const monthName = currentDate.toLocaleString('default', { month: 'long' });
@@ -213,7 +214,6 @@ const CalendarManagement = () => {
     try {
       const firstDay = `${year}-01-01`;
       const lastDay = `${year}-12-31`;
-      
       const response = await fetchWithAuth(`/api/request/calendar-report?startDate=${firstDay}&endDate=${lastDay}`);
       if (response.ok) {
         const data = await response.json();
@@ -261,6 +261,11 @@ const CalendarManagement = () => {
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 5);
   };
+
+  const daysInMonth = new Date(year, currentDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(year, currentDate.getMonth(), 1).getDay();
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
 
   return (
     <div className="flex min-h-screen bg-[#fdfaf5] overflow-x-hidden">
@@ -543,8 +548,12 @@ const CalendarManagement = () => {
                         value={holidayForm.type}
                         onChange={(e) => setHolidayForm({...holidayForm, type: e.target.value})}
                       >
-                        <option>Regular Holiday</option>
-                        <option>Special Holiday</option>
+                        <option value="Regular Holiday" style={{ color: "#b91c1c" }}>
+                          Regular Holiday
+                        </option>
+                        <option value="Special Holiday" style={{ color: "#6b21a8" }}>
+                          Special Holiday
+                        </option>
                       </select>
                     </div>
                   ) : (

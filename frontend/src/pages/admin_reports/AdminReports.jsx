@@ -12,8 +12,10 @@ import { formatUserId } from "../../utils/formatUserId";
 import { exportBatchToZip } from "../../utils/payrollExport";
 import { useLocation } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
+import { exportToCSV } from "../../utils/csvExport";
 
-const Reports = () => {
+const AdminReports = () => {
+
   const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedEmployee, setSelectedEmployee] = useState("All Employees");
@@ -127,7 +129,7 @@ const Reports = () => {
     }
   }, [location.state]);
 
-  const exportToCSV = () => {
+  const handleCSVExport = () => {
     let dataToExport = [];
     let filename = `${activeReport}_report_${startDate}_to_${endDate}.csv`;
     let headers = [];
@@ -136,23 +138,64 @@ const Reports = () => {
       headers = ["Employee MaChip ID", "Employee Name", "Date", "Time In", "Time Out", "Hours Worked", "Status", "Remarks"];
       dataToExport = attendanceData.map(r => [r.machipId, r.userName, r.log_Date, r.time_In, r.time_Out, r.hoursWorked, r.status, r.remarks]);
     } else if (activeReport === "payroll") {
-      headers = ["Payroll ID", "Employee Name", "Period Start", "Period End", "Days Worked", "Hours Worked", "Net Pay", "Status"];
-      dataToExport = payrollData.map(r => [r.payrollId, `${r.user_FirstName} ${r.user_LastName}`, r.period_Start, r.period_End, r.NoDays_Worked, r.NoHrs_Worked, r.netPay, r.statusName]);
+      headers = [
+        "Emp ID", 
+        "Employee Name", 
+        "Period Start", 
+        "Period End", 
+        "Days Worked", 
+        "Hours Worked", 
+        "Rate/Hr", 
+        "Basic Pay", 
+        "Overtime Pay",
+        "Night Diff",
+        "Holiday Pay",
+        "Incentives",
+        "Allowance",
+        "Total Earnings", 
+        "Absences Ded",
+        "Tardiness Ded",
+        "SSS Ded",
+        "Philhealth Ded",
+        "HDMF Ded",
+        "Tax Ded",
+        "Loans/Others",
+        "Total Deductions", 
+        "Net Pay", 
+        "Status"
+      ];
+      dataToExport = payrollData.map(r => [
+        formatUserId(r.user_Id), 
+        `${r.user_FirstName} ${r.user_LastName}`, 
+        r.period_Start, 
+        r.period_End, 
+        r.NoDays_Worked, 
+        r.NoHrs_Worked, 
+        r.ratePerHr,
+        r.basicPay,
+        (parseFloat(r.OT_Amnt) || 0) + (parseFloat(r.restDay_OT_Amnt) || 0),
+        r.nightDiff_Amnt,
+        r.specialHol_Amnt,
+        r.incentives,
+        r.allowance,
+        r.totalEarnings, 
+        r.absence_Amnt,
+        r.tardiness_Amnt,
+        r.SSS_Ded,
+        r.Philhealth_Ded,
+        r.HDMF_Ded,
+        r.Tax_Ded,
+        (parseFloat(r.SSS_Loan) || 0) + (parseFloat(r.HDMF_Loan) || 0) + (parseFloat(r.Other_Deductions) || 0),
+        r.totalDeductions,
+        r.netPay, 
+        r.statusName
+      ]);
     } else if (activeReport === "calendar") {
       headers = ["Type", "Date", "Name/Employee", "Details"];
       dataToExport = calendarData.map(r => [r.type, r.date, r.name, r.details]);
     }
 
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + [headers.join(","), ...dataToExport.map(e => e.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportToCSV(headers, dataToExport, filename);
   };
 
   const handleBatchExport = () => {
@@ -196,7 +239,7 @@ const Reports = () => {
               <span>Generate and export attendance and payroll</span>
             </div>
             <div className="buttonGroup">
-                <button className="exportBtn csv" onClick={exportToCSV}>
+                <button className="exportBtn csv" onClick={handleCSVExport}>
                 <FileDownloadIcon /> CSV
                 </button>
             </div>
@@ -351,7 +394,7 @@ const Reports = () => {
                       <table className="reportsTable payrollTable">
                     <thead>
                         <tr>
-                        <th>PAYROLL ID</th>
+                        <th>EMP ID</th>
                         <th>EMPLOYEE NAME</th>
                         <th>PERIOD</th>
                         <th>DAYS/HOURS</th>
@@ -367,7 +410,7 @@ const Reports = () => {
                     <tbody>
                         {payrollData.map((r, i) => (
                           <tr key={i}>
-                            <td>{r.payrollId}</td>
+                            <td>{formatUserId(r.user_Id)}</td>
                             <td>{r.user_FirstName} {r.user_LastName}</td>
                             <td>{new Date(r.period_Start).toLocaleDateString()} - {new Date(r.period_End).toLocaleDateString()}</td>
                             <td>{r.NoDays_Worked}d / {r.NoHrs_Worked}h</td>
@@ -402,4 +445,4 @@ const Reports = () => {
   );
 };
 
-export default Reports;
+export default AdminReports;

@@ -5,12 +5,21 @@ const jwt = require("jsonwebtoken");
 const { logAudit } = require("../utils/logger");
 
 exports.loginUser = async (req, res) => {
-  const { user_Id, password } = req.body || {};
+  let { user_Id, password } = req.body || {};
 
   if (!user_Id || !password) {
     return res
       .status(400)
       .json({ error: "User ID and password are required." });
+  }
+
+  // Enforce MACJ-XXX format strictly
+  if (typeof user_Id === "string" && /^MACJ-\d+$/.test(user_Id)) {
+    user_Id = parseInt(user_Id.replace("MACJ-", ""), 10);
+  } else {
+    return res
+      .status(400)
+      .json({ error: "Invalid ID format. Please use MACJ-XXX (e.g., MACJ-020)." });
   }
 
   try {
@@ -38,7 +47,9 @@ exports.loginUser = async (req, res) => {
     }
 
     const isMatch = await bcrypt.compare(password, user.user_Password);
-    console.log("[AUTH] Password match:", isMatch);
+    console.log("[AUTH] Comparing password:", `"${password}"`, "length:", password.length);
+    console.log("[AUTH] Against hash:", user.user_Password.substring(0, 10) + "...", "length:", user.user_Password.length);
+    console.log("[AUTH] Password match result:", isMatch);
 
     if (!isMatch) {
       return res.status(401).json({ error: "Invalid user ID or password." });

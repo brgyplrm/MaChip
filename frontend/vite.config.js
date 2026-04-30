@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [react(),tailwindcss(),],
   server: {
     host: true, // This allows other devices on your WiFi to connect
+    allowedHosts: [".trycloudflare.com"],
     proxy: {
       "/api": {
         target: "http://localhost:4000",

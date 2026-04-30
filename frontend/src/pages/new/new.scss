@@ -73,7 +73,20 @@
         }
 
         img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; border: 2px solid #2a174e; }
-        .fileInput label { cursor: pointer; color: #2a174e; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+        .fileInput 
+          label { 
+            cursor: pointer; color: #2a174e; font-weight: 600; display: flex; align-items: center; gap: 5px;
+
+            &:hover{
+              color: #45297e; 
+            }
+
+            .icon{
+              &:hover{
+                color: #45297e;
+              }
+            }
+          }
       }
       .right {
         flex: 3; padding-left: 30px;

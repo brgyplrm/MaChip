@@ -4,23 +4,27 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   const userDataString = localStorage.getItem("userData");
   const userData = userDataString ? JSON.parse(userDataString) : null;
   const viewMode = localStorage.getItem("viewMode") || "management";
-  const isAuthenticated = !!userData;
+  
+  // Strict check: must have userData and a valid user_Id
+  const isAuthenticated = !!(userData && userData.user_Id);
 
   if (!isAuthenticated) {
+    // If not authenticated, clear any garbage and go to login
+    localStorage.removeItem("userData");
     return <Navigate to="/login" replace />;
   }
 
-  // Determine effective role based on viewMode
-  // If we are in employee mode, we treat the user as if they have role 3 for route access purposes,
-  // BUT we must allow them to actually be an Admin/Supervisor.
-  
   const userRole = userData?.user_RoleId;
 
-  if (allowedRoles && userData) {
+  // If we have an authenticated user but they have no role assigned, send to login
+  if (!userRole) {
+    localStorage.removeItem("userData");
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles) {
     const hasRoleAccess = allowedRoles.includes(userRole);
     
-    // Special case: If Admin/Supervisor is in "employee" mode, they should be allowed 
-    // to access "Employee (3)" restricted pages.
     const isEmployeeMode = (userRole === 1 || userRole === 2) && viewMode === "employee";
     const canAccessAsEmployee = isEmployeeMode && allowedRoles.includes(3);
 
@@ -29,8 +33,19 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
       if (userRole === 3) {
         return <Navigate to="/profile" replace />;
       }
-      // Otherwise, go to home
-      return <Navigate to="/" replace />;
+      
+      // If user is Admin/Staff but trying to access an Employee-only page without viewMode="employee"
+      // or if they just don't have access to this specific admin page.
+      // We go to employeeHome for role 3, or root for others.
+      const fallback = (userRole === 3) ? "/profile" : "/";
+      
+      // If we are already at the fallback destination, we have a problem (access denied to home).
+      // In that case, just go to login to be safe.
+      if (window.location.pathname === fallback) {
+         return <Navigate to="/login" replace />;
+      }
+
+      return <Navigate to={fallback} replace />;
     }
   }
 

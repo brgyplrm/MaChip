@@ -86,13 +86,13 @@ const Settings = () => {
               <div className="details">
                 <div className="detailItem">
                   <span className="itemKey">Authentication Mode:</span>
-                  <span className="itemValue">Face + Microchip</span>
+                  <span className="itemValue">Biometrics + Microchip</span>
                 </div>
                 <div className="detailItem">
                   <span className="itemKey">System Status:</span>
                   <span className="itemValue statusActive">Online</span>
                 </div>
-                <button className="editButton">System Sync</button>
+                {/* <button className="editButton">System Sync</button> */}
               </div>
             </div>
 

@@ -11,12 +11,20 @@ import { fetchWithAuth } from "../../utils/api";
 const Navbar = () => {
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
   const [unreadCount, setUnreadCount] = useState(0);
-  const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
+  
+  const isManagement = userData?.user_RoleId === 1 || userData?.user_RoleId === 2;
+  
+  // Default to "employee" if user is not management, otherwise use stored mode or "management"
+  const getInitialViewMode = () => {
+    if (!isManagement) return "employee";
+    return localStorage.getItem("viewMode") || "management";
+  };
+  
+  const [viewMode, setViewMode] = useState(getInitialViewMode());
   const navigate = useNavigate();
 
-  const isManagement = userData?.user_RoleId === 1 || userData?.user_RoleId === 2;
-
   const toggleViewMode = () => {
+    if (!isManagement) return; // Non-management cannot toggle
     const newMode = viewMode === "management" ? "employee" : "management";
     localStorage.setItem("viewMode", newMode);
     setViewMode(newMode);
@@ -47,7 +55,9 @@ const Navbar = () => {
   const fetchUnreadCount = async () => {
     if (!userData?.user_Id) return;
     try {
-      const currentViewMode = localStorage.getItem("viewMode") || "management";
+      // Logic: If user is an employee, always fetch employee-mode notifications.
+      // If user is management, respect the current toggle.
+      const currentViewMode = isManagement ? (localStorage.getItem("viewMode") || "management") : "employee";
       const response = await fetchWithAuth(`/api/notifications/unread-count/${userData.user_Id}?viewMode=${currentViewMode}`);
       if (response.ok) {
         const data = await response.json();

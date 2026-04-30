@@ -12,6 +12,8 @@ import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ProcessPayrollModal from "../../components/procpayrollmodal/ProcessPayrollModal";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { fetchWithAuth } from "../../utils/api";
+import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
+import KeyboardDoubleArrowDownIcon from '@mui/icons-material/KeyboardDoubleArrowDown';
 
 const PayrollPeriod = () => {
   const [payrolls, setPayrolls] = useState([]);
@@ -189,14 +191,14 @@ const PayrollPeriod = () => {
             {/* ... other stats ... */}
             <div className="statCard">
               <div className="left">
-                <div className="icon earnings"><span className="symbol">📈</span></div>
+                <div className="icon earnings"><span className="symbol"><KeyboardDoubleArrowUpIcon/></span></div>
                 <span className="title">Total Earnings</span>
                 <span className="amount">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
               </div>
             </div>
             <div className="statCard">
               <div className="left">
-                <div className="icon deductions"><span className="symbol">📉</span></div>
+                <div className="icon deductions"><span className="symbol"><KeyboardDoubleArrowDownIcon/></span></div>
                 <span className="title">Total Deductions</span>
                 <span className="amount">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
               </div>

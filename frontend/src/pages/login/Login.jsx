@@ -29,6 +29,25 @@ const Login = () => {
 
   const navigate = useNavigate();
 
+  // ── Redirect if already logged in ──────────────────────────────────────────
+  useEffect(() => {
+    const userDataString = localStorage.getItem("userData");
+    if (userDataString) {
+      try {
+        const userData = JSON.parse(userDataString);
+        if (userData && userData.user_Id) {
+          if (userData.user_RoleId === 3) {
+            navigate("/employeeHome", { replace: true });
+          } else {
+            navigate("/", { replace: true });
+          }
+        }
+      } catch (e) {
+        localStorage.removeItem("userData");
+      }
+    }
+  }, [navigate]);
+
   const clearError = (field) => setErrors((prev) => ({ ...prev, [field]: "" }));
 
   const dismissToast = useCallback(

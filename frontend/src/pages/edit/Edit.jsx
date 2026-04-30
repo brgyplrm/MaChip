@@ -3,6 +3,7 @@ import Sidebar from "../../components/Sidebar";
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
+import { fetchWithAuth } from "../../utils/api";
 
 const Edit = ({ inputs, title }) => {
   const [file, setFile] = useState("");
@@ -37,7 +38,7 @@ const Edit = ({ inputs, title }) => {
     console.log("Initializing RFID Scanner for re-assignment...");
     
     try {
-      const response = await fetch("http://localhost:4000/api/users/generateRfid");
+      const response = await fetchWithAuth("/api/users/generateRfid");
       if (response.ok) {
         const data = await response.json();
         const generatedRFID = data.rfid;

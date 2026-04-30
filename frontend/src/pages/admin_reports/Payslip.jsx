@@ -6,6 +6,8 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { useParams, Link, useLocation } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import { fetchWithAuth } from "../../utils/api";
 
 const Payslip = () => {
   const { id } = useParams(); // Using 'id' from App.jsx route /adminReports/payslip/:id
@@ -20,7 +22,7 @@ const Payslip = () => {
     const fetchPayrollDetails = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:4000/api/payroll/${id}`);
+        const response = await fetchWithAuth(`/api/payroll/${id}`);
         const data = await response.json();
         if (response.ok) {
           setPayroll(data);
@@ -55,28 +57,63 @@ const Payslip = () => {
   };
 
   if (loading) return (
-    <div className="home payslipPage">
-      <Sidebar />
-      <div className="homeContainer">
-        <Navbar />
-        <div className="payslipWrapper">
-          <p>Loading payslip...</p>
+  <div className="home payslipPage">
+    <Sidebar />
+    <div className="homeContainer">
+      <Navbar />
+      <div className="payslipWrapper skeletonWrapper">
+        <div className="headerActions">
+          <div className="skeletonTitle"></div>
+          <div className="skeletonButton"></div>
+        </div>
+        
+        {/* Skeleton Payslip Card */}
+        <div className="payslipCard skeletonCard">
+          <div className="skeletonCompanyHeader"></div>
+          <div className="skeletonEmployeeInfo">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="skeletonInfoRow"></div>
+            ))}
+          </div>
+          <div className="skeletonTable"></div>
+          <div className="skeletonSignature"></div>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 
-  if (!payroll) return (
-    <div className="home payslipPage">
-      <Sidebar />
-      <div className="homeContainer">
-        <Navbar />
-        <div className="payslipWrapper">
-          <p>Payslip not found.</p>
+  // Payslip.jsx - Update the !payroll conditional
+// Payslip.jsx
+if (!payroll) return (
+  <div className="home payslipPage">
+    <Sidebar />
+    <div className="homeContainer">
+      <Navbar />
+      <div className="payslipWrapper errorState">
+        <div className="errorContent">
+          <div className="iconCircle">
+            <ReceiptLongIcon className="errorIcon" />
+            <div className="errorOverlay">!</div>
+          </div>
+          <h2>Payslip Not Found</h2>
+          <p>
+            We couldn't find a payroll record for <strong>ID: {id}</strong>. 
+            It may have been deleted, or the ID in the URL is incorrect.
+          </p>
+          <div className="errorActions">
+            <Link to={"/adminReports"}><button className="backBtn">
+              Go Back
+            </button></Link>
+            {/*<Link to="/adminReports" state={{ activeTab: "payroll" }} className="reportBtn">
+              View Payroll Reports
+            </Link>*/}
+          </div>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 
   return (
     <div className="home payslipPage">

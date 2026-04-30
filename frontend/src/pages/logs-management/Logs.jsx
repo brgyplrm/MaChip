@@ -6,27 +6,9 @@ import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
+import { useSystemTime } from "../../context/SystemTimeContext";
+import SearchIcon from "@mui/icons-material/Search";
 
-const getCurrentPeriod = () => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const date = today.getDate();
-
-  let startDate, endDate;
-  if (date <= 15) {
-    startDate = new Date(year, month, 1);
-    endDate = new Date(year, month, 15);
-  } else {
-    startDate = new Date(year, month, 16);
-    endDate = new Date(year, month + 1, 0);
-  }
-  const pad = (n) => n.toString().padStart(2, '0');
-  return {
-    startDate: `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`,
-    endDate: `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`,
-  };
-};
 
 const formatDateStr = (dateStr) => {
   if (!dateStr) return "—";
@@ -35,20 +17,81 @@ const formatDateStr = (dateStr) => {
 };
 
 const Logs = () => {
+  const { systemToday } = useSystemTime();
   const [viewMode, setViewMode] = useState("raw"); // "raw" or "day"
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState("");
   const rowsPerPage = 10;
 
+  const getCurrentPeriod = useCallback((baseDate) => {
+    const today = baseDate || new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+
+    let startDate, endDate;
+    if (date <= 15) {
+      startDate = new Date(year, month, 1);
+      endDate = new Date(year, month, 15);
+    } else {
+      startDate = new Date(year, month, 16);
+      endDate = new Date(year, month + 1, 0);
+    }
+    const pad = (n) => n.toString().padStart(2, '0');
+    return {
+      startDate: `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`,
+      endDate: `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`,
+    };
+  }, []);
+
   const [logData, setLogData] = useState([]);
   const [dayLogsData, setDayLogsData] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: 'log_Date', direction: 'desc' });
-  const [period] = useState(getCurrentPeriod());
+  
+  const period = useMemo(() => getCurrentPeriod(systemToday), [systemToday, getCurrentPeriod]);
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+
+  const handleExport = () => {
+    let headers = [];
+    let data = [];
+    let filename = "";
+
+    if (viewMode === "raw") {
+      headers = ["User ID", "Full Name", "Type", "MaChip ID", "Date", "Time", "Action"];
+      data = filteredData.map(row => [
+        row.user_Id_formatted,
+        row.fullName,
+        row.log_type,
+        row.machip_id,
+        row.log_Date,
+        row.time,
+        row.action
+      ]);
+      filename = `Raw_Logs_${new Date().toISOString().split('T')[0]}.csv`;
+    } else {
+      headers = ["User ID", "Name", "Date", "AM In", "AM Out", "PM In", "PM Out", "OT In", "OT Out", "Status", "Hours Worked"];
+      data = sortedDayLogs.map(row => [
+        formatUserId(row.user_Id),
+        row.userName,
+        row.log_Date.split('T')[0],
+        row.morning_In || "",
+        row.morning_Out || "",
+        row.afternoon_In || "",
+        row.afternoon_Out || "",
+        row.ot_In || "",
+        row.ot_Out || "",
+        row.status || "",
+        row.hoursWorked || "0"
+      ]);
+      filename = `Day_Logs_${period.startDate}_to_${period.endDate}.csv`;
+    }
+
+    exportToCSV(headers, data, filename);
+  };
 
   // Filter raw data
   const filteredData = logData.filter((item) => {
@@ -261,6 +304,7 @@ const Logs = () => {
             </div>
             <div className="filterSection">
               <div className="searchWrapper">
+                <SearchIcon />
                 <input
                   type="text"
                   placeholder="Search logs..."
@@ -290,7 +334,7 @@ const Logs = () => {
               </div>
               <div className="buttonGroup">
                 <button
-                  className="headerButton"
+                  className="headerButton view"
                   onClick={() => {
                     setViewMode(viewMode === "raw" ? "day" : "raw");
                     setCurrentPage(1);
@@ -305,14 +349,14 @@ const Logs = () => {
                       onClick={() => handleGenerateLogs(1)}
                       disabled={loading}
                     >
-                      {loading ? "Processing..." : "Generate Clock In"}
+                      {loading ? "Processing..." : "Clock In"}
                     </button>
                     <button
                       className="headerButton"
                       onClick={() => handleGenerateLogs(2)}
                       disabled={loading}
                     >
-                      {loading ? "Processing..." : "Generate Clock Out"}
+                      {loading ? "Processing..." : "Clock Out"}
                     </button>
                   </>
                 )}
@@ -388,12 +432,12 @@ const Logs = () => {
                           <td className="boldText">{formatUserId(row.user_Id)}</td>
                           <td>{row.userName}</td>
                           <td>{formatDateStr(row.log_Date)}</td>
-                          <td>{row.morning_In}</td>
-                          <td>{row.morning_Out}</td>
-                          <td>{row.afternoon_In}</td>
-                          <td>{row.afternoon_Out}</td>
-                          <td>{row.ot_In}</td>
-                          <td>{row.ot_Out}</td>
+                          <td>{row.morning_In || "—"}</td>
+                          <td>{row.morning_Out || "—"}</td>
+                          <td>{row.afternoon_In || "—"}</td>
+                          <td>{row.afternoon_Out || "—"}</td>
+                          <td>{row.ot_In || "—"}</td>
+                          <td>{row.ot_Out || "—"}</td>
                           <td>
                             <span className={`pill ${row.status === "On Time" ? "clock-in" : (row.status?.toLowerCase().includes("absent") ? "clock-out" : "default")}`}>
                               {row.status}

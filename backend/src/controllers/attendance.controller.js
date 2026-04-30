@@ -239,7 +239,13 @@ exports.markAttendance = async (req, res) => {
     // ── Attendance value (only on first Clock In of the day) ────────────────
     let attendanceVal = null;
     if (nextStatus === 1 && !hasPriorClockIn) {
-      attendanceVal = now.getHours() < 9 ? 1 : 2;
+      if (now.getHours() < 9) {
+        attendanceVal = 1; // On-Time
+      } else if (now < fivePMThirty) {
+        attendanceVal = 2; // Late
+      } else {
+        attendanceVal = 3; // Absent (timed in after shift ended)
+      }
     }
 
     // ── Insert into user_logging ────────────────────────────────────────────
@@ -277,6 +283,9 @@ exports.markAttendance = async (req, res) => {
     );
 
     if (!existingReport[0]) {
+      const cleanInArr = isEntry ? [finalTimeStr] : [];
+      const cleanOutArr = !isEntry ? [finalTimeStr] : [];
+
       await sequelize.query(
         `INSERT INTO "employee_Logging_report"
           ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr",
@@ -287,8 +296,8 @@ exports.markAttendance = async (req, res) => {
           replacements: {
             target_user_Id,
             todayStr,
-            inArr: isEntry ? JSON.stringify([finalTimeStr]) : JSON.stringify([]),
-            outArr: !isEntry ? JSON.stringify([finalTimeStr]) : JSON.stringify([]),
+            inArr: JSON.stringify(cleanInArr),
+            outArr: JSON.stringify(cleanOutArr),
             attendance_StatusId: attendanceVal,
             reportLoggedStatus,
           },
@@ -296,8 +305,8 @@ exports.markAttendance = async (req, res) => {
         },
       );
     } else {
-      const inArr  = JSON.parse(existingReport[0].time_Logged_inArr  || "[]");
-      const outArr = JSON.parse(existingReport[0].time_Logged_outArr || "[]");
+      const inArr  = JSON.parse(existingReport[0].time_Logged_inArr  || "[]").filter(Boolean);
+      const outArr = JSON.parse(existingReport[0].time_Logged_outArr || "[]").filter(Boolean);
 
       if (isEntry && !inArr.includes(finalTimeStr)) inArr.push(finalTimeStr);
       else if (!isEntry && !outArr.includes(finalTimeStr)) outArr.push(finalTimeStr);
@@ -401,7 +410,7 @@ exports.viewUserLogs = async (req, res) => {
         type: QueryTypes.SELECT 
     });
 
-    const calculateHours = (inArr, outArr, approvedOT, morningIn, afternoonIn, isOnField) => {
+    const calculateHours = (inArr, outArr, approvedOT, morningIn, afternoonIn, isOnField, ot_In, ot_Out) => {
       if (isOnField) return 8.0;
       if (inArr.length === 0) return 0;
 
@@ -424,9 +433,23 @@ exports.viewUserLogs = async (req, res) => {
         totalHrs += 4.0;
       }
 
-      // 3. Overtime
-      if (approvedOT && approvedOT.Total_Hrs) {
-        totalHrs += parseFloat(approvedOT.Total_Hrs);
+      // 3. Overtime Validation
+      // If OT is approved AND the user actually has OT logs
+      if (approvedOT && approvedOT.Total_Hrs && ot_In !== "—" && ot_Out !== "—") {
+        const [h1, m1, s1] = ot_In.split(":").map(Number);
+        const [h2, m2, s2] = ot_Out.split(":").map(Number);
+        
+        const inMinutes = h1 * 60 + m1;
+        const outMinutes = h2 * 60 + m2;
+        
+        let actualOTMinutes = outMinutes - inMinutes;
+        if (actualOTMinutes < 0) actualOTMinutes += 24 * 60; // Handle midnight crossover
+        
+        const actualOTHrs = actualOTMinutes / 60;
+        const approvedOTHrs = parseFloat(approvedOT.Total_Hrs);
+        
+        // Credit the minimum of what was approved vs what was actually worked
+        totalHrs += Math.min(approvedOTHrs, actualOTHrs);
       }
 
       return Math.max(0, totalHrs);
@@ -473,7 +496,7 @@ exports.viewUserLogs = async (req, res) => {
         if (overtimeOuts.length > 0) ot_Out = overtimeOuts[overtimeOuts.length - 1];
       }
 
-      const hoursWorked = calculateHours(inArr, outArr, dayOT, morning_In, afternoon_In, isOnField);
+      const hoursWorked = calculateHours(inArr, outArr, dayOT, morning_In, afternoon_In, isOnField, ot_In, ot_Out);
 
       // Map for generic table compatibility (History card)
       const time_In = morning_In;
@@ -491,6 +514,8 @@ exports.viewUserLogs = async (req, res) => {
         ot_Out,
         time_In,
         time_Out,
+        inArr,
+        outArr,
         hoursWorked: hoursWorked.toFixed(2),
         logStatus: report.loggedStatusName,
         attendanceStatus: report.attendanceStatusName || "—",
@@ -952,10 +977,15 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       u."user_FirstName",
       u."user_LastName",
       u."user_MachipId",
-      a."statusName" AS "attendanceStatusName"
+      a."statusName" AS "attendanceStatusName",
+      CASE WHEN er."emp_reqStatusId" = 2 THEN ot."HrFrom" ELSE NULL END AS "ot_HrFrom",
+      CASE WHEN er."emp_reqStatusId" = 2 THEN ot."HrTo" ELSE NULL END AS "ot_HrTo",
+      CASE WHEN er."emp_reqStatusId" = 2 THEN ot."Total_Hrs" ELSE NULL END AS "ot_Total_Hrs"
     FROM "employee_Logging_report" r
     LEFT JOIN "User" u ON u."user_Id" = r."user_id"
     LEFT JOIN "attendance_status" a ON a."statusId" = r."attendance_StatusId"
+    LEFT JOIN "Overtime_Request" ot ON ot."user_Id" = r."user_id" AND ot."OT_DateOf"::date = r."log_Date"::date
+    LEFT JOIN "emp_Request" er ON er."emp_reqId" = ot."emp_reqId"
     WHERE r."log_Date" BETWEEN :startDate AND :endDate
   `;
 
@@ -1037,18 +1067,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       
       if (dateObj.getDay() === 0) return true; // Keep Sundays in report data
       
-      // Absent or Suspicious -> Empty in DTR (filter out)
-      if (r.attendance_StatusId === 3) return false;
-      if (r.attendanceStatusName && r.attendanceStatusName.includes("(Suspicious)")) return false;
-
-      // On Leave -> Empty in DTR (filter out)
-      const isOnLeave = userReqs.some(req => {
-          if (req.emp_reqTypeId === 3) return dateStr >= req.vStart && dateStr <= req.vEnd;
-          if (req.emp_reqTypeId === 4) return dateStr >= req.sStart && dateStr <= req.sEnd;
-          return false;
-      });
-      if (isOnLeave) return false;
-
+      // Keep all records including Suspicious ones so they can be suggested for OT/Correction
       return true;
     })
     .map((r) => {
@@ -1060,14 +1079,28 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         } catch (e) { return []; }
       };
 
+      // Helper to format date without UTC shift
+      const formatDateOnly = (dateVal) => {
+        if (!dateVal) return "";
+        if (typeof dateVal === 'string') return dateVal.split('T')[0];
+        const d = new Date(dateVal);
+        const YYYY = d.getFullYear();
+        const MM = String(d.getMonth() + 1).padStart(2, '0');
+        const DD = String(d.getDate()).padStart(2, '0');
+        return `${YYYY}-${MM}-${DD}`;
+      };
+
       const inArr = parseLogs(r.time_Logged_inArr);
       const outArr = parseLogs(r.time_Logged_outArr);
-      const dateStr = r.log_Date.split('T')[0];
+      const dateStr = formatDateOnly(r.log_Date);
       const dateObj = new Date(r.log_Date);
       
-      const userReqs = allApprovedRequests.filter(req => req.user_Id === r.user_id);
-      const dayOT = userReqs.find(req => req.emp_reqTypeId === 1 && req.OT_DateOf === dateStr);
-      const isOnField = userReqs.some(req => req.emp_reqTypeId === 2 && req.DateonField === dateStr);
+      const userReqs = allApprovedRequests.filter(req => Number(req.user_Id) === Number(r.user_id));
+      
+      const isOnField = userReqs.some(req => {
+        if (Number(req.emp_reqTypeId) !== 2) return false;
+        return formatDateOnly(req.DateonField) === dateStr;
+      });
 
       let morning_In = "—", morning_Out = "—", afternoon_In = "—", afternoon_Out = "—", ot_In = "—", ot_Out = "—";
       let hoursWorked = 0;
@@ -1081,24 +1114,32 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         afternoon_Out = "17:30";
         hoursWorked = 8.0;
       } else {
+        // Time-based slotting for more accurate display (Aligned with Edit Attendance logic)
+        const hasApprovedOT = !!r.ot_HrFrom;
+        const otStart = hasApprovedOT ? r.ot_HrFrom : "23:59:59";
+
         // Morning Session
-        if (inArr[0]) {
-          const [h, m] = inArr[0].split(":").map(Number);
-          morning_In = h < 8 ? "08:00" : inArr[0].substring(0, 5);
+        const mInCandidate = inArr.find(t => t.substring(0, 5) < "12:00");
+        if (mInCandidate) {
+          const [h, m] = mInCandidate.split(":").map(Number);
+          morning_In = h < 8 ? "08:00" : mInCandidate.substring(0, 5);
         }
-        if (outArr[0]) morning_Out = outArr[0].substring(0, 5);
+        morning_Out = outArr.find(t => t.substring(0, 5) >= "11:30" && t.substring(0, 5) < "13:30")?.substring(0, 5) || "—";
 
-        // Afternoon Session (only if we have second logs)
-        if (inArr[1]) afternoon_In = inArr[1].substring(0, 5);
-        if (outArr[1]) afternoon_Out = outArr[1].substring(0, 5);
+        // Afternoon Session
+        afternoon_In = inArr.find(t => t.substring(0, 5) >= "12:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || "—";
+        afternoon_Out = outArr.find(t => t.substring(0, 5) >= "13:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || (hasApprovedOT && afternoon_In !== "—" ? otStart.substring(0, 5) : "—");
         
-        // Overtime Session
-        if (dayOT) {
-          ot_In = dayOT.HrFrom ? dayOT.HrFrom.substring(0, 5) : (inArr[2] ? inArr[2].substring(0, 5) : "—");
-          ot_Out = outArr[2] ? outArr[2].substring(0, 5) : (outArr[outArr.length - 1] > (dayOT.HrFrom || "17:30") ? outArr[outArr.length - 1].substring(0, 5) : "—");
+        // Overtime Session (using joined data)
+        if (hasApprovedOT) {
+          // OT In defaults to the approved start time
+          ot_In = otStart.substring(0, 5);
+          // For OT Out, we take the last clock-out if it's after OT Start
+          const lastOut = outArr.length > 0 ? outArr[outArr.length - 1].substring(0, 5) : "—";
+          ot_Out = lastOut > ot_In ? lastOut : "—";
         }
 
-        hoursWorked = calculateHours(inArr, outArr, dayOT, morning_In, afternoon_In, isOnField);
+        hoursWorked = calculateHours(inArr, outArr, { Total_Hrs: r.ot_Total_Hrs }, morning_In, afternoon_In, isOnField);
       }
 
       // Determine absolute first in and last out for standard report table
@@ -1130,6 +1171,8 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         ot_Out,
         time_In,
         time_Out,
+        inArr,
+        outArr,
         hoursWorked: parseFloat(hoursWorked).toFixed(2),
         status: r.attendanceStatusName ?? "—",
         remarks: "",
@@ -1154,9 +1197,14 @@ exports.getSingleAttendanceRecord = async (req, res) => {
   const { user_Id, date } = req.params;
   try {
     const report = await sequelize.query(
-      `SELECT r.*, u."user_FirstName", u."user_LastName" 
+      `SELECT r.*, u."user_FirstName", u."user_LastName",
+              ot."HrFrom" AS "ot_HrFrom", 
+              ot."HrTo" AS "ot_HrTo",
+              er."emp_reqStatusId"
        FROM "employee_Logging_report" r
        JOIN "User" u ON u."user_Id" = r."user_id"
+       LEFT JOIN "Overtime_Request" ot ON ot."user_Id" = r."user_id" AND ot."OT_DateOf"::date = r."log_Date"::date
+       LEFT JOIN "emp_Request" er ON er."emp_reqId" = ot."emp_reqId"
        WHERE r."user_id" = :user_Id AND r."log_Date" = :date`,
       {
         replacements: { user_Id, date },
@@ -1169,19 +1217,32 @@ exports.getSingleAttendanceRecord = async (req, res) => {
     }
 
     const r = report[0];
-    const inArr = JSON.parse(r.time_Logged_inArr || "[]");
-    const outArr = JSON.parse(r.time_Logged_outArr || "[]");
+    const inArr = JSON.parse(r.time_Logged_inArr || "[]").filter(t => t && t !== "—").sort();
+    const outArr = JSON.parse(r.time_Logged_outArr || "[]").filter(t => t && t !== "—").sort();
+    
+    const hasApprovedOT = r.emp_reqStatusId === 2;
+    const otStart = hasApprovedOT ? r.ot_HrFrom : "23:59:59";
+
+    const morning_In = inArr.find(t => t.substring(0, 5) < "12:00")?.substring(0, 5) || "";
+    const morning_Out = outArr.find(t => t.substring(0, 5) >= "11:30" && t.substring(0, 5) < "13:30")?.substring(0, 5) || "";
+    
+    const afternoon_In = inArr.find(t => t.substring(0, 5) >= "12:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || "";
+    const afternoon_Out = outArr.find(t => t.substring(0, 5) >= "13:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || (hasApprovedOT && afternoon_In ? otStart.substring(0, 5) : "");
+    
+    // OT In defaults to the approved HrFrom if no specific log exists at that time
+    const ot_In = hasApprovedOT ? (inArr.find(t => t.substring(0, 5) >= otStart)?.substring(0, 5) || otStart.substring(0, 5)) : "";
+    const ot_Out = hasApprovedOT ? (outArr.find(t => t.substring(0, 5) >= otStart)?.substring(0, 5) || "") : "";
 
     res.status(200).json({
       user_Id: r.user_id,
       userName: `${r.user_FirstName} ${r.user_LastName}`,
       log_Date: r.log_Date,
-      morning_In: inArr[0] || "—",
-      morning_Out: outArr[0] || "—",
-      afternoon_In: inArr[1] || "—",
-      afternoon_Out: outArr[1] || "—",
-      ot_In: inArr[2] || "—",
-      ot_Out: outArr[2] || "—",
+      morning_In,
+      morning_Out,
+      afternoon_In,
+      afternoon_Out,
+      ot_In,
+      ot_Out,
       attendance_StatusId: r.attendance_StatusId
     });
   } catch (error) {

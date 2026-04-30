@@ -117,13 +117,9 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     const log = logMap[dateStr];
     const isOnField = onfieldMap.has(dateStr);
     
-    // A day is "worked" only if there's a log that isn't an "Absent" status (3), or it's On-Field
     const isAbsentStatus = log && log.att_status === 3;
     const worked = (!!log && !isAbsentStatus) || isOnField;
     const isLeave = approvedLeaveDaysMap.has(dateStr);
-
-    // Skip future days unless they have an approved leave
-    if (isFuture && !isLeave) continue;
 
     // ── Handle Worked Days (Normal or Holiday) ──────────────────────────
     if (worked) {
@@ -134,8 +130,11 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
         dailyHrs = 8.0;
       } else if (log) {
         const inArr = JSON.parse(log.time_Logged_inArr || "[]");
-        const morningIn = inArr[0];
-        const afternoonIn = inArr[1];
+        
+        // Time-based slotting (same as report logic)
+        const SLOT_MIDPOINT = "12:30";
+        const morningIn = inArr.find(t => t.substring(0, 5) < SLOT_MIDPOINT);
+        const afternoonIn = inArr.find(t => t.substring(0, 5) >= "12:00" && t.substring(0, 5) < "17:30");
 
         // Morning Session (Fixed 4.0 - tardiness)
         if (morningIn && morningIn !== "—") {
@@ -145,9 +144,9 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
           const graceMinutes = 8 * 60 + 35; // 8:35 AM
 
           if (loginMinutes > graceMinutes) {
-            const minsLate = loginMinutes - graceMinutes;
+            const minsLate = Math.max(0, loginMinutes - graceMinutes);
             tardiness_Mins += minsLate;
-            dailyHrs -= (minsLate / 60);
+            dailyHrs = Math.max(0, dailyHrs - (minsLate / 60));
           }
         }
 
@@ -219,7 +218,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     // Find any log that proves they were working after the OT start time
     const presenceLog = await sequelize.query(
       `SELECT "time_Logged" FROM "user_logging"
-       WHERE "user_id" = :user_Id AND "log_Date" = :dateStr
+       WHERE "user_id" = :user_Id AND "log_Date"::date = :dateStr::date
        AND "logged_StatusId" IN (2, 6)
        AND "time_Logged" > :otStart
        ORDER BY "time_Logged" DESC
@@ -281,8 +280,8 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const legalHol_Amnt = (stats.legalHol_Days * dailyRate);
   const specialHol_Amnt = (stats.specialHol_Days * dailyRate * 0.25);
 
-  // 3. Other Earnings
-  const OT_Amnt = stats.OT_Hrs * ratePerHr;
+  // 3. Other Earnings (HOURLY RATE X 1.25 X HRS OVERTIME)
+  const OT_Amnt = stats.OT_Hrs * ratePerHr * 1.25;
   
   // 4. Deductions
   const absence_Amnt = stats.absence_Days * dailyRate;

@@ -12,6 +12,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import AttachmentIcon from "@mui/icons-material/Attachment";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
+import { formatUserId } from "../../utils/formatUserId";
 
 const RequestDetails = () => {
   const navigate = useNavigate();
@@ -139,10 +140,16 @@ const RequestDetails = () => {
                 </div>
               )}
               {request.emp_reqTypeId === 5 && (
-                <div className="item">
-                  <label>Log Date</label>
-                  <p>{request.LC_logDate}</p>
-                </div>
+                <>
+                  <div className="item">
+                    <label>Log Date</label>
+                    <p>{request.LC_logDate}</p>
+                  </div>
+                  <div className="item">
+                    <label>Category</label>
+                    <p className="categoryBadge">{request.LC_correctionCategory || "N/A"}</p>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -193,6 +200,10 @@ const RequestDetails = () => {
               {/* Log Correction Details */}
               {request.emp_reqTypeId === 5 && (
                 <>
+                  <div className="item">
+                    <label>Correction Category</label>
+                    <p className="categoryBadge">{request.LC_correctionCategory}</p>
+                  </div>
                   <div className="item">
                     <label>Current Time-In</label>
                     <p>{request.LC_currentIn || "No Log"}</p>

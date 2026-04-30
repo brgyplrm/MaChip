@@ -35,6 +35,18 @@ export const userInputs = [
     type: "text",
     placeholder: "e.g. MACHIP-XXXXXX",
   },
+  {
+    id: "account_Number",
+    label: "ATM / Account Number",
+    type: "text",
+    placeholder: "Enter Account Number",
+  },
+  {
+  id: "user_FingerprintId",
+  label: "Fingerprint ID",
+  type: "text",
+  placeholder: "Scan to register fingerprint",
+  },
 ];
 
 export const productInputs = [

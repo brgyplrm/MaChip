@@ -1,23 +1,41 @@
 // backend/src/middleware/rateLimiter.js
 const rateLimit = require("express-rate-limit");
+const jwt = require("jsonwebtoken");
 
 /**
- * loginLimiter — Brute force protection for login
- * 10 attempts per 15 minutes per IP
+ * Extracts a unique key per request.
+ * - For auth routes (no token yet): use IP
+ * - For authenticated routes: use user_Id from JWT (avoids NAT collision)
  */
+const keyByUser = (req) => {
+  try {
+    const authHeader = req.headers["authorization"];
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      return `user_${decoded.user_Id}`;
+    }
+  } catch (_) {
+    // Token invalid or missing — fall back to IP
+  }
+  // Use express-rate-limit's default IP detection which handles IPv6
+  return req.ip;
+};
+
+// ── Login Limiter ─────────────────────────────────────────────────────────────
+// Keyed by IP because user has no token yet at login time.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
+  // Removing custom keyGenerator to let it use the internal safe IP logic
   message: { error: "Too many login attempts. Please try again after 15 minutes." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
+  validate: { trustProxy: true, keyGeneratorIpFallback: false },
 });
 
-/**
- * HIGH_FREQ_ROUTES — Polling endpoints that fire every few seconds.
- * These are read-only, authenticated, and carry no brute-force risk.
- */
+// ── HIGH_FREQ_ROUTES ──────────────────────────────────────────────────────────
+// These fire every ~30s per user. Skip them from general limiter entirely.
 const HIGH_FREQ_ROUTES = [
   "/api/notifications/unread-count",
   "/api/system/time",
@@ -26,33 +44,32 @@ const HIGH_FREQ_ROUTES = [
   "/api/attendance/occupancy",
 ];
 
-/**
- * pollingLimiter — Higher threshold for polling endpoints to prevent abuse
- * 2000 req per 15 min per IP (~133 req/min)
- */
+// ── Polling Limiter ───────────────────────────────────────────────────────────
+// Per-user keyed. 300 per user per 15 min is plenty (covers multiple tabs).
 const pollingLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 2000,
+  max: 300,
+  keyGenerator: keyByUser,
   message: { error: "Excessive polling detected. Please slow down." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
+  validate: { trustProxy: true, keyGeneratorIpFallback: false },
 });
 
-/**
- * generalLimiter — DDoS / scraping protection for standard routes
- * 600 req per 15 min per IP (~40 req/min), skips polling routes
- * (Polling routes are handled by pollingLimiter separately)
- */
+// ── General Limiter ───────────────────────────────────────────────────────────
+// Per-user keyed. 500 req/15min per user is generous for normal usage.
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 600,
-  message: { error: "Too many requests from this IP. Please try again later." },
+  max: 500,
+  keyGenerator: keyByUser,
+  message: { error: "Too many requests. Please slow down." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
+  validate: { trustProxy: true, keyGeneratorIpFallback: false },
   skip: (req) =>
-    HIGH_FREQ_ROUTES.some((route) => req.path.startsWith(route.replace("/api", ""))),
+    HIGH_FREQ_ROUTES.some((route) =>
+      req.baseUrl.concat(req.path).startsWith(route)
+    ),
 });
 
 module.exports = { loginLimiter, generalLimiter, pollingLimiter, HIGH_FREQ_ROUTES };
