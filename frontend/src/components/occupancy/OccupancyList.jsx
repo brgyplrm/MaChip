@@ -83,7 +83,7 @@ const OccupancyList = () => {
   }, [fetchOccupancy]);
 
   return (
-    <div className="bg-white rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] overflow-hidden animate-[fadeInUp_0.3s_ease]">
+    <div className="bg-white rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] overflow-x-auto animate-[fadeInUp_0.3s_ease]">
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-5 py-3.5 bg-[#2a174e] text-white">
         <div className="flex items-center gap-2.5">

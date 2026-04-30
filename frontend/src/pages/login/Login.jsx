@@ -35,7 +35,7 @@ const Login = () => {
     if (userDataString) {
       try {
         const userData = JSON.parse(userDataString);
-        if (userData && userData.user_Id) {
+        if (userData && userData.user_Id) {a
           if (userData.user_RoleId === 3) {
             navigate("/employeeHome", { replace: true });
           } else {
@@ -69,13 +69,12 @@ const Login = () => {
     }
 
     setLoading(true);
-    const numericId = parseMacjId(rawId);
 
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_Id: numericId, password }),
+        body: JSON.stringify({ user_Id: rawId.trim(), password }),
         credentials: "include",
       });
 

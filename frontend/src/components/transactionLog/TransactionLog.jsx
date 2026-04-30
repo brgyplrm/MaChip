@@ -146,10 +146,8 @@ const TransactionLog = () => {
   };
 
   return (
-    <div className="transactionLog">
-      <Sidebar />
+    <Sidebar>
       <div className="logContainer">
-        <Navbar />
         <div className="wrapper">
           <div className="header">
             <div className="titleText">
@@ -324,7 +322,7 @@ const TransactionLog = () => {
           </div>
         </div>
       )}
-    </div>
+    </Sidebar>
   );
 };
 

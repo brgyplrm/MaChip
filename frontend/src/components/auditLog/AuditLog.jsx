@@ -131,10 +131,8 @@ const AuditLogs = () => {
   };
 
   return (
-    <div className="auditLogs">
-      <Sidebar />
+    <Sidebar>
       <div className="auditContainer">
-        <Navbar />
         <div className="wrapper">
           <div className="header">
             <div className="titleText">
@@ -251,7 +249,7 @@ const AuditLogs = () => {
           </div>
         </div>
       )}
-    </div>
+    </Sidebar>
   );
 };
 

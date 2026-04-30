@@ -126,7 +126,6 @@ const Notifications = () => {
     <div className="notifications">
       <Sidebar />
       <div className="notificationsContainer">
-        <Navbar />
         <div className="wrapper">
           <div className="notifHeader">
             <div className="title">

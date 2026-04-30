@@ -127,7 +127,6 @@ const ArchivedUsers = () => {
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
       <Sidebar />
       <div className="archivesContainer">
-        <Navbar />
         <div className="wrapper">
           <div className="header">
             <div className="titleText">

@@ -4,7 +4,9 @@ import App from "./App";
 import { BrowserRouter } from "react-router-dom"; // Import this here
 import { SystemTimeProvider } from "./context/SystemTimeContext";
 import { RealTimeProvider } from "./context/RealTimeContext";
+import { SidebarProvider } from "./components/ui/sidebar";
 import './tailwind.css'
+import './index.css'
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
@@ -17,7 +19,9 @@ root.render(
             v7_relativeSplatPath: true 
           }}
         > 
-          <App />
+          <SidebarProvider>
+            <App />
+          </SidebarProvider>
         </BrowserRouter>
       </SystemTimeProvider>
     </RealTimeProvider>

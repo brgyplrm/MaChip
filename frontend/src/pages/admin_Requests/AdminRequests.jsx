@@ -175,7 +175,6 @@ const AdminRequests = () => {
     <div className="home adminRequests">
       <Sidebar />
       <div className="homeContainer">
-        <Navbar />
         <div className="adminWrapper">
           <Toast
             message={toast.message}
