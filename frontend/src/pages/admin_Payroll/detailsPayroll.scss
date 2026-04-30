@@ -6,64 +6,8 @@ $primary-purple: #2A174E;
 
     .detailsWrapper {
       padding: 30px;
-      max-width: 100%;
-      margin: 0;
-
-      @media (min-width: 1600px) {
-        padding: 30px 60px; 
-      }
-
-      /* detailsPayroll.scss addition */
-
-      .skeletonWrapper {
-        @keyframes shimmer {
-          0% { background-position: -468px 0; }
-          100% { background-position: 468px 0; }
-        }
-
-        .skeletonLine, .skeletonTitle, .skeletonBadge, .skeletonCard, .skeletonNetPay, .skeletonCircleTitle {
-          background: #f6f7f8;
-          background-image: linear-gradient(90deg, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
-          background-repeat: no-repeat;
-          background-size: 800px 104px;
-          animation: shimmer 1.5s infinite linear;
-          border-radius: 8px;
-        }
-
-        .skeletonHeader {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 30px;
-          .skeletonTitle { width: 300px; height: 40px; }
-          .skeletonBadge { width: 100px; height: 30px; border-radius: 20px; }
-        }
-
-        .skeletonCard {
-          background: white;
-          padding: 25px;
-          margin-bottom: 25px;
-          height: 150px;
-          border-radius: 15px;
-          
-          .skeletonCircleTitle {
-            width: 150px; height: 20px; margin-bottom: 20px;
-          }
-
-          .skeletonGrid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            .skeletonLine { height: 35px; width: 100%; }
-          }
-        }
-
-        .skeletonNetPay {
-          height: 120px;
-          width: 100%;
-          margin-bottom: 25px;
-          border-radius: 15px;
-        }
-      }
+      max-width: 1200px;
+      margin: 0 auto;
 
       .pageHeader {
         display: flex;
@@ -71,145 +15,174 @@ $primary-purple: #2A174E;
         align-items: center;
         margin-bottom: 30px;
 
-        .left {
-          .titleWithBack {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 4px;
+        .titleWithBack {
+          display: flex;
+          align-items: center;
+          gap: 15px;
 
-            .backLink {
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              width: 25px;
-              height: 25px;
-              border-radius: 50%;
-              background-color: transparent;
-              color: #2A174E; // Your primary purple
-              transition: all 0.2s ease;
-              text-decoration: none;
-              padding: 5px;
-
-              &:hover {
-                background-color: #f0ebfa; // Soft purple hover
-                transform: translateX(-3px); // Subtle "back" movement
-              }
-
-              .backIcon {
-                font-size: 22px;
-              }
-            }
-          h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #2A174E;
-            margin-bottom: 4px;
+          .backLink {
+            cursor: pointer;
+            color: $primary-purple;
+            &:hover { transform: translateX(-3px); }
           }
-          span {
-            font-size: 13px;
-            color: #888;
-          }
+
+          h1 { margin: 0; font-size: 24px; color: $primary-purple; }
+          span { font-size: 13px; color: #666; }
         }
-      }
 
-        .statusBadge.released {
-          background-color: #22c55e;
-          color: white;
+        .statusBadge {
           padding: 6px 16px;
           border-radius: 20px;
           font-weight: bold;
           font-size: 12px;
+          text-transform: uppercase;
+          &.released { background: #dcfce7; color: #166534; }
+          &.draft { background: #fef9c3; color: #854d0e; }
         }
       }
 
-      .detailCard {
-        background: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+      .tabs {
+        display: flex;
+        gap: 10px;
         margin-bottom: 25px;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 1px;
 
-        .cardHeader {
+        button {
+          padding: 12px 20px;
+          border: none;
+          background: none;
+          color: #64748b;
+          font-weight: 600;
+          cursor: pointer;
           display: flex;
           align-items: center;
-          gap: 10px;
-          margin-bottom: 20px;
-          border-bottom: 1px solid #f8f9fa;
-          padding-bottom: 12px;
-          .icon { color: #555; }
-          .earnings { color: #22c55e; }
-          .deductions { color: #ef4444; }
-          h3 { font-size: 16px; color: #333; margin: 0; }
+          gap: 8px;
+          transition: all 0.2s;
+          border-bottom: 2px solid transparent;
+
+          &:hover { color: $primary-purple; background: #f1f5f9; }
+          &.active {
+            color: $primary-purple;
+            border-bottom-color: $primary-purple;
+          }
+          svg { font-size: 20px; }
+        }
+      }
+
+      .calculationTrail {
+        background: white;
+        padding: 15px 25px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        margin-bottom: 25px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        border-left: 5px solid #2A174E;
+
+        .trailItem {
+          span { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px; }
+          p { font-size: 18px; font-weight: 700; color: #1e293b; margin: 0; }
+          &.red p { color: #dc2626; }
+          &.net p { color: #16a34a; font-size: 22px; }
         }
 
-        .infoGrid {
+        .trailOperator {
+          font-size: 20px;
+          color: #94a3b8;
+          font-weight: 400;
+        }
+      }
+
+      .tabContent {
+        .grid {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-          
-          @media (max-width: 1024px) {
-            grid-template-columns: repeat(2, 1fr); // 2 columns for tablets[cite: 34]
-          }
+          grid-template-columns: 1fr 1fr;
+          gap: 25px;
 
-          @media (max-width: 600px) {
-            grid-template-columns: 1fr; // Stacked for mobile[cite: 34]
-          }
+          .netPaySummary {
+            grid-column: span 2;
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            padding: 30px;
+            border-radius: 15px;
+            color: white;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
 
-          .infoItem {
-            label { font-size: 12px; color: #888; display: block; margin-bottom: 5px; }
-            p { font-size: 15px; font-weight: bold; color: #333; }
+            .item {
+              span { font-size: 12px; opacity: 0.7; }
+              p { font-size: 24px; font-weight: 700; margin-top: 5px; }
+              &.minus p { color: #fca5a5; }
+              &.total p { font-size: 32px; color: #4ade80; }
+            }
           }
         }
 
-        .breakdownList {
+        .detailCard, .breakdownCard {
+          background: white;
+          padding: 25px;
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+
+          h3 { margin-bottom: 20px; font-size: 16px; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
+          
           .row {
             display: flex;
             justify-content: space-between;
             padding: 12px 0;
-            border-bottom: 1px solid #fcfcfc;
-            span { color: #555; font-size: 14px; }
-            p { font-weight: 500; }
+            border-bottom: 1px solid #f8fafc;
+            span { color: #64748b; font-size: 14px; }
+            p { font-weight: 600; color: #1e293b; margin: 0; }
+
+            &.highlightTax {
+              background: #fff7ed;
+              margin: -5px -10px 5px -10px;
+              padding: 15px 10px;
+              border-radius: 8px;
+              border: 1px dashed #fed7aa;
+              span { color: #9a3412; font-weight: 700; }
+              p { color: #c2410c; font-size: 16px; }
+            }
+
+            .neg { color: #ef4444; }
           }
-          .totalRow {
+
+          .totalHighlightRow {
             display: flex;
             justify-content: space-between;
-            margin-top: 15px;
+            margin-top: 20px;
             padding: 15px;
-            border-radius: 10px;
-            font-weight: bold;
-            &.earnings { background: #f0fdf4; color: #15803d; }
-            &.deductions { background: #fef2f2; color: #b91c1c; }
+            background: #f1f5f9;
+            border-radius: 8px;
+            span { font-weight: 700; color: #475569; }
+            p { font-weight: 800; color: #1e293b; font-size: 18px; margin: 0; }
           }
         }
-      }
 
-      .netPayCard {
-        background: linear-gradient(90deg, #ff9800, #ffb74d);
-        padding: 30px;
-        border-radius: 15px;
-        color: white;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        position: relative;
-        overflow: hidden;
-        margin-bottom: 25px;
+        .govtTableWrapper {
+          background: white;
+          padding: 25px;
+          border-radius: 12px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          overflow-x: auto;
 
-        .text {
-          label { font-size: 14px; opacity: 0.9; }
-          p { font-size: 32px; font-weight: 800; margin-top: 5px; }
-        }
-        .bgIcon { font-size: 100px; opacity: 0.2; position: absolute; right: -10px; }
-      }
-
-      .recordInfo {
-        display: flex;
-        gap: 50px;
-        padding: 0 10px;
-        .item {
-          label { font-size: 12px; color: #888; display: block; margin-bottom: 5px; }
-          p { font-size: 13px; color: #555; }
+          .govtTable {
+            width: 100%;
+            border-collapse: collapse;
+            
+            th { text-align: left; padding: 12px; background: #f8fafc; color: #64748b; font-size: 12px; text-transform: uppercase; }
+            td { padding: 15px 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; }
+            
+            .bold { font-weight: 700; color: $primary-purple; }
+            
+            .totalRow {
+              background: #f1f5f9;
+              td { font-weight: 800; border: none; }
+              .empTotal { color: #ef4444; }
+            }
+          }
         }
       }
     }

@@ -120,18 +120,42 @@ const connectDB = async () => {
     await sequelize.sync();
     console.log("All models were synchronized successfully.");
 
-    // Manual migrations
+    // ── Manual Migrations ────────────────────────────────────────────────────
     try {
-      await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "recommendedBy" SMALLINT;`);
-      await sequelize.query(`ALTER TABLE "emp_Request" ADD COLUMN IF NOT EXISTS "last_escalated_at" TIMESTAMP;`);
-      await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "account_Number" VARCHAR(255);`);
-      await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "user_FingerprintId" INTEGER;`);
-      await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "user_FingerprintTemplate" TEXT;`);
-      await sequelize.query(`ALTER TABLE "LogCorrection_Request" ADD COLUMN IF NOT EXISTS "correctionCategory" VARCHAR(255);`);
-      console.log("Database migrations completed successfully.");
+      const userCols = [
+        ['taxStatus', "VARCHAR(5) DEFAULT 'S'"],
+        ['department', 'VARCHAR(100)'],
+        ['position', 'VARCHAR(100)'],
+        ['sss_Share', 'FLOAT DEFAULT 0'],
+        ['philhealth_Share', 'FLOAT DEFAULT 0'],
+        ['hdmf_Share', 'FLOAT DEFAULT 0'],
+        ['tax_Share', 'FLOAT DEFAULT 0']
+      ];
+      for (const [col, type] of userCols) {
+        await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "${col}" ${type};`);
+      }
+
+      const dedCols = [
+        ['SSS_Ded', 'FLOAT DEFAULT 0'],
+        ['Philhealth_Ded', 'FLOAT DEFAULT 0'],
+        ['HDMF_Ded', 'FLOAT DEFAULT 0'],
+        ['Tax_Ded', 'FLOAT DEFAULT 0'],
+        ['healthCard_Amnt', 'FLOAT DEFAULT 0'],
+        ['SSS_Loan', 'FLOAT DEFAULT 0'],
+        ['HDMF_Loan', 'FLOAT DEFAULT 0'],
+        ['calamityLoan_Amnt', 'FLOAT DEFAULT 0'],
+        ['multiPurposeSavings', 'FLOAT DEFAULT 0'],
+        ['advances_Amnt', 'FLOAT DEFAULT 0'],
+        ['globe_Deduction', 'FLOAT DEFAULT 0']
+      ];
+      for (const [col, type] of dedCols) {
+        await sequelize.query(`ALTER TABLE "Payroll_Deductions" ADD COLUMN IF NOT EXISTS "${col}" ${type};`);
+      }
+      console.log("Manual migrations applied.");
     } catch (err) {
-      console.error("Migration error:", err.message);
+      console.error("Manual migration error:", err.message);
     }
+
     // ── Seed: SystemSettings ─────────────────────────────────────────────────
     try {
       const settingsCount = await SystemSettings.count();

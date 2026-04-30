@@ -7,10 +7,13 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import DownloadIcon from "@mui/icons-material/Download";
+import EditIcon from "@mui/icons-material/Edit";
 import { Link, useLocation } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ProcessPayrollModal from "../../components/procpayrollmodal/ProcessPayrollModal";
+import EditPayrollModal from "../../components/editPayrollModal/EditPayrollModal";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { fetchWithAuth } from "../../utils/api";
 import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
@@ -28,6 +31,8 @@ const PayrollPeriod = () => {
     totalDeductions: 0
   });
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingPayroll, setEditingPayroll] = useState(null);
   
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
@@ -38,24 +43,18 @@ const PayrollPeriod = () => {
     else setLoading(true);
     
     try {
-      // 1. Fetch all periods to populate dropdown and find selected
       const periodsRes = await fetchWithAuth("/api/system/payroll-periods");
       const periodsData = await periodsRes.json();
       
       if (periodsRes.ok && periodsData.length > 0) {
         setPeriods(periodsData);
-        
-        // Find the period to display
         let current;
         if (periodIdFromUrl) {
           current = periodsData.find(p => p.periodId === parseInt(periodIdFromUrl));
         }
-        if (!current) current = periodsData[0]; // fallback to latest
-        
+        if (!current) current = periodsData[0];
         setSelectedPeriod(current);
 
-        // 2. Fetch payroll data for this period
-        // If Draft, we fetch live preview. If Released, we fetch saved records.
         if (current.status === 'Draft') {
           await fetchLivePreview(current);
         } else {
@@ -97,6 +96,8 @@ const PayrollPeriod = () => {
             totalEarnings: preview.totalEarnings,
             totalDeductions: preview.totalDeductions,
             netPay: preview.netPay,
+            dailyRate: emp.dailyRate,
+            taxStatus: emp.taxStatus,
             PaystatusName: "Draft"
           });
 
@@ -139,10 +140,62 @@ const PayrollPeriod = () => {
       if (response.ok) {
         const result = await response.json();
         alert(result.message);
-        fetchData(); // Reload to show saved data and 'Released' status
+        fetchData();
       }
     } catch (err) { console.error(err); }
     finally { setLoading(false); setIsConfirmOpen(false); }
+  };
+
+  const handleDownloadSummary = async () => {
+    if (!selectedPeriod) return;
+    try {
+      const response = await fetchWithAuth(`/api/payroll/summary-pdf?period_Start=${selectedPeriod.startDate}&period_End=${selectedPeriod.endDate}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `PayrollSummary_${selectedPeriod.label.replace(/\s+/g, '_')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        alert("Failed to download summary. Ensure payroll is processed for this period.");
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleEditPayroll = async (payroll) => {
+    if (String(payroll.payrollId).startsWith("preview-")) {
+      alert("This is a preview. Please 'Process Batch' first to edit individual deductions.");
+      return;
+    }
+    // Fetch full details including deductions
+    try {
+      const res = await fetchWithAuth(`/api/payroll/${payroll.payrollId}`);
+      const fullData = await res.json();
+      if (res.ok) {
+        setEditingPayroll(fullData);
+        setIsEditModalOpen(true);
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSavePayroll = async (updatedData) => {
+    try {
+      const response = await fetchWithAuth(`/api/payroll/update-full/${updatedData.payrollId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedData)
+      });
+      if (response.ok) {
+        setIsEditModalOpen(false);
+        fetchData();
+      } else {
+        const err = await response.json();
+        alert(err.error || "Failed to update payroll.");
+      }
+    } catch (err) { console.error(err); }
   };
 
   useEffect(() => {
@@ -169,6 +222,13 @@ const PayrollPeriod = () => {
             </div>
             <div className="headerActions">
               <button 
+                className="actionBtn downloadBtn" 
+                onClick={handleDownloadSummary}
+                disabled={selectedPeriod?.status === 'Draft'}
+              >
+                <DownloadIcon /> Summary PDF
+              </button>
+              <button 
                 className={`actionBtn processBtn ${selectedPeriod?.status !== 'Draft' ? "disabled" : ""}`} 
                 onClick={() => setIsConfirmOpen(true)}
                 disabled={selectedPeriod?.status !== 'Draft'}
@@ -182,6 +242,7 @@ const PayrollPeriod = () => {
           </div>
 
           <div className="stats">
+            {/* ... stats ... */}
             <div className="statCard">
               <div className="left">
                 <div className="icon net"><span className="symbol">₱</span></div>
@@ -189,7 +250,6 @@ const PayrollPeriod = () => {
                 <span className="amount">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
               </div>
             </div>
-            {/* ... other stats ... */}
             <div className="statCard">
               <div className="left">
                 <div className="icon earnings"><span className="symbol"><KeyboardDoubleArrowUpIcon/></span></div>
@@ -243,6 +303,13 @@ const PayrollPeriod = () => {
                           <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}`}>
                             <VisibilityIcon className="view" />
                           </Link>
+                          {selectedPeriod?.status !== 'Released' && (
+                            <EditIcon 
+                              className="edit" 
+                              onClick={() => handleEditPayroll(p)}
+                              style={{ cursor: 'pointer', color: '#3b82f6', marginLeft: '10px' }}
+                            />
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -256,6 +323,12 @@ const PayrollPeriod = () => {
             onClose={() => setIsConfirmOpen(false)} 
             onConfirm={handleBatchProcess}
             employeeCount={payrolls.length}
+          />
+          <EditPayrollModal 
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            data={editingPayroll}
+            onSave={handleSavePayroll}
           />
         </div>
       </div>

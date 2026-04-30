@@ -17,18 +17,18 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Link } from "react-router-dom";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { fetchWithAuth } from "../../utils/api";
+import EditPayrollModal from "../../components/editPayrollModal/EditPayrollModal";
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
-  const [editingId, setEditingId] = useState(null);
-  const [editValue, setEditValue] = useState("");
+  const [editingEmployee, setEditingEmployee] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [savingId, setSavingId] = useState(null);
   const [toast, setToast] = useState(null);
   const [visibleAccounts, setVisibleAccounts] = useState(new Set());
-  const inputRef = useRef(null);
 
   const toggleAccountVisibility = (id) => {
     setVisibleAccounts((prev) => {
@@ -64,62 +64,78 @@ const EmployeeList = () => {
 
   useEffect(() => { fetchEmployees(); }, []);
 
-  useEffect(() => {
-    if (editingId && inputRef.current) inputRef.current.focus();
-  }, [editingId]);
-
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
   const handleEdit = (emp) => {
-    setEditingId(emp.user_Id);
-    setEditValue(String(emp.dailyRate));
+    setEditingEmployee(emp);
+    setIsModalOpen(true);
   };
 
-  const handleCancel = () => {
-    setEditingId(null);
-    setEditValue("");
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingEmployee(null);
   };
 
-  const handleSave = async (emp) => {
-    // Strip commas before parsing
-    const cleanValue = editValue.replace(/,/g, "");
-    const newRate = parseFloat(cleanValue);
+  const handleSave = async (updatedData) => {
+    const newRate = parseFloat(updatedData.dailyRate);
     if (isNaN(newRate) || newRate <= 0) {
       showToast("Please enter a valid rate.", "error");
       return;
     }
-    if (newRate === parseFloat(emp.dailyRate)) {
-      handleCancel();
-      return;
-    }
-    setSavingId(emp.user_Id);
+    
+    setSavingId(editingEmployee.user_Id);
     try {
       const response = await fetchWithAuth(
-        `/api/users/employees/${emp.user_Id}/daily-rate`,
+        `/api/users/employees/${editingEmployee.user_Id}/daily-rate`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ newDailyRate: newRate }),
+          body: JSON.stringify({ 
+            newDailyRate: newRate,
+            sss_Share: updatedData.SSS_Ded,
+            philhealth_Share: updatedData.Philhealth_Ded,
+            hdmf_Share: updatedData.HDMF_Ded,
+            tax_Share: updatedData.Tax_Ded,
+            healthCard_Amnt: updatedData.healthCard_Amnt,
+            SSS_Loan: updatedData.SSS_Loan,
+            HDMF_Loan: updatedData.HDMF_Loan,
+            calamityLoan_Amnt: updatedData.calamityLoan_Amnt,
+            advances_Amnt: updatedData.advances_Amnt,
+            globe_Deduction: updatedData.globe_Deduction,
+            multiPurposeSavings: updatedData.multiPurposeSavings
+          }),
         }
       );
       const result = await response.json();
       if (response.ok) {
         setEmployees((prev) =>
           prev.map((e) =>
-            e.user_Id === emp.user_Id
+            e.user_Id === editingEmployee.user_Id
               ? {
                   ...e,
-                  previousDailyRate: emp.dailyRate,
+                  previousDailyRate: editingEmployee.dailyRate,
                   dailyRate: newRate,
+                  sss_Share: updatedData.SSS_Ded,
+                  philhealth_Share: updatedData.Philhealth_Ded,
+                  hdmf_Share: updatedData.HDMF_Ded,
+                  tax_Share: updatedData.Tax_Ded,
+                  healthCard_Amnt: updatedData.healthCard_Amnt,
+                  SSS_Loan: updatedData.SSS_Loan,
+                  HDMF_Loan: updatedData.HDMF_Loan,
+                  calamityLoan_Amnt: updatedData.calamityLoan_Amnt,
+                  advances_Amnt: updatedData.advances_Amnt,
+                  globe_Deduction: updatedData.globe_Deduction,
+                  multiPurposeSavings: updatedData.multiPurposeSavings,
                   rateUpdatedAt: new Date().toISOString(),
                 }
               : e
           )
         );
-        showToast(`Daily rate updated for ${emp.user_FirstName} ${emp.user_LastName}.`);
+        showToast(`Compensation template updated for ${editingEmployee.user_FirstName} ${editingEmployee.user_LastName}.`);
+        handleCloseModal();
       } else {
         showToast(result.message || "Failed to update rate.", "error");
       }
@@ -127,8 +143,6 @@ const EmployeeList = () => {
       showToast("Network error. Please try again.", "error");
     } finally {
       setSavingId(null);
-      setEditingId(null);
-      setEditValue("");
     }
   };
 
@@ -235,8 +249,6 @@ const EmployeeList = () => {
                       const hasChanged =
                         emp.previousDailyRate &&
                         parseFloat(emp.previousDailyRate) !== parseFloat(emp.dailyRate);
-                      const isEditing = editingId === emp.user_Id;
-                      const isSaving = savingId === emp.user_Id;
                       const rateWentUp =
                         hasChanged &&
                         parseFloat(emp.dailyRate) > parseFloat(emp.previousDailyRate);
@@ -292,7 +304,7 @@ const EmployeeList = () => {
                           <td className="oldRate">
                             {hasChanged ? (
                               <span className="oldRateValue">
-                                ₱{parseFloat(emp.previousDailyRate).toLocaleString("en-PH", {
+                                ₱{parseFloat(emp.previousDailyRate || 0).toLocaleString("en-PH", {
                                   minimumFractionDigits: 2,
                                 })}
                               </span>
@@ -303,34 +315,18 @@ const EmployeeList = () => {
 
                           {/* New Daily Rate */}
                           <td className="newRate">
-                            {isEditing ? (
-                              <div className="rateInputWrap">
-                                <span className="peso">₱</span>
-                                <input
-                                  ref={inputRef}
-                                  type="text"
-                                  value={editValue}
-                                  onChange={(e) => setEditValue(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") handleSave(emp);
-                                    if (e.key === "Escape") handleCancel();
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <div className="rateDisplay">
-                                <span className={`rateValue ${hasChanged ? (rateWentUp ? "up" : "down") : ""}`}>
-                                  ₱{parseFloat(emp.dailyRate).toLocaleString("en-PH", {
-                                    minimumFractionDigits: 2,
-                                  })}
-                                </span>
-                                {hasChanged && (
-                                  rateWentUp
-                                    ? <TrendingUpIcon className="trendIcon up" />
-                                    : <TrendingDownIcon className="trendIcon down" />
-                                )}
-                              </div>
-                            )}
+                            <div className="rateDisplay">
+                              <span className={`rateValue ${hasChanged ? (rateWentUp ? "up" : "down") : ""}`}>
+                                ₱{parseFloat(emp.dailyRate || 0).toLocaleString("en-PH", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </span>
+                              {hasChanged && (
+                                rateWentUp
+                                  ? <TrendingUpIcon className="trendIcon up" />
+                                  : <TrendingDownIcon className="trendIcon down" />
+                              )}
+                            </div>
                           </td>
 
                           {/* Last Updated */}
@@ -344,34 +340,13 @@ const EmployeeList = () => {
 
                           {/* Actions */}
                           <td className="actions">
-                            {isEditing ? (
-                              <div className="editActions">
-                                <button
-                                  className="confirmBtn"
-                                  onClick={() => handleSave(emp)}
-                                  disabled={isSaving}
-                                  title="Save"
-                                >
-                                  <CheckIcon />
-                                </button>
-                                <button
-                                  className="cancelBtn"
-                                  onClick={handleCancel}
-                                  disabled={isSaving}
-                                  title="Cancel"
-                                >
-                                  <CloseIcon />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                className="editBtn"
-                                onClick={() => handleEdit(emp)}
-                                title="Edit daily rate"
-                              >
-                                <EditIcon /> Edit Rate
-                              </button>
-                            )}
+                            <button
+                              className="editBtn"
+                              onClick={() => handleEdit(emp)}
+                              title="Edit compensation"
+                            >
+                              <EditIcon sx={{ fontSize: 18 }} /> Edit
+                            </button>
                           </td>
                         </tr>
                       );
@@ -389,6 +364,14 @@ const EmployeeList = () => {
           </div>
         </div>
       </div>
+
+      <EditPayrollModal 
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        data={editingEmployee}
+        onSave={handleSave}
+        isMasterlist={true}
+      />
 
       {/* ── Toast ── */}
       {toast && (
