@@ -31,7 +31,7 @@ import ArchivedUsers from "./pages/archivedUsers/ArchivedUsers";
 
 function App() {
   return (
-    <div className="app">
+    <div className="app w-full">
       <Routes>
         <Route path="/login" element={<Login />} />
 

@@ -19,9 +19,7 @@ root.render(
             v7_relativeSplatPath: true 
           }}
         > 
-          <SidebarProvider>
-            <App />
-          </SidebarProvider>
+          <App />
         </BrowserRouter>
       </SystemTimeProvider>
     </RealTimeProvider>

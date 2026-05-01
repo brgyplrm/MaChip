@@ -1,14 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import "./userRequests.scss";
+import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
-import SendIcon from "@mui/icons-material/Send";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import Toast from "../../components/toast/Toast";
-import AccessTimeIcon from '@mui/icons-material/AccessTime'; 
-import { useRef } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { Link } from "react-router-dom";
@@ -18,18 +14,25 @@ import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
 
+// shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+
 const UserRequests = () => {
   const { systemToday } = useSystemTime();
   const dtrRef = useRef();
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const [activeTab, setActiveTab] = useState("submit"); // 'submit' or 'history'
+  const [activeTab, setActiveTab] = useState("submit"); 
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [historyRequests, setHistoryRequests] = useState([]);
   const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0 });
   const [dtrData, setDtrData] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Calculate stats whenever history changes
   useEffect(() => {
     const pending = historyRequests.filter(r => r.emp_reqStatusId === 1).length;
     const approved = historyRequests.filter(r => r.emp_reqStatusId === 2).length;
@@ -37,7 +40,6 @@ const UserRequests = () => {
     setStats({ pending, approved, rejected });
   }, [historyRequests]);
   
-  // Dynamic DTR Date Range (1-16 or 17-EOM)
   const getPayrollDates = useCallback((baseDate) => {
     const today = baseDate || new Date();
     const day = today.getDate();
@@ -62,7 +64,7 @@ const UserRequests = () => {
       };
     } else {
       const start = new Date(year, month, 16);
-      const end = new Date(year, month + 1, 0); // Last day of month
+      const end = new Date(year, month + 1, 0); 
       return {
         start: formatDate(start),
         end: formatDate(end),
@@ -153,7 +155,6 @@ const UserRequests = () => {
     if (!userData?.user_Id) return;
     try {
       const { start: pStart, end: pEnd } = payroll;
-      // Fetch from the earliest allowed date to ensure all selectable dates are covered
       const start = minAllowedDate && minAllowedDate < pStart ? minAllowedDate : pStart;
       const end = pEnd;
 
@@ -198,15 +199,12 @@ const UserRequests = () => {
     if (!log) return;
 
     const SHIFT_END = "17:30";
-    // Normalize times to HH:mm for comparison
     const ins = Array.isArray(log.inArr) ? log.inArr.map(t => t.substring(0, 5)) : [];
     const outs = Array.isArray(log.outArr) ? log.outArr.map(t => t.substring(0, 5)) : [];
 
-    // Find first clock-in at or after shift end
     const otIn = ins.find(t => t >= SHIFT_END);
     const lastOut = outs.length > 0 ? outs[outs.length - 1] : "";
 
-    // Suggest if the last clock-out is after shift end
     if (lastOut && lastOut > SHIFT_END) {
       setFormData(prev => ({
         ...prev,
@@ -254,8 +252,8 @@ const UserRequests = () => {
     }));
   };
 
-  const handleLogDateChange = (e) => {
-    const selectedDate = e.target.value;
+  const handleLogDateChange = (val) => {
+    const selectedDate = val;
     const dateObj = new Date(selectedDate);
     
     if (dateObj.getUTCDay() === 0) {
@@ -357,13 +355,6 @@ const UserRequests = () => {
     }
   }, [activeTab]);
 
-  const getDtrLogsForDay = (dayNum) => {
-    const targetDate = new Date(dtrStartDate);
-    targetDate.setDate(dayNum);
-    const dateStr = targetDate.toISOString().split('T')[0];
-    return dtrData.find(d => d.log_Date.split('T')[0] === dateStr);
-  };
-
   useEffect(() => {
     if (formData.leaveStartDate && formData.leaveEndDate) {
       const start = new Date(formData.leaveStartDate);
@@ -399,15 +390,6 @@ const UserRequests = () => {
     if (name === "otDate") {
       suggestOTTimes(newValue);
     }
-  };
-
-  const formatTime = (time) => {
-    if (!time) return "";
-    const [hours, minutes] = time.split(":");
-    const h = parseInt(hours, 10);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const hour12 = h % 12 || 12;
-    return `${hour12}:${minutes} ${ampm}`;
   };
 
   const handleSubmit = async (e) => {
@@ -501,184 +483,270 @@ const UserRequests = () => {
     }
   };
 
-  const getStatusClass = (status) => {
-    if (!status) return "pending";
+  const getStatusClasses = (status) => {
+    if (!status) return { box: "bg-amber-50 border-amber-200", icon: "text-amber-500", badge: "bg-amber-500 hover:bg-amber-600" };
     const s = status.toLowerCase();
-    if (s.includes("approve")) return "approved";
-    if (s.includes("reject") || s.includes("denied")) return "rejected";
-    return "pending";
+    if (s.includes("approve")) return { box: "bg-green-50 border-green-200", icon: "text-green-600", badge: "bg-green-500 hover:bg-green-600" };
+    if (s.includes("reject") || s.includes("denied")) return { box: "bg-red-50 border-red-200", icon: "text-red-600", badge: "bg-red-500 hover:bg-red-600" };
+    return { box: "bg-amber-50 border-amber-200", icon: "text-amber-500", badge: "bg-amber-500 hover:bg-amber-600" };
   };
 
   return (
-    <div className="home requestsPage">
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="homeContainer">
-        <div className="requestsWrapper">
-          <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-          <div className="statsRow">
-            <div className="statCard">
-              <div className="info"><span>Pending Requests</span><p>{stats.pending}</p></div>
-              <HourglassEmptyIcon className="icon pending" />
-            </div>
-            <div className="statCard">
-              <div className="info"><span>Approved Total</span><p>{stats.approved}</p></div>
-              <CheckCircleOutlineIcon className="icon approved" />
-            </div>
-            <div className="statCard">
-              <div className="info"><span>Rejected Total</span><p>{stats.rejected}</p></div>
-              <CancelOutlinedIcon className="icon rejected" />
-            </div>
-          </div><br />
-          <div className="contentSection">
-            {activeTab !== "dtr" ? (
-              <div className="requestsSplitLayout">
-                <div className="requestCard formColumn">
-                  <h2 className="cardTitle">Submit New Request</h2>
-                  <form onSubmit={handleSubmit}>
-                    <div className="formGroup">
-                      <label>Request Type</label>
-                      <select name="emp_reqTypeId" value={formData.emp_reqTypeId} onChange={handleInputChange} required>
-                        <option value="" disabled>Select request type</option>
-                        <option value="1">Overtime (OT)</option>
-                        <option value="2">Onfield Work</option>
-                        <option value="3">Vacation Leave (VL)</option>
-                        <option value="4">Sick Leave (SL)</option>
-                        <option value="5">Log Correction</option>
-                      </select>
+      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
+        
+        {/* Statistics Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <Card className="shadow-sm border-0">
+            <CardContent className="p-6 flex justify-between items-center">
+              <div>
+                <span className="text-sm font-semibold text-slate-500">Pending Requests</span>
+                <p className="text-3xl font-bold text-[#2A174E] mt-1">{stats.pending}</p>
+              </div>
+              <div className="bg-orange-50 text-orange-600 p-3 rounded-xl">
+                <HourglassEmptyIcon className="h-8 w-8" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-0">
+            <CardContent className="p-6 flex justify-between items-center">
+              <div>
+                <span className="text-sm font-semibold text-slate-500">Approved Total</span>
+                <p className="text-3xl font-bold text-[#2A174E] mt-1">{stats.approved}</p>
+              </div>
+              <div className="bg-green-50 text-green-600 p-3 rounded-xl">
+                <CheckCircleOutlineIcon className="h-8 w-8" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-0">
+            <CardContent className="p-6 flex justify-between items-center">
+              <div>
+                <span className="text-sm font-semibold text-slate-500">Rejected Total</span>
+                <p className="text-3xl font-bold text-[#2A174E] mt-1">{stats.rejected}</p>
+              </div>
+              <div className="bg-red-50 text-red-600 p-3 rounded-xl">
+                <CancelOutlinedIcon className="h-8 w-8" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-8">
+          {activeTab !== "dtr" ? (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Left Column: Form */}
+              <Card className="lg:col-span-7 shadow-sm border-0 bg-white">
+                <CardHeader>
+                  <CardTitle className="text-xl text-[#2A174E]">Submit New Request</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700">Request Type</label>
+                      <Select 
+                        value={formData.emp_reqTypeId} 
+                        onValueChange={(val) => handleInputChange({ target: { name: 'emp_reqTypeId', value: val, type: 'select' } })}
+                      >
+                        <SelectTrigger className="w-full bg-slate-50/50">
+                          <SelectValue placeholder="Select request type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">Overtime (OT)</SelectItem>
+                          <SelectItem value="2">Onfield Work</SelectItem>
+                          <SelectItem value="3">Vacation Leave (VL)</SelectItem>
+                          <SelectItem value="4">Sick Leave (SL)</SelectItem>
+                          <SelectItem value="5">Log Correction</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {formData.emp_reqTypeId === "5" && (
-                      <div className="conditionalFields">
-                        <p className="periodNote">Current Period: {payroll.payEnding}</p>
-                        <div className="formRow">
-                          <div className="formGroup">
-                            <label>Correction Category</label>
-                            <select name="correctionCategory" value={formData.correctionCategory} onChange={handleInputChange} required>
-                              <option value="" disabled>Select category</option>
-                              <option value="Morning">Morning (Time-In)</option>
-                              <option value="Afternoon">Afternoon (Time-Out)</option>
-                              <option value="Overtime">Overtime Correction</option>
-                            </select>
+                      <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                        <p className="text-sm text-slate-500 italic">Current Period: {payroll.payEnding}</p>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Correction Category</label>
+                          <Select 
+                            value={formData.correctionCategory} 
+                            onValueChange={(val) => handleInputChange({ target: { name: 'correctionCategory', value: val, type: 'select' } })}
+                          >
+                            <SelectTrigger className="w-full bg-slate-50/50">
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Morning">Morning (Time-In)</SelectItem>
+                              <SelectItem value="Afternoon">Afternoon (Time-Out)</SelectItem>
+                              <SelectItem value="Overtime">Overtime Correction</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Date to Correct</label>
+                          <Select 
+                            value={formData.logCorrDate} 
+                            onValueChange={(val) => handleLogDateChange(val)}
+                          >
+                            <SelectTrigger className="w-full bg-slate-50/50">
+                              <SelectValue placeholder="Select a date" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {periodDates.map(date => (
+                                <SelectItem key={date} value={date}>{new Date(date).toLocaleDateString()}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Current In</label>
+                            <Input type="text" value={formData.currentIn || "No Log"} readOnly className="bg-slate-100 text-slate-500" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Current Out</label>
+                            <Input type="text" value={formData.currentOut || "No Log"} readOnly className="bg-slate-100 text-slate-500" />
                           </div>
                         </div>
-                        <div className="formRow">
-                          <div className="formGroup">
-                            <label>Date to Correct</label>
-                            <select name="logCorrDate" value={formData.logCorrDate} onChange={handleLogDateChange} required>
-                              <option value="" disabled>Select a date</option>
-                              {periodDates.map(date => (<option key={date} value={date}>{new Date(date).toLocaleDateString()}</option>))}
-                            </select>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Claimed In</label>
+                            <Input type="time" name="claimedIn" value={formData.claimedIn} onChange={handleInputChange} required className="bg-slate-50/50" />
                           </div>
-                        </div>
-                        <div className="formRow">
-                          <div className="formGroup"><label>Current In</label><input type="text" value={formData.currentIn || "No Log"} readOnly className="readOnlyInput" /></div>
-                          <div className="formGroup"><label>Current Out</label><input type="text" value={formData.currentOut || "No Log"} readOnly className="readOnlyInput" /></div>
-                        </div>
-                        <div className="formRow">
-                          <div className="formGroup"><label>Claimed In</label><input type="time" name="claimedIn" value={formData.claimedIn} onChange={handleInputChange} required /></div>
-                          <div className="formGroup"><label>Claimed Out</label><input type="time" name="claimedOut" value={formData.claimedOut} onChange={handleInputChange} required /></div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Claimed Out</label>
+                            <Input type="time" name="claimedOut" value={formData.claimedOut} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          </div>
                         </div>
                       </div>
                     )}
 
                     {formData.emp_reqTypeId === "1" && (
-                      <div className="conditionalFields">
-                        <div className="formRow">
-                          <div className="formGroup">
-                            <label>OT Date</label>
-                            <input type="date" name="otDate" value={formData.otDate} min={minAllowedDate} onChange={handleInputChange} required />
+                      <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">OT Date</label>
+                          <Input type="date" name="otDate" value={formData.otDate} min={minAllowedDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Time From</label>
+                            <Input type="time" name="hrFrom" value={formData.hrFrom} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Time To</label>
+                            <Input type="time" name="hrTo" value={formData.hrTo} onChange={handleInputChange} required className="bg-slate-50/50" />
                           </div>
                         </div>
-                        <div className="formRow">
-                          <div className="formGroup">
-                            <label>Time From</label>
-                            <input type="time" name="hrFrom" value={formData.hrFrom} onChange={handleInputChange} required />
-                          </div>
-                          <div className="formGroup">
-                            <label>Time To</label>
-                            <input type="time" name="hrTo" value={formData.hrTo} onChange={handleInputChange} required />
-                          </div>
-                        </div>
-                        <div className="formRow">
-                          <div className="formGroup"><label>Total Hours</label><input type="number" name="totalHrs" value={formData.totalHrs} readOnly className="readOnlyInput" /></div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Total Hours</label>
+                          <Input type="number" name="totalHrs" value={formData.totalHrs} readOnly className="bg-slate-100 text-slate-500" />
                         </div>
                       </div>
                     )}
 
                     {formData.emp_reqTypeId === "2" && (
-                      <div className="conditionalFields">
-                        <div className="formRow">
-                          <div className="formGroup">
-                            <label>Onfield Date</label>
-                            <input type="date" name="otDate" value={formData.otDate} min={minAllowedDate} onChange={handleInputChange} required />
-                          </div>
+                      <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Onfield Date</label>
+                          <Input type="date" name="otDate" value={formData.otDate} min={minAllowedDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                         </div>
-                        <div className="formRow">
-                          <div className="formGroup">
-                            <label>Expected Hours</label>
-                            <input type="number" name="totalHrs" value={formData.totalHrs} onChange={handleInputChange} step="0.5" min="1" max="8" required />
-                          </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Expected Hours</label>
+                          <Input type="number" name="totalHrs" value={formData.totalHrs} onChange={handleInputChange} step="0.5" min="1" max="8" required className="bg-slate-50/50" />
                         </div>
                       </div>
                     )}
 
                     {(formData.emp_reqTypeId === "3" || formData.emp_reqTypeId === "4") && (
-                      <div className="conditionalFields">
-                        <div className="formRow">
-                          <div className="formGroup"><label>Start Date</label><input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required /></div>
-                          <div className="formGroup"><label>End Date</label><input type="date" name="leaveEndDate" min={minAllowedDate} value={formData.leaveEndDate} onChange={handleInputChange} required /></div>
+                      <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Start Date</label>
+                            <Input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">End Date</label>
+                            <Input type="date" name="leaveEndDate" min={minAllowedDate} value={formData.leaveEndDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          </div>
                         </div>
-                        <div className="formRow">
-                          <div className="formGroup"><label>Number of Days</label><input type="number" name="noDays" value={formData.noDays} readOnly className="readOnlyInput" /></div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Number of Days</label>
+                          <Input type="number" name="noDays" value={formData.noDays} readOnly className="bg-slate-100 text-slate-500" />
                         </div>
                       </div>
                     )}
 
-                    <div className="formGroup">
-                      <label>Description / Purpose</label>
-                      <textarea name="remarks" placeholder="Please provide details..." value={formData.remarks} onChange={handleInputChange} required />
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700">Description / Purpose</label>
+                      <Textarea name="remarks" placeholder="Please provide details..." value={formData.remarks} onChange={handleInputChange} required className="bg-slate-50/50 h-24 resize-none" />
                     </div>
-                    <button type="submit" className="submitBtn">Submit Request</button>
-                  </form>
-                </div>
 
-                <div className="fullRequests historyColumn">
-                  <h2 className="cardTitle">All My Requests</h2>
-                  <div className="requestsList">
-                    {loading ? <p>Loading requests...</p> : historyRequests.length > 0 ? historyRequests.slice(0, 15).map(req => {
-                        const statusClass = getStatusClass(req.status);
+                    <Button type="submit" className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white py-6">
+                      Submit Request
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              {/* Right Column: History */}
+              <Card className="lg:col-span-5 shadow-sm border-0 bg-white h-fit max-h-[800px] flex flex-col">
+                <CardHeader>
+                  <CardTitle className="text-xl text-[#2A174E]">All My Requests</CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-y-auto pr-2">
+                  <div className="space-y-3">
+                    {loading ? (
+                      <p className="text-slate-500 italic">Loading requests...</p>
+                    ) : historyRequests.length > 0 ? (
+                      historyRequests.slice(0, 15).map(req => {
+                        const style = getStatusClasses(req.status);
+                        
                         let detailText = "";
                         if (req.emp_reqTypeId === 1) detailText = `${req.Total_Hrs} Hr(s) • ${req.OT_DateOf}`;
                         else if (req.emp_reqTypeId === 2) detailText = `${req.OW_NoDays} Day(s) • ${req.DateonField}`;
                         else detailText = `${req.VL_NoDays || req.SL_NoDays || 1} Day(s) • ${req.VL_StartDate || req.SL_StartDate}`;
 
                         return (
-                          <Link to={`/requests/${req.emp_reqId}`} key={req.emp_reqId} style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <div className={`leaveLog ${statusClass}`}>
-                              <div className="typeBadge">{req.reqTypeName}</div>
-                              <div className="text">
-                                <p className="date">{req.reqTypeName}</p>
-                                <p className="desc">{req.status} • {detailText}</p>
+                          <Link to={`/requests/${req.emp_reqId}`} key={req.emp_reqId} className="block transition-transform hover:-translate-y-0.5">
+                            <div className={`flex items-center gap-4 p-4 border rounded-xl shadow-sm ${style.box}`}>
+                              <div className="hidden sm:block shrink-0">
+                                {req.status?.toLowerCase().includes("approve") ? <CheckCircleIcon className={`h-8 w-8 ${style.icon}`} /> : 
+                                 req.status?.toLowerCase().includes("reject") ? <CancelIcon className={`h-8 w-8 ${style.icon}`} /> : 
+                                 <HourglassEmptyIcon className={`h-8 w-8 ${style.icon}`} />}
                               </div>
+                              <div className="flex-1 min-w-0">
+                                <Badge variant="secondary" className="mb-1 bg-slate-200 text-slate-700 hover:bg-slate-200 font-bold">{req.reqTypeName}</Badge>
+                                <p className="text-sm text-slate-600 truncate">{req.status} • {detailText}</p>
+                              </div>
+                              <Badge className={`shrink-0 ${style.badge} text-white shadow-none`}>
+                                {req.status}
+                              </Badge>
                             </div>
                           </Link>
                         );
-                    }) : <p>No requests found.</p>}
+                      })
+                    ) : (
+                      <p className="text-slate-500 italic text-center py-8">No requests found.</p>
+                    )}
                   </div>
-                </div>
+                </CardContent>
+              </Card>
+
+            </div>
+          ) : (
+            <div className="bg-[#f7f1e3] p-8 rounded-xl shadow-sm">
+              <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-slate-800 uppercase tracking-widest m-0">Daily Time Record</h2>
+                  <Button className="bg-green-500 hover:bg-green-600 text-white" onClick={handleDownloadDTR}>
+                    <CloudUploadIcon className="mr-2 h-4 w-4" /> Export PDF
+                  </Button>
               </div>
-            ) : (
-              <div className="dtrSection">
-                <div className="dtrHeader">
-                    <h2 className="cardTitle">Daily Time Record</h2>
-                    <button className="exportDtrBtn" onClick={handleDownloadDTR}><CloudUploadIcon /> Export PDF</button>
-                </div>
-                <div className="timeCardContainer" ref={dtrRef}>
-                   {/* DTR Display Logic */}
-                </div>
+              <div className="max-w-[600px] mx-auto text-slate-900" ref={dtrRef}>
+                 {/* DTR Display Logic is handled by the PDF generator, this div just holds the ref if needed for on-screen view */}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
       </Sidebar>

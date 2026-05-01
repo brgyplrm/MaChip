@@ -30,6 +30,7 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarInset,
+  SidebarProvider,
 } from "./ui/sidebar";
 
 import {
@@ -117,7 +118,7 @@ const Sidebar = ({ children }) => {
   const pathnames = location.pathname.split("/").filter((x) => x);
 
   return (
-    <div className="group/sidebar-wrapper flex min-h-screen w-full overflow-hidden">
+    <SidebarProvider>
       <ShadcnSidebar className="bg-white border-r border-gray-200">
         <SidebarHeader className="p-4 border-b border-gray-100">
           <Link to={homePath} className="flex no-underline items-center pl-5 md:pl-8">
@@ -491,7 +492,7 @@ const Sidebar = ({ children }) => {
           </div>
         </SidebarInset>
       )}
-    </div>
+    </SidebarProvider>
   );
 };
 
