@@ -22,7 +22,7 @@ const Widget = ({ type, amount, loading, description }) => {
     case "onTime":
       data = {
         title: "On time (8:00 AM)",
-        color: "#4DE189",
+        color: "#3B4E17",
         icon: (
           <AccessTimeIcon
             className="!text-[35px] p-1.5 rounded-md text-white"
@@ -42,7 +42,7 @@ const Widget = ({ type, amount, loading, description }) => {
     case "pendingApprovals":
       data = {
         title: "Pending Approvals",
-        color: "#FF6B6B",
+        color: "#3B4E17",
         icon: (
           <LibraryAddCheckIcon className="!text-[35px] p-1.5 rounded-md text-white" />
         ),
@@ -51,7 +51,7 @@ const Widget = ({ type, amount, loading, description }) => {
     case "payrollPreview":
       data = {
         title: "Payroll Preview",
-        color: "#4DABF7",
+        color: "#D4AF37",
         icon: (
           <AccountBalanceWalletIcon className="!text-[35px] p-1.5 rounded-md text-white" />
         ),
@@ -73,7 +73,7 @@ const Widget = ({ type, amount, loading, description }) => {
             {loading ? "..." : amount}
           </span>
           {description && (
-            <span className="text-[14px] text-white font-medium mt-1">
+            <span className="text-[14px] text-white/80 font-medium mt-1 italic">
               {description}
             </span>
           )}

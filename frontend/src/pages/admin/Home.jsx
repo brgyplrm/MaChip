@@ -178,11 +178,11 @@ const Home = () => {
       </div>
 
       {/* New Sections Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-10 w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-2 w-full">
         {/* Donut Chart Card */}
         <div className="bg-white p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex flex-col border-t-4 border-[#2A174E] min-w-0">
-          <h2 className="text-gray-500 font-medium mb-4">Arrival Breakdown</h2>
-          <div className="flex-1 min-h-[200px] relative">
+          <h2 className="text-gray-500 font-medium mb-1">Arrival Breakdown</h2>
+          <div className="flex-1 min-h-[180px] relative">
             {isEmptyDonut && (
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mb-4">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">No Data</span>
@@ -224,27 +224,47 @@ const Home = () => {
         </div>
 
         {/* Recent Pending Requests Card */}
-        <div className="bg-white p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex flex-col border-t-4 border-[#FF6B6B] min-w-0">
+        <div className="bg-white p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex flex-col border-t-4 border-[#3B4E17] min-w-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-gray-500 font-medium">Pending Requests</h2>
-            <Link to="/adminRequests" className="text-xs text-[#FF6B6B]/60 font-semibold hover:underline hover:text-[#FF6B6B]/80">View All</Link>
+            <Link to="/adminRequests" className="text-xs text-[#3B4E17]/60 font-semibold hover:underline hover:text-[#3B4E17]/80">View All</Link>
           </div>
           <div className="flex-1 space-y-4">
             {pendingRequests.length > 0 ? (
-              pendingRequests.map((req) => (
-                <div key={req.emp_reqId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#fdfaf5] transition-colors border-l-4 border-[#BA90E9] min-w-0">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-[#2A174E] truncate">{req.userName}</p>
-                    <p className="text-[11px] text-gray-500">{req.reqTypeName} • {new Date(req.date_Filed).toLocaleDateString()}</p>
+              pendingRequests.map((req) => {
+                const isLeave = req.reqTypeName?.includes("Leave");
+                const isField = req.reqTypeName?.includes("Onfield");
+                const isOvertime = req.reqTypeName?.includes("Overtime");
+
+                let borderClass = "border-[#D4AF37]";
+                let iconClass = "bg-[#D4AF37]/10 text-[#D4AF37] hover:bg-[#D4AF37]";
+                
+                if (isLeave) {
+                  borderClass = "border-green-500";
+                  iconClass = "bg-green-100 text-green-600 hover:bg-green-500";
+                } else if (isField) {
+                  borderClass = "border-orange-500";
+                  iconClass = "bg-orange-100 text-orange-600 hover:bg-orange-500";
+                } else if (isOvertime) {
+                  borderClass = "border-blue-500";
+                  iconClass = "bg-blue-100 text-blue-600 hover:bg-blue-500";
+                }
+
+                return (
+                  <div key={req.emp_reqId} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${borderClass} min-w-0`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-[#2A174E] truncate">{req.userName}</p>
+                      <p className="text-[11px] text-gray-500">{req.reqTypeName} • {new Date(req.date_Filed).toLocaleDateString()}</p>
+                    </div>
+                    <Link 
+                      to={`/adminRequests`} 
+                      className={`p-1.5 ${iconClass} rounded-md hover:text-white transition-all shrink-0`}
+                    >
+                      <RateReviewIcon sx={{ fontSize: 16 }} />
+                    </Link>
                   </div>
-                  <Link 
-                    to={`/adminRequests`} 
-                    className="p-1.5 bg-[#BA90E9]/10 text-[#BA90E9] rounded-md hover:bg-[#BA90E9] hover:text-white transition-all shrink-0"
-                  >
-                    <RateReviewIcon sx={{ fontSize: 16 }} />
-                  </Link>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="flex flex-col items-center justify-center h-full py-6 text-center">
                 <RateReviewIcon sx={{ fontSize: 40 }} className="text-[#5C1515] mb-2" />
@@ -255,11 +275,13 @@ const Home = () => {
         </div>
 
         {/* Next Payroll Run Card */}
-        <div className="bg-[#F2F6FF] p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] text-[#033A55] flex flex-col justify-between border-t-4 border-[#4DABF7] min-w-0">
+        <div className="bg-white p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] text-[#D4AF37] flex flex-col justify-between border-t-4 border-[#D4AF37] min-w-0">
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-[#033A55]/80 font-medium">Next Payroll Run</h2>
-              <CalendarMonthIcon className="text-[#033A55]/40" />
+              <Link to="/payroll">
+              <CalendarMonthIcon className="text-[#033A55]/40 hover:text-[#A87E18]/60 transition-colors hover:scale-110" />
+              </Link>
             </div>
             <div className="text-5xl font-bold mb-3 truncate h-13">
               {daysRemaining > 0 ? `${daysRemaining} Days Left` : "Processing..."}
@@ -281,20 +303,18 @@ const Home = () => {
             <div className="h-1"></div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-[#033A55]/60">Status</span>
-              <span className="bg-[#87F894] text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">Active</span>
+              <span className="bg-[#11D646] text-[10px] text-white px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">Active</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Charts Section */}  
-
       {/* Occupancy List Section */}
-      <div className="w-full overflow-x-auto min-w-0">
+      <div className="w-full overflow-x-auto min-w-0 mt-3 shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)]">
         <OccupancyList />
       </div>
-      <div className="h-4"></div>
-      <BottomNav />
+      <div className="h-6"></div>
+      {/* <BottomNav /> */}
     </Sidebar>
   );
 };
