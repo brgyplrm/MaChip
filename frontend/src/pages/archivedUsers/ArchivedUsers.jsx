@@ -133,13 +133,13 @@ const ArchivedUsers = () => {
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
-      <div className="flex-1 p-4 md:p-8 w-full overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
         
         {/* Header section with back button */}
-        <div className="flex items-start md:items-center gap-4 mb-8">
+        <div className="flex items-start md:items-center gap-4 mb-4">
           <Link 
             to="/users" 
-            className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0"
+            className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
           >
             <ArrowBackIcon className="h-6 w-6" />
           </Link>
@@ -171,7 +171,6 @@ const ArchivedUsers = () => {
             </CardContent>
           </Card>
         </div>
-        <div className="h-4"></div>
 
         {/* Filters Card */}
         <Card className="mb-6 shadow-sm border-0 bg-white">
@@ -217,8 +216,6 @@ const ArchivedUsers = () => {
             </div>
           </CardContent>
         </Card>
-
-        <div className="h-4"></div>
 
         {/* Table Card */}
         <Card className="shadow-sm border-0 bg-white">

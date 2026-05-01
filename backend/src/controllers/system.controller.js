@@ -46,6 +46,29 @@ exports.createHoliday = async (req, res) => {
   }
 };
 
+exports.updateHoliday = async (req, res) => {
+  try {
+    const { holidayId } = req.params;
+    const { name, date, type } = req.body;
+
+    const holiday = await Holiday.findByPk(holidayId);
+    if (!holiday) {
+      return res.status(404).json({ error: "Holiday not found." });
+    }
+
+    const oldData = holiday.toJSON();
+    await holiday.update({ name, date, type });
+    const newData = holiday.toJSON();
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "System Settings", "UPDATE_HOLIDAY", "Holiday", holiday.holidayId, oldData, newData);
+
+    res.status(200).json(holiday);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.deleteHoliday = async (req, res) => {
   try {
     const { holidayId } = req.params;

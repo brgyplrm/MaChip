@@ -298,10 +298,10 @@ const Logs = () => {
 
   return (
     <Sidebar>
-      <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <div className="flex flex-col w-full min-h-screen">
         <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
         
-        <div className="flex-1 p-4 md:p-8 w-full">
+        <div className="flex-1 p-4 md:p-4 w-full">
           
           {/* Header & Filters */}
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
@@ -384,7 +384,7 @@ const Logs = () => {
                   <>
                     <Button
                       // CHANGED: Removed w-full, added flex-1
-                      className="flex-1 md:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30]"
+                      className="flex-1 md:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30] w-[120px]"
                       onClick={() => handleGenerateLogs(1)}
                       disabled={loading}
                     >
@@ -392,7 +392,7 @@ const Logs = () => {
                     </Button>
                     <Button
                       // CHANGED: Removed w-full, added flex-1
-                      className="flex-1 md:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30]"
+                      className="flex-1 md:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30] w-[120px]"
                       onClick={() => handleGenerateLogs(2)}
                       disabled={loading}
                     >
@@ -403,8 +403,6 @@ const Logs = () => {
               </div>
             </div>
           </div>
-
-          <div className="h-4"></div>
 
           {/* Table Card */}
           <Card className="shadow-sm border-0 bg-white p-5">

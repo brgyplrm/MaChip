@@ -148,6 +148,7 @@ const Home = () => {
         onClose={() => setToast({ ...toast, message: "" })} 
         duration={5000}
       />
+      <div className="p-2  md:p-4 overflow-x-hidden w-full">
       <div className="h-2"></div>
       {/* Widgets Grid */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 w-full">
@@ -176,6 +177,8 @@ const Home = () => {
           />
         </Link>
       </div>
+
+      <div className="h-4"></div>
 
       {/* New Sections Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-2 w-full">
@@ -309,12 +312,15 @@ const Home = () => {
         </div>
       </div>
 
+      <div className="h-4"></div>
+
       {/* Occupancy List Section */}
       <div className="w-full overflow-x-auto min-w-0 mt-3 shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)]">
         <OccupancyList />
       </div>
       <div className="h-6"></div>
       {/* <BottomNav /> */}
+      </div>
     </Sidebar>
   );
 };

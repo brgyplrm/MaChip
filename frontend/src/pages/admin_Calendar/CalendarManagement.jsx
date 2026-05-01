@@ -129,10 +129,21 @@ const CalendarManagement = () => {
   });
 
   const [holidayForm, setHolidayForm] = useState({
+    id: "",
     name: "",
     date: "",
     type: "Regular Holiday"
   });
+
+  const handleOpenEditHoliday = (holiday) => {
+    setHolidayForm({
+      id: holiday.id,
+      name: holiday.name,
+      date: holiday.date.split('T')[0],
+      type: holiday.type || "Regular Holiday"
+    });
+    setModalType('editHoliday');
+  };
 
   const handleHolidaySubmit = async (e) => {
     e.preventDefault();
@@ -141,9 +152,14 @@ const CalendarManagement = () => {
       return;
     }
 
+    const isEditing = !!holidayForm.id;
+    const endpoint = isEditing 
+      ? `/api/system/holidays/${holidayForm.id}`
+      : "/api/system/holidays";
+
     try {
-      const response = await fetchWithAuth("/api/system/holidays", {
-        method: "POST",
+      const response = await fetchWithAuth(endpoint, {
+        method: isEditing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: holidayForm.name,
@@ -153,13 +169,13 @@ const CalendarManagement = () => {
       });
 
       if (response.ok) {
-        setToast({ message: "Holiday added successfully!", type: "success" });
+        setToast({ message: `Holiday ${isEditing ? 'updated' : 'added'} successfully!`, type: "success" });
         setModalType(null);
-        setHolidayForm({ name: "", date: "", type: "Regular Holiday" });
+        setHolidayForm({ id: "", name: "", date: "", type: "Regular Holiday" });
         fetchCalendarEvents();
       } else {
         const err = await response.json();
-        setToast({ message: err.error || "Failed to add holiday.", type: "error" });
+        setToast({ message: err.error || `Failed to ${isEditing ? 'update' : 'add'} holiday.`, type: "error" });
       }
     } catch (error) {
       setToast({ message: "Connection error.", type: "error" });
@@ -256,40 +272,42 @@ const CalendarManagement = () => {
 
   return (
     <Sidebar>
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
       
-      <div className="p-4 md:p-8 overflow-x-hidden w-full">
+      <div className="p-2  md:p-4 overflow-x-hidden w-full">
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Calendar Management</h1>
             <p className="text-muted-foreground text-sm mt-1">
               Manage {isAdmin ? "holidays, leaves, and field work" : "field work assignments"}
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             {isAdmin && (
               <Button 
-                className="w-full sm:w-auto bg-[#2A174E] hover:bg-[#1a0e30] text-white"
-                onClick={() => setModalType('addHoliday')}
+                className="w-full sm:w-[170px] bg-[#2A174E] hover:bg-[#1a0e30] text-white"
+                onClick={() => {
+                  setHolidayForm({ id: "", name: "", date: "", type: "Regular Holiday" });
+                  setModalType('addHoliday');
+                }}
               >
-                <AddIcon className="mr-2 h-4 w-4" /> Add Holiday
+                <AddIcon className="mr-1 scale-75" /> Add Holiday
               </Button>
             )}
             <Button 
-              className="w-full sm:w-auto bg-[#ff8c00] hover:bg-[#e67e00] text-white"
+              className="w-full sm:w-[170px] bg-[#ff8c00] hover:bg-[#e67e00] text-white"
               onClick={() => setModalType('addFieldWork')}
             >
-              <AddIcon className="mr-2 h-4 w-4" /> Add Field Work
+              <AddIcon className="mr-1 scale-75" /> Add Field Work
             </Button>
           </div>
         </div>
-        <div className="h-4"></div>
 
           {/* Legend Card */}
-          <Card>
-            <CardContent className="flex flex-wrap gap-10 items-center">
+          <Card className="py-2">
+            <CardContent className="flex flex-wrap gap-4 items-center">
               <div className="flex items-center text-sm text-muted-foreground">
                 <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-red-100 border border-red-300" />
                 <div className="p-1"></div>Regular Holiday
@@ -299,12 +317,12 @@ const CalendarManagement = () => {
                 <div className="p-1"></div>Special Non-Working Holiday
               </div>
               <div className="flex items-center text-sm text-muted-foreground">
-                <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-green-100 border border-green-300" /> 
-                <div className="p-1"></div>Approved Leave
-              </div>
-              <div className="flex items-center text-sm text-muted-foreground">
                 <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-orange-100 border border-orange-300" /> 
                 <div className="p-1"></div>Field Work
+              </div>
+              <div className="flex items-center text-sm text-muted-foreground">
+                <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-green-100 border border-green-300" /> 
+                <div className="p-1"></div>Approved Leave
               </div>
               <div className="flex items-center text-sm text-muted-foreground">
                 <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-blue-100 border border-blue-300" /> 
@@ -362,7 +380,9 @@ const CalendarManagement = () => {
                       else if (hasOt) bgClass = "bg-blue-50/60 hover:bg-blue-50";
                       else if (hasHoliday) bgClass = "bg-red-50/60 hover:bg-red-50";
                       
-                      if (isToday) bgClass = "bg-orange-50 hover:bg-orange-100 ring-2 ring-orange-500 ring-inset z-10";
+                      if (isToday) {
+                        bgClass = "bg-orange-50 hover:bg-orange-100 ring-1 ring-orange-500 ring-inset z-10 label";
+                      }
 
                       return (
                         <div 
@@ -412,33 +432,38 @@ const CalendarManagement = () => {
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
                   <div className="max-h-[250px] overflow-y-auto pr-2 space-y-2">
-                    {getUpcomingHolidays().length > 0 ? getUpcomingHolidays().map((holiday, idx) => (
-                      <div 
-                        className="group cursor-pointer transition-all flex flex-col sm:flex-row justify-between sm:items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 mb-5 border py-4" 
-                        key={idx} 
-                        onClick={() => handleHolidayClick(holiday)}
-                      >
-                        <div>
-                          <p className="font-semibold text-sm text-slate-800">{holiday.name}</p>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(holiday.date).toLocaleDateString()} • {holiday.type}
-                          </span>
-                        </div>
-                        {isAdmin && (
-                          <div className="flex gap-2 mt-2 sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-[#2A174E]" onClick={(e) => { e.stopPropagation(); setModalType('editHoliday'); }}>
-                              <EditIcon className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-red-500 hover:bg-red-50" onClick={(e) => {
-                                e.stopPropagation();
-                                initiateDelete(holiday.id, 'Holiday');
-                              }}>
-                              <DeleteIcon className="h-4 w-4" />
-                            </Button>
+                    {getUpcomingHolidays().length > 0 ? getUpcomingHolidays().map((holiday, idx) => {
+                      const isSpecial = holiday.type?.toLowerCase().includes("special");
+                      const accentColor = isSpecial ? "border-l-purple-500" : "border-l-red-500";
+                      
+                      return (
+                        <div 
+                          className={`group cursor-pointer transition-all flex flex-col sm:flex-row justify-between sm:items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 mb-2 border border-l-4 ${accentColor} py-4`} 
+                          key={idx} 
+                          onClick={() => handleHolidayClick(holiday)}
+                        >
+                          <div>
+                            <p className="font-semibold text-sm text-slate-800">{holiday.name}</p>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(holiday.date).toLocaleDateString()} • {holiday.type}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    )) : (
+                          {isAdmin && (
+                            <div className="flex gap-2 mt-2 sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-[#2A174E]" onClick={(e) => { e.stopPropagation(); handleOpenEditHoliday(holiday); }}>
+                                <EditIcon className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-red-500 hover:bg-red-50" onClick={(e) => {
+                                  e.stopPropagation();
+                                  initiateDelete(holiday.id, 'Holiday');
+                                }}>
+                                <DeleteIcon className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }) : (
                       <p className="text-center text-sm text-muted-foreground py-4">No upcoming holidays</p>
                     )}
                   </div>
@@ -447,14 +472,14 @@ const CalendarManagement = () => {
 
               {/* Field Work List Card */}
               <Card className="shadow-sm border-0 bg-white">
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-0">
                   <CardTitle className="text-lg text-[#2A174E]">Field Work Assignments</CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 pb-0">
                   <div className="max-h-[250px] overflow-y-auto pr-2 space-y-2">
                     {events.filter(e => e.type === "Field Work").length > 0 ? events.filter(e => e.type === "Field Work").map((field, idx) => (
                       <div 
-                        className="group cursor-pointer transition-all flex flex-row justify-between items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 gap-3 border" 
+                        className="group cursor-pointer transition-all flex flex-row justify-between items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 gap-3 border border-l-4 border-l-orange-500" 
                         key={idx} 
                         onClick={() => handleFieldWorkClick(field)}
                       >
@@ -501,7 +526,7 @@ const CalendarManagement = () => {
                     <div className="grid gap-2">
                       <Label htmlFor="employee">Select Employee</Label>
                       <Select value={fieldWorkForm.userId} onValueChange={(val) => setFieldWorkForm({...fieldWorkForm, userId: val})} required>
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Choose Employee..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -522,7 +547,7 @@ const CalendarManagement = () => {
                         value={holidayForm.name}
                         onChange={(e) => setHolidayForm({...holidayForm, name: e.target.value})}
                         required
-                        className="focus-visible:ring-[#2A174E]/90" 
+                        className="w-full focus-visible:ring-[#2A174E]/90" 
                       />
                     </div>
                   )}
@@ -541,6 +566,7 @@ const CalendarManagement = () => {
                         }
                       }}
                       required
+                      className="w-full"
                     />
                   </div>
 
@@ -548,7 +574,7 @@ const CalendarManagement = () => {
                     <div className="grid gap-2">
                       <Label htmlFor="type">Type</Label>
                       <Select value={holidayForm.type} onValueChange={(val) => setHolidayForm({...holidayForm, type: val})}>
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -567,6 +593,7 @@ const CalendarManagement = () => {
                           value={fieldWorkForm.location}
                           onChange={(e) => setFieldWorkForm({...fieldWorkForm, location: e.target.value})}
                           required
+                          className="w-full"
                         />
                       </div>
                       <div className="grid gap-2">
@@ -578,6 +605,7 @@ const CalendarManagement = () => {
                           value={fieldWorkForm.hours}
                           onChange={(e) => setFieldWorkForm({...fieldWorkForm, hours: e.target.value})}
                           required
+                          className="w-full"
                         /><div className="h-2"></div>
                       </div>
                     </>

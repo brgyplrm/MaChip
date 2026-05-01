@@ -68,7 +68,7 @@ const Datatable = () => {
   }, []);
 
   return (
-    <div className="flex flex-col w-full h-full p-4 md:p-8">
+    <div className="flex flex-col w-full h-full p-4 md:p-4">
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
       
       {/* Header */}
@@ -94,7 +94,6 @@ const Datatable = () => {
         </div>
       </div>
 
-      <div className="h-4"></div>
 
       {/* Table Card */}
       <Card className="shadow-sm border-0 bg-white p-4">
