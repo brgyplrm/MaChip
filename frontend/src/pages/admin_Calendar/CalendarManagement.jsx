@@ -258,7 +258,7 @@ const CalendarManagement = () => {
     <Sidebar>
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
       
-      <div className="p-4 md:p-8 overflow-x-hidden w-full max-w-7xl mx-auto">
+      <div className="p-4 md:p-8 overflow-x-hidden w-full">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">

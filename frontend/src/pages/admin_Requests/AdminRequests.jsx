@@ -194,11 +194,11 @@ const AdminRequests = () => {
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-8 w-full overflow-x-hidden min-w-0">
         
         {/* Statistics Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card className="shadow-sm border-0">
+          <Card className="shadow-sm border-0 py-0">
             <CardContent className="p-6 flex justify-between items-center">
               <div>
                 <span className="text-sm font-semibold text-slate-500">Pending Requests</span>
@@ -209,7 +209,7 @@ const AdminRequests = () => {
               </div>
             </CardContent>
           </Card>
-          <Card className="shadow-sm border-0">
+          <Card className="shadow-sm border-0 py-0">
             <CardContent className="p-6 flex justify-between items-center">
               <div>
                 <span className="text-sm font-semibold text-slate-500">Approved Total</span>
@@ -220,7 +220,7 @@ const AdminRequests = () => {
               </div>
             </CardContent>
           </Card>
-          <Card className="shadow-sm border-0">
+          <Card className="shadow-sm border-0 py-0">
             <CardContent className="p-6 flex justify-between items-center">
               <div>
                 <span className="text-sm font-semibold text-slate-500">Rejected Total</span>
@@ -232,12 +232,13 @@ const AdminRequests = () => {
             </CardContent>
           </Card>
         </div>
+        <div className="h-4"></div>
 
         {/* Main Split Content */}
         <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-220px)] min-h-[600px]">
           
           {/* Left: Request Queue */}
-          <Card className="w-full lg:w-1/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden">
+          <Card className="w-full lg:w-1/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-0">
             <div className="flex border-b border-slate-100 bg-slate-50/50">
               <button
                 className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "pending" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
@@ -508,8 +509,8 @@ const AdminRequests = () => {
               ) : (
                 <div className="space-y-8 p-4">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-6">
-                    <div className="space-y-3 w-full">
-                      <Skeleton className="h-8 w-[40%]" />
+                    <div className="space-y-3">
+                      <Skeleton className="h-8 w-[40%] " />
                       <Skeleton className="h-4 w-[20%]" />
                     </div>
                     <Skeleton className="h-10 w-24 rounded-full" />
@@ -518,7 +519,7 @@ const AdminRequests = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-xl border border-slate-100">
                     {[...Array(6)].map((_, i) => (
                       <div key={i} className="space-y-2">
-                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-3 w-16"/>
                         <Skeleton className="h-5 w-full" />
                       </div>
                     ))}

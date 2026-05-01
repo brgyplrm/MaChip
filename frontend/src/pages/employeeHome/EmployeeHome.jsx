@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
-import "./employeeHome.scss";
 import Sidebar from "../../components/Sidebar";
 import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import HistoryIcon from '@mui/icons-material/History';
-import ArrowRightAltIcon from '@mui/icons-material/ArrowRightAlt';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
@@ -12,6 +10,12 @@ import Toast from "../../components/toast/Toast";
 import { Link } from "react-router-dom";
 import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
 import { fetchWithAuth } from "../../utils/api";
+
+// shadcn/ui components
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const EmployeeHome = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -64,183 +68,243 @@ const EmployeeHome = () => {
   const totalTrackedDays = att.absent + att.onTime + att.late || 1;
 
   return (
-    <div className="flex bg-[#fdfaf5] min-h-screen">
-      <Sidebar />
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
 
-      <div className="flex-1 min-w-0 pt-20">
+      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
         <Toast 
           message={toast.message} 
           type={toast.type} 
           onClose={() => setToast({ ...toast, message: "" })} 
         />
-        <div className="contentWrapper">
-          
-          {/* Top Section: Attendance Overview */}
-          <div className="statsHeader">
-            <div className="statCardGroup">
-                <div className="statCircle">
-                    <CircularProgressbar 
-                        value={att.absent} maxValue={20} text={`${att.absent}`} 
-                        styles={buildStyles({ pathColor: `#ff4d4f`, textColor: '#2A174E', trailColor: '#eee' })}
-                    />
-                    <span className="label">Days Absent</span>
-                </div>
-                <div className="statCircle">
-                    <CircularProgressbar 
-                        value={att.late} maxValue={20} text={`${att.late}`} 
-                        styles={buildStyles({ pathColor: `#FFA500`, textColor: '#2A174E' })}
-                    />
-                    <span className="label">Late Arrivals</span>
-                </div>
-                <div className="statCircle">
-                    <CircularProgressbar 
-                        value={att.onTime} maxValue={20} text={`${att.onTime}`} 
-                        styles={buildStyles({ pathColor: `#22c55e`, textColor: '#2A174E' })}
-                    />
-                    <span className="label">On-Time</span>
-                </div>
-            </div>
-
-            <div className="statProgressBars">
-                <h3 className="sectionTitle">Attendance Overview ({att.monthName})</h3>
-                <div className="progressItem">
-                    <div className="info"><span>Absent</span><span className="count">{att.absent} day(s)</span></div>
-                    <div className="bar"><div className="fill absent" style={{width: `${(att.absent/totalTrackedDays)*100}%`}}></div></div>
-                </div>
-                <div className="progressItem">
-                    <div className="info"><span>Late</span><span className="count">{att.late} day(s)</span></div>
-                    <div className="bar"><div className="fill late" style={{width: `${(att.late/totalTrackedDays)*100}%`}}></div></div>
-                </div>
-                <div className="progressItem">
-                    <div className="info"><span>On-Time / On-Field</span><span className="count">{att.onTime} day(s)</span></div>
-                    <div className="bar"><div className="fill ontime" style={{width: `${(att.onTime/totalTrackedDays)*100}%`}}></div></div>
-                </div>
-            </div>
-          </div>
-
-          <div className="middleSection">
-            {/* Recent Activity Card */}
-           <div className="dashboardCard activityCard">
-            <div className="cardHeader">
-              <div className="titleGroup">
-                <HistoryIcon className="icon" />
-                <span>Recent Attendance Activity</span>
-              </div>
-              <Link to="/accessLogs">
-                <button className="viewAll">
-                  See History
-                </button>
-              </Link>
+        
+        {/* Top Section: Attendance Overview */}
+        <Card className="mb-6 shadow-sm border-0 bg-white">
+          <CardContent className="p-6 md:p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
               
-            </div>
-            <div className="activityList">
-              {dashboardStats.recentLogs.length > 0 ? (
-                dashboardStats.recentLogs.map((log, idx) => (
-                  <div className="activityRow" key={idx}>
-                    <div className="userAvatar">{userData.user_FirstName?.charAt(0)}</div>
-                    <div className="logDetails">
-                      <div className="mainInfo">
-                        <p className="name">{new Date(log.date).toLocaleDateString(undefined, {weekday: 'long', month: 'short', day: 'numeric'})}</p>
-                      </div>
-                      <p className="subInfo">{log.timeIn} to {log.timeOut}</p>
-                    </div>
-                    <div className="logTime">
-                      <span className={`statusBadge ${log.status.toLowerCase().includes('time') || log.status.toLowerCase().includes('field') ? 'in' : 'out'}`}>
-                        {log.status}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p style={{padding: '10px', color: '#64748b', fontSize: '13px'}}>No recent logs found.</p>
-              )}
-            </div>
-          </div>
+              {/* Circular Progress Section */}
+              <div className="lg:col-span-2 flex justify-around sm:justify-center sm:gap-8 flex-wrap items-center">
+                <div className="w-24 md:w-28 text-center space-y-3">
+                  <CircularProgressbar 
+                    value={att.absent} maxValue={20} text={`${att.absent}`} 
+                    styles={buildStyles({ pathColor: `#ef4444`, textColor: '#2A174E', trailColor: '#f1f5f9' })}
+                  />
+                  <span className="text-sm font-semibold text-slate-600 block">Days Absent</span>
+                </div>
+                <div className="w-24 md:w-28 text-center space-y-3">
+                  <CircularProgressbar 
+                    value={att.late} maxValue={20} text={`${att.late}`} 
+                    styles={buildStyles({ pathColor: `#f59e0b`, textColor: '#2A174E', trailColor: '#f1f5f9' })}
+                  />
+                  <span className="text-sm font-semibold text-slate-600 block">Late Arrivals</span>
+                </div>
+                <div className="w-24 md:w-28 text-center space-y-3 mt-4 sm:mt-0">
+                  <CircularProgressbar 
+                    value={att.onTime} maxValue={20} text={`${att.onTime}`} 
+                    styles={buildStyles({ pathColor: `#22c55e`, textColor: '#2A174E', trailColor: '#f1f5f9' })}
+                  />
+                  <span className="text-sm font-semibold text-slate-600 block">On-Time</span>
+                </div>
+              </div>
 
-            {/* Leave Consumption Card (Dynamic) */}
-            <div className="dashboardCard leaveCard">
-              <h3 className="sectionTitle">Consumed Leave Types</h3>
-              <p className="subText">Track your Vacation (VL) and Sick (SL) leave balance.</p>
-              <div className="leaveChart">
-                {loading ? (
-                    <div className="bars">
-                        <div className="skeleton box" style={{height: '60px', marginBottom: '15px'}}></div>
-                        <div className="skeleton box" style={{height: '60px'}}></div>
+              {/* Linear Progress Bars Section */}
+              <div className="lg:col-span-3 flex flex-col justify-center space-y-6">
+                <h3 className="text-xl font-bold text-[#2A174E]">Attendance Overview ({att.monthName})</h3>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm font-medium text-slate-700">
+                    <span>Absent</span>
+                    <span className="text-slate-500">{att.absent} day(s)</span>
+                  </div>
+                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-red-500 rounded-full transition-all duration-500" style={{width: `${(att.absent/totalTrackedDays)*100}%`}}></div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm font-medium text-slate-700">
+                    <span>Late</span>
+                    <span className="text-slate-500">{att.late} day(s)</span>
+                  </div>
+                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{width: `${(att.late/totalTrackedDays)*100}%`}}></div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm font-medium text-slate-700">
+                    <span>On-Time / On-Field</span>
+                    <span className="text-slate-500">{att.onTime} day(s)</span>
+                  </div>
+                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{width: `${(att.onTime/totalTrackedDays)*100}%`}}></div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Middle Section: Recent Activity & Leave Consumption */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          
+          {/* Recent Activity Card */}
+          <Card className="shadow-sm border-0 bg-white">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-slate-50 mb-4">
+              <div className="flex items-center gap-2">
+                <HistoryIcon className="text-[#2A174E]" />
+                <CardTitle className="text-lg text-[#2A174E]">Recent Attendance</CardTitle>
+              </div>
+              <Link to="/accessLogs" className="text-sm font-semibold text-[#2A174E] hover:text-[#7451f8] transition-colors">
+                See History
+              </Link>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-3">
+                {dashboardStats.recentLogs.length > 0 ? (
+                  dashboardStats.recentLogs.map((log, idx) => (
+                    <div key={idx} className="flex items-center p-3 sm:p-4 bg-slate-50 border border-slate-100 rounded-xl hover:shadow-md hover:border-[#2A174E]/30 transition-all">
+                      <div className="w-10 h-10 rounded-lg bg-[#2A174E] text-white flex items-center justify-center font-bold text-lg shrink-0 mr-4">
+                        {userData.user_FirstName?.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 text-sm truncate">
+                          {new Date(log.date).toLocaleDateString(undefined, {weekday: 'long', month: 'short', day: 'numeric'})}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">{log.timeIn} to {log.timeOut}</p>
+                      </div>
+                      <div className="shrink-0 ml-2">
+                        <Badge 
+                          variant="outline" 
+                          className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 ${log.status.toLowerCase().includes('time') || log.status.toLowerCase().includes('field') ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}
+                        >
+                          {log.status}
+                        </Badge>
+                      </div>
                     </div>
+                  ))
                 ) : (
-                    <div className="bars">
-                        <div className="progressItem">
-                            <div className="info">
-                            <span>Vacation Leave (VL)</span>
-                            <span className="count">
-                                {Math.min(balance.VL_used, balance.VL_total)} / {balance.VL_total}
-                            </span>
-                            </div>
-                            <div className="bar">
-                            <div className="fill vl" style={{width: `${Math.min((balance.VL_used / balance.VL_total) * 100, 100)}%`}}></div>
-                            </div>
-                        </div>
-                        <div className="progressItem">
-                            <div className="info">
-                            <span>Sick Leave (SL)</span>
-                            <span className="count">
-                                {Math.min(balance.SL_used, balance.SL_total) || 0} / {balance.SL_total}
-                            </span>
-                            </div>
-                            <div className="bar">
-                            <div className="fill sl" style={{width: `${Math.min((balance.SL_used / balance.SL_total) * 100, 100) || 0}%`}}></div>
-                            </div>
-                        </div>
-                    </div>
+                  <p className="text-sm text-slate-500 italic p-2">No recent logs found.</p>
                 )}
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-          </div>
+          {/* Leave Consumption Card */}
+          <Card className="shadow-sm border-0 bg-white">
+            <CardHeader className="pb-2 border-b border-slate-50 mb-4">
+              <CardTitle className="text-lg text-[#2A174E]">Consumed Leave Types</CardTitle>
+              <p className="text-sm text-slate-500 mt-1">Track your Vacation (VL) and Sick (SL) leave balance.</p>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
+                </div>
+              ) : (
+                <div className="flex flex-col gap-6 justify-center h-full mt-2">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm font-medium text-slate-700">
+                      <span>Vacation Leave (VL)</span>
+                      <span className="text-slate-500">
+                        {Math.min(balance.VL_used, balance.VL_total)} / {balance.VL_total}
+                      </span>
+                    </div>
+                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#2A174E] rounded-full transition-all duration-500" style={{width: `${Math.min((balance.VL_used / balance.VL_total) * 100, 100)}%`}}></div>
+                    </div>
+                  </div>
 
-          {/* Bottom Leaves Section */}
-          <div className="leavesSection">
-            <div className="sectionHeader">
-              <h3>My Requests</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm font-medium text-slate-700">
+                      <span>Sick Leave (SL)</span>
+                      <span className="text-slate-500">
+                        {Math.min(balance.SL_used, balance.SL_total) || 0} / {balance.SL_total}
+                      </span>
+                    </div>
+                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#7451f8] rounded-full transition-all duration-500" style={{width: `${Math.min((balance.SL_used / balance.SL_total) * 100, 100) || 0}%`}}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+        </div>
+
+        {/* Bottom Leaves Section */}
+        <Card className="shadow-sm border-0 bg-white">
+          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-50 mb-4 gap-4">
+            <CardTitle className="text-xl text-[#2A174E]">My Requests</CardTitle>
+            <Button asChild className="bg-[#2A174E] hover:bg-[#1a0e30] w-full sm:w-auto">
               <Link to="/requests">
-                <button className="applyBtn">
-                  Apply for a leave <ChevronRightOutlinedIcon className="icon" />
-                </button>
+                Apply for a leave <ChevronRightOutlinedIcon className="ml-1 h-4 w-4" />
               </Link>
-            </div>
-            
+            </Button>
+          </CardHeader>
+          <CardContent>
             {loading ? (
-              <div className="skeletonList">
-                  <div className="skeleton box" style={{height: '80px', marginBottom: '15px'}}></div>
-                  <div className="skeleton box" style={{height: '80px', marginBottom: '15px'}}></div>
-                  <div className="skeleton box" style={{height: '80px'}}></div>
+              <div className="space-y-4">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
               </div>
             ) : recentRequests.length > 0 ? (
-              recentRequests.map(req => {
-                let dateDisplay = "";
-                if (req.emp_reqTypeId === 1) dateDisplay = req.OT_DateOf;
-                else if (req.emp_reqTypeId === 2) dateDisplay = req.DateonField;
-                else dateDisplay = `${req.VL_StartDate || req.SL_StartDate} to ${req.VL_EndDate || req.SL_EndDate}`;
+              <div className="space-y-4">
+                {recentRequests.map(req => {
+                  let dateDisplay = "";
+                  if (req.emp_reqTypeId === 1) dateDisplay = req.OT_DateOf;
+                  else if (req.emp_reqTypeId === 2) dateDisplay = req.DateonField;
+                  else dateDisplay = `${req.VL_StartDate || req.SL_StartDate} to ${req.VL_EndDate || req.SL_EndDate}`;
 
-                return (
-                  <div className={`leaveLog ${req.status?.toLowerCase()}`} key={req.emp_reqId}>
-                    {req.status?.toLowerCase().includes("approve") ? <CheckCircleIcon className="statusIcon" /> : 
-                     req.status?.toLowerCase().includes("reject") ? <CancelIcon className="statusIcon" /> : 
-                     <HourglassEmptyIcon className="statusIcon" />}
-                    <div className="text">
-                      <p className="date">{dateDisplay}</p>
-                      <p className="desc">{req.reqTypeName}: {req.remarks || "No description"}</p>
+                  // Dynamic Styles based on status
+                  const isApproved = req.status?.toLowerCase().includes("approve");
+                  const isRejected = req.status?.toLowerCase().includes("reject");
+                  
+                  const boxStyle = isApproved ? "bg-green-50 border-green-200" 
+                                 : isRejected ? "bg-red-50 border-red-200" 
+                                 : "bg-amber-50 border-amber-200";
+                  
+                  const iconColor = isApproved ? "text-green-600" 
+                                  : isRejected ? "text-red-600" 
+                                  : "text-amber-500";
+
+                  const badgeStyle = isApproved ? "bg-green-500 hover:bg-green-600" 
+                                   : isRejected ? "bg-red-500 hover:bg-red-600" 
+                                   : "bg-amber-500 hover:bg-amber-600";
+
+                  return (
+                    <div key={req.emp_reqId} className={`flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border ${boxStyle}`}>
+                      <div className={`hidden sm:flex shrink-0 ${iconColor}`}>
+                        {isApproved ? <CheckCircleIcon className="h-8 w-8" /> : 
+                         isRejected ? <CancelIcon className="h-8 w-8" /> : 
+                         <HourglassEmptyIcon className="h-8 w-8" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 truncate mb-1">{dateDisplay}</p>
+                        <p className="text-sm text-slate-600 truncate">{req.reqTypeName}: {req.remarks || "No description"}</p>
+                      </div>
+                      <Badge className={`shrink-0 w-fit ${badgeStyle} text-white shadow-none`}>
+                        {req.status}
+                      </Badge>
                     </div>
-                    <span className="badge">{req.status}</span>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             ) : (
-              <p>No recent leave requests.</p>
+              <div className="py-8 text-center text-slate-500 italic">
+                No recent leave requests.
+              </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+
       </div>
+      </Sidebar>
     </div>
   );
 };

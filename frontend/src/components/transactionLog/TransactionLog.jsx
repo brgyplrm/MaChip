@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from "react";
-import "./transactionLog.scss";
 import Sidebar from "../../components/Sidebar";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import SearchIcon from "@mui/icons-material/Search";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import CloseIcon from "@mui/icons-material/Close";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
+
+// shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const TransactionLog = () => {
   const [transactions, setTransactions] = useState([]);
@@ -17,7 +23,6 @@ const TransactionLog = () => {
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
 
-  // --- PAGINATION STATE ---
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage] = useState(10);
   const [goToValue, setGoToValue] = useState("");
@@ -39,7 +44,6 @@ const TransactionLog = () => {
     fetchTransactions();
   }, []);
 
-  // Filtering Logic
   const filteredData = transactions.filter(t => {
     const matchesSearch = (t.emp_FirstName + " " + t.emp_LastName).toLowerCase().includes(searchTerm.toLowerCase()) || 
                           t.event_Type.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -48,13 +52,11 @@ const TransactionLog = () => {
     return matchesSearch && matchesAction;
   });
 
-  // --- PAGINATION LOGIC ---
   const indexOfLastLog = currentPage * rowsPerPage;
   const indexOfFirstLog = indexOfLastLog - rowsPerPage;
   const currentLogs = filteredData.slice(indexOfFirstLog, indexOfLastLog);
   const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
 
-  // Reset to page 1 when search or filters change[cite: 25]
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, actionFilter]);
@@ -104,7 +106,7 @@ const TransactionLog = () => {
   };
 
   const MetadataTable = ({ data }) => {
-    if (!data) return <span className="emptyText">No metadata available</span>;
+    if (!data) return <p className="text-slate-400 italic text-sm py-4">No metadata available</p>;
     
     const sensitiveFields = ["user_Password", "password", "user_MachipId", "rfid", "uid", "adminPassword", "admin_Password"];
     const allKeys = Object.keys(data)
@@ -112,217 +114,169 @@ const TransactionLog = () => {
       .sort();
 
     return (
-      <div className="diffTableContainer">
-        <table className="diffTable">
-          <thead>
-            <tr>
-              <th style={{ width: "40%" }}>Property</th>
-              <th style={{ width: "60%" }}>Value</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="overflow-x-auto border border-slate-200 rounded-lg max-h-[60vh]">
+        <Table className="min-w-full text-sm">
+          <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+            <TableRow>
+              <TableHead className="font-semibold w-1/3">Property</TableHead>
+              <TableHead className="font-semibold w-2/3">Value</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {allKeys.map(key => {
               const val = data[key];
               const isSensitive = sensitiveFields.includes(key);
               return (
-                <tr key={key} className="unchangedRow">
-                  <td className="fieldName">{key.replace(/_/g, " ")}</td>
-                  <td className="newValue">
+                <TableRow key={key} className="hover:bg-slate-50/50">
+                  <TableCell className="font-medium capitalize text-slate-700">{key.replace(/_/g, " ")}</TableCell>
+                  <TableCell className="font-mono text-xs text-slate-800">
                     {isSensitive ? (
-                      <span className="redacted">[REDACTED]</span>
+                      <span className="text-red-500 bg-red-50 border border-dashed border-red-200 px-2 py-0.5 rounded font-bold">[REDACTED]</span>
                     ) : key === "result" ? (
-                      <span className={`resultBadge ${String(val).toLowerCase()}`}>{val}</span>
+                      <Badge variant="outline" className={String(val).toLowerCase() === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}>{val}</Badge>
                     ) : (
                       <span>{typeof val === "object" ? JSON.stringify(val) : String(val)}</span>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     );
   };
 
   return (
-    <Sidebar>
-      <div className="logContainer">
-        <div className="wrapper">
-          <div className="header">
-            <div className="titleText">
-              <h1>Transaction Log</h1>
-              <span>View and track all financial and system transactions</span>
-            </div>
-            <button className="exportBtn" onClick={handleExport}>
-              <FileDownloadIcon className="icon" /> Export CSV
-            </button>
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
+      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+        
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Transaction Log</h1>
+            <span className="text-sm text-slate-500 mt-1 block">View and track all financial and system transactions</span>
           </div>
-
-          <div className="summaryRow">
-            <div className="statCard">
-              <label>Total Transactions</label>
-              <p className="value">{stats.total}</p>
-            </div>
-            <div className="statCard">
-              <label>Payroll Releases</label>
-              <p className="value completedText">{stats.payrollReleases}</p>
-            </div>
-            <div className="statCard">
-              <label>Batch Runs</label>
-              <p className="value pendingText">{stats.batchRuns}</p>
-            </div>
-            <div className="statCard">
-              <label>Unauthorized Scans</label>
-              <p className="value rejectedText">{stats.unauthorizedScans}</p>
-            </div>
-          </div>
-
-          <div className="filterCard">
-            <div className="searchBox">
-              <SearchIcon className="icon" />
-              <input 
-                type="text" 
-                placeholder="Search by user, action, or details..." 
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="dropdowns">
-              <div className="selectGroup">
-                <FilterListIcon className="icon" />
-                <select onChange={(e) => setActionFilter(e.target.value)}>
-                  {uniqueActions.map(action => (
-                    <option key={action} value={action}>{action.replace(/_/g, " ")}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="tableCard">
-            {loading ? <p>Loading transaction logs...</p> : (
-              <table className="customLogTable">
-                <thead>
-                  <tr>
-                    <th>Timestamp</th>
-                    <th>Initiated By</th>
-                    <th>Event Category</th>
-                    <th>Description</th>
-                    <th>IP Address</th>
-                    <th>Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* CRITICAL: Mapping currentLogs for pagination[cite: 25] */}
-                  {currentLogs.map((t) => (
-                    <tr key={t.transId}>
-                      <td className="dateCell">{new Date(t.createdAt).toLocaleString()}</td>
-                      <td className="userCell">
-                        {t.emp_FirstName 
-                          ? `${t.emp_FirstName} ${t.emp_LastName} (${formatUserId(t.user_Id)})` 
-                          : t.event_Type === "UNAUTHORIZED_SCAN" 
-                            ? `Unknown Device`
-                            : "System"
-                        }
-                      </td>
-                      <td>
-                        <span className={`statusPill ${t.event_Type.toLowerCase().replace(/_/g, "")}`}>
-                          {t.event_Type.replace(/_/g, " ")}
-                        </span>
-                      </td>
-                      <td className="subtleText">{maskDescription(t.description, t.event_Type)}</td>
-                      <td className="subtleText">{t.ip_Address || t.metadata?.deviceIp || "Local"}</td>
-                      <td>
-                        <button className="viewDetailsBtn" onClick={() => setSelectedLog(t)} style={{background: "none", border: "none", cursor: "pointer", color: "#6439ff", display: "flex", alignItems: "center", gap: "5px"}}>
-                          <VisibilityIcon fontSize="small"/> View
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {currentLogs.length === 0 && (
-                    <tr><td colSpan="6" style={{textAlign: "center", padding: "20px"}}>No transactions found</td></tr>
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* Pagination UI[cite: 25] */}
-          <div className="paginationWrapper">
-            <nav aria-label="Transaction log pagination" className="paginationNav">
-              <ul className="paginationList">
-                <li>
-                  <button 
-                    className="pageBtn prev" 
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => prev - 1)}
-                  >
-                    Previous
-                  </button>
-                </li>
-                {pageNumbers.map(number => (
-                  <li key={number}>
-                    <button 
-                      className={`pageBtn ${currentPage === number ? "active" : ""}`}
-                      onClick={() => setCurrentPage(number)}
-                    >
-                      {number}
-                    </button>
-                  </li>
-                ))}
-                <li>
-                  <button 
-                    className="pageBtn next" 
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(prev => prev + 1)}
-                  >
-                    Next
-                  </button>
-                </li>
-              </ul>
-              <form className="goToPageForm" onSubmit={handleGoToPage}>
-                <div className="formGroup">
-                  <label htmlFor="goToPage">Go to</label>
-                  <input 
-                    type="number" 
-                    id="goToPage" 
-                    placeholder={totalPages}
-                    value={goToValue}
-                    onChange={(e) => setGoToValue(e.target.value)}
-                    min="1"
-                    max={totalPages}
-                    required 
-                  />
-                  <span>page</span>
-                </div>
-              </form>
-            </nav>
-          </div>
+          <Button variant="outline" className="w-full md:w-auto bg-white border-slate-300 text-slate-700" onClick={handleExport}>
+            <FileDownloadIcon className="mr-2 h-4 w-4" /> Export CSV
+          </Button>
         </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Transactions</label><p className="text-2xl font-bold text-slate-800 mt-1">{stats.total}</p></CardContent></Card>
+          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payroll Releases</label><p className="text-2xl font-bold text-green-500 mt-1">{stats.payrollReleases}</p></CardContent></Card>
+          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Batch Runs</label><p className="text-2xl font-bold text-amber-500 mt-1">{stats.batchRuns}</p></CardContent></Card>
+          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Unauthorized Scans</label><p className="text-2xl font-bold text-red-600 mt-1">{stats.unauthorizedScans}</p></CardContent></Card>
+        </div>
+
+        <Card className="mb-6 shadow-sm border-0">
+          <CardContent className="p-4 flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input type="text" placeholder="Search by user, action, or details..." onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-slate-50/50" />
+            </div>
+            <div className="w-full md:w-64">
+              <Select value={actionFilter} onValueChange={setActionFilter}>
+                <SelectTrigger className="bg-slate-50/50">
+                  <SelectValue placeholder="All Actions" />
+                </SelectTrigger>
+                <SelectContent>
+                  {uniqueActions.map(a => <SelectItem key={a} value={a}>{a.replace(/_/g, " ")}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-0 bg-white">
+          <CardContent className="p-0 overflow-x-auto">
+            {loading ? <div className="p-12 text-center text-slate-400">Loading...</div> : (
+              <Table className="min-w-[900px]">
+                <TableHeader className="bg-slate-50/50">
+                  <TableRow>
+                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Initiated By</TableHead>
+                    <TableHead>Event Category</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>IP Address</TableHead>
+                    <TableHead className="text-right pr-6">Details</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentLogs.map((t) => {
+                    let badgeColor = "bg-slate-100 text-slate-700";
+                    const eventLower = t.event_Type.toLowerCase();
+                    if (eventLower.includes("fail") || eventLower.includes("reject") || eventLower.includes("unauth")) badgeColor = "bg-red-100 text-red-800";
+                    else if (eventLower.includes("success") || eventLower.includes("release") || eventLower.includes("complete")) badgeColor = "bg-green-100 text-green-800";
+                    else if (eventLower.includes("batch") || eventLower.includes("gen")) badgeColor = "bg-amber-100 text-amber-800";
+
+                    return (
+                      <TableRow key={t.transId} className="hover:bg-slate-50/50">
+                        <TableCell className="text-slate-500 text-xs">{new Date(t.createdAt).toLocaleString()}</TableCell>
+                        <TableCell className="font-semibold text-[#2A174E]">
+                          {t.emp_FirstName 
+                            ? `${t.emp_FirstName} ${t.emp_LastName} (${formatUserId(t.user_Id)})` 
+                            : t.event_Type === "UNAUTHORIZED_SCAN" ? `Unknown Device` : "System"
+                          }
+                        </TableCell>
+                        <TableCell><Badge variant="secondary" className={`${badgeColor} uppercase tracking-wider text-[10px]`}>{t.event_Type.replace(/_/g, " ")}</Badge></TableCell>
+                        <TableCell className="text-slate-500 text-sm max-w-[300px] truncate" title={t.description}>{maskDescription(t.description, t.event_Type)}</TableCell>
+                        <TableCell className="text-slate-400 font-mono text-xs">{t.ip_Address || t.metadata?.deviceIp || "Local"}</TableCell>
+                        <TableCell className="text-right pr-6">
+                          <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="text-[#6439ff] hover:bg-indigo-50">
+                            <VisibilityIcon className="mr-1 h-4 w-4"/> View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {currentLogs.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24 text-slate-400">No transactions found.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-100 bg-slate-50/30">
+              <div className="flex gap-2 items-center">
+                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>Previous</Button>
+                <div className="hidden md:flex gap-1">
+                  {pageNumbers.map(n => (
+                    <Button key={n} variant={currentPage === n ? "default" : "outline"} size="sm" className={currentPage === n ? "bg-[#2A174E] text-white" : ""} onClick={() => setCurrentPage(n)}>{n}</Button>
+                  ))}
+                </div>
+                <span className="md:hidden text-sm text-slate-500 mx-2">Page {currentPage} of {totalPages}</span>
+                <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Next</Button>
+              </div>
+              <form onSubmit={handleGoToPage} className="flex items-center gap-2">
+                <span className="text-sm text-slate-500">Go to:</span>
+                <Input type="number" value={goToValue} onChange={(e) => setGoToValue(e.target.value)} placeholder={totalPages} className="w-16 h-8 text-center" />
+              </form>
+            </div>
+
+          </CardContent>
+        </Card>
       </div>
 
-      {selectedLog && (
-        <div className="auditModalOverlay">
-          <div className="auditModalContent">
-            <div className="modalHeader">
-              <h3>Transaction Details: {selectedLog.event_Type.replace(/_/g, " ")}</h3>
-              <CloseIcon className="closeIcon" onClick={() => setSelectedLog(null)} />
-            </div>
-            <div className="modalBody">
-              <MetadataTable data={selectedLog.metadata} />
-              <div className="modalFooter" style={{marginTop: "20px", paddingTop: "15px", borderTop: "1px solid #f1f3f5", fontSize: "12px", color: "#718096"}}>
-                <div style={{display: "flex", gap: "20px"}}>
-                  <span><strong>Event:</strong> {selectedLog.event_Type}</span>
-                  {selectedLog.user_Id && <span><strong>User ID:</strong> {formatUserId(selectedLog.user_Id)}</span>}
-                  <span><strong>IP Address:</strong> {selectedLog.ip_Address || selectedLog.metadata?.deviceIp || "Local"}</span>
-                </div>
-                <p style={{marginTop: "10px", fontStyle: "italic"}}>"{selectedLog.description}"</p>
-              </div>
-            </div>
+      <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-[#2A174E]">Transaction Details</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Event Metadata</h4>
+            <MetadataTable data={selectedLog?.metadata} />
           </div>
-        </div>
-      )}
-    </Sidebar>
+          <DialogFooter className="flex-col sm:flex-col items-start border-t border-slate-100 pt-4 mt-2 gap-2 text-xs text-slate-500">
+            <div className="flex flex-wrap gap-x-6 gap-y-2 mb-2">
+              <span><strong className="text-slate-700">Event:</strong> {selectedLog?.event_Type}</span>
+              {selectedLog?.user_Id && <span><strong className="text-slate-700">User ID:</strong> {formatUserId(selectedLog?.user_Id)}</span>}
+              <span><strong className="text-slate-700">IP Address:</strong> {selectedLog?.ip_Address || selectedLog?.metadata?.deviceIp || "Local"}</span>
+            </div>
+            <p className="italic text-slate-600">"{selectedLog?.description}"</p>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </Sidebar>
+    </div>
   );
 };
 

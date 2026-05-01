@@ -301,7 +301,7 @@ const Logs = () => {
       <div className="flex flex-col w-full min-h-screen bg-slate-50">
         <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
         
-        <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto">
+        <div className="flex-1 p-4 md:p-8 w-full">
           
           {/* Header & Filters */}
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">

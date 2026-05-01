@@ -74,7 +74,6 @@ const Profile = () => {
     <div className="profile">
       <Sidebar />
       <div className="profileContainer">
-        <Navbar />
         <div className="profileWrapper">
           <div className="heroSection">
             <div className="profileHeader">

@@ -511,9 +511,8 @@ const UserRequests = () => {
 
   return (
     <div className="home requestsPage">
-      <Sidebar />
+      <Sidebar>
       <div className="homeContainer">
-        <Navbar />
         <div className="requestsWrapper">
           <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
           <div className="statsRow">
@@ -682,6 +681,7 @@ const UserRequests = () => {
           </div>
         </div>
       </div>
+      </Sidebar>
     </div>
   );
 };

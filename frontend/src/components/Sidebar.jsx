@@ -236,13 +236,13 @@ const Sidebar = ({ children }) => {
                           </Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
+                      {/* <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/adminRequests") || isActive("/requests")}>
                           <Link to={isManagement ? "/adminRequests" : "/requests"} className={isActive("/adminRequests") || isActive("/requests") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                             Requests History
                           </Link>
                         </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
+                      </SidebarMenuSubItem> */}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
