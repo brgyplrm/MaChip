@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import DashboardIcon from "@mui/icons-material/Dashboard";
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
@@ -143,7 +142,12 @@ const Sidebar = ({ children }) => {
                     className={isActive(homePath) ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
                   >
                     <Link to={homePath}>
-                      <DashboardIcon className="!text-[22px]" />
+                      <DashboardOutlinedIcon 
+                          className="!text-[22px]" 
+                          sx={{
+                                strokeWidth: 1/2,
+                          }}
+                      />
                       <span className="ms-3 text-[14px]">Dashboard</span>
                     </Link>
                   </SidebarMenuButton>
