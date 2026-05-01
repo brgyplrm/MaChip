@@ -103,17 +103,33 @@ exports.getSystemSettings = async (req, res) => {
 };
 
 exports.updateSystemSettings = async (req, res) => {
-  const { mockTimeEnabled, mockTimeValue } = req.body;
+  const { 
+    mockTimeEnabled, 
+    mockTimeValue, 
+    maxicareTotalGross, 
+    maxicareMonthsToPay, 
+    maxicareCycleStartDate,
+    maxicareDates
+  } = req.body;
   try {
     const settings = await SystemSettings.findOne();
     let oldSettings = null;
     let newSettings;
 
+    const updateData = { 
+      mockTimeEnabled, 
+      mockTimeValue, 
+      maxicareTotalGross, 
+      maxicareMonthsToPay, 
+      maxicareCycleStartDate,
+      maxicareDates
+    };
+
     if (!settings) {
-      newSettings = await SystemSettings.create({ mockTimeEnabled, mockTimeValue });
+      newSettings = await SystemSettings.create(updateData);
     } else {
       oldSettings = settings.toJSON();
-      newSettings = await settings.update({ mockTimeEnabled, mockTimeValue });
+      newSettings = await settings.update(updateData);
     }
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);

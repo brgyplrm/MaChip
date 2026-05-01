@@ -111,10 +111,14 @@ exports.registerUser = async (req, res) => {
     await sequelize.query(
       `INSERT INTO "User" (
         "user_Id", "user_FirstName", "user_LastName",
-        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_FingerprintId", "user_FingerprintTemplate", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", "account_Number", "createdAt", "updatedAt"
+        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_FingerprintId", 
+        "user_FingerprintTemplate", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", 
+        "account_Number", "department", "position", "hireDate", "taxStatus", "createdAt", "updatedAt"
       ) VALUES (
         :user_Id, :user_FirstName, :user_LastName,
-        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_FingerprintId, :user_FingerprintTemplate, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, :account_Number, :now, :now
+        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_FingerprintId, 
+        :user_FingerprintTemplate, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, 
+        :account_Number, :department, :position, :hireDate, :taxStatus, :now, :now
       )`,
       {
         replacements: {
@@ -131,6 +135,10 @@ exports.registerUser = async (req, res) => {
           user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
           user_ProfilePic: req.file ? req.file.filename : null,
           account_Number: encrypt(account_Number),
+          department: req.body.department || null,
+          position: req.body.position || null,
+          hireDate: req.body.hireDate || null,
+          taxStatus: req.body.taxStatus || "S",
           now: nowStr,
         },
         type: QueryTypes.INSERT,
@@ -385,6 +393,34 @@ exports.forceDeleteUser = async (req, res) => {
   }
 };
 
+// ── Bulk Update Maxicare Deductions ──────────────────────────────────────────
+exports.bulkUpdateMaxicare = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { updates } = req.body; // Array of { user_Id, healthCard_Amnt }
+    if (!Array.isArray(updates)) {
+      return res.status(400).json({ error: "Updates must be an array." });
+    }
+
+    for (const update of updates) {
+      await sequelize.query(
+        `UPDATE "User" SET "healthCard_Amnt" = :amnt WHERE "user_Id" = :id`,
+        { 
+          replacements: { amnt: update.healthCard_Amnt, id: update.user_Id }, 
+          type: QueryTypes.UPDATE,
+          transaction
+        }
+      );
+    }
+
+    await transaction.commit();
+    res.status(200).json({ message: "Maxicare deductions updated successfully." });
+  } catch (error) {
+    await transaction.rollback();
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // ── Update User ───────────────────────────────────────────────────────────────
 exports.updateUser = async (req, res) => {
   const { user_Id } = req.params;
@@ -401,6 +437,10 @@ exports.updateUser = async (req, res) => {
     user_Password,
     adminConfirmPassword,
     account_Number,
+    department,
+    position,
+    hireDate,
+    taxStatus,
   } = req.body || {};
 
   try {
@@ -439,6 +479,10 @@ exports.updateUser = async (req, res) => {
       statusId: parseInt(user_EmploymentStatusId) || 1,
       email: user_Email || null,
       accountNumber: encrypt(account_Number) || null,
+      department: department || null,
+      position: position || null,
+      hireDate: hireDate || null,
+      taxStatus: taxStatus || "S",
       updatedAt: nowStr
     };
 
@@ -453,6 +497,10 @@ exports.updateUser = async (req, res) => {
         "user_EmploymentStatusId" = :statusId,
         "user_Email"     = :email,
         "account_Number" = :accountNumber,
+        "department"     = :department,
+        "position"       = :position,
+        "hireDate"       = :hireDate,
+        "taxStatus"      = :taxStatus,
         "updatedAt"      = :updatedAt
     `;
 
@@ -595,8 +643,10 @@ exports.getMasterlist = async (req, res) => {
          u."advances_Amnt",
          u."globe_Deduction",
          u."multiPurposeSavings",
-         u."taxStatus",         u."department",
+         u."taxStatus",
+         u."department",
          u."position",
+         u."hireDate",
          u."createdAt",
          u."updatedAt",
          r."roleName"          AS "user_Role",
@@ -610,16 +660,24 @@ exports.getMasterlist = async (req, res) => {
     );
 
     const decryptedEmployees = employees.map(emp => {
-      if (emp.account_Number) {
-        emp.account_Number = decrypt(emp.account_Number);
+      try {
+        if (emp.account_Number) {
+          emp.account_Number = decrypt(emp.account_Number);
+        }
+      } catch (decErr) {
+        console.warn(`[MASTERLIST] Decryption failed for user ${emp.user_Id}:`, decErr.message);
       }
       return emp;
     });
 
+    console.log(`[MASTERLIST] Successfully fetched and processed ${decryptedEmployees.length} employees.`);
     res.status(200).json(decryptedEmployees);
   } catch (error) {
     console.error("[GET MASTERLIST ERROR]:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: "Internal Server Error in Masterlist.",
+      details: error.message 
+    });
   }
 };
 

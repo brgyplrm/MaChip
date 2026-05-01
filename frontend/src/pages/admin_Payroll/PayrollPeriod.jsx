@@ -15,6 +15,7 @@ import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ProcessPayrollModal from "../../components/procpayrollmodal/ProcessPayrollModal";
 import EditPayrollModal from "../../components/editPayrollModal/EditPayrollModal";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CloseIcon from "@mui/icons-material/Close";
 import { fetchWithAuth } from "../../utils/api";
 import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
 import KeyboardDoubleArrowDownIcon from '@mui/icons-material/KeyboardDoubleArrowDown';
@@ -33,19 +34,25 @@ const PayrollPeriod = () => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPayroll, setEditingPayroll] = useState(null);
+  const [showSummaryPreview, setShowSummaryPreview] = useState(false);
+  const [previewContent, setPreviewContent] = useState("");
+  const [isMaxicareActive, setIsMaxicareActive] = useState(false);
   
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const periodIdFromUrl = queryParams.get("periodId");
 
-  const fetchData = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    
+  const fetchData = async () => {
+    setLoading(true);
     try {
+      // 1. Fetch Periods
       const periodsRes = await fetchWithAuth("/api/system/payroll-periods");
       const periodsData = await periodsRes.json();
-      
+
+      // 2. Fetch System Settings for Maxicare schedule
+      const settingsRes = await fetchWithAuth("/api/system/settings");
+      const settings = await settingsRes.json();
+
       if (periodsRes.ok && periodsData.length > 0) {
         setPeriods(periodsData);
         let current;
@@ -54,6 +61,16 @@ const PayrollPeriod = () => {
         }
         if (!current) current = periodsData[0];
         setSelectedPeriod(current);
+
+        // Maxicare Schedule Check
+        if (settingsRes.ok && settings.maxicareDates && current) {
+          const isScheduled = settings.maxicareDates.some(d => {
+            const d1 = new Date(d).toISOString().split('T')[0];
+            const d2 = new Date(current.endDate).toISOString().split('T')[0];
+            return d1 === d2;
+          });
+          setIsMaxicareActive(isScheduled);
+        }
 
         if (current.status === 'Draft') {
           await fetchLivePreview(current);
@@ -146,6 +163,20 @@ const PayrollPeriod = () => {
     finally { setLoading(false); setIsConfirmOpen(false); }
   };
 
+  const handlePreviewSummary = async () => {
+    if (!selectedPeriod) return;
+    try {
+      const response = await fetchWithAuth(`/api/payroll/summary-preview?period_Start=${selectedPeriod.startDate}&period_End=${selectedPeriod.endDate}`);
+      if (response.ok) {
+        const html = await response.text();
+        setPreviewContent(html);
+        setShowSummaryPreview(true);
+      } else {
+        alert("Failed to fetch summary preview.");
+      }
+    } catch (err) { console.error(err); }
+  };
+
   const handleDownloadSummary = async () => {
     if (!selectedPeriod) return;
     try {
@@ -222,11 +253,10 @@ const PayrollPeriod = () => {
             </div>
             <div className="headerActions">
               <button 
-                className="actionBtn downloadBtn" 
-                onClick={handleDownloadSummary}
-                disabled={selectedPeriod?.status === 'Draft'}
+                className="actionBtn previewBtn" 
+                onClick={handlePreviewSummary}
               >
-                <DownloadIcon /> Summary PDF
+                <VisibilityIcon /> Summary Preview
               </button>
               <button 
                 className={`actionBtn processBtn ${selectedPeriod?.status !== 'Draft' ? "disabled" : ""}`} 
@@ -330,6 +360,32 @@ const PayrollPeriod = () => {
             data={editingPayroll}
             onSave={handleSavePayroll}
           />
+          
+          {/* Summary Preview Modal */}
+          {showSummaryPreview && (
+            <div className="summaryPreviewOverlay">
+              <div className="summaryPreviewModal">
+                <div className="modalHeader">
+                  <h2>Payroll Summary Preview</h2>
+                  <div className="headerBtns">
+                    <button className="exportBtn" onClick={handleDownloadSummary} style={{ cursor: 'pointer' }}>
+                      <DownloadIcon /> Confirm & Export PDF
+                    </button>
+                    <button className="closeBtn" onClick={() => setShowSummaryPreview(false)} style={{ cursor: 'pointer' }}>
+                      <CloseIcon /> Close
+                    </button>
+                  </div>
+                </div>
+                <div className="modalBody">
+                  <iframe 
+                    title="Summary Preview"
+                    srcDoc={previewContent}
+                    style={{ width: '100%', height: '80vh', border: 'none', background: 'white' }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

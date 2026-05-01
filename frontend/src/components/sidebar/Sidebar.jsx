@@ -14,17 +14,29 @@ import SecurityIcon from "@mui/icons-material/Security";
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import MenuIcon from "@mui/icons-material/Menu"; // NEW: Icon for the toggle button
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
+import ListAltIcon from '@mui/icons-material/ListAlt';
+import PaymentsIcon from '@mui/icons-material/Payments';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import SavingsIcon from '@mui/icons-material/Savings';
+import HistoryIcon from '@mui/icons-material/History';
+import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
+import CrisisAlertIcon from '@mui/icons-material/CrisisAlert';
 
 // Libraries
 import { NavLink } from "react-router-dom";
 import { useState, useEffect } from "react"; // Added useEffect
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 //Components
 import ActionModal from "../actionModal/ActionModal";
 
 
 const Sidebar = () => {
+  const location = useLocation();
   const userDataString = localStorage.getItem("userData");
   const userData = userDataString ? JSON.parse(userDataString) : null;
   const roleId = userData?.user_RoleId;
@@ -43,6 +55,13 @@ const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(window.innerWidth <= 768);  const navigate = useNavigate();
 
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
+  const [isPayrollOpen, setIsPayrollOpen] = useState(location.pathname.startsWith("/payroll"));
+
+  useEffect(() => {
+    if (location.pathname.startsWith("/payroll")) {
+      setIsPayrollOpen(true);
+    }
+  }, [location.pathname]);
 
   const handleLogoClick = (e) => {
     e.preventDefault();
@@ -177,12 +196,87 @@ useEffect(() => {
             </NavLink>
 
             {isAdminRole && (
-              <NavLink to="/payroll" style={{ textDecoration: "none" }}>
-                <li title="Payroll">
+              <div className="menu-item-group">
+                <NavLink to="/payroll" style={{ textDecoration: "none" }} end={false}>
+                  <li 
+                    title="Payroll" 
+                    onClick={() => setIsPayrollOpen(true)}
+                  >
                     <CurrencyRubleOutlinedIcon className="icon" />
                     <span>Payroll</span>
-                </li>
-              </NavLink>
+                    {!isCollapsed && (
+                      <div 
+                        className="expand-toggle"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsPayrollOpen(!isPayrollOpen);
+                        }}
+                      >
+                        {isPayrollOpen ? <ExpandMoreIcon className="expand-icon" /> : <ChevronRightIcon className="expand-icon" />}
+                      </div>
+                    )}
+                  </li>
+                </NavLink>
+                {isPayrollOpen && !isCollapsed && (
+                  <ul className="sub-menu">
+                    <NavLink to="/payroll" style={{ textDecoration: "none" }} end>
+                      <li title="Management">
+                        <ListAltIcon className="icon sub-icon" />
+                        <span>Management</span>
+                      </li>
+                    </NavLink>
+                    <NavLink to="/payroll/maxicare" style={{ textDecoration: "none" }}>
+                      <li title="Maxicare">
+                        <LocalHospitalIcon className="icon sub-icon" />
+                        <span>Maxicare</span>
+                      </li>
+                    </NavLink>
+                    <NavLink to="/payroll/eastwest" style={{ textDecoration: "none" }}>
+                      <li title="Eastwest Loan">
+                        <CreditCardIcon className="icon sub-icon" />
+                        <span>Eastwest Loan</span>
+                      </li>
+                    </NavLink>
+                    <NavLink to="/payroll/cash-advance" style={{ textDecoration: "none" }}>
+                      <li title="Cash Advances">
+                        <PaymentsIcon className="icon sub-icon" />
+                        <span>Cash Advances</span>
+                      </li>
+                    </NavLink>
+                    <NavLink to="/payroll/sss-loan" style={{ textDecoration: "none" }}>
+                      <li title="SSS Loans">
+                        <AccountBalanceIcon className="icon sub-icon" />
+                        <span>SSS Loans</span>
+                      </li>
+                    </NavLink>
+                    <NavLink to="/payroll/pagibig-loan" style={{ textDecoration: "none" }}>
+                      <li title="Pag-IBIG Loan">
+                        <RequestQuoteIcon className="icon sub-icon" />
+                        <span>Pag-IBIG Loan</span>
+                      </li>
+                    </NavLink>
+                    <NavLink to="/payroll/savings" style={{ textDecoration: "none" }}>
+                      <li title="Multipurpose Savings">
+                        <SavingsIcon className="icon sub-icon" />
+                        <span>Multipurpose Savings</span>
+                      </li>
+                    </NavLink>
+                    <NavLink to="/payroll/calamity-loan" style={{ textDecoration: "none" }}>
+                      <li title="Calamity Loan">
+                        <CrisisAlertIcon className="icon sub-icon" />
+                        <span>Calamity Loan</span>
+                      </li>
+                    </NavLink>
+                    <NavLink to="/payroll/loans-summary" style={{ textDecoration: "none" }}>
+                      <li title="Loans Summary">
+                        <HistoryIcon className="icon sub-icon" />
+                        <span>Loans Summary</span>
+                      </li>
+                    </NavLink>
+                  </ul>
+                )}
+              </div>
             )}
 
             {isAdminRole && (

@@ -279,6 +279,33 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   tax_Share = user[0]?.tax_Share || 0;
   
   hCard = user[0]?.healthCard_Amnt || 0;
+  
+  // ── Maxicare Schedule Check ─────────────────────────────────────────────────
+  // Only deduct if period_End matches a date in the Maxicare schedule
+  try {
+    const settings = await sequelize.query(
+      `SELECT "maxicareDates" FROM "SystemSettings" LIMIT 1`,
+      { type: QueryTypes.SELECT }
+    );
+    if (settings.length > 0 && settings[0].maxicareDates) {
+      const schedule = settings[0].maxicareDates;
+      const periodEndStr = typeof period_End === 'string' ? period_End : period_End.toISOString().split('T')[0];
+      
+      const isScheduled = schedule.some(d => {
+        const d1 = new Date(d).toISOString().split('T')[0];
+        const d2 = new Date(periodEndStr).toISOString().split('T')[0];
+        return d1 === d2;
+      });
+
+      if (!isScheduled) {
+        hCard = 0; // Skip deduction if not in schedule (e.g., September skip)
+      }
+    }
+  } catch (err) {
+    console.error("[MAXICARE CHECK ERROR]:", err.message);
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   sLoan = user[0]?.SSS_Loan || 0;
   hLoan = user[0]?.HDMF_Loan || 0;
   cLoan = user[0]?.calamityLoan_Amnt || 0;
@@ -834,8 +861,13 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
       return res.status(400).json({ error: "Missing period parameters." });
     }
 
-    const payrollRows = await sequelize.query(
-      `SELECT p.*, u."user_FirstName", u."user_LastName", u."account_Number" AS "accountNo", pe.*, pd.*
+    // 1. Try to get saved payroll records
+    let payrollRows = await sequelize.query(
+      `SELECT p.*,
+              u."user_FirstName", u."user_LastName", u."account_Number" AS "accountNo",
+              u."user_MachipId", u."department", u."position", u."taxStatus", u."hireDate",
+              u."sss_Share", u."philhealth_Share", u."hdmf_Share", u."previousDailyRate",
+              pe.*, pd.*
        FROM "Payroll" p
        LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
        LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId"
@@ -844,7 +876,43 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
        ORDER BY u."user_LastName" ASC`,
       { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
     );
-    if (payrollRows.length === 0) return res.status(404).json({ error: "No records found." });
+
+    // 2. If no saved records (Draft mode), perform live calculations for PDF
+    if (payrollRows.length === 0) {
+      const employees = await sequelize.query(
+        `SELECT "user_Id", "user_FirstName", "user_LastName", "user_MachipId", 
+                "department", "position", "taxStatus", "hireDate",
+                "sss_Share", "philhealth_Share", "hdmf_Share", "account_Number", "previousDailyRate"
+         FROM "User" 
+         WHERE "dailyRate" > 0 AND "deletedAt" IS NULL`,
+        { type: QueryTypes.SELECT }
+      );
+
+      const { decrypt } = require("../utils/encryption");
+      for (const emp of employees) {
+        const preview = await calculatePayrollStats(emp.user_Id, period_Start, period_End);
+        payrollRows.push({
+          ...preview,
+          user_Id: emp.user_Id,
+          period_Start,
+          period_End,
+          user_FirstName: emp.user_FirstName,
+          user_LastName: emp.user_LastName,
+          user_MachipId: emp.user_MachipId,
+          department: emp.department,
+          position: emp.position,
+          taxStatus: emp.taxStatus,
+          hireDate: emp.hireDate,
+          sss_Share: emp.sss_Share,
+          philhealth_Share: emp.philhealth_Share,
+          hdmf_Share: emp.hdmf_Share,
+          previousDailyRate: emp.previousDailyRate,
+          accountNo: decrypt(emp.account_Number)
+        });
+      }
+    }
+
+    if (payrollRows.length === 0) return res.status(404).json({ error: "No records found for this period." });
 
     const start = new Date(period_Start + "T00:00:00");
     const end   = new Date(period_End   + "T00:00:00");
@@ -855,7 +923,78 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="Summary_${period_Start}_${period_End}.pdf"`);
     res.end(pdfBuffer);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+  } catch (error) { 
+    console.error("[DOWNLOAD SUMMARY ERROR]:", error);
+    res.status(500).json({ error: error.message }); 
+  }
+};
+// ── Get Payroll Summary Preview (HTML) ────────────────────────────────────────
+exports.getPayrollSummaryPreview = async (req, res) => {
+  let { period_Start, period_End } = req.query;
+  try {
+    // 1. Try to get saved payroll records
+    let payrollRows = await sequelize.query(
+      `SELECT p.*, 
+              u."user_FirstName", u."user_LastName", u."account_Number" AS "accountNo", 
+              u."user_MachipId", u."department", u."position", u."taxStatus", u."hireDate",
+              u."sss_Share", u."philhealth_Share", u."hdmf_Share",
+              pe.*, pd.*
+       FROM "Payroll" p
+       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId"
+       LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId"
+       WHERE p."period_Start" = :period_Start AND p."period_End" = :period_End
+       ORDER BY u."user_LastName" ASC`,
+      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+
+    // 2. If no saved records (Draft mode), perform live calculations for preview
+    if (payrollRows.length === 0) {
+      const employees = await sequelize.query(
+        `SELECT "user_Id", "user_FirstName", "user_LastName", "user_MachipId", 
+                "department", "position", "taxStatus", "hireDate",
+                "sss_Share", "philhealth_Share", "hdmf_Share", "account_Number"
+         FROM "User" 
+         WHERE "dailyRate" > 0 AND "deletedAt" IS NULL`,
+        { type: QueryTypes.SELECT }
+      );
+      
+      payrollRows = [];
+      const { decrypt } = require("../utils/encryption");
+      for (const emp of employees) {
+        const preview = await calculatePayrollStats(emp.user_Id, period_Start, period_End);
+        payrollRows.push({
+          ...preview,
+          user_Id: emp.user_Id,
+          user_FirstName: emp.user_FirstName,
+          user_LastName: emp.user_LastName,
+          user_MachipId: emp.user_MachipId,
+          department: emp.department,
+          position: emp.position,
+          taxStatus: emp.taxStatus,
+          hireDate: emp.hireDate,
+          sss_Share: emp.sss_Share,
+          philhealth_Share: emp.philhealth_Share,
+          hdmf_Share: emp.hdmf_Share,
+          accountNo: decrypt(emp.account_Number)
+        });
+      }
+    }
+
+    if (payrollRows.length === 0) return res.status(404).send("<h1>No eligible employees found for this period.</h1>");
+
+    const start = new Date(period_Start + "T00:00:00");
+    const end   = new Date(period_End   + "T00:00:00");
+    const month = start.toLocaleString("en-PH", { month: "long" });
+    const periodLabel = `${month} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()} (DRAFT PREVIEW)`;
+
+    const { build8PageReportHTML } = require("../utils/payrollSummaryGenerator");
+    const html = build8PageReportHTML(payrollRows, periodLabel);
+    res.send(html);
+  } catch (error) { 
+    console.error("[PREVIEW ERROR]:", error);
+    res.status(500).send("Error generating preview: " + error.message); 
+  }
 };
 
 // ── UPDATE Payroll (extended) ─────────────────
@@ -896,4 +1035,24 @@ exports.updatePayrollFull = async (req, res) => {
     await logAudit(req, currentAdminId, "Payroll", "UPDATE_PAYROLL_FULL", "Payroll", payrollId, oldPayroll[0], newPayroll[0]);
     res.status(200).json({ message: "Updated successfully.", netPay: computedNet, totalDeductions: computedTotalDed });
   } catch (error) { res.status(500).json({ error: error.message }); }
+};
+
+// ── Get Maxicare History for Matrix ──────────────────────────────────────────
+exports.getMaxicareHistory = async (req, res) => {
+  try {
+    const history = await sequelize.query(
+      `SELECT 
+         p."period_End" as date,
+         p."user_Id",
+         pd."healthCard_Amnt" as amount
+       FROM "Payroll" p
+       JOIN "Payroll_Deductions" pd ON p."payrollId" = pd."payrollId"
+       WHERE pd."healthCard_Amnt" > 0
+       ORDER BY p."period_End" ASC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };

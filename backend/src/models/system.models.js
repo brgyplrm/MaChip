@@ -15,6 +15,22 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      maxicareTotalGross: {
+        type: DataTypes.FLOAT,
+        defaultValue: 23410.67,
+      },
+      maxicareMonthsToPay: {
+        type: DataTypes.INTEGER,
+        defaultValue: 12,
+      },
+      maxicareCycleStartDate: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
+      maxicareDates: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+      },
     },
     {
       timestamps: true,

@@ -47,6 +47,7 @@ module.exports = (sequelize, DataTypes) => {
       taxStatus: { type: DataTypes.STRING(5), defaultValue: "S" },
       department: { type: DataTypes.STRING(100), allowNull: true },
       position: { type: DataTypes.STRING(100), allowNull: true },
+      hireDate: { type: DataTypes.DATEONLY, allowNull: true },
       sss_Share: { type: DataTypes.FLOAT, defaultValue: 0 },
       philhealth_Share: { type: DataTypes.FLOAT, defaultValue: 0 },
       hdmf_Share: { type: DataTypes.FLOAT, defaultValue: 0 },

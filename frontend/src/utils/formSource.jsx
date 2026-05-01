@@ -30,6 +30,30 @@ export const userInputs = [
     placeholder: "Enter new password",
   },
   {
+    id: "department",
+    label: "Department",
+    type: "text",
+    placeholder: "e.g. ADMIN, OPERATION",
+  },
+  {
+    id: "position",
+    label: "Position",
+    type: "text",
+    placeholder: "e.g. MESSENGER, STAFF",
+  },
+  {
+    id: "hireDate",
+    label: "Date Hired",
+    type: "date",
+    placeholder: "",
+  },
+  {
+    id: "taxStatus",
+    label: "Tax Status",
+    type: "text",
+    placeholder: "e.g. S, M",
+  },
+  {
     id: "user_MachipId",
     label: "MaChip ID",
     type: "text",

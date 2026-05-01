@@ -126,6 +126,7 @@ const connectDB = async () => {
         ['taxStatus', "VARCHAR(5) DEFAULT 'S'"],
         ['department', 'VARCHAR(100)'],
         ['position', 'VARCHAR(100)'],
+        ['hireDate', 'DATE'],
         ['sss_Share', 'FLOAT DEFAULT 0'],
         ['philhealth_Share', 'FLOAT DEFAULT 0'],
         ['hdmf_Share', 'FLOAT DEFAULT 0'],
@@ -154,6 +155,16 @@ const connectDB = async () => {
 
       await sequelize.query(`ALTER TABLE "Payroll_Earnings" ADD COLUMN IF NOT EXISTS "specialHol_Adj" FLOAT DEFAULT 0;`);
 
+      const settingsCols = [
+        ['maxicareTotalGross', 'FLOAT DEFAULT 23410.67'],
+        ['maxicareMonthsToPay', 'INTEGER DEFAULT 12'],
+        ['maxicareCycleStartDate', 'DATE'],
+        ['maxicareDates', 'JSONB']
+      ];
+      for (const [col, type] of settingsCols) {
+        await sequelize.query(`ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "${col}" ${type};`);
+      }
+
       console.log("Manual migrations applied.");
     } catch (err) {
       console.error("Manual migration error:", err.message);
@@ -166,6 +177,8 @@ const connectDB = async () => {
         await SystemSettings.create({
           mockTimeEnabled: false,
           mockTimeValue: null,
+          maxicareTotalGross: 23410.67,
+          maxicareMonthsToPay: 12,
         });
         console.log("Seed: SystemSettings inserted.");
       }

@@ -49,4 +49,7 @@ router.get("/employees/masterlist", requireAdminOrSupervisor, userController.get
 // PATCH employee daily rate
 router.patch("/employees/:user_Id/daily-rate", requireAdmin, userController.updateDailyRate);
 
+// Bulk Update Maxicare Deductions
+router.patch("/bulk-maxicare", requireAdmin, userController.bulkUpdateMaxicare);
+
 module.exports = router;

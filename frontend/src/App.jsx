@@ -14,6 +14,8 @@ import Payroll from "./pages/admin_Payroll/PayrollManagement";
 import PayrollPeriod from "./pages/admin_Payroll/PayrollPeriod";
 import PayrollDetails from "./pages/admin_Payroll/DetailsPayroll";
 import PayrollList from "./pages/admin_Payroll/PayrollEmployeeList";
+import Maxicare from "./pages/admin_Payroll/subtabs/Maxicare";
+import LoanModule from "./pages/admin_Payroll/subtabs/LoanModule";
 import EmployeeCalendar from "./pages/emp_Calendar/EmployeeCalendar"; 
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
@@ -84,6 +86,78 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <Payroll />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payroll/maxicare"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <Maxicare />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payroll/eastwest"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <LoanModule type="Eastwest Loan" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payroll/cash-advance"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <LoanModule type="Cash Advance" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payroll/sss-loan"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <LoanModule type="SSS Loan" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payroll/pagibig-loan"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <LoanModule type="Pag-IBIG Loan" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payroll/savings"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <LoanModule type="Multipurpose Savings" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payroll/calamity-loan"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <LoanModule type="Calamity Loan" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payroll/loans-summary"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <LoanModule type="Loans Summary" />
             </ProtectedRoute>
           }
         />

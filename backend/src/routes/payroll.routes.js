@@ -14,7 +14,9 @@ const {
   getPayrollReport,
   getGovtDeductionsPreview,
   downloadPayrollSummaryPDF,
+  getPayrollSummaryPreview,
   updatePayrollFull,
+  getMaxicareHistory,
 } = require("../controllers/payroll.controller");
 const { requireAdmin } = require("../middleware/roleCheck.js");
 
@@ -24,6 +26,8 @@ router.get("/eligible-count", requireAdmin, getEligibleEmployeesCount);
 router.get("/preview", requireAdmin, getPayrollPreview);
 router.get("/govt-deductions-preview", requireAdmin, getGovtDeductionsPreview);
 router.get("/summary-pdf", requireAdmin, downloadPayrollSummaryPDF);
+router.get("/summary-preview", requireAdmin, getPayrollSummaryPreview);
+router.get("/maxicare/history", requireAdmin, getMaxicareHistory);
 router.get("/all", requireAdmin, getAllPayrolls);
 router.get("/report", requireAdmin, getPayrollReport);
 router.get("/user/:user_Id", requireAdmin, getPayrollByUser);
