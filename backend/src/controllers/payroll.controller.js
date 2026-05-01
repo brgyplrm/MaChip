@@ -303,7 +303,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const absence_Amnt = stats.absence_Days * dailyRate;
   const tardiness_Amnt = stats.tardiness_Mins * ratePerMin;
   const unpaidLeave_Amnt = stats.unpaidLeave_Days * dailyRate;
-  const specialHol_Ded = stats.specialHol_NotWorked * dailyRate;
+  const specialHol_Adj = stats.specialHol_NotWorked * dailyRate;
 
   // 5. Government Deductions (Standard Shares)
   const govtTotal = parseFloat(sss_Share) + parseFloat(philhealth_Share) + parseFloat(hdmf_Share);
@@ -311,11 +311,11 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   // 6. Other Deductions
   const otherTotal = parseFloat(hCard) + parseFloat(sLoan) + parseFloat(hLoan) + parseFloat(cLoan) + parseFloat(advAmnt) + parseFloat(gDed) + parseFloat(mpSave);
 
-  const totalEarnings = basicPay + legalHol_Amnt + specialHol_Amnt + OT_Amnt;
+  const totalEarnings = basicPay + legalHol_Amnt + specialHol_Amnt + OT_Amnt - specialHol_Adj;
   // Tax is now pulled from user template
   const Tax_Ded = parseFloat(tax_Share) || 0; 
 
-  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + specialHol_Ded + govtTotal + otherTotal + Tax_Ded;
+  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded;
   const netPay = totalEarnings - totalDeductions;
 
   return {
@@ -325,6 +325,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     basicPay,
     legalHol_Amnt,
     specialHol_Amnt,
+    specialHol_Adj,
     OT_Amnt,
     absence_Amnt,
     tardiness_Amnt,
@@ -436,12 +437,13 @@ exports.generateBatchPayroll = async (req, res) => {
       const payrollId = payrollResult[0][0].payrollId;
 
       await sequelize.query(
-        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt")
-         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt)`,
+        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
+         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
         { replacements: { 
             payrollId, user_Id: emp.user_Id, 
             OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
-            legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt 
+            legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt,
+            specialHol_Adj: fullStats.specialHol_Adj
           }, type: QueryTypes.INSERT }
       );
 
@@ -551,12 +553,13 @@ exports.generatePayroll = async (req, res) => {
 
     // 4. Insert Earnings and Deductions
     await sequelize.query(
-      `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt")
-       VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt)`,
+      `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
+       VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
       { replacements: { 
           payrollId, user_Id, 
           OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
-          legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt 
+          legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt,
+          specialHol_Adj: fullStats.specialHol_Adj
         }, type: QueryTypes.INSERT }
     );
 
@@ -696,7 +699,7 @@ exports.getPayrollByUser = async (req, res) => {
          p.*,
          e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
          e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
-         e."incentives", e."allowance",
+         e."specialHol_Adj", e."incentives", e."allowance",
          d.*,
          (COALESCE(d."healthCard_Amnt",0) + 
           COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) + 
@@ -729,7 +732,7 @@ exports.getPayrollById = async (req, res) => {
          p.*,
          e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
          e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
-         e."incentives", e."allowance",
+         e."specialHol_Adj", e."incentives", e."allowance",
          d.*,
          (COALESCE(d."healthCard_Amnt",0) + 
           COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) + 
@@ -767,7 +770,7 @@ exports.getPayrollReport = async (req, res) => {
          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
-        e."incentives", e."allowance"
+        e."specialHol_Adj", e."incentives", e."allowance"
       FROM "Payroll" p
       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
@@ -860,7 +863,7 @@ exports.updatePayrollFull = async (req, res) => {
   const { payrollId } = req.params;
   const {
     dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, status,
-    OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, incentives, allowance,
+    OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance,
     absence_Days, absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days,
     SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded,
     healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction,
@@ -877,10 +880,15 @@ exports.updatePayrollFull = async (req, res) => {
     const otherTotal = (parseFloat(healthCard_Amnt || 0) + parseFloat(SSS_Loan || 0) + parseFloat(HDMF_Loan || 0) + parseFloat(calamityLoan_Amnt || 0) + parseFloat(multiPurposeSavings || 0) + parseFloat(advances_Amnt || 0) + parseFloat(globe_Deduction || 0));
     const attendanceDed = (parseFloat(absence_Amnt || 0) + parseFloat(tardiness_Amnt || 0) + parseFloat(unpaidLeave_Amnt || 0));
     const computedTotalDed = govtTotal + otherTotal + attendanceDed;
+    
+    // Note: totalEarnings passed from body should ALREADY include the specialHol_Adj subtraction if UI is doing the math,
+    // but here we ensure the netPay is correct.
     const computedNet = parseFloat(totalEarnings || 0) - computedTotalDed;
 
     await sequelize.query(`UPDATE "Payroll" SET "dailyRate"=:dailyRate, "ratePerHr"=:ratePerHr, "NoDays_Worked"=:NoDays_Worked, "NoHrs_Worked"=:NoHrs_Worked, "basicPay"=:basicPay, "totalEarnings"=:totalEarnings, "totalDeductions"=:totalDed, "netPay"=:netPay, "status"=:status, "updatedAt"=:now WHERE "payrollId" = :payrollId`, { replacements: { payrollId, dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDed: computedTotalDed, netPay: computedNet, status, now: nowStr }, type: QueryTypes.UPDATE });
-    await sequelize.query(`UPDATE "Payroll_Earnings" SET "OT_Hrs"=:OT_Hrs, "OT_Amnt"=:OT_Amnt, "legalHol_Amnt"=:legalHol_Amnt, "specialHol_Amnt"=:specialHol_Amnt, "incentives"=:incentives, "allowance"=:allowance WHERE "payrollId" = :payrollId`, { replacements: { payrollId, OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, incentives, allowance }, type: QueryTypes.UPDATE });
+    
+    await sequelize.query(`UPDATE "Payroll_Earnings" SET "OT_Hrs"=:OT_Hrs, "OT_Amnt"=:OT_Amnt, "legalHol_Amnt"=:legalHol_Amnt, "specialHol_Amnt"=:specialHol_Amnt, "specialHol_Adj"=:specialHol_Adj, "incentives"=:incentives, "allowance"=:allowance WHERE "payrollId" = :payrollId`, { replacements: { payrollId, OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance }, type: QueryTypes.UPDATE });
+    
     await sequelize.query(`UPDATE "Payroll_Deductions" SET "absence_Hrs"=:absence_Hrs, "absence_Amnt"=:absence_Amnt, "tardiness_Mins"=:tardiness_Mins, "tardiness_Amnt"=:tardiness_Amnt, "unpaidLeave_Days"=:unpaidLeave_Days, "unpaidLeave_Amnt"=:unpaidLeave_Amnt, "paidLeave_Days"=:paidLeave_Days, "SSS_Ded"=:SSS_Ded, "Philhealth_Ded"=:Philhealth_Ded, "HDMF_Ded"=:HDMF_Ded, "Tax_Ded"=:Tax_Ded, "healthCard_Amnt"=:healthCard_Amnt, "SSS_Loan"=:SSS_Loan, "HDMF_Loan"=:HDMF_Loan, "calamityLoan_Amnt"=:calamityLoan_Amnt, "multiPurposeSavings"=:multiPurposeSavings, "advances_Amnt"=:advances_Amnt, "globe_Deduction"=:globe_Deduction WHERE "payrollId" = :payrollId`, { replacements: { payrollId, absence_Hrs:(parseFloat(absence_Days||0)*8), absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days, SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded, healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction }, type: QueryTypes.UPDATE });
 
     const newPayroll = await sequelize.query(`SELECT p.*, pe.*, pd.* FROM "Payroll" p LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId" LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId" WHERE p."payrollId" = :payrollId LIMIT 1`, { replacements: { payrollId }, type: QueryTypes.SELECT });

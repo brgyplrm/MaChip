@@ -151,6 +151,9 @@ const connectDB = async () => {
       for (const [col, type] of dedCols) {
         await sequelize.query(`ALTER TABLE "Payroll_Deductions" ADD COLUMN IF NOT EXISTS "${col}" ${type};`);
       }
+
+      await sequelize.query(`ALTER TABLE "Payroll_Earnings" ADD COLUMN IF NOT EXISTS "specialHol_Adj" FLOAT DEFAULT 0;`);
+
       console.log("Manual migrations applied.");
     } catch (err) {
       console.error("Manual migration error:", err.message);

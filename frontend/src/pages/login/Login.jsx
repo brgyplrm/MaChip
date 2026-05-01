@@ -109,7 +109,7 @@ const Login = () => {
             // Employee role
             navigate("/employeeHome");
           } else {
-            // Admin (1) or Staff (2)
+            // Admin (1) or Supervisor (2)
             navigate("/");
           }
         }, 1200);

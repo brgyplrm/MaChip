@@ -68,6 +68,7 @@ module.exports = (sequelize, DataTypes) => {
       restDay_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       specialHol_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       legalHol_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
+      specialHol_Adj: { type: DataTypes.FLOAT, defaultValue: 0 },
       incentives: { type: DataTypes.FLOAT, defaultValue: 0 },
       allowance: { type: DataTypes.FLOAT, defaultValue: 0 },
     },

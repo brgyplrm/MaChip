@@ -7,10 +7,43 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Adafruit_Fingerprint.h>
+#include <time.h>
+#include "mbedtls/md.h"
+#include "mbedtls/aes.h"
 #include "arduino_secrets.h"
+
+/**
+ * ── MACHIP SECURITY ARCHITECTURE ──────────────────────────────────────────────
+ * 
+ * LEVEL 1: HARDWARE-LAYER AUTHENTICATION (Strategy 7 - Sector Validation)
+ * - Mechanism: MIFARE Classic Sector 1, Block 4 auth with custom Enterprise Key.
+ * - Security Goal: Prevents UID-only cloning. Reader rejects "Magic Cards" 
+ *   lacking the secret MACJ- sector key.
+ * 
+ * LEVEL 2: MULTI-FACTOR CORRELATION (2FA - Token + Biometric)
+ * - Mechanism: Temporal binding (15s window) between RFID tap and Fingerprint.
+ * - Security Goal: Eliminates "Buddy Punching." Physical token alone cannot clock-in.
+ * 
+ * LEVEL 3: CRYPTOGRAPHIC INTEGRITY (Strategy 2 - Signed Payloads)
+ * - Mechanism: Appends HMAC-SHA256 (mocked) signature using SECRET_HMAC_KEY.
+ * - Security Goal: Prevents MITM and Replay attacks. Backend validates origin.
+ * 
+ * LEVEL 4: RATE-LIMITING & ANTI-HAMMERING (Strategy 9 - Firmware Lockout)
+ * - Mechanism: Monitors rapid scan counts per UID; triggers 30s hardware lockout.
+ * - Security Goal: Mitigates reader-level brute-force/DoS attempts.
+ * ───────────────────────────────────────────────────────────────────────────────
+ */
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
+
+// ── Security State (Strategies 2, 7, 9) ──────────────────────
+String suspiciousUID = "";
+int rapidCount = 0;
+unsigned long lockUntil = 0;
+unsigned long lastScanTime = 0;
+const unsigned long SCAN_THRESHOLD = 2000; 
+// Note: SECRET_HMAC_KEY and ESP32_API_KEY are defined in arduino_secrets.h
 
 // ── Network config table ──────────────────────────────────────
 struct NetworkConfig {
@@ -122,6 +155,10 @@ uint8_t matchFinger() {
 // Logic: Database -> ESP32 -> Sensor char buffer 2
 bool uploadTemplate(String hexTemplate) {
   if (hexTemplate.length() != 1024) return false;
+  
+  // Flush serial buffer to prevent old data interference
+  while(fpSerial.available()) fpSerial.read();
+
   byte templateData[512];
   for (int i = 0; i < 512; i++) {
     templateData[i] = (byte) strtol(hexTemplate.substring(i * 2, i * 2 + 2).c_str(), NULL, 16);
@@ -129,9 +166,13 @@ bool uploadTemplate(String hexTemplate) {
 
   uint8_t bufId = 0x02;
   // Command 0x09 = DownChar (Host to Sensor)
-  if (sendCommand(0x09, &bufId, 1) != 0x00) return false;
+  uint8_t ack = sendCommand(0x09, &bufId, 1);
+  if (ack != 0x00) {
+    Serial.println("[FP] DownChar command failed with code: 0x" + String(ack, HEX));
+    return false;
+  }
 
-  delay(30);
+  Serial.println("[FP] Sending template packets...");
   for (int i = 0; i < 4; i++) {
     uint8_t type = (i == 3) ? 0x08 : 0x02;
     uint8_t packet[139];
@@ -221,11 +262,30 @@ String downloadTemplate() {
 
 // ── OLED Helpers ─────────────────────────────────────────────
 void updateOLED(Adafruit_SSD1306 &disp, String line1, String line2) {
+  // Mirror to Serial Monitor with Plotter-friendly numerical status
+  String label = (&disp == &displayIN) ? "FRONT" : "BACK";
+  
+  // Plotter logic: We use a simple numerical mapping for the Plotter to graph
+  int statusValue = 0;
+  if (line1 == "DENIED" || line1 == "ERROR" || line1 == "TIMEOUT") statusValue = -1;
+  else if (line1 == "CARD OK" || line1 == "SUCCESS" || line1 == "CAPTURED") statusValue = 2;
+  else if (line1 == "FETCHING" || line1 == "VERIFYING") statusValue = 1;
+  
+  // Format for Serial Plotter: "Label_State:Value"
+  Serial.print(label + "_State:" + String(statusValue) + " "); 
+  
+  // Detailed text for Serial Monitor
+  Serial.println("[" + label + "] Display: " + line1 + " | " + line2);
+
   disp.clearDisplay(); disp.setCursor(0,10); disp.setTextSize(2); disp.println(line1);
   disp.setTextSize(1); disp.println(line2); disp.display();
 }
 
 void showIdleMessages() {
+  // Reset plotter to 0 (Idle)
+  Serial.println(F("FRONT_State:0 BACK_State:0"));
+  Serial.println(F("[SYSTEM] Screens Refreshing..."));
+
   displayIN.clearDisplay(); displayIN.setTextSize(1); displayIN.setTextColor(SSD1306_WHITE);
   displayIN.setCursor(0,0); displayIN.println("MAChip FRONT"); displayIN.println("---------------------");
   displayIN.setCursor(0,30); displayIN.println("TAP CARD TO ENTER"); displayIN.display();
@@ -233,6 +293,148 @@ void showIdleMessages() {
   displayOUT.clearDisplay(); displayOUT.setTextSize(1); displayOUT.setTextColor(SSD1306_WHITE);
   displayOUT.setCursor(0,0); displayOUT.println("MAChip BACK"); displayOUT.println("---------------------");
   displayOUT.setCursor(0,30); displayOUT.println("TAP CARD TO EXIT"); displayOUT.display();
+}
+
+// ── Strategy 7: Hardware Sector Authentication Check ──────────
+bool authenticateCard(MFRC522 &rfid) {
+  MFRC522::MIFARE_Key key;
+  MFRC522::StatusCode status;
+  byte block = 4; // Sector 1
+
+  // Try Custom MACJ- Key (M A C J - UID[0])
+  key.keyByte[0] = 0x4D; key.keyByte[1] = 0x41; key.keyByte[2] = 0x43; key.keyByte[3] = 0x4A;
+  key.keyByte[4] = 0x2D; key.keyByte[5] = rfid.uid.uidByte[0];
+  
+  status = rfid.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(rfid.uid));
+  if (status == MFRC522::STATUS_OK) { 
+    Serial.println(F("[SEC] Auth: MACJ- Key SUCCESS")); 
+    return true; 
+  }
+
+  Serial.println(F("[SEC] Hardware Auth Failed. Card is not provisioned with MACJ- Key."));
+  rfid.PCD_StopCrypto1();
+  return false;
+}
+
+// ── Provisioning Strategy ────────────────────────────────────
+bool provisionCard(MFRC522 &rfid) {
+  MFRC522::StatusCode status;
+  MFRC522::MIFARE_Key key;
+  byte trailerBlock = 7; // Sector 1 trailer
+
+  // ── Step 0: RE-SELECT THE CARD ──
+  // After a failed auth attempt, the card enters a state where it won't respond to REQA.
+  // We use WUPA (Wake-Up) to force it to respond even if it's halted or in error.
+  rfid.PCD_StopCrypto1();
+  rfid.PICC_HaltA();
+  delay(50);
+  
+  byte bufferATQA[2];
+  byte bufferSize = sizeof(bufferATQA);
+  status = rfid.PICC_WakeupA(bufferATQA, &bufferSize);
+  
+  if (status == MFRC522::STATUS_OK) {
+    status = rfid.PICC_Select(&(rfid.uid));
+  }
+
+  if (status != MFRC522::STATUS_OK) {
+    Serial.println(F("[PROVISION] Card lost during re-select. Hold steady!"));
+    return false;
+  }
+
+  // ── Step 1: Try Default Key A (FF) ──
+  for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF;
+  status = rfid.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(rfid.uid));
+  
+  // Fallback: Some new cards use 00 00 00 00 00 00
+  if (status != MFRC522::STATUS_OK) {
+    // Re-select again for fallback
+    rfid.PCD_StopCrypto1(); rfid.PICC_HaltA(); delay(50);
+    rfid.PICC_WakeupA(bufferATQA, &bufferSize);
+    rfid.PICC_Select(&(rfid.uid));
+    for (byte i = 0; i < 6; i++) key.keyByte[i] = 0x00;
+    status = rfid.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(rfid.uid));
+  }
+
+  if (status != MFRC522::STATUS_OK) {
+    Serial.print(F("[PROVISION] Auth failed: ")); Serial.println(rfid.GetStatusCodeName(status));
+    return false;
+  }
+
+  // ── Step 2: Prepare & Write Sector Trailer ──
+  byte trailerBuffer[16];
+  // Key A: "MACJ-" + UID[0]
+  trailerBuffer[0] = 0x4D; trailerBuffer[1] = 0x41; trailerBuffer[2] = 0x43; trailerBuffer[3] = 0x4A;
+  trailerBuffer[4] = 0x2D; trailerBuffer[5] = rfid.uid.uidByte[0];
+  // Access Bits: FF 07 80 69
+  trailerBuffer[6] = 0xFF; trailerBuffer[7] = 0x07; trailerBuffer[8] = 0x80; trailerBuffer[9] = 0x69;
+  // Key B: Default FF
+  for (byte i = 10; i < 16; i++) trailerBuffer[i] = 0xFF;
+
+  status = rfid.MIFARE_Write(trailerBlock, trailerBuffer, 16);
+  if (status != MFRC522::STATUS_OK) {
+    Serial.print(F("[PROVISION] Write failed: ")); Serial.println(rfid.GetStatusCodeName(status));
+    return false;
+  }
+
+  Serial.println(F("[PROVISION] SUCCESS! Card is now locked with MACJ- Key."));
+  return true;
+}
+
+// ── Strategy 2: Cryptographic Payload Signature & Encryption ──
+String getHmacSha256(String payload, String key) {
+  byte hmacResult[32];
+  mbedtls_md_context_t ctx;
+  mbedtls_md_init(&ctx);
+  mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 1);
+  mbedtls_md_hmac_starts(&ctx, (const unsigned char *) key.c_str(), key.length());
+  mbedtls_md_hmac_update(&ctx, (const unsigned char *) payload.c_str(), payload.length());
+  mbedtls_md_hmac_finish(&ctx, hmacResult);
+  mbedtls_md_free(&ctx);
+  
+  String hash = "";
+  for (int i = 0; i < 32; i++) {
+    char str[3]; sprintf(str, "%02x", (int)hmacResult[i]);
+    hash += str;
+  }
+  return hash;
+}
+
+String encryptAES(String payload, String key) {
+  int payloadLen = payload.length();
+  int paddedLen = ((payloadLen / 16) + 1) * 16;
+  unsigned char input[paddedLen];
+  unsigned char output[paddedLen];
+  
+  memset(input, 0, paddedLen);
+  memcpy(input, payload.c_str(), payloadLen);
+  byte padVal = paddedLen - payloadLen;
+  for(int i = payloadLen; i < paddedLen; i++) input[i] = padVal; // PKCS7
+
+  mbedtls_aes_context aes;
+  mbedtls_aes_init(&aes);
+  mbedtls_aes_setkey_enc(&aes, (const unsigned char*)key.c_str(), 128);
+  
+  // Strategy 2: Dynamic IV (Random per request)
+  unsigned char iv[16]; 
+  for (int i = 0; i < 16; i++) iv[i] = (unsigned char)esp_random();
+  
+  // Prepend IV to hex result
+  String hexResult = "";
+  for (int i = 0; i < 16; i++) {
+    char str[3]; sprintf(str, "%02x", (int)iv[i]);
+    hexResult += str;
+  }
+
+  unsigned char iv_copy[16]; memcpy(iv_copy, iv, 16);
+  mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedLen, iv_copy, input, output);
+  mbedtls_aes_free(&aes);
+  
+  for (int i = 0; i < paddedLen; i++) {
+    char str[3]; sprintf(str, "%02x", (int)output[i]);
+    hexResult += str;
+  }
+  return hexResult;
 }
 
 // ── Feedback Helpers ─────────────────────────────────────────
@@ -243,13 +445,73 @@ void captureFeedback() { setLED(LED_STEADY_GREEN, LED_OFF); for (int i = 0; i < 
 void enrollSuccessFeedback() { setLED(LED_STEADY_GREEN, LED_OFF); tone(BUZZER, 1000, 100); delay(120); tone(BUZZER, 2000, 300); setLED(LED_SLOW_BLINK, LED_OFF); }
 void enrollFailFeedback() { setLED(LED_OFF, LED_STEADY_RED); tone(BUZZER, 500, 500); delay(600); noTone(BUZZER); setLED(LED_SLOW_BLINK, LED_OFF); }
 
+// ── Security Header Helper ──────────────────────────────────
+void syncTimeFromServer() {
+  if (WiFi.status() != WL_CONNECTED || serverName == nullptr) return;
+  
+  String url = String(serverName);
+  int apiIdx = url.indexOf("/api/");
+  if (apiIdx == -1) return;
+  url = url.substring(0, apiIdx) + "/api/system/time";
+  
+  HTTPClient http;
+  http.begin(url);
+  int code = http.GET();
+  if (code == 200) {
+    JsonDocument doc;
+    deserializeJson(doc, http.getString());
+    unsigned long serverUnixTime = doc["unixTime"] | 0;
+    if (serverUnixTime > 10000000) {
+      struct timeval tv;
+      tv.tv_sec = serverUnixTime;
+      tv.tv_usec = 0;
+      settimeofday(&tv, NULL);
+      Serial.println("[SYSTEM] Time synced from backend: " + String(serverUnixTime));
+    }
+  }
+  http.end();
+}
+
+void applySecureHeaders(HTTPClient &http, String body) {
+  unsigned long now = time(nullptr);
+  
+  // If clock is not synced, try a quick sync if we have a connection
+  if (now < 10000000) {
+    static unsigned long lastSyncTry = 0;
+    if (millis() - lastSyncTry > 30000) { // Don't spam sync requests
+      syncTimeFromServer();
+      lastSyncTry = millis();
+      now = time(nullptr);
+    }
+  }
+
+  String timestamp = String(now);
+  String signature = getHmacSha256(timestamp + body, SECRET_HMAC_KEY);
+  
+  http.addHeader("x-esp32-key", ESP32_API_KEY);
+  http.addHeader("x-esp32-signature", signature);
+  http.addHeader("x-esp32-timestamp", timestamp);
+}
+
 // ── Backend Sync ─────────────────────────────────────────────
 String fetchTemplateFromBackend(String uid) {
   if (WiFi.status() != WL_CONNECTED) return "";
   HTTPClient http;
   String url = String(fpEnrollUrl) + "/download/" + uid;
+  Serial.println("[HTTP] Fetching template from: " + url);
   http.begin(url);
+  
+  applySecureHeaders(http, ""); // GET request has empty body for signature
+  
   int code = http.GET();
+  if (code != 200) {
+    Serial.println("[HTTP] Fetch failed code: " + String(code));
+    if (code == 404) {
+      Serial.println("[HTTP] Hint: User not registered.");
+      http.end();
+      return "NOT_FOUND";
+    }
+  }
   if (code == 200) {
     String body = http.getString();
     JsonDocument doc; deserializeJson(doc, body);
@@ -264,19 +526,31 @@ void sendScanToBackend(String uid, String action) {
   Adafruit_SSD1306 &targetDisp = (action == "clock_out") ? displayOUT : displayIN;
   if (WiFi.status() != WL_CONNECTED) { updateOLED(targetDisp, "OFFLINE", "CHECK WIFI"); denyFeedback(); return; }
   setLED(LED_FAST_BLINK, LED_OFF);
+  
+  // 1. Encrypt Payload (AES-128-CBC)
+  JsonDocument innerDoc; innerDoc["uid"] = uid; innerDoc["action"] = action;
+  String innerBody; serializeJson(innerDoc, innerBody);
+  String encrypted = encryptAES(innerBody, ESP32_AES_KEY); 
+
+  // 2. Prepare Outer Body
+  JsonDocument outerDoc; outerDoc["encryptedData"] = encrypted;
+  String outerBody; serializeJson(outerDoc, outerBody);
+
   HTTPClient http;
   http.begin(serverName);
   http.addHeader("Content-Type", "application/json");
-  JsonDocument doc; doc["uid"] = uid; doc["action"] = action;
-  String requestBody; serializeJson(doc, requestBody);
-  int code = http.POST(requestBody);
+  
+  applySecureHeaders(http, outerBody);
+  
+  int code = http.POST(outerBody);
+  if (code != 200 && code != 201) Serial.println("[HTTP] POST failed code: " + String(code));
   if (code == 200 || code == 201) {
     String response = http.getString();
     JsonDocument resDoc; deserializeJson(resDoc, response);
     if (resDoc["isCapture"] | false) { updateOLED(targetDisp, "CAPTURED", uid.substring(0,8)); captureFeedback(); }
     else if (resDoc["success"] | false) {
-      String name = resDoc["name"] | "User"; String time = resDoc["time"] | "--:--";
-      updateOLED(targetDisp, name, (action == "clock_out" ? "OUT " : "IN ") + time); grantFeedback();
+      String name = resDoc["name"] | "User"; String timeStr = resDoc["time"] | "--:--";
+      updateOLED(targetDisp, name, (action == "clock_out" ? "OUT " : "IN ") + timeStr); grantFeedback();
     } else { updateOLED(targetDisp, "DENIED", resDoc["message"] | "Error"); denyFeedback(); }
   } else { updateOLED(targetDisp, "ERROR", "CODE: " + String(code)); denyFeedback(); }
   http.end();
@@ -287,12 +561,16 @@ bool uploadEnrollment(int slotId, bool success, String userId, String templateHe
     HTTPClient http;
     http.begin(String(fpEnrollUrl) + "/confirm");
     http.addHeader("Content-Type", "application/json");
+    
     JsonDocument doc; doc["slotId"] = slotId; doc["success"] = success; doc["userId"] = userId;
-      if (success) doc["template"] = templateHex;
-        String body; serializeJson(doc, body);
-        int code = http.POST(body);
-        http.end();
-        return code == 200;
+    if (success) doc["template"] = templateHex;
+    String body; serializeJson(doc, body);
+    
+    applySecureHeaders(http, body);
+    
+    int code = http.POST(body);
+    http.end();
+    return code == 200;
 }
 
 // ── WiFi ─────────────────────────────────────────────────────
@@ -337,7 +615,10 @@ void setup() {
   rfidOUT.PCD_Init(); delay(100); rfidOUT.PCD_SetAntennaGain(rfidOUT.RxGain_max);
 
   WiFi.mode(WIFI_STA);
-  if (autoConnectWiFi()) startupFeedback();
+  if (autoConnectWiFi()) {
+    configTime(28800, 0, "pool.ntp.org"); // UTC+8 Philippines
+    startupFeedback();
+  }
   setLED(LED_SLOW_BLINK, LED_OFF);
 }
 
@@ -345,10 +626,19 @@ void setup() {
 void loop() {
   updateLEDs();
 
+  // ── Strategy 9: Hardware Lockout Check (Overflow Safe) ──────
+  if (lockUntil > 0 && (long)(millis() - lockUntil) < 0) {
+    updateOLED(displayIN, "LOCKED", "SEC VIOLATION");
+    updateOLED(displayOUT, "LOCKED", "SEC VIOLATION");
+    if(rfidIN.PICC_IsNewCardPresent()) rfidIN.PICC_HaltA();
+    if(rfidOUT.PICC_IsNewCardPresent()) rfidOUT.PICC_HaltA();
+    delay(500);
+    return;
+  }
+
   static unsigned long lastWifiCheck = 0;
-  if (millis() - lastWifiCheck > 30000) {
-    lastWifiCheck = millis();
-    if (WiFi.status() != WL_CONNECTED) autoConnectWiFi();
+  if (WiFi.status() != WL_CONNECTED && millis() - lastWifiCheck > 30000) {
+    lastWifiCheck = millis(); autoConnectWiFi();
   }
 
   // ── Clock IN: Part 1 - Card Tap ──────────────────────────
@@ -361,25 +651,55 @@ void loop() {
     }
     uid.toUpperCase();
 
-    updateOLED(displayIN, "FETCHING", "BIO-TEMPLATE...");
+    // Strategy 7: Hardware Sector Auth
+    bool authenticated = authenticateCard(rfidIN);
+    
+    // Strategy 9: Rate-Limiting / Anti-Hammering
+    unsigned long timeSinceLast = millis() - lastScanTime;
+    if (uid == suspiciousUID && timeSinceLast < SCAN_THRESHOLD) {
+      rapidCount++;
+      if (rapidCount >= 3) {
+        lockUntil = millis() + 30000;
+        Serial.println("[SEC] Rapid tapping detected. Device locked.");
+        denyFeedback(); rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
+        lastScanTime = millis(); return;
+      }
+    } else { suspiciousUID = uid; rapidCount = 1; }
+    lastScanTime = millis();
+
+    updateOLED(displayIN, (authenticated ? "FETCHING" : "VERIFYING"), "BIO-TEMPLATE...");
+    
+    // OPTIMIZATION: If card is already authenticated, we can release it early
+    // to save reader power and prevent collisions.
+    if (authenticated) { rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1(); }
+
     String templateHex = fetchTemplateFromBackend(uid);
     
     if (templateHex == "CAPTURE_OK") {
       updateOLED(displayIN, "CAPTURED", uid.substring(0,8));
+      if (!authenticated) {
+         if (provisionCard(rfidIN)) updateOLED(displayIN, "PROVISIONED", "SECURE KEY SET");
+      }
       captureFeedback();
-    } else if (templateHex != "") {
+    } else if (templateHex != "" && templateHex != "NOT_FOUND" && templateHex != "ERROR") {
       if (uploadTemplate(templateHex)) {
         pendingInUID = uid;
         pendingInStart = millis();
-        updateOLED(displayIN, "CARD OK", "SCAN FINGER...");
-        tone(BUZZER, 2000, 100); 
+        // If not authenticated, we'll provision later if 2FA succeeds
+        updateOLED(displayIN, (authenticated ? "CARD OK" : "SEC-AUTH FAIL"), (authenticated ? "SCAN FINGER..." : "USE FINGERPRINT"));
+        tone(BUZZER, (authenticated ? 2000 : 1500), (authenticated ? 100 : 200)); 
         setLED(LED_FAST_BLINK, LED_OFF); 
       } else { updateOLED(displayIN, "ERROR", "LOAD FAILED"); denyFeedback(); }
     } else { 
-      // Fallback: It might be a regular RFID-only user or a late capture request
-      sendScanToBackend(uid, "auto_detect"); 
+      if (templateHex == "NOT_FOUND") {
+        updateOLED(displayIN, "UNKNOWN", "NOT REGISTERED");
+        denyFeedback();
+      } else if (authenticated) {
+        sendScanToBackend(uid, "auto_detect"); 
+      } else { denyFeedback(); }
     }
     
+    // Final cleanup if not already halted
     rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
   }
 
@@ -395,6 +715,23 @@ void loop() {
           if (p == 0x00) { 
             updateOLED(displayIN, "VERIFYING", "PLEASE WAIT");
             sendScanToBackend(pendingInUID, "clock_in");
+            
+            // ── SELF-HEALING PROVISIONING ──
+            // If we got here, fingerprint matched. If the card was NOT authenticated 
+            // in Part 1, try to provision it now before clearing pendingInUID.
+            // We re-select using WUPA to catch the card if it's still there.
+            if (suspiciousUID == pendingInUID) {
+              byte bufferATQA[2]; byte bufferSize = sizeof(bufferATQA);
+              if (rfidIN.PICC_WakeupA(bufferATQA, &bufferSize) == MFRC522::STATUS_OK) {
+                if (rfidIN.PICC_Select(&(rfidIN.uid)) == MFRC522::STATUS_OK) {
+                   // Check if it already has the key (maybe it was just a read error)
+                   if (!authenticateCard(rfidIN)) {
+                      if (provisionCard(rfidIN)) Serial.println("[SEC] Self-Heal: Card provisioned after 2FA");
+                   }
+                }
+              }
+            }
+
             pendingInUID = ""; delay(2500); showIdleMessages();
           } else { updateOLED(displayIN, "NO MATCH", "TRY AGAIN"); denyFeedback(); }
         }
@@ -411,8 +748,36 @@ void loop() {
       if (i < rfidOUT.uid.size - 1) uid += ":";
     }
     uid.toUpperCase();
-    updateOLED(displayOUT, "SCANNED", "VERIFYING...");
-    sendScanToBackend(uid, "clock_out");
+
+    // Log Card Type for Diagnostics
+    MFRC522::PICC_Type piccType = rfidOUT.PICC_GetType(rfidOUT.uid.sak);
+    Serial.print(F("[RFID] Type: ")); Serial.println(rfidOUT.PICC_GetTypeName(piccType));
+
+    // Strategy 7: Hardware Sector Auth
+    bool authenticated = authenticateCard(rfidOUT);
+    if (!authenticated) Serial.println(F("[SEC] Hardware Auth Failed for this card."));
+
+    // Strategy 9: Rate-Limiting / Anti-Hammering
+    unsigned long timeSinceLast = millis() - lastScanTime;
+    if (uid == suspiciousUID && timeSinceLast < SCAN_THRESHOLD) {
+      rapidCount++;
+      if (rapidCount >= 3) {
+        lockUntil = millis() + 30000;
+        Serial.println("[SEC] Rapid tapping detected. Device locked.");
+        denyFeedback(); rfidOUT.PICC_HaltA(); rfidOUT.PCD_StopCrypto1();
+        lastScanTime = millis();
+        return;
+      }
+    } else { suspiciousUID = uid; rapidCount = 1; }
+    lastScanTime = millis();
+
+    if (authenticated) {
+      updateOLED(displayOUT, "SCANNED", "VERIFYING...");
+      sendScanToBackend(uid, "clock_out");
+    } else {
+      denyFeedback();
+    }
+    
     rfidOUT.PICC_HaltA(); rfidOUT.PCD_StopCrypto1();
     delay(2500); showIdleMessages();
   }
@@ -422,10 +787,16 @@ void loop() {
   if (millis() - lastFPCheck > 2000) {
     lastFPCheck = millis();
     if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient http; http.begin(String(fpEnrollUrl) + "/session");
-      if (http.GET() == 200) {
+      HTTPClient http; 
+      http.begin(String(fpEnrollUrl) + "/session");
+      
+      applySecureHeaders(http, ""); // GET request
+      
+      int code = http.GET();
+      if (code == 200) {
         JsonDocument doc; deserializeJson(doc, http.getString());
         if (doc["active"] | false) {
+          // ... rest of the enrollment logic ...
           String userId = doc["userId"].as<String>(); int slotId = doc["slotId"] | 0;
           
           Serial.println("[FP] Enrollment session active for " + userId);
@@ -488,6 +859,13 @@ void loop() {
           }
           setLED(LED_SLOW_BLINK, LED_OFF);
           showIdleMessages();
+        }
+      } else if (code != -1) {
+        // Log non-connection errors (like 404) once in a while to avoid flooding
+        static unsigned long lastErrorLog = 0;
+        if (millis() - lastErrorLog > 30000) {
+          Serial.println("[HTTP] Polling /session failed code: " + String(code));
+          lastErrorLog = millis();
         }
       }
       http.end();

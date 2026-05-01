@@ -161,7 +161,7 @@ function App() {
           }
         />
 
-        {/* Users Management: Admin (1) & Staff (2) */}
+        {/* Users Management: Admin (1) & Supervisor (2) */}
         <Route path="users">
           <Route
             index
@@ -205,7 +205,7 @@ function App() {
           />
         </Route>
 
-        {/* Logs & Settings: Admin (1) & Staff (2) */}
+        {/* Logs & Settings: Admin (1) & Supervisor (2) */}
         <Route
           path="logs"
           element={

@@ -8,6 +8,7 @@ router.post("/settings", requireAdmin, systemController.updateSystemSettings);
 router.get("/time", systemController.getSystemTime);
 router.get("/holidays", systemController.getHolidays);
 router.post("/holidays", requireAdmin, systemController.createHoliday);
+router.put("/holidays/:holidayId", requireAdmin, systemController.updateHoliday);
 router.delete("/holidays/:holidayId", requireAdmin, systemController.deleteHoliday);
 router.post("/sync-holidays", requireAdmin, systemController.syncHolidays);
 

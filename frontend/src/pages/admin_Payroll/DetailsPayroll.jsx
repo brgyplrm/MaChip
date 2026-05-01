@@ -102,7 +102,8 @@ const PayrollDetails = () => {
   const eeTax = parseFloat(payroll.Tax_Ded || 0);
   
   const basicPay = parseFloat(payroll.basicPay || 0);
-  const otherEarnings = parseFloat(payroll.totalEarnings || 0) - basicPay;
+  const holidayAdj = parseFloat(payroll.specialHol_Adj || 0);
+  const otherEarnings = parseFloat(payroll.totalEarnings || 0) - basicPay + holidayAdj;
   const tardinessDeds = parseFloat(payroll.absence_Amnt || 0) + parseFloat(payroll.tardiness_Amnt || 0) + parseFloat(payroll.unpaidLeave_Amnt || 0);
   const govtDeds = eeSSS + eePH + eeHD;
   const otherDeds = parseFloat(payroll.totalDeductions || 0) - tardinessDeds - govtDeds;
@@ -121,6 +122,11 @@ const PayrollDetails = () => {
     if (['earnings', 'tardiness', 'govt', 'other'].includes(activeTab)) {
       runningTotal += otherEarnings;
       items.push({ operator: "+", label: "Other Earnings", value: otherEarnings });
+
+      if (holidayAdj > 0) {
+        runningTotal -= holidayAdj;
+        items.push({ operator: "-", label: "Hol. Adjustment", value: holidayAdj, isRed: true });
+      }
     }
 
     // 3. Tardiness Tab and beyond
@@ -227,6 +233,12 @@ const PayrollDetails = () => {
             {activeTab === 'earnings' && (
               <div className="breakdownCard">
                 <div className="row"><span>Basic Pay</span><p>₱{parseFloat(payroll.basicPay).toLocaleString()}</p></div>
+                {parseFloat(payroll.specialHol_Adj || 0) > 0 && (
+                  <div className="row">
+                    <span>Special Holiday Adjustment</span>
+                    <p className="neg">-₱{parseFloat(payroll.specialHol_Adj).toLocaleString()}</p>
+                  </div>
+                )}
                 <div className="row"><span>Overtime Pay ({payroll.OT_Hrs} hrs)</span><p>₱{parseFloat(payroll.OT_Amnt || 0).toLocaleString()}</p></div>
                 <div className="row"><span>Regular Holiday Pay</span><p>₱{parseFloat(payroll.legalHol_Amnt || 0).toLocaleString()}</p></div>
                 <div className="row"><span>Special Holiday Pay</span><p>₱{parseFloat(payroll.specialHol_Amnt || 0).toLocaleString()}</p></div>

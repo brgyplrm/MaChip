@@ -153,6 +153,22 @@ exports.scanRFID = async (req, res) => {
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
     const isCurrentlyIn = lastStatus === 1 || lastStatus === 4 || lastStatus === 5;
 
+    // ── 30-SECOND SAFETY (Duplicate Protection) ─────────────────────────────
+    if (lastLogs[0]) {
+      const lastLogTime = new Date(`${todayStr}T${lastLogs[0].time_Logged}`);
+      const diffMs = now - lastLogTime;
+      const diffSecs = Math.floor(diffMs / 1000);
+
+      if (diffSecs < 30) {
+        console.log(`[SAFETY] ${user.user_FirstName} tapped too rapidly. Wait ${30 - diffSecs}s.`);
+        return res.status(400).json({ 
+          success: false, 
+          message: "Too fast! Wait 30s", 
+          name: user.user_FirstName 
+        });
+      }
+    }
+
     // 3. Validation based on explicit action from ESP32
     // If fingerprint_scan, we toggle status automatically
     if (action === "fingerprint_scan") {
@@ -298,7 +314,7 @@ exports.scanRFID = async (req, res) => {
 };
 
 exports.generateRfid = async (req, res) => {
-  captureSession = { isCapturing: true, scannedUid: null, expiresAt: Date.now() + 30000 };
+  captureSession = { isCapturing: true, scannedUid: null, expiresAt: Date.now() + 25000 };
   const startTime = Date.now();
   const checkInterval = setInterval(() => {
     if (captureSession.scannedUid) {
@@ -312,7 +328,7 @@ exports.generateRfid = async (req, res) => {
       }).catch(err => res.status(500).json({ error: "Internal Server Error" }));
       return;
     }
-    if (Date.now() - startTime > 30000) {
+    if (Date.now() - startTime > 25000) {
       clearInterval(checkInterval);
       captureSession.isCapturing = false;
       return res.status(408).json({ error: "Scan timeout. Please try again." });
@@ -336,7 +352,7 @@ exports.generateFingerprint = async (req, res) => {
       isCapturing: true, 
       scannedSlot: nextSlot, 
       userId: userId || "temp_registration",
-      expiresAt: Date.now() + 60000, 
+      expiresAt: Date.now() + 55000, 
       success: false,
       template: null
     };
@@ -357,7 +373,7 @@ exports.generateFingerprint = async (req, res) => {
         }
       }
 
-      if (Date.now() - startTime > 60000) {
+      if (Date.now() - startTime > 55000) {
         clearInterval(checkInterval);
         fpCaptureSession.isCapturing = false;
         console.log(`[FP-ADMIN] Enrollment TIMEOUT`);
@@ -395,16 +411,20 @@ exports.confirmFingerprintEnroll = async (req, res) => {
     
     if (success && template) {
       // If userId is provided, we can link it immediately, otherwise it's handled by the registration flow
-      const targetUserId = userId || fpCaptureSession.userId;
-      if (targetUserId && targetUserId !== "temp_registration") {
+      const targetUserId = parseInt(userId || fpCaptureSession.userId);
+      if (targetUserId && targetUserId !== "temp_registration" && !isNaN(targetUserId)) {
         try {
-          await sequelize.query(
-            `UPDATE "User" SET "user_FingerprintTemplate" = :template WHERE "user_Id" = :targetUserId`,
-            { replacements: { template, targetUserId }, type: QueryTypes.UPDATE }
+          const [result, metadata] = await sequelize.query(
+            `UPDATE "User" SET 
+              "user_FingerprintTemplate" = :template,
+              "user_FingerprintId" = :slotId
+             WHERE "user_Id" = :targetUserId`,
+            { replacements: { template, slotId, targetUserId }, type: QueryTypes.UPDATE }
           );
-          console.log(`[FP] Template saved for user ${targetUserId}`);
+          console.log(`[FP] DB Update Result:`, metadata);
+          console.log(`[FP] Template and Slot ID ${slotId} saved for user ${targetUserId}`);
         } catch (err) {
-          console.error(`[FP] Failed to save template: ${err.message}`);
+          console.error(`[FP] Failed to save template/slot: ${err.message}`);
         }
       } else {
         // Store template in session for the frontend to pick up during new user registration
@@ -434,11 +454,18 @@ exports.getFingerprintTemplate = async (req, res) => {
       { replacements: { uid }, type: QueryTypes.SELECT }
     );
 
-    if (!user || !user.user_FingerprintTemplate) {
-      return res.status(404).json({ success: false, message: "Template not found" });
+    if (!user) {
+      console.log(`[FP DOWNLOAD] User not found for UID: ${uid}`);
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    return res.status(200).json({ success: true, template: user.user_FingerprintTemplate });
+    console.log(`[FP DOWNLOAD] User found. Template length: ${user.user_FingerprintTemplate ? user.user_FingerprintTemplate.length : "EMPTY/NULL"}`);
+
+    // Return 200 even if template is null, so ESP32 knows the user exists but has no 2FA template
+    return res.status(200).json({ 
+      success: true, 
+      template: user.user_FingerprintTemplate || null 
+    });
   } catch (error) {
     console.error("[FP DOWNLOAD ERROR]:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });

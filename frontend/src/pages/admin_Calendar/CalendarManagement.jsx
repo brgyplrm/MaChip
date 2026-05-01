@@ -41,6 +41,7 @@ const CalendarManagement = () => {
   });
 
   const [holidayForm, setHolidayForm] = useState({
+    id: null,
     name: "",
     date: "",
     type: "Regular Holiday"
@@ -147,13 +148,21 @@ const CalendarManagement = () => {
   const handleHolidaySubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetchWithAuth("/api/system/holidays", {
-        method: "POST",
+      const isEdit = !!holidayForm.id;
+      const endpoint = isEdit ? `/api/system/holidays/${holidayForm.id}` : "/api/system/holidays";
+      const method = isEdit ? "PUT" : "POST";
+
+      const response = await fetchWithAuth(endpoint, {
+        method: method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(holidayForm),
+        body: JSON.stringify({
+          name: holidayForm.name,
+          date: holidayForm.date,
+          type: holidayForm.type
+        }),
       });
       if (response.ok) {
-        setToast({ message: "Holiday added successfully!", type: "success" });
+        setToast({ message: `Holiday ${isEdit ? 'updated' : 'added'} successfully!`, type: "success" });
         setModalType(null);
         fetchCalendarEvents();
       }
@@ -232,7 +241,10 @@ const CalendarManagement = () => {
             </div>
             <div className="actions">
               {isAdmin && (
-                <button className="btn holiday" onClick={() => setModalType('addHoliday')}>
+                <button className="btn holiday" onClick={() => {
+                  setHolidayForm({ id: null, name: "", date: "", type: "Regular Holiday" });
+                  setModalType('addHoliday');
+                }}>
                   <AddIcon /> Add Holiday
                 </button>
               )}
@@ -331,7 +343,19 @@ const CalendarManagement = () => {
                     </div>
                     {isAdmin && (
                       <div className="icons">
-                          <EditIcon className="edit" onClick={() => setModalType('editHoliday')} />
+                          <EditIcon 
+                            className="edit" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setHolidayForm({
+                                id: holiday.id,
+                                name: holiday.name,
+                                date: holiday.date.split('T')[0],
+                                type: holiday.details
+                              });
+                              setModalType('editHoliday');
+                            }} 
+                          />
                           <button 
                               className="deleteBtn" 
                               onClick={(e) => {

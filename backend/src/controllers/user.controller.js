@@ -435,7 +435,6 @@ exports.updateUser = async (req, res) => {
       middleName: user_MiddleName || null,
       machipId: user_MachipId || null,
       fingerprintId: user_FingerprintId || null,
-      fingerprintTemplate: req.body.user_FingerprintTemplate || null,
       roleId: parseInt(user_RoleId) || 3,
       statusId: parseInt(user_EmploymentStatusId) || 1,
       email: user_Email || null,
@@ -450,13 +449,18 @@ exports.updateUser = async (req, res) => {
         "user_MiddleName"= :middleName,
         "user_MachipId"  = :machipId,
         "user_FingerprintId" = :fingerprintId,
-        "user_FingerprintTemplate" = :fingerprintTemplate,
         "user_RoleId"    = :roleId,
         "user_EmploymentStatusId" = :statusId,
         "user_Email"     = :email,
         "account_Number" = :accountNumber,
         "updatedAt"      = :updatedAt
     `;
+
+    // Only update template if provided and not empty
+    if (req.body.user_FingerprintTemplate && req.body.user_FingerprintTemplate.trim() !== "") {
+      replacements.fingerprintTemplate = req.body.user_FingerprintTemplate;
+      sql += `, "user_FingerprintTemplate" = :fingerprintTemplate`;
+    }
 
     if (user_Password && user_Password.trim() !== "") {
       const salt = await bcrypt.genSalt(10);
@@ -471,7 +475,11 @@ exports.updateUser = async (req, res) => {
 
     sql += ` WHERE "user_Id" = :targetId AND "deletedAt" IS NULL`;
 
-    await sequelize.query(sql, { replacements, type: QueryTypes.UPDATE });
+    console.log("[DEBUG] Executing SQL in updateUser:", sql);
+    console.log("[DEBUG] Replacements:", { ...replacements, fingerprintTemplate: replacements.fingerprintTemplate ? "REDACTED" : "NONE" });
+
+    const [result, metadata] = await sequelize.query(sql, { replacements, type: QueryTypes.UPDATE });
+    console.log("[DEBUG] Affected Rows in updateUser:", metadata);
 
     const updatedUserResult = await sequelize.query(
       `SELECT * FROM "User" WHERE "user_Id" = :targetId`,

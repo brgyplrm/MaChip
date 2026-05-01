@@ -10,8 +10,10 @@ export default defineConfig({
     allowedHosts: [".trycloudflare.com"],
     proxy: {
       "/api": {
-        target: "http://localhost:4000",
+        target: "http://127.0.0.1:4000",
         changeOrigin: true,
+        proxyTimeout: 60000,
+        timeout: 60000,
       },
     },
   },
