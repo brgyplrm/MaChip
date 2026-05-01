@@ -88,10 +88,10 @@ const Profile = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0 space-y-6">
+      <div className="flex-1 p-4 md:p-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0 space-y-6">
         
         {/* Hero Section */}
-        <Card className="border-0 shadow-sm bg-white overflow-hidden">
+        <Card className="border-0 shadow-sm bg-white overflow-hidden py-2">
           <CardContent className="p-6 md:p-10">
             
             <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6 pb-8 border-b border-slate-100">
@@ -155,7 +155,7 @@ const Profile = () => {
         </div>
 
         {/* Table Section */}
-        <Card className="border-0 shadow-sm bg-white">
+        <Card className="border-0 shadow-sm bg-white py-0">
           <CardContent className="p-6">
             <h2 className="text-lg font-bold text-[#2A174E] mb-6">Personal Activity Logs</h2>
             <div className="overflow-x-auto">

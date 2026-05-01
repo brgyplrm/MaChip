@@ -150,7 +150,7 @@ const TransactionLog = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
@@ -163,13 +163,13 @@ const TransactionLog = () => {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Transactions</label><p className="text-2xl font-bold text-slate-800 mt-1">{stats.total}</p></CardContent></Card>
-          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payroll Releases</label><p className="text-2xl font-bold text-green-500 mt-1">{stats.payrollReleases}</p></CardContent></Card>
-          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Batch Runs</label><p className="text-2xl font-bold text-amber-500 mt-1">{stats.batchRuns}</p></CardContent></Card>
-          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Unauthorized Scans</label><p className="text-2xl font-bold text-red-600 mt-1">{stats.unauthorizedScans}</p></CardContent></Card>
+          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Transactions</label><p className="text-2xl font-bold text-slate-800 mt-1">{stats.total}</p></CardContent></Card>
+          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payroll Releases</label><p className="text-2xl font-bold text-green-500 mt-1">{stats.payrollReleases}</p></CardContent></Card>
+          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Batch Runs</label><p className="text-2xl font-bold text-amber-500 mt-1">{stats.batchRuns}</p></CardContent></Card>
+          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Unauthorized Scans</label><p className="text-2xl font-bold text-red-600 mt-1">{stats.unauthorizedScans}</p></CardContent></Card>
         </div>
 
-        <Card className="mb-6 shadow-sm border-0">
+        <Card className="mb-6 shadow-sm border-0 py-0">
           <CardContent className="p-4 flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -188,7 +188,7 @@ const TransactionLog = () => {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-0 bg-white">
+        <Card className="shadow-sm border-0 bg-white py-2 px-4">
           <CardContent className="p-0 overflow-x-auto">
             {loading ? <div className="p-12 text-center text-slate-400">Loading...</div> : (
               <Table className="min-w-[900px]">
@@ -224,7 +224,7 @@ const TransactionLog = () => {
                         <TableCell className="text-slate-400 font-mono text-xs">{t.ip_Address || t.metadata?.deviceIp || "Local"}</TableCell>
                         <TableCell className="text-right pr-6">
                           <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="text-[#6439ff] hover:bg-indigo-50">
-                            <VisibilityIcon className="mr-1 h-4 w-4"/> View
+                            <VisibilityIcon className="mr-1 h-4 w-4"/>
                           </Button>
                         </TableCell>
                       </TableRow>

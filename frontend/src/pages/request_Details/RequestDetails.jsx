@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import "./requestDetails.scss";
 import Sidebar from "../../components/Sidebar";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -13,6 +12,10 @@ import AttachmentIcon from "@mui/icons-material/Attachment";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
 import { formatUserId } from "../../utils/formatUserId";
+
+// shadcn/ui components
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 const RequestDetails = () => {
   const navigate = useNavigate();
@@ -53,29 +56,25 @@ const RequestDetails = () => {
 
   if (loading) {
     return (
-      <div className="home requestDetails">
-        <Sidebar />
-        <div className="homeContainer">
-          <Navbar />
-          <div className="detailsWrapper loading">
-            <p>Loading request details...</p>
-          </div>
+      <div className="flex flex-col w-full min-h-screen bg-slate-50">
+        <Sidebar>
+        <div className="flex-1 p-4 md:p-8 w-full max-w-5xl mx-auto flex items-center justify-center">
+          <p className="text-slate-500 italic animate-pulse">Loading request details...</p>
         </div>
+        </Sidebar>
       </div>
     );
   }
 
   if (!request) {
     return (
-      <div className="home requestDetails">
-        <Sidebar />
-        <div className="homeContainer">
-          <Navbar />
-          <div className="detailsWrapper error">
-            <p>Request not found.</p>
-            <button onClick={() => navigate(-1)}>Go Back</button>
-          </div>
+      <div className="flex flex-col w-full min-h-screen bg-slate-50">
+        <Sidebar>
+        <div className="flex-1 p-4 md:p-8 w-full max-w-5xl mx-auto flex flex-col items-center justify-center gap-4">
+          <p className="text-slate-500 italic">Request not found.</p>
+          <button onClick={() => navigate(-1)} className="text-[#2A174E] font-semibold hover:underline">Go Back</button>
         </div>
+        </Sidebar>
       </div>
     );
   }
@@ -85,96 +84,111 @@ const RequestDetails = () => {
   const isRejected = statusClass.includes("reject");
 
   return (
-    <div className="home requestDetails">
-      <Sidebar />
-      <div className="homeContainer">
-        <Navbar />
-        <div className="detailsWrapper">
-          
-          {/* Header Section */}
-          <div className="pageHeader">
-            <div className="left">
-              <ArrowBackIcon className="backIcon" onClick={() => navigate(-1)} />
-              <div className="titleText">
-                <h1>Request Details</h1>
-                <span>Request #REQ-{request.emp_reqId}</span>
-              </div>
-            </div>
-            <div className={`statusBadge ${statusClass}`}>
-              {isApproved && <CheckCircleIcon className="icon" />}
-              {isRejected && <CancelIcon className="icon" />}
-              {!isApproved && !isRejected && <HourglassEmptyIcon className="icon" />}
-              {request.status}
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
+      <div className="flex-1 p-4 md:p-8 w-full max-w-5xl mx-auto overflow-x-hidden min-w-0">
+        
+        {/* Header Section */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => navigate(-1)} 
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0"
+            >
+              <ArrowBackIcon />
+            </button>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Request Details</h1>
+              <span className="text-sm text-slate-500 font-mono mt-1 block">Request #REQ-{request.emp_reqId}</span>
             </div>
           </div>
+          <Badge 
+            className={`px-4 py-2 text-sm justify-center shadow-sm w-full sm:w-auto ${
+              isApproved ? "bg-green-500 hover:bg-green-600 text-white" :
+              isRejected ? "bg-red-500 hover:bg-red-600 text-white" :
+              "bg-amber-500 hover:bg-amber-600 text-white"
+            }`}
+          >
+            {isApproved && <CheckCircleIcon className="mr-2 h-4 w-4" />}
+            {isRejected && <CancelIcon className="mr-2 h-4 w-4" />}
+            {!isApproved && !isRejected && <HourglassEmptyIcon className="mr-2 h-4 w-4" />}
+            {request.status}
+          </Badge>
+        </div>
 
+        <div className="space-y-6">
+          
           {/* Request Information */}
-          <div className="detailCard">
-            <div className="cardHeader">
-              <DescriptionIcon className="headerIcon" />
-              <h3>Request Information</h3>
-            </div>
-            <div className="infoGrid">
-              <div className="item">
-                <label>Employee Name</label>
-                <p>{request.userName}</p>
+          <Card className="border-0 shadow-sm bg-white">
+            <CardHeader className="border-b border-slate-50 pb-4 mb-4">
+              <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
+                <DescriptionIcon className="text-slate-400 h-5 w-5" /> Request Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Employee Name</label>
+                <p className="font-semibold text-slate-800">{request.userName}</p>
               </div>
-              <div className="item">
-                <label>Request Type</label>
-                <p>{request.reqTypeName}</p>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Request Type</label>
+                <p className="font-semibold text-[#2A174E]">{request.reqTypeName}</p>
               </div>
-              <div className="item">
-                <label>Submitted On</label>
-                <p>{new Date(request.date_Filed).toLocaleDateString()}</p>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Submitted On</label>
+                <p className="font-semibold text-slate-800">{new Date(request.date_Filed).toLocaleDateString()}</p>
               </div>
+
               {request.emp_reqTypeId === 1 && (
-                <div className="item">
-                  <label>OT Date</label>
-                  <p>{request.OT_DateOf}</p>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">OT Date</label>
+                  <p className="font-semibold text-slate-800">{request.OT_DateOf}</p>
                 </div>
               )}
               {request.emp_reqTypeId === 2 && (
-                <div className="item">
-                  <label>Field Work Date</label>
-                  <p>{request.DateonField}</p>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Field Work Date</label>
+                  <p className="font-semibold text-slate-800">{request.DateonField}</p>
                 </div>
               )}
               {request.emp_reqTypeId === 5 && (
                 <>
-                  <div className="item">
-                    <label>Log Date</label>
-                    <p>{request.LC_logDate}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Log Date</label>
+                    <p className="font-semibold text-slate-800">{request.LC_logDate}</p>
                   </div>
-                  <div className="item">
-                    <label>Category</label>
-                    <p className="categoryBadge">{request.LC_correctionCategory || "N/A"}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Category</label>
+                    <Badge variant="outline" className="mt-1">{request.LC_correctionCategory || "N/A"}</Badge>
                   </div>
                 </>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          {/* Dynamic Details Section */}
-          <div className="detailCard">
-            <div className="cardHeader">
-              <CalendarTodayIcon className="headerIcon" />
-              <h3>Specific Details</h3>
-            </div>
-            <div className="infoGrid">
+          {/* Specific Details Section */}
+          <Card className="border-0 shadow-sm bg-white">
+            <CardHeader className="border-b border-slate-50 pb-4 mb-4">
+              <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
+                <CalendarTodayIcon className="text-slate-400 h-5 w-5" /> Specific Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              
               {/* Overtime Details */}
               {request.emp_reqTypeId === 1 && (
                 <>
-                  <div className="item">
-                    <label>Time From</label>
-                    <p>{formatTime(request.HrFrom)}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time From</label>
+                    <p className="font-semibold text-slate-800">{formatTime(request.HrFrom)}</p>
                   </div>
-                  <div className="item">
-                    <label>Time To</label>
-                    <p>{formatTime(request.HrTo)}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time To</label>
+                    <p className="font-semibold text-slate-800">{formatTime(request.HrTo)}</p>
                   </div>
-                  <div className="item">
-                    <label>Total Hours</label>
-                    <p>{request.Total_Hrs} Hrs</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Hours</label>
+                    <p className="font-bold text-[#2A174E]">{request.Total_Hrs} Hrs</p>
                   </div>
                 </>
               )}
@@ -182,17 +196,17 @@ const RequestDetails = () => {
               {/* On-field Details */}
               {request.emp_reqTypeId === 2 && (
                 <>
-                  <div className="item">
-                    <label>Destination</label>
-                    <p>{request.destination}</p>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Destination</label>
+                    <p className="font-semibold text-slate-800">{request.destination}</p>
                   </div>
-                  <div className="item">
-                    <label>Total Hours</label>
-                    <p>{request.OW_NoHrs} Hrs</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Hours</label>
+                    <p className="font-bold text-[#2A174E]">{request.OW_NoHrs} Hrs</p>
                   </div>
-                  <div className="item">
-                    <label>Total Days</label>
-                    <p>{request.OW_NoDays} Day(s)</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Days</label>
+                    <p className="font-semibold text-slate-800">{request.OW_NoDays} Day(s)</p>
                   </div>
                 </>
               )}
@@ -200,25 +214,21 @@ const RequestDetails = () => {
               {/* Log Correction Details */}
               {request.emp_reqTypeId === 5 && (
                 <>
-                  <div className="item">
-                    <label>Correction Category</label>
-                    <p className="categoryBadge">{request.LC_correctionCategory}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Current Time-In</label>
+                    <p className="font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded w-fit">{request.LC_currentIn || "No Log"}</p>
                   </div>
-                  <div className="item">
-                    <label>Current Time-In</label>
-                    <p>{request.LC_currentIn || "No Log"}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Current Time-Out</label>
+                    <p className="font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded w-fit">{request.LC_currentOut || "No Log"}</p>
                   </div>
-                  <div className="item">
-                    <label>Current Time-Out</label>
-                    <p>{request.LC_currentOut || "No Log"}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Claimed Time-In</label>
+                    <p className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-1 rounded w-fit">{formatTime(request.LC_claimedIn)}</p>
                   </div>
-                  <div className="item">
-                    <label>Claimed Time-In</label>
-                    <p className="claimed">{formatTime(request.LC_claimedIn)}</p>
-                  </div>
-                  <div className="item">
-                    <label>Claimed Time-Out</label>
-                    <p className="claimed">{formatTime(request.LC_claimedOut)}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Claimed Time-Out</label>
+                    <p className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-1 rounded w-fit">{formatTime(request.LC_claimedOut)}</p>
                   </div>
                 </>
               )}
@@ -226,114 +236,131 @@ const RequestDetails = () => {
               {/* Leave Details (VL/SL) */}
               {(request.emp_reqTypeId === 3 || request.emp_reqTypeId === 4) && (
                 <>
-                  <div className="item">
-                    <label>Start Date</label>
-                    <p>{request.VL_StartDate || request.SL_StartDate}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Start Date</label>
+                    <p className="font-semibold text-slate-800">{request.VL_StartDate || request.SL_StartDate}</p>
                   </div>
-                  <div className="item">
-                    <label>End Date</label>
-                    <p>{request.VL_EndDate || request.SL_EndDate}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">End Date</label>
+                    <p className="font-semibold text-slate-800">{request.VL_EndDate || request.SL_EndDate}</p>
                   </div>
-                  <div className="item">
-                    <label>Total Days</label>
-                    <p>{request.VL_NoDays || request.SL_NoDays} Day(s)</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Days</label>
+                    <p className="font-bold text-[#2A174E]">{request.VL_NoDays || request.SL_NoDays} Day(s)</p>
                   </div>
-                  <div className="item">
-                    <label>Payment Status</label>
-                    <p>{request.VL_withPayName || request.SL_withPayName || "N/A"}</p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Payment Status</label>
+                    <p className="font-semibold text-slate-800">{request.VL_withPayName || request.SL_withPayName || "N/A"}</p>
                   </div>
                 </>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Attachments (If any) */}
           {(request.SL_proof_File || request.OW_proof_File || request.LC_proof_File) && (
-            <div className="detailCard">
-              <div className="cardHeader">
-                <AttachmentIcon className="headerIcon" />
-                <h3>Attachments</h3>
-              </div>
-              <div className="infoGrid">
-                <div className="item">
-                  <label>Proof Document</label>
+            <Card className="border-0 shadow-sm bg-white">
+              <CardHeader className="border-b border-slate-50 pb-4 mb-4">
+                <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
+                  <AttachmentIcon className="text-slate-400 h-5 w-5" /> Attachments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Proof Document</label>
                   <a 
                     href={`/api/uploads/${request.SL_proof_File || request.OW_proof_File || request.LC_proof_File}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="attachmentLink"
+                    className="inline-flex items-center text-[#2A174E] font-semibold hover:underline mt-1"
                   >
                     View Attached File
                   </a>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Reason / Remarks */}
-          <div className="detailCard">
-            <div className="cardHeader">
-              <h3>Employee Remarks / Purpose</h3>
-            </div>
-            <div className="textContent">
-              <p>{request.remarks || "No details provided."}</p>
-            </div>
-          </div>
+          <Card className="border-0 shadow-sm bg-white">
+            <CardHeader className="border-b border-slate-50 pb-4 mb-4">
+              <CardTitle className="text-lg text-slate-800">Employee Remarks / Purpose</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-slate-700 italic bg-slate-50 p-4 rounded-xl border border-slate-100">"{request.remarks || "No details provided."}"</p>
+            </CardContent>
+          </Card>
 
           {/* Decision Section (Only if processed) */}
           {request.emp_reqStatusId !== 1 && (
-            <div className="detailCard">
-              <div className="cardHeader">
-                <PersonIcon className="headerIcon" />
-                <h3>Review Information</h3>
-              </div>
-              <div className="infoGrid">
-                <div className="item">
-                  <label>Processed By</label>
-                  <p className="bold">{request.approverName ? `${request.approverName} (${formatUserId(request.processedBy)})` : "System"}</p>
+            <Card className="border-0 shadow-sm bg-white">
+              <CardHeader className="border-b border-slate-50 pb-4 mb-4">
+                <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
+                  <PersonIcon className="text-slate-400 h-5 w-5" /> Review Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Processed By</label>
+                    <p className="font-semibold text-slate-800">{request.approverName ? `${request.approverName} (${formatUserId(request.processedBy)})` : "System"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Processed On</label>
+                    <p className="font-medium text-slate-600">{request.date_Processed || "N/A"}</p>
+                  </div>
                 </div>
-                <div className="item">
-                  <label>Processed On</label>
-                  <p>{request.date_Processed || "N/A"}</p>
+                
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-[#2A174E] uppercase tracking-wider block">Management Note / Remarks</label>
+                  <p className="text-slate-700 bg-white p-4 rounded-xl border border-slate-200">
+                    {request.admin_remarks || "No additional notes provided."}
+                  </p>
                 </div>
-              </div>
-              <div className="commentsBox">
-                <label>Management Note / Remarks</label>
-                <p>{request.admin_remarks || "No additional notes provided."}</p>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Timeline */}
-          <div className="detailCard">
-            <div className="cardHeader">
-              <h3>Timeline</h3>
-            </div>
-            <div className="timeline">
-              <div className="timelineItem">
-                <div className="marker blue"><AccessTimeIcon className="icon"/></div>
-                <div className="content">
-                  <p className="status">Request Submitted</p>
-                  <p className="date">{new Date(request.date_Filed).toLocaleDateString()}</p>
+          <Card className="border-0 shadow-sm bg-white overflow-hidden">
+            <CardHeader className="border-b border-slate-50 pb-4 mb-4 bg-slate-50/50">
+              <CardTitle className="text-lg text-slate-800">Request Timeline</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="ml-4 border-l-2 border-slate-200 space-y-8 py-2 relative">
+                
+                {/* Submit Event */}
+                <div className="relative pl-8">
+                  <div className="absolute -left-[17px] top-0.5 w-8 h-8 rounded-full bg-white border-2 border-blue-500 flex items-center justify-center shadow-sm">
+                    <AccessTimeIcon className="text-blue-500 h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">Request Submitted</p>
+                    <p className="text-sm text-slate-500 mt-0.5">{new Date(request.date_Filed).toLocaleDateString()}</p>
+                  </div>
                 </div>
+
+                {/* Process Event (if applicable) */}
+                {request.emp_reqStatusId !== 1 && (
+                  <div className="relative pl-8">
+                    <div className={`absolute -left-[17px] top-0.5 w-8 h-8 rounded-full bg-white border-2 flex items-center justify-center shadow-sm ${isApproved ? 'border-green-500' : 'border-red-500'}`}>
+                      {isApproved ? <CheckCircleIcon className="text-green-500 h-4 w-4" /> : <CancelIcon className="text-red-500 h-4 w-4" />}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800">Request {request.status}</p>
+                      <p className="text-sm text-slate-500 mt-0.5">{request.date_Processed}</p>
+                      <p className="text-xs text-slate-400 italic mt-1">Reviewed by {request.approverName} ({formatUserId(request.processedBy)})</p>
+                    </div>
+                  </div>
+                )}
+                
               </div>
-              {request.emp_reqStatusId !== 1 && (
-                <div className="timelineItem last">
-                  <div className={`marker ${isApproved ? 'green' : 'red'}`}>
-                    {isApproved ? <CheckCircleIcon className="icon"/> : <CancelIcon className="icon"/>}
-                  </div>
-                  <div className="content">
-                    <p className="status">Request {request.status}</p>
-                    <p className="date">{request.date_Processed}</p>
-                    <p className="sub">Reviewed by {request.approverName} ({formatUserId(request.processedBy)})</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
         </div>
       </div>
+      </Sidebar>
     </div>
   );
 };

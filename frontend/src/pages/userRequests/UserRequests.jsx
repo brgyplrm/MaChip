@@ -494,12 +494,12 @@ const UserRequests = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         
         {/* Statistics Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card className="shadow-sm border-0">
+          <Card className="shadow-sm border-0 py-0">
             <CardContent className="p-6 flex justify-between items-center">
               <div>
                 <span className="text-sm font-semibold text-slate-500">Pending Requests</span>
@@ -510,7 +510,7 @@ const UserRequests = () => {
               </div>
             </CardContent>
           </Card>
-          <Card className="shadow-sm border-0">
+          <Card className="shadow-sm border-0 py-0">
             <CardContent className="p-6 flex justify-between items-center">
               <div>
                 <span className="text-sm font-semibold text-slate-500">Approved Total</span>
@@ -521,7 +521,7 @@ const UserRequests = () => {
               </div>
             </CardContent>
           </Card>
-          <Card className="shadow-sm border-0">
+          <Card className="shadow-sm border-0 py-0">
             <CardContent className="p-6 flex justify-between items-center">
               <div>
                 <span className="text-sm font-semibold text-slate-500">Rejected Total</span>

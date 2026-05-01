@@ -194,11 +194,11 @@ const AdminReports = () => {
 
   return (
     <Sidebar>
-      <div className="flex flex-col w-full min-h-screen bg-slate-50">
-      <div className="flex-1 p-4 md:p-8 w-full overflow-x-hidden min-w-0">
+      <div className="flex flex-col w-full min-h-screen">
+      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Reports & Export</h1>
             <span className="text-sm text-muted-foreground mt-1 block">Generate and export attendance and payroll</span>
@@ -207,6 +207,25 @@ const AdminReports = () => {
             <FileDownloadIcon className="mr-2 h-4 w-4" /> CSV Export
           </Button>
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-6 bg-slate-50/50 border-t border-slate-100">
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+              <label className="text-sm font-semibold text-slate-500 uppercase">Total Present</label>
+              <p className="text-2xl font-bold text-green-600 mt-1">{stats.present}</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+              <label className="text-sm font-semibold text-slate-500 uppercase">Total Absent</label>
+              <p className="text-2xl font-bold text-red-500 mt-1">{stats.absent}</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+              <label className="text-sm font-semibold text-slate-500 uppercase">Total Late</label>
+              <p className="text-2xl font-bold text-amber-500 mt-1">{stats.late}</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+              <label className="text-sm font-semibold text-slate-500 uppercase">Total Hours</label>
+              <p className="text-2xl font-bold text-slate-800 mt-1">{stats.totalHours.toFixed(1)} <span className="text-sm font-normal text-slate-500">hrs</span></p>
+            </div>
+          </div>
 
         {/* Navigation Tabs */}
         <div className="flex flex-wrap gap-3 mb-6 bg-white p-2 rounded-xl shadow-sm border border-slate-100">
@@ -228,12 +247,12 @@ const AdminReports = () => {
 
         {/* Filters Card */}
         <Card className="mb-6 shadow-sm border-0">
-          <CardHeader className="pb-3 border-b border-slate-100">
+          <CardHeader className=" border-b border-slate-100">
             <CardTitle className="text-lg flex items-center gap-2 text-slate-700">
               <FilterListIcon className="h-5 w-5" /> Filters
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent className="pt-2">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               
               {(activeReport === "payroll" || activeReport === "attendance") && (
@@ -288,7 +307,7 @@ const AdminReports = () => {
         </Card>
 
         {/* Data/Table Card */}
-        <Card className="shadow-sm border-0">
+        <Card className="shadow-sm border-0 py-2 px-4">
           <CardContent className="p-0">
             {loading ? (
               <div className="p-12 text-center text-muted-foreground animate-pulse">Loading records...</div>
@@ -348,24 +367,6 @@ const AdminReports = () => {
                     </div>
 
                     {/* Summary Stats Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-6 bg-slate-50/50 border-t border-slate-100">
-                      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                        <label className="text-sm font-semibold text-slate-500 uppercase">Total Present</label>
-                        <p className="text-2xl font-bold text-green-600 mt-1">{stats.present}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                        <label className="text-sm font-semibold text-slate-500 uppercase">Total Absent</label>
-                        <p className="text-2xl font-bold text-red-500 mt-1">{stats.absent}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                        <label className="text-sm font-semibold text-slate-500 uppercase">Total Late</label>
-                        <p className="text-2xl font-bold text-amber-500 mt-1">{stats.late}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                        <label className="text-sm font-semibold text-slate-500 uppercase">Total Hours</label>
-                        <p className="text-2xl font-bold text-slate-800 mt-1">{stats.totalHours.toFixed(1)} <span className="text-sm font-normal text-slate-500">hrs</span></p>
-                      </div>
-                    </div>
                   </>
                 )}
 

@@ -71,7 +71,7 @@ const EmployeeHome = () => {
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
 
-      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
         <Toast 
           message={toast.message} 
           type={toast.type} 
@@ -79,7 +79,7 @@ const EmployeeHome = () => {
         />
         
         {/* Top Section: Attendance Overview */}
-        <Card className="mb-6 shadow-sm border-0 bg-white">
+        <Card className="mb-6 shadow-sm border-0 bg-white py-0">
           <CardContent className="p-6 md:p-8">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
               
@@ -152,7 +152,7 @@ const EmployeeHome = () => {
           
           {/* Recent Activity Card */}
           <Card className="shadow-sm border-0 bg-white">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-slate-50 mb-4">
+            <CardHeader className="flex flex-row items-center justify-between pb-0 border-b border-slate-50 mb-0">
               <div className="flex items-center gap-2">
                 <HistoryIcon className="text-[#2A174E]" />
                 <CardTitle className="text-lg text-[#2A174E]">Recent Attendance</CardTitle>
@@ -194,7 +194,7 @@ const EmployeeHome = () => {
 
           {/* Leave Consumption Card */}
           <Card className="shadow-sm border-0 bg-white">
-            <CardHeader className="pb-2 border-b border-slate-50 mb-4">
+            <CardHeader className="pb-2 border-b border-slate-50 mb-0">
               <CardTitle className="text-lg text-[#2A174E]">Consumed Leave Types</CardTitle>
               <p className="text-sm text-slate-500 mt-1">Track your Vacation (VL) and Sick (SL) leave balance.</p>
             </CardHeader>
@@ -238,7 +238,7 @@ const EmployeeHome = () => {
 
         {/* Bottom Leaves Section */}
         <Card className="shadow-sm border-0 bg-white">
-          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-50 mb-4 gap-4">
+          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-50 mb-0 gap-4">
             <CardTitle className="text-xl text-[#2A174E]">My Requests</CardTitle>
             <Button asChild className="bg-[#2A174E] hover:bg-[#1a0e30] w-full sm:w-auto">
               <Link to="/requests">

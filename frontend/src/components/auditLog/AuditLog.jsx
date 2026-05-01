@@ -139,7 +139,7 @@ const AuditLogs = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -154,14 +154,14 @@ const AuditLogs = () => {
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Actions</label><p className="text-2xl font-bold text-slate-800 mt-1">{stats.totalActions}</p></CardContent></Card>
-          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Security Alerts</label><p className="text-2xl font-bold text-red-500 mt-1">{stats.securityAlerts}</p></CardContent></Card>
-          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Updates</label><p className="text-2xl font-bold text-slate-800 mt-1">{stats.userUpdates}</p></CardContent></Card>
-          <Card className="shadow-sm border-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Admins</label><p className="text-2xl font-bold text-[#2A174E] mt-1">{stats.activeAdmins}</p></CardContent></Card>
+          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Actions</label><p className="text-2xl font-bold text-slate-800 mt-1">{stats.totalActions}</p></CardContent></Card>
+          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Security Alerts</label><p className="text-2xl font-bold text-red-500 mt-1">{stats.securityAlerts}</p></CardContent></Card>
+          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Updates</label><p className="text-2xl font-bold text-slate-800 mt-1">{stats.userUpdates}</p></CardContent></Card>
+          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Admins</label><p className="text-2xl font-bold text-[#2A174E] mt-1">{stats.activeAdmins}</p></CardContent></Card>
         </div>
 
         {/* Filter Bar */}
-        <Card className="mb-6 shadow-sm border-0">
+        <Card className="mb-6 shadow-sm border-0 py-0">
           <CardContent className="p-4 flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -181,7 +181,7 @@ const AuditLogs = () => {
         </Card>
 
         {/* Table */}
-        <Card className="shadow-sm border-0 bg-white">
+        <Card className="shadow-sm border-0 bg-white py-2 px-4">
           <CardContent className="p-0 overflow-x-auto">
             {loading ? <div className="p-12 text-center text-slate-400">Loading...</div> : (
               <Table className="min-w-[900px]">

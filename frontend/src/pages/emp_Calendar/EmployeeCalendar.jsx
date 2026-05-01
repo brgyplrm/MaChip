@@ -89,7 +89,7 @@ const EmployeeCalendar = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 px-4 py-2 md:px-8 md:py-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 px-4 py-2 md:px-4 md:py-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
         
         {/* Header */}
         <div className="mb-6">
@@ -98,32 +98,37 @@ const EmployeeCalendar = () => {
         </div>
 
         {/* Legend Card */}
-        <Card className="mb-6 shadow-sm border-0 bg-white">
-          <CardContent className="p-4 flex flex-wrap gap-4 sm:gap-6 items-center">
-            <div className="flex items-center text-sm text-slate-600 font-medium">
-              <div className="w-3 h-3 rounded-sm mr-2 bg-red-100 border border-red-300" /> Legal Holiday
-            </div>
-            <div className="flex items-center text-sm text-slate-600 font-medium">
-              <div className="w-3 h-3 rounded-sm mr-2 bg-purple-100 border border-purple-300" /> Special Holiday
-            </div>
-            <div className="flex items-center text-sm text-slate-600 font-medium">
-              <div className="w-3 h-3 rounded-sm mr-2 bg-green-100 border border-green-300" /> Approved Leave
-            </div>
-            <div className="flex items-center text-sm text-slate-600 font-medium">
-              <div className="w-3 h-3 rounded-sm mr-2 bg-orange-100 border border-orange-300" /> Field Work
-            </div>
-            <div className="flex items-center text-sm text-slate-600 font-medium">
-              <div className="w-3 h-3 rounded-sm mr-2 bg-blue-100 border border-blue-300" /> Overtime
-            </div>
-          </CardContent>
-        </Card>
-
+        <Card className="py-2">
+            <CardContent className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-red-100 border border-red-300" />
+                <div className="p-1"></div>Regular Holiday
+              </div>
+              <div className="flex items-center text-sm text-muted-foreground">
+                <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-purple-100 border border-purple-300" /> 
+                <div className="p-1"></div>Special Non-Working Holiday
+              </div>
+              <div className="flex items-center text-sm text-muted-foreground">
+                <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-orange-100 border border-orange-300" /> 
+                <div className="p-1"></div>Field Work
+              </div>
+              <div className="flex items-center text-sm text-muted-foreground">
+                <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-green-100 border border-green-300" /> 
+                <div className="p-1"></div>Approved Leave
+              </div>
+              <div className="flex items-center text-sm text-muted-foreground">
+                <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-blue-100 border border-blue-300" /> 
+                <div className="p-1"></div>Overtime
+              </div>
+            </CardContent>
+          </Card>
+        <div className="h-4"></div>
         {/* Main Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
           
           {/* Left Calendar Column */}
           <div className="lg:col-span-8">
-            <Card className="overflow-hidden border-0 shadow-sm bg-white">
+            <Card className="overflow-hidden border-0 shadow-sm bg-white py-0">
               <div className="bg-gradient-to-r from-orange-500 to-orange-400 text-white flex justify-between items-center p-4">
                 <ChevronLeftIcon className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => changeMonth(-1)} />
                 <h2 className="text-lg md:text-xl font-bold m-0">{`${monthName} ${year}`}</h2>
@@ -205,7 +210,7 @@ const EmployeeCalendar = () => {
             
             {/* Holidays List Card */}
             <Card className="shadow-sm border-0 bg-white">
-              <CardHeader className="pb-3 border-b border-slate-50 mb-2">
+              <CardHeader className="pb-0 border-b border-slate-50 mb-0">
                 <CardTitle className="text-lg text-[#2A174E]">Upcoming Holidays</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4">
@@ -239,7 +244,7 @@ const EmployeeCalendar = () => {
 
             {/* Field Work List Card */}
             <Card className="shadow-sm border-0 bg-white">
-              <CardHeader className="pb-3 border-b border-slate-50 mb-2">
+              <CardHeader className="pb-3 border-b border-slate-50 mb-0">
                 <CardTitle className="text-lg text-[#2A174E]">My Field Work</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4">
