@@ -303,18 +303,53 @@ const Logs = () => {
         
         <div className="flex-1 p-4 md:p-4 w-full">
           
-          {/* Header & Filters */}
-          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
-            <div className="w-full xl:w-auto">
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">User Logging Activity</h1>
+          {/* Header section with actions */}
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">User Logging Activity</h1>
               <span className="text-sm text-muted-foreground mt-1 block">
                 {viewMode === "raw" ? "Track user logins in real-time" : `Day Logs (${period.startDate} to ${period.endDate})`}
               </span>
             </div>
+            
+            <div className="flex flex-row items-center gap-2 w-full md:w-auto">
+                <Button
+                  variant="outline"
+                  className="flex-1 md:flex-none border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
+                  onClick={() => {
+                    setViewMode(viewMode === "raw" ? "day" : "raw");
+                    setCurrentPage(1);
+                  }}
+                >
+                  {viewMode === "raw" ? "View Day Logs" : "View Raw Logs"}
+                </Button>
+                
+                {viewMode === "raw" && (
+                  <>
+                    <Button
+                      className="flex-1 md:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30] w-[120px]"
+                      onClick={() => handleGenerateLogs(1)}
+                      disabled={loading}
+                    >
+                      {loading ? "..." : "Clock In"} 
+                    </Button>
+                    <Button
+                      className="flex-1 md:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30] w-[120px]"
+                      onClick={() => handleGenerateLogs(2)}
+                      disabled={loading}
+                    >
+                      {loading ? "..." : "Clock Out"}
+                    </Button>
+                  </>
+                )}
+            </div>
+          </div>
+          <div className="h-2"></div>
 
-            <div className="flex flex-col md:flex-row items-center gap-3 w-full xl:w-auto">
-              {/* Search Bar */}
-              <div className="relative w-full md:w-64">
+          {/* Filters Card */}
+          <Card className="mb-6 shadow-sm border-0 bg-white py-0">
+            <CardContent className="px-4 py-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="relative w-full md:flex-1">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#2A174E]" />
                 <Input
                   type="text"
@@ -324,13 +359,11 @@ const Logs = () => {
                     setSearchQuery(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="pl-9 border-[#2A174E]/10  bg-white w-full"
+                  className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-[#2A174E] w-full"
                 />
               </div>
-
-              {/* User Filter */}
               <div className="flex items-center gap-2 w-full md:w-auto">
-                <div className="w-full md:w-48">
+                <div className="w-full md:w-64">
                   <Select
                     value={selectedUser}
                     onValueChange={(val) => {
@@ -338,7 +371,7 @@ const Logs = () => {
                       setCurrentPage(1);
                     }}
                   >
-                    <SelectTrigger className="border-[#2A174E]/30 focus:ring-[#2A174E] bg-white w-full">
+                    <SelectTrigger className="bg-slate-50/50 border-slate-200 focus:ring-[#2A174E] w-full">
                       <SelectValue placeholder="All Users" />
                     </SelectTrigger>
                     <SelectContent>
@@ -365,44 +398,8 @@ const Logs = () => {
                   </Button>
                 )}
               </div>
-
-              {/* Actions */}
-              <div className="flex flex-row items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
-                <Button
-                  variant="outline"
-                  // CHANGED: Removed w-full, added flex-1 so it shares space equally with other buttons on mobile
-                  className="flex-1 md:flex-none border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
-                  onClick={() => {
-                    setViewMode(viewMode === "raw" ? "day" : "raw");
-                    setCurrentPage(1);
-                  }}
-                >
-                  {viewMode === "raw" ? "View Day Logs" : "View Raw Logs"}
-                </Button>
-                
-                {viewMode === "raw" && (
-                  <>
-                    <Button
-                      // CHANGED: Removed w-full, added flex-1
-                      className="flex-1 md:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30] w-[120px]"
-                      onClick={() => handleGenerateLogs(1)}
-                      disabled={loading}
-                    >
-                      {loading ? "..." : "Clock In"} 
-                    </Button>
-                    <Button
-                      // CHANGED: Removed w-full, added flex-1
-                      className="flex-1 md:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30] w-[120px]"
-                      onClick={() => handleGenerateLogs(2)}
-                      disabled={loading}
-                    >
-                      {loading ? "..." : "Clock Out"}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Table Card */}
           <Card className="shadow-sm border-0 bg-white p-5">

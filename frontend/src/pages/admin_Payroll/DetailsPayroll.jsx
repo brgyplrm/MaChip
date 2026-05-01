@@ -98,7 +98,7 @@ const PayrollDetails = () => {
   if (loading) return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
         <div className="flex justify-between items-center mb-8">
           <Skeleton className="h-10 w-[300px]" />
           <Skeleton className="h-8 w-[100px] rounded-full" />
@@ -142,7 +142,7 @@ const PayrollDetails = () => {
           <div className="flex items-start sm:items-center gap-4">
             <button 
               onClick={() => navigate(-1)} 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 sm:mt-0"
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 sm:mt-0 hover:scale-110"
             >
               <ArrowBackIcon />
             </button>
@@ -164,7 +164,7 @@ const PayrollDetails = () => {
           
           {/* Employee Information Card */}
           <Card className="border-0 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-50 pb-4 mb-4">
+            <CardHeader className="border-b border-slate-50 py-0">
               <CardTitle className="text-base flex items-center gap-2 text-slate-800">
                 <PersonOutlineIcon className="text-slate-400 h-5 w-5" /> Employee Information
               </CardTitle>
@@ -191,7 +191,7 @@ const PayrollDetails = () => {
 
           {/* Pay Period Card */}
           <Card className="border-0 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-50 pb-4 mb-4">
+            <CardHeader className="border-b border-slate-50 py-0">
               <CardTitle className="text-base flex items-center gap-2 text-slate-800">
                 <CalendarTodayIcon className="text-slate-400 h-5 w-5" /> Pay Period
               </CardTitle>
@@ -226,7 +226,7 @@ const PayrollDetails = () => {
 
           {/* Earnings Breakdown Card */}
           <Card className="border-0 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-50 pb-4 mb-4">
+            <CardHeader className="border-b border-slate-50 py-0">
               <CardTitle className="text-base flex items-center gap-2 text-slate-800">
                 <TrendingUpIcon className="text-green-500 h-5 w-5" /> Earnings Breakdown
               </CardTitle>
@@ -273,7 +273,7 @@ const PayrollDetails = () => {
 
           {/* Deductions Breakdown Card */}
           <Card className="border-0 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-50 pb-4 mb-4">
+            <CardHeader className="border-b border-slate-50 py-0">
               <CardTitle className="text-base flex items-center gap-2 text-slate-800">
                 <TrendingDownIcon className="text-red-500 h-5 w-5" /> Deductions Breakdown
               </CardTitle>

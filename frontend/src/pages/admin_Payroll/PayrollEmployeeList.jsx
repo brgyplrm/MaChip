@@ -19,6 +19,7 @@ import { fetchWithAuth } from "../../utils/api";
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -27,6 +28,7 @@ const EmployeeList = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterRole, setFilterRole] = useState("All Roles");
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState("");
   const [savingId, setSavingId] = useState(null);
@@ -151,14 +153,14 @@ const EmployeeList = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div className="flex items-start md:items-center gap-4">
             <Link 
               to="/payroll" 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0"
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
             >
               <ArrowBackIcon />
             </Link>
@@ -191,13 +193,13 @@ const EmployeeList = () => {
 
         {/* Summary Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <Card className="shadow-sm border-slate-200">
+          <Card className="shadow-sm border-slate-200 py-0">
             <CardContent className="p-4 flex items-center justify-between">
               <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Employees</span>
               <span className="text-2xl font-bold text-[#2A174E]">{employees.length}</span>
             </CardContent>
           </Card>
-          <Card className={`shadow-sm border transition-colors ${changedCount > 0 ? "bg-[#fcfaff] border-[#d1c4e9]" : "border-slate-200"}`}>
+          <Card className={`shadow-sm border transition-colors py-0 ${changedCount > 0 ? "bg-[#fcfaff] border-[#d1c4e9]" : "border-slate-200"}`}>
             <CardContent className="p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <SwapHorizIcon className={changedCount > 0 ? "text-[#7c5cbf]" : "text-slate-400"} />
@@ -211,7 +213,7 @@ const EmployeeList = () => {
         </div>
 
         {/* Filters */}
-        <Card className="mb-6 shadow-sm border-0">
+        <Card className="mb-6 shadow-sm border-0 py-0">
           <CardContent className="p-4">
             <div className="relative w-full md:w-96">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />

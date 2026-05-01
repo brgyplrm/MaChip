@@ -177,7 +177,7 @@ const Payroll = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
         
         {/* Header */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 min-w-0">
@@ -298,7 +298,7 @@ const Payroll = () => {
         <h2 className="text-lg font-bold text-slate-700 mb-4">Previous Periods (Locked)</h2>
 
         {/* Previous Periods Table */}
-        <Card className="shadow-sm border-0 bg-white min-w-0">
+        <Card className="shadow-sm border-0 bg-white min-w-0 px-4 py-2">
           <CardContent className="p-0 overflow-x-auto">
             <Table className="min-w-[800px]">
               <TableHeader className="bg-slate-50/50">
@@ -338,7 +338,7 @@ const Payroll = () => {
                               className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
                             >
                               <Link to={`/payroll/payrollPeriod?periodId=${p.periodId}`}>
-                                <VisibilityIcon className="mr-2 h-4 w-4" /> View Details
+                                {/* <VisibilityIcon className="mr-2 h-4 w-4" />  */} View Details
                               </Link>
                             </Button>
                           </TableCell>

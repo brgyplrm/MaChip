@@ -149,14 +149,14 @@ const PayrollPeriod = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
         
         {/* Header section with back button */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div className="flex items-start md:items-center gap-4">
             <Link 
               to="/payroll" 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0"
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
             >
               <ArrowBackIcon className="h-6 w-6" />
             </Link>
@@ -191,7 +191,7 @@ const PayrollPeriod = () => {
 
         {/* Statistics Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card className="shadow-sm border-0 bg-white">
+          <Card className="shadow-sm border-0 bg-white py-0">
             <CardContent className="p-6">
               <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center mb-4">
                 <span className="text-green-700 font-bold text-lg">₱</span>
@@ -200,7 +200,7 @@ const PayrollPeriod = () => {
               <p className="text-2xl font-bold text-[#2A174E]">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
             </CardContent>
           </Card>
-          <Card className="shadow-sm border-0 bg-white">
+          <Card className="shadow-sm border-0 bg-white py-0">
             <CardContent className="p-6">
               <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
                 <KeyboardDoubleArrowUpIcon className="text-blue-700 h-6 w-6" />
@@ -209,7 +209,7 @@ const PayrollPeriod = () => {
               <p className="text-2xl font-bold text-[#2A174E]">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
             </CardContent>
           </Card>
-          <Card className="shadow-sm border-0 bg-white">
+          <Card className="shadow-sm border-0 bg-white py-0">
             <CardContent className="p-6">
               <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center mb-4">
                 <KeyboardDoubleArrowDownIcon className="text-red-700 h-6 w-6" />
@@ -221,7 +221,7 @@ const PayrollPeriod = () => {
         </div>
 
         {/* Table Card */}
-        <Card className="shadow-sm border-0 bg-white">
+        <Card className="shadow-sm border-0 bg-white py-2 px-4">
           <CardContent className="p-0 overflow-x-auto">
             {loading ? (
               <div className="p-12 text-center text-slate-400 italic">Loading payroll records...</div>
@@ -263,7 +263,7 @@ const PayrollPeriod = () => {
                         <TableCell className="py-4 text-right pr-6">
                           <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
                             <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}`}>
-                              <VisibilityIcon className="mr-1 h-4 w-4" /> View Details
+                              {/* <VisibilityIcon className="mr-1 h-4 w-4" />  */} View Details
                             </Link>
                           </Button>
                         </TableCell>

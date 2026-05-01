@@ -194,7 +194,7 @@ const AdminRequests = () => {
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-      <div className="flex-1 p-4 md:p-8 w-full overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
         
         {/* Statistics Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -232,7 +232,6 @@ const AdminRequests = () => {
             </CardContent>
           </Card>
         </div>
-        <div className="h-4"></div>
 
         {/* Main Split Content */}
         <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-220px)] min-h-[600px]">
@@ -254,7 +253,7 @@ const AdminRequests = () => {
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 py-0">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">
                 {activeTab === "pending" ? "Queue" : "Past Requests"} ({filteredRequests.length})
               </h4>
@@ -295,7 +294,7 @@ const AdminRequests = () => {
           </Card>
 
           {/* Right: Detailed Review */}
-          <Card className="w-full lg:w-2/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden">
+          <Card className="w-full lg:w-2/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-2">
             <CardContent className="flex-1 overflow-y-auto p-6 md:p-8">
               {current ? (
                 <>
@@ -332,15 +331,15 @@ const AdminRequests = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-xl border border-slate-100 mb-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-xl border border-slate-100 mb-4">
                     
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employee Name</label>
                       <p className="font-semibold text-slate-800">{current.userName}</p>
                     </div>
 
-                    <div className="space-y-1 sm:col-span-2 xl:col-span-1 bg-white p-3 -m-3 rounded-lg border border-slate-200 shadow-sm">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Requested Schedule</label>
+                    <div className="space-y-1 sm:col-span-2 xl:col-span-1 p-3 -m-3 rounded-lg ">
+                      <label className="text-xs font-bold text-slate-500 uppercase">Requested Schedule</label>
                       <p className="font-bold text-[#2A174E]">{getDates(current)}</p>
                     </div>
 
@@ -495,7 +494,7 @@ const AdminRequests = () => {
                   </div>
 
                   {current.emp_reqStatusId === 1 && (
-                    <div className="space-y-3 mt-8">
+                    <div className="space-y-3 mt-2">
                       <label className="text-sm font-bold text-slate-800">Admin Note (Optional)</label>
                       <Textarea
                         value={adminNote}
