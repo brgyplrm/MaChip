@@ -52,7 +52,7 @@ const {
   Leave_Balance,
 } = require("../models/request.model")(sequelize, DataTypes);
 
-const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare } =
+const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances } =
   require("../models/payroll.model")(sequelize, DataTypes);
 
 const { Notification } = require("../models/notification.models")(
@@ -98,6 +98,10 @@ Payroll.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user
 // User ↔ Maxicare
 User.hasMany(Payroll_maxicare, { foreignKey: "user_Id", sourceKey: "user_Id" });
 Payroll_maxicare.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
+// User ↔ Payroll_Cash_Advances
+User.hasMany(Payroll_Cash_Advances, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Payroll_Cash_Advances.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
 
 // User ↔ Notification
 User.hasMany(Notification, { foreignKey: "user_Id", sourceKey: "user_Id" });
@@ -302,6 +306,20 @@ const connectDB = async () => {
         END $$;
       `);
 
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "Payroll_Cash_Advances" (
+          "caId" SERIAL PRIMARY KEY,
+          "user_Id" SMALLINT NOT NULL REFERENCES "User"("user_Id"),
+          "date" DATE NOT NULL,
+          "amount" FLOAT DEFAULT 0,
+          "payrollId" INTEGER REFERENCES "Payroll"("payrollId"),
+          "notes" TEXT,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "user_ca_date_unique" UNIQUE ("user_Id", "date")
+        );
+      `);
+
       console.log("Manual migrations applied.");
     } catch (err) {
       console.error("Manual migration error:", err.message);
@@ -463,4 +481,5 @@ module.exports = {
   Loan_Deduction_History,
   Loan_Deduction_Schedules,
   Payroll_maxicare,
+  Payroll_Cash_Advances,
 };

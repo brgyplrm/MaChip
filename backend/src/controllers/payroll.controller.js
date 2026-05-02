@@ -181,7 +181,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
       continue;
     }
 
-    // ── Handle Non-Holiday Scheduled Days ────────────────────────────────
+    // Handle Non-Holiday Scheduled Days
     const [y, m, d] = dateStr.split("-").map(Number);
     const dateObj = new Date(Date.UTC(y, m - 1, d));
     const isSunday = dateObj.getUTCDay() === 0;
@@ -193,10 +193,19 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
       continue;
     }
 
-    // Rule #1: Absence logic for normal days (not worked, not holiday, not leave)
-    const isAfterCutoff = now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 30);
-    if (!isFuture && (!isToday || isAfterCutoff)) {
-      absence_Days++;
+    // Rule #1: Absence logic for normal days
+    if (!isFuture) {
+      // If already explicitly marked as Absent in logs, count it regardless of time
+      if (isAbsentStatus) {
+        absence_Days++;
+      } 
+      // If no logs at all, count as absent only if it's a past day OR if today is past the shift cutoff
+      else if (!log) {
+        const isAfterCutoff = now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 30);
+        if (!isToday || isAfterCutoff) {
+          absence_Days++;
+        }
+      }
     }
   }
 
@@ -279,7 +288,23 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   tax_Share = user[0]?.tax_Share || 0;
   
   hCard = user[0]?.healthCard_Amnt || 0;
-  
+
+  // ── Cash Advance Override Check ─────────────────────────────────────────────
+  try {
+   const caRecord = await sequelize.query(
+     `SELECT "amount" FROM "Payroll_Cash_Advances"
+      WHERE "user_Id" = :user_Id AND "date" = :period_End LIMIT 1`,
+     { replacements: { user_Id, period_End }, type: QueryTypes.SELECT }
+   );
+   if (caRecord.length > 0) {
+     advAmnt = caRecord[0].amount;
+   } else {
+     advAmnt = user[0]?.advances_Amnt || 0;
+   }
+  } catch (err) {
+   advAmnt = user[0]?.advances_Amnt || 0;
+  }
+
   // ── Maxicare Override Check ─────────────────────────────────────────────────
   try {
     const maxicareRecord = await sequelize.query(
@@ -314,7 +339,6 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   sLoan = user[0]?.SSS_Loan || 0;
   hLoan = user[0]?.HDMF_Loan || 0;
   cLoan = user[0]?.calamityLoan_Amnt || 0;
-  advAmnt = user[0]?.advances_Amnt || 0;
   gDed = user[0]?.globe_Deduction || 0;
   mpSave = user[0]?.multiPurposeSavings || 0;
 
@@ -547,6 +571,85 @@ exports.generateBatchPayroll = async (req, res) => {
   }
 };
 
+// ── Recalculate Payroll (Internal) ───────────────────────────────────────────
+/**
+ * Forces a recalculation of an existing payroll record's stats.
+ * Used when attendance logs are updated/auto-marked as absent.
+ */
+async function recalculatePayrollInternal(payrollId) {
+  try {
+    const payroll = await sequelize.query(
+      `SELECT * FROM "Payroll" WHERE "payrollId" = :payrollId`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+    if (!payroll[0]) return;
+
+    const { user_Id, period_Start, period_End } = payroll[0];
+    const fullStats = await calculatePayrollStats(user_Id, period_Start, period_End);
+
+    // Update Earning Adjustments
+    await sequelize.query(
+      `UPDATE "Payroll_Earnings" 
+       SET "OT_Hrs" = :OT_Hrs, "OT_Amnt" = :OT_Amnt,
+           "legalHol_Amnt" = :legalHol_Amnt, "specialHol_Amnt" = :specialHol_Amnt,
+           "specialHol_Adj" = :specialHol_Adj
+       WHERE "payrollId" = :payrollId`,
+      { replacements: { 
+          payrollId, 
+          OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
+          legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt,
+          specialHol_Adj: fullStats.specialHol_Adj
+        }, type: QueryTypes.UPDATE }
+    );
+
+    // Update Deductions
+    await sequelize.query(
+      `UPDATE "Payroll_Deductions"
+       SET "absence_Hrs" = :absence_Hrs, "absence_Amnt" = :absence_Amnt,
+           "tardiness_Mins" = :tardiness_Mins, "tardiness_Amnt" = :tardiness_Amnt,
+           "unpaidLeave_Days" = :unpaidLeave_Days, "unpaidLeave_Amnt" = :unpaidLeave_Amnt,
+           "paidLeave_Days" = :paidLeave_Days, "SSS_Ded" = :sss, "Philhealth_Ded" = :ph,
+           "HDMF_Ded" = :hd, "Tax_Ded" = :tax, "healthCard_Amnt" = :hc,
+           "SSS_Loan" = :sl, "HDMF_Loan" = :hl, "calamityLoan_Amnt" = :cl,
+           "multiPurposeSavings" = :ms, "advances_Amnt" = :aa, "globe_Deduction" = :gd
+       WHERE "payrollId" = :payrollId`,
+      { replacements: {
+          payrollId,
+          absence_Hrs: (fullStats.absence_Days) * 8,
+          absence_Amnt: fullStats.absence_Amnt,
+          tardiness_Mins: fullStats.tardiness_Mins,
+          tardiness_Amnt: fullStats.tardiness_Amnt,
+          unpaidLeave_Days: fullStats.unpaidLeave_Days,
+          unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
+          paidLeave_Days: fullStats.paidLeave_Days,
+          sss: fullStats.SSS_Ded, ph: fullStats.Philhealth_Ded, hd: fullStats.HDMF_Ded, tax: fullStats.Tax_Ded,
+          hc: fullStats.healthCard_Amnt, sl: fullStats.SSS_Loan, hl: fullStats.HDMF_Loan,
+          cl: fullStats.calamityLoan_Amnt, ms: fullStats.multiPurposeSavings,
+          aa: fullStats.advances_Amnt, gd: fullStats.globe_Deduction
+        }, type: QueryTypes.UPDATE }
+    );
+
+    // Update Master Payroll Record
+    await sequelize.query(
+      `UPDATE "Payroll"
+       SET "NoDays_Worked" = :NoDays_Worked, "NoHrs_Worked" = :NoHrs_Worked,
+           "basicPay" = :basicPay, "totalEarnings" = :totalEarnings, 
+           "totalDeductions" = :totalDed, "netPay" = :netPay, "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "payrollId" = :payrollId`,
+      { replacements: {
+          payrollId,
+          NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
+          basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
+          totalDed: fullStats.totalDeductions, netPay: fullStats.netPay
+        }, type: QueryTypes.UPDATE }
+    );
+  } catch (error) {
+    console.error("[ERROR] recalculatePayrollInternal:", error.message);
+  }
+}
+
+exports.recalculatePayrollInternal = recalculatePayrollInternal;
+
 // ── Generate Single Payroll ──────────────────────────────────────────────────
 exports.generatePayroll = async (req, res) => {
   const { user_Id, period_Start, period_End } = req.body;
@@ -648,7 +751,15 @@ exports.generatePayroll = async (req, res) => {
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logTransaction(null, currentAdminId, "PAYROLL_GEN", `Generated payroll for user ${user_Id} for period ${period_Start} to ${period_End}`, { payrollId }, req);
 
-    // ── Auto-record to Maxicare Table ─────────────────────────────────────
+    // ── Auto-record/link to Ledger Tables ─────────────────────────────────
+    // 1. Cash Advance Link
+    await sequelize.query(
+      `UPDATE "Payroll_Cash_Advances" SET "payrollId" = :payrollId
+       WHERE "user_Id" = :user_Id AND "date" = :period_End`,
+      { replacements: { payrollId, user_Id, period_End }, type: QueryTypes.UPDATE }
+    );
+
+    // 2. Maxicare Auto-record
     if (fullStats.healthCard_Amnt > 0) {
       await sequelize.query(
         `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
@@ -704,12 +815,23 @@ exports.releasePayroll = async (req, res) => {
     const nowStr = formatForSQL(now);
 
     const [updated] = await sequelize.query(
-      `UPDATE "Payroll" SET "status" = 3, "updatedAt" = :now WHERE "payrollId" = :payrollId`, 
+      `UPDATE "Payroll" SET "status" = 3, "updatedAt" = :now WHERE "payrollId" = :payrollId`,
       { replacements: { payrollId, now: nowStr }, type: QueryTypes.UPDATE }
     );
 
     if (updated === 0) return res.status(404).json({ error: "Payroll not found." });
 
+    // Reset User advances_Amnt since it's already deducted in this released payroll
+    const payroll = await sequelize.query(
+      `SELECT "user_Id" FROM "Payroll" WHERE "payrollId" = :payrollId`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+    if (payroll.length > 0) {
+      await sequelize.query(
+        `UPDATE "User" SET "advances_Amnt" = 0, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id: payroll[0].user_Id, now: nowStr }, type: QueryTypes.UPDATE }
+      );
+    }
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logTransaction(null, currentAdminId, "PAYROLL_RELEASE", `Released payroll ID ${payrollId}`, { payrollId }, req);
 
@@ -1137,6 +1259,112 @@ exports.syncMaxicareHistory = async (req, res) => {
     res.status(200).json({ message: "Maxicare history synced successfully." });
   } catch (error) {
     console.error("[FATAL_MAXICARE_SYNC_ERROR]:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Loan Management Helpers ──────────────────────────────────────────────────
+const loanTypeMapper = {
+  "Cash Advance": { dbType: "cash_advance", dedCol: "advances_Amnt" },
+  "SSS Loan": { dbType: "sss_loan", dedCol: "SSS_Loan" },
+  "Pag-IBIG Loan": { dbType: "hdmf_loan", dedCol: "HDMF_Loan" },
+  "Calamity Loan": { dbType: "calamity", dedCol: "calamityLoan_Amnt" },
+  "Multi-Purpose": { dbType: "multipurpose", dedCol: "multiPurposeSavings" },
+  "Eastwest Loan": { dbType: "eastwest", dedCol: "globe_Deduction" }
+};
+
+// ── Get Loan History for Matrix ──────────────────────────────────────────────
+exports.getLoanHistory = async (req, res) => {
+  const { type } = req.query;
+  const config = loanTypeMapper[type];
+  if (!config) return res.status(400).json({ error: "Invalid loan type." });
+
+  try {
+    // If Cash Advance, use the dedicated ledger table
+    if (type === "Cash Advance") {
+      const history = await sequelize.query(
+        `SELECT "date", "user_Id", "amount" FROM "Payroll_Cash_Advances" ORDER BY "date" ASC`,
+        { type: QueryTypes.SELECT }
+      );
+      return res.status(200).json(history);
+    }
+
+    // Otherwise use Payroll historical records
+    const history = await sequelize.query(
+      `SELECT 
+         p."period_End" as date,
+         p."user_Id",
+         pd."${config.dedCol}" as amount
+       FROM "Payroll" p
+       JOIN "Payroll_Deductions" pd ON p."payrollId" = pd."payrollId"
+       WHERE pd."${config.dedCol}" > 0
+       ORDER BY p."period_End" ASC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Sync Loan History from Matrix ─────────────────────────────────────────────
+exports.syncLoanHistory = async (req, res) => {
+  const { updates } = req.body;
+  if (!Array.isArray(updates)) return res.status(400).json({ error: "Updates array required." });
+
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    for (const item of updates) {
+      const { date, user_Id, amount, type } = item;
+      const config = loanTypeMapper[type];
+      if (!config) continue;
+
+      // 1. If Cash Advance, update the ledger first (Source of Truth)
+      if (type === "Cash Advance") {
+        await sequelize.query(
+          `INSERT INTO "Payroll_Cash_Advances" ("user_Id", "date", "amount", "createdAt", "updatedAt")
+           VALUES (:user_Id, :date, :amount, :now, :now)
+           ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = EXCLUDED."amount", "updatedAt" = EXCLUDED."updatedAt"`,
+          { replacements: { user_Id, date, amount, now: nowStr } }
+        );
+
+        // Also update User table to reflect this in "edit employee compensation"
+        await sequelize.query(
+          `UPDATE "User" SET "advances_Amnt" = :amount, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+          { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
+        );
+      }
+
+      // 2. Update Payroll_Deductions (if payroll record already exists)
+      await sequelize.query(
+        `UPDATE "Payroll_Deductions" pd
+         SET "${config.dedCol}" = :amount
+         FROM "Payroll" p
+         WHERE p."payrollId" = pd."payrollId"
+         AND p."user_Id" = :user_Id
+         AND p."period_End" = :date`,
+        { replacements: { amount, user_Id, date }, type: QueryTypes.UPDATE }
+      );
+
+      // 3. Recalculate Payroll totals (if payroll record already exists)
+      await sequelize.query(
+        `UPDATE "Payroll" p
+         SET "totalDeductions" = (
+           SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
+           FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
+         ),
+         "netPay" = p."totalEarnings" - (
+           SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
+           FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
+         )
+         WHERE p."user_Id" = :user_Id AND p."period_End" = :date`,
+        { replacements: { user_Id, date }, type: QueryTypes.UPDATE }
+      );
+    }
+    res.status(200).json({ message: "History synced successfully." });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };

@@ -303,13 +303,14 @@ $ot-blue: #e0f2fe;
           }
 
           .listWrapper {
-            max-height: 250px; 
+            max-height: 250px;
             overflow-y: auto;
+            scroll-behavior: smooth;
 
             &::-webkit-scrollbar { width: 4px; }
 
-            .listItem.clickable { 
-              cursor: pointer; 
+            .listItem.clickable {
+              cursor: pointer;
               transition: background 0.2s, transform 0.2s;
               display: flex;
               justify-content: space-between;
@@ -321,6 +322,25 @@ $ot-blue: #e0f2fe;
               width: 100%;
               box-sizing: border-box;
 
+              &.past-item {
+                background-color: #f9f9f9;
+                opacity: 0.85;
+                filter: grayscale(0.2);
+
+                .name { color: #888 !important; }
+                .subtext { color: #999 !important; }
+              }
+
+              .past-tag {
+                font-size: 9px;
+                background: #eee;
+                color: #777;
+                padding: 1px 5px;
+                border-radius: 4px;
+                margin-left: 6px;
+                font-weight: 800;
+                vertical-align: middle;
+              }
               @media (max-width: 480px) {
                 padding: 12px;// Stack details and actions on mobile
                 align-items: flex-start;

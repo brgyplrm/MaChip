@@ -323,6 +323,27 @@
                   font-weight: 800;
                   min-width: 120px;
                   border-right: 2px solid #2a174e;
+                  text-align: left;
+
+                  .vertical-stack {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1px;
+                    line-height: 1.1;
+
+                    .year {
+                      font-size: 9px;
+                      color: #facc15;
+                      font-weight: 900;
+                      text-transform: uppercase;
+                      opacity: 0.9;
+                    }
+                    .label {
+                      font-size: 11px;
+                      color: white;
+                      font-weight: 700;
+                    }
+                  }
                 }
 
                 &.emp-header-cell {
@@ -406,7 +427,7 @@
                     color: #2a174e;
                   }
                   .day {
-                    font-size: 11px;
+                    font-size: 10px;
                     color: #64748b;
                     font-weight: 600;
                   }

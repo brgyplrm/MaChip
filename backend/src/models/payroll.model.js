@@ -133,6 +133,31 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: true, freezeTableName: true },
   );
 
+  const Payroll_Cash_Advances = sequelize.define(
+    "Payroll_Cash_Advances",
+    {
+      caId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      user_Id: { 
+        type: DataTypes.SMALLINT, 
+        allowNull: false,
+        unique: 'user_ca_date_unique'
+      },
+      date: { 
+        type: DataTypes.DATEONLY, 
+        allowNull: false,
+        unique: 'user_ca_date_unique'
+      },
+      amount: { type: DataTypes.FLOAT, defaultValue: 0 },
+      payrollId: { type: DataTypes.INTEGER, allowNull: true },
+      notes: { type: DataTypes.TEXT, allowNull: true },
+    },
+    { timestamps: true, freezeTableName: true },
+  );
+
   // Relationships
   Payroll.belongsTo(PayrollPeriod, { foreignKey: "periodId" });
   PayrollPeriod.hasMany(Payroll, { foreignKey: "periodId" });
@@ -143,11 +168,11 @@ module.exports = (sequelize, DataTypes) => {
   Payroll_Earnings.belongsTo(Payroll, { foreignKey: "payrollId" });
   Payroll_Deductions.belongsTo(Payroll, { foreignKey: "payrollId" });
   
-  Payroll.belongsTo(PayrollPeriod, { foreignKey: "periodId" });
-  PayrollPeriod.hasMany(Payroll, { foreignKey: "periodId" });
-  
   Payroll.belongsTo(Payroll_status, { foreignKey: "status", targetKey: "PaystatusId", as: "payrollStatus" });
   Payroll_status.hasMany(Payroll, { foreignKey: "status", sourceKey: "PaystatusId" });
 
-  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare };
+  Payroll.hasMany(Payroll_Cash_Advances, { foreignKey: "payrollId" });
+  Payroll_Cash_Advances.belongsTo(Payroll, { foreignKey: "payrollId" });
+
+  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances };
 };

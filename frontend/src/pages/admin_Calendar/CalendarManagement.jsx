@@ -32,6 +32,7 @@ const CalendarManagement = () => {
   const [selectedHolidayWork, setSelectedHolidayWork] = useState(null);
   const [selectedFieldLog, setSelectedFieldLog] = useState(null);
   const [viewingHoliday, setViewingHoliday] = useState(null);
+  const [holidayListHeader, setHolidayListHeader] = useState("Upcoming Holidays");
 
   const [fieldWorkForm, setFieldWorkForm] = useState({
     userId: "",
@@ -215,11 +216,35 @@ const CalendarManagement = () => {
   };
 
   const getUpcomingHolidays = () => {
-    const todayStr = systemToday.toISOString().split('T')[0];
     return events
-      .filter(h => h.type === "Holiday" && h.date >= todayStr)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(0, 5);
+      .filter(h => h.type === "Holiday")
+      .sort((a, b) => a.date.localeCompare(b.date));
+  };
+
+  const handleHolidayScroll = (e) => {
+    const container = e.target;
+    const todayStr = systemToday.toISOString().split('T')[0];
+    
+    const items = container.getElementsByClassName('listItem');
+    let firstVisibleIndex = -1;
+    for (let i = 0; i < items.length; i++) {
+        const rect = items[i].getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        if (rect.top >= containerRect.top) {
+            firstVisibleIndex = i;
+            break;
+        }
+    }
+
+    if (firstVisibleIndex !== -1) {
+        const allHolidays = getUpcomingHolidays();
+        const visibleHoliday = allHolidays[firstVisibleIndex];
+        if (visibleHoliday.date < todayStr) {
+            setHolidayListHeader("Past Holidays");
+        } else {
+            setHolidayListHeader("Upcoming Holidays");
+        }
+    }
   };
 
   const daysInMonth = new Date(year, currentDate.getMonth() + 1, 0).getDate();
@@ -330,31 +355,33 @@ const CalendarManagement = () => {
                {/* Holidays List Card */}
             <div className="detailCard">
                 <div className="cardHeader">
-                <h3>Upcoming Holidays</h3>
+                <h3>{holidayListHeader}</h3>
                 </div>
-                <div className="listWrapper">
-                {getUpcomingHolidays().length > 0 ? getUpcomingHolidays().map((holiday, idx) => (
-                    <div className="listItem clickable" key={idx} onClick={() => handleHolidayClick(holiday)}>
-                    <div className="info">
-                        <p className="name">{holiday.name}</p>
-                        <span className="subtext">
-                          {new Date(holiday.date).toLocaleDateString()} • {holiday.type}
-                        </span>
-                    </div>
-                    {isAdmin && (
-                      <div className="icons">
-                          <EditIcon 
-                            className="edit" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setHolidayForm({
-                                id: holiday.id,
-                                name: holiday.name,
-                                date: holiday.date.split('T')[0],
-                                type: holiday.details
-                              });
-                              setModalType('editHoliday');
-                            }} 
+                <div className="listWrapper" onScroll={handleHolidayScroll}>
+                {getUpcomingHolidays().length > 0 ? getUpcomingHolidays().map((holiday, idx) => {
+                    const isPast = holiday.date < systemToday.toISOString().split('T')[0];
+                    return (
+                        <div className={`listItem clickable ${isPast ? 'past-item' : ''}`} key={idx} onClick={() => handleHolidayClick(holiday)}>
+                        <div className="info">
+                            <p className="name">{holiday.name} {isPast && <span className="past-tag">(PAST)</span>}</p>
+                            <span className="subtext">
+                              {new Date(holiday.date).toLocaleDateString()} • {holiday.type}
+                            </span>
+                        </div>
+                        {isAdmin && (
+                          <div className="icons">
+                              <EditIcon 
+                                className="edit" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setHolidayForm({
+                                    id: holiday.id,
+                                    name: holiday.name,
+                                    date: holiday.date.split('T')[0],
+                                    type: holiday.details
+                                  });
+                                  setModalType('editHoliday');
+                                }} 
                           />
                           <button 
                               className="deleteBtn" 
@@ -367,8 +394,9 @@ const CalendarManagement = () => {
                       </div>
                     )}
                     </div>
-                )) : (
-                  <p style={{ textAlign: 'center', color: '#777', padding: '20px' }}>No upcoming holidays</p>
+                    );
+                }) : (
+                  <p style={{ textAlign: 'center', color: '#777', padding: '20px' }}>No holidays found</p>
                 )}
                 </div>
             </div>

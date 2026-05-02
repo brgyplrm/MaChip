@@ -18,6 +18,8 @@ const {
   updatePayrollFull,
   getMaxicareHistory,
   syncMaxicareHistory,
+  getLoanHistory,
+  syncLoanHistory,
 } = require("../controllers/payroll.controller");
 const { requireAdmin } = require("../middleware/roleCheck.js");
 
@@ -30,6 +32,8 @@ router.get("/summary-pdf", requireAdmin, downloadPayrollSummaryPDF);
 router.get("/summary-preview", requireAdmin, getPayrollSummaryPreview);
 router.get("/maxicare/history", requireAdmin, getMaxicareHistory);
 router.post("/maxicare/sync", requireAdmin, syncMaxicareHistory);
+router.get("/loans/history", requireAdmin, getLoanHistory);
+router.post("/loans/sync", requireAdmin, syncLoanHistory);
 router.get("/all", requireAdmin, getAllPayrolls);
 router.get("/report", requireAdmin, getPayrollReport);
 router.get("/user/:user_Id", requireAdmin, getPayrollByUser);

@@ -238,40 +238,16 @@ useEffect(() => {
                         <span>Eastwest Loan</span>
                       </li>
                     </NavLink>
+                    <NavLink to="/payroll/gov-loans" style={{ textDecoration: "none" }}>
+                      <li title="Governmental Loans">
+                        <AccountBalanceIcon className="icon sub-icon" />
+                        <span>Governmental Loans</span>
+                      </li>
+                    </NavLink>
                     <NavLink to="/payroll/cash-advance" style={{ textDecoration: "none" }}>
                       <li title="Cash Advances">
                         <PaymentsIcon className="icon sub-icon" />
                         <span>Cash Advances</span>
-                      </li>
-                    </NavLink>
-                    <NavLink to="/payroll/sss-loan" style={{ textDecoration: "none" }}>
-                      <li title="SSS Loans">
-                        <AccountBalanceIcon className="icon sub-icon" />
-                        <span>SSS Loans</span>
-                      </li>
-                    </NavLink>
-                    <NavLink to="/payroll/pagibig-loan" style={{ textDecoration: "none" }}>
-                      <li title="Pag-IBIG Loan">
-                        <RequestQuoteIcon className="icon sub-icon" />
-                        <span>Pag-IBIG Loan</span>
-                      </li>
-                    </NavLink>
-                    <NavLink to="/payroll/savings" style={{ textDecoration: "none" }}>
-                      <li title="Multipurpose Savings">
-                        <SavingsIcon className="icon sub-icon" />
-                        <span>Multipurpose Savings</span>
-                      </li>
-                    </NavLink>
-                    <NavLink to="/payroll/calamity-loan" style={{ textDecoration: "none" }}>
-                      <li title="Calamity Loan">
-                        <CrisisAlertIcon className="icon sub-icon" />
-                        <span>Calamity Loan</span>
-                      </li>
-                    </NavLink>
-                    <NavLink to="/payroll/loans-summary" style={{ textDecoration: "none" }}>
-                      <li title="Loans Summary">
-                        <HistoryIcon className="icon sub-icon" />
-                        <span>Loans Summary</span>
                       </li>
                     </NavLink>
                   </ul>

@@ -12,6 +12,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import Toast from "../../../components/toast/Toast";
+import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 
 const Maxicare = () => {
   const { systemToday } = useSystemTime();
@@ -56,7 +57,8 @@ const Maxicare = () => {
       const month = current.getMonth();
       const day = current.getDate();
       
-      dates.push(new Date(current).toISOString().split('T')[0]);
+      const d = new Date(current);
+      dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
       
       // Toggle between 15th and Last Day
       if (day <= 15) {
@@ -145,7 +147,7 @@ const Maxicare = () => {
       const dateMap = {};
       rawHistory.forEach(item => {
         if (item.date && item.user_Id) {
-          const dateKey = new Date(item.date).toISOString().split('T')[0];
+          const dateKey = formatDateLocal(item.date);
           if (!dateMap[dateKey]) dateMap[dateKey] = {};
           dateMap[dateKey][item.user_Id.toString()] = {
             amount: parseFloat(item.amount),
@@ -194,7 +196,7 @@ const Maxicare = () => {
       return;
     }
 
-    const todayStr = systemToday ? new Date(systemToday).toISOString().split('T')[0] : "";
+    const todayStr = systemToday ? formatDateLocal(systemToday) : "";
     setSyncingCell({ date, empKey });
     const updates = [];
     setData(prevData => {
@@ -466,7 +468,7 @@ const Maxicare = () => {
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const currentCutoffDate = systemToday 
-    ? expectedDates.find(d => d >= new Date(systemToday).toISOString().split('T')[0])
+    ? expectedDates.find(d => d >= formatDateLocal(systemToday))
     : null;
 
   return (
@@ -624,7 +626,12 @@ const Maxicare = () => {
             <table className="pivoted-table">
               <thead>
                 <tr className="row-1-months">
-                  <th className="sticky-col">MONTH / DATE</th>
+                  <th className="sticky-col">
+                    <div className="vertical-stack">
+                      <span className="year">{selectedYear} Year</span>
+                      <span className="label">MONTHS / DATE</span>
+                    </div>
+                  </th>
                   {employeeList.map((emp) => (
                     <th key={emp.key} className="emp-header-cell">
                       <div className="vertical-stack">
@@ -653,7 +660,7 @@ const Maxicare = () => {
                   <>
                     {expectedDates.map((dateStr, i) => {
                       const dateObj = new Date(dateStr);
-                      const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+                      const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
                       const dayLabel = dateObj.getDate();
                       
                       return (
@@ -675,18 +682,14 @@ const Maxicare = () => {
                             )}
                           </td>
                           {employeeList.map((emp) => {                            // Find actual history
-                            const actualRecord = data.find(d => {
-                              const d1 = new Date(d.date).toISOString().split('T')[0];
-                              const d2 = new Date(dateStr).toISOString().split('T')[0];
-                              return d1 === d2;
-                            });
+                            const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
 
                             let amount = 0;
                             let status = "unpaid";
                             let isProjection = false;
 
                             const userRate = parseFloat(emp.expectedDeduction) || 0;
-                            const todayStr = systemToday ? new Date(systemToday).toISOString().split('T')[0] : "";
+                            const todayStr = systemToday ? formatDateLocal(systemToday) : "";
 
                             if (actualRecord && actualRecord.values[emp.key]) {
                               const record = actualRecord.values[emp.key];
@@ -763,7 +766,7 @@ const Maxicare = () => {
                           : expectedDates;
 
                         const empSubtotal = historicalDates.reduce((acc, dateStr) => {
-                          const period = data.find(d => new Date(d.date).toISOString().split('T')[0] === new Date(dateStr).toISOString().split('T')[0]);
+                          const period = data.find(d => isInSamePeriod(d.date, dateStr));
                           const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
                           return acc + val;
                         }, 0);
@@ -784,7 +787,7 @@ const Maxicare = () => {
                           : expectedDates;
 
                         const empSubtotal = historicalDates.reduce((acc, dateStr) => {
-                          const period = data.find(d => new Date(d.date).toISOString().split('T')[0] === new Date(dateStr).toISOString().split('T')[0]);
+                          const period = data.find(d => isInSamePeriod(d.date, dateStr));
                           const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
                           return acc + val;
                         }, 0);
