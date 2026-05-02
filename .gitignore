@@ -11,3 +11,4 @@ db_reset.js
 QA_CHECKLIST.txt
 seed_attendance.js
 uploads
+db_manager.js
