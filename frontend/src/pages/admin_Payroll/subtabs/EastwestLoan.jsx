@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import "./loanModule.scss";
+import "./loanModule.scss"; // Using shared loan styling
 import Sidebar from "../../../components/sidebar/Sidebar";
 import Navbar from "../../../components/navbar/Navbar";
 import { fetchWithAuth } from "../../../utils/api";
@@ -8,10 +8,9 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import SaveIcon from '@mui/icons-material/Save';
-import DeleteIcon from '@mui/icons-material/Delete';
 import Toast from "../../../components/toast/Toast";
 
-const LoanModule = ({ type }) => {
+const EastwestLoan = () => {
   const { systemToday } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const isAdmin = userData?.user_RoleId === 1;
@@ -26,11 +25,12 @@ const LoanModule = ({ type }) => {
   const [data, setData] = useState([]);
   
   const [isEditingTable, setIsEditingTable] = useState(false);
-  const [editingCell, setEditingCell] = useState(null); // { date: string, empKey: string }
+  const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState("");
-  const [syncingCell, setSyncingCell] = useState(null); // { date: string, empKey: string }
+  const [syncingCell, setSyncingCell] = useState(null);
 
-  // Fetch Cutoff Dates from Settings
+  const type = "Eastwest Loan";
+
   const fetchCutoffDates = async () => {
     try {
       const res = await fetchWithAuth("/api/system/settings");
@@ -38,7 +38,6 @@ const LoanModule = ({ type }) => {
       if (res.ok && settings.maxicareDates) {
         setExpectedDates(settings.maxicareDates);
       } else {
-        // Fallback or generate based on current year
         const dates = [];
         const year = selectedYear;
         for (let m = 0; m < 12; m++) {
@@ -58,12 +57,8 @@ const LoanModule = ({ type }) => {
     setError(null);
     try {
       await fetchCutoffDates();
-      
-      // Fetch Employees
       const empRes = await fetchWithAuth("/api/users/all");
       const employees = await empRes.json();
-      
-      // Fetch Loan Records for this type
       const historyRes = await fetchWithAuth(`/api/payroll/loans/history?type=${type}`);
       const history = await historyRes.json();
 
@@ -72,7 +67,6 @@ const LoanModule = ({ type }) => {
         name: `${emp.user_LastName}, ${emp.user_FirstName}`,
         id: `MACJ-${String(emp.user_Id).padStart(3, "0")}`,
         key: emp.user_Id.toString(),
-        // Potentially load a base deduction amount here if needed
       }));
       setEmployeeList(activeEmps);
 
@@ -93,7 +87,7 @@ const LoanModule = ({ type }) => {
         setData(matrix);
       }
     } catch (err) {
-      console.error("Error fetching loan data", err);
+      console.error("Error fetching Eastwest loan data", err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -102,7 +96,7 @@ const LoanModule = ({ type }) => {
 
   useEffect(() => {
     fetchData();
-  }, [type, selectedYear]);
+  }, [selectedYear]);
 
   const handleCellDoubleClick = (date, empKey, currentVal) => {
     if (!isAdmin) return;
@@ -120,41 +114,28 @@ const LoanModule = ({ type }) => {
     setSyncingCell({ date, empKey });
     const updates = [{ date, user_Id: parseInt(empKey), amount: val, type }];
 
-    // Local state update
     setData(prevData => {
       let newData = [...prevData];
       let recordIndex = newData.findIndex(d => d.date === date);
-
       if (recordIndex === -1) {
-        newData.push({
-          date,
-          values: { [empKey]: { amount: val, status: 'paid' } }
-        });
+        newData.push({ date, values: { [empKey]: { amount: val, status: 'paid' } } });
       } else {
-        newData[recordIndex].values = {
-          ...newData[recordIndex].values,
-          [empKey]: { amount: val, status: 'paid' }
-        };
+        newData[recordIndex].values = { ...newData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } };
       }
       return newData.sort((a, b) => a.date.localeCompare(b.date));
     });
 
     setEditingCell(null);
 
-    // Sync with backend
     try {
       const res = await fetchWithAuth("/api/payroll/loans/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates })
       });
-      
-      if (res.ok) {
-        setToast({ message: "Cell updated successfully!", type: "success" });
-      }
+      if (res.ok) setToast({ message: "Eastwest Loan cell updated!", type: "success" });
     } catch (err) {
-      console.error("Sync failed:", err);
-      setToast({ message: "Failed to save to database", type: "error" });
+      setToast({ message: "Failed to sync update", type: "error" });
     } finally {
       setTimeout(() => setSyncingCell(null), 500);
     }
@@ -176,7 +157,7 @@ const LoanModule = ({ type }) => {
         <div className="header-wrapper">
           <div className="top">
             <div className="title-area">
-              <h1>{type} Management</h1>
+              <h1>Eastwest Loan Management</h1>
               <div className="year-selector">
                 <FilterListIcon className="filter-icon" />
                 <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
@@ -186,10 +167,7 @@ const LoanModule = ({ type }) => {
               </div>
             </div>
             <div className="actions">
-                <button 
-                  className={`edit-headers-btn ${isEditingTable ? 'active' : ''}`}
-                  onClick={() => setIsEditingTable(!isEditingTable)}
-                >
+                <button className={`edit-headers-btn ${isEditingTable ? 'active' : ''}`} onClick={() => setIsEditingTable(!isEditingTable)}>
                   {isEditingTable ? <><CheckIcon /> Save Matrix</> : <><EditIcon /> Edit Matrix</>}
                 </button>
                 <button className="save-btn" onClick={fetchData} disabled={loading}>
@@ -217,50 +195,31 @@ const LoanModule = ({ type }) => {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={employeeList.length + 1} className="empty-msg">Loading {type} data...</td></tr>
+                  <tr><td colSpan={employeeList.length + 1} className="empty-msg">Loading Eastwest Loan data...</td></tr>
                 ) : error ? (
                   <tr><td colSpan={employeeList.length + 1} className="empty-msg error">{error}</td></tr>
                 ) : expectedDates.length > 0 ? (
                   <>
-                    {expectedDates.map((dateStr, i) => {
+                    {expectedDates.map((dateStr) => {
                       const dateObj = new Date(dateStr);
-                      const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
-                      const dayLabel = dateObj.getDate();
-                      
                       return (
                         <tr key={dateStr} className={dateStr === currentCutoffDate ? "current-row" : ""}>
                           <td className="sticky-col date-label">
-                            <span className="month">{monthLabel}</span>
-                            <span className="day">{dayLabel}</span>
+                            <span className="month">{dateObj.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })}</span>
+                            <span className="day">{dateObj.getDate()}</span>
                             {dateStr === currentCutoffDate && <div className="curr-tag">CURR</div>}
                           </td>
                           {employeeList.map((emp) => {
                             const actualRecord = data.find(d => new Date(d.date).toISOString().split('T')[0] === new Date(dateStr).toISOString().split('T')[0]);
                             const record = actualRecord ? actualRecord.values[emp.key] : null;
                             const amount = record ? record.amount : 0;
-                            const status = record ? 'paid' : 'unpaid';
-
                             const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
                             const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
 
                             return (
-                              <td 
-                                key={emp.key} 
-                                className={`amt ${status} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`}
-                                onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
-                              >
+                              <td key={emp.key} className={`amt ${record ? 'paid' : 'unpaid'} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`} onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}>
                                 {isEditing ? (
-                                  <input
-                                    type="number"
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    onBlur={() => handleCellSave(dateStr, emp.key)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') handleCellSave(dateStr, emp.key);
-                                    }}
-                                    autoFocus
-                                    className="cell-edit-input"
-                                  />
+                                  <input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => handleCellSave(dateStr, emp.key)} onKeyDown={(e) => e.key === 'Enter' && handleCellSave(dateStr, emp.key)} autoFocus className="cell-edit-input" />
                                 ) : isSyncing ? (
                                   <div className="sync-spinner">...</div>
                                 ) : (
@@ -272,11 +231,8 @@ const LoanModule = ({ type }) => {
                         </tr>
                       );
                     })}
-                    
                     <tr className="summary-row subtotal-row">
-                      <td className="sticky-col label-cell">
-                        <span className="summary-label">TOTAL PAID</span>
-                      </td>
+                      <td className="sticky-col label-cell"><span className="summary-label">TOTAL PAID</span></td>
                       {employeeList.map((emp) => {
                         const empSubtotal = expectedDates.reduce((acc, dateStr) => {
                           const period = data.find(d => new Date(d.date).toISOString().split('T')[0] === new Date(dateStr).toISOString().split('T')[0]);
@@ -298,4 +254,4 @@ const LoanModule = ({ type }) => {
   );
 };
 
-export default LoanModule;
+export default EastwestLoan;

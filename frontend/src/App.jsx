@@ -15,6 +15,7 @@ import PayrollPeriod from "./pages/admin_Payroll/PayrollPeriod";
 import PayrollDetails from "./pages/admin_Payroll/DetailsPayroll";
 import PayrollList from "./pages/admin_Payroll/PayrollEmployeeList";
 import Maxicare from "./pages/admin_Payroll/subtabs/Maxicare";
+import EastwestLoan from "./pages/admin_Payroll/subtabs/EastwestLoan";
 import LoanModule from "./pages/admin_Payroll/subtabs/LoanModule";
 import EmployeeCalendar from "./pages/emp_Calendar/EmployeeCalendar"; 
 import Notifications from "./pages/notifications/Notifications";
@@ -103,7 +104,7 @@ function App() {
           path="/payroll/eastwest"
           element={
             <ProtectedRoute allowedRoles={[1]}>
-              <LoanModule type="Eastwest Loan" />
+              <EastwestLoan />
             </ProtectedRoute>
           }
         />
