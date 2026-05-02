@@ -106,6 +106,33 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: false, freezeTableName: true },
   );
 
+  const Payroll_maxicare = sequelize.define(
+    "Payroll_maxicare",
+    {
+      maxicare_Id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      user_Id: { 
+        type: DataTypes.SMALLINT, 
+        allowNull: false,
+        unique: 'user_month_unique'
+      },
+      max_Month: { 
+        type: DataTypes.DATEONLY, 
+        allowNull: false,
+        unique: 'user_month_unique'
+      },
+      amount: { type: DataTypes.FLOAT, defaultValue: 0 },
+      maxi_status: {
+        type: DataTypes.ENUM("paid", "estimated"),
+        defaultValue: "estimated",
+      },
+    },
+    { timestamps: true, freezeTableName: true },
+  );
+
   // Relationships
   Payroll.belongsTo(PayrollPeriod, { foreignKey: "periodId" });
   PayrollPeriod.hasMany(Payroll, { foreignKey: "periodId" });
@@ -122,5 +149,5 @@ module.exports = (sequelize, DataTypes) => {
   Payroll.belongsTo(Payroll_status, { foreignKey: "status", targetKey: "PaystatusId", as: "payrollStatus" });
   Payroll_status.hasMany(Payroll, { foreignKey: "status", sourceKey: "PaystatusId" });
 
-  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod };
+  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare };
 };

@@ -52,7 +52,7 @@ const {
   Leave_Balance,
 } = require("../models/request.model")(sequelize, DataTypes);
 
-const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod } =
+const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare } =
   require("../models/payroll.model")(sequelize, DataTypes);
 
 const { Notification } = require("../models/notification.models")(
@@ -61,6 +61,11 @@ const { Notification } = require("../models/notification.models")(
 );
 
 const { SystemSettings, Holiday, Audit_Log, Transaction_Log } = require("../models/system.models")(
+  sequelize,
+  DataTypes,
+);
+
+const { Loan_Deductions, Loan_Deduction_History, Loan_Deduction_Schedules } = require("../models/loanDeductions.model")(
   sequelize,
   DataTypes,
 );
@@ -90,6 +95,10 @@ employee_Logging_report.belongsTo(User, {
 User.hasMany(Payroll, { foreignKey: "user_Id", sourceKey: "user_Id" });
 Payroll.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
 
+// User ↔ Maxicare
+User.hasMany(Payroll_maxicare, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Payroll_maxicare.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
 // User ↔ Notification
 User.hasMany(Notification, { foreignKey: "user_Id", sourceKey: "user_Id" });
 Notification.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
@@ -107,6 +116,22 @@ Transaction_Log.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", a
 
 User.hasMany(Audit_Log, { foreignKey: "user_Id", sourceKey: "user_Id" });
 Audit_Log.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
+// User ↔ Loan_Deductions
+User.hasMany(Loan_Deductions, { foreignKey: "userId", sourceKey: "user_Id" });
+Loan_Deductions.belongsTo(User, { foreignKey: "userId", targetKey: "user_Id", as: "user" });
+
+// User ↔ Loan_Deduction_Schedules
+User.hasMany(Loan_Deduction_Schedules, { foreignKey: "userId", sourceKey: "user_Id" });
+Loan_Deduction_Schedules.belongsTo(User, { foreignKey: "userId", targetKey: "user_Id", as: "user" });
+
+// Audit associations for Loan_Deductions
+Loan_Deductions.belongsTo(User, { foreignKey: "createdBy", targetKey: "user_Id", as: "creator" });
+Loan_Deductions.belongsTo(User, { foreignKey: "updatedBy", targetKey: "user_Id", as: "updater" });
+
+// Payroll ↔ Loan_Deduction_History
+Payroll.hasMany(Loan_Deduction_History, { foreignKey: "payrollId" });
+Loan_Deduction_History.belongsTo(Payroll, { foreignKey: "payrollId", as: "payroll" });
 
 // ── connectDB ─────────────────────────────────────────────────────────────────
 const connectDB = async () => {
@@ -164,6 +189,118 @@ const connectDB = async () => {
       for (const [col, type] of settingsCols) {
         await sequelize.query(`ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "${col}" ${type};`);
       }
+
+      // Loan Deductions Tables Migration (Manual SQL for constraints and indexes)
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "Loan_Deductions" (
+          "id"                  SERIAL PRIMARY KEY,
+          "userId"              SMALLINT NOT NULL REFERENCES "User"("user_Id") ON DELETE CASCADE,
+          "deductionType"       VARCHAR(50) NOT NULL,
+          "status"              VARCHAR(20) NOT NULL DEFAULT 'active',
+          "contractDate"        DATE NOT NULL,
+          "renewalDate"         DATE,
+          "monthsToPay"         INTEGER,
+          "deductionPerCutoff"  DECIMAL(10,2) NOT NULL,
+          "totalAmount"         DECIMAL(12,2) NOT NULL,
+          "totalDeducted"       DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+          "remainingBalance"    DECIMAL(12,2) NOT NULL,
+          "lastDeductionDate"   DATE,
+          "provider"            VARCHAR(150),
+          "reference"           VARCHAR(150),
+          "notes"               TEXT,
+          "createdAt"           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt"           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "createdBy"           SMALLINT REFERENCES "User"("user_Id"),
+          "updatedBy"           SMALLINT REFERENCES "User"("user_Id"),
+          CONSTRAINT "chk_deductionType" CHECK ("deductionType" IN ('maxicare','eastwest','cash_advance','sss_loan','hdmf_loan','multipurpose','calamity')),
+          CONSTRAINT "chk_status" CHECK ("status" IN ('active','suspended','closed','paid_off')),
+          CONSTRAINT "chk_amounts_positive" CHECK ("deductionPerCutoff" > 0 AND "totalAmount" > 0)
+        );
+      `);
+
+      await sequelize.query('CREATE INDEX IF NOT EXISTS "idx_loan_user_type" ON "Loan_Deductions" ("userId", "deductionType");');
+      await sequelize.query('CREATE INDEX IF NOT EXISTS "idx_loan_status" ON "Loan_Deductions" ("status");');
+
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "Loan_Deduction_History" (
+          "id"                  SERIAL PRIMARY KEY,
+          "loanDeductionId"     INTEGER NOT NULL REFERENCES "Loan_Deductions"("id") ON DELETE CASCADE,
+          "payrollId"           INTEGER REFERENCES "Payroll"("payrollId"),
+          "deductionDate"       DATE NOT NULL,
+          "cutoffPeriod"        VARCHAR(20),
+          "amountDeducted"      DECIMAL(10,2) NOT NULL,
+          "balanceAfter"        DECIMAL(12,2) NOT NULL,
+          "status"              VARCHAR(20) NOT NULL DEFAULT 'processed',
+          "notes"               TEXT,
+          "createdAt"           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      await sequelize.query('CREATE INDEX IF NOT EXISTS "idx_ldh_loan" ON "Loan_Deduction_History" ("loanDeductionId");');
+      await sequelize.query('CREATE INDEX IF NOT EXISTS "idx_ldh_date" ON "Loan_Deduction_History" ("deductionDate");');
+
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "Loan_Deduction_Schedules" (
+          "id"                  SERIAL PRIMARY KEY,
+          "loanDeductionId"     INTEGER NOT NULL REFERENCES "Loan_Deductions"("id") ON DELETE CASCADE,
+          "userId"              SMALLINT NOT NULL REFERENCES "User"("user_Id"),
+          "cutoffDate"          DATE NOT NULL,
+          "scheduledAmount"     DECIMAL(10,2) NOT NULL,
+          "actualAmount"        DECIMAL(10,2),
+          "status"              VARCHAR(20) NOT NULL DEFAULT 'pending',
+          "createdAt"           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt"           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE ("loanDeductionId", "cutoffDate")
+        );
+      `);
+
+      await sequelize.query(`
+        CREATE OR REPLACE FUNCTION update_loan_deductions_updated_at()
+        RETURNS TRIGGER AS $$
+        BEGIN
+          NEW."updatedAt" = CURRENT_TIMESTAMP;
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+      `);
+
+      await sequelize.query('DROP TRIGGER IF EXISTS trg_loan_deductions_updated_at ON "Loan_Deductions";');
+      await sequelize.query(`
+        CREATE TRIGGER trg_loan_deductions_updated_at
+          BEFORE UPDATE ON "Loan_Deductions"
+          FOR EACH ROW EXECUTE FUNCTION update_loan_deductions_updated_at();
+      `);
+
+      // Manual Migration for Payroll_maxicare Enum (Postgres special handling)
+      try {
+        await sequelize.query(`DO $$ BEGIN
+          CREATE TYPE "enum_Payroll_maxicare_maxi_status" AS ENUM('paid', 'estimated');
+        EXCEPTION
+          WHEN duplicate_object THEN null;
+        END $$;`);
+      } catch (e) {}
+
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "Payroll_maxicare" (
+          "maxicare_Id" SERIAL PRIMARY KEY,
+          "user_Id" SMALLINT NOT NULL REFERENCES "User"("user_Id"),
+          "max_Month" DATE NOT NULL,
+          "amount" FLOAT DEFAULT 0,
+          "maxi_status" "enum_Payroll_maxicare_maxi_status" DEFAULT 'estimated',
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+          CONSTRAINT "user_month_unique" UNIQUE ("user_Id", "max_Month")
+        );
+      `);
+
+      // Force add the unique constraint if the table existed without it
+      await sequelize.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_month_unique') THEN
+            ALTER TABLE "Payroll_maxicare" ADD CONSTRAINT "user_month_unique" UNIQUE ("user_Id", "max_Month");
+          END IF;
+        END $$;
+      `);
 
       console.log("Manual migrations applied.");
     } catch (err) {
@@ -322,4 +459,8 @@ module.exports = {
   PayrollPeriod,
   Audit_Log,
   Transaction_Log,
+  Loan_Deductions,
+  Loan_Deduction_History,
+  Loan_Deduction_Schedules,
+  Payroll_maxicare,
 };

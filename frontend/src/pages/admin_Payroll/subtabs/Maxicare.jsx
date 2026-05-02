@@ -11,12 +11,14 @@ import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
+import Toast from "../../../components/toast/Toast";
 
 const Maxicare = () => {
   const { systemToday } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const isAdmin = userData?.user_RoleId === 1;
 
+  const [toast, setToast] = useState({ message: "", type: "success" });
   const [isEditing, setIsEditing] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [file, setFile] = useState(null);
@@ -35,6 +37,9 @@ const Maxicare = () => {
   const [data, setData] = useState([]);
   const [expectedDates, setExpectedDates] = useState([]);
   const [isEditingTable, setIsEditingTable] = useState(false);
+  const [editingCell, setEditingCell] = useState(null); // { date: string, empKey: string }
+  const [editValue, setEditValue] = useState("");
+  const [syncingCell, setSyncingCell] = useState(null); // { date: string, empKey: string }
 
   // Helper: Generate the 24 cut-off dates (Fallback Logic)
   const generateExpectedDates = (startDateStr, months) => {
@@ -69,7 +74,6 @@ const Maxicare = () => {
   const fetchData = async () => {
     setLoading(true);
     setError(null);
-    console.log("[MAXICARE] Starting data fetch...");
     try {
       // 1. Fetch System Settings for Maxicare Config
       const settingsRes = await fetchWithAuth("/api/system/settings");
@@ -81,7 +85,6 @@ const Maxicare = () => {
           cycleStartDate: settingsData.maxicareCycleStartDate || "",
         });
 
-        // Load custom dates if they exist, otherwise generate
         if (settingsData.maxicareDates && settingsData.maxicareDates.length > 0) {
           setExpectedDates(settingsData.maxicareDates);
         } else if (settingsData.maxicareCycleStartDate) {
@@ -89,57 +92,73 @@ const Maxicare = () => {
         }
       }
 
-      // 2. Fetch Employees
+      // 2. Fetch History FIRST (to identify subscribers)
+      let historyMap = {}; // userId -> { amount, date, status }
+      let rawHistory = [];
+      const historyRes = await fetchWithAuth("/api/payroll/maxicare/history");
+      if (historyRes.ok) {
+        rawHistory = await historyRes.json();
+        if (Array.isArray(rawHistory)) {
+          rawHistory.forEach(item => {
+            const uid = item.user_Id.toString();
+            // Store the most recent amount for each user to "harvest" it
+            if (!historyMap[uid] || item.date > historyMap[uid].date) {
+              historyMap[uid] = {
+                amount: parseFloat(item.amount),
+                date: item.date,
+                status: item.status
+              };
+            }
+          });
+        }
+      }
+
+      // 3. Fetch Employees
       let empRes = await fetchWithAuth("/api/users/all");
       let employees = [];
-      
-      if (empRes.ok) {
-        employees = await empRes.json();
-      }
+      if (empRes.ok) employees = await empRes.json();
+      if (!Array.isArray(employees)) throw new Error("Could not retrieve employee list.");
 
-      if (!Array.isArray(employees)) {
-        throw new Error("Could not retrieve employee list from server.");
-      }
-      
-      // Participants: Those with a healthCard_Amnt defined (even if 0) and are active
-      const participants = employees.filter(emp => emp.healthCard_Amnt !== null && emp.dailyRate > 0);
+      // Participants: All active employees (those with a dailyRate > 0)
+      // This allows admins to add contributions for any employee from the matrix.
+      const activeParticipants = employees.filter(emp => emp.dailyRate > 0);
 
-      const activeEmps = participants.map(emp => ({
-        id: `MACJ-${String(emp.user_Id).padStart(3, "0")}`,
-        name: `${emp.user_LastName || "Unknown"}, ${emp.user_FirstName || "User"}`,
-        key: emp.user_Id.toString(),
-        user_Id: emp.user_Id,
-        expectedDeduction: emp.healthCard_Amnt || 0
-      }));
+      const activeEmps = activeParticipants.map(emp => {
+        const hist = historyMap[emp.user_Id.toString()];
+        // Harvest rate: Use User table rate, but if it's 0, use the historical rate
+        let rate = parseFloat(emp.healthCard_Amnt) || 0;
+        if (rate === 0 && hist && hist.amount > 0) {
+          rate = hist.amount;
+        }
+
+        return {
+          id: `MACJ-${String(emp.user_Id).padStart(3, "0")}`,
+          name: `${emp.user_LastName || "Unknown"}, ${emp.user_FirstName || "User"}`,
+          key: emp.user_Id.toString(),
+          user_Id: emp.user_Id,
+          expectedDeduction: rate
+        };
+      });
       setEmployeeList(activeEmps);
 
-      // 3. Fetch Maxicare History from Payroll
-      try {
-        console.log("[MAXICARE] Fetching history...");
-        const historyRes = await fetchWithAuth("/api/payroll/maxicare/history");
-        if (historyRes.ok) {
-          const history = await historyRes.json();
-          if (Array.isArray(history)) {
-            const dateMap = {};
-            history.forEach(item => {
-              if (item.date && item.user_Id) {
-                // Ensure date string is YYYY-MM-DD
-                const dateKey = new Date(item.date).toISOString().split('T')[0];
-                if (!dateMap[dateKey]) dateMap[dateKey] = {};
-                dateMap[dateKey][item.user_Id.toString()] = parseFloat(item.amount);
-              }
-            });
-
-            const matrix = Object.keys(dateMap).sort().map(date => ({
-              date,
-              values: dateMap[date]
-            }));
-            setData(matrix);
-          }
+      // 4. Build Matrix from rawHistory
+      const dateMap = {};
+      rawHistory.forEach(item => {
+        if (item.date && item.user_Id) {
+          const dateKey = new Date(item.date).toISOString().split('T')[0];
+          if (!dateMap[dateKey]) dateMap[dateKey] = {};
+          dateMap[dateKey][item.user_Id.toString()] = {
+            amount: parseFloat(item.amount),
+            status: item.status
+          };
         }
-      } catch (histErr) {
-        console.warn("[MAXICARE] History fetch failed:", histErr);
-      }
+      });
+
+      const matrix = Object.keys(dateMap).sort().map(date => ({
+        date,
+        values: dateMap[date]
+      }));
+      setData(matrix);
 
     } catch (err) {
       console.error("[MAXICARE] Fatal fetch error:", err);
@@ -160,6 +179,102 @@ const Maxicare = () => {
       emp.user_Id === userId ? { ...emp, expectedDeduction: newValue } : emp
     ));
   };
+
+  const handleCellDoubleClick = (date, empKey, currentVal) => {
+    if (!isAdmin) return;
+    setEditingCell({ date, empKey });
+    setEditValue(currentVal > 0 ? currentVal.toString() : "");
+  };
+
+  const handleCellSave = async (date, empKey) => {
+    const val = parseFloat(editValue);
+    // Allow 0, but block NaN
+    if (isNaN(val)) {
+      setEditingCell(null);
+      return;
+    }
+
+    const todayStr = systemToday ? new Date(systemToday).toISOString().split('T')[0] : "";
+    setSyncingCell({ date, empKey });
+    const updates = [];
+    setData(prevData => {
+      let newData = [...prevData];
+
+      const targetDateIndex = expectedDates.indexOf(date);
+      const currentCutoffIndex = currentCutoffDate ? expectedDates.indexOf(currentCutoffDate) : expectedDates.length;
+
+      // LOGIC: Only fill across if val >= contribution (deductionCutoff)
+      const shouldFill = val >= (deductionCutoff - 0.01); 
+
+      const datesToProcess = shouldFill 
+        ? expectedDates.slice(targetDateIndex, currentCutoffIndex)
+        : [date];
+
+      datesToProcess.forEach(dStr => {
+        let recordIndex = newData.findIndex(d => d.date === dStr);
+        const emp = employeeList.find(e => e.key === empKey);
+
+        if (recordIndex === -1) {
+          newData.push({
+            date: dStr,
+            values: { [empKey]: { amount: val, status: dStr < todayStr ? 'paid' : 'estimated' } }
+          });
+        } else {
+          const currentRecord = newData[recordIndex].values[empKey];
+          const currentVal = currentRecord ? currentRecord.amount : 0;
+
+          if (currentVal === 0 || dStr === date) {
+            newData[recordIndex].values = {
+              ...newData[recordIndex].values,
+              [empKey]: { amount: val, status: dStr < todayStr ? 'paid' : 'estimated' }
+            };
+          }
+        }
+        if (emp) {
+          updates.push({ date: dStr, user_Id: emp.user_Id, amount: val });
+        }
+      });
+
+      // Update the employeeList state so future projections (EST) show the new rate
+      // and so that "Save Table" will update the User Table in the DB.
+      setEmployeeList(prev => prev.map(e => 
+        e.key === empKey ? { ...e, expectedDeduction: val } : e
+      ));
+
+      return newData.sort((a, b) => a.date.localeCompare(b.date));
+    });
+
+    setEditingCell(null);
+
+    // Auto-sync in real-time
+    if (updates.length > 0) {
+      try {
+        const res = await fetchWithAuth("/api/payroll/maxicare/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updates })
+        });
+        
+        if (res.ok) {
+          setToast({ 
+            message: updates.length > 1 
+              ? "Employee history auto-filled and saved!" 
+              : "Cell updated successfully!", 
+            type: "success" 
+          });
+        }
+      } catch (err) {
+        console.error("Auto-sync failed:", err);
+        setToast({ message: "Failed to save to database", type: "error" });
+      } finally {
+        setTimeout(() => setSyncingCell(null), 800); 
+      }
+    } else {
+      setSyncingCell(null);
+    }
+  };
+
+  const dismissToast = () => setToast({ message: "", type: "success" });
 
   const saveSettings = async () => {
     try {
@@ -201,16 +316,67 @@ const Maxicare = () => {
     }
   };
 
+  const syncHistory = async () => {
+    try {
+      setLoading(true);
+      const updates = [];
+      data.forEach(item => {
+        Object.keys(item.values).forEach(empKey => {
+          const emp = employeeList.find(e => e.key === empKey);
+          const record = item.values[empKey];
+          if (emp && record) {
+            updates.push({
+              date: item.date,
+              user_Id: emp.user_Id,
+              amount: record.amount
+            });
+          }
+        });
+      });
+
+      const res = await fetchWithAuth("/api/payroll/maxicare/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates })
+      });
+
+      if (res.ok) {
+        alert("Payroll records updated successfully!");
+        fetchData();
+      } else {
+        const err = await res.json();
+        alert("Error syncing: " + (err.error || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Failed to sync with server");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
 
   // Computed Values
-  const employeeCount = employeeList.length;
-  const annualPremiumTotal = config.totalGross * employeeCount;
+  const subscriberCount = employeeList.filter(emp => emp.expectedDeduction > 0).length;
+  const annualPremiumTotal = config.totalGross * subscriberCount;
   const employerShare = config.totalGross / 2;
   const employeeShare = config.totalGross / 2;
   const deductionCutoff = config.monthsToPay > 0 ? (config.totalGross / 2) / (config.monthsToPay * 2) : 0;
+
+  // Group dates by month for the "row above" header
+  const groupedMonths = expectedDates.reduce((acc, dateStr) => {
+    const date = new Date(dateStr);
+    const monthLabel = date.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }).toUpperCase();
+    const last = acc[acc.length - 1];
+    if (last && last.label === monthLabel) {
+      last.colspan += 1;
+    } else {
+      acc.push({ label: monthLabel, colspan: 1 });
+    }
+    return acc;
+  }, []);
 
   // Calculate Renewal Period dynamically based on Cycle Start
   const getRenewalPeriod = () => {
@@ -280,7 +446,7 @@ const Maxicare = () => {
           const values = {};
           rawData.filter(item => item.date === date).forEach(item => {
             const emp = uniqueEmps.find(e => e.id === item.id);
-            if (emp) values[emp.key] = item.amount;
+            if (emp) values[emp.key] = { amount: item.amount, status: 'paid' };
           });
           return { date, values };
         });
@@ -308,6 +474,13 @@ const Maxicare = () => {
       <Sidebar />
       <div className="maxicareContainer">
         <Navbar />
+        {toast.message && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={dismissToast}
+          />
+        )}
         
         <div className="header-wrapper">
           <div className="top">
@@ -351,9 +524,8 @@ const Maxicare = () => {
             </div>
             <div className="card">
               <span className="label"># OF EMPLOYEES</span>
-              <span className="val">{employeeCount}</span>
-            </div>
-            <div className={`card highlight editable ${isEditing ? 'editing' : ''}`}>
+              <span className="val">{subscriberCount}</span>
+            </div>            <div className={`card highlight editable ${isEditing ? 'editing' : ''}`}>
               <span className="label">TOTAL GROSS</span>
               {isEditing ? (
                 <input 
@@ -437,216 +609,205 @@ const Maxicare = () => {
                   {isEditingTable ? <><CheckIcon /> Save Table</> : <><EditIcon /> Edit Table</>}
                 </button>
               )}
-              <button className="save-btn"><SaveIcon /> Update Payroll</button>
-              <button className="clear-btn"><DeleteIcon /> Reset</button>
+              <button 
+                className="save-btn" 
+                onClick={syncHistory}
+                disabled={loading}
+              >
+                <SaveIcon /> {loading ? "Updating..." : "Update Payroll"}
+              </button>
+              <button className="clear-btn" onClick={fetchData}><DeleteIcon /> Reset</button>
             </div>
           </div>
           
-          <div className="matrix-table-container">
-            <div className="table-responsive">
-              <table className="pivoted-table">
-                <thead>
+          <div className="table-container">
+            <table className="pivoted-table">
+              <thead>
+                <tr className="row-1-months">
+                  <th className="sticky-col">MONTH / DATE</th>
+                  {employeeList.map((emp) => (
+                    <th key={emp.key} className="emp-header-cell">
+                      <div className="vertical-stack">
+                        <span className="name">{emp.name.split(',')[0]}</span>
+                        <span className="id">{emp.id}</span>
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
                   <tr>
-                    <th className="sticky-col employee-header">EMPLOYEE DETAILS</th>
-                    {expectedDates.map((dateStr, i) => (
-                      <th 
-                        key={i} 
-                        className={`${dateStr === currentCutoffDate ? "current-period" : ""} ${isEditingTable ? "editing-header" : ""}`}
-                      >
-                        {isEditingTable ? (
-                          <input 
-                            type="date" 
-                            value={dateStr} 
-                            onChange={(e) => handleHeaderChange(i, e.target.value)}
-                            style={{ 
-                              background: 'white', 
-                              border: '1px solid #ddd', 
-                              borderRadius: '4px', 
-                              padding: '2px',
-                              fontSize: '10px',
-                              color: '#333',
-                              width: '100%'
-                            }}
-                          />
-                        ) : (
-                          <>
-                            {new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
-                            {dateStr === currentCutoffDate && <div className="curr-label">CURRENT</div>}
-                          </>
-                        )}
-                      </th>
-                    ))}
-                    <th className="sticky-col-right total-col">SUB-TOTAL</th>
-                    <th className="sticky-col-right balance-col">BALANCE</th>
+                    <td colSpan={employeeList.length + 1} className="empty-msg">
+                      Loading Maxicare data...
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={expectedDates.length + 3} className="empty-msg">
-                        Loading Maxicare data...
-                      </td>
-                    </tr>
-                  ) : error ? (
-                    <tr>
-                      <td colSpan={expectedDates.length + 3} className="empty-msg error">
-                        <p>Error: {error}</p>
-                        <button onClick={fetchData} className="retry-btn">Retry Fetching Data</button>
-                      </td>
-                    </tr>
-                  ) : employeeList.length > 0 ? (
-                    <>
-                      {employeeList.map((emp) => {
-                        // Matrix lookup helper
-                        const getVal = (dateStr) => {
-                          const actual = data.find(d => {
-                            const d1 = new Date(d.date).toISOString().split('T')[0];
-                            const d2 = new Date(dateStr).toISOString().split('T')[0];
-                            return d1 === d2;
-                          });
-                          
-                          if (actual && actual.values[emp.key] > 0) {
-                            return { amount: actual.values[emp.key], isPreview: false };
-                          }
-
-                          // If no actual record, and it's current or future, show preview
-                          const todayStr = systemToday ? new Date(systemToday).toISOString().split('T')[0] : "";
-                          if (dateStr >= todayStr) {
-                             return { amount: emp.expectedDeduction, isPreview: true };
-                          }
-                          
-                          return { amount: 0, isPreview: false };
-                        };
-
-                        // Subtotal only counts ACTUAL payments
-                        const empSubtotal = expectedDates.reduce((acc, dateStr) => {
-                          const { amount, isPreview } = getVal(dateStr);
-                          return acc + (isPreview ? 0 : parseFloat(amount) || 0);
-                        }, 0);
-
-                        // Individual target: deduction * number of cutoffs
-                        const expectedNum = parseFloat(emp.expectedDeduction) || 0;
-                        const empTarget = expectedNum * config.monthsToPay * 2;
-                        const balance = Math.max(0, empTarget - empSubtotal);
-                        
-                        return (
-                          <tr key={emp.id}>
-                            <td className="sticky-col employee-cell">
-                              <div className="emp-info">
-                                <span className="name">{emp.name}</span>
-                                <span className="id">{emp.id}</span>
-                              </div>
-                            </td>
-                            {expectedDates.map((dateStr, i) => {
-                              const { amount, isPreview } = getVal(dateStr);
-                              const amountNum = parseFloat(amount) || 0;
-                              return (
-                                <td 
-                                  key={i} 
-                                  className={`amt ${amountNum > 0 ? (isPreview ? 'preview' : 'paid') : 'unpaid'} ${dateStr === currentCutoffDate ? "current-period" : ""} ${isEditingTable && isPreview ? "editing-cell" : ""}`}
-                                >
-                                  {isEditingTable && isPreview ? (
-                                    <input 
-                                      type="number"
-                                      value={amount}
-                                      onChange={(e) => handleEmployeeDeductionChange(emp.user_Id, e.target.value)}
-                                      style={{ 
-                                        width: '100%', 
-                                        border: 'none', 
-                                        background: 'transparent', 
-                                        textAlign: 'center',
-                                        fontSize: '13px',
-                                        color: '#64748b'
-                                      }}
-                                    />
-                                  ) : (
-                                    <>
-                                      {amountNum > 0 ? amountNum.toFixed(2) : "—"}
-                                      {isPreview && amountNum > 0 && <div className="preview-tag">EST</div>}
-                                    </>
-                                  )}
-                                </td>
-                              );
-                            })}
-                            <td className="sticky-col-right total-col bold">{empSubtotal.toFixed(2)}</td>
-                            <td className="sticky-col-right balance-col bold red">{balance.toFixed(2)}</td>
-                          </tr>
-                        );
-                      })}
+                ) : error ? (
+                  <tr>
+                    <td colSpan={employeeList.length + 1} className="empty-msg error">
+                      <p>Error: {error}</p>
+                      <button onClick={fetchData} className="retry-btn">Retry Fetching Data</button>
+                    </td>
+                  </tr>
+                ) : expectedDates.length > 0 ? (
+                  <>
+                    {expectedDates.map((dateStr, i) => {
+                      const dateObj = new Date(dateStr);
+                      const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+                      const dayLabel = dateObj.getDate();
                       
-                      <tr className="grand-total-row">
-                        <td className="sticky-col label-cell">TOTAL PER CUT-OFF:</td>
-                        {expectedDates.map((dateStr, i) => {
-                          const isCurrentOrFuture = systemToday && dateStr >= new Date(systemToday).toISOString().split('T')[0];
-                          
-                          const cutoffTotal = employeeList.reduce((acc, emp) => {
-                            // Find actual history for this specific date and employee
-                            const period = data.find(d => {
+                      return (
+                        <tr key={dateStr} className={dateStr === currentCutoffDate ? "current-row" : ""}>
+                          <td className="sticky-col date-label">
+                            {isEditingTable ? (
+                              <input 
+                                type="date" 
+                                value={dateStr}
+                                onChange={(e) => handleHeaderChange(i, e.target.value)}
+                                className="date-edit-input"
+                              />
+                            ) : (
+                              <>
+                                <span className="month">{monthLabel}</span>
+                                <span className="day">{dayLabel}</span>
+                                {dateStr === currentCutoffDate && <div className="curr-tag">CURR</div>}
+                              </>
+                            )}
+                          </td>
+                          {employeeList.map((emp) => {                            // Find actual history
+                            const actualRecord = data.find(d => {
                               const d1 = new Date(d.date).toISOString().split('T')[0];
                               const d2 = new Date(dateStr).toISOString().split('T')[0];
                               return d1 === d2;
                             });
-                            
-                            const actualVal = period ? (period.values[emp.key] || 0) : 0;
-                            
-                            // If no actual value but current/future, use expected
-                            if (actualVal === 0 && isCurrentOrFuture) {
-                               return acc + (parseFloat(emp.expectedDeduction) || 0);
+
+                            let amount = 0;
+                            let status = "unpaid";
+                            let isProjection = false;
+
+                            const userRate = parseFloat(emp.expectedDeduction) || 0;
+                            const todayStr = systemToday ? new Date(systemToday).toISOString().split('T')[0] : "";
+
+                            if (actualRecord && actualRecord.values[emp.key]) {
+                              const record = actualRecord.values[emp.key];
+                              if (record.status === 'paid') {
+                                amount = record.amount;
+                                status = 'paid';
+                              } else {
+                                // If status is estimated in DB, we use the User Table rate
+                                // because the User Table is the source of truth for projections
+                                amount = userRate;
+                                status = 'estimated';
+                                isProjection = true;
+                              }
+                            } else {
+                              // No record in DB
+                              if (dateStr >= todayStr) {
+                                amount = userRate;
+                                status = 'estimated';
+                                isProjection = true;
+                              } else {
+                                amount = 0;
+                                status = 'unpaid';
+                              }
                             }
-                            return acc + actualVal;
-                          }, 0);
 
-                          const hasActualInColumn = data.some(d => new Date(d.date).toISOString().split('T')[0] === new Date(dateStr).toISOString().split('T')[0]);
+                            const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
+                            const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
 
-                          return (
-                            <td 
-                              key={i} 
-                              className={`amt bold ${dateStr === currentCutoffDate ? "current-period" : ""} ${!hasActualInColumn && isCurrentOrFuture ? "preview" : ""}`}
-                            >
-                              {cutoffTotal.toFixed(2)}
-                              {!hasActualInColumn && isCurrentOrFuture && cutoffTotal > 0 && <div className="preview-tag">EST</div>}
-                            </td>
-                          );
-                        })}
-                        <td className="sticky-col-right total-col bold">
-                          {employeeList.reduce((acc, emp) => {
-                            const empActualPaid = expectedDates.reduce((accD, dateStr) => {
-                              const period = data.find(d => {
-                                const d1 = new Date(d.date).toISOString().split('T')[0];
-                                const d2 = new Date(dateStr).toISOString().split('T')[0];
-                                return d1 === d2;
-                              });
-                              return accD + (period ? (period.values[emp.key] || 0) : 0);
-                            }, 0);
-                            return acc + empActualPaid;
-                          }, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="sticky-col-right balance-col">
-                          {employeeList.reduce((acc, emp) => {
-                            const empActualPaid = expectedDates.reduce((accD, dateStr) => {
-                              const period = data.find(d => {
-                                const d1 = new Date(d.date).toISOString().split('T')[0];
-                                const d2 = new Date(dateStr).toISOString().split('T')[0];
-                                return d1 === d2;
-                              });
-                              return accD + (period ? (period.values[emp.key] || 0) : 0);
-                            }, 0);
-                            const empTarget = (parseFloat(emp.expectedDeduction) || 0) * config.monthsToPay * 2;
-                            return acc + Math.max(0, empTarget - empActualPaid);
-                          }, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    </>
-                  ) : (
-                    <tr>
-                      <td colSpan={expectedDates.length + 3} className="empty-msg">
-                        No employees found. Please ensure users are registered.
+                            return (
+                              <td 
+                                key={emp.key} 
+                                className={`amt ${status} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`}
+                                onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
+                              >
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    onBlur={() => handleCellSave(dateStr, emp.key)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        handleCellSave(dateStr, emp.key);
+                                      }
+                                    }}
+                                    autoFocus
+                                    className="cell-edit-input"
+                                  />
+                                ) : isSyncing ? (
+                                  <div className="sync-spinner">SAVING...</div>
+                                ) : (
+                                  <>
+                                    {amount > 0 ? amount.toFixed(2) : "—"}
+                                    {isProjection && amount > 0 && <div className="preview-tag">EST</div>}
+                                  </>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                    
+                    {/* Per-Employee Summary Rows */}
+                    <tr className="summary-row subtotal-row">
+                      <td className="sticky-col label-cell">
+                        <span className="summary-label">SUBTOTAL</span>
                       </td>
+                      {employeeList.map((emp) => {
+                        // Only count periods BEFORE the current cutoff
+                        const historicalDates = currentCutoffDate 
+                          ? expectedDates.filter(d => d < currentCutoffDate)
+                          : expectedDates;
+
+                        const empSubtotal = historicalDates.reduce((acc, dateStr) => {
+                          const period = data.find(d => new Date(d.date).toISOString().split('T')[0] === new Date(dateStr).toISOString().split('T')[0]);
+                          const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
+                          return acc + val;
+                        }, 0);
+                        return (
+                          <td key={emp.key} className="amt total">
+                            {empSubtotal.toFixed(2)}
+                          </td>
+                        );
+                      })}
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    <tr className="summary-row balance-row">
+                      <td className="sticky-col label-cell">
+                        <span className="summary-label">BALANCE</span>
+                      </td>
+                      {employeeList.map((emp) => {
+                        const historicalDates = currentCutoffDate 
+                          ? expectedDates.filter(d => d < currentCutoffDate)
+                          : expectedDates;
+
+                        const empSubtotal = historicalDates.reduce((acc, dateStr) => {
+                          const period = data.find(d => new Date(d.date).toISOString().split('T')[0] === new Date(dateStr).toISOString().split('T')[0]);
+                          const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
+                          return acc + val;
+                        }, 0);
+
+                        // Balance is Subtotal minus the total Employee Share for the whole cycle
+                        const balance = empSubtotal - employeeShare;
+                        return (
+                          <td key={emp.key} className={`amt balance ${balance < 0 ? 'red' : ''}`}>
+                            {balance.toFixed(2)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </>
+                ) : (
+                  <tr>
+                    <td colSpan={employeeList.length + 1} className="empty-msg">
+                      No periods defined.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

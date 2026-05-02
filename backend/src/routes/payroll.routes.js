@@ -17,6 +17,7 @@ const {
   getPayrollSummaryPreview,
   updatePayrollFull,
   getMaxicareHistory,
+  syncMaxicareHistory,
 } = require("../controllers/payroll.controller");
 const { requireAdmin } = require("../middleware/roleCheck.js");
 
@@ -28,6 +29,7 @@ router.get("/govt-deductions-preview", requireAdmin, getGovtDeductionsPreview);
 router.get("/summary-pdf", requireAdmin, downloadPayrollSummaryPDF);
 router.get("/summary-preview", requireAdmin, getPayrollSummaryPreview);
 router.get("/maxicare/history", requireAdmin, getMaxicareHistory);
+router.post("/maxicare/sync", requireAdmin, syncMaxicareHistory);
 router.get("/all", requireAdmin, getAllPayrolls);
 router.get("/report", requireAdmin, getPayrollReport);
 router.get("/user/:user_Id", requireAdmin, getPayrollByUser);

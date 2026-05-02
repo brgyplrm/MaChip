@@ -280,25 +280,30 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   
   hCard = user[0]?.healthCard_Amnt || 0;
   
-  // ── Maxicare Schedule Check ─────────────────────────────────────────────────
-  // Only deduct if period_End matches a date in the Maxicare schedule
+  // ── Maxicare Override Check ─────────────────────────────────────────────────
   try {
-    const settings = await sequelize.query(
-      `SELECT "maxicareDates" FROM "SystemSettings" LIMIT 1`,
-      { type: QueryTypes.SELECT }
+    const maxicareRecord = await sequelize.query(
+      `SELECT "amount" FROM "Payroll_maxicare" 
+       WHERE "user_Id" = :user_Id AND "max_Month" = :period_End LIMIT 1`,
+      { replacements: { user_Id, period_End }, type: QueryTypes.SELECT }
     );
-    if (settings.length > 0 && settings[0].maxicareDates) {
-      const schedule = settings[0].maxicareDates;
-      const periodEndStr = typeof period_End === 'string' ? period_End : period_End.toISOString().split('T')[0];
-      
-      const isScheduled = schedule.some(d => {
-        const d1 = new Date(d).toISOString().split('T')[0];
-        const d2 = new Date(periodEndStr).toISOString().split('T')[0];
-        return d1 === d2;
-      });
-
-      if (!isScheduled) {
-        hCard = 0; // Skip deduction if not in schedule (e.g., September skip)
+    if (maxicareRecord.length > 0) {
+      hCard = maxicareRecord[0].amount;
+    } else {
+      // ── Maxicare Schedule Check (Fallback) ──────────────────────────────────
+      const settings = await sequelize.query(
+        `SELECT "maxicareDates" FROM "SystemSettings" LIMIT 1`,
+        { type: QueryTypes.SELECT }
+      );
+      if (settings.length > 0 && settings[0].maxicareDates) {
+        const schedule = settings[0].maxicareDates;
+        const periodEndStr = typeof period_End === 'string' ? period_End : period_End.toISOString().split('T')[0];
+        const isScheduled = schedule.some(d => {
+          const d1 = new Date(d).toISOString().split('T')[0];
+          const d2 = new Date(periodEndStr).toISOString().split('T')[0];
+          return d1 === d2;
+        });
+        if (!isScheduled) hCard = 0;
       }
     }
   } catch (err) {
@@ -511,8 +516,20 @@ exports.generateBatchPayroll = async (req, res) => {
           type: QueryTypes.INSERT,
         }
       );
-      processedCount++;
-    }
+
+      // ── Auto-record to Maxicare Table ─────────────────────────────────────
+      if (fullStats.healthCard_Amnt > 0) {
+        await sequelize.query(
+          `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
+           VALUES (:user_Id, :date, :amount, 'paid', :now, :now)
+           ON CONFLICT ("user_Id", "max_Month") DO UPDATE
+           SET "amount" = EXCLUDED."amount", "maxi_status" = 'paid', "updatedAt" = EXCLUDED."updatedAt"`,
+          { replacements: { user_Id: emp.user_Id, date: period_End, amount: fullStats.healthCard_Amnt, now: nowStr }, type: QueryTypes.INSERT }
+        );
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
+      processedCount++;    }
 
     if (periodId) {
       await sequelize.query(
@@ -631,7 +648,19 @@ exports.generatePayroll = async (req, res) => {
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logTransaction(null, currentAdminId, "PAYROLL_GEN", `Generated payroll for user ${user_Id} for period ${period_Start} to ${period_End}`, { payrollId }, req);
 
-    res.status(201).json({ message: "Payroll generated successfully.", payrollId });
+    // ── Auto-record to Maxicare Table ─────────────────────────────────────
+    if (fullStats.healthCard_Amnt > 0) {
+      await sequelize.query(
+        `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
+         VALUES (:user_Id, :date, :amount, 'paid', :now, :now)
+         ON CONFLICT ("user_Id", "max_Month") DO UPDATE
+         SET "amount" = EXCLUDED."amount", "maxi_status" = 'paid', "updatedAt" = EXCLUDED."updatedAt"`,
+        { replacements: { user_Id, date: period_End, amount: fullStats.healthCard_Amnt, now: nowStr }, type: QueryTypes.INSERT }
+      );
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
+    res.status(201).json({ message: "Payroll generated successfully.", payrollId, netPay: fullStats.netPay });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1037,18 +1066,92 @@ exports.updatePayrollFull = async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 };
 
+// ── Sync Maxicare History from Matrix ─────────────────────────────────────────
+exports.syncMaxicareHistory = async (req, res) => {
+  const { updates } = req.body;
+  console.log(`[DEBUG_MAXICARE_SYNC] Received ${updates?.length || 0} updates.`);
+  
+  if (!Array.isArray(updates)) return res.status(400).json({ error: "Updates array required." });
+
+  try {
+    const { Payroll_maxicare } = require("../config/sequelize.js");
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    for (const item of updates) {
+      const { date, user_Id, amount } = item;
+      try {
+        const isPast = date < nowStr.split(' ')[0];
+        const status = isPast ? 'paid' : 'estimated';
+        
+        console.log(`[DEBUG_UPSERT] User: ${user_Id}, Date: ${date}, Status: ${status}, Amount: ${amount}`);
+
+        await Payroll_maxicare.upsert({
+          user_Id,
+          max_Month: date,
+          amount,
+          maxi_status: status,
+          updatedAt: now
+        });
+
+        // 1.5 Update User table if their current healthCard_Amnt is 0 or different
+        // This ensures the "Subscribed" status propagates to the User management module
+        await sequelize.query(
+          `UPDATE "User" 
+           SET "healthCard_Amnt" = :amount, "updatedAt" = :now 
+           WHERE "user_Id" = :user_Id 
+           AND ("healthCard_Amnt" = 0 OR "healthCard_Amnt" IS NULL)`,
+          { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
+        );
+
+        // 2. If it's a past record, also update existing Payroll records
+        if (isPast) {
+          await sequelize.query(
+            `UPDATE "Payroll_Deductions" pd
+             SET "healthCard_Amnt" = :amount
+             FROM "Payroll" p
+             WHERE p."payrollId" = pd."payrollId"
+             AND p."user_Id" = :user_Id
+             AND p."period_End" = :date`,
+            { replacements: { amount, user_Id, date }, type: QueryTypes.UPDATE }
+          );
+
+          await sequelize.query(
+            `UPDATE "Payroll" p
+             SET "totalDeductions" = (
+               SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
+               FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
+             ),
+             "netPay" = p."totalEarnings" - (
+               SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
+               FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
+             )
+             WHERE p."user_Id" = :user_Id AND p."period_End" = :date`,
+            { replacements: { user_Id, date }, type: QueryTypes.UPDATE }
+          );
+        }
+      } catch (itemErr) {
+        console.error(`[ERROR_SYNC_ITEM] Failed for User ${user_Id} on ${date}:`, itemErr.message);
+      }
+    }
+    res.status(200).json({ message: "Maxicare history synced successfully." });
+  } catch (error) {
+    console.error("[FATAL_MAXICARE_SYNC_ERROR]:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // ── Get Maxicare History for Matrix ──────────────────────────────────────────
 exports.getMaxicareHistory = async (req, res) => {
   try {
     const history = await sequelize.query(
       `SELECT 
-         p."period_End" as date,
-         p."user_Id",
-         pd."healthCard_Amnt" as amount
-       FROM "Payroll" p
-       JOIN "Payroll_Deductions" pd ON p."payrollId" = pd."payrollId"
-       WHERE pd."healthCard_Amnt" > 0
-       ORDER BY p."period_End" ASC`,
+         "max_Month" as date,
+         "user_Id",
+         "amount",
+         "maxi_status" as status
+       FROM "Payroll_maxicare"
+       ORDER BY "max_Month" ASC`,
       { type: QueryTypes.SELECT }
     );
     res.status(200).json(history);
