@@ -189,10 +189,19 @@ const Maxicare = () => {
   };
 
   const handleCellSave = async (date, empKey) => {
-    const val = parseFloat(editValue);
+    if (!editingCell) return;
+    
+    const sanitizedValue = editValue.replace(/,/g, "").trim();
+    
+    // Treat empty string as 0
+    const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
+    
+    // Reset editing cell immediately
+    setEditingCell(null);
+
     // Allow 0, but block NaN
     if (isNaN(val)) {
-      setEditingCell(null);
+      setToast({ message: "Invalid amount entered", type: "error" });
       return;
     }
 
@@ -213,7 +222,7 @@ const Maxicare = () => {
         : [date];
 
       datesToProcess.forEach(dStr => {
-        let recordIndex = newData.findIndex(d => d.date === dStr);
+        let recordIndex = newData.findIndex(d => isInSamePeriod(d.date, dStr));
         const emp = employeeList.find(e => e.key === empKey);
 
         if (recordIndex === -1) {
@@ -246,8 +255,6 @@ const Maxicare = () => {
       return newData.sort((a, b) => a.date.localeCompare(b.date));
     });
 
-    setEditingCell(null);
-
     // Auto-sync in real-time
     if (updates.length > 0) {
       try {
@@ -264,10 +271,15 @@ const Maxicare = () => {
               : "Cell updated successfully!", 
             type: "success" 
           });
+        } else {
+          const errData = await res.json();
+          setToast({ message: "Sync failed: " + (errData.error || "Unknown error"), type: "error" });
+          fetchData(); // Rollback
         }
       } catch (err) {
         console.error("Auto-sync failed:", err);
         setToast({ message: "Failed to save to database", type: "error" });
+        fetchData(); // Rollback
       } finally {
         setTimeout(() => setSyncingCell(null), 800); 
       }
@@ -275,6 +287,31 @@ const Maxicare = () => {
       setSyncingCell(null);
     }
   };
+
+  const getSummaryStats = () => {
+    const subscribers = new Set();
+    let totalPaid = 0;
+
+    data.forEach(item => {
+      const recordYear = new Date(item.date).getFullYear();
+      if (recordYear === selectedYear) {
+        Object.keys(item.values).forEach(empKey => {
+          const amt = item.values[empKey].amount;
+          if (amt > 0) {
+            subscribers.add(empKey);
+            totalPaid += amt;
+          }
+        });
+      }
+    });
+
+    return {
+      subscribers: subscribers.size,
+      totalPaid: totalPaid
+    };
+  };
+
+  const stats = getSummaryStats();
 
   const dismissToast = () => setToast({ message: "", type: "success" });
 
@@ -361,8 +398,8 @@ const Maxicare = () => {
   }, []);
 
   // Computed Values
-  const subscriberCount = employeeList.filter(emp => emp.expectedDeduction > 0).length;
-  const annualPremiumTotal = config.totalGross * subscriberCount;
+  const activeSubscribers = stats.subscribers;
+  const annualPremiumTotal = config.totalGross * activeSubscribers;
   const employerShare = config.totalGross / 2;
   const employeeShare = config.totalGross / 2;
   const deductionCutoff = config.monthsToPay > 0 ? (config.totalGross / 2) / (config.monthsToPay * 2) : 0;
@@ -490,9 +527,21 @@ const Maxicare = () => {
               <h1>Maxicare Management</h1>
               <div className="year-selector">
                 <FilterListIcon className="filter-icon" />
-                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-                  <option value="2025">Fiscal Year 2025</option>
-                  <option value="2026">Fiscal Year 2026</option>
+                <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
+                  {(() => {
+                    const currentY = systemToday ? new Date(systemToday).getFullYear() : new Date().getFullYear();
+                    const startYear = 2011;
+                    const endYear = currentY + 10;
+                    const years = [];
+                    for (let y = endYear; y >= startYear; y--) {
+                      years.push(y);
+                    }
+                    return years.map(year => (
+                      <option key={year} value={year} style={year === currentY ? {fontWeight: 'bold', color: '#2563eb'} : {}}>
+                        Fiscal Year {year} {year === currentY ? "(Current)" : ""}
+                      </option>
+                    ));
+                  })()}
                 </select>
                 {isAdmin && (
                   <button 
@@ -520,13 +569,17 @@ const Maxicare = () => {
           </div>
 
           <div className="summary-cards">
-            <div className="card">
-              <span className="label">ANNUAL PREMIUM (TOTAL)</span>
+            <div className="card highlight">
+              <span className="label">ANNUAL PREMIUM ({selectedYear})</span>
               <span className="val">{peso(annualPremiumTotal)}</span>
             </div>
+            <div className="card highlight">
+              <span className="label">TOTAL COLLECTED ({selectedYear})</span>
+              <span className="val">{peso(stats.totalPaid)}</span>
+            </div>
             <div className="card">
-              <span className="label"># OF EMPLOYEES</span>
-              <span className="val">{subscriberCount}</span>
+              <span className="label">ACTIVE SUBSCRIBERS ({selectedYear})</span>
+              <span className="val">{activeSubscribers}</span>
             </div>            <div className={`card highlight editable ${isEditing ? 'editing' : ''}`}>
               <span className="label">TOTAL GROSS</span>
               {isEditing ? (
@@ -693,9 +746,12 @@ const Maxicare = () => {
 
                             if (actualRecord && actualRecord.values[emp.key]) {
                               const record = actualRecord.values[emp.key];
-                              if (record.status === 'paid') {
+                              if (record.status === 'paid' && record.amount > 0) {
                                 amount = record.amount;
                                 status = 'paid';
+                              } else if (record.amount === 0) {
+                                amount = 0;
+                                status = 'removed';
                               } else {
                                 // If status is estimated in DB, we use the User Table rate
                                 // because the User Table is the source of truth for projections
@@ -726,7 +782,7 @@ const Maxicare = () => {
                               >
                                 {isEditing ? (
                                   <input
-                                    type="number"
+                                    type="text"
                                     value={editValue}
                                     onChange={(e) => setEditValue(e.target.value)}
                                     onBlur={() => handleCellSave(dateStr, emp.key)}
@@ -743,7 +799,7 @@ const Maxicare = () => {
                                   <div className="sync-spinner">SAVING...</div>
                                 ) : (
                                   <>
-                                    {amount > 0 ? amount.toFixed(2) : "—"}
+                                    {parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     {isProjection && amount > 0 && <div className="preview-tag">EST</div>}
                                   </>
                                 )}
@@ -757,22 +813,17 @@ const Maxicare = () => {
                     {/* Per-Employee Summary Rows */}
                     <tr className="summary-row subtotal-row">
                       <td className="sticky-col label-cell">
-                        <span className="summary-label">SUBTOTAL</span>
+                        <span className="summary-label">TOTAL PAID ({selectedYear})</span>
                       </td>
                       {employeeList.map((emp) => {
-                        // Only count periods BEFORE the current cutoff
-                        const historicalDates = currentCutoffDate 
-                          ? expectedDates.filter(d => d < currentCutoffDate)
-                          : expectedDates;
-
-                        const empSubtotal = historicalDates.reduce((acc, dateStr) => {
+                        const empSubtotal = expectedDates.reduce((acc, dateStr) => {
                           const period = data.find(d => isInSamePeriod(d.date, dateStr));
                           const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
                           return acc + val;
                         }, 0);
                         return (
                           <td key={emp.key} className="amt total">
-                            {empSubtotal.toFixed(2)}
+                            {parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                         );
                       })}
@@ -793,10 +844,13 @@ const Maxicare = () => {
                         }, 0);
 
                         // Balance is Subtotal minus the total Employee Share for the whole cycle
-                        const balance = empSubtotal - employeeShare;
+                        // Only show balance if they are a subscriber or have historical payments
+                        const isSubscriber = (parseFloat(emp.expectedDeduction) || 0) > 0 || empSubtotal > 0;
+                        const balance = isSubscriber ? (employeeShare - empSubtotal) : 0;
+
                         return (
                           <td key={emp.key} className={`amt balance ${balance < 0 ? 'red' : ''}`}>
-                            {balance.toFixed(2)}
+                            {parseFloat(balance).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                         );
                       })}

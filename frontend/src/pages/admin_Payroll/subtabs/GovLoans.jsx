@@ -118,9 +118,18 @@ const GovLoans = () => {
   };
 
   const handleCellSave = async (date, empKey) => {
-    const val = parseFloat(editValue);
+    if (!editingCell) return;
+    
+    const sanitizedValue = editValue.replace(/,/g, "").trim();
+    
+    // Treat empty string as 0
+    const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
+    
+    // Reset editing cell immediately
+    setEditingCell(null);
+
     if (isNaN(val)) {
-      setEditingCell(null);
+      setToast({ message: "Invalid amount entered", type: "error" });
       return;
     }
 
@@ -132,16 +141,18 @@ const GovLoans = () => {
 
     setAllData(prev => {
       const typeData = [...(prev[activeTab] || [])];
-      let recordIndex = typeData.findIndex(d => d.date === date);
+      let recordIndex = typeData.findIndex(d => isInSamePeriod(d.date, date));
       if (recordIndex === -1) {
         typeData.push({ date, values: { [empKey]: { amount: val, status: 'paid' } } });
       } else {
-        typeData[recordIndex].values = { ...typeData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } };
+        const updatedRecord = {
+          ...typeData[recordIndex],
+          values: { ...typeData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } }
+        };
+        typeData[recordIndex] = updatedRecord;
       }
       return { ...prev, [activeTab]: typeData.sort((a, b) => a.date.localeCompare(b.date)) };
     });
-
-    setEditingCell(null);
 
     try {
       const res = await fetchWithAuth("/api/payroll/loans/sync", {
@@ -149,21 +160,39 @@ const GovLoans = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates })
       });
-      if (res.ok) setToast({ message: `${currentDbType} updated!`, type: "success" });
+      if (res.ok) {
+        setToast({ message: `${currentDbType} updated!`, type: "success" });
+      } else {
+        const errData = await res.json();
+        setToast({ message: "Sync failed: " + (errData.error || "Unknown error"), type: "error" });
+        fetchData(); // Rollback
+      }
     } catch (err) {
       setToast({ message: "Sync failed", type: "error" });
+      fetchData(); // Rollback
     } finally {
       setTimeout(() => setSyncingCell(null), 500);
     }
   };
 
   const downloadTemplate = () => {
-    const csvContent = "Date,EmployeeID,EmployeeName,Amount\n2026-01-15,MACJ-001,Cruzat Jenny,500.00\n2026-01-31,MACJ-001,Cruzat Jenny,500.00";
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    // Header row: month/year, Employee1 #ID, Employee2 #ID, ...
+    const headers = ["month/year", ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
+    const headerLine = headers.join(",");
+
+    // Rows: All 24 cutoff dates for the selected year
+    const rows = expectedDates.map(date => {
+      // Add commas for each employee column (initially empty)
+      const emptyValues = employeeList.map(() => "").join(",");
+      return `${date},${emptyValues}`;
+    });
+
+    const csvContent = [headerLine, ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `gov_loan_${activeTab}_template.csv`;
+    a.download = `gov_loan_${activeTab}_matrix_${selectedYear}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -184,6 +213,7 @@ const GovLoans = () => {
       try {
         const text = e.target.result;
         const lines = text.split("\n").filter(line => line.trim() !== "");
+        if (lines.length < 2) throw new Error("File is empty or missing data.");
         
         // Find current tab config to get the correct type
         const currentType = govTypes.find(t => t.id === activeTab);
@@ -193,20 +223,40 @@ const GovLoans = () => {
           return;
         }
 
-        const updates = lines.slice(1).map(line => {
-          const values = line.split(",");
-          const macjId = values[1]?.trim();
-          const userId = parseInt(macjId?.replace("MACJ-", ""));
-          return {
-            date: values[0]?.trim(),
-            user_Id: userId,
-            amount: parseFloat(values[3]?.trim() || 0),
-            type: currentType.dbType // Using dbType from govTypes
-          };
-        }).filter(item => !isNaN(item.user_Id) && item.date && !isNaN(item.amount));
+        // 1. Parse Headers to get Employee IDs
+        const headers = lines[0].split(",");
+        const empMappings = []; // { colIndex, user_Id }
+
+        for (let i = 1; i < headers.length; i++) {
+          const header = headers[i];
+          const match = header.match(/#MACJ-(\d+)/i);
+          if (match) {
+            empMappings.push({ colIndex: i, user_Id: parseInt(match[1]) });
+          }
+        }
+
+        // 2. Parse Rows (Dates)
+        const updates = [];
+        for (let i = 1; i < lines.length; i++) {
+          const columns = lines[i].split(",");
+          const date = columns[0]?.trim();
+          if (!date) continue;
+
+          empMappings.forEach(mapping => {
+            const amount = parseFloat(columns[mapping.colIndex]?.trim() || 0);
+            if (amount > 0) {
+              updates.push({
+                date,
+                user_Id: mapping.user_Id,
+                amount,
+                type: currentType.dbType
+              });
+            }
+          });
+        }
 
         if (updates.length === 0) {
-          setToast({ message: "No valid data found in CSV", type: "error" });
+          setToast({ message: "No non-zero amounts found in CSV", type: "error" });
           setLoading(false);
           return;
         }
@@ -218,7 +268,7 @@ const GovLoans = () => {
         });
 
         if (res.ok) {
-          setToast({ message: `Successfully uploaded ${updates.length} records to ${currentType.label}!`, type: "success" });
+          setToast({ message: `Successfully synced ${updates.length} records to ${currentType.label}!`, type: "success" });
           fetchData();
           setFile(null);
         } else {
@@ -285,10 +335,9 @@ const GovLoans = () => {
                       const amount = record?.values[emp.key]?.amount || 0;
                       return (
                         <td key={d} className={`amt ${amount > 0 ? 'paid' : 'unpaid'} ${d === currentCutoffDate ? "current-col" : ""}`}>
-                          {amount > 0 ? amount.toFixed(2) : "—"}
+                          {parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                      );
-                    })}
+                      );                    })}
                   </tr>
                 );
               })}
@@ -305,13 +354,16 @@ const GovLoans = () => {
     let totalPaid = 0;
 
     typeData.forEach(item => {
-      Object.keys(item.values).forEach(empKey => {
-        const amt = item.values[empKey].amount;
-        if (amt > 0) {
-          subscribers.add(empKey);
-          totalPaid += amt;
-        }
-      });
+      const recordYear = new Date(item.date).getFullYear();
+      if (recordYear === selectedYear) {
+        Object.keys(item.values).forEach(empKey => {
+          const amt = item.values[empKey].amount;
+          if (amt > 0) {
+            subscribers.add(empKey);
+            totalPaid += amt;
+          }
+        });
+      }
     });
 
     return {
@@ -337,11 +389,20 @@ const GovLoans = () => {
               <div className="year-selector">
                 <FilterListIcon className="filter-icon" />
                 <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
-                  {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 4 + i).map(year => (
-                    <option key={year} value={year} style={year === new Date().getFullYear() ? {fontWeight: 'bold', color: '#2563eb'} : {}}>
-                      Fiscal Year {year} {year === new Date().getFullYear() ? "(Current)" : ""}
-                    </option>
-                  ))}
+                  {(() => {
+                    const currentY = systemToday ? new Date(systemToday).getFullYear() : new Date().getFullYear();
+                    const startYear = 2011;
+                    const endYear = currentY + 10;
+                    const years = [];
+                    for (let y = endYear; y >= startYear; y--) {
+                      years.push(y);
+                    }
+                    return years.map(year => (
+                      <option key={year} value={year} style={year === currentY ? {fontWeight: 'bold', color: '#2563eb'} : {}}>
+                        Fiscal Year {year} {year === currentY ? "(Current)" : ""}
+                      </option>
+                    ));
+                  })()}
                 </select>
               </div>
             </div>
@@ -382,7 +443,7 @@ const GovLoans = () => {
                 <span className="val">{activeStats.subscribers}</span>
               </div>
               <div className="card highlight">
-                <span className="label">TOTAL COLLECTED (${selectedYear})</span>
+                <span className="label">TOTAL COLLECTED ({selectedYear})</span>
                 <span className="val">{peso(activeStats.totalPaid)}</span>
               </div>
               <div className="card">
@@ -428,19 +489,61 @@ const GovLoans = () => {
                         </div>
                       </th>
                     ))}
+                    <th className="sticky-col-right level-1">
+                      <div className="vertical-stack">
+                        <span className="year">SUB</span>
+                        <span className="label">TOTAL</span>
+                      </div>
+                    </th>
+                    <th className="sticky-col-right level-2">
+                      <div className="vertical-stack">
+                        <span className="year">MONTHLY</span>
+                        <span className="label">TOTAL</span>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={employeeList.length + 1} className="empty-msg">Loading data...</td></tr>
+                    <tr><td colSpan={employeeList.length + 3} className="empty-msg">Loading data...</td></tr>
                   ) : expectedDates.length > 0 ? (
                     <>
-                    {expectedDates.map((dateStr, i) => {
+                    {(() => {
+                      const typeData = allData[activeTab] || [];
+                      const rowTotals = {};
+                      expectedDates.forEach(dStr => {
+                        const period = typeData.find(d => isInSamePeriod(d.date, dStr));
+                        rowTotals[dStr] = period ? Object.values(period.values).reduce((acc, v) => acc + (v.amount || 0), 0) : 0;
+                      });
+
+                      const getMonthlyTotal = (dStr) => {
+                        const date = new Date(dStr);
+                        const m = date.getMonth();
+                        const y = date.getFullYear();
+
+                        // Check if this is the last expected date for this month in the current fiscal year
+                        const monthDates = expectedDates.filter(d => {
+                          const rd = new Date(d);
+                          return rd.getFullYear() === y && rd.getMonth() === m;
+                        });
+                        const isLastOfMonth = dStr === monthDates[monthDates.length - 1];
+
+                        if (!isLastOfMonth) return null;
+
+                        return monthDates
+                          .filter(d => d <= dStr)
+                          .reduce((sum, d) => sum + (rowTotals[d] || 0), 0);
+                      };
+
+                      return expectedDates.map((dateStr, i) => {
                         const dateObj = new Date(dateStr);
                         const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
                         const dayLabel = dateObj.getDate();
                         const isCurrent = dateStr === currentCutoffDate;
                         
+                        const rowTotal = rowTotals[dateStr] || 0;
+                        const monthlyTotal = getMonthlyTotal(dateStr);
+
                         return (
                           <tr key={dateStr} className={isCurrent ? "current-row" : ""}>
                             <td className="sticky-col date-label">
@@ -460,18 +563,19 @@ const GovLoans = () => {
                               )}
                             </td>
                             {employeeList.map((emp) => {
-                              const typeData = allData[activeTab] || [];
                               const actualRecord = typeData.find(d => isInSamePeriod(d.date, dateStr));
                               const record = actualRecord ? actualRecord.values[emp.key] : null;
                               const amount = record ? record.amount : 0;
                               const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
                               const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
 
+                              const statusClass = amount > 0 ? 'paid' : (record ? 'removed' : 'unpaid');
+
                               return (
-                                <td key={emp.key} className={`amt ${amount > 0 ? 'paid' : 'unpaid'} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`} onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}>
+                                <td key={emp.key} className={`amt ${statusClass} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`} onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}>
                                   {isEditing ? (
                                     <input 
-                                      type="number" 
+                                      type="text" 
                                       value={editValue} 
                                       onChange={(e) => setEditValue(e.target.value)} 
                                       onBlur={() => handleCellSave(dateStr, emp.key)} 
@@ -487,28 +591,80 @@ const GovLoans = () => {
                                   ) : isSyncing ? (
                                     <div className="sync-spinner">SAVING...</div>
                                   ) : (
-                                    amount > 0 ? amount.toFixed(2) : "—"
+                                    parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                                   )}
                                 </td>
                               );
                             })}
+                            <td className="sticky-col-right level-1">
+                              {parseFloat(rowTotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="sticky-col-right level-2">
+                              {monthlyTotal !== null 
+                                ? parseFloat(monthlyTotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                : ""}
+                            </td>
                           </tr>
                         );
-                      })}
+                      });
+                    })()}
                       <tr className="summary-row subtotal-row">
-                        <td className="sticky-col label-cell"><span className="summary-label">TOTAL PAID</span></td>
+                        <td className="sticky-col label-cell"><span className="summary-label">TOTAL PAID ({selectedYear})</span></td>
                         {employeeList.map((emp) => {
                           const typeData = allData[activeTab] || [];
                           const empSubtotal = expectedDates.reduce((acc, dateStr) => {
-                            const period = typeData.find(d => d.date === dateStr);
+                            const period = typeData.find(d => isInSamePeriod(d.date, dateStr));
                             return acc + (period?.values[emp.key]?.amount || 0);
                           }, 0);
-                          return <td key={emp.key} className="amt total">{empSubtotal.toFixed(2)}</td>;
+                          return <td key={emp.key} className="amt total">{parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>;
                         })}
+                        <td className="sticky-col-right level-1 final-total">
+                          {(() => {
+                             const typeData = allData[activeTab] || [];
+                             const stats = expectedDates.reduce((acc, dateStr) => {
+                               const period = typeData.find(d => isInSamePeriod(d.date, dateStr));
+                               return acc + (period ? Object.values(period.values).reduce((sum, v) => sum + (v.amount || 0), 0) : 0);
+                             }, 0);
+                             return parseFloat(stats).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                          })()}
+                        </td>
+                        <td className="sticky-col-right level-2 final-total">
+                          {/* Monthly total doesn't make sense for a whole year summary row, but we can show the same total */}
+                          {(() => {
+                             const typeData = allData[activeTab] || [];
+                             const stats = expectedDates.reduce((acc, dateStr) => {
+                               const period = typeData.find(d => isInSamePeriod(d.date, dateStr));
+                               return acc + (period ? Object.values(period.values).reduce((sum, v) => sum + (v.amount || 0), 0) : 0);
+                             }, 0);
+                             return parseFloat(stats).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                          })()}
+                        </td>
+                      </tr>
+                      <tr className="summary-row all-time-row">
+                        <td className="sticky-col label-cell"><span className="summary-label">TOTAL LOANS (ALL-TIME)</span></td>
+                        {employeeList.map((emp) => {
+                          const typeData = allData[activeTab] || [];
+                          const totalLoans = typeData.reduce((acc, item) => acc + (item.values[emp.key]?.amount || 0), 0);
+                          return <td key={emp.key} className="amt total">{parseFloat(totalLoans).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>;
+                        })}
+                        <td className="sticky-col-right level-1 all-time">
+                          {(() => {
+                             const typeData = allData[activeTab] || [];
+                             const totalAllTime = typeData.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0);
+                             return parseFloat(totalAllTime).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                          })()}
+                        </td>
+                        <td className="sticky-col-right level-2 all-time">
+                          {(() => {
+                             const typeData = allData[activeTab] || [];
+                             const totalAllTime = typeData.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0);
+                             return parseFloat(totalAllTime).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                          })()}
+                        </td>
                       </tr>
                     </>
                   ) : (
-                    <tr><td colSpan={employeeList.length + 1} className="empty-msg">No periods defined.</td></tr>
+                    <tr><td colSpan={employeeList.length + 3} className="empty-msg">No periods defined.</td></tr>
                   )}
                 </tbody>
               </table>

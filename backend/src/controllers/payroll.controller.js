@@ -271,12 +271,12 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   // Get user's current daily rate and gov't shares if not provided
   let dailyRate = customDailyRate;
   let sss_Share = 0, philhealth_Share = 0, hdmf_Share = 0, tax_Share = 0;
-  let hCard = 0, sLoan = 0, hLoan = 0, cLoan = 0, advAmnt = 0, gDed = 0, mpSave = 0;
-  
+  let hCard = 0, sLoan = 0, hLoan = 0, cLoan = 0, advAmnt = 0, gDed = 0, mpSave = 0, ewLoan = 0;
+
   const user = await sequelize.query(
     `SELECT "dailyRate", "sss_Share", "philhealth_Share", "hdmf_Share", "tax_Share",
-            "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
-            "advances_Amnt", "globe_Deduction", "multiPurposeSavings"
+            "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt",
+            "advances_Amnt", "globe_Deduction", "multiPurposeSavings", "eastwest_Loan"
      FROM "User" WHERE "user_Id" = :user_Id`,
     { replacements: { user_Id }, type: QueryTypes.SELECT }
   );
@@ -286,7 +286,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   philhealth_Share = user[0]?.philhealth_Share || 0;
   hdmf_Share = user[0]?.hdmf_Share || 0;
   tax_Share = user[0]?.tax_Share || 0;
-  
+
   hCard = user[0]?.healthCard_Amnt || 0;
 
   // ── Cash Advance Override Check ─────────────────────────────────────────────
@@ -305,6 +305,21 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
    advAmnt = user[0]?.advances_Amnt || 0;
   }
 
+  // ── Eastwest Loan Override Check ───────────────────────────────────────────
+  try {
+    const ewRecord = await sequelize.query(
+      `SELECT "amount" FROM "Payroll_Eastwest"
+       WHERE "user_Id" = :user_Id AND "date" = :period_End LIMIT 1`,
+      { replacements: { user_Id, period_End }, type: QueryTypes.SELECT }
+    );
+    if (ewRecord.length > 0) {
+      ewLoan = ewRecord[0].amount;
+    } else {
+      ewLoan = user[0]?.eastwest_Loan || 0;
+    }
+  } catch (err) {
+    ewLoan = user[0]?.eastwest_Loan || 0;
+  }
   // ── Maxicare Override Check ─────────────────────────────────────────────────
   try {
     const maxicareRecord = await sequelize.query(
@@ -334,13 +349,38 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   } catch (err) {
     console.error("[MAXICARE CHECK ERROR]:", err.message);
   }
+
+  // ── Government Loans Ledger Override Check ──────────────────────────────────
+  try {
+    const govLoanRecords = await sequelize.query(
+      `SELECT "government_type", "amount" FROM "Payroll_GovernmentLoans"
+       WHERE "user_Id" = :user_Id AND "date" = :period_End`,
+      { replacements: { user_Id, period_End }, type: QueryTypes.SELECT }
+    );
+
+    // Default to User table values first
+    sLoan = user[0]?.SSS_Loan || 0;
+    hLoan = user[0]?.HDMF_Loan || 0;
+    cLoan = user[0]?.calamityLoan_Amnt || 0;
+    mpSave = user[0]?.multiPurposeSavings || 0;
+
+    // Apply overrides from ledger if they exist for this specific period
+    govLoanRecords.forEach(record => {
+      if (record.government_type === 'SSS') sLoan = record.amount;
+      if (record.government_type === 'Pag-IBIG') hLoan = record.amount;
+      if (record.government_type === 'Calamity') cLoan = record.amount;
+      if (record.government_type === 'Multi-Purpose') mpSave = record.amount;
+    });
+  } catch (err) {
+    console.error("[GOV LOAN LEDGER CHECK ERROR]:", err.message);
+    sLoan = user[0]?.SSS_Loan || 0;
+    hLoan = user[0]?.HDMF_Loan || 0;
+    cLoan = user[0]?.calamityLoan_Amnt || 0;
+    mpSave = user[0]?.multiPurposeSavings || 0;
+  }
   // ────────────────────────────────────────────────────────────────────────────
 
-  sLoan = user[0]?.SSS_Loan || 0;
-  hLoan = user[0]?.HDMF_Loan || 0;
-  cLoan = user[0]?.calamityLoan_Amnt || 0;
   gDed = user[0]?.globe_Deduction || 0;
-  mpSave = user[0]?.multiPurposeSavings || 0;
 
   const ratePerHr = dailyRate / WORK_HRS_PER_DAY;
   const ratePerMin = ratePerHr / 60;
@@ -365,7 +405,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const govtTotal = parseFloat(sss_Share) + parseFloat(philhealth_Share) + parseFloat(hdmf_Share);
   
   // 6. Other Deductions
-  const otherTotal = parseFloat(hCard) + parseFloat(sLoan) + parseFloat(hLoan) + parseFloat(cLoan) + parseFloat(advAmnt) + parseFloat(gDed) + parseFloat(mpSave);
+  const otherTotal = parseFloat(hCard) + parseFloat(sLoan) + parseFloat(hLoan) + parseFloat(cLoan) + parseFloat(advAmnt) + parseFloat(gDed) + parseFloat(mpSave) + parseFloat(ewLoan);
 
   const totalEarnings = basicPay + legalHol_Amnt + specialHol_Amnt + OT_Amnt - specialHol_Adj;
   // Tax is now pulled from user template
@@ -395,6 +435,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     calamityLoan_Amnt: cLoan,
     advances_Amnt: advAmnt,
     globe_Deduction: gDed,
+    eastwest_Loan: ewLoan,
     multiPurposeSavings: mpSave,
     Tax_Ded,
     totalEarnings,
@@ -509,12 +550,12 @@ exports.generateBatchPayroll = async (req, res) => {
            "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days",
            "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
            "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
-           "multiPurposeSavings", "advances_Amnt", "globe_Deduction")
+           "multiPurposeSavings", "advances_Amnt", "globe_Deduction", "eastwest_Loan")
          VALUES
           (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
            :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
            :sss, :ph, :hd, :tax,
-           :hc, :sl, :hl, :cl, :ms, :aa, :gd)`,
+           :hc, :sl, :hl, :cl, :ms, :aa, :gd, :el)`,
         {
           replacements: {
             payrollId,
@@ -535,7 +576,8 @@ exports.generateBatchPayroll = async (req, res) => {
             cl: fullStats.calamityLoan_Amnt,
             ms: fullStats.multiPurposeSavings,
             aa: fullStats.advances_Amnt,
-            gd: fullStats.globe_Deduction
+            gd: fullStats.globe_Deduction,
+            el: fullStats.eastwest_Loan
           },
           type: QueryTypes.INSERT,
         }
@@ -611,7 +653,8 @@ async function recalculatePayrollInternal(payrollId) {
            "paidLeave_Days" = :paidLeave_Days, "SSS_Ded" = :sss, "Philhealth_Ded" = :ph,
            "HDMF_Ded" = :hd, "Tax_Ded" = :tax, "healthCard_Amnt" = :hc,
            "SSS_Loan" = :sl, "HDMF_Loan" = :hl, "calamityLoan_Amnt" = :cl,
-           "multiPurposeSavings" = :ms, "advances_Amnt" = :aa, "globe_Deduction" = :gd
+           "multiPurposeSavings" = :ms, "advances_Amnt" = :aa, "globe_Deduction" = :gd,
+           "eastwest_Loan" = :el
        WHERE "payrollId" = :payrollId`,
       { replacements: {
           payrollId,
@@ -625,7 +668,8 @@ async function recalculatePayrollInternal(payrollId) {
           sss: fullStats.SSS_Ded, ph: fullStats.Philhealth_Ded, hd: fullStats.HDMF_Ded, tax: fullStats.Tax_Ded,
           hc: fullStats.healthCard_Amnt, sl: fullStats.SSS_Loan, hl: fullStats.HDMF_Loan,
           cl: fullStats.calamityLoan_Amnt, ms: fullStats.multiPurposeSavings,
-          aa: fullStats.advances_Amnt, gd: fullStats.globe_Deduction
+          aa: fullStats.advances_Amnt, gd: fullStats.globe_Deduction,
+          el: fullStats.eastwest_Loan
         }, type: QueryTypes.UPDATE }
     );
 
@@ -716,14 +760,14 @@ exports.generatePayroll = async (req, res) => {
          "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days",
          "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
          "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
-         "multiPurposeSavings", "advances_Amnt", "globe_Deduction")
-       VALUES
-        (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
+         "multiPurposeSavings", "advances_Amnt", "globe_Deduction", "eastwest_Loan")
+         VALUES
+         (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
          :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
          :sss, :ph, :hd, :tax,
-         :hc, :sl, :hl, :cl, :ms, :aa, :gd)`,
-      {
-        replacements: {
+         :hc, :sl, :hl, :cl, :ms, :aa, :gd, :el)`,
+         {
+         replacements: {
           payrollId,
           absence_Hrs: (fullStats.absence_Days) * 8,
           absence_Amnt: fullStats.absence_Amnt,
@@ -742,11 +786,11 @@ exports.generatePayroll = async (req, res) => {
           cl: fullStats.calamityLoan_Amnt,
           ms: fullStats.multiPurposeSavings,
           aa: fullStats.advances_Amnt,
-          gd: fullStats.globe_Deduction
-        },
-        type: QueryTypes.INSERT,
-      }
-    );
+          gd: fullStats.globe_Deduction,
+          el: fullStats.eastwest_Loan
+         },
+         type: QueryTypes.INSERT,
+         }    );
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logTransaction(null, currentAdminId, "PAYROLL_GEN", `Generated payroll for user ${user_Id} for period ${period_Start} to ${period_End}`, { payrollId }, req);
@@ -879,10 +923,10 @@ exports.getPayrollByUser = async (req, res) => {
          e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
          e."specialHol_Adj", e."incentives", e."allowance",
          d.*,
-         (COALESCE(d."healthCard_Amnt",0) + 
-          COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) + 
-          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
-         u."user_FirstName", u."user_LastName",
+         (COALESCE(d."healthCard_Amnt",0) +
+          COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
+          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
+          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",         u."user_FirstName", u."user_LastName",
          ps."PaystatusName"
        FROM "Payroll" p
        LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
@@ -912,10 +956,10 @@ exports.getPayrollById = async (req, res) => {
          e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
          e."specialHol_Adj", e."incentives", e."allowance",
          d.*,
-         (COALESCE(d."healthCard_Amnt",0) + 
-          COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) + 
-          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
-         u."user_FirstName", u."user_LastName",
+         (COALESCE(d."healthCard_Amnt",0) +
+          COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
+          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
+          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",         u."user_FirstName", u."user_LastName",
          ps."PaystatusName"
        FROM "Payroll" p
        LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
@@ -943,10 +987,10 @@ exports.getPayrollReport = async (req, res) => {
         u."user_FirstName", u."user_LastName", u."user_MachipId",
         ps."PaystatusName" AS "statusName",
         d.*,
-        (COALESCE(d."healthCard_Amnt",0) + 
-         COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) + 
-         COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
-        e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
+        (COALESCE(d."healthCard_Amnt",0) +
+         COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
+         COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
+         COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",        e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
         e."specialHol_Adj", e."incentives", e."allowance"
       FROM "Payroll" p
@@ -977,21 +1021,26 @@ const { generatePayrollSummaryPDF } = require("../utils/payrollSummaryGenerator"
 exports.getGovtDeductionsPreview = async (req, res) => {
   const { grossPay, user_Id } = req.query;
   if (!grossPay || !user_Id) return res.status(400).json({ error: "grossPay and user_Id required." });
-  
-  try {
-    const { computePeriodTax } = require("../utils/govtDeductions");
-    const user = await sequelize.query(`SELECT "sss_Share", "philhealth_Share", "hdmf_Share" FROM "User" WHERE "user_Id" = :user_Id`, { replacements: { user_Id }, type: QueryTypes.SELECT });
-    if (user.length === 0) return res.status(404).json({ error: "User not found." });
 
-    const shares = user[0];
-    
-    // Tax is now manual input ("hardcoded") per user request.
+  try {
+    const { computeMonthlyShares, computePeriodTax } = require("../utils/govtDeductions");
+
+    // Calculate based on the provided gross pay (assuming it's a monthly estimate for template purposes)
+    // For template editing, we assume grossPay is roughly Monthly Salary
+    const dailyRate = parseFloat(grossPay) / 26; 
+    const shares = computeMonthlyShares(dailyRate);
+
+    // Tax is now manual input ("hardcoded") per user request, but we can suggest 0
     const tax = 0;
 
-    res.status(200).json({ SSS_Ded: shares.sss_Share || 0, Philhealth_Ded: shares.philhealth_Share || 0, HDMF_Ded: shares.hdmf_Share || 0, Tax_Ded: tax });
+    res.status(200).json({ 
+      SSS_Ded: shares.sss_Share, 
+      Philhealth_Ded: shares.philhealth_Share, 
+      HDMF_Ded: shares.hdmf_Share, 
+      Tax_Ded: tax 
+    });
   } catch (error) { res.status(500).json({ error: error.message }); }
 };
-
 // ── Download Payroll Summary PDF ──────────────────────────────────────────────
 exports.downloadPayrollSummaryPDF = async (req, res) => {
   let { period_Start, period_End, periodId } = req.query;
@@ -1266,11 +1315,11 @@ exports.syncMaxicareHistory = async (req, res) => {
 // ── Loan Management Helpers ──────────────────────────────────────────────────
 const loanTypeMapper = {
   "Cash Advance": { dbType: "cash_advance", dedCol: "advances_Amnt" },
-  "SSS Loan": { dbType: "sss_loan", dedCol: "SSS_Loan" },
-  "Pag-IBIG Loan": { dbType: "hdmf_loan", dedCol: "HDMF_Loan" },
-  "Calamity Loan": { dbType: "calamity", dedCol: "calamityLoan_Amnt" },
-  "Multi-Purpose": { dbType: "multipurpose", dedCol: "multiPurposeSavings" },
-  "Eastwest Loan": { dbType: "eastwest", dedCol: "globe_Deduction" }
+  "SSS Loan": { dbType: "sss_loan", dedCol: "SSS_Loan", govType: "SSS" },
+  "Pag-IBIG Loan": { dbType: "hdmf_loan", dedCol: "HDMF_Loan", govType: "Pag-IBIG" },
+  "Calamity Loan": { dbType: "calamity", dedCol: "calamityLoan_Amnt", govType: "Calamity" },
+  "Multi-Purpose": { dbType: "multipurpose", dedCol: "multiPurposeSavings", govType: "Multi-Purpose" },
+  "Eastwest Loan": { dbType: "eastwest", dedCol: "eastwest_Loan" }
 };
 
 // ── Get Loan History for Matrix ──────────────────────────────────────────────
@@ -1280,7 +1329,7 @@ exports.getLoanHistory = async (req, res) => {
   if (!config) return res.status(400).json({ error: "Invalid loan type." });
 
   try {
-    // If Cash Advance, use the dedicated ledger table
+    // 1. Dedicated Ledger Tables
     if (type === "Cash Advance") {
       const history = await sequelize.query(
         `SELECT "date", "user_Id", "amount" FROM "Payroll_Cash_Advances" ORDER BY "date" ASC`,
@@ -1289,19 +1338,37 @@ exports.getLoanHistory = async (req, res) => {
       return res.status(200).json(history);
     }
 
-    // Otherwise use Payroll historical records
-    const history = await sequelize.query(
-      `SELECT 
-         p."period_End" as date,
-         p."user_Id",
-         pd."${config.dedCol}" as amount
-       FROM "Payroll" p
-       JOIN "Payroll_Deductions" pd ON p."payrollId" = pd."payrollId"
-       WHERE pd."${config.dedCol}" > 0
-       ORDER BY p."period_End" ASC`,
-      { type: QueryTypes.SELECT }
-    );
-    res.status(200).json(history);
+    if (type === "Eastwest Loan") {
+      const history = await sequelize.query(
+        `SELECT "date", "user_Id", "amount" FROM "Payroll_Eastwest" ORDER BY "date" ASC`,
+        { type: QueryTypes.SELECT }
+      );
+      return res.status(200).json(history);
+    }
+
+    // 2. Government Loan Ledger
+    if (config.govType) {
+      const history = await sequelize.query(
+        `SELECT "date", "user_Id", "amount" FROM "Payroll_GovernmentLoans" WHERE "government_type" = :govType ORDER BY "date" ASC`,
+        { replacements: { govType: config.govType }, type: QueryTypes.SELECT }
+      );
+
+      // Fallback for transition period: pull from Payroll_Deductions if ledger is empty
+      if (history.length === 0) {
+         const legacyHistory = await sequelize.query(
+          `SELECT p."period_End" as date, p."user_Id", pd."${config.dedCol}" as amount
+           FROM "Payroll" p
+           JOIN "Payroll_Deductions" pd ON p."payrollId" = pd."payrollId"
+           WHERE pd."${config.dedCol}" > 0
+           ORDER BY p."period_End" ASC`,
+          { type: QueryTypes.SELECT }
+        );
+        return res.status(200).json(legacyHistory);
+      }
+      return res.status(200).json(history);
+    }
+
+    return res.status(400).json({ error: "Loan type not supported by ledger." });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1316,12 +1383,13 @@ exports.syncLoanHistory = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    let totalUpdated = 0;
     for (const item of updates) {
       const { date, user_Id, amount, type } = item;
       const config = loanTypeMapper[type];
       if (!config) continue;
 
-      // 1. If Cash Advance, update the ledger first (Source of Truth)
+      // 1. Update Ledger (Source of Truth)
       if (type === "Cash Advance") {
         await sequelize.query(
           `INSERT INTO "Payroll_Cash_Advances" ("user_Id", "date", "amount", "createdAt", "updatedAt")
@@ -1329,16 +1397,37 @@ exports.syncLoanHistory = async (req, res) => {
            ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = EXCLUDED."amount", "updatedAt" = EXCLUDED."updatedAt"`,
           { replacements: { user_Id, date, amount, now: nowStr } }
         );
-
-        // Also update User table to reflect this in "edit employee compensation"
         await sequelize.query(
           `UPDATE "User" SET "advances_Amnt" = :amount, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
           { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
         );
+        totalUpdated++;
+      }
+      else if (type === "Eastwest Loan") {
+        await sequelize.query(
+          `INSERT INTO "Payroll_Eastwest" ("user_Id", "date", "amount", "createdAt", "updatedAt")
+           VALUES (:user_Id, :date, :amount, :now, :now)
+           ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = EXCLUDED."amount", "updatedAt" = EXCLUDED."updatedAt"`,
+          { replacements: { user_Id, date, amount, now: nowStr } }
+        );
+        await sequelize.query(
+          `UPDATE "User" SET "eastwest_Loan" = :amount, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+          { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
+        );
+        totalUpdated++;
+      }
+      else if (config.govType) {
+        await sequelize.query(
+          `INSERT INTO "Payroll_GovernmentLoans" ("user_Id", "government_type", "date", "amount", "createdAt", "updatedAt")
+           VALUES (:user_Id, :govType, :date, :amount, :now, :now)
+           ON CONFLICT ("user_Id", "date", "government_type") DO UPDATE SET "amount" = EXCLUDED."amount", "updatedAt" = EXCLUDED."updatedAt"`,
+          { replacements: { user_Id, govType: config.govType, date, amount, now: nowStr } }
+        );
+        totalUpdated++;
       }
 
       // 2. Update Payroll_Deductions (if payroll record already exists)
-      await sequelize.query(
+      const [_, metadata] = await sequelize.query(
         `UPDATE "Payroll_Deductions" pd
          SET "${config.dedCol}" = :amount
          FROM "Payroll" p
@@ -1348,27 +1437,31 @@ exports.syncLoanHistory = async (req, res) => {
         { replacements: { amount, user_Id, date }, type: QueryTypes.UPDATE }
       );
 
+      const rowsAffected = metadata?.rowCount || 0;
+
       // 3. Recalculate Payroll totals (if payroll record already exists)
-      await sequelize.query(
-        `UPDATE "Payroll" p
-         SET "totalDeductions" = (
-           SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
-           FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
-         ),
-         "netPay" = p."totalEarnings" - (
-           SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
-           FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
-         )
-         WHERE p."user_Id" = :user_Id AND p."period_End" = :date`,
-        { replacements: { user_Id, date }, type: QueryTypes.UPDATE }
-      );
+      if (rowsAffected > 0) {
+        await sequelize.query(
+          `UPDATE "Payroll" p
+           SET "totalDeductions" = (
+             SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
+             FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
+           ),
+           "netPay" = p."totalEarnings" - (
+             SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
+             FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
+           )
+           WHERE p."user_Id" = :user_Id AND p."period_End" = :date`,
+          { replacements: { user_Id, date }, type: QueryTypes.UPDATE }
+        );
+      }
     }
-    res.status(200).json({ message: "History synced successfully." });
+
+    res.status(200).json({ message: "History synced successfully.", updatedCount: totalUpdated });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
-
 // ── Get Maxicare History for Matrix ──────────────────────────────────────────
 exports.getMaxicareHistory = async (req, res) => {
   try {

@@ -7,6 +7,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from '@mui/icons-material/Close';
+import SyncIcon from '@mui/icons-material/Sync';
 import Toast from "../../components/toast/Toast";
 import ActionModal from "../../components/actionModal/ActionModal";
 import InfoModal from "../../components/infoModal/InfoModal";
@@ -199,6 +200,24 @@ const CalendarManagement = () => {
     }
   };
 
+  const handleSyncHolidays = async () => {
+    setLoading(true);
+    try {
+      const response = await fetchWithAuth("/api/system/sync-holidays", { method: "POST" });
+      if (response.ok) {
+        const data = await response.json();
+        setToast({ message: `Successfully synced ${data.count} new holidays!`, type: "success" });
+        fetchCalendarEvents();
+      } else {
+        setToast({ message: "Sync failed or no new holidays found.", type: "error" });
+      }
+    } catch (error) {
+      setToast({ message: "Connection error.", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // --- Helper Functions ---
   const changeMonth = (offset) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
@@ -266,12 +285,17 @@ const CalendarManagement = () => {
             </div>
             <div className="actions">
               {isAdmin && (
-                <button className="btn holiday" onClick={() => {
-                  setHolidayForm({ id: null, name: "", date: "", type: "Regular Holiday" });
-                  setModalType('addHoliday');
-                }}>
-                  <AddIcon /> Add Holiday
-                </button>
+                <>
+                  <button className="btn sync" onClick={handleSyncHolidays} disabled={loading} title="Sync Holidays from Official Gazette">
+                    <SyncIcon className={loading ? "spinning" : ""} /> Sync Holidays
+                  </button>
+                  <button className="btn holiday" onClick={() => {
+                    setHolidayForm({ id: null, name: "", date: "", type: "Regular Holiday" });
+                    setModalType('addHoliday');
+                  }}>
+                    <AddIcon /> Add Holiday
+                  </button>
+                </>
               )}
               <button className="btn fieldWork" onClick={() => setModalType('addFieldWork')}>
                 <AddIcon /> Add Field Work

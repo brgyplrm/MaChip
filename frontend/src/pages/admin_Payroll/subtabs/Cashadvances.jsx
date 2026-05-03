@@ -111,9 +111,18 @@ const Cashadvances = () => {
   };
 
   const handleCellSave = async (date, empKey) => {
-    const val = parseFloat(editValue);
+    if (!editingCell) return;
+
+    const sanitizedValue = editValue.replace(/,/g, "").trim();
+    
+    // Treat empty string as 0
+    const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
+    
+    // Reset editing cell immediately
+    setEditingCell(null);
+
     if (isNaN(val)) {
-      setEditingCell(null);
+      setToast({ message: "Invalid amount entered", type: "error" });
       return;
     }
 
@@ -122,16 +131,18 @@ const Cashadvances = () => {
 
     setData(prevData => {
       let newData = [...prevData];
-      let recordIndex = newData.findIndex(d => d.date === date);
+      let recordIndex = newData.findIndex(d => isInSamePeriod(d.date, date));
       if (recordIndex === -1) {
         newData.push({ date, values: { [empKey]: { amount: val, status: 'paid' } } });
       } else {
-        newData[recordIndex].values = { ...newData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } };
+        const updatedRecord = {
+          ...newData[recordIndex],
+          values: { ...newData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } }
+        };
+        newData[recordIndex] = updatedRecord;
       }
       return newData.sort((a, b) => a.date.localeCompare(b.date));
     });
-
-    setEditingCell(null);
 
     try {
       const res = await fetchWithAuth("/api/payroll/loans/sync", {
@@ -141,9 +152,14 @@ const Cashadvances = () => {
       });
       if (res.ok) {
         setToast({ message: "Deduction saved!", type: "success" });
+      } else {
+        const errData = await res.json();
+        setToast({ message: "Sync failed: " + (errData.error || "Unknown error"), type: "error" });
+        fetchData(); // Rollback
       }
     } catch (err) {
       setToast({ message: "Failed to save", type: "error" });
+      fetchData(); // Rollback
     } finally {
       setTimeout(() => setSyncingCell(null), 500);
     }
@@ -408,11 +424,13 @@ const Cashadvances = () => {
                             const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
                             const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
 
+                            const statusClass = amount > 0 ? 'paid' : (record ? 'removed' : 'unpaid');
+
                             return (
-                              <td key={emp.key} className={`amt ${amount > 0 ? 'paid' : 'unpaid'} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`} onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}>
+                              <td key={emp.key} className={`amt ${statusClass} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`} onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}>
                                 {isEditing ? (
                                   <input 
-                                    type="number" 
+                                    type="text" 
                                     value={editValue} 
                                     onChange={(e) => setEditValue(e.target.value)} 
                                     onBlur={() => handleCellSave(dateStr, emp.key)} 
@@ -428,7 +446,7 @@ const Cashadvances = () => {
                                 ) : isSyncing ? (
                                   <div className="sync-spinner">SAVING...</div>
                                 ) : (
-                                  amount > 0 ? amount.toFixed(2) : "—"
+                                  parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                                 )}
                               </td>
                             );
@@ -437,13 +455,20 @@ const Cashadvances = () => {
                       );
                     })}
                     <tr className="summary-row subtotal-row">
-                      <td className="sticky-col label-cell"><span className="summary-label">TOTAL PAID</span></td>
+                      <td className="sticky-col label-cell"><span className="summary-label">TOTAL PAID ({selectedYear})</span></td>
                       {employeeList.map((emp) => {
                         const empSubtotal = expectedDates.reduce((acc, d) => {
-                          const period = data.find(item => item.date === d);
+                          const period = data.find(item => isInSamePeriod(item.date, d));
                           return acc + (period?.values[emp.key]?.amount || 0);
                         }, 0);
-                        return <td key={emp.key} className="amt total">{empSubtotal.toFixed(2)}</td>;
+                        return <td key={emp.key} className="amt total">{parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>;
+                      })}
+                    </tr>
+                    <tr className="summary-row all-time-row">
+                      <td className="sticky-col label-cell"><span className="summary-label">TOTAL LOANS (ALL-TIME)</span></td>
+                      {employeeList.map((emp) => {
+                        const totalLoans = data.reduce((acc, item) => acc + (item.values[emp.key]?.amount || 0), 0);
+                        return <td key={emp.key} className="amt total">{parseFloat(totalLoans).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>;
                       })}
                     </tr>
                   </>

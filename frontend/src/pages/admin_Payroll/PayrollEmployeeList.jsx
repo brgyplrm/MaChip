@@ -105,6 +105,7 @@ const EmployeeList = () => {
             calamityLoan_Amnt: updatedData.calamityLoan_Amnt,
             advances_Amnt: updatedData.advances_Amnt,
             globe_Deduction: updatedData.globe_Deduction,
+            eastwest_Loan: updatedData.eastwest_Loan,
             multiPurposeSavings: updatedData.multiPurposeSavings
           }),
         }
@@ -128,6 +129,7 @@ const EmployeeList = () => {
                   calamityLoan_Amnt: updatedData.calamityLoan_Amnt,
                   advances_Amnt: updatedData.advances_Amnt,
                   globe_Deduction: updatedData.globe_Deduction,
+                  eastwest_Loan: updatedData.eastwest_Loan,
                   multiPurposeSavings: updatedData.multiPurposeSavings,
                   rateUpdatedAt: new Date().toISOString(),
                 }

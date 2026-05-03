@@ -18,6 +18,7 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
     calamityLoan_Amnt: "",
     advances_Amnt: "",
     globe_Deduction: "",
+    eastwest_Loan: "",
     multiPurposeSavings: "",
   });
   const [loading, setLoading] = useState(false);
@@ -37,6 +38,7 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
         calamityLoan_Amnt: data.calamityLoan_Amnt ?? "",
         advances_Amnt: data.advances_Amnt ?? "",
         globe_Deduction: data.globe_Deduction ?? "",
+        eastwest_Loan: data.eastwest_Loan ?? "",
         multiPurposeSavings: data.multiPurposeSavings ?? "",
       });
     }
@@ -47,6 +49,22 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // ── Automatic Calculation ──────────────────────────────────────────────────
+  useEffect(() => {
+    const rate = parseFloat(sanitize(formData.dailyRate));
+    if (!isNaN(rate) && rate > 0) {
+      // Only auto-calculate if govt fields are essentially empty or this is a new setup
+      const isGovtEmpty = !formData.SSS_Ded || formData.SSS_Ded == 0;
+      if (isGovtEmpty && !loading) {
+        const timer = setTimeout(() => {
+          handleCalculateGovt();
+        }, 1000); // Debounce to avoid too many requests
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [formData.dailyRate]);
+  // ──────────────────────────────────────────────────────────────────────────
+
   const sanitize = (val) => {
     if (val === null || val === undefined) return "";
     if (typeof val === "string") return val.replace(/,/g, "");
@@ -56,7 +74,7 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
   const handleCalculateGovt = async () => {
     setLoading(true);
     try {
-      const gross = sanitize(formData.totalEarnings) || (parseFloat(sanitize(formData.dailyRate)) * 22);
+      const gross = sanitize(formData.totalEarnings) || (parseFloat(sanitize(formData.dailyRate)) * 26);
       const userId = formData.user_Id;
       
       const response = await fetchWithAuth(`/api/payroll/govt-deductions-preview?grossPay=${gross}&user_Id=${userId}`);
@@ -192,6 +210,10 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
                 <div className="field">
                   <label>Globe</label>
                   <input type="text" name="globe_Deduction" value={formData.globe_Deduction} onChange={handleChange} />
+                </div>
+                <div className="field">
+                  <label>Eastwest</label>
+                  <input type="text" name="eastwest_Loan" value={formData.eastwest_Loan} onChange={handleChange} />
                 </div>
                 <div className="field">
                   <label>Multi-Purpose</label>

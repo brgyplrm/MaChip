@@ -70,6 +70,7 @@ const PayrollDetails = () => {
               calamityLoan_Amnt: preview.calamityLoan_Amnt,
               advances_Amnt: preview.advances_Amnt,
               globe_Deduction: preview.globe_Deduction,
+              eastwest_Loan: preview.eastwest_Loan,
               multiPurposeSavings: preview.multiPurposeSavings,
               totalDeductions: preview.totalDeductions,
               netPay: preview.netPay,
@@ -320,6 +321,7 @@ const PayrollDetails = () => {
                 <div className="row"><span>HDMF Loan</span><p>₱{parseFloat(payroll.HDMF_Loan || 0).toLocaleString()}</p></div>
                 <div className="row"><span>Calamity Loan</span><p>₱{parseFloat(payroll.calamityLoan_Amnt || 0).toLocaleString()}</p></div>
                 <div className="row"><span>Advances to Employees</span><p>₱{parseFloat(payroll.advances_Amnt || 0).toLocaleString()}</p></div>
+                <div className="row"><span>Eastwest Loan</span><p>₱{parseFloat(payroll.eastwest_Loan || 0).toLocaleString()}</p></div>
                 <div className="row"><span>Globe Deduction</span><p>₱{parseFloat(payroll.globe_Deduction || 0).toLocaleString()}</p></div>
                 <div className="row"><span>Multi-Purpose Savings</span><p>₱{parseFloat(payroll.multiPurposeSavings || 0).toLocaleString()}</p></div>
               </div>

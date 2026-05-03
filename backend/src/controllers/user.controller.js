@@ -642,6 +642,7 @@ exports.getMasterlist = async (req, res) => {
          u."calamityLoan_Amnt",
          u."advances_Amnt",
          u."globe_Deduction",
+         u."eastwest_Loan",
          u."multiPurposeSavings",
          u."taxStatus",
          u."department",
@@ -684,12 +685,11 @@ exports.getMasterlist = async (req, res) => {
 // ── Update Daily Rate ─────────────────────────────────────────────────────────
 exports.updateDailyRate = async (req, res) => {
   const { user_Id } = req.params;
-  const { 
+  const {
     newDailyRate, sss_Share, philhealth_Share, hdmf_Share,
     healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt,
-    advances_Amnt, globe_Deduction, multiPurposeSavings
+    advances_Amnt, globe_Deduction, eastwest_Loan, multiPurposeSavings
   } = req.body;
-
   if (newDailyRate === undefined || newDailyRate === null) {
     return res.status(400).json({ error: "newDailyRate is required." });
   }
@@ -744,10 +744,11 @@ exports.updateDailyRate = async (req, res) => {
     const fCL = parseFloat(calamityLoan_Amnt) || 0;
     const fAA = parseFloat(advances_Amnt) || 0;
     const fGD = parseFloat(globe_Deduction) || 0;
+    const fEL = parseFloat(eastwest_Loan) || 0;
     const fMS = parseFloat(multiPurposeSavings) || 0;
 
     console.log(`[UPDATE_RATE] Final Shares: SSS=${finalSSS}, PH=${finalPH}, HD=${finalHD}, Tax=${finalTax}`);
-    console.log(`[UPDATE_RATE] Other Deds: HC=${fHC}, SL=${fSL}, HL=${fHL}, CL=${fCL}, AA=${fAA}, GD=${fGD}, MS=${fMS}`);
+    console.log(`[UPDATE_RATE] Other Deds: HC=${fHC}, SL=${fSL}, HL=${fHL}, CL=${fCL}, AA=${fAA}, GD=${fGD}, EL=${fEL}, MS=${fMS}`);
 
     try {
       const [result, metadata] = await sequelize.query(
@@ -765,6 +766,7 @@ exports.updateDailyRate = async (req, res) => {
            "calamityLoan_Amnt"   = :cl,
            "advances_Amnt"       = :aa,
            "globe_Deduction"     = :gd,
+           "eastwest_Loan"       = :el,
            "multiPurposeSavings" = :ms,
            "rateUpdatedAt"       = :now,
            "updatedAt"           = :now
@@ -782,6 +784,7 @@ exports.updateDailyRate = async (req, res) => {
             cl: fCL,
             aa: fAA,
             gd: fGD,
+            el: fEL,
             ms: fMS,
             now: nowStr, 
             user_Id 

@@ -356,6 +356,45 @@
                   }
                 }
 
+                &.sticky-col-right {
+                  position: sticky;
+                  z-index: 60;
+                  background-color: #1e1136;
+                  color: #facc15;
+                  font-weight: 800;
+                  min-width: 120px;
+                  text-align: center;
+
+                  &.level-1 {
+                    right: 120px;
+                    border-left: 2px solid #2a174e;
+                  }
+                  &.level-2 {
+                    right: 0;
+                    border-left: 1px solid #3d2270;
+                    background-color: #1a0f2e;
+                  }
+
+                  .vertical-stack {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1px;
+                    line-height: 1.1;
+
+                    .year {
+                      font-size: 9px;
+                      color: #facc15;
+                      font-weight: 900;
+                      text-transform: uppercase;
+                    }
+                    .label {
+                      font-size: 11px;
+                      color: white;
+                      font-weight: 700;
+                    }
+                  }
+                }
+
                 &.emp-header-cell {
                   min-width: 140px;
                   .vertical-stack {
@@ -385,6 +424,9 @@
               &:nth-child(even) { background-color: #fcfcfc; }
               &.current-row td { 
                 background-color: #eff6ff !important; 
+              }
+              &.current-row td.sticky-col-right {
+                background-color: #eff6ff !important;
               }
 
               td {
@@ -444,10 +486,36 @@
                   }
                 }
 
+                &.sticky-col-right {
+                  position: sticky;
+                  background-color: #ffffff;
+                  z-index: 20;
+                  font-weight: 700;
+                  color: #2a174e;
+                  text-align: center;
+                  min-width: 120px;
+
+                  &.level-1 {
+                    right: 120px;
+                    border-left: 2px solid #2a174e;
+                  }
+                  &.level-2 {
+                    right: 0;
+                    border-left: 1px solid #edf2f7;
+                    background-color: #f8fafc;
+                  }
+                }
+
                 &.amt {
                   font-family: monospace;
                   cursor: pointer;
                   position: relative;
+
+                  &.total {
+                    background-color: #f1f5f9;
+                    font-weight: 800;
+                    color: #2a174e;
+                  }
 
                   &.editing { padding: 0; background-color: #fff !important; }
                   &.syncing { 
@@ -467,13 +535,28 @@
                   }
 
                   .cell-edit-input {
-                    width: 100%; height: 100%; border: 2px solid #3b82f6;
+                    width: 100%; height: 100%; border: 2px solid #2a174e;
                     padding: 8px; font-family: monospace; font-size: 13px;
-                    text-align: center; outline: none; background: #eff6ff;
+                    text-align: center; outline: none; background: #ffffff;
+                    color: #000000; // Explicit black text for readability
+                    font-weight: 700;
                   }
                   
-                  &.paid { color: #166534; font-weight: 600; }
-                  &.unpaid { color: #e2e8f0; }
+                  &.paid { color: #166534; font-weight: 700; }
+                  &.unpaid { color: #94a3b8; font-weight: 400; }
+                  &.removed { color: #dc2626; font-weight: 600; opacity: 0.8; }
+                }
+
+                &.total-amt {
+                  font-family: monospace;
+                  font-weight: 800;
+                  color: #2a174e;
+                  background-color: #f8fafc;
+                  
+                  &.final-total {
+                    background-color: #2a174e !important;
+                    color: #facc15 !important;
+                  }
                 }
 
                 &.empty-msg { padding: 40px; color: #64748b; font-style: italic; }
