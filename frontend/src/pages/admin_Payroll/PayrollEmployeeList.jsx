@@ -35,6 +35,7 @@ const EmployeeList = () => {
   const [savingId, setSavingId] = useState(null);
   const [toast, setToast] = useState(null);
   const [visibleAccounts, setVisibleAccounts] = useState(new Set());
+  const isEditing = editingEmployee !== null;
 
   const toggleAccountVisibility = (id) => {
     setVisibleAccounts((prev) => {
@@ -324,33 +325,16 @@ const EmployeeList = () => {
                           </TableCell>
 
                           <TableCell>
-                            {isEditing ? (
-                              <div className="flex items-center border-2 border-[#7c5cbf] rounded-md px-3 py-1.5 bg-[#faf8ff] w-32 focus-within:ring-2 focus-within:ring-[#7c5cbf]/30">
-                                <span className="text-[#7c5cbf] font-bold text-sm mr-1">₱</span>
-                                <input
-                                  ref={inputRef}
-                                  type="text"
-                                  className="bg-transparent border-none outline-none text-sm font-bold text-[#2A174E] w-full"
-                                  value={editValue}
-                                  onChange={(e) => setEditValue(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") handleSave(emp);
-                                    if (e.key === "Escape") handleCancel();
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span className={`font-bold text-sm ${hasChanged ? (rateWentUp ? "text-green-700" : "text-red-600") : "text-[#2A174E]"}`}>
-                                  ₱{parseFloat(emp.dailyRate || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                                </span>
-                                {hasChanged && (
-                                  rateWentUp
-                                    ? <TrendingUpIcon className="text-green-500 h-4 w-4" />
-                                    : <TrendingDownIcon className="text-red-500 h-4 w-4" />
-                                )}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <span className={`font-bold text-sm ${hasChanged ? (rateWentUp ? "text-green-700" : "text-red-600") : "text-[#2A174E]"}`}>
+                                ₱{parseFloat(emp.dailyRate || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                              </span>
+                              {hasChanged && (
+                                rateWentUp
+                                  ? <TrendingUpIcon className="text-green-500 h-4 w-4" />
+                                  : <TrendingDownIcon className="text-red-500 h-4 w-4" />
+                              )}
+                            </div>
                           </TableCell>
 
                           <TableCell className="text-xs text-slate-400 whitespace-nowrap">
@@ -362,39 +346,15 @@ const EmployeeList = () => {
                           </TableCell>
 
                           <TableCell className="text-right pr-6">
-                            {isEditing ? (
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleSave(emp)}
-                                  disabled={isSaving}
-                                  className="bg-[#2A174E] hover:bg-[#1a0e30] h-8 w-8 p-0 text-white"
-                                  title="Save"
-                                >
-                                  <CheckIcon className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={handleCancel}
-                                  disabled={isSaving}
-                                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 h-8 w-8 p-0"
-                                  title="Cancel"
-                                >
-                                  <CloseIcon className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(emp)}
-                                className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
-                                title="Edit daily rate"
-                              >
-                                <EditIcon className="h-4 w-4 mr-1" /> Edit Rate
-                              </Button>
-                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(emp)}
+                              className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
+                              title="Edit daily rate"
+                            >
+                              <EditIcon className="h-4 w-4 mr-1" /> Edit Rate
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -413,14 +373,6 @@ const EmployeeList = () => {
         </Card>
 
       </div>
-
-      <EditPayrollModal 
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        data={editingEmployee}
-        onSave={handleSave}
-        isMasterlist={true}
-      />
 
       <EditPayrollModal 
         isOpen={isModalOpen}

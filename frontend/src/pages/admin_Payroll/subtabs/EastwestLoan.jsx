@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../../components/Sidebar";
+import Navbar from "../../../components/navbar/Navbar";
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -115,11 +116,8 @@ const EastwestLoan = () => {
     
     // Sanitize input: remove commas and whitespace
     const sanitizedValue = editValue.replace(/,/g, "").trim();
-    
-    // Treat empty string as 0
     const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
     
-    // Reset editing cell immediately to prevent double calls from onBlur + onKeyDown
     setEditingCell(null);
 
     if (isNaN(val)) {
@@ -167,13 +165,9 @@ const EastwestLoan = () => {
   };
 
   const downloadTemplate = () => {
-    // Header row: month/year, Employee1 #ID, Employee2 #ID, ...
     const headers = ["month/year", ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
     const headerLine = headers.join(",");
-
-    // Rows: All 24 cutoff dates for the selected year
     const rows = expectedDates.map(date => {
-      // Add commas for each employee column (initially empty)
       const emptyValues = employeeList.map(() => "").join(",");
       return `${date},${emptyValues}`;
     });
@@ -206,9 +200,8 @@ const EastwestLoan = () => {
         const lines = text.split("\n").filter(line => line.trim() !== "");
         if (lines.length < 2) throw new Error("File is empty or missing data.");
 
-        // 1. Parse Headers to get Employee IDs
         const headers = lines[0].split(",");
-        const empMappings = []; // { colIndex, user_Id }
+        const empMappings = []; 
 
         for (let i = 1; i < headers.length; i++) {
           const header = headers[i];
@@ -218,7 +211,6 @@ const EastwestLoan = () => {
           }
         }
 
-        // 2. Parse Rows (Dates)
         const updates = [];
         for (let i = 1; i < lines.length; i++) {
           const columns = lines[i].split(",");
@@ -277,7 +269,7 @@ const EastwestLoan = () => {
 
     data.forEach(item => {
       const recordYear = new Date(item.date).getFullYear();
-      if (recordYear === selectedYear) {
+      if (recordYear === parseInt(selectedYear)) {
         Object.keys(item.values).forEach(empKey => {
           const amt = item.values[empKey].amount;
           if (amt > 0) {
@@ -306,12 +298,12 @@ const EastwestLoan = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-4 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-8 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
         
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
         
         {/* Top Header & Settings */}
-        <Card className="shadow-sm border-0 bg-white mb-6 py-2">
+        <Card className="shadow-sm border-0 bg-white mb-6">
           <CardContent className="p-6">
             
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
@@ -320,7 +312,7 @@ const EastwestLoan = () => {
                 <div className="flex items-center gap-2">
                   <FilterListIcon className="text-slate-400 h-5 w-5" />
                   <Select value={selectedYear} onValueChange={setSelectedYear}>
-                    <SelectTrigger className="w-[160px] h-9">
+                    <SelectTrigger className="w-[160px] h-9 bg-white">
                       <SelectValue placeholder="Select Year" />
                     </SelectTrigger>
                     <SelectContent>
@@ -387,7 +379,7 @@ const EastwestLoan = () => {
                   {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Matrix</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Matrix</>}
                 </Button>
               )}
-              <Button size="sm" onClick={fetchData} disabled={loading} className="bg-[#2A174E] hover:bg-[#1a0e30] text-white">
+              <Button size="sm" onClick={fetchData} disabled={loading} className="bg-[#2A174E] text-white hover:bg-[#1a0e30]">
                 <SaveIcon className="mr-1 h-4 w-4" /> {loading ? "Updating..." : "Update Payroll"}
               </Button>
             </div>
@@ -415,19 +407,26 @@ const EastwestLoan = () => {
                         </div>
                       </th>
                     ))}
+                    {/* Top-Right Header Cell */}
+                    <th className="sticky right-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-l-2 border-b-2 border-[#2A174E] min-w-[120px] p-3 text-center align-middle shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                      <div className="flex flex-col leading-tight">
+                        <span className="text-[9px] font-black uppercase">TOTAL LOAN</span>
+                        <span className="text-xs text-white font-bold">THIS PERIOD</span>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
+                      <td colSpan={employeeList.length + 2} className="h-32 text-center text-slate-500 italic p-6">
                         Loading data...
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={employeeList.length + 1} className="h-32 text-center text-red-500 p-6">
+                      <td colSpan={employeeList.length + 2} className="h-32 text-center text-red-500 p-6">
                         <p>Error: {error}</p>
                         <Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
                       </td>
@@ -471,8 +470,9 @@ const EastwestLoan = () => {
                               let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer ";
                               if (isEditing) cellClass += "bg-white p-0 ";
                               else if (isSyncing) cellClass += "bg-yellow-50 ";
-                              else if (record) cellClass += "text-green-800 font-bold ";
-                              else cellClass += "text-slate-200 ";
+                              else if (amount > 0) cellClass += "text-green-800 font-bold ";
+                              else if (record) cellClass += "text-red-600 font-semibold opacity-80 "; 
+                              else cellClass += "text-slate-400 "; 
 
                               return (
                                 <td 
@@ -481,66 +481,88 @@ const EastwestLoan = () => {
                                   onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
                                 >
                                   {isEditing ? (
-                                    <input
-                                      type="number"
-                                      value={editValue}
-                                      onChange={(e) => setEditValue(e.target.value)}
-                                      onBlur={() => handleCellSave(dateStr, emp.key)}
+                                    <input 
+                                      type="text" 
+                                      value={editValue} 
+                                      onChange={(e) => setEditValue(e.target.value)} 
+                                      onBlur={() => handleCellSave(dateStr, emp.key)} 
                                       onKeyDown={(e) => {
                                         if (e.key === 'Enter' || e.key === ' ') {
                                           e.preventDefault();
                                           handleCellSave(dateStr, emp.key);
                                         }
-                                      }}
-                                      autoFocus
-                                      className="w-full h-10 border-2 border-blue-500 bg-blue-50 text-center font-mono text-[13px] text-blue-900 outline-none"
+                                      }} 
+                                      autoFocus 
+                                      className="w-full h-10 border-2 border-[#2A174E] bg-white text-center font-mono text-[13px] text-black font-bold outline-none" 
                                     />
                                   ) : isSyncing ? (
                                     <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
                                   ) : (
-                                    amount > 0 ? amount.toFixed(2) : "—"
+                                    amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"
                                   )}
                                 </td>
                               );
                             })}
+                            
+                            {/* Right Column Cell (Row Total) */}
+                            <td className={`sticky right-0 z-[40] border-l-2 border-b border-[#2A174E] p-3 text-center align-middle font-bold text-[#2A174E] min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isCurrentRow ? "bg-blue-50" : "bg-white"}`}>
+                              {parseFloat(getRowTotal(dateStr) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
                           </tr>
                         );
                       })}
+
+                      {/* Footer Row (Total Paid - Current Year) */}
+                      <tr className="sticky bottom-[49px] z-[45] bg-slate-100 shadow-[0_-2px_4px_rgba(0,0,0,0.02)]">
+                        <td className="sticky left-0 z-[50] bg-slate-100 border-r-2 border-t-2 border-b border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL PAID ({selectedYear})</span>
+                        </td>
+                        {employeeList.map((emp) => {
+                          const empSubtotal = expectedDates.reduce((acc, dateStr) => {
+                            const period = data.find(d => isInSamePeriod(d.date, dateStr));
+                            const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
+                            return acc + val;
+                          }, 0);
+                          return (
+                            <td key={emp.key} className="border-r border-t-2 border-b border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
+                              {parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          );
+                        })}
+                        <td className="sticky right-0 z-[50] bg-[#2A174E] text-yellow-400 border-l-2 border-t-2 border-b border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          {parseFloat(stats.totalPaid).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+
+                      {/* Footer Row (Total Paid - All Time) */}
+                      <tr className="sticky bottom-0 z-[45] bg-slate-200 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
+                        <td className="sticky left-0 z-[50] bg-slate-200 border-r-2 border-t border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL LOANS (ALL-TIME)</span>
+                        </td>
+                        {employeeList.map((emp) => {
+                          const totalLoans = data.reduce((acc, item) => acc + (item.values[emp.key]?.amount || 0), 0);
+                          return (
+                            <td key={emp.key} className="border-r border-t border-slate-300 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
+                              {parseFloat(totalLoans).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          );
+                        })}
+                        <td className="sticky right-0 z-[50] bg-white text-[#2A174E] border-l-2 border-t border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          {(() => {
+                             const totalAllTime = data.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0);
+                             return parseFloat(totalAllTime).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                          })()}
+                        </td>
+                      </tr>
                     </>
                   ) : (
                     <tr>
-                      <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
+                      <td colSpan={employeeList.length + 2} className="h-32 text-center text-slate-500 italic p-6">
                         No periods defined.
                       </td>
                     </tr>
                   )}
                 </tbody>
-
-                {/* Footer Row (Total Paid) */}
-                {expectedDates.length > 0 && !loading && !error && (
-                  <tfoot className="sticky bottom-0 z-[50] shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
-                    <tr>
-                      {/* Bottom-Left Cell */}
-                      <td className="sticky left-0 bottom-0 z-[60] bg-slate-100 border-r-2 border-t-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                        <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL PAID</span>
-                      </td>
-                      {/* Bottom Total Cells */}
-                      {employeeList.map((emp) => {
-                        const empSubtotal = expectedDates.reduce((acc, dateStr) => {
-                          const period = data.find(d => isInSamePeriod(d.date, dateStr));
-                          const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
-                          return acc + val;
-                        }, 0);
-                        return (
-                          <td key={emp.key} className="sticky bottom-0 z-[50] bg-slate-50 border-r border-t-2 border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
-                            {empSubtotal.toFixed(2)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  </tfoot>
-                )}
-
               </table>
             </div>
           </CardContent>

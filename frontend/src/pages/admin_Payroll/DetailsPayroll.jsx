@@ -6,6 +6,9 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import TrendingDownIcon from "@mui/icons-material/TrendingDown";
+import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
@@ -133,6 +136,17 @@ const PayrollDetails = () => {
     </div>
   );
 
+  const eeSSS = parseFloat(payroll.SSS_Ded || 0);
+  const eePH = parseFloat(payroll.Philhealth_Ded || 0);
+  const eeHD = parseFloat(payroll.HDMF_Ded || 0);
+  const eeTax = parseFloat(payroll.Tax_Ded || 0);
+
+  // ER shares - these might be in the payroll object if the API returns them
+  // For now, I'll check if they exist, otherwise default to 0
+  const erSSS = parseFloat(payroll.SSS_Ded_ER || 0);
+  const erPH = parseFloat(payroll.Philhealth_Ded_ER || 0);
+  const erHD = parseFloat(payroll.HDMF_Ded_ER || 0);
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
@@ -158,6 +172,31 @@ const PayrollDetails = () => {
           >
             {payroll.PaystatusName}
           </Badge>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex gap-2 mb-6">
+          <Button 
+            variant={activeTab === "overview" ? "default" : "outline"} 
+            onClick={() => setActiveTab("overview")}
+            className={activeTab === "overview" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E]"}
+          >
+            Overview
+          </Button>
+          <Button 
+            variant={activeTab === "govt" ? "default" : "outline"} 
+            onClick={() => setActiveTab("govt")}
+            className={activeTab === "govt" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E]"}
+          >
+            Gov't Share
+          </Button>
+          <Button 
+            variant={activeTab === "other" ? "default" : "outline"} 
+            onClick={() => setActiveTab("other")}
+            className={activeTab === "other" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E]"}
+          >
+            Other Deductions
+          </Button>
         </div>
 
         {/* Info Cards Grid */}
@@ -276,90 +315,122 @@ const PayrollDetails = () => {
           <Card className="border-0 shadow-sm bg-white">
             <CardHeader className="border-b border-slate-50 py-0">
               <CardTitle className="text-base flex items-center gap-2 text-slate-800">
-                <TrendingDownIcon className="text-red-500 h-5 w-5" /> Deductions Breakdown
+                <TrendingDownIcon className="text-red-500 h-5 w-5" /> {activeTab === 'overview' ? 'Deductions Breakdown' : activeTab === 'govt' ? 'Government Contributions' : 'Other Deductions'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                <span className="text-sm text-slate-600">Absence ({payroll.absence_Hrs} hrs)</span>
-                <span className="font-semibold text-slate-800">₱{parseFloat(payroll.absence_Amnt || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                <span className="text-sm text-slate-600">Tardiness ({payroll.tardiness_Mins} mins)</span>
-                <span className="font-semibold text-slate-800">₱{parseFloat(payroll.tardiness_Amnt || 0).toLocaleString()}</span>
-              </div>
-              {payroll.unpaidLeave_Amnt > 0 && (
-                <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                  <span className="text-sm text-slate-600">Unpaid Leave ({payroll.unpaidLeave_Days} days)</span>
-                  <span className="font-semibold text-slate-800">₱{parseFloat(payroll.unpaidLeave_Amnt).toLocaleString()}</span>
+              {activeTab === 'overview' && (
+                <>
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                    <span className="text-sm text-slate-600">Absence ({payroll.absence_Hrs} hrs)</span>
+                    <span className="font-semibold text-slate-800">₱{parseFloat(payroll.absence_Amnt || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                    <span className="text-sm text-slate-600">Tardiness ({payroll.tardiness_Mins} mins)</span>
+                    <span className="font-semibold text-slate-800">₱{parseFloat(payroll.tardiness_Amnt || 0).toLocaleString()}</span>
+                  </div>
+                  {payroll.unpaidLeave_Amnt > 0 && (
+                    <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                      <span className="text-sm text-slate-600">Unpaid Leave ({payroll.unpaidLeave_Days} days)</span>
+                      <span className="font-semibold text-slate-800">₱{parseFloat(payroll.unpaidLeave_Amnt).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {payroll.paidLeave_Days > 0 && (
+                    <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                      <span className="text-sm text-slate-600">Paid Leave ({payroll.paidLeave_Days} days)</span>
+                      <span className="font-semibold text-slate-400 italic">(Covered)</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl mt-4 border border-red-100">
+                    <span className="font-bold text-red-800">Total Deductions</span>
+                    <span className="font-bold text-red-700 text-lg">₱{parseFloat(payroll.totalDeductions).toLocaleString()}</span>
+                  </div>
+                </>
+              )}
+
+              {activeTab === 'govt' && (
+                <div className="govtTableWrapper overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold">
+                        <th className="p-2 text-left">Deduction Name</th>
+                        <th className="p-2 text-right">Employee</th>
+                        <th className="p-2 text-right">Employer</th>
+                        <th className="p-2 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr>
+                        <td className="p-2">SSS Contribution</td>
+                        <td className="p-2 text-right">₱{eeSSS.toLocaleString()}</td>
+                        <td className="p-2 text-right">₱{erSSS.toLocaleString()}</td>
+                        <td className="p-2 text-right font-bold">₱{(eeSSS + erSSS).toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2">PhilHealth</td>
+                        <td className="p-2 text-right">₱{eePH.toLocaleString()}</td>
+                        <td className="p-2 text-right">₱{erPH.toLocaleString()}</td>
+                        <td className="p-2 text-right font-bold">₱{(eePH + erPH).toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2">HDMF (Pag-IBIG)</td>
+                        <td className="p-2 text-right">₱{eeHD.toLocaleString()}</td>
+                        <td className="p-2 text-right">₱{erHD.toLocaleString()}</td>
+                        <td className="p-2 text-right font-bold">₱{(eeHD + erHD).toLocaleString()}</td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-50 font-bold">
+                        <td className="p-2">Total Government</td>
+                        <td className="p-2 text-right">₱{(eeSSS + eePH + eeHD).toLocaleString()}</td>
+                        <td className="p-2 text-right">₱{(erSSS + erPH + erHD).toLocaleString()}</td>
+                        <td className="p-2 text-right">₱{(eeSSS + eePH + eeHD + erSSS + erPH + erHD).toLocaleString()}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
               )}
-              {payroll.paidLeave_Days > 0 && (
-                <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                  <span className="text-sm text-slate-600">Paid Leave ({payroll.paidLeave_Days} days)</span>
-                  <span className="font-semibold text-slate-400 italic">(Covered)</span>
+
+              {activeTab === 'other' && (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-50 bg-blue-50/50 p-2 rounded">
+                    <span className="text-sm font-bold text-blue-800">Withholding Tax</span>
+                    <span className="font-bold text-blue-700">₱{eeTax.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                    <span className="text-sm text-slate-600">Health Card (Maxicare)</span>
+                    <span className="font-semibold">₱{parseFloat(payroll.healthCard_Amnt || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                    <span className="text-sm text-slate-600">SSS Loan</span>
+                    <span className="font-semibold">₱{parseFloat(payroll.SSS_Loan || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                    <span className="text-sm text-slate-600">HDMF Loan</span>
+                    <span className="font-semibold">₱{parseFloat(payroll.HDMF_Loan || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                    <span className="text-sm text-slate-600">Calamity Loan</span>
+                    <span className="font-semibold">₱{parseFloat(payroll.calamityLoan_Amnt || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                    <span className="text-sm text-slate-600">Advances to Employees</span>
+                    <span className="font-semibold">₱{parseFloat(payroll.advances_Amnt || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                    <span className="text-sm text-slate-600">Eastwest Loan</span>
+                    <span className="font-semibold">₱{parseFloat(payroll.eastwest_Loan || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                    <span className="text-sm text-slate-600">Globe Deduction</span>
+                    <span className="font-semibold">₱{parseFloat(payroll.globe_Deduction || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                    <span className="text-sm text-slate-600">Multi-Purpose Savings</span>
+                    <span className="font-semibold">₱{parseFloat(payroll.multiPurposeSavings || 0).toLocaleString()}</span>
+                  </div>
                 </div>
               )}
-              <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl mt-4 border border-red-100">
-                <span className="font-bold text-red-800">Total Deductions</span>
-                <span className="font-bold text-red-700 text-lg">₱{parseFloat(payroll.totalDeductions).toLocaleString()}</span>
-            )}
-
-            {activeTab === 'govt' && (
-              <div className="govtTableWrapper">
-                <table className="govtTable">
-                  <thead>
-                    <tr>
-                      <th>Deduction Name</th>
-                      <th>Employee Share</th>
-                      <th>Employer Share</th>
-                      <th>Total Contribution</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>SSS Contribution</td>
-                      <td>₱{eeSSS.toLocaleString()}</td>
-                      <td>₱{erSSS.toLocaleString()}</td>
-                      <td className="bold">₱{(eeSSS + erSSS).toLocaleString()}</td>
-                    </tr>
-                    <tr>
-                      <td>PhilHealth</td>
-                      <td>₱{eePH.toLocaleString()}</td>
-                      <td>₱{erPH.toLocaleString()}</td>
-                      <td className="bold">₱{(eePH + erPH).toLocaleString()}</td>
-                    </tr>
-                    <tr>
-                      <td>HDMF (Pag-IBIG)</td>
-                      <td>₱{eeHD.toLocaleString()}</td>
-                      <td>₱{erHD.toLocaleString()}</td>
-                      <td className="bold">₱{(eeHD + erHD).toLocaleString()}</td>
-                    </tr>
-                  </tbody>
-                  <tfoot>
-                    <tr className="totalRow">
-                      <td>Total Government</td>
-                      <td className="empTotal">₱{(eeSSS + eePH + eeHD).toLocaleString()}</td>
-                      <td>₱{(erSSS + erPH + erHD).toLocaleString()}</td>
-                      <td>₱{(eeSSS + eePH + eeHD + erSSS + erPH + erHD).toLocaleString()}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-
-            {activeTab === 'other' && (
-              <div className="breakdownCard">
-                <div className="row highlightTax"><span>Withholding Tax</span><p>₱{eeTax.toLocaleString()}</p></div>
-                <div className="row"><span>Health Card (Maxicare)</span><p>₱{parseFloat(payroll.healthCard_Amnt || 0).toLocaleString()}</p></div>
-                <div className="row"><span>SSS Loan</span><p>₱{parseFloat(payroll.SSS_Loan || 0).toLocaleString()}</p></div>
-                <div className="row"><span>HDMF Loan</span><p>₱{parseFloat(payroll.HDMF_Loan || 0).toLocaleString()}</p></div>
-                <div className="row"><span>Calamity Loan</span><p>₱{parseFloat(payroll.calamityLoan_Amnt || 0).toLocaleString()}</p></div>
-                <div className="row"><span>Advances to Employees</span><p>₱{parseFloat(payroll.advances_Amnt || 0).toLocaleString()}</p></div>
-                <div className="row"><span>Eastwest Loan</span><p>₱{parseFloat(payroll.eastwest_Loan || 0).toLocaleString()}</p></div>
-                <div className="row"><span>Globe Deduction</span><p>₱{parseFloat(payroll.globe_Deduction || 0).toLocaleString()}</p></div>
-                <div className="row"><span>Multi-Purpose Savings</span><p>₱{parseFloat(payroll.multiPurposeSavings || 0).toLocaleString()}</p></div>
-              </div>
             </CardContent>
           </Card>
 

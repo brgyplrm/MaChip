@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../../components/Sidebar";
+import Navbar from "../../../components/navbar/Navbar";
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -116,11 +117,8 @@ const Cashadvances = () => {
     if (!editingCell) return;
 
     const sanitizedValue = editValue.replace(/,/g, "").trim();
-    
-    // Treat empty string as 0
     const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
     
-    // Reset editing cell immediately
     setEditingCell(null);
 
     if (isNaN(val)) {
@@ -297,7 +295,7 @@ const Cashadvances = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
         
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
         
@@ -476,55 +474,85 @@ const Cashadvances = () => {
                               else if (record) cellClass += "text-green-800 font-bold ";
                               else cellClass += "text-slate-200 ";
 
-                            const statusClass = amount > 0 ? 'paid' : (record ? 'removed' : 'unpaid');
+                              return (
+                                <td 
+                                  key={emp.key} 
+                                  className={cellClass}
+                                  onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
+                                >
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={editValue}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      onBlur={() => handleCellSave(dateStr, emp.key)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          handleCellSave(dateStr, emp.key);
+                                        }
+                                      }}
+                                      autoFocus
+                                      className="w-full h-10 border-2 border-blue-500 bg-blue-50 text-center font-mono text-[13px] text-blue-900 outline-none"
+                                    />
+                                  ) : isSyncing ? (
+                                    <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
+                                  ) : (
+                                    amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <tr>
+                      <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
+                        No periods defined.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
 
-                            return (
-                              <td key={emp.key} className={`amt ${amount > 0 ? 'paid' : 'unpaid'} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`} onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}>
-                                {isEditing ? (
-                                  <input 
-                                    type="number" 
-                                    value={editValue} 
-                                    onChange={(e) => setEditValue(e.target.value)} 
-                                    onBlur={() => handleCellSave(dateStr, emp.key)} 
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        handleCellSave(dateStr, emp.key);
-                                      }
-                                    }} 
-                                    autoFocus 
-                                    className="cell-edit-input" 
-                                  />
-                                ) : isSyncing ? (
-                                  <div className="sync-spinner">SAVING...</div>
-                                ) : (
-                                  amount > 0 ? amount.toFixed(2) : "—"
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                    <tr className="summary-row subtotal-row">
-                      <td className="sticky-col label-cell"><span className="summary-label">TOTAL PAID</span></td>
+                {/* Footer Rows */}
+                {expectedDates.length > 0 && !loading && !error && (
+                  <tfoot className="sticky bottom-0 z-[50] shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
+                    {/* Row 1: Total Paid - Current Year */}
+                    <tr className="bg-slate-100 border-b border-slate-300">
+                      <td className="sticky left-0 z-[60] bg-slate-100 border-r-2 border-t-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                        <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL PAID ({selectedYear})</span>
+                      </td>
                       {employeeList.map((emp) => {
                         const empSubtotal = expectedDates.reduce((acc, d) => {
                           const period = data.find(item => isInSamePeriod(item.date, d));
                           return acc + (period?.values[emp.key]?.amount || 0);
                         }, 0);
-                        return <td key={emp.key} className="amt total">{empSubtotal.toFixed(2)}</td>;
+                        return (
+                          <td key={emp.key} className="border-r border-t-2 border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
+                            {parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        );
                       })}
                     </tr>
-                  </>
-                ) : (
-                  <tr>
-                    <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
-                      No data available for the selected year.
-                    </td>
-                  </tr>
+
+                    {/* Row 2: Total Paid - All Time */}
+                    <tr className="bg-slate-200">
+                      <td className="sticky left-0 z-[60] bg-slate-200 border-r-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                        <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL LOANS (ALL-TIME)</span>
+                      </td>
+                      {employeeList.map((emp) => {
+                        const totalLoans = data.reduce((acc, item) => acc + (item.values[emp.key]?.amount || 0), 0);
+                        return (
+                          <td key={emp.key} className="border-r border-slate-300 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
+                            {parseFloat(totalLoans).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tfoot>
                 )}
-              </tbody>
 
               </table>
             </div>
