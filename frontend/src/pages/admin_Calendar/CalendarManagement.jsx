@@ -4,6 +4,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import SyncIcon from '@mui/icons-material/Sync';
 import Toast from "../../components/toast/Toast";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
@@ -254,6 +255,24 @@ const CalendarManagement = () => {
     fetchEmployees();
   }, [currentDate]);
 
+  const handleSyncHolidays = async () => {
+    setLoading(true);
+    try {
+      const response = await fetchWithAuth("/api/system/sync-holidays", { method: "POST" });
+      if (response.ok) {
+        const data = await response.json();
+        setToast({ message: `Successfully synced ${data.count} new holidays!`, type: "success" });
+        fetchCalendarEvents();
+      } else {
+        setToast({ message: "Sync failed or no new holidays found.", type: "error" });
+      }
+    } catch (error) {
+      setToast({ message: "Connection error.", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // --- Helper Functions ---
   const changeMonth = (offset) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
@@ -312,15 +331,20 @@ const CalendarManagement = () => {
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             {isAdmin && (
-              <Button 
+                <>
+                  <button className="btn sync" onClick={handleSyncHolidays} disabled={loading} title="Sync Holidays from Official Gazette">
+                    <SyncIcon className={loading ? "spinning" : ""} /> Sync Holidays
+                  </button>
+                <Button 
                 className="w-full sm:w-[170px] bg-[#2A174E] hover:bg-[#1a0e30] text-white"
                 onClick={() => {
-                  setHolidayForm({ id: null, name: "", date: "", type: "Regular Holiday" });
-                  setModalType('addHoliday');
-                }}
-              >
+                    setHolidayForm({ id: null, name: "", date: "", type: "Regular Holiday" });
+                    setModalType('addHoliday');
+                  }}
+                >
                 <AddIcon className="mr-1 scale-75" /> Add Holiday
-              </Button>
+                </Button>
+                </>
             )}
             <Button 
               className="w-full sm:w-[170px] bg-[#ff8c00] hover:bg-[#e67e00] text-white"

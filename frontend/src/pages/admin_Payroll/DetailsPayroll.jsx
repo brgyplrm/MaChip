@@ -73,6 +73,7 @@ const PayrollDetails = () => {
               calamityLoan_Amnt: preview.calamityLoan_Amnt,
               advances_Amnt: preview.advances_Amnt,
               globe_Deduction: preview.globe_Deduction,
+              eastwest_Loan: preview.eastwest_Loan,
               multiPurposeSavings: preview.multiPurposeSavings,
               totalDeductions: preview.totalDeductions,
               netPay: preview.netPay,
@@ -302,6 +303,62 @@ const PayrollDetails = () => {
               <div className="flex justify-between items-center p-4 bg-red-50 rounded-xl mt-4 border border-red-100">
                 <span className="font-bold text-red-800">Total Deductions</span>
                 <span className="font-bold text-red-700 text-lg">₱{parseFloat(payroll.totalDeductions).toLocaleString()}</span>
+            )}
+
+            {activeTab === 'govt' && (
+              <div className="govtTableWrapper">
+                <table className="govtTable">
+                  <thead>
+                    <tr>
+                      <th>Deduction Name</th>
+                      <th>Employee Share</th>
+                      <th>Employer Share</th>
+                      <th>Total Contribution</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>SSS Contribution</td>
+                      <td>₱{eeSSS.toLocaleString()}</td>
+                      <td>₱{erSSS.toLocaleString()}</td>
+                      <td className="bold">₱{(eeSSS + erSSS).toLocaleString()}</td>
+                    </tr>
+                    <tr>
+                      <td>PhilHealth</td>
+                      <td>₱{eePH.toLocaleString()}</td>
+                      <td>₱{erPH.toLocaleString()}</td>
+                      <td className="bold">₱{(eePH + erPH).toLocaleString()}</td>
+                    </tr>
+                    <tr>
+                      <td>HDMF (Pag-IBIG)</td>
+                      <td>₱{eeHD.toLocaleString()}</td>
+                      <td>₱{erHD.toLocaleString()}</td>
+                      <td className="bold">₱{(eeHD + erHD).toLocaleString()}</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr className="totalRow">
+                      <td>Total Government</td>
+                      <td className="empTotal">₱{(eeSSS + eePH + eeHD).toLocaleString()}</td>
+                      <td>₱{(erSSS + erPH + erHD).toLocaleString()}</td>
+                      <td>₱{(eeSSS + eePH + eeHD + erSSS + erPH + erHD).toLocaleString()}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            {activeTab === 'other' && (
+              <div className="breakdownCard">
+                <div className="row highlightTax"><span>Withholding Tax</span><p>₱{eeTax.toLocaleString()}</p></div>
+                <div className="row"><span>Health Card (Maxicare)</span><p>₱{parseFloat(payroll.healthCard_Amnt || 0).toLocaleString()}</p></div>
+                <div className="row"><span>SSS Loan</span><p>₱{parseFloat(payroll.SSS_Loan || 0).toLocaleString()}</p></div>
+                <div className="row"><span>HDMF Loan</span><p>₱{parseFloat(payroll.HDMF_Loan || 0).toLocaleString()}</p></div>
+                <div className="row"><span>Calamity Loan</span><p>₱{parseFloat(payroll.calamityLoan_Amnt || 0).toLocaleString()}</p></div>
+                <div className="row"><span>Advances to Employees</span><p>₱{parseFloat(payroll.advances_Amnt || 0).toLocaleString()}</p></div>
+                <div className="row"><span>Eastwest Loan</span><p>₱{parseFloat(payroll.eastwest_Loan || 0).toLocaleString()}</p></div>
+                <div className="row"><span>Globe Deduction</span><p>₱{parseFloat(payroll.globe_Deduction || 0).toLocaleString()}</p></div>
+                <div className="row"><span>Multi-Purpose Savings</span><p>₱{parseFloat(payroll.multiPurposeSavings || 0).toLocaleString()}</p></div>
               </div>
             </CardContent>
           </Card>

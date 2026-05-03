@@ -113,9 +113,18 @@ const Cashadvances = () => {
   };
 
   const handleCellSave = async (date, empKey) => {
-    const val = parseFloat(editValue);
+    if (!editingCell) return;
+
+    const sanitizedValue = editValue.replace(/,/g, "").trim();
+    
+    // Treat empty string as 0
+    const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
+    
+    // Reset editing cell immediately
+    setEditingCell(null);
+
     if (isNaN(val)) {
-      setEditingCell(null);
+      setToast({ message: "Invalid amount entered", type: "error" });
       return;
     }
 
@@ -124,16 +133,18 @@ const Cashadvances = () => {
 
     setData(prevData => {
       let newData = [...prevData];
-      let recordIndex = newData.findIndex(d => d.date === date);
+      let recordIndex = newData.findIndex(d => isInSamePeriod(d.date, date));
       if (recordIndex === -1) {
         newData.push({ date, values: { [empKey]: { amount: val, status: 'paid' } } });
       } else {
-        newData[recordIndex].values = { ...newData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } };
+        const updatedRecord = {
+          ...newData[recordIndex],
+          values: { ...newData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } }
+        };
+        newData[recordIndex] = updatedRecord;
       }
       return newData.sort((a, b) => a.date.localeCompare(b.date));
     });
-
-    setEditingCell(null);
 
     try {
       const res = await fetchWithAuth("/api/payroll/loans/sync", {
@@ -143,9 +154,14 @@ const Cashadvances = () => {
       });
       if (res.ok) {
         setToast({ message: "Deduction saved!", type: "success" });
+      } else {
+        const errData = await res.json();
+        setToast({ message: "Sync failed: " + (errData.error || "Unknown error"), type: "error" });
+        fetchData(); // Rollback
       }
     } catch (err) {
       setToast({ message: "Failed to save", type: "error" });
+      fetchData(); // Rollback
     } finally {
       setTimeout(() => setSyncingCell(null), 500);
     }
@@ -460,67 +476,44 @@ const Cashadvances = () => {
                               else if (record) cellClass += "text-green-800 font-bold ";
                               else cellClass += "text-slate-200 ";
 
-                              return (
-                                <td 
-                                  key={emp.key} 
-                                  className={cellClass}
-                                  onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
-                                >
-                                  {isEditing ? (
-                                    <input
-                                      type="number"
-                                      value={editValue}
-                                      onChange={(e) => setEditValue(e.target.value)}
-                                      onBlur={() => handleCellSave(dateStr, emp.key)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                          e.preventDefault();
-                                          handleCellSave(dateStr, emp.key);
-                                        }
-                                      }}
-                                      autoFocus
-                                      className="w-full h-10 border-2 border-blue-500 bg-blue-50 text-center font-mono text-[13px] text-blue-900 outline-none"
-                                    />
-                                  ) : isSyncing ? (
-                                    <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
-                                  ) : (
-                                    amount > 0 ? amount.toFixed(2) : "—"
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </>
-                  ) : (
-                    <tr>
-                      <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
-                        No periods defined.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
+                            const statusClass = amount > 0 ? 'paid' : (record ? 'removed' : 'unpaid');
 
-                {/* Footer Row (Total Paid) */}
-                {expectedDates.length > 0 && !loading && !error && (
-                  <tfoot className="sticky bottom-0 z-[50] shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
-                    <tr>
-                      {/* Bottom-Left Cell */}
-                      <td className="sticky left-0 bottom-0 z-[60] bg-slate-100 border-r-2 border-t-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                        <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL PAID</span>
-                      </td>
-                      {/* Bottom Total Cells */}
+                            return (
+                              <td key={emp.key} className={`amt ${amount > 0 ? 'paid' : 'unpaid'} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`} onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}>
+                                {isEditing ? (
+                                  <input 
+                                    type="number" 
+                                    value={editValue} 
+                                    onChange={(e) => setEditValue(e.target.value)} 
+                                    onBlur={() => handleCellSave(dateStr, emp.key)} 
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        handleCellSave(dateStr, emp.key);
+                                      }
+                                    }} 
+                                    autoFocus 
+                                    className="cell-edit-input" 
+                                  />
+                                ) : isSyncing ? (
+                                  <div className="sync-spinner">SAVING...</div>
+                                ) : (
+                                  amount > 0 ? amount.toFixed(2) : "—"
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                    <tr className="summary-row subtotal-row">
+                      <td className="sticky-col label-cell"><span className="summary-label">TOTAL PAID</span></td>
                       {employeeList.map((emp) => {
                         const empSubtotal = expectedDates.reduce((acc, d) => {
-                          const period = data.find(item => item.date === d);
+                          const period = data.find(item => isInSamePeriod(item.date, d));
                           return acc + (period?.values[emp.key]?.amount || 0);
                         }, 0);
-                        return (
-                          <td key={emp.key} className="sticky bottom-0 z-[50] bg-slate-50 border-r border-t-2 border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
-                            {empSubtotal.toFixed(2)}
-                          </td>
-                        );
+                        return <td key={emp.key} className="amt total">{empSubtotal.toFixed(2)}</td>;
                       })}
                     </tr>
                   </tfoot>

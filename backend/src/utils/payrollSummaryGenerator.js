@@ -255,7 +255,7 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
             const gross = parseFloat(r.basicPay || 0) + addPay - absTard;
             const govt = parseFloat(r.SSS_Ded || 0) + parseFloat(r.Philhealth_Ded || 0) + parseFloat(r.HDMF_Ded || 0);
             const taxable = gross - govt;
-            const other = parseFloat(r.Tax_Ded || 0) + parseFloat(r.healthCard_Amnt || 0) + parseFloat(r.SSS_Loan || 0) + parseFloat(r.HDMF_Loan || 0) + parseFloat(r.multiPurposeSavings || 0) + parseFloat(r.advances_Amnt || 0);
+            const other = parseFloat(r.Tax_Ded || 0) + parseFloat(r.healthCard_Amnt || 0) + parseFloat(r.SSS_Loan || 0) + parseFloat(r.HDMF_Loan || 0) + parseFloat(r.multiPurposeSavings || 0) + parseFloat(r.advances_Amnt || 0) + parseFloat(r.eastwest_Loan || 0);
             return `
             <tr>
               <td>${formatEmpId(r.user_Id)}</td><td>${formatShortName(r.user_LastName, r.user_FirstName)}</td>
@@ -314,7 +314,7 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
               <td class="amt">${peso(r.allowance)}</td>
               <td class="amt bold">${peso(r.netPay)}</td>
               <td class="amt">${peso(r.netPay)}</td>
-              <td class="amt">${peso(r.globe_Deduction)}</td>
+              <td class="amt">${peso(r.eastwest_Loan)}</td>
               <td class="amt bold" style="color:#166534">${peso(r.netPay)}</td>
               <td></td>
               <td class="amt">${peso(r.basicPay)}</td>
@@ -324,7 +324,7 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
             <td class="amt">${peso(totals.allowance)}</td>
             <td class="amt">${peso(totals.netPay)}</td>
             <td class="amt">${peso(totals.netPay)}</td>
-            <td class="amt">${peso(sum(payrollRows, "globe_Deduction"))}</td>
+            <td class="amt">${peso(sum(payrollRows, "eastwest_Loan"))}</td>
             <td class="amt">${peso(totals.netPay)}</td>
             <td></td>
             <td class="amt">${peso(totals.basicPay)}</td>

@@ -111,9 +111,19 @@ const EastwestLoan = () => {
   };
 
   const handleCellSave = async (date, empKey) => {
-    const val = parseFloat(editValue);
+    if (!editingCell) return;
+    
+    // Sanitize input: remove commas and whitespace
+    const sanitizedValue = editValue.replace(/,/g, "").trim();
+    
+    // Treat empty string as 0
+    const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
+    
+    // Reset editing cell immediately to prevent double calls from onBlur + onKeyDown
+    setEditingCell(null);
+
     if (isNaN(val)) {
-      setEditingCell(null);
+      setToast({ message: "Invalid amount entered", type: "error" });
       return;
     }
 
@@ -122,16 +132,18 @@ const EastwestLoan = () => {
 
     setData(prevData => {
       let newData = [...prevData];
-      let recordIndex = newData.findIndex(d => d.date === date);
+      let recordIndex = newData.findIndex(d => isInSamePeriod(d.date, date));
       if (recordIndex === -1) {
         newData.push({ date, values: { [empKey]: { amount: val, status: 'paid' } } });
       } else {
-        newData[recordIndex].values = { ...newData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } };
+        const updatedRecord = { 
+          ...newData[recordIndex], 
+          values: { ...newData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } } 
+        };
+        newData[recordIndex] = updatedRecord;
       }
       return newData.sort((a, b) => a.date.localeCompare(b.date));
     });
-
-    setEditingCell(null);
 
     try {
       const res = await fetchWithAuth("/api/payroll/loans/sync", {
@@ -139,21 +151,39 @@ const EastwestLoan = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates })
       });
-      if (res.ok) setToast({ message: "Eastwest Loan cell updated!", type: "success" });
+      if (res.ok) {
+        setToast({ message: "Eastwest Loan cell updated!", type: "success" });
+      } else {
+        const errData = await res.json();
+        setToast({ message: "Sync failed: " + (errData.error || "Unknown error"), type: "error" });
+        fetchData(); // Rollback local state
+      }
     } catch (err) {
       setToast({ message: "Failed to sync update", type: "error" });
+      fetchData(); // Rollback local state
     } finally {
       setTimeout(() => setSyncingCell(null), 500);
     }
   };
 
   const downloadTemplate = () => {
-    const csvContent = "Date,EmployeeID,EmployeeName,Amount\n2026-01-15,MACJ-001,Cruzat Jenny,500.00\n2026-01-31,MACJ-001,Cruzat Jenny,500.00";
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    // Header row: month/year, Employee1 #ID, Employee2 #ID, ...
+    const headers = ["month/year", ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
+    const headerLine = headers.join(",");
+
+    // Rows: All 24 cutoff dates for the selected year
+    const rows = expectedDates.map(date => {
+      // Add commas for each employee column (initially empty)
+      const emptyValues = employeeList.map(() => "").join(",");
+      return `${date},${emptyValues}`;
+    });
+
+    const csvContent = [headerLine, ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'eastwest_loan_template.csv';
+    a.download = `eastwest_loan_matrix_${selectedYear}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -174,21 +204,42 @@ const EastwestLoan = () => {
       try {
         const text = e.target.result;
         const lines = text.split("\n").filter(line => line.trim() !== "");
-        
-        const updates = lines.slice(1).map(line => {
-          const values = line.split(",");
-          const macjId = values[1]?.trim();
-          const userId = parseInt(macjId?.replace("MACJ-", ""));
-          return {
-            date: values[0]?.trim(),
-            user_Id: userId,
-            amount: parseFloat(values[3]?.trim() || 0),
-            type: type
-          };
-        }).filter(item => !isNaN(item.user_Id) && item.date && !isNaN(item.amount));
+        if (lines.length < 2) throw new Error("File is empty or missing data.");
+
+        // 1. Parse Headers to get Employee IDs
+        const headers = lines[0].split(",");
+        const empMappings = []; // { colIndex, user_Id }
+
+        for (let i = 1; i < headers.length; i++) {
+          const header = headers[i];
+          const match = header.match(/#MACJ-(\d+)/i);
+          if (match) {
+            empMappings.push({ colIndex: i, user_Id: parseInt(match[1]) });
+          }
+        }
+
+        // 2. Parse Rows (Dates)
+        const updates = [];
+        for (let i = 1; i < lines.length; i++) {
+          const columns = lines[i].split(",");
+          const date = columns[0]?.trim();
+          if (!date) continue;
+
+          empMappings.forEach(mapping => {
+            const amount = parseFloat(columns[mapping.colIndex]?.trim() || 0);
+            if (amount > 0) {
+              updates.push({
+                date,
+                user_Id: mapping.user_Id,
+                amount,
+                type: type
+              });
+            }
+          });
+        }
 
         if (updates.length === 0) {
-          setToast({ message: "No valid data found in CSV", type: "error" });
+          setToast({ message: "No non-zero amounts found in CSV", type: "error" });
           setLoading(false);
           return;
         }
@@ -200,7 +251,7 @@ const EastwestLoan = () => {
         });
 
         if (res.ok) {
-          setToast({ message: `Successfully uploaded ${updates.length} records!`, type: "success" });
+          setToast({ message: `Successfully synced ${updates.length} records!`, type: "success" });
           fetchData();
           setFile(null);
         } else {
@@ -225,13 +276,16 @@ const EastwestLoan = () => {
     let totalPaid = 0;
 
     data.forEach(item => {
-      Object.keys(item.values).forEach(empKey => {
-        const amt = item.values[empKey].amount;
-        if (amt > 0) {
-          subscribers.add(empKey);
-          totalPaid += amt;
-        }
-      });
+      const recordYear = new Date(item.date).getFullYear();
+      if (recordYear === selectedYear) {
+        Object.keys(item.values).forEach(empKey => {
+          const amt = item.values[empKey].amount;
+          if (amt > 0) {
+            subscribers.add(empKey);
+            totalPaid += amt;
+          }
+        });
+      }
     });
 
     return {
@@ -242,6 +296,12 @@ const EastwestLoan = () => {
 
   const stats = getSummaryStats();
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const getRowTotal = (dateStr) => {
+    const period = data.find(d => isInSamePeriod(d.date, dateStr));
+    if (!period) return 0;
+    return Object.values(period.values).reduce((acc, val) => acc + (val.amount || 0), 0);
+  };
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">

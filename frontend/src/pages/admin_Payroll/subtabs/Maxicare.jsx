@@ -114,9 +114,19 @@ const Cashadvances = () => {
   };
 
   const handleCellSave = async (date, empKey) => {
-    const val = parseFloat(editValue);
+    if (!editingCell) return;
+    
+    const sanitizedValue = editValue.replace(/,/g, "").trim();
+    
+    // Treat empty string as 0
+    const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
+    
+    // Reset editing cell immediately
+    setEditingCell(null);
+
+    // Allow 0, but block NaN
     if (isNaN(val)) {
-      setEditingCell(null);
+      setToast({ message: "Invalid amount entered", type: "error" });
       return;
     }
 
@@ -125,19 +135,170 @@ const Cashadvances = () => {
 
     setData(prevData => {
       let newData = [...prevData];
-      let recordIndex = newData.findIndex(d => d.date === date);
-      if (recordIndex === -1) {
-        newData.push({ date, values: { [empKey]: { amount: val, status: 'paid' } } });
-      } else {
-        newData[recordIndex].values = { ...newData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } };
-      }
+
+      const targetDateIndex = expectedDates.indexOf(date);
+      const currentCutoffIndex = currentCutoffDate ? expectedDates.indexOf(currentCutoffDate) : expectedDates.length;
+
+      // LOGIC: Only fill across if val >= contribution (deductionCutoff)
+      const shouldFill = val >= (deductionCutoff - 0.01); 
+
+      const datesToProcess = shouldFill 
+        ? expectedDates.slice(targetDateIndex, currentCutoffIndex)
+        : [date];
+
+      datesToProcess.forEach(dStr => {
+        let recordIndex = newData.findIndex(d => isInSamePeriod(d.date, dStr));
+        const emp = employeeList.find(e => e.key === empKey);
+
+        if (recordIndex === -1) {
+          newData.push({
+            date: dStr,
+            values: { [empKey]: { amount: val, status: dStr < todayStr ? 'paid' : 'estimated' } }
+          });
+        } else {
+          const currentRecord = newData[recordIndex].values[empKey];
+          const currentVal = currentRecord ? currentRecord.amount : 0;
+
+          if (currentVal === 0 || dStr === date) {
+            newData[recordIndex].values = {
+              ...newData[recordIndex].values,
+              [empKey]: { amount: val, status: dStr < todayStr ? 'paid' : 'estimated' }
+            };
+          }
+        }
+        if (emp) {
+          updates.push({ date: dStr, user_Id: emp.user_Id, amount: val });
+        }
+      });
+
+      // Update the employeeList state so future projections (EST) show the new rate
+      // and so that "Save Table" will update the User Table in the DB.
+      setEmployeeList(prev => prev.map(e => 
+        e.key === empKey ? { ...e, expectedDeduction: val } : e
+      ));
+
       return newData.sort((a, b) => a.date.localeCompare(b.date));
     });
 
-    setEditingCell(null);
+    // Auto-sync in real-time
+    if (updates.length > 0) {
+      try {
+        const res = await fetchWithAuth("/api/payroll/maxicare/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updates })
+        });
+        
+        if (res.ok) {
+          setToast({ 
+            message: updates.length > 1 
+              ? "Employee history auto-filled and saved!" 
+              : "Cell updated successfully!", 
+            type: "success" 
+          });
+        } else {
+          const errData = await res.json();
+          setToast({ message: "Sync failed: " + (errData.error || "Unknown error"), type: "error" });
+          fetchData(); // Rollback
+        }
+      } catch (err) {
+        console.error("Auto-sync failed:", err);
+        setToast({ message: "Failed to save to database", type: "error" });
+        fetchData(); // Rollback
+      } finally {
+        setTimeout(() => setSyncingCell(null), 800); 
+      }
+    } else {
+      setSyncingCell(null);
+    }
+  };
 
+  const getSummaryStats = () => {
+    const subscribers = new Set();
+    let totalPaid = 0;
+
+    data.forEach(item => {
+      const recordYear = new Date(item.date).getFullYear();
+      if (recordYear === selectedYear) {
+        Object.keys(item.values).forEach(empKey => {
+          const amt = item.values[empKey].amount;
+          if (amt > 0) {
+            subscribers.add(empKey);
+            totalPaid += amt;
+          }
+        });
+      }
+    });
+
+    return {
+      subscribers: subscribers.size,
+      totalPaid: totalPaid
+    };
+  };
+
+  const stats = getSummaryStats();
+
+  const dismissToast = () => setToast({ message: "", type: "success" });
+
+  const saveSettings = async () => {
     try {
-      const res = await fetchWithAuth("/api/payroll/loans/sync", {
+      setLoading(true);
+      // 1. Save System Settings (Dates & Global Rates)
+      const settingsRes = await fetchWithAuth("/api/system/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          maxicareTotalGross: config.totalGross,
+          maxicareMonthsToPay: config.monthsToPay,
+          maxicareCycleStartDate: config.cycleStartDate,
+          maxicareDates: expectedDates
+        })
+      });
+
+      // 2. Save Employee Base Deductions
+      const userRes = await fetchWithAuth("/api/users/bulk-maxicare", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: employeeList.map(emp => ({
+            user_Id: emp.user_Id,
+            healthCard_Amnt: emp.expectedDeduction
+          }))
+        })
+      });
+
+      if (settingsRes.ok && userRes.ok) {
+        setIsEditing(false);
+        setIsEditingTable(false);
+        fetchData();
+        alert("Maxicare configuration and employee deductions saved!");
+      }
+    } catch (err) {
+      alert("Error saving settings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const syncHistory = async () => {
+    try {
+      setLoading(true);
+      const updates = [];
+      data.forEach(item => {
+        Object.keys(item.values).forEach(empKey => {
+          const emp = employeeList.find(e => e.key === empKey);
+          const record = item.values[empKey];
+          if (emp && record) {
+            updates.push({
+              date: item.date,
+              user_Id: emp.user_Id,
+              amount: record.amount
+            });
+          }
+        });
+      });
+
+      const res = await fetchWithAuth("/api/payroll/maxicare/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates })
@@ -152,23 +313,48 @@ const Cashadvances = () => {
     }
   };
 
-  const downloadTemplate = () => {
-    const headers = ["month/year", ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
-    const headerLine = headers.join(",");
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-    const rows = expectedDates.map(date => {
-      const emptyValues = employeeList.map(() => "").join(",");
-      return `${date},${emptyValues}`;
-    });
+  // Computed Values
+  const activeSubscribers = stats.subscribers;
+  const annualPremiumTotal = config.totalGross * activeSubscribers;
+  const employerShare = config.totalGross / 2;
+  const employeeShare = config.totalGross / 2;
+  const deductionCutoff = config.monthsToPay > 0 ? (config.totalGross / 2) / (config.monthsToPay * 2) : 0;
 
-    const csvContent = [headerLine, ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cash_advance_matrix_${selectedYear}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+  // Group dates by month for the "row above" header
+  const groupedMonths = expectedDates.reduce((acc, dateStr) => {
+    const date = new Date(dateStr);
+    const monthLabel = date.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }).toUpperCase();
+    const last = acc[acc.length - 1];
+    if (last && last.label === monthLabel) {
+      last.colspan += 1;
+    } else {
+      acc.push({ label: monthLabel, colspan: 1 });
+    }
+    return acc;
+  }, []);
+
+  // Calculate Renewal Period dynamically based on Cycle Start
+  const getRenewalPeriod = () => {
+    if (!config.cycleStartDate) return "Not Set";
+    const start = new Date(config.cycleStartDate);
+    const end = new Date(start);
+    end.setMonth(start.getMonth() + (config.monthsToPay || 12));
+    end.setDate(end.getDate() - 1);
+    
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    return `${start.toLocaleDateString('en-PH', options)} - ${end.toLocaleDateString('en-PH', options)}`;
+  };
+
+  const handleConfigChange = (e) => {
+    const { name, value, type } = e.target;
+    setConfig(prev => ({ 
+      ...prev, 
+      [name]: type === 'number' ? parseFloat(value) || 0 : value 
+    }));
   };
 
   const handleFileChange = (e) => {

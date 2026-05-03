@@ -40,6 +40,7 @@ const allowedOrigins = [
   "http://192.168.254.102:5173",
   "http://192.168.1.100:5173",
   "http://192.168.1.106:5173",
+  "http://192.168.254.108:5173"
 ];
 
 app.use(
@@ -130,10 +131,6 @@ app.use(errorHandler);
 
 // ── Database Connection and Background Tasks ──────────────────────────────────
 connectDB().then(async () => {
-  console.log("[INIT] System startup: Syncing holidays...");
-  const { syncHolidaysService } = require("./utils/holidaySyncService");
-  syncHolidaysService().catch(err => console.error("[INIT] Initial Holiday Sync Failed:", err.message));
-
   // Perform backfill for missing absences within the CURRENT PERIOD only
   console.log("[INIT] Running period-restricted backfill for absences...");
   const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
@@ -198,7 +195,9 @@ setInterval(async () => {
     }
   }
 
-  if (now.getDate() === 1 && hour === 0 && minute === 1) {
+  // 3. Yearly Holiday Sync (January 1st at 12:01 AM)
+  if (now.getMonth() === 0 && now.getDate() === 1 && hour === 0 && minute === 1) {
+    console.log("[SCHEDULED] January 1st: Syncing holidays for the new year...");
     syncHolidaysService();
   }
 

@@ -122,9 +122,18 @@ const GovLoans = () => {
   };
 
   const handleCellSave = async (date, empKey) => {
-    const val = parseFloat(editValue);
+    if (!editingCell) return;
+    
+    const sanitizedValue = editValue.replace(/,/g, "").trim();
+    
+    // Treat empty string as 0
+    const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
+    
+    // Reset editing cell immediately
+    setEditingCell(null);
+
     if (isNaN(val)) {
-      setEditingCell(null);
+      setToast({ message: "Invalid amount entered", type: "error" });
       return;
     }
 
@@ -136,16 +145,18 @@ const GovLoans = () => {
 
     setAllData(prev => {
       const typeData = [...(prev[activeTab] || [])];
-      let recordIndex = typeData.findIndex(d => d.date === date);
+      let recordIndex = typeData.findIndex(d => isInSamePeriod(d.date, date));
       if (recordIndex === -1) {
         typeData.push({ date, values: { [empKey]: { amount: val, status: 'paid' } } });
       } else {
-        typeData[recordIndex].values = { ...typeData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } };
+        const updatedRecord = {
+          ...typeData[recordIndex],
+          values: { ...typeData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } }
+        };
+        typeData[recordIndex] = updatedRecord;
       }
       return { ...prev, [activeTab]: typeData.sort((a, b) => a.date.localeCompare(b.date)) };
     });
-
-    setEditingCell(null);
 
     try {
       const res = await fetchWithAuth("/api/payroll/loans/sync", {
@@ -153,21 +164,39 @@ const GovLoans = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates })
       });
-      if (res.ok) setToast({ message: `${currentDbType} updated!`, type: "success" });
+      if (res.ok) {
+        setToast({ message: `${currentDbType} updated!`, type: "success" });
+      } else {
+        const errData = await res.json();
+        setToast({ message: "Sync failed: " + (errData.error || "Unknown error"), type: "error" });
+        fetchData(); // Rollback
+      }
     } catch (err) {
       setToast({ message: "Sync failed", type: "error" });
+      fetchData(); // Rollback
     } finally {
       setTimeout(() => setSyncingCell(null), 500);
     }
   };
 
   const downloadTemplate = () => {
-    const csvContent = "Date,EmployeeID,EmployeeName,Amount\n2026-01-15,MACJ-001,Cruzat Jenny,500.00\n2026-01-31,MACJ-001,Cruzat Jenny,500.00";
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    // Header row: month/year, Employee1 #ID, Employee2 #ID, ...
+    const headers = ["month/year", ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
+    const headerLine = headers.join(",");
+
+    // Rows: All 24 cutoff dates for the selected year
+    const rows = expectedDates.map(date => {
+      // Add commas for each employee column (initially empty)
+      const emptyValues = employeeList.map(() => "").join(",");
+      return `${date},${emptyValues}`;
+    });
+
+    const csvContent = [headerLine, ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `gov_loan_${activeTab}_template.csv`;
+    a.download = `gov_loan_${activeTab}_matrix_${selectedYear}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -188,6 +217,7 @@ const GovLoans = () => {
       try {
         const text = e.target.result;
         const lines = text.split("\n").filter(line => line.trim() !== "");
+        if (lines.length < 2) throw new Error("File is empty or missing data.");
         
         const currentType = govTypes.find(t => t.id === activeTab);
         if (!currentType) {
@@ -196,20 +226,40 @@ const GovLoans = () => {
           return;
         }
 
-        const updates = lines.slice(1).map(line => {
-          const values = line.split(",");
-          const macjId = values[1]?.trim();
-          const userId = parseInt(macjId?.replace("MACJ-", ""));
-          return {
-            date: values[0]?.trim(),
-            user_Id: userId,
-            amount: parseFloat(values[3]?.trim() || 0),
-            type: currentType.dbType 
-          };
-        }).filter(item => !isNaN(item.user_Id) && item.date && !isNaN(item.amount));
+        // 1. Parse Headers to get Employee IDs
+        const headers = lines[0].split(",");
+        const empMappings = []; // { colIndex, user_Id }
+
+        for (let i = 1; i < headers.length; i++) {
+          const header = headers[i];
+          const match = header.match(/#MACJ-(\d+)/i);
+          if (match) {
+            empMappings.push({ colIndex: i, user_Id: parseInt(match[1]) });
+          }
+        }
+
+        // 2. Parse Rows (Dates)
+        const updates = [];
+        for (let i = 1; i < lines.length; i++) {
+          const columns = lines[i].split(",");
+          const date = columns[0]?.trim();
+          if (!date) continue;
+
+          empMappings.forEach(mapping => {
+            const amount = parseFloat(columns[mapping.colIndex]?.trim() || 0);
+            if (amount > 0) {
+              updates.push({
+                date,
+                user_Id: mapping.user_Id,
+                amount,
+                type: currentType.dbType
+              });
+            }
+          });
+        }
 
         if (updates.length === 0) {
-          setToast({ message: "No valid data found in CSV", type: "error" });
+          setToast({ message: "No non-zero amounts found in CSV", type: "error" });
           setLoading(false);
           return;
         }
@@ -221,7 +271,7 @@ const GovLoans = () => {
         });
 
         if (res.ok) {
-          setToast({ message: `Successfully uploaded ${updates.length} records to ${currentType.label}!`, type: "success" });
+          setToast({ message: `Successfully synced ${updates.length} records to ${currentType.label}!`, type: "success" });
           fetchData();
           setFile(null);
         } else {
@@ -247,19 +297,76 @@ const GovLoans = () => {
     Math.min(expectedDates.length, currentCutoffIndex + 2)
   );
 
+  const renderSummaryTable = (typeObj) => {
+    const typeData = allData[typeObj.id] || [];
+    return (
+      <div className="summary-section" key={typeObj.id}>
+        <div className="section-header">
+          <h3>{typeObj.label} Summary</h3>
+          <button onClick={() => setActiveTab(typeObj.id)}>View Details</button>
+        </div>
+        <div className="compact-table-wrapper">
+          <table className="compact-table">
+            <thead>
+              <tr>
+                <th className="sticky-col">Employee Name</th>
+                {summaryDates.map(d => {
+                  const dateObj = new Date(d);
+                  return (
+                    <th key={d} className={d === currentCutoffDate ? "current-col" : ""}>
+                      {dateObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+                      {d === currentCutoffDate && <div className="curr-label">CURR</div>}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {employeeList.map(emp => {
+                const totalRow = summaryDates.reduce((acc, d) => {
+                  const record = typeData.find(item => item.date === d);
+                  return acc + (record?.values[emp.key]?.amount || 0);
+                }, 0);
+
+                if (totalRow === 0 && activeTab === "summary") return null;
+
+                return (
+                  <tr key={emp.user_Id}>
+                    <td className="sticky-col">{emp.name}</td>
+                    {summaryDates.map(d => {
+                      const record = typeData.find(item => item.date === d);
+                      const amount = record?.values[emp.key]?.amount || 0;
+                      return (
+                        <td key={d} className={`amt ${amount > 0 ? 'paid' : 'unpaid'} ${d === currentCutoffDate ? "current-col" : ""}`}>
+                          {parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      );                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   const getSummaryStats = (typeId) => {
     const typeData = allData[typeId] || [];
     const subscribers = new Set();
     let totalPaid = 0;
 
     typeData.forEach(item => {
-      Object.keys(item.values).forEach(empKey => {
-        const amt = item.values[empKey].amount;
-        if (amt > 0) {
-          subscribers.add(empKey);
-          totalPaid += amt;
-        }
-      });
+      const recordYear = new Date(item.date).getFullYear();
+      if (recordYear === selectedYear) {
+        Object.keys(item.values).forEach(empKey => {
+          const amt = item.values[empKey].amount;
+          if (amt > 0) {
+            subscribers.add(empKey);
+            totalPaid += amt;
+          }
+        });
+      }
     });
 
     return {
@@ -475,13 +582,25 @@ const GovLoans = () => {
                             </div>
                           </th>
                         ))}
-                      </tr>
+                        <th className="sticky-col-right level-1">
+                      <div className="vertical-stack">
+                        <span className="year">SUB</span>
+                        <span className="label">TOTAL</span>
+                      </div>
+                    </th>
+                    <th className="sticky-col-right level-2">
+                      <div className="vertical-stack">
+                        <span className="year">MONTHLY</span>
+                        <span className="label">TOTAL</span>
+                      </div>
+                    </th>
+                  </tr>
                     </thead>
 
                     <tbody>
                       {loading ? (
                         <tr>
-                          <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
+                          <td colSpan={employeeList.length + 3} className="h-32 text-center text-slate-500 italic p-6">
                             Loading data...
                           </td>
                         </tr>
@@ -494,12 +613,42 @@ const GovLoans = () => {
                         </tr>
                       ) : expectedDates.length > 0 ? (
                         <>
-                          {expectedDates.map((dateStr, i) => {
+                          {(() => {
+                      const typeData = allData[activeTab] || [];
+                      const rowTotals = {};
+                      expectedDates.forEach(dStr => {
+                        const period = typeData.find(d => isInSamePeriod(d.date, dStr));
+                        rowTotals[dStr] = period ? Object.values(period.values).reduce((acc, v) => acc + (v.amount || 0), 0) : 0;
+                      });
+
+                      const getMonthlyTotal = (dStr) => {
+                        const date = new Date(dStr);
+                        const m = date.getMonth();
+                        const y = date.getFullYear();
+
+                        // Check if this is the last expected date for this month in the current fiscal year
+                        const monthDates = expectedDates.filter(d => {
+                          const rd = new Date(d);
+                          return rd.getFullYear() === y && rd.getMonth() === m;
+                        });
+                        const isLastOfMonth = dStr === monthDates[monthDates.length - 1];
+
+                        if (!isLastOfMonth) return null;
+
+                        return monthDates
+                          .filter(d => d <= dStr)
+                          .reduce((sum, d) => sum + (rowTotals[d] || 0), 0);
+                      };
+
+                      return expectedDates.map((dateStr, i) => {
                             const dateObj = new Date(dateStr);
                             const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
                             const dayLabel = dateObj.getDate();
                             const isCurrentRow = dateStr === currentCutoffDate;
                             
+                        const rowTotal = rowTotals[dateStr] || 0;
+                        const monthlyTotal = getMonthlyTotal(dateStr);
+
                             return (
                               <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
                                 {/* Left Column Cell */}
@@ -521,8 +670,7 @@ const GovLoans = () => {
                                 </td>
                                 {/* Data Cells */}
                                 {employeeList.map((emp) => {
-                                  const typeData = allData[activeTab] || [];
-                                  const actualRecord = typeData.find(d => isInSamePeriod(d.date, dateStr));
+                                      const actualRecord = typeData.find(d => isInSamePeriod(d.date, dateStr));
                                   const record = actualRecord ? actualRecord.values[emp.key] : null;
                                   const amount = record ? record.amount : 0;
                                   
@@ -534,6 +682,8 @@ const GovLoans = () => {
                                   else if (isSyncing) cellClass += "bg-yellow-50 ";
                                   else if (record) cellClass += "text-green-800 font-bold ";
                                   else cellClass += "text-slate-200 ";
+
+                              const statusClass = amount > 0 ? 'paid' : (record ? 'removed' : 'unpaid');
 
                                   return (
                                     <td 

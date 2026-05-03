@@ -38,16 +38,9 @@ async function syncHolidaysService() {
         );
 
         if (existing.length > 0) {
-          // PURE SQL: Update existing record (Sync name and type from website)
-          await sequelize.query(
-            `UPDATE "Holiday" 
-             SET "name" = :name, "type" = :type 
-             WHERE "date" = :date`,
-            { 
-              replacements: { name: h.name, type: h.type, date: h.date }, 
-              type: QueryTypes.UPDATE 
-            }
-          );
+          // Skip existing records to prevent overwriting manual edits
+          console.log(`[Sync] Skipping existing holiday on ${h.date}: ${h.name}`);
+          continue;
         } else {
           // PURE SQL: Insert new record
           await sequelize.query(

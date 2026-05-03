@@ -52,7 +52,7 @@ const {
   Leave_Balance,
 } = require("../models/request.model")(sequelize, DataTypes);
 
-const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances } =
+const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances, Payroll_Eastwest, Payroll_GovernmentLoans } =
   require("../models/payroll.model")(sequelize, DataTypes);
 
 const { Notification } = require("../models/notification.models")(
@@ -102,6 +102,14 @@ Payroll_maxicare.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", 
 // User ↔ Payroll_Cash_Advances
 User.hasMany(Payroll_Cash_Advances, { foreignKey: "user_Id", sourceKey: "user_Id" });
 Payroll_Cash_Advances.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
+// User ↔ Payroll_Eastwest
+User.hasMany(Payroll_Eastwest, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Payroll_Eastwest.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+
+// User ↔ Payroll_GovernmentLoans
+User.hasMany(Payroll_GovernmentLoans, { foreignKey: "user_Id", sourceKey: "user_Id" });
+Payroll_GovernmentLoans.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
 
 // User ↔ Notification
 User.hasMany(Notification, { foreignKey: "user_Id", sourceKey: "user_Id" });
@@ -176,11 +184,14 @@ const connectDB = async () => {
         ['calamityLoan_Amnt', 'FLOAT DEFAULT 0'],
         ['multiPurposeSavings', 'FLOAT DEFAULT 0'],
         ['advances_Amnt', 'FLOAT DEFAULT 0'],
-        ['globe_Deduction', 'FLOAT DEFAULT 0']
+        ['globe_Deduction', 'FLOAT DEFAULT 0'],
+        ['eastwest_Loan', 'FLOAT DEFAULT 0']
       ];
       for (const [col, type] of dedCols) {
         await sequelize.query(`ALTER TABLE "Payroll_Deductions" ADD COLUMN IF NOT EXISTS "${col}" ${type};`);
       }
+
+      await sequelize.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "eastwest_Loan" FLOAT DEFAULT 0;`);
 
       await sequelize.query(`ALTER TABLE "Payroll_Earnings" ADD COLUMN IF NOT EXISTS "specialHol_Adj" FLOAT DEFAULT 0;`);
 
@@ -317,6 +328,42 @@ const connectDB = async () => {
           "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT "user_ca_date_unique" UNIQUE ("user_Id", "date")
+        );
+      `);
+
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "Payroll_Eastwest" (
+          "eastwestId" SERIAL PRIMARY KEY,
+          "user_Id" SMALLINT NOT NULL REFERENCES "User"("user_Id"),
+          "date" DATE NOT NULL,
+          "amount" FLOAT DEFAULT 0,
+          "payrollId" INTEGER REFERENCES "Payroll"("payrollId"),
+          "notes" TEXT,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "user_ew_date_unique" UNIQUE ("user_Id", "date")
+        );
+      `);
+
+      try {
+        await sequelize.query(`DO $$ BEGIN
+          CREATE TYPE "enum_Payroll_GovernmentLoans_government_type" AS ENUM('SSS', 'Pag-IBIG', 'Calamity', 'Multi-Purpose');
+        EXCEPTION
+          WHEN duplicate_object THEN null;
+        END $$;`);
+      } catch (e) {}
+
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "Payroll_GovernmentLoans" (
+          "govern_Id" SERIAL PRIMARY KEY,
+          "user_Id" SMALLINT NOT NULL REFERENCES "User"("user_Id"),
+          "government_type" "enum_Payroll_GovernmentLoans_government_type" NOT NULL DEFAULT 'SSS',
+          "date" DATE NOT NULL,
+          "amount" FLOAT DEFAULT 0,
+          "payrollId" INTEGER REFERENCES "Payroll"("payrollId"),
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "user_gov_date_type_unique" UNIQUE ("user_Id", "date", "government_type")
         );
       `);
 
@@ -482,4 +529,6 @@ module.exports = {
   Loan_Deduction_Schedules,
   Payroll_maxicare,
   Payroll_Cash_Advances,
+  Payroll_Eastwest,
+  Payroll_GovernmentLoans,
 };
