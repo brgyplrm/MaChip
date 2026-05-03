@@ -132,7 +132,7 @@ const New = ({ inputs, title }) => {
       }
       
       if (id === "user_Role") {
-        updated.user_RoleId = value === "Admin" ? 1 : value === "Staff" ? 2 : 3;
+        updated.user_RoleId = value === "Admin" ? 1 : value === "Supervisor" ? 2 : 3;
       }
       if (id === "user_EmploymentStatus") {
         updated.user_EmploymentStatusId = value === "Regular" ? 1 : value === "Part-time" ? 2 : 3;

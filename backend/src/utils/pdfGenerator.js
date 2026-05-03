@@ -77,13 +77,13 @@ exports.generatePayslipPDF = async (payroll) => {
     const rows = [
       { eL: "Pay this period", eH: payroll.NoHrs_Worked, eA: formatCurrency(payroll.basicPay), dL: "Absences", dH: payroll.absence_Hrs, dA: formatCurrency(payroll.absence_Amnt) },
       { eL: "Overtime pay", eH: payroll.OT_Hrs, eA: formatCurrency(payroll.OT_Amnt), dL: "Tardiness", dH: `${payroll.tardiness_Mins}m`, dA: formatCurrency(payroll.tardiness_Amnt) },
-      { eL: "Restday OT", eH: payroll.restDay_OT_Hrs, eA: formatCurrency(payroll.restDay_OT_Amnt), dL: "SSS", dH: "", dA: formatCurrency(payroll.SSS_Ded) },
-      { eL: "Night Differential", eH: payroll.nightDiff_Hrs, eA: formatCurrency(payroll.nightDiff_Amnt), dL: "Philhealth", dH: "", dA: formatCurrency(payroll.Philhealth_Ded) },
-      { eL: "Special Holiday", eH: payroll.specialHol_Hrs, eA: formatCurrency(payroll.specialHol_Amnt), dL: "HDMF", dH: "", dA: formatCurrency(payroll.HDMF_Ded) },
-      { eL: "Incentives", eH: "", eA: formatCurrency(payroll.incentives), dL: "Tax", dH: "", dA: formatCurrency(payroll.Tax_Ded) },
-      { eL: "Allowance", eH: "", eA: formatCurrency(payroll.allowance), dL: "SSS Loan", dH: "", dA: formatCurrency(payroll.SSS_Loan) },
-      { eL: "Bonus", eH: "", eA: formatCurrency(payroll.Bonus), dL: "HDMF Loan", dH: "", dA: formatCurrency(payroll.HDMF_Loan) },
-      { eL: "Others", eH: "", eA: formatCurrency(payroll.Other_Earnings), dL: "Others", dH: "", dA: formatCurrency(payroll.Other_Deductions) },
+      { eL: "Restday OT", eH: payroll.restDay_OT_Hrs, eA: formatCurrency(payroll.restDay_OT_Amnt), dL: "SSS / Philhealth", dH: "", dA: formatCurrency(parseFloat(payroll.SSS_Ded || 0) + parseFloat(payroll.Philhealth_Ded || 0)) },
+      { eL: "Night Differential", eH: payroll.nightDiff_Hrs, eA: formatCurrency(payroll.nightDiff_Amnt), dL: "HDMF (Pag-IBIG)", dH: "", dA: formatCurrency(payroll.HDMF_Ded) },
+      { eL: "Special Holiday", eH: payroll.specialHol_Hrs, eA: formatCurrency(payroll.specialHol_Amnt), dL: "Withholding Tax", dH: "", dA: formatCurrency(payroll.Tax_Ded) },
+      { eL: "Incentives", eH: "", eA: formatCurrency(payroll.incentives), dL: "SSS / HDMF Loan", dH: "", dA: formatCurrency(parseFloat(payroll.SSS_Loan || 0) + parseFloat(payroll.HDMF_Loan || 0)) },
+      { eL: "Allowance", eH: "", eA: formatCurrency(payroll.allowance), dL: "Health Card / Calamity", dH: "", dA: formatCurrency(parseFloat(payroll.healthCard_Amnt || 0) + parseFloat(payroll.calamityLoan_Amnt || 0)) },
+      { eL: "Bonus", eH: "", eA: formatCurrency(payroll.Bonus), dL: "Advances / Globe", dH: "", dA: formatCurrency(parseFloat(payroll.advances_Amnt || 0) + parseFloat(payroll.globe_Deduction || 0)) },
+      { eL: "Others", eH: "", eA: formatCurrency(payroll.Other_Earnings), dL: "MP Savings / Others", dH: "", dA: formatCurrency(parseFloat(payroll.multiPurposeSavings || 0)) },
     ];
 
     doc.font("Helvetica").fontSize(8.5);

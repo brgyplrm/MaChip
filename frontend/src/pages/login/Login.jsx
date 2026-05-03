@@ -88,6 +88,7 @@ const Login = () => {
           if (data.data.user_RoleId === 3) {
             navigate("/employeeHome");
           } else {
+            // Admin (1) or Supervisor (2)
             navigate("/");
           }
         }, 1200);

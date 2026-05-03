@@ -182,6 +182,119 @@ $primary-purple: #2A174E;
           }
         }
       }
+
+      .summaryPreviewOverlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        pointer-events: auto;
+
+        .summaryPreviewModal {
+          background: white;
+          width: 95%;
+          height: 95%;
+          border-radius: 12px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+
+          .modalHeader {
+            padding: 15px 25px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8f9fa;
+            z-index: 10;
+
+            h2 {
+              font-size: 18px;
+              color: $primary-purple;
+              margin: 0;
+            }
+
+            .headerBtns {
+              display: flex;
+              gap: 15px;
+
+              button {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-weight: 600;
+                cursor: pointer !important;
+                border: none;
+                transition: all 0.2s;
+                pointer-events: auto;
+
+                &.exportBtn {
+                  background: #166534;
+                  color: white;
+                  &:hover { background: #14532d; }
+                }
+
+                &.closeBtn {
+                  background: #eee;
+                  color: #666;
+                  &:hover { background: #ddd; }
+                }
+              }
+            }
+          }
+
+          .modalBody {
+            flex: 1;
+            background: #525659; 
+            padding: 20px;
+            overflow: auto;
+
+            iframe {
+              box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+              background: white;
+            }
+          }
+        }
+      }
     }
   }
+}
+
+.actionBtn.previewBtn {
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd !important;
+  &:hover { background: #e0f2fe; }
+  &.disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.actionBtn.downloadBtn {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0 !important;
+  &:hover { background: #dcfce7; }
+  &.disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.actionBtn.processBtn {
+  background: $primary-purple;
+  color: white;
+  &:hover { background: #3d2271; }
+  &.disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.actionBtn.refreshBtn {
+  background: white;
+  border: 1px solid #ddd !important;
+  color: #666;
+  &:hover { background: #f9f9f9; }
 }

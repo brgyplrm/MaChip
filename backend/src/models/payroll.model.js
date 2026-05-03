@@ -68,6 +68,7 @@ module.exports = (sequelize, DataTypes) => {
       restDay_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       specialHol_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       legalHol_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
+      specialHol_Adj: { type: DataTypes.FLOAT, defaultValue: 0 },
       incentives: { type: DataTypes.FLOAT, defaultValue: 0 },
       allowance: { type: DataTypes.FLOAT, defaultValue: 0 },
     },
@@ -90,8 +91,71 @@ module.exports = (sequelize, DataTypes) => {
       unpaidLeave_Days: { type: DataTypes.FLOAT, defaultValue: 0 },
       unpaidLeave_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       paidLeave_Days: { type: DataTypes.FLOAT, defaultValue: 0 },
+      SSS_Ded: { type: DataTypes.FLOAT, defaultValue: 0 },
+      Philhealth_Ded: { type: DataTypes.FLOAT, defaultValue: 0 },
+      HDMF_Ded: { type: DataTypes.FLOAT, defaultValue: 0 },
+      Tax_Ded: { type: DataTypes.FLOAT, defaultValue: 0 },
+      healthCard_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
+      SSS_Loan: { type: DataTypes.FLOAT, defaultValue: 0 },
+      HDMF_Loan: { type: DataTypes.FLOAT, defaultValue: 0 },
+      calamityLoan_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
+      multiPurposeSavings: { type: DataTypes.FLOAT, defaultValue: 0 },
+      advances_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
+      globe_Deduction: { type: DataTypes.FLOAT, defaultValue: 0 },
     },
     { timestamps: false, freezeTableName: true },
+  );
+
+  const Payroll_maxicare = sequelize.define(
+    "Payroll_maxicare",
+    {
+      maxicare_Id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      user_Id: { 
+        type: DataTypes.SMALLINT, 
+        allowNull: false,
+        unique: 'user_month_unique'
+      },
+      max_Month: { 
+        type: DataTypes.DATEONLY, 
+        allowNull: false,
+        unique: 'user_month_unique'
+      },
+      amount: { type: DataTypes.FLOAT, defaultValue: 0 },
+      maxi_status: {
+        type: DataTypes.ENUM("paid", "estimated"),
+        defaultValue: "estimated",
+      },
+    },
+    { timestamps: true, freezeTableName: true },
+  );
+
+  const Payroll_Cash_Advances = sequelize.define(
+    "Payroll_Cash_Advances",
+    {
+      caId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      user_Id: { 
+        type: DataTypes.SMALLINT, 
+        allowNull: false,
+        unique: 'user_ca_date_unique'
+      },
+      date: { 
+        type: DataTypes.DATEONLY, 
+        allowNull: false,
+        unique: 'user_ca_date_unique'
+      },
+      amount: { type: DataTypes.FLOAT, defaultValue: 0 },
+      payrollId: { type: DataTypes.INTEGER, allowNull: true },
+      notes: { type: DataTypes.TEXT, allowNull: true },
+    },
+    { timestamps: true, freezeTableName: true },
   );
 
   // Relationships
@@ -104,11 +168,11 @@ module.exports = (sequelize, DataTypes) => {
   Payroll_Earnings.belongsTo(Payroll, { foreignKey: "payrollId" });
   Payroll_Deductions.belongsTo(Payroll, { foreignKey: "payrollId" });
   
-  Payroll.belongsTo(PayrollPeriod, { foreignKey: "periodId" });
-  PayrollPeriod.hasMany(Payroll, { foreignKey: "periodId" });
-  
   Payroll.belongsTo(Payroll_status, { foreignKey: "status", targetKey: "PaystatusId", as: "payrollStatus" });
   Payroll_status.hasMany(Payroll, { foreignKey: "status", sourceKey: "PaystatusId" });
 
-  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod };
+  Payroll.hasMany(Payroll_Cash_Advances, { foreignKey: "payrollId" });
+  Payroll_Cash_Advances.belongsTo(Payroll, { foreignKey: "payrollId" });
+
+  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances };
 };

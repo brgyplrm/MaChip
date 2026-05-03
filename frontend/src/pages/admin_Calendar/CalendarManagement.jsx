@@ -120,6 +120,7 @@ const CalendarManagement = () => {
   const handleFieldWorkClick = (fieldWork) => {
     setSelectedFieldLog(fieldWork);
   };
+  const [holidayListHeader, setHolidayListHeader] = useState("Upcoming Holidays");
 
   const [fieldWorkForm, setFieldWorkForm] = useState({
     userId: "",
@@ -129,7 +130,7 @@ const CalendarManagement = () => {
   });
 
   const [holidayForm, setHolidayForm] = useState({
-    id: "",
+    id: null,
     name: "",
     date: "",
     type: "Regular Holiday"
@@ -253,8 +254,160 @@ const CalendarManagement = () => {
     fetchEmployees();
   }, [currentDate]);
 
+  const handleDayClick = (day) => {
+    const dayEvents = getEventsForDay(day);
+    const dateObj = new Date(year, monthIndex, day);
+    const formattedDate = dateObj.toLocaleDateString(undefined, { 
+      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+    });
+
+    setSelectedDayDetails({
+      date: formattedDate,
+      events: dayEvents
+    });
+  };
+
+  const handleHolidayClick = (holiday) => {
+    const matchingWork = events.filter(e => 
+      e.type === "Field Work" && 
+      e.date.split('T')[0] === holiday.date.split('T')[0]
+    );
+
+    if (matchingWork.length > 0) {
+      setSelectedHolidayWork({ holiday, matchingWork });
+    } else {
+      setViewingHoliday(holiday);
+    }
+  };
+
+  const handleFieldWorkClick = (fieldWork) => {
+    setSelectedFieldLog(fieldWork);
+  };
+
+  const initiateDelete = (id, type) => {
+    setItemToDelete({ id, type });
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    const { id, type } = itemToDelete;
+    const endpoint = type === 'Holiday' ? `/api/system/holidays/${id}` : `/api/request/delete/${id}`;
+
+    try {
+      const response = await fetchWithAuth(endpoint, { method: "DELETE" });
+      if (response.ok) {
+        setEvents(prev => prev.filter((item) => item.id !== id || item.type !== type));
+        setToast({ message: `${type} deleted successfully.`, type: "success" });
+        fetchCalendarEvents();
+      }
+    } catch (err) {
+      setToast({ message: "Could not connect to server.", type: "error" });
+    } finally {
+      setShowDeleteModal(false);
+      setItemToDelete(null);
+    }
+  };
+
+  const handleHolidaySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const isEdit = !!holidayForm.id;
+      const endpoint = isEdit ? `/api/system/holidays/${holidayForm.id}` : "/api/system/holidays";
+      const method = isEdit ? "PUT" : "POST";
+
+      const response = await fetchWithAuth(endpoint, {
+        method: method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: holidayForm.name,
+          date: holidayForm.date,
+          type: holidayForm.type
+        }),
+      });
+      if (response.ok) {
+        setToast({ message: `Holiday ${isEdit ? 'updated' : 'added'} successfully!`, type: "success" });
+        setModalType(null);
+        fetchCalendarEvents();
+      }
+    } catch (error) {
+      setToast({ message: "Connection error.", type: "error" });
+    }
+  };
+
+  const handleFieldWorkSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetchWithAuth("/api/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_Id: fieldWorkForm.userId,
+          emp_reqTypeId: 2,
+          emp_reqStatusId: 2,
+          DateonField: fieldWorkForm.date,
+          NoHrs: fieldWorkForm.hours,
+          destination: fieldWorkForm.location,
+          NoDays: 1,
+          purpose: "Admin Assigned Field Work"
+        }),
+      });
+      if (response.ok) {
+        setToast({ message: "Field work assigned successfully!", type: "success" });
+        setModalType(null);
+        fetchCalendarEvents();
+      }
+    } catch (error) {
+      setToast({ message: "Connection error.", type: "error" });
+    }
+  };
+
+  // --- Helper Functions ---
   const changeMonth = (offset) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
+  };
+
+  const getEventsForDay = (day) => {
+    const targetDateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return events.filter(e => {
+      if (!e.date) return false;
+      const startDateStr = e.date.split('T')[0];
+      if (!e.endDate) return startDateStr === targetDateStr;
+      const endDateStr = e.endDate.split('T')[0];
+      return targetDateStr >= startDateStr && targetDateStr <= endDateStr;
+    });
+  };
+
+  const getUpcomingHolidays = () => {
+    return events
+      .filter(h => h.type === "Holiday")
+      .sort((a, b) => a.date.localeCompare(b.date));
+  };
+
+  const handleHolidayScroll = (e) => {
+    const container = e.target;
+    const todayStr = systemToday.toISOString().split('T')[0];
+    
+    const items = container.getElementsByClassName('listItem');
+    let firstVisibleIndex = -1;
+    for (let i = 0; i < items.length; i++) {
+        const rect = items[i].getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        if (rect.top >= containerRect.top) {
+            firstVisibleIndex = i;
+            break;
+        }
+    }
+
+    if (firstVisibleIndex !== -1) {
+        const allHolidays = getUpcomingHolidays();
+        const visibleHoliday = allHolidays[firstVisibleIndex];
+        if (visibleHoliday.date < todayStr) {
+            setHolidayListHeader("Past Holidays");
+        } else {
+            setHolidayListHeader("Upcoming Holidays");
+        }
+    }
   };
 
   const daysInMonth = new Date(year, currentDate.getMonth() + 1, 0).getDate();
@@ -263,11 +416,35 @@ const CalendarManagement = () => {
   const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
 
   const getUpcomingHolidays = () => {
-    const todayStr = systemToday.toISOString().split('T')[0];
     return events
-      .filter(h => h.type === "Holiday" && h.date >= todayStr)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(0, 5);
+      .filter(h => h.type === "Holiday")
+      .sort((a, b) => a.date.localeCompare(b.date));
+  };
+
+  const handleHolidayScroll = (e) => {
+    const container = e.target;
+    const todayStr = systemToday.toISOString().split('T')[0];
+    
+    const items = container.getElementsByClassName('listItem');
+    let firstVisibleIndex = -1;
+    for (let i = 0; i < items.length; i++) {
+        const rect = items[i].getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        if (rect.top >= containerRect.top) {
+            firstVisibleIndex = i;
+            break;
+        }
+    }
+
+    if (firstVisibleIndex !== -1) {
+        const allHolidays = getUpcomingHolidays();
+        const visibleHoliday = allHolidays[firstVisibleIndex];
+        if (visibleHoliday.date < todayStr) {
+            setHolidayListHeader("Past Holidays");
+        } else {
+            setHolidayListHeader("Upcoming Holidays");
+        }
+    }
   };
 
   return (
@@ -290,7 +467,10 @@ const CalendarManagement = () => {
                 className="w-full sm:w-[170px] bg-[#2A174E] hover:bg-[#1a0e30] text-white"
                 onClick={() => {
                   setHolidayForm({ id: "", name: "", date: "", type: "Regular Holiday" });
+                  {
+                  setHolidayForm({ id: null, name: "", date: "", type: "Regular Holiday" });
                   setModalType('addHoliday');
+                };
                 }}
               >
                 <AddIcon className="mr-1 scale-75" /> Add Holiday
@@ -422,53 +602,40 @@ const CalendarManagement = () => {
               </Card>
             </div>
 
-            {/* Right Tables Column */}
-            <div className="lg:col-span-4 flex flex-col gap-6 w-full">
-              
-              {/* Holidays List Card */}
-              <Card className="shadow-sm border-0 bg-white">
-                <CardHeader className="py-0">
-                  <CardTitle className="text-lg text-[#2A174E]">Upcoming Holidays</CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 pb-4">
-                  <div className="max-h-[250px] overflow-y-auto pr-2 space-y-2">
-                    {getUpcomingHolidays().length > 0 ? getUpcomingHolidays().map((holiday, idx) => {
-                      const isSpecial = holiday.type?.toLowerCase().includes("special");
-                      const accentColor = isSpecial ? "border-l-purple-500" : "border-l-red-500";
-                      
-                      return (
-                        <div 
-                          className={`group cursor-pointer transition-all flex flex-col sm:flex-row justify-between sm:items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 mb-2 border border-l-4 ${accentColor} py-4`} 
-                          key={idx} 
-                          onClick={() => handleHolidayClick(holiday)}
-                        >
-                          <div>
-                            <p className="font-semibold text-sm text-slate-800">{holiday.name}</p>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(holiday.date).toLocaleDateString()} • {holiday.type}
-                            </span>
-                          </div>
-                          {isAdmin && (
-                            <div className="flex gap-2 mt-2 sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-[#2A174E]" onClick={(e) => { e.stopPropagation(); handleOpenEditHoliday(holiday); }}>
-                                <EditIcon className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-red-500 hover:bg-red-50" onClick={(e) => {
-                                  e.stopPropagation();
-                                  initiateDelete(holiday.id, 'Holiday');
-                                }}>
-                                <DeleteIcon className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }) : (
-                      <p className="text-center text-sm text-muted-foreground py-4">No upcoming holidays</p>
+            <div className="rightTablesColumn">
+               {/* Holidays List Card */}
+            <div className="detailCard">
+                <div className="cardHeader">
+                <h3>Upcoming Holidays</h3>
+                </div>
+                <div className="listWrapper">
+                {getUpcomingHolidays().length > 0 ? getUpcomingHolidays().map((holiday, idx) => (
+                    <div className="listItem clickable" key={idx} onClick={() => handleHolidayClick(holiday)}>
+                    <div className="info">
+                        <p className="name">{holiday.name}</p>
+                        <span className="subtext">
+                          {new Date(holiday.date).toLocaleDateString()} • {holiday.type}
+                        </span>
+                    </div>
+                    {isAdmin && (
+                      <div className="icons">
+                          <EditIcon className="edit" onClick={() => setModalType('editHoliday')} />
+                          <button 
+                              className="deleteBtn" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                initiateDelete(holiday.id, 'Holiday');
+                              }}
+                              > <DeleteIcon className="delete" />
+                          </button>
+                      </div>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
+                    </div>
+                )) : (
+                  <p style={{ textAlign: 'center', color: '#777', padding: '20px' }}>No upcoming holidays</p>
+                )}
+                </div>
+            </div>
 
               {/* Field Work List Card */}
               <Card className="shadow-sm border-0 bg-white">

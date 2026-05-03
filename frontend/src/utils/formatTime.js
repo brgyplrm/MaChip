@@ -19,3 +19,44 @@ export const formatTime12h = (timeStr) => {
     return timeStr;
   }
 };
+
+/**
+ * Formats a Date object to YYYY-MM-DD string in local time.
+ * Avoids timezone shifts common with toISOString().
+ * @param {Date|string} date - Date object or date string
+ * @returns {string} Formatted date string (YYYY-MM-DD)
+ */
+export const formatDateLocal = (date) => {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Checks if two dates fall within the same payroll period.
+ * Periods are defined as: 1-15 and 16-EOF.
+ * @param {Date|string} d1 - First date
+ * @param {Date|string} d2 - Second date
+ * @returns {boolean} True if in same period, month, and year
+ */
+export const isInSamePeriod = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  const date1 = new Date(d1);
+  const date2 = new Date(d2);
+  
+  if (isNaN(date1.getTime()) || isNaN(date2.getTime())) return false;
+  
+  if (date1.getFullYear() !== date2.getFullYear()) return false;
+  if (date1.getMonth() !== date2.getMonth()) return false;
+  
+  const isFirstPeriod = (d) => d.getDate() <= 15;
+  return isFirstPeriod(date1) === isFirstPeriod(date2);
+};
+
+

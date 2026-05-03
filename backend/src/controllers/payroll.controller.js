@@ -181,7 +181,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
       continue;
     }
 
-    // ── Handle Non-Holiday Scheduled Days ────────────────────────────────
+    // Handle Non-Holiday Scheduled Days
     const [y, m, d] = dateStr.split("-").map(Number);
     const dateObj = new Date(Date.UTC(y, m - 1, d));
     const isSunday = dateObj.getUTCDay() === 0;
@@ -193,15 +193,23 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
       continue;
     }
 
-    // Rule #1: Absence logic for normal days (not worked, not holiday, not leave)
-    const isAfterCutoff = now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 30);
-    if (!isFuture && (!isToday || isAfterCutoff)) {
-      absence_Days++;
+    // Rule #1: Absence logic for normal days
+    if (!isFuture) {
+      // If already explicitly marked as Absent in logs, count it regardless of time
+      if (isAbsentStatus) {
+        absence_Days++;
+      } 
+      // If no logs at all, count as absent only if it's a past day OR if today is past the shift cutoff
+      else if (!log) {
+        const isAfterCutoff = now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 30);
+        if (!isToday || isAfterCutoff) {
+          absence_Days++;
+        }
+      }
     }
   }
 
   // 6. Get approved OT and verify presence
-  // ... (keeping OT logic)
   const overtimeRequests = await sequelize.query(
     `SELECT ot.* FROM "Overtime_Request" ot
      JOIN "emp_Request" er ON er."emp_reqId" = ot."emp_reqId"
@@ -260,37 +268,110 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
 async function calculatePayrollStats(user_Id, period_Start, period_End, customDailyRate = null) {
   const stats = await computePeriodStats(user_Id, period_Start, period_End);
   
-  // Get user's current daily rate if not provided
+  // Get user's current daily rate and gov't shares if not provided
   let dailyRate = customDailyRate;
-  if (dailyRate === null) {
-    const user = await sequelize.query(
-      `SELECT "dailyRate" FROM "User" WHERE "user_Id" = :user_Id`,
-      { replacements: { user_Id }, type: QueryTypes.SELECT }
-    );
-    dailyRate = user[0]?.dailyRate || 0;
+  let sss_Share = 0, philhealth_Share = 0, hdmf_Share = 0, tax_Share = 0;
+  let hCard = 0, sLoan = 0, hLoan = 0, cLoan = 0, advAmnt = 0, gDed = 0, mpSave = 0;
+  
+  const user = await sequelize.query(
+    `SELECT "dailyRate", "sss_Share", "philhealth_Share", "hdmf_Share", "tax_Share",
+            "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
+            "advances_Amnt", "globe_Deduction", "multiPurposeSavings"
+     FROM "User" WHERE "user_Id" = :user_Id`,
+    { replacements: { user_Id }, type: QueryTypes.SELECT }
+  );
+
+  if (dailyRate === null) dailyRate = user[0]?.dailyRate || 0;
+  sss_Share = user[0]?.sss_Share || 0;
+  philhealth_Share = user[0]?.philhealth_Share || 0;
+  hdmf_Share = user[0]?.hdmf_Share || 0;
+  tax_Share = user[0]?.tax_Share || 0;
+  
+  hCard = user[0]?.healthCard_Amnt || 0;
+
+  // ── Cash Advance Override Check ─────────────────────────────────────────────
+  try {
+   const caRecord = await sequelize.query(
+     `SELECT "amount" FROM "Payroll_Cash_Advances"
+      WHERE "user_Id" = :user_Id AND "date" = :period_End LIMIT 1`,
+     { replacements: { user_Id, period_End }, type: QueryTypes.SELECT }
+   );
+   if (caRecord.length > 0) {
+     advAmnt = caRecord[0].amount;
+   } else {
+     advAmnt = user[0]?.advances_Amnt || 0;
+   }
+  } catch (err) {
+   advAmnt = user[0]?.advances_Amnt || 0;
   }
+
+  // ── Maxicare Override Check ─────────────────────────────────────────────────
+  try {
+    const maxicareRecord = await sequelize.query(
+      `SELECT "amount" FROM "Payroll_maxicare" 
+       WHERE "user_Id" = :user_Id AND "max_Month" = :period_End LIMIT 1`,
+      { replacements: { user_Id, period_End }, type: QueryTypes.SELECT }
+    );
+    if (maxicareRecord.length > 0) {
+      hCard = maxicareRecord[0].amount;
+    } else {
+      // ── Maxicare Schedule Check (Fallback) ──────────────────────────────────
+      const settings = await sequelize.query(
+        `SELECT "maxicareDates" FROM "SystemSettings" LIMIT 1`,
+        { type: QueryTypes.SELECT }
+      );
+      if (settings.length > 0 && settings[0].maxicareDates) {
+        const schedule = settings[0].maxicareDates;
+        const periodEndStr = typeof period_End === 'string' ? period_End : period_End.toISOString().split('T')[0];
+        const isScheduled = schedule.some(d => {
+          const d1 = new Date(d).toISOString().split('T')[0];
+          const d2 = new Date(periodEndStr).toISOString().split('T')[0];
+          return d1 === d2;
+        });
+        if (!isScheduled) hCard = 0;
+      }
+    }
+  } catch (err) {
+    console.error("[MAXICARE CHECK ERROR]:", err.message);
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
+  sLoan = user[0]?.SSS_Loan || 0;
+  hLoan = user[0]?.HDMF_Loan || 0;
+  cLoan = user[0]?.calamityLoan_Amnt || 0;
+  gDed = user[0]?.globe_Deduction || 0;
+  mpSave = user[0]?.multiPurposeSavings || 0;
 
   const ratePerHr = dailyRate / WORK_HRS_PER_DAY;
   const ratePerMin = ratePerHr / 60;
 
-  // 1. Basic Pay (Top-down: Full scheduled period)
+  // 1. Basic Pay
   const basicPay = stats.totalScheduledDays * dailyRate;
 
-  // 2. Holiday Premiums (Extra pay)
+  // 2. Holiday Premiums
   const legalHol_Amnt = (stats.legalHol_Days * dailyRate);
   const specialHol_Amnt = (stats.specialHol_Days * dailyRate * 0.25);
 
-  // 3. Other Earnings (HOURLY RATE X 1.25 X HRS OVERTIME)
+  // 3. OT
   const OT_Amnt = stats.OT_Hrs * ratePerHr * 1.25;
   
-  // 4. Deductions
+  // 4. Attendance Deductions
   const absence_Amnt = stats.absence_Days * dailyRate;
   const tardiness_Amnt = stats.tardiness_Mins * ratePerMin;
   const unpaidLeave_Amnt = stats.unpaidLeave_Days * dailyRate;
-  const specialHol_Ded = stats.specialHol_NotWorked * dailyRate;
+  const specialHol_Adj = stats.specialHol_NotWorked * dailyRate;
 
-  const totalEarnings = basicPay + legalHol_Amnt + specialHol_Amnt + OT_Amnt;
-  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + specialHol_Ded;
+  // 5. Government Deductions (Standard Shares)
+  const govtTotal = parseFloat(sss_Share) + parseFloat(philhealth_Share) + parseFloat(hdmf_Share);
+  
+  // 6. Other Deductions
+  const otherTotal = parseFloat(hCard) + parseFloat(sLoan) + parseFloat(hLoan) + parseFloat(cLoan) + parseFloat(advAmnt) + parseFloat(gDed) + parseFloat(mpSave);
+
+  const totalEarnings = basicPay + legalHol_Amnt + specialHol_Amnt + OT_Amnt - specialHol_Adj;
+  // Tax is now pulled from user template
+  const Tax_Ded = parseFloat(tax_Share) || 0; 
+
+  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded;
   const netPay = totalEarnings - totalDeductions;
 
   return {
@@ -300,10 +381,22 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     basicPay,
     legalHol_Amnt,
     specialHol_Amnt,
+    specialHol_Adj,
     OT_Amnt,
     absence_Amnt,
     tardiness_Amnt,
     unpaidLeave_Amnt,
+    SSS_Ded: sss_Share,
+    Philhealth_Ded: philhealth_Share,
+    HDMF_Ded: hdmf_Share,
+    healthCard_Amnt: hCard,
+    SSS_Loan: sLoan,
+    HDMF_Loan: hLoan,
+    calamityLoan_Amnt: cLoan,
+    advances_Amnt: advAmnt,
+    globe_Deduction: gDed,
+    multiPurposeSavings: mpSave,
+    Tax_Ded,
     totalEarnings,
     totalDeductions,
     netPay
@@ -320,112 +413,6 @@ exports.getPayrollPreview = async (req, res) => {
   try {
     const fullStats = await calculatePayrollStats(user_Id, period_Start, period_End);
     res.status(200).json(fullStats);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// ── Generate Payroll ──────────────────────────────────────────────────────────
-exports.generatePayroll = async (req, res) => {
-  const { 
-    user_Id, period_Start, period_End, dailyRate, ratePerHr,
-    // Allow frontend to send manual values
-    NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDeductions, netPay,
-    OT_Hrs, OT_Amnt, absence_Amnt, tardiness_Amnt, unpaidLeave_Amnt,
-    absence_Days, paidLeave_Days, unpaidLeave_Days, tardiness_Mins,
-    legalHol_Amnt, specialHol_Amnt
-  } = req.body;
-
-  if (!user_Id || !period_Start || !period_End || !ratePerHr) {
-    return res.status(400).json({ error: "user_Id, period_Start, period_End, ratePerHr are required." });
-  }
-
-  try {
-    const now = await getSystemTime();
-    const nowStr = formatForSQL(now);
-
-    const periodRow = await sequelize.query(
-        `SELECT "periodId" FROM "PayrollPeriod" 
-         WHERE "startDate" = :period_Start AND "endDate" = :period_End LIMIT 1`,
-        { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
-      );
-    const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
-
-    let finalStats = { 
-        NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDeductions, netPay,
-        OT_Hrs, OT_Amnt, absence_Amnt, tardiness_Amnt, unpaidLeave_Amnt,
-        absence_Days, paidLeave_Days, unpaidLeave_Days, tardiness_Mins,
-        legalHol_Amnt, specialHol_Amnt
-    };
-
-    if (NoDays_Worked === undefined) {
-        finalStats = await calculatePayrollStats(user_Id, period_Start, period_End, dailyRate);
-    }
-
-    const payrollResult = await sequelize.query(
-      `INSERT INTO "Payroll"
-        ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
-         "dailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
-         "holidaysTotal", "holidaysRegularWorked", "holidaysSpecialWorked",
-         "status", "createdAt", "updatedAt")
-       VALUES
-        (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
-         :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDeductions, :netPay,
-         :holidaysTotal, :holidaysRegularWorked, :holidaysSpecialWorked,
-         1, :now, :now)
-       RETURNING *`,
-      {
-        replacements: {
-          user_Id, periodId, period_Start, period_End, 
-          NoDays_Worked: finalStats.NoDays_Worked, NoHrs_Worked: finalStats.NoHrs_Worked,
-          dailyRate: dailyRate || 0, ratePerHr,
-          basicPay: finalStats.basicPay, totalEarnings: finalStats.totalEarnings, 
-          totalDeductions: finalStats.totalDeductions, netPay: finalStats.netPay,
-          holidaysTotal: finalStats.holidaysTotal || 0,
-          holidaysRegularWorked: finalStats.holidaysRegularWorked || 0,
-          holidaysSpecialWorked: finalStats.holidaysSpecialWorked || 0,
-          now: nowStr
-        },
-        type: QueryTypes.INSERT,
-      },
-    );
-
-    const payrollId = payrollResult[0][0]?.payrollId || payrollResult[0].payrollId || payrollResult[0][0];
-
-    // Log individual transaction
-    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(user_Id, currentAdminId, "PAYROLL_GEN", `Generated payroll for period ${period_Start} to ${period_End}`, { netPay: finalStats.netPay, payrollId }, req);
-
-    await sequelize.query(
-      `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt")
-       VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt)`,
-      { replacements: { 
-          payrollId, user_Id, 
-          OT_Hrs: finalStats.OT_Hrs, OT_Amnt: finalStats.OT_Amnt,
-          legalHol_Amnt: finalStats.legalHol_Amnt, specialHol_Amnt: finalStats.specialHol_Amnt 
-        }, type: QueryTypes.INSERT }
-    );
-
-    await sequelize.query(
-      `INSERT INTO "Payroll_Deductions"
-        ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days")
-       VALUES
-        (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days)`,
-      {
-        replacements: {
-          payrollId,
-          absence_Hrs: (finalStats.absence_Days) * WORK_HRS_PER_DAY,
-          absence_Amnt: finalStats.absence_Amnt,
-          tardiness_Mins: finalStats.tardiness_Mins,
-          tardiness_Amnt: finalStats.tardiness_Amnt,
-          unpaidLeave_Days: finalStats.unpaidLeave_Days,
-          unpaidLeave_Amnt: finalStats.unpaidLeave_Amnt,
-          paidLeave_Days: finalStats.paidLeave_Days
-        },
-        type: QueryTypes.INSERT,
-      }
-    );
-    return res.status(201).json({ message: "Payroll generated successfully." });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -450,8 +437,10 @@ exports.generateBatchPayroll = async (req, res) => {
     const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
 
     const employees = await sequelize.query(
-      `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email", "dailyRate" FROM "User" 
-        WHERE "deletedAt" IS NULL AND "dailyRate" > 0`, 
+      `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email", "dailyRate", 
+              "sss_Share", "philhealth_Share", "hdmf_Share" 
+       FROM "User" 
+       WHERE "deletedAt" IS NULL AND "dailyRate" > 0`, 
       { type: QueryTypes.SELECT }
     );
 
@@ -481,7 +470,7 @@ exports.generateBatchPayroll = async (req, res) => {
            "status", "createdAt", "updatedAt")
          VALUES
           (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
-           :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDeductions, :netPay,
+           :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
            :holidaysTotal, :holidaysRegularWorked, :holidaysSpecialWorked,
            2, :now, :now)
          RETURNING "payrollId"`,
@@ -491,7 +480,7 @@ exports.generateBatchPayroll = async (req, res) => {
             NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
             dailyRate: fullStats.dailyRate, ratePerHr: fullStats.ratePerHr,
             basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
-            totalDeductions: fullStats.totalDeductions, netPay: fullStats.netPay,
+            totalDed: fullStats.totalDeductions, netPay: fullStats.netPay,
             holidaysTotal: fullStats.holidaysTotal || 0,
             holidaysRegularWorked: fullStats.legalHol_Days || 0,
             holidaysSpecialWorked: fullStats.specialHol_Days || 0,
@@ -501,92 +490,70 @@ exports.generateBatchPayroll = async (req, res) => {
         }
       );
 
-      let payrollId = payrollResult[0][0]?.payrollId || payrollResult[0].payrollId || payrollResult[0][0];
+      const payrollId = payrollResult[0][0].payrollId;
 
       await sequelize.query(
-        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt")
-         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt)`,
+        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
+         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
         { replacements: { 
             payrollId, user_Id: emp.user_Id, 
-            OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt, 
-            legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt 
+            OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
+            legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt,
+            specialHol_Adj: fullStats.specialHol_Adj
           }, type: QueryTypes.INSERT }
       );
 
       await sequelize.query(
         `INSERT INTO "Payroll_Deductions"
-          ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days")
+          ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", 
+           "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days",
+           "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
+           "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
+           "multiPurposeSavings", "advances_Amnt", "globe_Deduction")
          VALUES
-          (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days)`,
+          (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
+           :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
+           :sss, :ph, :hd, :tax,
+           :hc, :sl, :hl, :cl, :ms, :aa, :gd)`,
         {
           replacements: {
             payrollId,
-            absence_Hrs: fullStats.absence_Days * WORK_HRS_PER_DAY,
+            absence_Hrs: (fullStats.absence_Days) * 8,
             absence_Amnt: fullStats.absence_Amnt,
             tardiness_Mins: fullStats.tardiness_Mins,
             tardiness_Amnt: fullStats.tardiness_Amnt,
             unpaidLeave_Days: fullStats.unpaidLeave_Days,
             unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
-            paidLeave_Days: fullStats.paidLeave_Days
+            paidLeave_Days: fullStats.paidLeave_Days,
+            sss: fullStats.SSS_Ded,
+            ph: fullStats.Philhealth_Ded,
+            hd: fullStats.HDMF_Ded,
+            tax: fullStats.Tax_Ded,
+            hc: fullStats.healthCard_Amnt,
+            sl: fullStats.SSS_Loan,
+            hl: fullStats.HDMF_Loan,
+            cl: fullStats.calamityLoan_Amnt,
+            ms: fullStats.multiPurposeSavings,
+            aa: fullStats.advances_Amnt,
+            gd: fullStats.globe_Deduction
           },
-          type: QueryTypes.INSERT
+          type: QueryTypes.INSERT,
         }
       );
 
-      // ── Email: Payslip + DTR ──────────────────────────────────────────────
-      if (emp.user_Email) {
-        const payslipData = {
-          ...fullStats,
-          user_FirstName: emp.user_FirstName,
-          user_LastName:  emp.user_LastName,
-          payrollId,
-          period_Start,
-          period_End,
-        };
-
-        // Build a file-name-safe period label e.g. "March01-15_2026"
-        const [pStart, pEnd] = [new Date(period_Start + "T00:00:00"), new Date(period_End + "T00:00:00")];
-        const monthName = pStart.toLocaleString("en-PH", { month: "long" });
-        const periodTag = `${monthName}${String(pStart.getDate()).padStart(2,"0")}-${String(pEnd.getDate()).padStart(2,"0")}_${pStart.getFullYear()}`;
-
-        // Fetch attendance rows for this employee's DTR
-        const dtrRows = await getAttendanceReportInternal(period_Start, period_End, emp.user_Id);
-
-        Promise.all([
-          generatePayslipPDF(payslipData),
-          generateDTRPDF({
-            employee:     { user_Id: emp.user_Id, user_FirstName: emp.user_FirstName, user_LastName: emp.user_LastName },
-            dtrData:      dtrRows,
-            period_Start,
-            period_End,
-            netPay:       fullStats.netPay,
-          }),
-        ])
-          .then(([payslipBuffer, dtrBuffer]) =>
-            sendPayrollEmail({
-              email:  emp.user_Email,
-              name:   `${emp.user_FirstName} ${emp.user_LastName}`,
-              period: `${period_Start} to ${period_End}`,
-              netPay: fullStats.netPay,
-              attachments: [
-                {
-                  filename: `${emp.user_LastName}_${emp.user_FirstName}_${periodTag}_Payslip.pdf`,
-                  content:  payslipBuffer,
-                },
-                {
-                  filename: `${emp.user_LastName}_${emp.user_FirstName}_${periodTag}_DTR.pdf`,
-                  content:  dtrBuffer,
-                },
-              ],
-            })
-          )
-          .catch((err) =>
-            console.error(`[BATCH EMAIL FAILED] user ${emp.user_Id}:`, err.message)
-          );
+      // ── Auto-record to Maxicare Table ─────────────────────────────────────
+      if (fullStats.healthCard_Amnt > 0) {
+        await sequelize.query(
+          `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
+           VALUES (:user_Id, :date, :amount, 'paid', :now, :now)
+           ON CONFLICT ("user_Id", "max_Month") DO UPDATE
+           SET "amount" = EXCLUDED."amount", "maxi_status" = 'paid', "updatedAt" = EXCLUDED."updatedAt"`,
+          { replacements: { user_Id: emp.user_Id, date: period_End, amount: fullStats.healthCard_Amnt, now: nowStr }, type: QueryTypes.INSERT }
+        );
       }
+      // ──────────────────────────────────────────────────────────────────────
 
-      processedCount++;
-    }
+      processedCount++;    }
 
     if (periodId) {
       await sequelize.query(
@@ -595,65 +562,307 @@ exports.generateBatchPayroll = async (req, res) => {
       );
     }
 
-    // Log the Batch Action
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logTransaction(null, currentAdminId, "BATCH_PAYROLL_GEN", `Generated batch payroll for period ${period_Start} to ${period_End}`, { processedCount, periodId }, req);
 
-    res.status(201).json({ 
-      message: "Batch payroll generated successfully.",
-      processed: processedCount,
-      skipped: skippedCount
-    });
+    res.status(201).json({ message: "Batch payroll generated successfully.", processed: processedCount, skipped: skippedCount });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+// ── Recalculate Payroll (Internal) ───────────────────────────────────────────
+/**
+ * Forces a recalculation of an existing payroll record's stats.
+ * Used when attendance logs are updated/auto-marked as absent.
+ */
+async function recalculatePayrollInternal(payrollId) {
+  try {
+    const payroll = await sequelize.query(
+      `SELECT * FROM "Payroll" WHERE "payrollId" = :payrollId`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+    if (!payroll[0]) return;
 
-// ── Get Eligible Employees Count ─────────────────────────────────────────────
-exports.getEligibleEmployeesCount = async (req, res) => {
-  const { period_Start, period_End } = req.query;
+    const { user_Id, period_Start, period_End } = payroll[0];
+    const fullStats = await calculatePayrollStats(user_Id, period_Start, period_End);
 
-  if (!period_Start || !period_End) {
-    return res.status(400).json({ error: "period_Start and period_End are required." });
+    // Update Earning Adjustments
+    await sequelize.query(
+      `UPDATE "Payroll_Earnings" 
+       SET "OT_Hrs" = :OT_Hrs, "OT_Amnt" = :OT_Amnt,
+           "legalHol_Amnt" = :legalHol_Amnt, "specialHol_Amnt" = :specialHol_Amnt,
+           "specialHol_Adj" = :specialHol_Adj
+       WHERE "payrollId" = :payrollId`,
+      { replacements: { 
+          payrollId, 
+          OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
+          legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt,
+          specialHol_Adj: fullStats.specialHol_Adj
+        }, type: QueryTypes.UPDATE }
+    );
+
+    // Update Deductions
+    await sequelize.query(
+      `UPDATE "Payroll_Deductions"
+       SET "absence_Hrs" = :absence_Hrs, "absence_Amnt" = :absence_Amnt,
+           "tardiness_Mins" = :tardiness_Mins, "tardiness_Amnt" = :tardiness_Amnt,
+           "unpaidLeave_Days" = :unpaidLeave_Days, "unpaidLeave_Amnt" = :unpaidLeave_Amnt,
+           "paidLeave_Days" = :paidLeave_Days, "SSS_Ded" = :sss, "Philhealth_Ded" = :ph,
+           "HDMF_Ded" = :hd, "Tax_Ded" = :tax, "healthCard_Amnt" = :hc,
+           "SSS_Loan" = :sl, "HDMF_Loan" = :hl, "calamityLoan_Amnt" = :cl,
+           "multiPurposeSavings" = :ms, "advances_Amnt" = :aa, "globe_Deduction" = :gd
+       WHERE "payrollId" = :payrollId`,
+      { replacements: {
+          payrollId,
+          absence_Hrs: (fullStats.absence_Days) * 8,
+          absence_Amnt: fullStats.absence_Amnt,
+          tardiness_Mins: fullStats.tardiness_Mins,
+          tardiness_Amnt: fullStats.tardiness_Amnt,
+          unpaidLeave_Days: fullStats.unpaidLeave_Days,
+          unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
+          paidLeave_Days: fullStats.paidLeave_Days,
+          sss: fullStats.SSS_Ded, ph: fullStats.Philhealth_Ded, hd: fullStats.HDMF_Ded, tax: fullStats.Tax_Ded,
+          hc: fullStats.healthCard_Amnt, sl: fullStats.SSS_Loan, hl: fullStats.HDMF_Loan,
+          cl: fullStats.calamityLoan_Amnt, ms: fullStats.multiPurposeSavings,
+          aa: fullStats.advances_Amnt, gd: fullStats.globe_Deduction
+        }, type: QueryTypes.UPDATE }
+    );
+
+    // Update Master Payroll Record
+    await sequelize.query(
+      `UPDATE "Payroll"
+       SET "NoDays_Worked" = :NoDays_Worked, "NoHrs_Worked" = :NoHrs_Worked,
+           "basicPay" = :basicPay, "totalEarnings" = :totalEarnings, 
+           "totalDeductions" = :totalDed, "netPay" = :netPay, "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "payrollId" = :payrollId`,
+      { replacements: {
+          payrollId,
+          NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
+          basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
+          totalDed: fullStats.totalDeductions, netPay: fullStats.netPay
+        }, type: QueryTypes.UPDATE }
+    );
+  } catch (error) {
+    console.error("[ERROR] recalculatePayrollInternal:", error.message);
+  }
+}
+
+exports.recalculatePayrollInternal = recalculatePayrollInternal;
+
+// ── Generate Single Payroll ──────────────────────────────────────────────────
+exports.generatePayroll = async (req, res) => {
+  const { user_Id, period_Start, period_End } = req.body;
+  if (!user_Id || !period_Start || !period_End) {
+    return res.status(400).json({ error: "user_Id, period_Start, and period_End are required." });
   }
 
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    // 1. Check if payroll already exists
+    const existing = await sequelize.query(
+      `SELECT "payrollId" FROM "Payroll" 
+       WHERE "user_Id" = :user_Id AND "period_Start" = :period_Start AND "period_End" = :period_End LIMIT 1`,
+      { replacements: { user_Id, period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+    if (existing.length > 0) return res.status(400).json({ error: "Payroll already exists for this period." });
+
+    // 2. Calculate stats
+    const fullStats = await calculatePayrollStats(user_Id, period_Start, period_End);
+
+    // 3. Insert into Payroll
+    const payrollResult = await sequelize.query(
+      `INSERT INTO "Payroll"
+        ("user_Id", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
+         "dailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
+         "status", "createdAt", "updatedAt")
+       VALUES
+        (:user_Id, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
+         :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
+         2, :now, :now)
+       RETURNING "payrollId"`,
+      {
+        replacements: {
+          user_Id, period_Start, period_End,
+          NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
+          dailyRate: fullStats.dailyRate, ratePerHr: fullStats.ratePerHr,
+          basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
+          totalDed: fullStats.totalDeductions, netPay: fullStats.netPay,
+          now: nowStr
+        },
+        type: QueryTypes.INSERT
+      }
+    );
+
+    const payrollId = payrollResult[0][0].payrollId;
+
+    // 4. Insert Earnings and Deductions
+    await sequelize.query(
+      `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
+       VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
+      { replacements: { 
+          payrollId, user_Id, 
+          OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
+          legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt,
+          specialHol_Adj: fullStats.specialHol_Adj
+        }, type: QueryTypes.INSERT }
+    );
+
+    await sequelize.query(
+      `INSERT INTO "Payroll_Deductions"
+        ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", 
+         "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days",
+         "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
+         "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
+         "multiPurposeSavings", "advances_Amnt", "globe_Deduction")
+       VALUES
+        (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
+         :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
+         :sss, :ph, :hd, :tax,
+         :hc, :sl, :hl, :cl, :ms, :aa, :gd)`,
+      {
+        replacements: {
+          payrollId,
+          absence_Hrs: (fullStats.absence_Days) * 8,
+          absence_Amnt: fullStats.absence_Amnt,
+          tardiness_Mins: fullStats.tardiness_Mins,
+          tardiness_Amnt: fullStats.tardiness_Amnt,
+          unpaidLeave_Days: fullStats.unpaidLeave_Days,
+          unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
+          paidLeave_Days: fullStats.paidLeave_Days,
+          sss: fullStats.SSS_Ded,
+          ph: fullStats.Philhealth_Ded,
+          hd: fullStats.HDMF_Ded,
+          tax: fullStats.Tax_Ded,
+          hc: fullStats.healthCard_Amnt,
+          sl: fullStats.SSS_Loan,
+          hl: fullStats.HDMF_Loan,
+          cl: fullStats.calamityLoan_Amnt,
+          ms: fullStats.multiPurposeSavings,
+          aa: fullStats.advances_Amnt,
+          gd: fullStats.globe_Deduction
+        },
+        type: QueryTypes.INSERT,
+      }
+    );
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "PAYROLL_GEN", `Generated payroll for user ${user_Id} for period ${period_Start} to ${period_End}`, { payrollId }, req);
+
+    // ── Auto-record/link to Ledger Tables ─────────────────────────────────
+    // 1. Cash Advance Link
+    await sequelize.query(
+      `UPDATE "Payroll_Cash_Advances" SET "payrollId" = :payrollId
+       WHERE "user_Id" = :user_Id AND "date" = :period_End`,
+      { replacements: { payrollId, user_Id, period_End }, type: QueryTypes.UPDATE }
+    );
+
+    // 2. Maxicare Auto-record
+    if (fullStats.healthCard_Amnt > 0) {
+      await sequelize.query(
+        `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
+         VALUES (:user_Id, :date, :amount, 'paid', :now, :now)
+         ON CONFLICT ("user_Id", "max_Month") DO UPDATE
+         SET "amount" = EXCLUDED."amount", "maxi_status" = 'paid', "updatedAt" = EXCLUDED."updatedAt"`,
+        { replacements: { user_Id, date: period_End, amount: fullStats.healthCard_Amnt, now: nowStr }, type: QueryTypes.INSERT }
+      );
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
+    res.status(201).json({ message: "Payroll generated successfully.", payrollId, netPay: fullStats.netPay });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Get Eligible Employees Count ──────────────────────────────────────────────
+exports.getEligibleEmployeesCount = async (req, res) => {
   try {
     const result = await sequelize.query(
-      `SELECT COUNT("user_Id") AS "count" FROM "User" 
-        WHERE "deletedAt" IS NULL AND "dailyRate" > 0 
-       AND "user_Id" NOT IN (
-         SELECT "user_Id" FROM "Payroll" 
-         WHERE "period_Start" = :period_Start AND "period_End" = :period_End
-       )`,
-      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+      `SELECT COUNT(*) as count FROM "User" WHERE "deletedAt" IS NULL AND "dailyRate" > 0`, 
+      { type: QueryTypes.SELECT }
     );
-    res.status(200).json({ count: parseInt(result[0].count) || 0 });
+    res.status(200).json({ count: parseInt(result[0].count) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// ── Get Payroll Periods Summary ─────────────────────────────────────────────
-exports.getPayrollPeriods = async (req, res) => {
+// ── Get All Payrolls ──────────────────────────────────────────────────────────
+exports.getAllPayrolls = async (req, res) => {
   try {
-    const periods = await sequelize.query(
-      `SELECT 
-        "period_Start", 
-        "period_End",
-        COUNT("user_Id") AS "employeeCount",
-        SUM("netPay") AS "totalAmount",
-        MAX("createdAt") AS "processedDate",
-        CASE 
-          WHEN MIN("status") = 1 THEN 'Draft'
-          ELSE 'Released'
-        END AS "status"
-       FROM "Payroll"
-       GROUP BY "period_Start", "period_End"
-       ORDER BY "period_Start" DESC`,
+    const payrolls = await sequelize.query(
+      `SELECT p.*, u."user_FirstName", u."user_LastName", ps."PaystatusName" 
+       FROM "Payroll" p 
+       LEFT JOIN "User" u ON u."user_Id" = p."user_Id" 
+       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
+       ORDER BY p."period_Start" DESC, u."user_LastName" ASC`, 
       { type: QueryTypes.SELECT }
     );
-    res.status(200).json(periods);
+    res.status(200).json(payrolls);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Release Payroll ───────────────────────────────────────────────────────────
+exports.releasePayroll = async (req, res) => {
+  const { payrollId } = req.params;
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    const [updated] = await sequelize.query(
+      `UPDATE "Payroll" SET "status" = 3, "updatedAt" = :now WHERE "payrollId" = :payrollId`,
+      { replacements: { payrollId, now: nowStr }, type: QueryTypes.UPDATE }
+    );
+
+    if (updated === 0) return res.status(404).json({ error: "Payroll not found." });
+
+    // Reset User advances_Amnt since it's already deducted in this released payroll
+    const payroll = await sequelize.query(
+      `SELECT "user_Id" FROM "Payroll" WHERE "payrollId" = :payrollId`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+    if (payroll.length > 0) {
+      await sequelize.query(
+        `UPDATE "User" SET "advances_Amnt" = 0, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id: payroll[0].user_Id, now: nowStr }, type: QueryTypes.UPDATE }
+      );
+    }
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "PAYROLL_RELEASE", `Released payroll ID ${payrollId}`, { payrollId }, req);
+
+    res.status(200).json({ message: "Payroll released successfully." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Update Payroll (Basic) ────────────────────────────────────────────────────
+exports.updatePayroll = async (req, res) => {
+  const { payrollId } = req.params;
+  const { status, netPay, totalEarnings, totalDeductions } = req.body;
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    let query = 'UPDATE "Payroll" SET "updatedAt" = :now';
+    const replacements = { payrollId, now: nowStr };
+
+    if (status !== undefined) { query += ', "status" = :status'; replacements.status = status; }
+    if (netPay !== undefined) { query += ', "netPay" = :netPay'; replacements.netPay = netPay; }
+    if (totalEarnings !== undefined) { query += ', "totalEarnings" = :totalEarnings'; replacements.totalEarnings = totalEarnings; }
+    if (totalDeductions !== undefined) { query += ', "totalDeductions" = :totalDeductions'; replacements.totalDeductions = totalDeductions; }
+
+    query += ' WHERE "payrollId" = :payrollId';
+
+    const [updated] = await sequelize.query(query, { replacements, type: QueryTypes.UPDATE });
+    if (updated === 0) return res.status(404).json({ error: "Payroll not found." });
+
+    res.status(200).json({ message: "Payroll updated successfully." });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -668,10 +877,11 @@ exports.getPayrollByUser = async (req, res) => {
          p.*,
          e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
          e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
-         e."incentives", e."allowance",
-         d."absence_Hrs", d."absence_Amnt",
-         d."tardiness_Mins", d."tardiness_Amnt",
-         d."unpaidLeave_Days", d."unpaidLeave_Amnt", d."paidLeave_Days",
+         e."specialHol_Adj", e."incentives", e."allowance",
+         d.*,
+         (COALESCE(d."healthCard_Amnt",0) + 
+          COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) + 
+          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
          u."user_FirstName", u."user_LastName",
          ps."PaystatusName"
        FROM "Payroll" p
@@ -689,105 +899,10 @@ exports.getPayrollByUser = async (req, res) => {
   }
 };
 
-// ── View All Payrolls ─────────────────────────────────────────────────────────
-exports.getAllPayrolls = async (req, res) => {
-  try {
-    const payrolls = await sequelize.query(
-      `SELECT
-         p.*,
-         u."user_FirstName", u."user_LastName", u."user_MachipId",
-         ps."PaystatusName"
-       FROM "Payroll" p
-       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
-       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
-       ORDER BY p."createdAt" DESC`,
-      { type: QueryTypes.SELECT },
-    );
-    res.status(200).json(payrolls);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// ── Release Payroll ───────────────────────────────────────────────────────────
-exports.releasePayroll = async (req, res) => {
-  const { payrollId } = req.params;
-  try {
-    const now = await getSystemTime();
-    const nowStr = formatForSQL(now);
-
-    // Fetch payroll details and user email before releasing
-    const payrollInfo = await sequelize.query(
-      `SELECT 
-         p.*, 
-         u."user_Email", u."user_FirstName", u."user_LastName",
-         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", e."nightDiff_Hrs", e."nightDiff_Amnt",
-         e."specialHol_Hrs", e."specialHol_Amnt", e."incentives", e."allowance", e."Bonus", e."Other_Earnings",
-         d."absence_Hrs", d."absence_Amnt", d."tardiness_Mins", d."tardiness_Amnt", d."unpaidLeave_Days", 
-         d."unpaidLeave_Amnt", d."paidLeave_Days", d."SSS_Ded", d."Philhealth_Ded", d."HDMF_Ded", d."Tax_Ded",
-         d."SSS_Loan", d."HDMF_Loan", d."Other_Deductions"
-       FROM "Payroll" p
-       JOIN "User" u ON p."user_Id" = u."user_Id"
-       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
-       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
-       WHERE p."payrollId" = :payrollId LIMIT 1`,
-      { replacements: { payrollId }, type: QueryTypes.SELECT }
-    );
-
-    if (payrollInfo.length === 0) {
-      return res.status(404).json({ error: "Payroll not found." });
-    }
-
-    const p = payrollInfo[0];
-
-    await sequelize.query(
-      `UPDATE "Payroll" SET "status" = 2, "updatedAt" = :now WHERE "payrollId" = :payrollId`,
-      { replacements: { payrollId, now: nowStr }, type: QueryTypes.UPDATE },
-    );
-
-    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(p.user_Id, currentAdminId, "PAYROLL_RELEASE", `Released payroll ID ${p.payrollId}`, { netPay: p.netPay, period: `${p.period_Start} to ${p.period_End}` }, req);
-
-    if (p.user_Email) {
-      const dtrData = await getAttendanceReportInternal(p.period_Start, p.period_End, p.user_Id);
-
-      Promise.all([
-        generatePayslipPDF(p),
-        generateDtrPDF(p, p.period_Start, p.period_End, dtrData)
-      ]).then(([payslipBuffer, dtrBuffer]) => {
-        return sendPayrollEmail({
-          email: p.user_Email,
-          name: `${p.user_FirstName} ${p.user_LastName}`,
-          period: `${p.period_Start} to ${p.period_End}`,
-          netPay: p.netPay,
-          attachments: [
-            {
-              filename: `Payslip_${p.user_LastName}_${p.payrollId}.pdf`,
-              content: payslipBuffer
-            },
-            {
-              filename: `DTR_${p.user_LastName}_${p.period_Start}.pdf`,
-              content: dtrBuffer
-            }
-          ]
-        });
-      }).catch(err => console.error(`[RELEASE EMAIL/PDF FAILED] payroll ${payrollId}:`, err.message));
-    }
-
-    res.status(200).json({ message: "Payroll released successfully." });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
 // ── View Payroll by ID ────────────────────────────────────────────────────────
 exports.getPayrollById = async (req, res) => {
   const { payrollId } = req.params;
-  
-  // Safety check for non-numeric IDs (like 'preview-X')
-  if (isNaN(parseInt(payrollId))) {
-    return res.status(400).json({ error: "Invalid payroll ID format." });
-  }
+  if (isNaN(parseInt(payrollId))) return res.status(400).json({ error: "Invalid ID" });
 
   try {
     const payroll = await sequelize.query(
@@ -795,10 +910,11 @@ exports.getPayrollById = async (req, res) => {
          p.*,
          e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
          e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
-         e."incentives", e."allowance",
-         d."absence_Hrs", d."absence_Amnt",
-         d."tardiness_Mins", d."tardiness_Amnt",
-         d."unpaidLeave_Days", d."unpaidLeave_Amnt", d."paidLeave_Days",
+         e."specialHol_Adj", e."incentives", e."allowance",
+         d.*,
+         (COALESCE(d."healthCard_Amnt",0) + 
+          COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) + 
+          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
          u."user_FirstName", u."user_LastName",
          ps."PaystatusName"
        FROM "Payroll" p
@@ -810,79 +926,8 @@ exports.getPayrollById = async (req, res) => {
        LIMIT 1`,
       { replacements: { payrollId }, type: QueryTypes.SELECT },
     );
-    if (payroll.length === 0) return res.status(404).json({ error: "Payroll not found" });
+    if (payroll.length === 0) return res.status(404).json({ error: "Not found" });
     res.status(200).json(payroll[0]);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// ── Update Payroll ────────────────────────────────────────────────────────────
-exports.updatePayroll = async (req, res) => {
-  const { payrollId } = req.params;
-  const { 
-    dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked,
-    basicPay, totalEarnings, totalDeductions, netPay, status,
-    OT_Hrs, OT_Amnt, absence_Amnt, tardiness_Amnt, unpaidLeave_Amnt, paidLeave_Days,
-    absence_Days // Add this if needed
-  } = req.body;
-
-  try {
-    const now = await getSystemTime();
-    const nowStr = formatForSQL(now);
-
-    const oldPayroll = await sequelize.query(
-      `SELECT p.*, e.*, d.* FROM "Payroll" p
-       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
-       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
-       WHERE p."payrollId" = :payrollId LIMIT 1`,
-      { replacements: { payrollId }, type: QueryTypes.SELECT }
-    );
-
-    await sequelize.query(
-      `UPDATE "Payroll"
-       SET "dailyRate" = :dailyRate, "ratePerHr" = :ratePerHr, "NoDays_Worked" = :NoDays_Worked,
-           "NoHrs_Worked" = :NoHrs_Worked, "basicPay" = :basicPay, "totalEarnings" = :totalEarnings,
-           "totalDeductions" = :totalDeductions, "netPay" = :netPay, "status" = :status, "updatedAt" = :now
-       WHERE "payrollId" = :payrollId`,
-      {
-        replacements: { payrollId, dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDeductions, netPay, status, now: nowStr },
-        type: QueryTypes.UPDATE
-      }
-    );
-
-    await sequelize.query(
-      `UPDATE "Payroll_Earnings" SET "OT_Hrs" = :OT_Hrs, "OT_Amnt" = :OT_Amnt WHERE "payrollId" = :payrollId`,
-      { replacements: { payrollId, OT_Hrs, OT_Amnt }, type: QueryTypes.UPDATE }
-    );
-
-    await sequelize.query(
-      `UPDATE "Payroll_Deductions"
-       SET "absence_Amnt" = :absence_Amnt, "tardiness_Amnt" = :tardiness_Amnt, "unpaidLeave_Amnt" = :unpaidLeave_Amnt, "paidLeave_Days" = :paidLeave_Days,
-           "absence_Hrs" = :absence_Hrs
-       WHERE "payrollId" = :payrollId`,
-      { replacements: { 
-          payrollId, 
-          absence_Amnt, 
-          tardiness_Amnt, 
-          unpaidLeave_Amnt, 
-          paidLeave_Days,
-          absence_Hrs: (parseFloat(absence_Days) || 0) * 8
-        }, type: QueryTypes.UPDATE }
-    );
-
-    const newPayroll = await sequelize.query(
-      `SELECT p.*, e.*, d.* FROM "Payroll" p
-       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
-       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
-       WHERE p."payrollId" = :payrollId LIMIT 1`,
-      { replacements: { payrollId }, type: QueryTypes.SELECT }
-    );
-
-    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logAudit(req, currentAdminId, "Payroll", "UPDATE_PAYROLL", "Payroll", payrollId, oldPayroll[0], newPayroll[0]);
-
-    res.status(200).json({ message: "Payroll updated successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -896,10 +941,19 @@ exports.getPayrollReport = async (req, res) => {
       SELECT
         p.*,
         u."user_FirstName", u."user_LastName", u."user_MachipId",
-        ps."PaystatusName" AS "statusName"
+        ps."PaystatusName" AS "statusName",
+        d.*,
+        (COALESCE(d."healthCard_Amnt",0) + 
+         COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) + 
+         COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
+        e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
+        e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
+        e."specialHol_Adj", e."incentives", e."allowance"
       FROM "Payroll" p
       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
+      LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+      LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
       WHERE p."period_Start" >= :startDate AND p."period_End" <= :endDate
     `;
 
@@ -909,14 +963,426 @@ exports.getPayrollReport = async (req, res) => {
       replacements.user_Id = user_Id;
     }
 
-    query += ` ORDER BY p."period_Start" DESC, u."user_LastName" ASC`;
-
-    const payrolls = await sequelize.query(query, {
-      replacements,
-      type: QueryTypes.SELECT,
-    });
-
+    const payrolls = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
     res.status(200).json(payrolls);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── ADDITIONS FOR GOVT + OTHER DEDUCTIONS ───────────────────────────────────
+const { generatePayrollSummaryPDF } = require("../utils/payrollSummaryGenerator");
+
+// ── Get Government Deductions Preview ────────────────────────────────────────
+exports.getGovtDeductionsPreview = async (req, res) => {
+  const { grossPay, user_Id } = req.query;
+  if (!grossPay || !user_Id) return res.status(400).json({ error: "grossPay and user_Id required." });
+  
+  try {
+    const { computePeriodTax } = require("../utils/govtDeductions");
+    const user = await sequelize.query(`SELECT "sss_Share", "philhealth_Share", "hdmf_Share" FROM "User" WHERE "user_Id" = :user_Id`, { replacements: { user_Id }, type: QueryTypes.SELECT });
+    if (user.length === 0) return res.status(404).json({ error: "User not found." });
+
+    const shares = user[0];
+    
+    // Tax is now manual input ("hardcoded") per user request.
+    const tax = 0;
+
+    res.status(200).json({ SSS_Ded: shares.sss_Share || 0, Philhealth_Ded: shares.philhealth_Share || 0, HDMF_Ded: shares.hdmf_Share || 0, Tax_Ded: tax });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+};
+
+// ── Download Payroll Summary PDF ──────────────────────────────────────────────
+exports.downloadPayrollSummaryPDF = async (req, res) => {
+  let { period_Start, period_End, periodId } = req.query;
+  try {
+    // If periodId is provided, fetch start/end dates first
+    if (periodId && (!period_Start || !period_End)) {
+      const periodRow = await sequelize.query(
+        `SELECT "startDate", "endDate" FROM "PayrollPeriod" WHERE "periodId" = :periodId LIMIT 1`,
+        { replacements: { periodId }, type: QueryTypes.SELECT }
+      );
+      if (periodRow.length > 0) {
+        period_Start = periodRow[0].startDate;
+        period_End = periodRow[0].endDate;
+      }
+    }
+
+    if (!period_Start || !period_End) {
+      return res.status(400).json({ error: "Missing period parameters." });
+    }
+
+    // 1. Try to get saved payroll records
+    let payrollRows = await sequelize.query(
+      `SELECT p.*,
+              u."user_FirstName", u."user_LastName", u."account_Number" AS "accountNo",
+              u."user_MachipId", u."department", u."position", u."taxStatus", u."hireDate",
+              u."sss_Share", u."philhealth_Share", u."hdmf_Share", u."previousDailyRate",
+              pe.*, pd.*
+       FROM "Payroll" p
+       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId"
+       LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId"
+       WHERE p."period_Start" = :period_Start AND p."period_End" = :period_End
+       ORDER BY u."user_LastName" ASC`,
+      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+
+    // 2. If no saved records (Draft mode), perform live calculations for PDF
+    if (payrollRows.length === 0) {
+      const employees = await sequelize.query(
+        `SELECT "user_Id", "user_FirstName", "user_LastName", "user_MachipId", 
+                "department", "position", "taxStatus", "hireDate",
+                "sss_Share", "philhealth_Share", "hdmf_Share", "account_Number", "previousDailyRate"
+         FROM "User" 
+         WHERE "dailyRate" > 0 AND "deletedAt" IS NULL`,
+        { type: QueryTypes.SELECT }
+      );
+
+      const { decrypt } = require("../utils/encryption");
+      for (const emp of employees) {
+        const preview = await calculatePayrollStats(emp.user_Id, period_Start, period_End);
+        payrollRows.push({
+          ...preview,
+          user_Id: emp.user_Id,
+          period_Start,
+          period_End,
+          user_FirstName: emp.user_FirstName,
+          user_LastName: emp.user_LastName,
+          user_MachipId: emp.user_MachipId,
+          department: emp.department,
+          position: emp.position,
+          taxStatus: emp.taxStatus,
+          hireDate: emp.hireDate,
+          sss_Share: emp.sss_Share,
+          philhealth_Share: emp.philhealth_Share,
+          hdmf_Share: emp.hdmf_Share,
+          previousDailyRate: emp.previousDailyRate,
+          accountNo: decrypt(emp.account_Number)
+        });
+      }
+    }
+
+    if (payrollRows.length === 0) return res.status(404).json({ error: "No records found for this period." });
+
+    const start = new Date(period_Start + "T00:00:00");
+    const end   = new Date(period_End   + "T00:00:00");
+    const month = start.toLocaleString("en-PH", { month: "long" });
+    const periodLabel = `${month} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`;
+
+    const pdfBuffer = await generatePayrollSummaryPDF(payrollRows, periodLabel);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Summary_${period_Start}_${period_End}.pdf"`);
+    res.end(pdfBuffer);
+  } catch (error) { 
+    console.error("[DOWNLOAD SUMMARY ERROR]:", error);
+    res.status(500).json({ error: error.message }); 
+  }
+};
+// ── Get Payroll Summary Preview (HTML) ────────────────────────────────────────
+exports.getPayrollSummaryPreview = async (req, res) => {
+  let { period_Start, period_End } = req.query;
+  try {
+    // 1. Try to get saved payroll records
+    let payrollRows = await sequelize.query(
+      `SELECT p.*, 
+              u."user_FirstName", u."user_LastName", u."account_Number" AS "accountNo", 
+              u."user_MachipId", u."department", u."position", u."taxStatus", u."hireDate",
+              u."sss_Share", u."philhealth_Share", u."hdmf_Share",
+              pe.*, pd.*
+       FROM "Payroll" p
+       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId"
+       LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId"
+       WHERE p."period_Start" = :period_Start AND p."period_End" = :period_End
+       ORDER BY u."user_LastName" ASC`,
+      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+
+    // 2. If no saved records (Draft mode), perform live calculations for preview
+    if (payrollRows.length === 0) {
+      const employees = await sequelize.query(
+        `SELECT "user_Id", "user_FirstName", "user_LastName", "user_MachipId", 
+                "department", "position", "taxStatus", "hireDate",
+                "sss_Share", "philhealth_Share", "hdmf_Share", "account_Number"
+         FROM "User" 
+         WHERE "dailyRate" > 0 AND "deletedAt" IS NULL`,
+        { type: QueryTypes.SELECT }
+      );
+      
+      payrollRows = [];
+      const { decrypt } = require("../utils/encryption");
+      for (const emp of employees) {
+        const preview = await calculatePayrollStats(emp.user_Id, period_Start, period_End);
+        payrollRows.push({
+          ...preview,
+          user_Id: emp.user_Id,
+          user_FirstName: emp.user_FirstName,
+          user_LastName: emp.user_LastName,
+          user_MachipId: emp.user_MachipId,
+          department: emp.department,
+          position: emp.position,
+          taxStatus: emp.taxStatus,
+          hireDate: emp.hireDate,
+          sss_Share: emp.sss_Share,
+          philhealth_Share: emp.philhealth_Share,
+          hdmf_Share: emp.hdmf_Share,
+          accountNo: decrypt(emp.account_Number)
+        });
+      }
+    }
+
+    if (payrollRows.length === 0) return res.status(404).send("<h1>No eligible employees found for this period.</h1>");
+
+    const start = new Date(period_Start + "T00:00:00");
+    const end   = new Date(period_End   + "T00:00:00");
+    const month = start.toLocaleString("en-PH", { month: "long" });
+    const periodLabel = `${month} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()} (DRAFT PREVIEW)`;
+
+    const { build8PageReportHTML } = require("../utils/payrollSummaryGenerator");
+    const html = build8PageReportHTML(payrollRows, periodLabel);
+    res.send(html);
+  } catch (error) { 
+    console.error("[PREVIEW ERROR]:", error);
+    res.status(500).send("Error generating preview: " + error.message); 
+  }
+};
+
+// ── UPDATE Payroll (extended) ─────────────────
+exports.updatePayrollFull = async (req, res) => {
+  const { payrollId } = req.params;
+  const {
+    dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, status,
+    OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance,
+    absence_Days, absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days,
+    SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded,
+    healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction,
+  } = req.body;
+
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    const oldPayroll = await sequelize.query(`SELECT p.*, pe.*, pd.* FROM "Payroll" p LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId" LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId" WHERE p."payrollId" = :payrollId LIMIT 1`, { replacements: { payrollId }, type: QueryTypes.SELECT });
+    if (oldPayroll.length === 0) return res.status(404).json({ error: "Not found." });
+
+    const govtTotal  = (parseFloat(SSS_Ded || 0) + parseFloat(Philhealth_Ded || 0) + parseFloat(HDMF_Ded || 0) + parseFloat(Tax_Ded || 0));
+    const otherTotal = (parseFloat(healthCard_Amnt || 0) + parseFloat(SSS_Loan || 0) + parseFloat(HDMF_Loan || 0) + parseFloat(calamityLoan_Amnt || 0) + parseFloat(multiPurposeSavings || 0) + parseFloat(advances_Amnt || 0) + parseFloat(globe_Deduction || 0));
+    const attendanceDed = (parseFloat(absence_Amnt || 0) + parseFloat(tardiness_Amnt || 0) + parseFloat(unpaidLeave_Amnt || 0));
+    const computedTotalDed = govtTotal + otherTotal + attendanceDed;
+    
+    // Note: totalEarnings passed from body should ALREADY include the specialHol_Adj subtraction if UI is doing the math,
+    // but here we ensure the netPay is correct.
+    const computedNet = parseFloat(totalEarnings || 0) - computedTotalDed;
+
+    await sequelize.query(`UPDATE "Payroll" SET "dailyRate"=:dailyRate, "ratePerHr"=:ratePerHr, "NoDays_Worked"=:NoDays_Worked, "NoHrs_Worked"=:NoHrs_Worked, "basicPay"=:basicPay, "totalEarnings"=:totalEarnings, "totalDeductions"=:totalDed, "netPay"=:netPay, "status"=:status, "updatedAt"=:now WHERE "payrollId" = :payrollId`, { replacements: { payrollId, dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDed: computedTotalDed, netPay: computedNet, status, now: nowStr }, type: QueryTypes.UPDATE });
+    
+    await sequelize.query(`UPDATE "Payroll_Earnings" SET "OT_Hrs"=:OT_Hrs, "OT_Amnt"=:OT_Amnt, "legalHol_Amnt"=:legalHol_Amnt, "specialHol_Amnt"=:specialHol_Amnt, "specialHol_Adj"=:specialHol_Adj, "incentives"=:incentives, "allowance"=:allowance WHERE "payrollId" = :payrollId`, { replacements: { payrollId, OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance }, type: QueryTypes.UPDATE });
+    
+    await sequelize.query(`UPDATE "Payroll_Deductions" SET "absence_Hrs"=:absence_Hrs, "absence_Amnt"=:absence_Amnt, "tardiness_Mins"=:tardiness_Mins, "tardiness_Amnt"=:tardiness_Amnt, "unpaidLeave_Days"=:unpaidLeave_Days, "unpaidLeave_Amnt"=:unpaidLeave_Amnt, "paidLeave_Days"=:paidLeave_Days, "SSS_Ded"=:SSS_Ded, "Philhealth_Ded"=:Philhealth_Ded, "HDMF_Ded"=:HDMF_Ded, "Tax_Ded"=:Tax_Ded, "healthCard_Amnt"=:healthCard_Amnt, "SSS_Loan"=:SSS_Loan, "HDMF_Loan"=:HDMF_Loan, "calamityLoan_Amnt"=:calamityLoan_Amnt, "multiPurposeSavings"=:multiPurposeSavings, "advances_Amnt"=:advances_Amnt, "globe_Deduction"=:globe_Deduction WHERE "payrollId" = :payrollId`, { replacements: { payrollId, absence_Hrs:(parseFloat(absence_Days||0)*8), absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days, SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded, healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction }, type: QueryTypes.UPDATE });
+
+    const newPayroll = await sequelize.query(`SELECT p.*, pe.*, pd.* FROM "Payroll" p LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId" LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId" WHERE p."payrollId" = :payrollId LIMIT 1`, { replacements: { payrollId }, type: QueryTypes.SELECT });
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "Payroll", "UPDATE_PAYROLL_FULL", "Payroll", payrollId, oldPayroll[0], newPayroll[0]);
+    res.status(200).json({ message: "Updated successfully.", netPay: computedNet, totalDeductions: computedTotalDed });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+};
+
+// ── Sync Maxicare History from Matrix ─────────────────────────────────────────
+exports.syncMaxicareHistory = async (req, res) => {
+  const { updates } = req.body;
+  console.log(`[DEBUG_MAXICARE_SYNC] Received ${updates?.length || 0} updates.`);
+  
+  if (!Array.isArray(updates)) return res.status(400).json({ error: "Updates array required." });
+
+  try {
+    const { Payroll_maxicare } = require("../config/sequelize.js");
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    for (const item of updates) {
+      const { date, user_Id, amount } = item;
+      try {
+        const isPast = date < nowStr.split(' ')[0];
+        const status = isPast ? 'paid' : 'estimated';
+        
+        console.log(`[DEBUG_UPSERT] User: ${user_Id}, Date: ${date}, Status: ${status}, Amount: ${amount}`);
+
+        await Payroll_maxicare.upsert({
+          user_Id,
+          max_Month: date,
+          amount,
+          maxi_status: status,
+          updatedAt: now
+        });
+
+        // 1.5 Update User table if their current healthCard_Amnt is 0 or different
+        // This ensures the "Subscribed" status propagates to the User management module
+        await sequelize.query(
+          `UPDATE "User" 
+           SET "healthCard_Amnt" = :amount, "updatedAt" = :now 
+           WHERE "user_Id" = :user_Id 
+           AND ("healthCard_Amnt" = 0 OR "healthCard_Amnt" IS NULL)`,
+          { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
+        );
+
+        // 2. If it's a past record, also update existing Payroll records
+        if (isPast) {
+          await sequelize.query(
+            `UPDATE "Payroll_Deductions" pd
+             SET "healthCard_Amnt" = :amount
+             FROM "Payroll" p
+             WHERE p."payrollId" = pd."payrollId"
+             AND p."user_Id" = :user_Id
+             AND p."period_End" = :date`,
+            { replacements: { amount, user_Id, date }, type: QueryTypes.UPDATE }
+          );
+
+          await sequelize.query(
+            `UPDATE "Payroll" p
+             SET "totalDeductions" = (
+               SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
+               FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
+             ),
+             "netPay" = p."totalEarnings" - (
+               SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
+               FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
+             )
+             WHERE p."user_Id" = :user_Id AND p."period_End" = :date`,
+            { replacements: { user_Id, date }, type: QueryTypes.UPDATE }
+          );
+        }
+      } catch (itemErr) {
+        console.error(`[ERROR_SYNC_ITEM] Failed for User ${user_Id} on ${date}:`, itemErr.message);
+      }
+    }
+    res.status(200).json({ message: "Maxicare history synced successfully." });
+  } catch (error) {
+    console.error("[FATAL_MAXICARE_SYNC_ERROR]:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Loan Management Helpers ──────────────────────────────────────────────────
+const loanTypeMapper = {
+  "Cash Advance": { dbType: "cash_advance", dedCol: "advances_Amnt" },
+  "SSS Loan": { dbType: "sss_loan", dedCol: "SSS_Loan" },
+  "Pag-IBIG Loan": { dbType: "hdmf_loan", dedCol: "HDMF_Loan" },
+  "Calamity Loan": { dbType: "calamity", dedCol: "calamityLoan_Amnt" },
+  "Multi-Purpose": { dbType: "multipurpose", dedCol: "multiPurposeSavings" },
+  "Eastwest Loan": { dbType: "eastwest", dedCol: "globe_Deduction" }
+};
+
+// ── Get Loan History for Matrix ──────────────────────────────────────────────
+exports.getLoanHistory = async (req, res) => {
+  const { type } = req.query;
+  const config = loanTypeMapper[type];
+  if (!config) return res.status(400).json({ error: "Invalid loan type." });
+
+  try {
+    // If Cash Advance, use the dedicated ledger table
+    if (type === "Cash Advance") {
+      const history = await sequelize.query(
+        `SELECT "date", "user_Id", "amount" FROM "Payroll_Cash_Advances" ORDER BY "date" ASC`,
+        { type: QueryTypes.SELECT }
+      );
+      return res.status(200).json(history);
+    }
+
+    // Otherwise use Payroll historical records
+    const history = await sequelize.query(
+      `SELECT 
+         p."period_End" as date,
+         p."user_Id",
+         pd."${config.dedCol}" as amount
+       FROM "Payroll" p
+       JOIN "Payroll_Deductions" pd ON p."payrollId" = pd."payrollId"
+       WHERE pd."${config.dedCol}" > 0
+       ORDER BY p."period_End" ASC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Sync Loan History from Matrix ─────────────────────────────────────────────
+exports.syncLoanHistory = async (req, res) => {
+  const { updates } = req.body;
+  if (!Array.isArray(updates)) return res.status(400).json({ error: "Updates array required." });
+
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    for (const item of updates) {
+      const { date, user_Id, amount, type } = item;
+      const config = loanTypeMapper[type];
+      if (!config) continue;
+
+      // 1. If Cash Advance, update the ledger first (Source of Truth)
+      if (type === "Cash Advance") {
+        await sequelize.query(
+          `INSERT INTO "Payroll_Cash_Advances" ("user_Id", "date", "amount", "createdAt", "updatedAt")
+           VALUES (:user_Id, :date, :amount, :now, :now)
+           ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = EXCLUDED."amount", "updatedAt" = EXCLUDED."updatedAt"`,
+          { replacements: { user_Id, date, amount, now: nowStr } }
+        );
+
+        // Also update User table to reflect this in "edit employee compensation"
+        await sequelize.query(
+          `UPDATE "User" SET "advances_Amnt" = :amount, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+          { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
+        );
+      }
+
+      // 2. Update Payroll_Deductions (if payroll record already exists)
+      await sequelize.query(
+        `UPDATE "Payroll_Deductions" pd
+         SET "${config.dedCol}" = :amount
+         FROM "Payroll" p
+         WHERE p."payrollId" = pd."payrollId"
+         AND p."user_Id" = :user_Id
+         AND p."period_End" = :date`,
+        { replacements: { amount, user_Id, date }, type: QueryTypes.UPDATE }
+      );
+
+      // 3. Recalculate Payroll totals (if payroll record already exists)
+      await sequelize.query(
+        `UPDATE "Payroll" p
+         SET "totalDeductions" = (
+           SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
+           FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
+         ),
+         "netPay" = p."totalEarnings" - (
+           SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
+           FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
+         )
+         WHERE p."user_Id" = :user_Id AND p."period_End" = :date`,
+        { replacements: { user_Id, date }, type: QueryTypes.UPDATE }
+      );
+    }
+    res.status(200).json({ message: "History synced successfully." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Get Maxicare History for Matrix ──────────────────────────────────────────
+exports.getMaxicareHistory = async (req, res) => {
+  try {
+    const history = await sequelize.query(
+      `SELECT 
+         "max_Month" as date,
+         "user_Id",
+         "amount",
+         "maxi_status" as status
+       FROM "Payroll_maxicare"
+       ORDER BY "max_Month" ASC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(history);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -56,8 +56,8 @@ const validateForm = (formData) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const roleMap = { Employee: 3, Staff: 2, Admin: 1 };
-const reverseRoleMap = { 3: "Employee", 2: "Staff", 1: "Admin" };
+const roleMap = { Employee: 3, Supervisor: 2, Admin: 1 };
+const reverseRoleMap = { 3: "Employee", 2: "Supervisor", 1: "Admin" };
 const statusMap = { Regular: 1, "Part-time": 2, "Intern / OJT": 3 };
 const reverseStatusMap = { 1: "Regular", 2: "Part-time", 3: "Intern / OJT" };
 
@@ -156,9 +156,10 @@ const Edit = ({ inputs, title }) => {
       }
     } catch (err) {
       console.error("Error scanning RFID:", err);
-      setRfidError("An error occurred while scanning.");
+      const isNetworkError = err instanceof TypeError || err.message === "NetworkError";
+      setRfidError(isNetworkError ? "Connection lost or backend unreachable. Check your server." : "An error occurred while scanning.");
       setToast({
-        message: "An error occurred while scanning the chip.",
+        message: isNetworkError ? "Connection error: Check if backend is running." : "An error occurred while scanning the chip.",
         type: "error",
       });
     }
@@ -422,6 +423,7 @@ const Edit = ({ inputs, title }) => {
                                   {input.id === "user_Role" && (
                                     <>
                                       <option value="Employee">Employee</option>
+                                      <option value="Supervisor">Supervisor</option>
                                       <option value="Admin">Admin</option>
                                     </>
                                   )}

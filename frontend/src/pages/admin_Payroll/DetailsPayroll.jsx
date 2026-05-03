@@ -2,10 +2,10 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import TrendingDownIcon from "@mui/icons-material/TrendingDown";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import ListAltIcon from "@mui/icons-material/ListAlt";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
@@ -25,6 +25,7 @@ const PayrollDetails = () => {
 
   const [payroll, setPayroll] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
     const fetchPayrollDetails = async () => {
@@ -32,11 +33,8 @@ const PayrollDetails = () => {
       try {
         if (payrollId.startsWith("live-") || payrollId.startsWith("preview-")) {
           const userId = payrollId.split("-")[1];
-          // 1. Get Employee Info
           const empRes = await fetchWithAuth(`/api/users/${userId}`);
           const emp = await empRes.json();
-
-          // 2. Get Live Preview
           const prevRes = await fetchWithAuth(`/api/payroll/preview?user_Id=${userId}&period_Start=${periodStart}&period_End=${periodEnd}`);
           const preview = await prevRes.json();
 
@@ -46,8 +44,8 @@ const PayrollDetails = () => {
               user_FirstName: emp.user_FirstName,
               user_LastName: emp.user_LastName,
               user_Id: emp.user_Id,
-              ratePerHr: preview.ratePerHr,
               dailyRate: preview.dailyRate,
+              ratePerHr: preview.ratePerHr,
               period_Start: periodStart,
               period_End: periodEnd,
               NoDays_Worked: preview.NoDays_Worked,
@@ -65,34 +63,36 @@ const PayrollDetails = () => {
               unpaidLeave_Days: preview.unpaidLeave_Days,
               unpaidLeave_Amnt: preview.unpaidLeave_Amnt,
               paidLeave_Days: preview.paidLeave_Days,
-              holidaysTotal: preview.holidaysTotal || 0,
-              holidaysRegularWorked: preview.legalHol_Days || 0,
-              holidaysSpecialWorked: preview.specialHol_Days || 0,
+              SSS_Ded: preview.SSS_Ded,
+              Philhealth_Ded: preview.Philhealth_Ded,
+              HDMF_Ded: preview.HDMF_Ded,
+              Tax_Ded: preview.Tax_Ded,
+              healthCard_Amnt: preview.healthCard_Amnt,
+              SSS_Loan: preview.SSS_Loan,
+              HDMF_Loan: preview.HDMF_Loan,
+              calamityLoan_Amnt: preview.calamityLoan_Amnt,
+              advances_Amnt: preview.advances_Amnt,
+              globe_Deduction: preview.globe_Deduction,
+              multiPurposeSavings: preview.multiPurposeSavings,
               totalDeductions: preview.totalDeductions,
               netPay: preview.netPay,
               PaystatusName: "Draft",
-              createdAt: new Date(),
-              updatedAt: new Date()
+              incentives: preview.incentives || 0,
+              allowance: preview.allowance || 0
             });
           }
         } else {
-          // Standard DB fetch
           const response = await fetchWithAuth(`/api/payroll/${payrollId}`);
           const data = await response.json();
-          if (response.ok) {
-            setPayroll(data);
-          }
+          if (response.ok) setPayroll(data);
         }
       } catch (error) {
-        console.error("Error fetching payroll details:", error);
+        console.error("Error fetching details:", error);
       } finally {
         setLoading(false);
       }
     };
-
-    if (payrollId) {
-      fetchPayrollDetails();
-    }
+    if (payrollId) fetchPayrollDetails();
   }, [payrollId, periodStart, periodEnd]);
 
   if (loading) return (

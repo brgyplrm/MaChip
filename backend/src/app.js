@@ -133,6 +133,26 @@ connectDB().then(async () => {
   console.log("[INIT] System startup: Syncing holidays...");
   const { syncHolidaysService } = require("./utils/holidaySyncService");
   syncHolidaysService().catch(err => console.error("[INIT] Initial Holiday Sync Failed:", err.message));
+
+  // Perform backfill for missing absences within the CURRENT PERIOD only
+  console.log("[INIT] Running period-restricted backfill for absences...");
+  const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
+  const { getSystemTime } = require("./utils/systemTime");
+  const now = await getSystemTime();
+  
+  // Logic to determine current period start
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+  let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
+
+  // Backfill from period start until today
+  let checkDate = new Date(periodStart);
+  while (checkDate <= now) {
+    await ensureAbsentsMarked(new Date(checkDate));
+    checkDate.setDate(checkDate.getDate() + 1);
+  }
+  console.log("[INIT] Backfill complete.");
 });
 
 const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
@@ -141,6 +161,7 @@ const { checkPendingRequests } = require("./utils/requestEscalation");
 const { getSystemTime } = require("./utils/systemTime");
 
 let lastAbsentCheckDate = null;
+let lastBackfillDate = null;
 
 setInterval(async () => {
   const now = await getSystemTime();
@@ -148,10 +169,33 @@ setInterval(async () => {
   const hour = now.getHours();
   const minute = now.getMinutes();
 
-  if (hour === 17 && minute === 30 && lastAbsentCheckDate !== dateStr) {
-    console.log(`[SCHEDULED] ${now.toLocaleTimeString()}: Executing Daily Absent Check...`);
-    lastAbsentCheckDate = dateStr; 
-    ensureAbsentsMarked();
+  // 1. Shift-End Check (Daily 5:30 PM): Mark TODAY's absences
+  if (hour === 17 && minute === 30) {
+    if (lastAbsentCheckDate !== dateStr) {
+      console.log(`[SCHEDULED] 5:30 PM: Marking today's absences...`);
+      lastAbsentCheckDate = dateStr; 
+      await ensureAbsentsMarked();
+    } else {
+      // Just a low-level debug to confirm the interval is hitting but skipping
+      // console.log(`[DEBUG] 5:30 PM check skipped (already ran today)`);
+    }
+  }
+
+  // 2. Start-of-Day Sync (Daily 4:00 AM): Backfill the entire CURRENT PERIOD
+  if (hour === 4 && minute === 0 && lastBackfillDate !== dateStr) {
+    console.log(`[SCHEDULED] 4:00 AM: Running period-restricted backfill...`);
+    lastBackfillDate = dateStr;
+    
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const day = now.getDate();
+    let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
+
+    let checkDate = new Date(periodStart);
+    while (checkDate <= now) {
+      await ensureAbsentsMarked(new Date(checkDate));
+      checkDate.setDate(checkDate.getDate() + 1);
+    }
   }
 
   if (now.getDate() === 1 && hour === 0 && minute === 1) {

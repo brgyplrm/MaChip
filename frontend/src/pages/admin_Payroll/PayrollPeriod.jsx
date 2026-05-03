@@ -2,11 +2,15 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import DownloadIcon from "@mui/icons-material/Download";
+import EditIcon from "@mui/icons-material/Edit";
 import { Link, useLocation } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ProcessPayrollModal from "../../components/procpayrollmodal/ProcessPayrollModal";
+import EditPayrollModal from "../../components/editPayrollModal/EditPayrollModal";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CloseIcon from "@mui/icons-material/Close";
 import { fetchWithAuth } from "../../utils/api";
 import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
 import KeyboardDoubleArrowDownIcon from '@mui/icons-material/KeyboardDoubleArrowDown';
@@ -29,19 +33,26 @@ const PayrollPeriod = () => {
     totalDeductions: 0
   });
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingPayroll, setEditingPayroll] = useState(null);
+  const [showSummaryPreview, setShowSummaryPreview] = useState(false);
+  const [previewContent, setPreviewContent] = useState("");
+  const [isMaxicareActive, setIsMaxicareActive] = useState(false);
   
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const periodIdFromUrl = queryParams.get("periodId");
 
-  const fetchData = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    
+  const fetchData = async () => {
+    setLoading(true);
     try {
       const periodsRes = await fetchWithAuth("/api/system/payroll-periods");
       const periodsData = await periodsRes.json();
-      
+
+      // 2. Fetch System Settings for Maxicare schedule
+      const settingsRes = await fetchWithAuth("/api/system/settings");
+      const settings = await settingsRes.json();
+
       if (periodsRes.ok && periodsData.length > 0) {
         setPeriods(periodsData);
         
@@ -94,6 +105,8 @@ const PayrollPeriod = () => {
             totalEarnings: preview.totalEarnings,
             totalDeductions: preview.totalDeductions,
             netPay: preview.netPay,
+            dailyRate: emp.dailyRate,
+            taxStatus: emp.taxStatus,
             PaystatusName: "Draft"
           });
 
@@ -140,6 +153,72 @@ const PayrollPeriod = () => {
       }
     } catch (err) { console.error(err); }
     finally { setLoading(false); setIsConfirmOpen(false); }
+  };
+
+  const handlePreviewSummary = async () => {
+    if (!selectedPeriod) return;
+    try {
+      const response = await fetchWithAuth(`/api/payroll/summary-preview?period_Start=${selectedPeriod.startDate}&period_End=${selectedPeriod.endDate}`);
+      if (response.ok) {
+        const html = await response.text();
+        setPreviewContent(html);
+        setShowSummaryPreview(true);
+      } else {
+        alert("Failed to fetch summary preview.");
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDownloadSummary = async () => {
+    if (!selectedPeriod) return;
+    try {
+      const response = await fetchWithAuth(`/api/payroll/summary-pdf?period_Start=${selectedPeriod.startDate}&period_End=${selectedPeriod.endDate}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `PayrollSummary_${selectedPeriod.label.replace(/\s+/g, '_')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        alert("Failed to download summary. Ensure payroll is processed for this period.");
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleEditPayroll = async (payroll) => {
+    if (String(payroll.payrollId).startsWith("preview-")) {
+      alert("This is a preview. Please 'Process Batch' first to edit individual deductions.");
+      return;
+    }
+    // Fetch full details including deductions
+    try {
+      const res = await fetchWithAuth(`/api/payroll/${payroll.payrollId}`);
+      const fullData = await res.json();
+      if (res.ok) {
+        setEditingPayroll(fullData);
+        setIsEditModalOpen(true);
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSavePayroll = async (updatedData) => {
+    try {
+      const response = await fetchWithAuth(`/api/payroll/update-full/${updatedData.payrollId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedData)
+      });
+      if (response.ok) {
+        setIsEditModalOpen(false);
+        fetchData();
+      } else {
+        const err = await response.json();
+        alert(err.error || "Failed to update payroll.");
+      }
+    } catch (err) { console.error(err); }
   };
 
   useEffect(() => {

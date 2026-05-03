@@ -15,7 +15,7 @@ export const userInputs = [
     id: "user_Role", // New ID for Role Status
     label: "Role Status",
     type: "select",
-    options: ["Employee", "Admin"], // New values
+    options: ["Employee", "Supervisor", "Admin"], // Updated values
   },
   {
     id: "user_Email",
@@ -28,6 +28,30 @@ export const userInputs = [
     label: "Password",
     type: "password",
     placeholder: "Enter new password",
+  },
+  {
+    id: "department",
+    label: "Department",
+    type: "text",
+    placeholder: "e.g. ADMIN, OPERATION",
+  },
+  {
+    id: "position",
+    label: "Position",
+    type: "text",
+    placeholder: "e.g. MESSENGER, STAFF",
+  },
+  {
+    id: "hireDate",
+    label: "Date Hired",
+    type: "date",
+    placeholder: "",
+  },
+  {
+    id: "taxStatus",
+    label: "Tax Status",
+    type: "text",
+    placeholder: "e.g. S, M",
   },
   {
     id: "account_Number",

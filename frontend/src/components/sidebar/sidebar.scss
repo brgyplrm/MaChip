@@ -1,0 +1,305 @@
+.sidebarBackdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 998;
+  backdrop-filter: blur(2px);
+  transition: opacity 0.3s ease;
+}
+
+.sidebar {
+  flex: none; // Remove flex: 1 so we can strictly control width
+  width: 250px; // Default expanded width
+  border-right: 0.5px solid rgb(230, 227, 227);
+  min-height: 100vh;
+  background-color: #FFF8EC;
+  transition: width 0.3s ease; // Smooth animation
+  z-index: 999; /* Ensure it sits above the backdrop */
+
+  &.mobileOverlay {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    width: 250px;
+    box-shadow: 4px 0 25px rgba(0,0,0,0.15);
+  }
+
+  &.collapsed {
+    width: 80px; // Shrunken width
+    background-color: transparent;
+    border-right: none;
+    min-height: auto;
+    z-index: 1000;
+
+    @media (max-width: 768px) {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    hr, .center, .bottom {
+      display: none;
+    }
+
+    .top {
+      justify-content: center;
+      padding: 0;
+      background-color: transparent;
+      .logo-img { display: none; }
+      .smallLogo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 45px;
+        height: 45px;
+        background: #2A174E;
+        color: white;
+        font-weight: bold;
+        font-size: 20px;
+        border-radius: 8px;
+
+        &:active {
+          transform: scale(0.9); /* Tiny click animation */
+        }
+      }
+    }
+
+    .center {
+      padding-left: 0; // Remove padding when collapsed to center items
+
+      .title {
+        text-align: center;
+        padding-left: 0;
+        margin-top: 20px;
+      }
+
+      li {
+        justify-content: center; // Center the icon
+        padding: 10px 0;
+        margin: 5px 10px; // Give some margin so hover background looks like a pill
+        border-radius: 10px;
+
+        span {
+          display: none; // Hide the text
+        }
+      }
+      
+      a.active {
+        li {
+          border-radius: 10px; // Ensure active state looks like a centered pill
+        }
+      }
+    }
+  }
+
+  .top {
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: white;
+
+    .logo {
+      display: flex;
+      align-items: center;
+    }
+    
+    .logo-img {
+      width: auto;
+      height: 65px;
+    }
+  }
+
+  hr {
+    height: 0;
+    border: 0.5px solid rgb(230, 227, 227);
+    margin: 0;
+  }
+
+  .center {
+    padding-left: 5px;
+    overflow-y: auto; 
+    height: calc(100vh - 70px); 
+    
+    &::-webkit-scrollbar { width: 5px; }
+    &::-webkit-scrollbar-thumb { background-color: #ddd; border-radius: 10px; }
+
+
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      padding-bottom: 20px;
+    a {
+      text-decoration: none;
+      display: block; // This ensures the link fills the width
+      width: 100%;
+
+      // This targets the active state from NavLink
+      &.active {
+        li {
+          background-color: #2A174E;
+          color: white;
+          border-radius: 12px 0px 0px 12px;
+
+          .icon, span {
+            color: white !important;
+          }
+        }
+      }
+    }
+
+      .title {
+        font-size: 12px;
+        font-weight: bold;
+        color: #4F2A94;
+        margin-top: 15px;
+        margin-bottom: 5px;
+        padding-left: 20px;
+        text-transform: uppercase;
+      }
+
+      li {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      margin: 2px 0;
+      margin-left: 10px;
+      cursor: pointer;
+      gap: 10px;
+      color: #2A174E; // Default color
+
+      // Grouping hover and active logic
+      &:hover {
+        background-color: #623fa2;
+        color: white; 
+        transition: background-color 0.5s ease, color 0.5s ease;
+        border-radius: 12px 12px 0px 12px;
+
+        .icon, span {
+          color: white !important;
+        }
+      }
+
+      .icon {
+        font-size: 20px;
+        color: #2A174E;
+      }
+
+      span {
+        font-size: 16px;
+        font-weight: 600;
+        margin-left: 10px;
+      }
+    }
+    .logoutItem {
+        li {
+          &:hover {
+            background-color: #fee2e2; // Soft red hover for logout
+            color: #dc2626;
+            .icon, span { color: #dc2626 !important; }
+          }
+        }
+      }
+  }
+}
+
+  .bottom{
+      display: flex;
+      align-items: center;
+      margin: 10px;
+
+      .colorOption{
+          width: 20px;
+          height: 20px;
+          border-radius: 5px;
+          border: 1px solid #7451f8;
+          cursor: pointer;
+          margin: 5px;
+
+          &:nth-child(1){
+              background-color: whitesmoke;
+          }
+          &:nth-child(2){
+              background-color: #333;
+          }
+          &:nth-child(3){
+              background-color: darkblue;
+          }
+      }
+  }
+}
+.menu-item-group {
+  li {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+
+    .expand-toggle {
+      margin-left: auto;
+      margin-right: 10px;
+      display: flex;
+      align-items: center;
+      padding: 4px;
+      border-radius: 50%;
+      color: #777;
+      transition: background-color 0.2s;
+
+      &:hover {
+        background-color: rgba(42, 23, 78, 0.1);
+      }
+
+      .expand-icon {
+        font-size: 18px;
+      }
+    }
+  }
+
+  .sub-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 10px 20px; // Indent the whole sub-menu
+    border-left: 1px solid rgba(42, 23, 78, 0.1);
+
+    li {
+      padding-left: 15px;
+      height: 35px;
+      margin: 2px 8px;
+      border-radius: 8px;
+      
+      .sub-icon {
+        font-size: 15px;
+        color: #666;
+      }
+      
+      span {
+        font-size: 13px;
+        color: #555;
+      }
+
+      &:hover {
+        background-color: rgba(42, 23, 78, 0.05);
+      }
+    }
+
+    a.active {
+      li {
+        background-color: #2A174E;
+        span { color: white; }
+        .icon { color: white; }
+      }
+    }
+  }
+}
+
+.sidebar.collapsed {
+  .menu-item-group {
+    .expand-toggle, .sub-menu {
+      display: none;
+    }
+  }
+}

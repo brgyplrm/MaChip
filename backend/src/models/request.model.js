@@ -49,6 +49,7 @@ module.exports = (sequelize, DataTypes) => {
       remarks: { type: DataTypes.TEXT, allowNull: true }, // employee remarks
       admin_remarks: { type: DataTypes.TEXT, allowNull: true }, // admin notes
       system_remarks: { type: DataTypes.TEXT, allowNull: true }, // auto-generated warnings
+      last_escalated_at: { type: DataTypes.DATE, allowNull: true },
     },
     { timestamps: true, freezeTableName: true },
   );

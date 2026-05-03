@@ -29,12 +29,12 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     const canAccessAsEmployee = isEmployeeMode && allowedRoles.includes(3);
 
     if (!hasRoleAccess && !canAccessAsEmployee) {
-      // If user is Employee (3) and tries to access Admin/Staff pages, redirect to profile
+      // If user is Employee (3) and tries to access Admin/Supervisor pages, redirect to profile
       if (userRole === 3) {
         return <Navigate to="/profile" replace />;
       }
       
-      // If user is Admin/Staff but trying to access an Employee-only page without viewMode="employee"
+      // If user is Admin/Supervisor but trying to access an Employee-only page without viewMode="employee"
       // or if they just don't have access to this specific admin page.
       // We go to employeeHome for role 3, or root for others.
       const fallback = (userRole === 3) ? "/profile" : "/";
