@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
-import "./loanModule.scss";
-import Sidebar from "../../../components/sidebar/Sidebar";
-import Navbar from "../../../components/navbar/Navbar";
+import Sidebar from "../../../components/Sidebar";
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -15,21 +13,27 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 
+// shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 const GovLoans = () => {
   const { systemToday } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const isAdmin = userData?.user_RoleId === 1;
 
-  const [activeTab, setActiveTab] = useState("summary"); // summary, sss_loan, pagibig_loan, multipurpose, calamity
+  const [activeTab, setActiveTab] = useState("summary"); 
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [file, setFile] = useState(null);
   
   const [employeeList, setEmployeeList] = useState([]);
   const [expectedDates, setExpectedDates] = useState([]);
-  const [allData, setAllData] = useState({}); // type -> matrix
+  const [allData, setAllData] = useState({}); 
   
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
@@ -45,7 +49,7 @@ const GovLoans = () => {
 
   const fetchCutoffDates = () => {
     const dates = [];
-    const year = selectedYear;
+    const year = parseInt(selectedYear);
     for (let m = 0; m < 12; m++) {
       const d15 = new Date(year, m, 15);
       dates.push(`${d15.getFullYear()}-${String(d15.getMonth() + 1).padStart(2, '0')}-15`);
@@ -185,7 +189,6 @@ const GovLoans = () => {
         const text = e.target.result;
         const lines = text.split("\n").filter(line => line.trim() !== "");
         
-        // Find current tab config to get the correct type
         const currentType = govTypes.find(t => t.id === activeTab);
         if (!currentType) {
           setToast({ message: "Invalid tab selected", type: "error" });
@@ -201,7 +204,7 @@ const GovLoans = () => {
             date: values[0]?.trim(),
             user_Id: userId,
             amount: parseFloat(values[3]?.trim() || 0),
-            type: currentType.dbType // Using dbType from govTypes
+            type: currentType.dbType 
           };
         }).filter(item => !isNaN(item.user_Id) && item.date && !isNaN(item.amount));
 
@@ -244,61 +247,6 @@ const GovLoans = () => {
     Math.min(expectedDates.length, currentCutoffIndex + 2)
   );
 
-  const renderSummaryTable = (typeObj) => {
-    const typeData = allData[typeObj.id] || [];
-    return (
-      <div className="summary-section" key={typeObj.id}>
-        <div className="section-header">
-          <h3>{typeObj.label} Summary</h3>
-          <button onClick={() => setActiveTab(typeObj.id)}>View Details</button>
-        </div>
-        <div className="compact-table-wrapper">
-          <table className="compact-table">
-            <thead>
-              <tr>
-                <th className="sticky-col">Employee Name</th>
-                {summaryDates.map(d => {
-                  const dateObj = new Date(d);
-                  return (
-                    <th key={d} className={d === currentCutoffDate ? "current-col" : ""}>
-                      {dateObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
-                      {d === currentCutoffDate && <div className="curr-label">CURR</div>}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {employeeList.map(emp => {
-                const totalRow = summaryDates.reduce((acc, d) => {
-                  const record = typeData.find(item => item.date === d);
-                  return acc + (record?.values[emp.key]?.amount || 0);
-                }, 0);
-
-                if (totalRow === 0 && activeTab === "summary") return null;
-
-                return (
-                  <tr key={emp.user_Id}>
-                    <td className="sticky-col">{emp.name}</td>
-                    {summaryDates.map(d => {
-                      const record = typeData.find(item => item.date === d);
-                      const amount = record?.values[emp.key]?.amount || 0;
-                      return (
-                        <td key={d} className={`amt ${amount > 0 ? 'paid' : 'unpaid'} ${d === currentCutoffDate ? "current-col" : ""}`}>
-                          {amount > 0 ? amount.toFixed(2) : "—"}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-
   const getSummaryStats = (typeId) => {
     const typeData = allData[typeId] || [];
     const subscribers = new Set();
@@ -323,199 +271,347 @@ const GovLoans = () => {
   const activeStats = activeTab === "summary" ? { subscribers: 0, totalPaid: 0 } : getSummaryStats(activeTab);
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  const renderSummaryTable = (typeObj) => {
+    const typeData = allData[typeObj.id] || [];
+    return (
+      <Card key={typeObj.id} className="shadow-sm border-0 bg-white">
+        <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-slate-50">
+          <CardTitle className="text-base text-[#2A174E]">{typeObj.label} Summary</CardTitle>
+          <Button variant="link" onClick={() => setActiveTab(typeObj.id)} className="text-blue-500 font-bold uppercase text-[11px] hover:underline">View Details</Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Summary Matrix - Native HTML Table */}
+          <div className="relative max-h-[400px] overflow-auto w-full bg-white rounded-b-xl">
+            <table className="w-full min-w-max border-collapse text-sm">
+              <thead className="sticky top-0 z-[50] shadow-sm bg-slate-50">
+                <tr>
+                  <th className="sticky left-0 top-0 z-[60] bg-slate-50 text-slate-500 font-bold text-left min-w-[150px] p-3 border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                    Employee Name
+                  </th>
+                  {summaryDates.map(d => {
+                    const dateObj = new Date(d);
+                    const isCurrent = d === currentCutoffDate;
+                    return (
+                      <th key={d} className={`sticky top-0 z-[50] p-3 text-center align-middle font-bold border-b border-slate-200 ${isCurrent ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-500"}`}>
+                        <div className="flex flex-col relative pb-3">
+                          {dateObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+                          {isCurrent && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[8px] bg-yellow-400 text-[#2A174E] px-1 rounded">CURR</span>}
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {employeeList.map(emp => {
+                  const totalRow = summaryDates.reduce((acc, d) => {
+                    const record = typeData.find(item => item.date === d);
+                    return acc + (record?.values[emp.key]?.amount || 0);
+                  }, 0);
+
+                  if (totalRow === 0 && activeTab === "summary") return null;
+
+                  return (
+                    <tr key={emp.user_Id} className="hover:bg-slate-50">
+                      <td className="sticky left-0 z-[40] bg-white border-r border-b border-slate-100 p-3 align-middle font-semibold text-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.02)]">
+                        {emp.name}
+                      </td>
+                      {summaryDates.map(d => {
+                        const record = typeData.find(item => item.date === d);
+                        const amount = record?.values[emp.key]?.amount || 0;
+                        const isCurrent = d === currentCutoffDate;
+                        return (
+                          <td key={d} className={`p-3 text-center align-middle font-mono text-[12px] border-r border-b border-slate-100 ${amount > 0 ? 'text-green-800 font-bold' : 'text-slate-300'} ${isCurrent ? "bg-blue-50/30" : ""}`}>
+                            {amount > 0 ? amount.toFixed(2) : "—"}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
-    <div className="loanModule govLoans">
-      <Sidebar />
-      <div className="loanContainer">
-        <Navbar />
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
+      <div className="flex-1 p-4 md:p-8 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
+        
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
         
-        <div className="header-wrapper">
-          <div className="top">
-            <div className="title-area">
-              <h1>Governmental Loans</h1>
-              <div className="year-selector">
-                <FilterListIcon className="filter-icon" />
-                <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
-                  {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 4 + i).map(year => (
-                    <option key={year} value={year} style={year === new Date().getFullYear() ? {fontWeight: 'bold', color: '#2563eb'} : {}}>
-                      Fiscal Year {year} {year === new Date().getFullYear() ? "(Current)" : ""}
-                    </option>
-                  ))}
-                </select>
+        {/* Top Header & Settings */}
+        <Card className="shadow-sm border-0 bg-white mb-6">
+          <CardContent className="p-6">
+            
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <h1 className="text-2xl font-bold text-[#2A174E] m-0">Governmental Loans</h1>
+                <div className="flex items-center gap-2">
+                  <FilterListIcon className="text-slate-400 h-5 w-5" />
+                  <Select value={selectedYear} onValueChange={setSelectedYear}>
+                    <SelectTrigger className="w-[160px] h-9">
+                      <SelectValue placeholder="Select Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 4 + i).map(year => (
+                        <SelectItem key={year} value={year.toString()}>Fiscal Year {year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-            <div className="actions">
+
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
                 {activeTab !== "summary" && (
                   <>
-                    <button className="template-btn" onClick={downloadTemplate}>
-                        <DownloadIcon /> Template
-                    </button>
-                    <input type="file" accept=".csv" onChange={handleFileChange} id="csv-upload" style={{display: 'none'}} />
-                    <label htmlFor="csv-upload" className="upload-btn">
-                       <CloudUploadIcon /> {file ? (file.name.length > 15 ? file.name.substring(0,12) + "..." : file.name) : "Choose CSV"}
-                    </label>
+                    <Button variant="outline" onClick={downloadTemplate} className="w-full sm:w-auto border-[#2A174E] text-[#2A174E]">
+                      <DownloadIcon className="mr-2 h-4 w-4" /> Template
+                    </Button>
+                    <div className="w-full sm:w-auto relative">
+                      <input type="file" accept=".csv" onChange={handleFileChange} id="csv-upload" className="hidden" />
+                      <label htmlFor="csv-upload" className="flex items-center justify-center w-full sm:w-auto h-10 px-4 border border-dashed border-[#2A174E] text-[#2A174E] rounded-md cursor-pointer hover:bg-slate-50 font-medium text-sm transition-colors">
+                        <CloudUploadIcon className="mr-2 h-4 w-4" /> {file ? (file.name.length > 15 ? file.name.substring(0,12) + "..." : file.name) : "Choose CSV"}
+                      </label>
+                    </div>
                     {file && (
-                      <button className="process-btn" onClick={handleUpload} disabled={loading}>
+                      <Button onClick={handleUpload} disabled={loading} className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]">
                         {loading ? "..." : "Upload"}
-                      </button>
+                      </Button>
                     )}
                   </>
                 )}
-                <button className={`edit-headers-btn ${isEditingTable ? 'active' : ''}`} onClick={() => setIsEditingTable(!isEditingTable)}>
-                  {isEditingTable ? <><CheckIcon /> Save Matrix</> : <><EditIcon /> Edit Matrix</>}
-                </button>
-                <button className="save-btn" onClick={fetchData} disabled={loading}>
-                  <SaveIcon /> {loading ? "Updating..." : "Refresh Data"}
-                </button>
-            </div>
-          </div>
-
-          {activeTab !== "summary" && (
-            <div className="summary-cards">
-              <div className="card highlight">
-                <span className="label">LOAN TYPE</span>
-                <span className="val">{govTypes.find(t => t.id === activeTab)?.label}</span>
-              </div>
-              <div className="card">
-                <span className="label">ACTIVE SUBSCRIBERS</span>
-                <span className="val">{activeStats.subscribers}</span>
-              </div>
-              <div className="card highlight">
-                <span className="label">TOTAL COLLECTED (${selectedYear})</span>
-                <span className="val">{peso(activeStats.totalPaid)}</span>
-              </div>
-              <div className="card">
-                <span className="label">FISCAL YEAR</span>
-                <span className="val">{selectedYear}</span>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setIsEditingTable(!isEditingTable)}
+                  className={`h-10 ${isEditingTable ? "bg-green-500 hover:bg-green-600 text-white border-transparent" : "border-[#2A174E] text-[#2A174E] hover:bg-slate-50"}`}
+                >
+                  {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Matrix</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Matrix</>}
+                </Button>
+                <Button onClick={fetchData} disabled={loading} className="w-full sm:w-auto h-10 bg-[#2A174E] text-white hover:bg-[#1a0e30]">
+                  <SaveIcon className="mr-2 h-4 w-4" /> {loading ? "Updating..." : "Refresh Data"}
+                </Button>
               </div>
             </div>
-          )}
 
-          <div className="tab-navigation">
-            <button className={activeTab === "summary" ? "active" : ""} onClick={() => {setActiveTab("summary"); setIsEditingTable(false);}}>
-              <DashboardIcon /> Summary
-            </button>
-            {govTypes.map(type => (
-              <button key={type.id} className={activeTab === type.id ? "active" : ""} onClick={() => {setActiveTab(type.id); setIsEditingTable(false);}}>
-                <AccountBalanceIcon /> {type.label}
-              </button>
-            ))}
-          </div>
-        </div>
+            {/* Summary Cards */}
+            {activeTab !== "summary" && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex flex-col justify-center">
+                  <span className="text-[10px] font-bold text-green-700 tracking-wider">LOAN TYPE</span>
+                  <span className="text-base font-bold text-green-800 mt-1">{govTypes.find(t => t.id === activeTab)?.label}</span>
+                </div>
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-center">
+                  <span className="text-[10px] font-bold text-slate-500 tracking-wider">ACTIVE SUBSCRIBERS</span>
+                  <span className="text-base font-bold text-slate-800 mt-1">{activeStats.subscribers}</span>
+                </div>
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex flex-col justify-center">
+                  <span className="text-[10px] font-bold text-green-700 tracking-wider">TOTAL COLLECTED ({selectedYear})</span>
+                  <span className="text-base font-bold text-green-800 mt-1">{peso(activeStats.totalPaid)}</span>
+                </div>
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-center">
+                  <span className="text-[10px] font-bold text-slate-500 tracking-wider">FISCAL YEAR</span>
+                  <span className="text-base font-bold text-slate-800 mt-1">{selectedYear}</span>
+                </div>
+              </div>
+            )}
 
-        <div className="content-body">
+            {/* Tab Navigation */}
+            <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+              <Button
+                variant="ghost"
+                className={`h-9 text-sm font-semibold rounded-lg ${activeTab === "summary" ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
+                onClick={() => {setActiveTab("summary"); setIsEditingTable(false);}}
+              >
+                <DashboardIcon className="mr-2 h-4 w-4" /> Summary
+              </Button>
+              {govTypes.map(type => (
+                <Button
+                  key={type.id}
+                  variant="ghost"
+                  className={`h-9 text-sm font-semibold rounded-lg ${activeTab === type.id ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
+                  onClick={() => {setActiveTab(type.id); setIsEditingTable(false);}}
+                >
+                  <AccountBalanceIcon className="mr-2 h-4 w-4" /> {type.label}
+                </Button>
+              ))}
+            </div>
+
+          </CardContent>
+        </Card>
+
+        {/* Matrix / Summary Content */}
+        <div className="w-full">
           {activeTab === "summary" ? (
-            <div className="summary-dashboard">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               {govTypes.map(type => renderSummaryTable(type))}
             </div>
           ) : (
-            <div className="table-container">
-              <table className="pivoted-table">
-                <thead>
-                  <tr className="row-1-months">
-                    <th className="sticky-col">
-                      <div className="vertical-stack">
-                        <span className="year">{selectedYear} Year</span>
-                        <span className="label">MONTHS / DATE</span>
-                      </div>
-                    </th>
-                    {employeeList.map((emp) => (
-                      <th key={emp.key} className="emp-header-cell">
-                        <div className="vertical-stack">
-                          <span className="name">{emp.name.split(',')[0]}</span>
-                          <span className="id">{emp.id}</span>
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr><td colSpan={employeeList.length + 1} className="empty-msg">Loading data...</td></tr>
-                  ) : expectedDates.length > 0 ? (
-                    <>
-                    {expectedDates.map((dateStr, i) => {
-                        const dateObj = new Date(dateStr);
-                        const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
-                        const dayLabel = dateObj.getDate();
-                        const isCurrent = dateStr === currentCutoffDate;
-                        
-                        return (
-                          <tr key={dateStr} className={isCurrent ? "current-row" : ""}>
-                            <td className="sticky-col date-label">
-                              {isEditingTable ? (
-                                <input 
-                                  type="date" 
-                                  value={dateStr}
-                                  onChange={(e) => handleHeaderChange(i, e.target.value)}
-                                  className="date-edit-input"
-                                />
-                              ) : (
-                                <>
-                                  <span className="month">{monthLabel}</span>
-                                  <span className="day">{dayLabel}</span>
-                                  {isCurrent && <div className="curr-tag">CURR</div>}
-                                </>
-                              )}
-                            </td>
-                            {employeeList.map((emp) => {
-                              const typeData = allData[activeTab] || [];
-                              const actualRecord = typeData.find(d => isInSamePeriod(d.date, dateStr));
-                              const record = actualRecord ? actualRecord.values[emp.key] : null;
-                              const amount = record ? record.amount : 0;
-                              const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
-                              const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
+            <Card className="shadow-sm border-0 bg-white">
+              <CardContent className="p-0">
+                {/* Main Matrix - Native HTML Table */}
+                <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-b-xl">
+                  <table className="w-full min-w-max border-collapse text-sm">
+                    <thead className="sticky top-0 z-[50] shadow-sm">
+                      <tr>
+                        {/* Top-Left Header Cell */}
+                        <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-[#2A174E] p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          <div className="flex flex-col leading-tight">
+                            <span className="text-[9px] font-black uppercase opacity-90">{selectedYear} Year</span>
+                            <span className="text-xs text-white font-bold">MONTHS / DATE</span>
+                          </div>
+                        </th>
+                        {/* Top Header Cells */}
+                        {employeeList.map((emp) => (
+                          <th key={emp.key} className="sticky top-0 z-[50] bg-[#2A174E] text-white border-x border-b-2 border-[#3d2270] min-w-[140px] p-3 text-center align-middle">
+                            <div className="flex flex-col leading-tight items-center">
+                              <span className="text-[11px] font-bold uppercase">{emp.name.split(',')[0]}</span>
+                              <span className="text-[9px] text-white/70 font-mono">{emp.id}</span>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
 
-                              return (
-                                <td key={emp.key} className={`amt ${amount > 0 ? 'paid' : 'unpaid'} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`} onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}>
-                                  {isEditing ? (
-                                    <input 
-                                      type="number" 
-                                      value={editValue} 
-                                      onChange={(e) => setEditValue(e.target.value)} 
-                                      onBlur={() => handleCellSave(dateStr, emp.key)} 
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                          e.preventDefault();
-                                          handleCellSave(dateStr, emp.key);
-                                        }
-                                      }} 
-                                      autoFocus 
-                                      className="cell-edit-input" 
+                    <tbody>
+                      {loading ? (
+                        <tr>
+                          <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
+                            Loading data...
+                          </td>
+                        </tr>
+                      ) : error ? (
+                        <tr>
+                          <td colSpan={employeeList.length + 1} className="h-32 text-center text-red-500 p-6">
+                            <p>Error: {error}</p>
+                            <Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
+                          </td>
+                        </tr>
+                      ) : expectedDates.length > 0 ? (
+                        <>
+                          {expectedDates.map((dateStr, i) => {
+                            const dateObj = new Date(dateStr);
+                            const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
+                            const dayLabel = dateObj.getDate();
+                            const isCurrentRow = dateStr === currentCutoffDate;
+                            
+                            return (
+                              <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
+                                {/* Left Column Cell */}
+                                <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-[#2A174E] p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                  {isEditingTable ? (
+                                    <Input 
+                                      type="date" 
+                                      value={dateStr}
+                                      onChange={(e) => handleHeaderChange(i, e.target.value)}
+                                      className="h-8 text-xs font-bold text-[#2A174E] focus-visible:ring-blue-500"
                                     />
-                                  ) : isSyncing ? (
-                                    <div className="sync-spinner">SAVING...</div>
                                   ) : (
-                                    amount > 0 ? amount.toFixed(2) : "—"
+                                    <div className="flex flex-col">
+                                      <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel}</span>
+                                      <span className="text-[10px] font-semibold text-slate-500">{dayLabel}</span>
+                                      {isCurrentRow && <span className="bg-yellow-400 text-[#2A174E] text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
+                                    </div>
                                   )}
                                 </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                      <tr className="summary-row subtotal-row">
-                        <td className="sticky-col label-cell"><span className="summary-label">TOTAL PAID</span></td>
-                        {employeeList.map((emp) => {
-                          const typeData = allData[activeTab] || [];
-                          const empSubtotal = expectedDates.reduce((acc, dateStr) => {
-                            const period = typeData.find(d => d.date === dateStr);
-                            return acc + (period?.values[emp.key]?.amount || 0);
-                          }, 0);
-                          return <td key={emp.key} className="amt total">{empSubtotal.toFixed(2)}</td>;
-                        })}
-                      </tr>
-                    </>
-                  ) : (
-                    <tr><td colSpan={employeeList.length + 1} className="empty-msg">No periods defined.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                                {/* Data Cells */}
+                                {employeeList.map((emp) => {
+                                  const typeData = allData[activeTab] || [];
+                                  const actualRecord = typeData.find(d => isInSamePeriod(d.date, dateStr));
+                                  const record = actualRecord ? actualRecord.values[emp.key] : null;
+                                  const amount = record ? record.amount : 0;
+                                  
+                                  const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
+                                  const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
+
+                                  let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer ";
+                                  if (isEditing) cellClass += "bg-white p-0 ";
+                                  else if (isSyncing) cellClass += "bg-yellow-50 ";
+                                  else if (record) cellClass += "text-green-800 font-bold ";
+                                  else cellClass += "text-slate-200 ";
+
+                                  return (
+                                    <td 
+                                      key={emp.key} 
+                                      className={cellClass}
+                                      onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
+                                    >
+                                      {isEditing ? (
+                                        <input
+                                          type="number"
+                                          value={editValue}
+                                          onChange={(e) => setEditValue(e.target.value)}
+                                          onBlur={() => handleCellSave(dateStr, emp.key)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault();
+                                              handleCellSave(dateStr, emp.key);
+                                            }
+                                          }}
+                                          autoFocus
+                                          className="w-full h-10 border-2 border-blue-500 bg-blue-50 text-center font-mono text-[13px] text-blue-900 outline-none"
+                                        />
+                                      ) : isSyncing ? (
+                                        <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
+                                      ) : (
+                                        amount > 0 ? amount.toFixed(2) : "—"
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </>
+                      ) : (
+                        <tr>
+                          <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
+                            No periods defined.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+
+                    {/* Footer Row (Total Paid) */}
+                    {expectedDates.length > 0 && !loading && !error && (
+                      <tfoot className="sticky bottom-0 z-[50] shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
+                        <tr>
+                          {/* Bottom-Left Cell */}
+                          <td className="sticky left-0 bottom-0 z-[60] bg-slate-100 border-r-2 border-t-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                            <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL PAID</span>
+                          </td>
+                          {/* Bottom Total Cells */}
+                          {employeeList.map((emp) => {
+                            const typeData = allData[activeTab] || [];
+                            const empSubtotal = expectedDates.reduce((acc, dateStr) => {
+                              const period = typeData.find(d => isInSamePeriod(d.date, dateStr));
+                              const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
+                              return acc + val;
+                            }, 0);
+                            return (
+                              <td key={emp.key} className="sticky bottom-0 z-[50] bg-slate-50 border-r border-t-2 border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
+                                {empSubtotal.toFixed(2)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      </tfoot>
+                    )}
+
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
+
       </div>
+      </Sidebar>
     </div>
   );
 };

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
@@ -45,23 +46,72 @@ import { Separator } from "./ui/separator";
 import { fetchWithAuth } from "../utils/api";
 
 const Sidebar = ({ children }) => {
-  // Dropdown states for submenus
-  const [isUsersOpen, setIsUsersOpen] = useState(false);
-  const [isRequestsOpen, setIsRequestsOpen] = useState(false);
-  const [isPayrollOpen, setIsPayrollOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Dropdown states for submenus - initialized based on the current URL
+  const [isUsersOpen, setIsUsersOpen] = useState(() => location.pathname.startsWith("/users"));
+  const [isRequestsOpen, setIsRequestsOpen] = useState(() => 
+    location.pathname.startsWith("/requests") || location.pathname.startsWith("/adminRequests")
+  );
+  const [isPayrollOpen, setIsPayrollOpen] = useState(() => 
+    location.pathname.startsWith("/payroll") || 
+    location.pathname.startsWith("/maxicare") || 
+    location.pathname.startsWith("/eastwestloan") || 
+    location.pathname.startsWith("/govloans") || 
+    location.pathname.startsWith("/cashadvances")
+  );
   
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
   
-  const navigate = useNavigate();
-  const location = useLocation();
+  // Hybrid State for Profile Dropdown (Hover + Lock-on-click)
+  const [isProfileHovered, setIsProfileHovered] = useState(false);
+  const [isProfileLocked, setIsProfileLocked] = useState(false);
+  const profileDropdownRef = useRef(null);
+
+  // Hybrid State for Notifications Dropdown (Hover + Lock-on-click)
+  const [isNotifHovered, setIsNotifHovered] = useState(false);
+  const [isNotifLocked, setIsNotifLocked] = useState(false);
+  const notifDropdownRef = useRef(null);
 
   const isManagement = (userData?.user_RoleId === 1 || userData?.user_RoleId === 2) && viewMode === "management";
   const isAdmin = userData?.user_RoleId === 1 && viewMode === "management";
   const homePath = isManagement ? "/" : "/employeeHome";
   const isActive = (path) => location.pathname === path;
+
+  // Auto-expand the correct menu if the route changes dynamically
+  useEffect(() => {
+    if (location.pathname.startsWith("/users")) setIsUsersOpen(true);
+    if (location.pathname.startsWith("/requests") || location.pathname.startsWith("/adminRequests")) setIsRequestsOpen(true);
+    if (
+      location.pathname.startsWith("/payroll") || 
+      location.pathname.startsWith("/maxicare") || 
+      location.pathname.startsWith("/eastwestloan") || 
+      location.pathname.startsWith("/govloans") || 
+      location.pathname.startsWith("/cashadvances")
+    ) {
+      setIsPayrollOpen(true);
+    }
+  }, [location.pathname]);
+
+  // Click-outside listener to unlock the dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Check Profile Dropdown
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
+        setIsProfileLocked(false);
+      }
+      // Check Notifications Dropdown
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsNotifLocked(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // --- Auth & User Logic ---
   const handleLogout = () => {
@@ -116,6 +166,10 @@ const Sidebar = ({ children }) => {
   // Generate Breadcrumbs based on location
   const pathnames = location.pathname.split("/").filter((x) => x);
 
+  // Dropdown visibility logic
+  const showProfileMenu = isProfileHovered || isProfileLocked;
+  const showNotifMenu = isNotifHovered || isNotifLocked;
+
   return (
     <SidebarProvider>
       <ShadcnSidebar className="bg-white border-r border-gray-200">
@@ -127,7 +181,6 @@ const Sidebar = ({ children }) => {
               className="w-[150px] md:w-[150px] object-contain"
             />
           </Link>
-          {/* role display here */}
         </SidebarHeader>
         <div className="h-1" />
         <SidebarContent className="no-scrollbar px-3">
@@ -144,9 +197,7 @@ const Sidebar = ({ children }) => {
                     <Link to={homePath}>
                       <DashboardOutlinedIcon 
                           className="!text-[22px]" 
-                          sx={{
-                                strokeWidth: 1/2,
-                          }}
+                          sx={{ strokeWidth: 1/2 }}
                       />
                       <span className="ms-3 text-[14px]">Dashboard</span>
                     </Link>
@@ -183,8 +234,8 @@ const Sidebar = ({ children }) => {
                     {isUsersOpen && (
                       <SidebarMenuSub>
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/users/newUser")}>
-                            <Link to="/users" className={isActive("/users/newUser") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                          <SidebarMenuSubButton asChild isActive={isActive("/users")}>
+                            <Link to="/users" className={isActive("/users") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               View All Users
                             </Link>
                           </SidebarMenuSubButton>
@@ -241,13 +292,6 @@ const Sidebar = ({ children }) => {
                           </Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      {/* <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/adminRequests") || isActive("/requests")}>
-                          <Link to={isManagement ? "/adminRequests" : "/requests"} className={isActive("/adminRequests") || isActive("/requests") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                            Requests History
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem> */}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
@@ -266,6 +310,13 @@ const Sidebar = ({ children }) => {
                     {isPayrollOpen && (
                       <SidebarMenuSub>
                         <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/payroll")}>
+                            <Link to="/payroll" className={isActive("/payroll") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Payroll Managament
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll/employeeList")}>
                             <Link to="/payroll/employeeList" className={isActive("/payroll/employeeList") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Employee List
@@ -276,6 +327,34 @@ const Sidebar = ({ children }) => {
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll/payrollPeriod")}>
                             <Link to="/payroll/payrollPeriod" className={isActive("/payroll/payrollPeriod") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Payroll Details
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/maxicare")}>
+                            <Link to="/maxicare" className={isActive("/maxicare") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Maxicare
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/eastwestloan")}>
+                            <Link to="/eastwestloan" className={isActive("/eastwestloan") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Eastwest Loan
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/govloans")}>
+                            <Link to="/govloans" className={isActive("/govloans") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Government Loans
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/cashadvances")}>
+                            <Link to="/cashadvances" className={isActive("/cashadvances") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Cash Advances
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -390,71 +469,96 @@ const Sidebar = ({ children }) => {
 
             <div className="flex items-center gap-3">
               {/* Notifications */}
-              <div className="relative group">
-                <Link to="/notifications" className="relative p-2 text-gray-500 hover:text-[#2A174E] transition-colors block">
-                  <NotificationsNoneIcon className="!text-[26px] group-hover:animate-bell-shake" />
+              <div 
+                className="relative"
+                ref={notifDropdownRef}
+                onMouseEnter={() => setIsNotifHovered(true)}
+                onMouseLeave={() => setIsNotifHovered(false)}
+              >
+                <button 
+                  onClick={() => setIsNotifLocked(!isNotifLocked)}
+                  className="relative p-2 text-gray-500 hover:text-[#2A174E] transition-colors block focus:outline-none"
+                >
+                  <NotificationsNoneIcon className="!text-[26px] hover:animate-bell-shake" />
                   {unreadCount > 0 && (
                     <span className="absolute top-1 right-1 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-600 rounded-full">
                       {unreadCount}
                     </span>
                   )}
-                </Link>
+                </button>
 
                 {/* Notification Preview Popup */}
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                    <span className="text-sm font-bold text-[#2A174E]">Recent Notifications</span>
-                    <Link to="/notifications" className="text-[11px] text-[#2A174E]/60 hover:underline font-semibold">View All</Link>
-                  </div>
-                  <div className="max-h-[350px] overflow-y-auto no-scrollbar">
-                    {notifications.length > 0 ? (
-                      notifications.map((notif) => (
-                        <div 
-                          key={notif.notifId} 
-                          className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-[#f0ebfa]/30' : ''}`}
-                          onClick={() => {
-                            if (notif.title === "Password Reset Request" && notif.targetId) {
-                              navigate(`/users/edit/${notif.targetId}`);
-                            } else if (notif.title === "New Request for Review") {
-                              navigate("/adminRequests");
-                            } else if (notif.targetId) {
-                              navigate(`/requests/${notif.targetId}`);
-                            }
-                          }}
-                        >
-                          <div className="flex gap-3">
-                            {!notif.isRead && (
-                              <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full bg-[#2A174E]" />
-                            )}
-                            <div className="flex-1">
-                              <p className="text-[12px] text-gray-800 leading-snug line-clamp-2 font-medium">{notif.message}</p>
-                              <p className="text-[10px] text-gray-400 mt-1">{new Date(notif.createdAt).toLocaleString()}</p>
+                {showNotifMenu && (
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                      <span className="text-sm font-bold text-[#2A174E]">Recent Notifications</span>
+                      <Link 
+                        to="/notifications" 
+                        onClick={() => { setIsNotifLocked(false); setIsNotifHovered(false); }}
+                        className="text-[11px] text-[#2A174E]/60 hover:underline font-semibold"
+                      >
+                        View All
+                      </Link>
+                    </div>
+                    <div className="max-h-[350px] overflow-y-auto no-scrollbar">
+                      {notifications.length > 0 ? (
+                        notifications.map((notif) => (
+                          <div 
+                            key={notif.notifId} 
+                            className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-[#f0ebfa]/30' : ''}`}
+                            onClick={() => {
+                              setIsNotifLocked(false); 
+                              setIsNotifHovered(false);
+                              if (notif.title === "Password Reset Request" && notif.targetId) {
+                                navigate(`/users/edit/${notif.targetId}`);
+                              } else if (notif.title === "New Request for Review") {
+                                navigate("/adminRequests");
+                              } else if (notif.targetId) {
+                                navigate(`/requests/${notif.targetId}`);
+                              }
+                            }}
+                          >
+                            <div className="flex gap-3">
+                              {!notif.isRead && (
+                                <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full bg-[#2A174E]" />
+                              )}
+                              <div className="flex-1">
+                                <p className="text-[12px] text-gray-800 leading-snug line-clamp-2 font-medium">{notif.message}</p>
+                                <p className="text-[10px] text-gray-400 mt-1">{new Date(notif.createdAt).toLocaleString()}</p>
+                              </div>
                             </div>
                           </div>
+                        ))
+                      ) : (
+                        <div className="p-8 text-center">
+                          <NotificationsNoneIcon className="text-gray-200 !text-[40px] mb-2" />
+                          <p className="text-xs text-gray-400">No new notifications</p>
                         </div>
-                      ))
-                    ) : (
-                      <div className="p-8 text-center">
-                        <NotificationsNoneIcon className="text-gray-200 !text-[40px] mb-2" />
-                        <p className="text-xs text-gray-400">No new notifications</p>
-                      </div>
+                      )}
+                    </div>
+                    {notifications.length > 0 && (
+                      <Link 
+                        to="/notifications" 
+                        onClick={() => { setIsNotifLocked(false); setIsNotifHovered(false); }}
+                        className="block py-2.5 text-center text-[11px] font-bold text-[#2A174E] hover:bg-gray-50 border-t border-gray-100"
+                      >
+                        SEE ALL NOTIFICATIONS
+                      </Link>
                     )}
                   </div>
-                  {notifications.length > 0 && (
-                    <Link 
-                      to="/notifications" 
-                      className="block py-2.5 text-center text-[11px] font-bold text-[#2A174E] hover:bg-gray-50 border-t border-gray-100"
-                    >
-                      SEE ALL NOTIFICATIONS
-                    </Link>
-                  )}
-                </div>
+                )}
               </div>
 
               {/* User Profile Dropdown */}
-              <div className="relative group">
+              <div 
+                className="relative" 
+                ref={profileDropdownRef}
+                onMouseEnter={() => setIsProfileHovered(true)}
+                onMouseLeave={() => setIsProfileHovered(false)}
+              >
                 <button 
-                  className="flex text-sm bg-gray-800 rounded-full focus:ring-2 focus:ring-gray-300 transition-transform active:scale-95 hover:scale-120"
+                  onClick={() => setIsProfileLocked(!isProfileLocked)}
+                  className="flex text-sm bg-gray-800 rounded-full focus:ring-2 focus:ring-gray-300 transition-transform active:scale-95"
                 >
                   <img 
                     className="w-8 h-8 rounded-full object-cover" 
@@ -463,31 +567,43 @@ const Sidebar = ({ children }) => {
                   />
                 </button>
 
-                <div className="absolute right-0 z-50 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden hidden group-hover:block animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{userData?.user_FirstName} {userData?.user_LastName}</p>
-                    <p className="text-xs text-gray-500 truncate font-medium">{userData?.user_Email}</p>
-                  </div>
-                  <ul className="py-1 text-sm text-gray-700 list-none m-0 p-0">
-                    <li>
-                      <Link to="/profile" className="flex items-center gap-3 px-4 py-2 hover:bg-[#f0ebfa] hover:text-[#2A174E] no-underline">
-                        <AccountCircleOutlinedIcon className="!text-[18px]" /> Profile
-                      </Link>
-                    </li>
-                    {(userData?.user_RoleId === 1 || userData?.user_RoleId === 2) && (
+                {showProfileMenu && (
+                  <div className="absolute right-0 z-50 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{userData?.user_FirstName} {userData?.user_LastName}</p>
+                      <p className="text-xs text-gray-500 truncate font-medium">{userData?.user_Email}</p>
+                    </div>
+                    <ul className="py-1 text-sm text-gray-700 list-none m-0 p-0">
                       <li>
-                        <button onClick={toggleViewMode} className="flex items-center w-full gap-3 px-4 py-2 text-left hover:bg-[#f0ebfa] hover:text-[#2A174E]">
-                          <SwitchAccountIcon className="!text-[18px]" /> {viewMode === "management" ? "Switch to Employee View" : "Switch to Management View"}
+                        <Link 
+                          to="/profile" 
+                          className="flex items-center gap-3 px-4 py-2 hover:bg-[#f0ebfa] hover:text-[#2A174E] no-underline"
+                          onClick={() => { setIsProfileLocked(false); setIsProfileHovered(false); }}
+                        >
+                          <AccountCircleOutlinedIcon className="!text-[18px]" /> Profile
+                        </Link>
+                      </li>
+                      {(userData?.user_RoleId === 1 || userData?.user_RoleId === 2) && (
+                        <li>
+                          <button 
+                            onClick={() => { toggleViewMode(); setIsProfileLocked(false); setIsProfileHovered(false); }} 
+                            className="flex items-center w-full gap-3 px-4 py-2 text-left hover:bg-[#f0ebfa] hover:text-[#2A174E]"
+                          >
+                            <SwitchAccountIcon className="!text-[18px]" /> {viewMode === "management" ? "Switch to Employee View" : "Switch to Management View"}
+                          </button>
+                        </li>
+                      )}
+                      <li>
+                        <button 
+                          onClick={() => { handleLogout(); setIsProfileLocked(false); setIsProfileHovered(false); }} 
+                          className="flex items-center w-full gap-3 px-4 py-2 text-left text-red-600 hover:bg-red-50"
+                        >
+                          <ExitToAppIcon className="!text-[18px]" /> Sign out
                         </button>
                       </li>
-                    )}
-                    <li>
-                      <button onClick={handleLogout} className="flex items-center w-full gap-3 px-4 py-2 text-left text-red-600 hover:bg-red-50">
-                        <ExitToAppIcon className="!text-[18px]" /> Sign out
-                      </button>
-                    </li>
-                  </ul>
-                </div>
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </header>

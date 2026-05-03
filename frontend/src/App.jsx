@@ -94,7 +94,7 @@ function App() {
         />
 
         <Route
-          path="/payroll/maxicare"
+          path="/maxicare"
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <Maxicare />
@@ -103,7 +103,7 @@ function App() {
         />
 
         <Route
-          path="/payroll/eastwest"
+          path="/eastwestloan"
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <EastwestLoan />
@@ -112,7 +112,7 @@ function App() {
         />
 
         <Route
-          path="/payroll/gov-loans"
+          path="/govloans"
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <GovLoans />
@@ -121,7 +121,7 @@ function App() {
         />
 
         <Route
-          path="/payroll/cash-advance"
+          path="/cashadvances"
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <Cashadvances />

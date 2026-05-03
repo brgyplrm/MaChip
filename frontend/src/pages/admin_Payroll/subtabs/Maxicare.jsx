@@ -1,185 +1,110 @@
 import React, { useState, useEffect } from "react";
-import "./maxicare.scss";
-import Sidebar from "../../../components/sidebar/Sidebar";
+import Sidebar from "../../../components/Sidebar";
 import Navbar from "../../../components/navbar/Navbar";
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import SaveIcon from '@mui/icons-material/Save';
-import DeleteIcon from '@mui/icons-material/Delete';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import DownloadIcon from '@mui/icons-material/Download';
-import EditIcon from '@mui/icons-material/Edit';
-import CheckIcon from '@mui/icons-material/Check';
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
+import FilterListIcon from '@mui/icons-material/FilterList';
+import EditIcon from '@mui/icons-material/Edit';
+import CheckIcon from '@mui/icons-material/Check';
+import SaveIcon from '@mui/icons-material/Save';
+import DownloadIcon from '@mui/icons-material/Download';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 
-const Maxicare = () => {
+// shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+const Cashadvances = () => {
   const { systemToday } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const isAdmin = userData?.user_RoleId === 1;
 
   const [toast, setToast] = useState({ message: "", type: "success" });
-  const [isEditing, setIsEditing] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Maxicare Configuration (Managed in Database)
-  const [config, setConfig] = useState({
-    totalGross: 0,
-    monthsToPay: 0,
-    cycleStartDate: "",
-  });
-
-  // Dynamic states
+  const systemYear = systemToday ? new Date(systemToday).getFullYear() : 2026;
+  const [selectedYear, setSelectedYear] = useState(systemYear);
+  
   const [employeeList, setEmployeeList] = useState([]);
-  const [data, setData] = useState([]);
   const [expectedDates, setExpectedDates] = useState([]);
+  const [data, setData] = useState([]);
+  
   const [isEditingTable, setIsEditingTable] = useState(false);
-  const [editingCell, setEditingCell] = useState(null); // { date: string, empKey: string }
+  const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState("");
-  const [syncingCell, setSyncingCell] = useState(null); // { date: string, empKey: string }
+  const [syncingCell, setSyncingCell] = useState(null);
+  const [file, setFile] = useState(null);
 
-  // Helper: Generate the 24 cut-off dates (Fallback Logic)
-  const generateExpectedDates = (startDateStr, months) => {
-    if (!startDateStr || !months) return [];
-    
+  const fetchCutoffDates = () => {
     const dates = [];
-    let current = new Date(startDateStr);
-    
-    // Check if date is valid
-    if (isNaN(current.getTime())) return [];
-    
-    for (let i = 0; i < months * 2; i++) {
-      const year = current.getFullYear();
-      const month = current.getMonth();
-      const day = current.getDate();
+    const year = selectedYear;
+    for (let m = 0; m < 12; m++) {
+      const d15 = new Date(year, m, 15);
+      dates.push(`${d15.getFullYear()}-${String(d15.getMonth() + 1).padStart(2, '0')}-15`);
       
-      const d = new Date(current);
-      dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
-      
-      // Toggle between 15th and Last Day
-      if (day <= 15) {
-        // Move to last day of current month
-        current = new Date(year, month + 1, 0);
-      } else {
-        // Move to 15th of next month
-        current = new Date(year, month + 1, 15);
-      }
+      const last = new Date(year, m + 1, 0);
+      dates.push(`${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`);
     }
-    return dates;
+    setExpectedDates(dates);
   };
 
-  // Fetch Data from DB
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch System Settings for Maxicare Config
-      const settingsRes = await fetchWithAuth("/api/system/settings");
-      const settingsData = await settingsRes.json();
-      if (settingsRes.ok && settingsData) {
-        setConfig({
-          totalGross: settingsData.maxicareTotalGross,
-          monthsToPay: settingsData.maxicareMonthsToPay,
-          cycleStartDate: settingsData.maxicareCycleStartDate || "",
-        });
+      fetchCutoffDates();
+      
+      const empRes = await fetchWithAuth("/api/users/all");
+      const employees = await empRes.json();
+      
+      const historyRes = await fetchWithAuth(`/api/payroll/loans/history?type=Cash Advance`);
+      const history = await historyRes.json();
 
-        if (settingsData.maxicareDates && settingsData.maxicareDates.length > 0) {
-          setExpectedDates(settingsData.maxicareDates);
-        } else if (settingsData.maxicareCycleStartDate) {
-          setExpectedDates(generateExpectedDates(settingsData.maxicareCycleStartDate, settingsData.maxicareMonthsToPay));
-        }
-      }
-
-      // 2. Fetch History FIRST (to identify subscribers)
-      let historyMap = {}; // userId -> { amount, date, status }
-      let rawHistory = [];
-      const historyRes = await fetchWithAuth("/api/payroll/maxicare/history");
-      if (historyRes.ok) {
-        rawHistory = await historyRes.json();
-        if (Array.isArray(rawHistory)) {
-          rawHistory.forEach(item => {
-            const uid = item.user_Id.toString();
-            // Store the most recent amount for each user to "harvest" it
-            if (!historyMap[uid] || item.date > historyMap[uid].date) {
-              historyMap[uid] = {
-                amount: parseFloat(item.amount),
-                date: item.date,
-                status: item.status
-              };
-            }
-          });
-        }
-      }
-
-      // 3. Fetch Employees
-      let empRes = await fetchWithAuth("/api/users/all");
-      let employees = [];
-      if (empRes.ok) employees = await empRes.json();
-      if (!Array.isArray(employees)) throw new Error("Could not retrieve employee list.");
-
-      // Participants: All active employees (those with a dailyRate > 0)
-      // This allows admins to add contributions for any employee from the matrix.
-      const activeParticipants = employees.filter(emp => emp.dailyRate > 0);
-
-      const activeEmps = activeParticipants.map(emp => {
-        const hist = historyMap[emp.user_Id.toString()];
-        // Harvest rate: Use User table rate, but if it's 0, use the historical rate
-        let rate = parseFloat(emp.healthCard_Amnt) || 0;
-        if (rate === 0 && hist && hist.amount > 0) {
-          rate = hist.amount;
-        }
-
-        return {
-          id: `MACJ-${String(emp.user_Id).padStart(3, "0")}`,
-          name: `${emp.user_LastName || "Unknown"}, ${emp.user_FirstName || "User"}`,
-          key: emp.user_Id.toString(),
-          user_Id: emp.user_Id,
-          expectedDeduction: rate
-        };
-      });
+      const activeEmps = employees.filter(e => e.dailyRate > 0).map(emp => ({
+        user_Id: emp.user_Id,
+        name: `${emp.user_LastName}, ${emp.user_FirstName}`,
+        id: `MACJ-${String(emp.user_Id).padStart(3, "0")}`,
+        key: emp.user_Id.toString(),
+      }));
       setEmployeeList(activeEmps);
 
-      // 4. Build Matrix from rawHistory
-      const dateMap = {};
-      rawHistory.forEach(item => {
-        if (item.date && item.user_Id) {
-          const dateKey = formatDateLocal(item.date);
-          if (!dateMap[dateKey]) dateMap[dateKey] = {};
-          dateMap[dateKey][item.user_Id.toString()] = {
+      if (Array.isArray(history)) {
+        const dateMap = {};
+        history.forEach(item => {
+          const dKey = formatDateLocal(item.date);
+          if (!dateMap[dKey]) dateMap[dKey] = {};
+          dateMap[dKey][item.user_Id.toString()] = {
             amount: parseFloat(item.amount),
-            status: item.status
+            status: 'paid'
           };
-        }
-      });
-
-      const matrix = Object.keys(dateMap).sort().map(date => ({
-        date,
-        values: dateMap[date]
-      }));
-      setData(matrix);
-
+        });
+        const matrix = Object.keys(dateMap).sort().map(date => ({
+          date,
+          values: dateMap[date]
+        }));
+        setData(matrix);
+      }
     } catch (err) {
-      console.error("[MAXICARE] Fatal fetch error:", err);
+      console.error("Error fetching cash advance data", err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleHeaderChange = (index, newDate) => {
+  useEffect(() => {
+    fetchData();
+  }, [selectedYear]);
+
+  const handleHeaderChange = index => newDate => {
     const updated = [...expectedDates];
     updated[index] = newDate;
     setExpectedDates(updated);
-  };
-
-  const handleEmployeeDeductionChange = (userId, newValue) => {
-    setEmployeeList(prev => prev.map(emp => 
-      emp.user_Id === userId ? { ...emp, expectedDeduction: newValue } : emp
-    ));
   };
 
   const handleCellDoubleClick = (date, empKey, currentVal) => {
@@ -190,632 +115,427 @@ const Maxicare = () => {
 
   const handleCellSave = async (date, empKey) => {
     const val = parseFloat(editValue);
-    // Allow 0, but block NaN
     if (isNaN(val)) {
       setEditingCell(null);
       return;
     }
 
-    const todayStr = systemToday ? formatDateLocal(systemToday) : "";
     setSyncingCell({ date, empKey });
-    const updates = [];
+    const updates = [{ date, user_Id: parseInt(empKey), amount: val, type: "Cash Advance" }];
+
     setData(prevData => {
       let newData = [...prevData];
-
-      const targetDateIndex = expectedDates.indexOf(date);
-      const currentCutoffIndex = currentCutoffDate ? expectedDates.indexOf(currentCutoffDate) : expectedDates.length;
-
-      // LOGIC: Only fill across if val >= contribution (deductionCutoff)
-      const shouldFill = val >= (deductionCutoff - 0.01); 
-
-      const datesToProcess = shouldFill 
-        ? expectedDates.slice(targetDateIndex, currentCutoffIndex)
-        : [date];
-
-      datesToProcess.forEach(dStr => {
-        let recordIndex = newData.findIndex(d => d.date === dStr);
-        const emp = employeeList.find(e => e.key === empKey);
-
-        if (recordIndex === -1) {
-          newData.push({
-            date: dStr,
-            values: { [empKey]: { amount: val, status: dStr < todayStr ? 'paid' : 'estimated' } }
-          });
-        } else {
-          const currentRecord = newData[recordIndex].values[empKey];
-          const currentVal = currentRecord ? currentRecord.amount : 0;
-
-          if (currentVal === 0 || dStr === date) {
-            newData[recordIndex].values = {
-              ...newData[recordIndex].values,
-              [empKey]: { amount: val, status: dStr < todayStr ? 'paid' : 'estimated' }
-            };
-          }
-        }
-        if (emp) {
-          updates.push({ date: dStr, user_Id: emp.user_Id, amount: val });
-        }
-      });
-
-      // Update the employeeList state so future projections (EST) show the new rate
-      // and so that "Save Table" will update the User Table in the DB.
-      setEmployeeList(prev => prev.map(e => 
-        e.key === empKey ? { ...e, expectedDeduction: val } : e
-      ));
-
+      let recordIndex = newData.findIndex(d => d.date === date);
+      if (recordIndex === -1) {
+        newData.push({ date, values: { [empKey]: { amount: val, status: 'paid' } } });
+      } else {
+        newData[recordIndex].values = { ...newData[recordIndex].values, [empKey]: { amount: val, status: 'paid' } };
+      }
       return newData.sort((a, b) => a.date.localeCompare(b.date));
     });
 
     setEditingCell(null);
 
-    // Auto-sync in real-time
-    if (updates.length > 0) {
-      try {
-        const res = await fetchWithAuth("/api/payroll/maxicare/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ updates })
-        });
-        
-        if (res.ok) {
-          setToast({ 
-            message: updates.length > 1 
-              ? "Employee history auto-filled and saved!" 
-              : "Cell updated successfully!", 
-            type: "success" 
-          });
-        }
-      } catch (err) {
-        console.error("Auto-sync failed:", err);
-        setToast({ message: "Failed to save to database", type: "error" });
-      } finally {
-        setTimeout(() => setSyncingCell(null), 800); 
-      }
-    } else {
-      setSyncingCell(null);
-    }
-  };
-
-  const dismissToast = () => setToast({ message: "", type: "success" });
-
-  const saveSettings = async () => {
     try {
-      setLoading(true);
-      // 1. Save System Settings (Dates & Global Rates)
-      const settingsRes = await fetchWithAuth("/api/system/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          maxicareTotalGross: config.totalGross,
-          maxicareMonthsToPay: config.monthsToPay,
-          maxicareCycleStartDate: config.cycleStartDate,
-          maxicareDates: expectedDates
-        })
-      });
-
-      // 2. Save Employee Base Deductions
-      const userRes = await fetchWithAuth("/api/users/bulk-maxicare", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          updates: employeeList.map(emp => ({
-            user_Id: emp.user_Id,
-            healthCard_Amnt: emp.expectedDeduction
-          }))
-        })
-      });
-
-      if (settingsRes.ok && userRes.ok) {
-        setIsEditing(false);
-        setIsEditingTable(false);
-        fetchData();
-        alert("Maxicare configuration and employee deductions saved!");
-      }
-    } catch (err) {
-      alert("Error saving settings");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const syncHistory = async () => {
-    try {
-      setLoading(true);
-      const updates = [];
-      data.forEach(item => {
-        Object.keys(item.values).forEach(empKey => {
-          const emp = employeeList.find(e => e.key === empKey);
-          const record = item.values[empKey];
-          if (emp && record) {
-            updates.push({
-              date: item.date,
-              user_Id: emp.user_Id,
-              amount: record.amount
-            });
-          }
-        });
-      });
-
-      const res = await fetchWithAuth("/api/payroll/maxicare/sync", {
+      const res = await fetchWithAuth("/api/payroll/loans/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates })
       });
-
       if (res.ok) {
-        alert("Payroll records updated successfully!");
-        fetchData();
-      } else {
-        const err = await res.json();
-        alert("Error syncing: " + (err.error || "Unknown error"));
+        setToast({ message: "Deduction saved!", type: "success" });
       }
     } catch (err) {
-      alert("Failed to sync with server");
+      setToast({ message: "Failed to save", type: "error" });
     } finally {
-      setLoading(false);
+      setTimeout(() => setSyncingCell(null), 500);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const downloadTemplate = () => {
+    const headers = ["month/year", ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
+    const headerLine = headers.join(",");
 
-  // Computed Values
-  const subscriberCount = employeeList.filter(emp => emp.expectedDeduction > 0).length;
-  const annualPremiumTotal = config.totalGross * subscriberCount;
-  const employerShare = config.totalGross / 2;
-  const employeeShare = config.totalGross / 2;
-  const deductionCutoff = config.monthsToPay > 0 ? (config.totalGross / 2) / (config.monthsToPay * 2) : 0;
+    const rows = expectedDates.map(date => {
+      const emptyValues = employeeList.map(() => "").join(",");
+      return `${date},${emptyValues}`;
+    });
 
-  // Group dates by month for the "row above" header
-  const groupedMonths = expectedDates.reduce((acc, dateStr) => {
-    const date = new Date(dateStr);
-    const monthLabel = date.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }).toUpperCase();
-    const last = acc[acc.length - 1];
-    if (last && last.label === monthLabel) {
-      last.colspan += 1;
-    } else {
-      acc.push({ label: monthLabel, colspan: 1 });
-    }
-    return acc;
-  }, []);
-
-  // Calculate Renewal Period dynamically based on Cycle Start
-  const getRenewalPeriod = () => {
-    if (!config.cycleStartDate) return "Not Set";
-    const start = new Date(config.cycleStartDate);
-    const end = new Date(start);
-    end.setMonth(start.getMonth() + (config.monthsToPay || 12));
-    end.setDate(end.getDate() - 1);
-    
-    const options = { month: 'short', day: 'numeric', year: 'numeric' };
-    return `${start.toLocaleDateString('en-PH', options)} - ${end.toLocaleDateString('en-PH', options)}`;
-  };
-
-  const handleConfigChange = (e) => {
-    const { name, value, type } = e.target;
-    setConfig(prev => ({ 
-      ...prev, 
-      [name]: type === 'number' ? parseFloat(value) || 0 : value 
-    }));
+    const csvContent = [headerLine, ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cash_advance_matrix_${selectedYear}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
   };
 
-  const downloadTemplate = () => {
-    const csvContent = "Date,EmployeeID,EmployeeName,Amount\n2025-10-15,MACJ-001,Cruzat Jenny,487.72\n2025-10-15,MACJ-002,Monis Gracel,487.72";
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'maxicare_template.csv';
-    a.click();
-  };
-
-  const handleUpload = () => {
-    if (!file) return alert("Please select a file first");
+  const handleUpload = async () => {
+    if (!file) {
+        setToast({ message: "Please select a file first", type: "error" });
+        return;
+    }
     setLoading(true);
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const text = e.target.result;
         const lines = text.split("\n").filter(line => line.trim() !== "");
-        
-        const rawData = lines.slice(1).map(line => {
-          const values = line.split(",");
-          return {
-            date: values[0]?.trim(),
-            id: values[1]?.trim(),
-            name: values[2]?.trim(),
-            amount: parseFloat(values[3]?.trim() || 0)
-          };
-        }).filter(item => item.id && item.date);
+        if (lines.length < 2) throw new Error("File is empty or missing data.");
 
-        const uniqueDates = [...new Set(rawData.map(item => item.date))].sort();
-        const uniqueEmps = [];
-        const empMap = new Map();
-        rawData.forEach(item => {
-          if (!empMap.has(item.id)) {
-            empMap.set(item.id, item.name);
-            uniqueEmps.push({ id: item.id, name: item.name, key: item.id.toLowerCase().replace(/\s/g, '') });
+        const headers = lines[0].split(",");
+        const empMappings = []; 
+
+        for (let i = 1; i < headers.length; i++) {
+          const header = headers[i];
+          const match = header.match(/#MACJ-(\d+)/i);
+          if (match) {
+            empMappings.push({ colIndex: i, user_Id: parseInt(match[1]) });
           }
-        });
+        }
 
-        const newData = uniqueDates.map(date => {
-          const values = {};
-          rawData.filter(item => item.date === date).forEach(item => {
-            const emp = uniqueEmps.find(e => e.id === item.id);
-            if (emp) values[emp.key] = { amount: item.amount, status: 'paid' };
+        const updates = [];
+        for (let i = 1; i < lines.length; i++) {
+          const columns = lines[i].split(",");
+          const date = columns[0]?.trim();
+          if (!date) continue;
+
+          empMappings.forEach(mapping => {
+            const amount = parseFloat(columns[mapping.colIndex]?.trim() || 0);
+            if (amount > 0) {
+              updates.push({
+                date,
+                user_Id: mapping.user_Id,
+                amount,
+                type: "Cash Advance"
+              });
+            }
           });
-          return { date, values };
+        }
+
+        if (updates.length === 0) {
+            setToast({ message: "No non-zero amounts found in CSV", type: "error" });
+            setLoading(false);
+            return;
+        }
+
+        const res = await fetchWithAuth("/api/payroll/loans/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updates })
         });
 
-        setEmployeeList(uniqueEmps);
-        setData(newData);
-        setLoading(false);
-        alert("CSV Processed Successfully");
+        if (res.ok) {
+          setToast({ message: `Successfully synced ${updates.length} records!`, type: "success" });
+          fetchData();
+          setFile(null);
+        } else {
+          const err = await res.json();
+          setToast({ message: "Sync error: " + (err.error || "Unknown"), type: "error" });
+        }
       } catch (err) {
-        alert("Error parsing CSV. Please ensure it follows the template.");
+        console.error("CSV Parse Error:", err);
+        setToast({ message: "Failed to parse matrix: " + err.message, type: "error" });
+      } finally {
         setLoading(false);
       }
     };
     reader.readAsText(file);
   };
 
-  const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
   const currentCutoffDate = systemToday 
     ? expectedDates.find(d => d >= formatDateLocal(systemToday))
     : null;
 
+  const getSummaryStats = () => {
+    const subscribers = new Set();
+    let totalPaid = 0;
+
+    data.forEach(item => {
+      const recordYear = new Date(item.date).getFullYear();
+      if (recordYear === selectedYear) {
+        Object.keys(item.values).forEach(empKey => {
+          const amt = item.values[empKey].amount;
+          if (amt > 0) {
+            subscribers.add(empKey);
+            totalPaid += amt;
+          }
+        });
+      }
+    });
+
+    return {
+      subscribers: subscribers.size,
+      totalPaid: totalPaid
+    };
+  };
+
+  const stats = getSummaryStats();
+  const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   return (
-    <div className="maxicare">
-      <Sidebar />
-      <div className="maxicareContainer">
-        <Navbar />
-        {toast.message && (
-          <Toast
-            message={toast.message}
-            type={toast.type}
-            onClose={dismissToast}
-          />
-        )}
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
+      <div className="flex-1 p-4 md:p-8 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
         
-        <div className="header-wrapper">
-          <div className="top">
-            <div className="title-area">
-              <h1>Maxicare Management</h1>
-              <div className="year-selector">
-                <FilterListIcon className="filter-icon" />
-                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-                  <option value="2025">Fiscal Year 2025</option>
-                  <option value="2026">Fiscal Year 2026</option>
-                </select>
-                {isAdmin && (
-                  <button 
-                    className={`edit-config-btn ${isEditing ? 'active' : ''}`}
-                    onClick={() => isEditing ? saveSettings() : setIsEditing(true)}
-                    disabled={loading}
-                  >
-                    {isEditing ? <><CheckIcon /> Save Config</> : <><EditIcon /> Edit Rates</>}
-                  </button>
+        {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
+        
+        {/* Top Header & Settings */}
+        <Card className="shadow-sm border-0 bg-white mb-6">
+          <CardContent className="p-6">
+            
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <h1 className="text-2xl font-bold text-[#2A174E] m-0">Cash Advance Management</h1>
+                <div className="flex items-center gap-2">
+                  <FilterListIcon className="text-slate-400 h-5 w-5" />
+                  <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
+                    <SelectTrigger className="w-[180px] h-9 bg-white">
+                      <SelectValue placeholder="Select Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(() => {
+                        const currentY = systemToday ? new Date(systemToday).getFullYear() : new Date().getFullYear();
+                        const startYear = 2011;
+                        const endYear = currentY + 10;
+                        const years = [];
+                        for (let y = endYear; y >= startYear; y--) {
+                          years.push(y);
+                        }
+                        return years.map(year => (
+                          <SelectItem key={year} value={year.toString()} className={year === currentY ? "font-bold text-blue-600" : ""}>
+                            Fiscal Year {year} {year === currentY ? "(Current)" : ""}
+                          </SelectItem>
+                        ));
+                      })()}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+                <Button variant="outline" onClick={downloadTemplate} className="w-full sm:w-auto border-[#2A174E] text-[#2A174E]">
+                  <DownloadIcon className="mr-2 h-4 w-4" /> Template
+                </Button>
+                <div className="w-full sm:w-auto relative">
+                  <input type="file" accept=".csv" onChange={handleFileChange} id="csv-upload" className="hidden" />
+                  <label htmlFor="csv-upload" className="flex items-center justify-center w-full sm:w-auto h-10 px-4 border border-dashed border-[#2A174E] text-[#2A174E] rounded-md cursor-pointer hover:bg-slate-50 font-medium text-sm transition-colors">
+                    <CloudUploadIcon className="mr-2 h-4 w-4" /> {file ? (file.name.length > 15 ? file.name.substring(0,12) + "..." : file.name) : "Choose CSV"}
+                  </label>
+                </div>
+                {file && (
+                  <Button onClick={handleUpload} disabled={loading} className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]">
+                    {loading ? "..." : "Upload"}
+                  </Button>
                 )}
               </div>
             </div>
-            <div className="upload-section">
-              <button className="template-btn" onClick={downloadTemplate}>
-                <DownloadIcon /> Template
-              </button>
-              <input type="file" accept=".csv" onChange={handleFileChange} id="csv-upload" style={{display: 'none'}} />
-              <label htmlFor="csv-upload" className="upload-btn">
-                <CloudUploadIcon /> {file ? file.name : "Choose CSV"}
-              </label>
-              <button className="process-btn" onClick={handleUpload} disabled={loading}>
-                {loading ? "Processing..." : "Upload"}
-              </button>
-            </div>
-          </div>
 
-          <div className="summary-cards">
-            <div className="card">
-              <span className="label">ANNUAL PREMIUM (TOTAL)</span>
-              <span className="val">{peso(annualPremiumTotal)}</span>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-green-700 tracking-wider">CATEGORY</span>
+                <span className="text-base font-bold text-green-800 mt-1">Cash Advances</span>
+              </div>
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-slate-500 tracking-wider">ACTIVE SUBSCRIBERS</span>
+                <span className="text-base font-bold text-slate-800 mt-1">{stats.subscribers}</span>
+              </div>
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-green-700 tracking-wider">TOTAL REPAID ({selectedYear})</span>
+                <span className="text-base font-bold text-green-800 mt-1">{peso(stats.totalPaid)}</span>
+              </div>
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-slate-500 tracking-wider">FISCAL YEAR</span>
+                <span className="text-base font-bold text-slate-800 mt-1">{selectedYear}</span>
+              </div>
             </div>
-            <div className="card">
-              <span className="label"># OF EMPLOYEES</span>
-              <span className="val">{subscriberCount}</span>
-            </div>            <div className={`card highlight editable ${isEditing ? 'editing' : ''}`}>
-              <span className="label">TOTAL GROSS</span>
-              {isEditing ? (
-                <input 
-                  type="number" 
-                  name="totalGross" 
-                  value={config.totalGross} 
-                  onChange={handleConfigChange}
-                  autoFocus
-                />
-              ) : (
-                <span className="val">{peso(config.totalGross)}</span>
-              )}
-            </div>
-            <div className={`card editable ${isEditing ? 'editing' : ''}`}>
-              <span className="label">MONTHS TO PAY</span>
-              {isEditing ? (
-                <input 
-                  type="number" 
-                  name="monthsToPay" 
-                  value={config.monthsToPay} 
-                  onChange={handleConfigChange}
-                />
-              ) : (
-                <span className="val">{config.monthsToPay}</span>
-              )}
-            </div>
-            <div className={`card editable ${isEditing ? 'editing' : ''}`}>
-              <span className="label">CYCLE START DATE</span>
-              {isEditing ? (
-                <input 
-                  type="date" 
-                  name="cycleStartDate" 
-                  value={config.cycleStartDate} 
-                  onChange={handleConfigChange}
-                />
-              ) : (
-                <span className="val">{new Date(config.cycleStartDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-              )}
-            </div>
-            <div className="card highlight">
-              <span className="label">EMPLOYER SHARE (50%)</span>
-              <span className="val">{peso(employerShare)}</span>
-            </div>
-            <div className="card highlight">
-              <span className="label">EMPLOYEE SHARE (50%)</span>
-              <span className="val">{peso(employeeShare)}</span>
-            </div>
-            <div className="card">
-              <span className="label">CUT-OFF DEDUCTION</span>
-              <span className="val">{peso(deductionCutoff)}</span>
-            </div>
-            <div className="card renewal">
-              <span className="label">RENEWAL PERIOD</span>
-              <span className="val">{getRenewalPeriod()}</span>
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="content-body">
-          <div className="table-header">
-            <h3>Employee Deduction History ({selectedYear})</h3>
-            <div className="actions">
+        {/* Matrix Table Section */}
+        <Card className="shadow-sm border-0 bg-white">
+          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-50 gap-4">
+            <CardTitle className="text-lg text-[#2A174E]">Cash Advance Matrix ({selectedYear})</CardTitle>
+            <div className="flex flex-wrap gap-2">
               {isAdmin && (
-                <button 
-                  className={`edit-headers-btn ${isEditingTable ? 'active' : ''}`}
-                  onClick={() => isEditingTable ? saveSettings() : setIsEditingTable(true)}
-                  style={{ 
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: isEditingTable ? '#22c55e' : 'white',
-                    color: isEditingTable ? 'white' : '#2a174e',
-                    border: '1px solid #2a174e'
-                  }}
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setIsEditingTable(!isEditingTable)}
+                  className={`${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
                 >
-                  {isEditingTable ? <><CheckIcon /> Save Table</> : <><EditIcon /> Edit Table</>}
-                </button>
+                  {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Table</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Table</>}
+                </Button>
               )}
-              <button 
-                className="save-btn" 
-                onClick={syncHistory}
-                disabled={loading}
-              >
-                <SaveIcon /> {loading ? "Updating..." : "Update Payroll"}
-              </button>
-              <button className="clear-btn" onClick={fetchData}><DeleteIcon /> Reset</button>
+              <Button size="sm" onClick={fetchData} disabled={loading} className="bg-[#2A174E] hover:bg-[#1a0e30] text-white">
+                <SaveIcon className="mr-1 h-4 w-4" /> {loading ? "Updating..." : "Refresh Data"}
+              </Button>
             </div>
-          </div>
-          
-          <div className="table-container">
-            <table className="pivoted-table">
-              <thead>
-                <tr className="row-1-months">
-                  <th className="sticky-col">
-                    <div className="vertical-stack">
-                      <span className="year">{selectedYear} Year</span>
-                      <span className="label">MONTHS / DATE</span>
-                    </div>
-                  </th>
-                  {employeeList.map((emp) => (
-                    <th key={emp.key} className="emp-header-cell">
-                      <div className="vertical-stack">
-                        <span className="name">{emp.name.split(',')[0]}</span>
-                        <span className="id">{emp.id}</span>
+          </CardHeader>
+          <CardContent className="p-0">
+            {/* The 2D Scroll Container */}
+            <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-b-xl">
+              <table className="w-full min-w-max border-collapse text-sm">
+                
+                <thead className="sticky top-0 z-[50] shadow-sm">
+                  <tr>
+                    {/* Top-Left Header Cell */}
+                    <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-[#2A174E] p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                      <div className="flex flex-col leading-tight">
+                        <span className="text-[9px] font-black uppercase opacity-90">{selectedYear} Year</span>
+                        <span className="text-xs text-white font-bold">MONTHS / DATE</span>
                       </div>
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={employeeList.length + 1} className="empty-msg">
-                      Loading Maxicare data...
-                    </td>
+                    {/* Top Header Cells */}
+                    {employeeList.map((emp) => (
+                      <th key={emp.key} className="sticky top-0 z-[50] bg-[#2A174E] text-white border-x border-b-2 border-[#3d2270] min-w-[140px] p-3 text-center align-middle">
+                        <div className="flex flex-col leading-tight items-center">
+                          <span className="text-[11px] font-bold uppercase">{emp.name.split(',')[0]}</span>
+                          <span className="text-[9px] text-white/70 font-mono">{emp.id}</span>
+                        </div>
+                      </th>
+                    ))}
                   </tr>
-                ) : error ? (
-                  <tr>
-                    <td colSpan={employeeList.length + 1} className="empty-msg error">
-                      <p>Error: {error}</p>
-                      <button onClick={fetchData} className="retry-btn">Retry Fetching Data</button>
-                    </td>
-                  </tr>
-                ) : expectedDates.length > 0 ? (
-                  <>
-                    {expectedDates.map((dateStr, i) => {
-                      const dateObj = new Date(dateStr);
-                      const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
-                      const dayLabel = dateObj.getDate();
-                      
-                      return (
-                        <tr key={dateStr} className={dateStr === currentCutoffDate ? "current-row" : ""}>
-                          <td className="sticky-col date-label">
-                            {isEditingTable ? (
-                              <input 
-                                type="date" 
-                                value={dateStr}
-                                onChange={(e) => handleHeaderChange(i, e.target.value)}
-                                className="date-edit-input"
-                              />
-                            ) : (
-                              <>
-                                <span className="month">{monthLabel}</span>
-                                <span className="day">{dayLabel}</span>
-                                {dateStr === currentCutoffDate && <div className="curr-tag">CURR</div>}
-                              </>
-                            )}
-                          </td>
-                          {employeeList.map((emp) => {                            // Find actual history
-                            const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
+                </thead>
 
-                            let amount = 0;
-                            let status = "unpaid";
-                            let isProjection = false;
-
-                            const userRate = parseFloat(emp.expectedDeduction) || 0;
-                            const todayStr = systemToday ? formatDateLocal(systemToday) : "";
-
-                            if (actualRecord && actualRecord.values[emp.key]) {
-                              const record = actualRecord.values[emp.key];
-                              if (record.status === 'paid') {
-                                amount = record.amount;
-                                status = 'paid';
-                              } else {
-                                // If status is estimated in DB, we use the User Table rate
-                                // because the User Table is the source of truth for projections
-                                amount = userRate;
-                                status = 'estimated';
-                                isProjection = true;
-                              }
-                            } else {
-                              // No record in DB
-                              if (dateStr >= todayStr) {
-                                amount = userRate;
-                                status = 'estimated';
-                                isProjection = true;
-                              } else {
-                                amount = 0;
-                                status = 'unpaid';
-                              }
-                            }
-
-                            const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
-                            const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
-
-                            return (
-                              <td 
-                                key={emp.key} 
-                                className={`amt ${status} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`}
-                                onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
-                              >
-                                {isEditing ? (
-                                  <input
-                                    type="number"
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    onBlur={() => handleCellSave(dateStr, emp.key)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        handleCellSave(dateStr, emp.key);
-                                      }
-                                    }}
-                                    autoFocus
-                                    className="cell-edit-input"
-                                  />
-                                ) : isSyncing ? (
-                                  <div className="sync-spinner">SAVING...</div>
-                                ) : (
-                                  <>
-                                    {amount > 0 ? amount.toFixed(2) : "—"}
-                                    {isProjection && amount > 0 && <div className="preview-tag">EST</div>}
-                                  </>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                    
-                    {/* Per-Employee Summary Rows */}
-                    <tr className="summary-row subtotal-row">
-                      <td className="sticky-col label-cell">
-                        <span className="summary-label">SUBTOTAL</span>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
+                        Loading data...
                       </td>
-                      {employeeList.map((emp) => {
-                        // Only count periods BEFORE the current cutoff
-                        const historicalDates = currentCutoffDate 
-                          ? expectedDates.filter(d => d < currentCutoffDate)
-                          : expectedDates;
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={employeeList.length + 1} className="h-32 text-center text-red-500 p-6">
+                        <p>Error: {error}</p>
+                        <Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
+                      </td>
+                    </tr>
+                  ) : expectedDates.length > 0 ? (
+                    <>
+                      {expectedDates.map((dateStr, i) => {
+                        const dateObj = new Date(dateStr);
+                        const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
+                        const dayLabel = dateObj.getDate();
+                        const isCurrentRow = dateStr === currentCutoffDate;
+                        
+                        return (
+                          <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
+                            {/* Left Column Cell */}
+                            <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-[#2A174E] p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                              {isEditingTable ? (
+                                <Input 
+                                  type="date" 
+                                  value={dateStr}
+                                  onChange={(e) => handleHeaderChange(i)(e.target.value)}
+                                  className="h-8 text-xs font-bold text-[#2A174E] focus-visible:ring-blue-500"
+                                />
+                              ) : (
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel}</span>
+                                  <span className="text-[10px] font-semibold text-slate-500">{dayLabel}</span>
+                                  {isCurrentRow && <span className="bg-yellow-400 text-[#2A174E] text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
+                                </div>
+                              )}
+                            </td>
+                            {/* Data Cells */}
+                            {employeeList.map((emp) => {
+                              const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
+                              const record = actualRecord ? actualRecord.values[emp.key] : null;
+                              const amount = record ? record.amount : 0;
+                              
+                              const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
+                              const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
 
-                        const empSubtotal = historicalDates.reduce((acc, dateStr) => {
-                          const period = data.find(d => isInSamePeriod(d.date, dateStr));
-                          const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
-                          return acc + val;
+                              let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer ";
+                              if (isEditing) cellClass += "bg-white p-0 ";
+                              else if (isSyncing) cellClass += "bg-yellow-50 ";
+                              else if (record) cellClass += "text-green-800 font-bold ";
+                              else cellClass += "text-slate-200 ";
+
+                              return (
+                                <td 
+                                  key={emp.key} 
+                                  className={cellClass}
+                                  onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
+                                >
+                                  {isEditing ? (
+                                    <input
+                                      type="number"
+                                      value={editValue}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      onBlur={() => handleCellSave(dateStr, emp.key)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          handleCellSave(dateStr, emp.key);
+                                        }
+                                      }}
+                                      autoFocus
+                                      className="w-full h-10 border-2 border-blue-500 bg-blue-50 text-center font-mono text-[13px] text-blue-900 outline-none"
+                                    />
+                                  ) : isSyncing ? (
+                                    <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
+                                  ) : (
+                                    amount > 0 ? amount.toFixed(2) : "—"
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <tr>
+                      <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
+                        No periods defined.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+
+                {/* Footer Row (Total Paid) */}
+                {expectedDates.length > 0 && !loading && !error && (
+                  <tfoot className="sticky bottom-0 z-[50] shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
+                    <tr>
+                      {/* Bottom-Left Cell */}
+                      <td className="sticky left-0 bottom-0 z-[60] bg-slate-100 border-r-2 border-t-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                        <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL PAID</span>
+                      </td>
+                      {/* Bottom Total Cells */}
+                      {employeeList.map((emp) => {
+                        const empSubtotal = expectedDates.reduce((acc, d) => {
+                          const period = data.find(item => item.date === d);
+                          return acc + (period?.values[emp.key]?.amount || 0);
                         }, 0);
                         return (
-                          <td key={emp.key} className="amt total">
+                          <td key={emp.key} className="sticky bottom-0 z-[50] bg-slate-50 border-r border-t-2 border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
                             {empSubtotal.toFixed(2)}
                           </td>
                         );
                       })}
                     </tr>
-                    <tr className="summary-row balance-row">
-                      <td className="sticky-col label-cell">
-                        <span className="summary-label">BALANCE</span>
-                      </td>
-                      {employeeList.map((emp) => {
-                        const historicalDates = currentCutoffDate 
-                          ? expectedDates.filter(d => d < currentCutoffDate)
-                          : expectedDates;
-
-                        const empSubtotal = historicalDates.reduce((acc, dateStr) => {
-                          const period = data.find(d => isInSamePeriod(d.date, dateStr));
-                          const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
-                          return acc + val;
-                        }, 0);
-
-                        // Balance is Subtotal minus the total Employee Share for the whole cycle
-                        const balance = empSubtotal - employeeShare;
-                        return (
-                          <td key={emp.key} className={`amt balance ${balance < 0 ? 'red' : ''}`}>
-                            {balance.toFixed(2)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  </>
-                ) : (
-                  <tr>
-                    <td colSpan={employeeList.length + 1} className="empty-msg">
-                      No periods defined.
-                    </td>
-                  </tr>
+                  </tfoot>
                 )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
       </div>
+      </Sidebar>
     </div>
   );
 };
 
-export default Maxicare;
+export default Cashadvances;
