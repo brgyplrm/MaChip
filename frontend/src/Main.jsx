@@ -7,8 +7,11 @@ import { RealTimeProvider } from "./context/RealTimeContext";
 import { SidebarProvider } from "./components/ui/sidebar";
 import './tailwind.css'
 import './index.css'
+import LoadingScreen from "./components/LogisticsLoader";
+
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
+
 root.render(
   <React.StrictMode>
     <RealTimeProvider>

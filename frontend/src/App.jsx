@@ -35,6 +35,7 @@ import AuditLog from "./components/auditLog/AuditLog";
 import ArchivedUsers from "./pages/archivedUsers/ArchivedUsers";
 
 function App() {
+
   return (
     <div className="app w-full">
       <Routes>

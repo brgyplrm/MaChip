@@ -387,7 +387,7 @@ const GovLoans = () => {
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
         
         {/* Top Header & Settings */}
-        <Card className="shadow-sm border-0 bg-white mb-6">
+        <Card className="shadow-sm border-0 bg-white mb-6 py-2">
           <CardContent className="p-6">
             
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">

@@ -12,6 +12,10 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined';
+
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,12 +30,19 @@ const EastwestLoan = () => {
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showBatchModal, setShowBatchModal] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [file, setFile] = useState(null);
   
   const [employeeList, setEmployeeList] = useState([]);
   const [expectedDates, setExpectedDates] = useState([]);
   const [data, setData] = useState([]);
+
+  const [batchForm, setBatchForm] = useState({
+    date: "",
+    amount: "",
+    selectedEmployees: []
+  });
   
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
@@ -98,6 +109,75 @@ const EastwestLoan = () => {
   useEffect(() => {
     fetchData();
   }, [selectedYear]);
+
+  const handleBatchSave = async () => {
+    if (!batchForm.date || !batchForm.amount || batchForm.selectedEmployees.length === 0) {
+      setToast({ message: "Please fill all fields and select at least one employee", type: "error" });
+      return;
+    }
+
+    const amount = parseFloat(batchForm.amount);
+    if (isNaN(amount)) {
+      setToast({ message: "Invalid amount", type: "error" });
+      return;
+    }
+
+    setLoading(true);
+    const updates = [];
+
+    batchForm.selectedEmployees.forEach(empId => {
+      updates.push({ date: batchForm.date, user_Id: empId, amount: amount, type });
+    });
+
+    try {
+      const res = await fetchWithAuth("/api/payroll/loans/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates })
+      });
+
+      if (res.ok) {
+        setToast({ message: "Batch update successful!", type: "success" });
+        setShowBatchModal(false);
+        fetchData();
+      } else {
+        const errData = await res.json();
+        setToast({ message: "Batch update failed: " + (errData.error || "Unknown error"), type: "error" });
+        fetchData();
+      }
+    } catch (err) {
+      setToast({ message: "Failed to sync batch update", type: "error" });
+      fetchData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleEmployeeSelection = (userId) => {
+    setBatchForm(prev => {
+      const isSelected = prev.selectedEmployees.includes(userId);
+      return {
+        ...prev,
+        selectedEmployees: isSelected 
+          ? prev.selectedEmployees.filter(id => id !== userId)
+          : [...prev.selectedEmployees, userId]
+      };
+    });
+  };
+
+  const selectAllEmployees = () => {
+    setBatchForm(prev => ({
+      ...prev,
+      selectedEmployees: employeeList.map(e => e.user_Id)
+    }));
+  };
+
+  const deselectAllEmployees = () => {
+    setBatchForm(prev => ({
+      ...prev,
+      selectedEmployees: []
+    }));
+  };
 
   const handleHeaderChange = (index, newDate) => {
     const updated = [...expectedDates];
@@ -297,13 +377,124 @@ const EastwestLoan = () => {
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Dialog open={showBatchModal} onOpenChange={setShowBatchModal}>
+        <DialogContent className="max-w-2xl bg-white p-6 rounded-xl shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-[#2A174E]">Batch Details Upload ({type})</DialogTitle>
+            <DialogDescription>
+              Select a method to upload multiple employee loan repayment records at once.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Tabs defaultValue="form" className="w-full mt-4">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="form">Manual Entry Form</TabsTrigger>
+              <TabsTrigger value="csv">CSV File Upload</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="form" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Target Month / Period</label>
+                  <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto p-2 border border-slate-200 rounded-md bg-slate-50">
+                    {expectedDates.map(dStr => {
+                      const isSelected = batchForm.date === dStr;
+                      const dObj = new Date(dStr);
+                      return (
+                        <button
+                          key={dStr}
+                          type="button"
+                          onClick={() => setBatchForm(prev => ({ ...prev, date: dStr }))}
+                          className={`text-[11px] py-2 px-3 rounded-lg border transition-all text-left flex flex-col ${
+                            isSelected 
+                              ? "bg-[#2A174E] border-[#2A174E] text-white shadow-md font-bold" 
+                              : "bg-white border-slate-200 text-slate-600 hover:border-[#2A174E] hover:text-[#2A174E]"
+                          }`}
+                        >
+                          <span className={isSelected ? "text-yellow-400" : "text-slate-400"}>
+                            {dObj.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })}
+                          </span>
+                          <span>{dObj.toLocaleDateString('en-PH', { day: 'numeric', month: 'short' })}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Amount (₱)</label>
+                  <Input 
+                    type="number" 
+                    placeholder="0.00"
+                    value={batchForm.amount}
+                    onChange={(e) => setBatchForm(prev => ({ ...prev, amount: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Select Employees</label>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="xs" onClick={selectAllEmployees} className="text-[10px] h-6 px-2 text-blue-600">Select All</Button>
+                    <Button variant="ghost" size="xs" onClick={deselectAllEmployees} className="text-[10px] h-6 px-2 text-slate-400">Clear</Button>
+                  </div>
+                </div>
+                <div className="border border-slate-200 rounded-lg p-3 max-h-[200px] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {employeeList.map(emp => (
+                    <div 
+                      key={emp.user_Id} 
+                      onClick={() => toggleEmployeeSelection(emp.user_Id)}
+                      className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${batchForm.selectedEmployees.includes(emp.user_Id) ? 'bg-blue-50 border border-blue-200' : 'bg-slate-50 border border-transparent hover:bg-slate-100'}`}
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${batchForm.selectedEmployees.includes(emp.user_Id) ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>
+                        {batchForm.selectedEmployees.includes(emp.user_Id) && <CheckIcon className="text-white !text-[10px]" />}
+                      </div>
+                      <span className="text-xs font-medium text-slate-700">{emp.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Button onClick={handleBatchSave} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={loading}>
+                {loading ? "Processing..." : "Apply Batch Update"}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="csv" className="space-y-6">
+              <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex flex-col items-center text-center">
+                <p className="text-sm text-blue-800 mb-4">Download our CSV template, fill it out with employee data, and upload it here.</p>
+                <Button variant="outline" size="sm" onClick={downloadTemplate} className="border-blue-600 text-blue-600 hover:bg-blue-100">
+                  <DownloadIcon className="mr-2 h-4 w-4" /> Download CSV Template
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-[#2A174E] transition-colors cursor-pointer relative">
+                  <Input 
+                    type="file" 
+                    accept=".csv" 
+                    onChange={handleFileChange} 
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <CloudUploadIcon className="text-slate-400 h-12 w-12 mb-2" />
+                  <p className="text-sm font-medium text-slate-600">{file ? file.name : "Click or drag CSV file here"}</p>
+                </div>
+                <Button onClick={handleUpload} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={!file || loading}>
+                  {loading ? "Uploading..." : "Upload and Process CSV"}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
         
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
         
         {/* Top Header & Settings */}
-        <Card className="shadow-sm border-0 bg-white mb-6">
+        <Card className="shadow-sm border-0 bg-white mb-6 py-2">
           <CardContent className="p-6">
             
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
@@ -322,23 +513,6 @@ const EastwestLoan = () => {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-                <Button variant="outline" onClick={downloadTemplate} className="w-full sm:w-auto border-[#2A174E] text-[#2A174E]">
-                  <DownloadIcon className="mr-2 h-4 w-4" /> Template
-                </Button>
-                <div className="w-full sm:w-auto relative">
-                  <input type="file" accept=".csv" onChange={handleFileChange} id="csv-upload" className="hidden" />
-                  <label htmlFor="csv-upload" className="flex items-center justify-center w-full sm:w-auto h-10 px-4 border border-dashed border-[#2A174E] text-[#2A174E] rounded-md cursor-pointer hover:bg-slate-50 font-medium text-sm transition-colors">
-                    <CloudUploadIcon className="mr-2 h-4 w-4" /> {file ? (file.name.length > 15 ? file.name.substring(0,12) + "..." : file.name) : "Choose CSV"}
-                  </label>
-                </div>
-                {file && (
-                  <Button onClick={handleUpload} disabled={loading} className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]">
-                    {loading ? "..." : "Upload"}
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -370,6 +544,15 @@ const EastwestLoan = () => {
             <CardTitle className="text-lg text-[#2A174E]">Employee Deduction History ({selectedYear})</CardTitle>
             <div className="flex flex-wrap gap-2">
               {isAdmin && (
+                <>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowBatchModal(true)}
+                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50"
+                >
+                  <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
+                </Button>
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -378,10 +561,8 @@ const EastwestLoan = () => {
                 >
                   {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Matrix</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Matrix</>}
                 </Button>
+                </>
               )}
-              <Button size="sm" onClick={fetchData} disabled={loading} className="bg-[#2A174E] text-white hover:bg-[#1a0e30]">
-                <SaveIcon className="mr-1 h-4 w-4" /> {loading ? "Updating..." : "Update Payroll"}
-              </Button>
             </div>
           </CardHeader>
           <CardContent className="p-0">

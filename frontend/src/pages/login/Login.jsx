@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import ForgotPasswordModal from "../../components/forgotPassword/ForgotPasswordModal";
+import LoadingScreen from "@/components/LogisticsLoader";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const parseMacjId = (value) => {
@@ -28,6 +29,8 @@ const Login = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const navigate = useNavigate();
+
+  const MIN_LOADING_TIME = 2500;
 
   // ── Redirect if already logged in ──────────────────────────────────────────
   useEffect(() => {
@@ -106,6 +109,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-5 box-border bg-[linear-gradient(90deg,#2a174e_0%,#ffffff_28%,#ffffff_72%,#ffae00_100%)]">
+      {loading && <LoadingScreen />}
       {/* ── Toast ── */}
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
 
