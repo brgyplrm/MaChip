@@ -297,85 +297,7 @@ const GovLoans = () => {
     Math.min(expectedDates.length, currentCutoffIndex + 2)
   );
 
-  const renderSummaryTable = (typeObj) => {
-    const typeData = allData[typeObj.id] || [];
-    return (
-      <div className="summary-section" key={typeObj.id}>
-        <div className="section-header">
-          <h3>{typeObj.label} Summary</h3>
-          <button onClick={() => setActiveTab(typeObj.id)}>View Details</button>
-        </div>
-        <div className="compact-table-wrapper">
-          <table className="compact-table">
-            <thead>
-              <tr>
-                <th className="sticky-col">Employee Name</th>
-                {summaryDates.map(d => {
-                  const dateObj = new Date(d);
-                  return (
-                    <th key={d} className={d === currentCutoffDate ? "current-col" : ""}>
-                      {dateObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
-                      {d === currentCutoffDate && <div className="curr-label">CURR</div>}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {employeeList.map(emp => {
-                const totalRow = summaryDates.reduce((acc, d) => {
-                  const record = typeData.find(item => item.date === d);
-                  return acc + (record?.values[emp.key]?.amount || 0);
-                }, 0);
-
-                if (totalRow === 0 && activeTab === "summary") return null;
-
-                return (
-                  <tr key={emp.user_Id}>
-                    <td className="sticky-col">{emp.name}</td>
-                    {summaryDates.map(d => {
-                      const record = typeData.find(item => item.date === d);
-                      const amount = record?.values[emp.key]?.amount || 0;
-                      return (
-                        <td key={d} className={`amt ${amount > 0 ? 'paid' : 'unpaid'} ${d === currentCutoffDate ? "current-col" : ""}`}>
-                          {parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      );                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-
-  const getSummaryStats = (typeId) => {
-    const typeData = allData[typeId] || [];
-    const subscribers = new Set();
-    let totalPaid = 0;
-
-    typeData.forEach(item => {
-      const recordYear = new Date(item.date).getFullYear();
-      if (recordYear === selectedYear) {
-        Object.keys(item.values).forEach(empKey => {
-          const amt = item.values[empKey].amount;
-          if (amt > 0) {
-            subscribers.add(empKey);
-            totalPaid += amt;
-          }
-        });
-      }
-    });
-
-    return {
-      subscribers: subscribers.size,
-      totalPaid: totalPaid
-    };
-  };
-
-  const activeStats = activeTab === "summary" ? { subscribers: 0, totalPaid: 0 } : getSummaryStats(activeTab);
+  const stats = getSummaryStats(activeTab);
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const renderSummaryTable = (typeObj) => {
@@ -582,19 +504,13 @@ const GovLoans = () => {
                             </div>
                           </th>
                         ))}
-                        <th className="sticky-col-right level-1">
-                      <div className="vertical-stack">
-                        <span className="year">SUB</span>
-                        <span className="label">TOTAL</span>
-                      </div>
-                    </th>
-                    <th className="sticky-col-right level-2">
-                      <div className="vertical-stack">
-                        <span className="year">MONTHLY</span>
-                        <span className="label">TOTAL</span>
-                      </div>
-                    </th>
-                  </tr>
+                        <th className="sticky-col-right level-1 p-3 bg-[#2A174E] text-yellow-400 border-x border-b-2 border-[#3d2270] min-w-[100px] text-center font-bold">
+                          SUB TOTAL
+                        </th>
+                        <th className="sticky-col-right level-2 p-3 bg-[#1e1136] text-white border-l border-b-2 border-[#2A174E] min-w-[120px] text-center font-bold">
+                          MONTHLY TOTAL
+                        </th>
+                      </tr>
                     </thead>
 
                     <tbody>
@@ -606,7 +522,7 @@ const GovLoans = () => {
                         </tr>
                       ) : error ? (
                         <tr>
-                          <td colSpan={employeeList.length + 1} className="h-32 text-center text-red-500 p-6">
+                          <td colSpan={employeeList.length + 3} className="h-32 text-center text-red-500 p-6">
                             <p>Error: {error}</p>
                             <Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
                           </td>
@@ -614,113 +530,116 @@ const GovLoans = () => {
                       ) : expectedDates.length > 0 ? (
                         <>
                           {(() => {
-                      const typeData = allData[activeTab] || [];
-                      const rowTotals = {};
-                      expectedDates.forEach(dStr => {
-                        const period = typeData.find(d => isInSamePeriod(d.date, dStr));
-                        rowTotals[dStr] = period ? Object.values(period.values).reduce((acc, v) => acc + (v.amount || 0), 0) : 0;
-                      });
+                            const typeData = allData[activeTab] || [];
+                            const rowTotals = {};
+                            expectedDates.forEach(dStr => {
+                              const period = typeData.find(d => isInSamePeriod(d.date, dStr));
+                              rowTotals[dStr] = period ? Object.values(period.values).reduce((acc, v) => acc + (v.amount || 0), 0) : 0;
+                            });
 
-                      const getMonthlyTotal = (dStr) => {
-                        const date = new Date(dStr);
-                        const m = date.getMonth();
-                        const y = date.getFullYear();
+                            const getMonthlyTotal = (dStr) => {
+                              const date = new Date(dStr);
+                              const m = date.getMonth();
+                              const y = date.getFullYear();
 
-                        // Check if this is the last expected date for this month in the current fiscal year
-                        const monthDates = expectedDates.filter(d => {
-                          const rd = new Date(d);
-                          return rd.getFullYear() === y && rd.getMonth() === m;
-                        });
-                        const isLastOfMonth = dStr === monthDates[monthDates.length - 1];
+                              const monthDates = expectedDates.filter(d => {
+                                const rd = new Date(d);
+                                return rd.getFullYear() === y && rd.getMonth() === m;
+                              });
+                              const isLastOfMonth = dStr === monthDates[monthDates.length - 1];
 
-                        if (!isLastOfMonth) return null;
+                              if (!isLastOfMonth) return null;
 
-                        return monthDates
-                          .filter(d => d <= dStr)
-                          .reduce((sum, d) => sum + (rowTotals[d] || 0), 0);
-                      };
+                              return monthDates
+                                .filter(d => d <= dStr)
+                                .reduce((sum, d) => sum + (rowTotals[d] || 0), 0);
+                            };
 
-                      return expectedDates.map((dateStr, i) => {
-                            const dateObj = new Date(dateStr);
-                            const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
-                            const dayLabel = dateObj.getDate();
-                            const isCurrentRow = dateStr === currentCutoffDate;
-                            
-                        const rowTotal = rowTotals[dateStr] || 0;
-                        const monthlyTotal = getMonthlyTotal(dateStr);
+                            return expectedDates.map((dateStr, i) => {
+                              const dateObj = new Date(dateStr);
+                              const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
+                              const dayLabel = dateObj.getDate();
+                              const isCurrentRow = dateStr === currentCutoffDate;
+                              
+                              const rowTotal = rowTotals[dateStr] || 0;
+                              const monthlyTotal = getMonthlyTotal(dateStr);
 
-                            return (
-                              <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
-                                {/* Left Column Cell */}
-                                <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-[#2A174E] p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                                  {isEditingTable ? (
-                                    <Input 
-                                      type="date" 
-                                      value={dateStr}
-                                      onChange={(e) => handleHeaderChange(i, e.target.value)}
-                                      className="h-8 text-xs font-bold text-[#2A174E] focus-visible:ring-blue-500"
-                                    />
-                                  ) : (
-                                    <div className="flex flex-col">
-                                      <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel}</span>
-                                      <span className="text-[10px] font-semibold text-slate-500">{dayLabel}</span>
-                                      {isCurrentRow && <span className="bg-yellow-400 text-[#2A174E] text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
-                                    </div>
-                                  )}
-                                </td>
-                                {/* Data Cells */}
-                                {employeeList.map((emp) => {
-                                      const actualRecord = typeData.find(d => isInSamePeriod(d.date, dateStr));
-                                  const record = actualRecord ? actualRecord.values[emp.key] : null;
-                                  const amount = record ? record.amount : 0;
-                                  
-                                  const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
-                                  const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
+                              return (
+                                <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
+                                  {/* Left Column Cell */}
+                                  <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-[#2A174E] p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                    {isEditingTable ? (
+                                      <Input 
+                                        type="date" 
+                                        value={dateStr}
+                                        onChange={(e) => handleHeaderChange(i, e.target.value)}
+                                        className="h-8 text-xs font-bold text-[#2A174E] focus-visible:ring-blue-500"
+                                      />
+                                    ) : (
+                                      <div className="flex flex-col">
+                                        <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel}</span>
+                                        <span className="text-[10px] font-semibold text-slate-500">{dayLabel}</span>
+                                        {isCurrentRow && <span className="bg-yellow-400 text-[#2A174E] text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
+                                      </div>
+                                    )}
+                                  </td>
+                                  {/* Data Cells */}
+                                  {employeeList.map((emp) => {
+                                    const actualRecord = typeData.find(d => isInSamePeriod(d.date, dateStr));
+                                    const record = actualRecord ? actualRecord.values[emp.key] : null;
+                                    const amount = record ? record.amount : 0;
+                                    
+                                    const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
+                                    const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
 
-                                  let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer ";
-                                  if (isEditing) cellClass += "bg-white p-0 ";
-                                  else if (isSyncing) cellClass += "bg-yellow-50 ";
-                                  else if (record) cellClass += "text-green-800 font-bold ";
-                                  else cellClass += "text-slate-200 ";
+                                    let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer ";
+                                    if (isEditing) cellClass += "bg-white p-0 ";
+                                    else if (isSyncing) cellClass += "bg-yellow-50 ";
+                                    else if (record) cellClass += "text-green-800 font-bold ";
+                                    else cellClass += "text-slate-200 ";
 
-                              const statusClass = amount > 0 ? 'paid' : (record ? 'removed' : 'unpaid');
-
-                                  return (
-                                    <td 
-                                      key={emp.key} 
-                                      className={cellClass}
-                                      onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
-                                    >
-                                      {isEditing ? (
-                                        <input
-                                          type="number"
-                                          value={editValue}
-                                          onChange={(e) => setEditValue(e.target.value)}
-                                          onBlur={() => handleCellSave(dateStr, emp.key)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter' || e.key === ' ') {
-                                              e.preventDefault();
-                                              handleCellSave(dateStr, emp.key);
-                                            }
-                                          }}
-                                          autoFocus
-                                          className="w-full h-10 border-2 border-blue-500 bg-blue-50 text-center font-mono text-[13px] text-blue-900 outline-none"
-                                        />
-                                      ) : isSyncing ? (
-                                        <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
-                                      ) : (
-                                        amount > 0 ? amount.toFixed(2) : "—"
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          })}
-                        </>
+                                    return (
+                                      <td 
+                                        key={emp.key} 
+                                        className={cellClass}
+                                        onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            type="number"
+                                            value={editValue}
+                                            onChange={(e) => setEditValue(e.target.value)}
+                                            onBlur={() => handleCellSave(dateStr, emp.key)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter' || e.key === ' ') {
+                                                e.preventDefault();
+                                                handleCellSave(dateStr, emp.key);
+                                              }
+                                            }}
+                                            autoFocus
+                                            className="w-full h-10 border-2 border-blue-500 bg-blue-50 text-center font-mono text-[13px] text-blue-900 outline-none"
+                                          />
+                                        ) : isSyncing ? (
+                                          <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
+                                        ) : (
+                                          amount > 0 ? amount.toFixed(2) : "—"
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="p-2 border-r border-b border-slate-200 bg-slate-50 text-center font-bold text-slate-700">
+                                    {rowTotal > 0 ? rowTotal.toFixed(2) : "—"}
+                                  </td>
+                                  <td className={`p-2 border-b border-slate-200 text-center font-bold ${monthlyTotal !== null ? "bg-blue-100 text-blue-900" : "bg-slate-100 text-slate-300"}`}>
+                                    {monthlyTotal !== null ? monthlyTotal.toFixed(2) : "—"}
+                                  </td>
+                                </tr>
+                              );
+                            });
+                        
                       ) : (
                         <tr>
-                          <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
+                          <td colSpan={employeeList.length + 3} className="h-32 text-center text-slate-500 italic p-6">
                             No periods defined.
                           </td>
                         </tr>
@@ -749,6 +668,12 @@ const GovLoans = () => {
                               </td>
                             );
                           })}
+                          <td className="bg-slate-100 border-r border-t-2 border-[#2A174E] p-3 text-center font-bold text-[#2A174E]">
+                            {expectedDates.reduce((acc, d) => acc + (rowTotals[d] || 0), 0).toFixed(2)}
+                          </td>
+                          <td className="bg-[#1e1136] border-t-2 border-[#2A174E] p-3 text-center font-bold text-white">
+                            {expectedDates.reduce((acc, d) => acc + (rowTotals[d] || 0), 0).toFixed(2)}
+                          </td>
                         </tr>
                       </tfoot>
                     )}

@@ -516,8 +516,15 @@ const Cashadvances = () => {
                         return <td key={emp.key} className="amt total">{empSubtotal.toFixed(2)}</td>;
                       })}
                     </tr>
-                  </tfoot>
+                  </>
+                ) : (
+                  <tr>
+                    <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
+                      No data available for the selected year.
+                    </td>
+                  </tr>
                 )}
+              </tbody>
 
               </table>
             </div>
