@@ -291,9 +291,8 @@ const Edit = ({ inputs, title }) => {
  return (
   <div className="new">
     <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
-    <Sidebar />
+    <Sidebar>
     <div className="newContainer">
-      <Navbar />
       <div className="top">
         <h1>{title} (ID: {formatUserId(userId)})</h1>
       </div>
@@ -507,6 +506,7 @@ const Edit = ({ inputs, title }) => {
             </button>
           </div>
         </div>
+        
       </div>
     )}
 
@@ -527,6 +527,7 @@ const Edit = ({ inputs, title }) => {
       currentId={originalFingerprintId}
       title="Fingerprint Scanner"
     />
+    </Sidebar>
   </div>
 );
 };
