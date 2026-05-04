@@ -69,7 +69,7 @@ const Edit = ({ inputs, title }) => {
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
-      <Sidebar />
+      <Sidebar>
       <div className="flex-1 p-4 md:p-8 w-full max-w-4xl mx-auto overflow-x-hidden min-w-0">
         
         <div className="mb-8">
@@ -144,6 +144,7 @@ const Edit = ({ inputs, title }) => {
         </Card>
 
       </div>
+      </Sidebar>
     </div>
   );
 };
