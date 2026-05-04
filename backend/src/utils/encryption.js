@@ -3,7 +3,10 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a_very_secret_32_char_key_macjip'; // Must be 32 bytes
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
+  throw new Error("ENCRYPTION_KEY must be exactly 32 characters in .env");
+}
 const IV_LENGTH = 16; // For AES, this is always 16
 
 /**
