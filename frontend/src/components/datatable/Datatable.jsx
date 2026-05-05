@@ -18,6 +18,9 @@ const Datatable = () => {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [userToArchive, setUserToArchive] = useState(null);
 
+  const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
+  const isAdminOrAccountant = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
+
   const dismissToast = useCallback(
     () => setToast({ message: "", type: "success" }),
     [],
@@ -78,19 +81,23 @@ const Datatable = () => {
           <span className="text-sm text-muted-foreground mt-1 block">Manage user accounts and roles</span>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          <Button 
-            variant="outline" 
-            asChild 
-            className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
-          >
-            <Link to="/users/archived">View Archived</Link>
-          </Button>
-          <Button 
-            asChild 
-            className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]"
-          >
-            <Link to="/users/newUser">Add New User</Link>
-          </Button>
+          {isAdminOrAccountant && (
+            <>
+              <Button 
+                variant="outline" 
+                asChild 
+                className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
+              >
+                <Link to="/users/archived">View Archived</Link>
+              </Button>
+              <Button 
+                asChild 
+                className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]"
+              >
+                <Link to="/users/newUser">Add New User</Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -130,14 +137,16 @@ const Datatable = () => {
                           >
                             <Link to={`/users/${user.user_Id}`}>View</Link>
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors" 
-                            onClick={() => initiateArchive(user.user_Id)}
-                          >
-                            Archive
-                          </Button>
+                          {isAdminOrAccountant && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors" 
+                              onClick={() => initiateArchive(user.user_Id)}
+                            >
+                              Archive
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

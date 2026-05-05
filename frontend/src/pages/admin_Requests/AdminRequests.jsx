@@ -318,6 +318,8 @@ const AdminRequests = () => {
                             <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-blue-100 text-blue-800">Self-Request</Badge>
                           ) : (userData?.user_RoleId === 2 && current.user_RoleId === 1) ? (
                             <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-purple-100 text-purple-800">Admin Review Required</Badge>
+                          ) : userData?.user_RoleId === 4 ? (
+                             <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-slate-100 text-slate-500 italic">View Only</Badge>
                           ) : (
                             <div className="flex gap-2 w-full">
                               <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
@@ -504,7 +506,7 @@ const AdminRequests = () => {
                     )}
                   </div>
 
-                  {current.emp_reqStatusId === 1 && (
+                  {current.emp_reqStatusId === 1 && userData?.user_RoleId !== 4 && (
                     <div className="space-y-3 mt-2">
                       <label className="text-sm font-bold text-slate-800">Admin Note (Optional)</label>
                       <Textarea

@@ -12,3 +12,5 @@ QA_CHECKLIST.txt
 seed_attendance.js
 uploads
 db_manager.js
+test_leave_insertion.js
+

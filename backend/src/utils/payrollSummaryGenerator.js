@@ -66,9 +66,9 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
     Tax_Ded: sum(payrollRows, "Tax_Ded"),
     netPay: sum(payrollRows, "netPay"),
     // ER Shares
-    ER_SSS: sum(payrollRows, "sss_Share"),
-    ER_PH: sum(payrollRows, "philhealth_Share"),
-    ER_HDMF: sum(payrollRows, "hdmf_Share"),
+    ER_SSS: sum(payrollRows, "SSS_Ded_ER"),
+    ER_PH: sum(payrollRows, "Philhealth_Ded_ER"),
+    ER_HDMF: sum(payrollRows, "HDMF_Ded_ER"),
     // Other Deductions
     healthCard: sum(payrollRows, "healthCard_Amnt"),
     SSS_Loan: sum(payrollRows, "SSS_Loan"),
@@ -84,11 +84,11 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
     incentives: sum(payrollRows, "incentives"),
     allowance: sum(payrollRows, "allowance"),
     // Page 7 specific totals
-    totalERShare: sum(payrollRows, "sss_Share") + sum(payrollRows, "philhealth_Share") + sum(payrollRows, "hdmf_Share"),
-    remitSSS: sum(payrollRows, "SSS_Ded") + sum(payrollRows, "sss_Share"),
-    remitPH: sum(payrollRows, "Philhealth_Ded") + sum(payrollRows, "philhealth_Share"),
-    remitHDMF: sum(payrollRows, "HDMF_Ded") + sum(payrollRows, "hdmf_Share"),
-    totalRemittance: (sum(payrollRows, "SSS_Ded") + sum(payrollRows, "sss_Share")) + (sum(payrollRows, "Philhealth_Ded") + sum(payrollRows, "philhealth_Share")) + (sum(payrollRows, "HDMF_Ded") + sum(payrollRows, "hdmf_Share")),
+    totalERShare: sum(payrollRows, "SSS_Ded_ER") + sum(payrollRows, "Philhealth_Ded_ER") + sum(payrollRows, "HDMF_Ded_ER"),
+    remitSSS: sum(payrollRows, "SSS_Ded") + sum(payrollRows, "SSS_Ded_ER"),
+    remitPH: sum(payrollRows, "Philhealth_Ded") + sum(payrollRows, "Philhealth_Ded_ER"),
+    remitHDMF: sum(payrollRows, "HDMF_Ded") + sum(payrollRows, "HDMF_Ded_ER"),
+    totalRemittance: (sum(payrollRows, "SSS_Ded") + sum(payrollRows, "SSS_Ded_ER")) + (sum(payrollRows, "Philhealth_Ded") + sum(payrollRows, "Philhealth_Ded_ER")) + (sum(payrollRows, "HDMF_Ded") + sum(payrollRows, "HDMF_Ded_ER")),
     totalMonthlyRate: sum(payrollRows, "dailyRate") * 26
   };
 
@@ -406,9 +406,9 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
         </thead>
         <tbody>
           ${payrollRows.map(r => {
-            const erSSS = parseFloat(r.sss_Share || 0);
-            const erPH = parseFloat(r.philhealth_Share || 0);
-            const erHDMF = parseFloat(r.hdmf_Share || 0);
+            const erSSS = parseFloat(r.SSS_Ded_ER || 0);
+            const erPH = parseFloat(r.Philhealth_Ded_ER || 0);
+            const erHDMF = parseFloat(r.HDMF_Ded_ER || 0);
             const eeSSS = parseFloat(r.SSS_Ded || 0);
             const eePH = parseFloat(r.Philhealth_Ded || 0);
             const eeHDMF = parseFloat(r.HDMF_Ded || 0);

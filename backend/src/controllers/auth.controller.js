@@ -55,24 +55,23 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ error: "Invalid user ID or password." });
     }
 
-    const allowedRoles = ["Admin", "Supervisor", "Employee"];
+    const allowedRoles = ["Admin Manager", "Admin Accountant", "Supervisor", "Employee", "Admin"];
     if (!allowedRoles.includes(user.user_Role)) {
       console.log("[AUTH] Role denied:", user.user_Role);
       return res.status(403).json({ error: "Access denied." });
     }
 
     // Generate JWT
-    console.log("[DEBUG] JWT_SECRET in controller:", process.env.JWT_SECRET ? "Exists" : "MISSING");
     const token = jwt.sign(
-      { 
-        user_Id: user.user_Id, 
+      {
+        user_Id: user.user_Id,
         user_RoleId: user.user_RoleId,
-        user_Role: user.user_Role 
+        user_Role: user.user_Role,
+        position: user.position
       },
       process.env.JWT_SECRET,
       { expiresIn: "8h" }
     );
-
     // Set HttpOnly Cookie
     res.cookie("machip_token", token, {
       httpOnly: true,

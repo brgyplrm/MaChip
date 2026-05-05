@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./leaveSummary.scss";
-import Sidebar from "../../../components/sidebar/Sidebar";
-import Navbar from "../../../components/navbar/Navbar";
+import Sidebar from "../../../components/Sidebar";
 import { fetchWithAuth } from "../../../utils/api";
 import { formatUserId } from "../../../utils/formatUserId";
 import DownloadIcon from '@mui/icons-material/Download';
@@ -86,9 +85,8 @@ const LeaveSummary = () => {
 
   return (
     <div className="leaveSummary">
-      <Sidebar />
+      <Sidebar>
       <div className="summaryContainer">
-        <Navbar />
         <div className="summaryWrapper">
           <div className="top">
             <h1>Leave & Attendance Summary</h1>
@@ -119,6 +117,7 @@ const LeaveSummary = () => {
           )}
         </div>
       </div>
+      </Sidebar>
     </div>
   );
 };

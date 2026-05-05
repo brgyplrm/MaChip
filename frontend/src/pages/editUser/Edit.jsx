@@ -56,8 +56,8 @@ const validateForm = (formData) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const roleMap = { Employee: 3, Supervisor: 2, Admin: 1 };
-const reverseRoleMap = { 3: "Employee", 2: "Supervisor", 1: "Admin" };
+const roleMap = { "Employee": 3, "Supervisor": 2, "Admin Manager": 1, "Admin Accountant": 4 };
+const reverseRoleMap = { 3: "Employee", 2: "Supervisor", 1: "Admin Manager", 4: "Admin Accountant" };
 const statusMap = { Regular: 1, "Part-time": 2, "Intern / OJT": 3 };
 const reverseStatusMap = { 1: "Regular", 2: "Part-time", 3: "Intern / OJT" };
 
@@ -83,7 +83,9 @@ const Edit = ({ inputs, title }) => {
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
-  const isAdmin = currentUser?.user_RoleId === 1;
+  const isAdminManager = currentUser?.user_RoleId === 1;
+  const isAccountant = currentUser?.user_RoleId === 4;
+  const isAdminOrAccountant = isAdminManager || isAccountant;
 
   const dismissToast = useCallback(() => setToast({ message: "", type: "success" }), []);
   const clearError = (id) => setErrors((prev) => ({ ...prev, [id]: "" }));
@@ -204,8 +206,10 @@ const Edit = ({ inputs, title }) => {
   const handleUpdate = async (e) => {
     if (e) e.preventDefault();
 
-    // 1. Check if promoting to Admin
-    if (formData.user_Role === "Admin" && reverseRoleMap[formData.user_RoleId] !== "Admin" && !showAdminConfirm) {
+    // 1. Check if promoting to an Admin-related role (Role 1, 2, or 4)
+    // Only show confirmation if current user is Admin Manager (Role 1) and target role is NOT Employee
+    const targetRoleId = roleMap[formData.user_Role] || 3;
+    if (isAdminManager && targetRoleId !== 3 && !showAdminConfirm) {
       setShowAdminConfirm(true);
       return;
     }
@@ -397,8 +401,8 @@ const Edit = ({ inputs, title }) => {
 
           {inputs
             .filter((input) => {
-              // If not admin, hide administrative fields and password change option
-              if (!isAdmin) {
+              // Only Admin Manager and Accountant can see/edit administrative fields
+              if (!isAdminOrAccountant) {
                 return !["user_EmploymentStatus", "user_Role", "user_MachipId", "user_Password"].includes(input.id);
               }
               return true;
@@ -422,8 +426,13 @@ const Edit = ({ inputs, title }) => {
                                   {input.id === "user_Role" && (
                                     <>
                                       <option value="Employee">Employee</option>
-                                      <option value="Supervisor">Supervisor</option>
-                                      <option value="Admin">Admin</option>
+                                      {!isAccountant && (
+                                        <>
+                                          <option value="Supervisor">Supervisor</option>
+                                          <option value="Admin Manager">Admin Manager</option>
+                                          <option value="Admin Accountant">Admin Accountant</option>
+                                        </>
+                                      )}
                                     </>
                                   )}
                     </select>
@@ -454,13 +463,13 @@ const Edit = ({ inputs, title }) => {
                     </>
                   )}
 
-                  {/* Re-Scan button: Only visible to Admin */}
-                  {isAdmin && input.label === "MaChip ID" && (
+                  {/* Re-Scan button: Only visible to Admin or Accountant */}
+                  {isAdminOrAccountant && input.label === "MaChip ID" && (
                     <button type="button" className="scanBtn" onClick={handleScanRFID}>
                       RE-SCAN
                     </button>
                   )}
-                  {isAdmin && input.label === "Fingerprint ID" && (
+                  {isAdminOrAccountant && input.label === "Fingerprint ID" && (
                     <button type="button" className="scanBtn" onClick={handleScanFingerprint}>
                       RE-SCAN
                     </button>
@@ -487,7 +496,7 @@ const Edit = ({ inputs, title }) => {
       <div className="adminConfirmOverlay">
         <div className="adminConfirmModal">
           <h2>Admin Promotion Required</h2>
-          <p>You are about to promote this user to <b>Admin</b>. This grants full system access.</p>
+          <p>You are about to promote this user to <b>{formData.user_Role}</b>. This grants elevated system access.</p>
           <p className="subtext">Please enter your current admin password to verify this action:</p>
           <input
             type="password"
@@ -506,7 +515,6 @@ const Edit = ({ inputs, title }) => {
             </button>
           </div>
         </div>
-        
       </div>
     )}
 

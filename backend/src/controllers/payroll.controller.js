@@ -6,6 +6,7 @@ const { generatePayslipPDF, generateDtrPDF } = require("../utils/pdfGenerator");
 const { generateDTRPDF } = require("../utils/dtrGenerator");
 const { getAttendanceReportInternal } = require("./attendance.controller");
 const { logAudit, logTransaction } = require("../utils/logger");
+const { computeMonthlyShares, computePeriodTax } = require("../utils/govtDeductions");
 
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -271,6 +272,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   // Get user's current daily rate and gov't shares if not provided
   let dailyRate = customDailyRate;
   let sss_Share = 0, philhealth_Share = 0, hdmf_Share = 0, tax_Share = 0;
+  let SSS_Ded_ER = 0, Philhealth_Ded_ER = 0, HDMF_Ded_ER = 0;
   let hCard = 0, sLoan = 0, hLoan = 0, cLoan = 0, advAmnt = 0, gDed = 0, mpSave = 0, ewLoan = 0;
 
   const user = await sequelize.query(
@@ -282,6 +284,13 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   );
 
   if (dailyRate === null) dailyRate = user[0]?.dailyRate || 0;
+  
+  // Calculate Employer Shares based on daily rate
+  const govtShares = computeMonthlyShares(dailyRate);
+  SSS_Ded_ER = govtShares.employer_sss;
+  Philhealth_Ded_ER = govtShares.employer_ph;
+  HDMF_Ded_ER = govtShares.employer_hdmf;
+
   sss_Share = user[0]?.sss_Share || 0;
   philhealth_Share = user[0]?.philhealth_Share || 0;
   hdmf_Share = user[0]?.hdmf_Share || 0;
@@ -429,6 +438,9 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     SSS_Ded: sss_Share,
     Philhealth_Ded: philhealth_Share,
     HDMF_Ded: hdmf_Share,
+    SSS_Ded_ER,
+    Philhealth_Ded_ER,
+    HDMF_Ded_ER,
     healthCard_Amnt: hCard,
     SSS_Loan: sLoan,
     HDMF_Loan: hLoan,
@@ -549,12 +561,14 @@ exports.generateBatchPayroll = async (req, res) => {
           ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", 
            "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days",
            "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
+           "SSS_Ded_ER", "Philhealth_Ded_ER", "HDMF_Ded_ER",
            "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
            "multiPurposeSavings", "advances_Amnt", "globe_Deduction", "eastwest_Loan")
          VALUES
           (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
            :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
            :sss, :ph, :hd, :tax,
+           :sssER, :phER, :hdER,
            :hc, :sl, :hl, :cl, :ms, :aa, :gd, :el)`,
         {
           replacements: {
@@ -570,6 +584,9 @@ exports.generateBatchPayroll = async (req, res) => {
             ph: fullStats.Philhealth_Ded,
             hd: fullStats.HDMF_Ded,
             tax: fullStats.Tax_Ded,
+            sssER: fullStats.SSS_Ded_ER,
+            phER: fullStats.Philhealth_Ded_ER,
+            hdER: fullStats.HDMF_Ded_ER,
             hc: fullStats.healthCard_Amnt,
             sl: fullStats.SSS_Loan,
             hl: fullStats.HDMF_Loan,
@@ -651,7 +668,9 @@ async function recalculatePayrollInternal(payrollId) {
            "tardiness_Mins" = :tardiness_Mins, "tardiness_Amnt" = :tardiness_Amnt,
            "unpaidLeave_Days" = :unpaidLeave_Days, "unpaidLeave_Amnt" = :unpaidLeave_Amnt,
            "paidLeave_Days" = :paidLeave_Days, "SSS_Ded" = :sss, "Philhealth_Ded" = :ph,
-           "HDMF_Ded" = :hd, "Tax_Ded" = :tax, "healthCard_Amnt" = :hc,
+           "HDMF_Ded" = :hd, "Tax_Ded" = :tax, 
+           "SSS_Ded_ER" = :sssER, "Philhealth_Ded_ER" = :phER, "HDMF_Ded_ER" = :hdER,
+           "healthCard_Amnt" = :hc,
            "SSS_Loan" = :sl, "HDMF_Loan" = :hl, "calamityLoan_Amnt" = :cl,
            "multiPurposeSavings" = :ms, "advances_Amnt" = :aa, "globe_Deduction" = :gd,
            "eastwest_Loan" = :el
@@ -666,6 +685,7 @@ async function recalculatePayrollInternal(payrollId) {
           unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
           paidLeave_Days: fullStats.paidLeave_Days,
           sss: fullStats.SSS_Ded, ph: fullStats.Philhealth_Ded, hd: fullStats.HDMF_Ded, tax: fullStats.Tax_Ded,
+          sssER: fullStats.SSS_Ded_ER, phER: fullStats.Philhealth_Ded_ER, hdER: fullStats.HDMF_Ded_ER,
           hc: fullStats.healthCard_Amnt, sl: fullStats.SSS_Loan, hl: fullStats.HDMF_Loan,
           cl: fullStats.calamityLoan_Amnt, ms: fullStats.multiPurposeSavings,
           aa: fullStats.advances_Amnt, gd: fullStats.globe_Deduction,
@@ -759,12 +779,14 @@ exports.generatePayroll = async (req, res) => {
         ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", 
          "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days",
          "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
+         "SSS_Ded_ER", "Philhealth_Ded_ER", "HDMF_Ded_ER",
          "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
          "multiPurposeSavings", "advances_Amnt", "globe_Deduction", "eastwest_Loan")
          VALUES
          (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
          :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
          :sss, :ph, :hd, :tax,
+         :sssER, :phER, :hdER,
          :hc, :sl, :hl, :cl, :ms, :aa, :gd, :el)`,
          {
          replacements: {
@@ -780,6 +802,9 @@ exports.generatePayroll = async (req, res) => {
           ph: fullStats.Philhealth_Ded,
           hd: fullStats.HDMF_Ded,
           tax: fullStats.Tax_Ded,
+          sssER: fullStats.SSS_Ded_ER,
+          phER: fullStats.Philhealth_Ded_ER,
+          hdER: fullStats.HDMF_Ded_ER,
           hc: fullStats.healthCard_Amnt,
           sl: fullStats.SSS_Loan,
           hl: fullStats.HDMF_Loan,
@@ -1023,8 +1048,6 @@ exports.getGovtDeductionsPreview = async (req, res) => {
   if (!grossPay || !user_Id) return res.status(400).json({ error: "grossPay and user_Id required." });
 
   try {
-    const { computeMonthlyShares, computePeriodTax } = require("../utils/govtDeductions");
-
     // Calculate based on the provided gross pay (assuming it's a monthly estimate for template purposes)
     // For template editing, we assume grossPay is roughly Monthly Salary
     const dailyRate = parseFloat(grossPay) / 26; 
@@ -1205,6 +1228,7 @@ exports.updatePayrollFull = async (req, res) => {
     OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance,
     absence_Days, absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days,
     SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded,
+    SSS_Ded_ER, Philhealth_Ded_ER, HDMF_Ded_ER,
     healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction,
   } = req.body;
 
@@ -1228,7 +1252,7 @@ exports.updatePayrollFull = async (req, res) => {
     
     await sequelize.query(`UPDATE "Payroll_Earnings" SET "OT_Hrs"=:OT_Hrs, "OT_Amnt"=:OT_Amnt, "legalHol_Amnt"=:legalHol_Amnt, "specialHol_Amnt"=:specialHol_Amnt, "specialHol_Adj"=:specialHol_Adj, "incentives"=:incentives, "allowance"=:allowance WHERE "payrollId" = :payrollId`, { replacements: { payrollId, OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance }, type: QueryTypes.UPDATE });
     
-    await sequelize.query(`UPDATE "Payroll_Deductions" SET "absence_Hrs"=:absence_Hrs, "absence_Amnt"=:absence_Amnt, "tardiness_Mins"=:tardiness_Mins, "tardiness_Amnt"=:tardiness_Amnt, "unpaidLeave_Days"=:unpaidLeave_Days, "unpaidLeave_Amnt"=:unpaidLeave_Amnt, "paidLeave_Days"=:paidLeave_Days, "SSS_Ded"=:SSS_Ded, "Philhealth_Ded"=:Philhealth_Ded, "HDMF_Ded"=:HDMF_Ded, "Tax_Ded"=:Tax_Ded, "healthCard_Amnt"=:healthCard_Amnt, "SSS_Loan"=:SSS_Loan, "HDMF_Loan"=:HDMF_Loan, "calamityLoan_Amnt"=:calamityLoan_Amnt, "multiPurposeSavings"=:multiPurposeSavings, "advances_Amnt"=:advances_Amnt, "globe_Deduction"=:globe_Deduction WHERE "payrollId" = :payrollId`, { replacements: { payrollId, absence_Hrs:(parseFloat(absence_Days||0)*8), absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days, SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded, healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction }, type: QueryTypes.UPDATE });
+    await sequelize.query(`UPDATE "Payroll_Deductions" SET "absence_Hrs"=:absence_Hrs, "absence_Amnt"=:absence_Amnt, "tardiness_Mins"=:tardiness_Mins, "tardiness_Amnt"=:tardiness_Amnt, "unpaidLeave_Days"=:unpaidLeave_Days, "unpaidLeave_Amnt"=:unpaidLeave_Amnt, "paidLeave_Days"=:paidLeave_Days, "SSS_Ded"=:SSS_Ded, "Philhealth_Ded"=:Philhealth_Ded, "HDMF_Ded"=:HDMF_Ded, "Tax_Ded"=:Tax_Ded, "SSS_Ded_ER"=:SSS_Ded_ER, "Philhealth_Ded_ER"=:Philhealth_Ded_ER, "HDMF_Ded_ER"=:HDMF_Ded_ER, "healthCard_Amnt"=:healthCard_Amnt, "SSS_Loan"=:SSS_Loan, "HDMF_Loan"=:HDMF_Loan, "calamityLoan_Amnt"=:calamityLoan_Amnt, "multiPurposeSavings"=:multiPurposeSavings, "advances_Amnt"=:advances_Amnt, "globe_Deduction"=:globe_Deduction WHERE "payrollId" = :payrollId`, { replacements: { payrollId, absence_Hrs:(parseFloat(absence_Days||0)*8), absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days, SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded, SSS_Ded_ER, Philhealth_Ded_ER, HDMF_Ded_ER, healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction }, type: QueryTypes.UPDATE });
 
     const newPayroll = await sequelize.query(`SELECT p.*, pe.*, pd.* FROM "Payroll" p LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId" LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId" WHERE p."payrollId" = :payrollId LIMIT 1`, { replacements: { payrollId }, type: QueryTypes.SELECT });
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);

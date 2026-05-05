@@ -90,6 +90,11 @@ const Settings = () => {
           <span className="text-sm text-slate-500 mt-1 block">Manage system configurations and environments</span>
         </div>
 
+        <Card className="shadow-sm border-0 bg-white mb-6">
+          <CardHeader className="border-b border-slate-100 pb-4 mb-4">
+            <CardTitle className="text-lg text-[#2A174E]">General Configuration</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Left Section: Leave Conversion Settings */}
             <div className="item">
               <h2 className="itemTitle">Leave Conversion Config</h2>
@@ -144,10 +149,11 @@ const Settings = () => {
                   Online
                 </Badge>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Time Settings Card */}
+        {/* Time Settings Card */}
           <Card className="shadow-sm border-0 bg-white">
             <CardHeader className="border-b border-slate-100 pb-4 mb-4">
               <CardTitle className="text-lg text-[#2A174E]">System Time & Date</CardTitle>
@@ -199,7 +205,6 @@ const Settings = () => {
           </Card>
 
         </div>
-      </div>
       </Sidebar>
     </div>
   );

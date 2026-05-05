@@ -58,9 +58,8 @@ const Payslip = () => {
 
   if (loading) return (
   <div className="home payslipPage">
-    <Sidebar />
+    <Sidebar>
     <div className="homeContainer">
-      <Navbar />
       <div className="payslipWrapper skeletonWrapper">
         <div className="headerActions">
           <div className="skeletonTitle"></div>
@@ -80,6 +79,7 @@ const Payslip = () => {
         </div>
       </div>
     </div>
+    </Sidebar>
   </div>
 );
 
@@ -87,9 +87,8 @@ const Payslip = () => {
 // Payslip.jsx
 if (!payroll) return (
   <div className="home payslipPage">
-    <Sidebar />
+    <Sidebar>
     <div className="homeContainer">
-      <Navbar />
       <div className="payslipWrapper errorState">
         <div className="errorContent">
           <div className="iconCircle">
@@ -112,14 +111,14 @@ if (!payroll) return (
         </div>
       </div>
     </div>
+    </Sidebar>
   </div>
 );
 
   return (
     <div className="home payslipPage">
-      <Sidebar />
+      <Sidebar>
       <div className="homeContainer">
-        <Navbar />
         <div className="payslipWrapper">
           <div className="headerActions">
             <div className="titleWithBack">
@@ -220,6 +219,7 @@ if (!payroll) return (
           </div>
         </div>
       </div>
+      </Sidebar>
     </div>
   );
 };

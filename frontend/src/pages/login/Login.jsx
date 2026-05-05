@@ -90,9 +90,10 @@ const Login = () => {
         setTimeout(() => {
           if (data.data.user_RoleId === 3) {
             navigate("/employeeHome");
-          } else {
-            // Admin (1) or Supervisor (2)
+          } else if (data.data.user_RoleId === 1 || data.data.user_RoleId === 2 || data.data.user_RoleId === 4) {
             navigate("/");
+          } else {
+            navigate("/employeeHome");
           }
         }, 1200);
       } else if (response.status === 403) {

@@ -265,6 +265,20 @@ const PayrollPeriod = () => {
               <RefreshIcon className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
               {refreshing ? "Refreshing..." : "Refresh"}
             </Button>
+            <Button 
+              className="w-full sm:w-auto bg-[#f8fafc] text-[#2A174E] border border-slate-200 hover:bg-slate-100" 
+              onClick={handlePreviewSummary}
+              disabled={loading || payrolls.length === 0}
+            >
+              <VisibilityIcon className="mr-2 h-4 w-4" /> Summary View
+            </Button>
+            <Button 
+              className="w-full sm:w-auto bg-green-600 text-white hover:bg-green-700" 
+              onClick={handleDownloadSummary}
+              disabled={loading || payrolls.length === 0 || selectedPeriod?.status === 'Draft'}
+            >
+              <DownloadIcon className="mr-2 h-4 w-4" /> Export PDF
+            </Button>
           </div>
         </div>
 
@@ -369,6 +383,32 @@ const PayrollPeriod = () => {
         onConfirm={handleBatchProcess}
         employeeCount={payrolls.length}
       />
+
+      {/* Summary Preview Modal */}
+      {showSummaryPreview && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl border-0 overflow-hidden">
+            <CardContent className="p-0 flex flex-col h-full">
+              <div className="flex justify-between items-center p-4 bg-[#2A174E] text-white">
+                <h3 className="font-bold text-lg flex items-center gap-2">
+                  <VisibilityIcon /> Payroll Summary Preview - {selectedPeriod?.label}
+                </h3>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={handleDownloadSummary} className="bg-green-600 hover:bg-green-700 text-white border-0">
+                    <DownloadIcon className="mr-2 h-4 w-4" /> Download PDF
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setShowSummaryPreview(false)} className="text-white hover:bg-white/10">
+                    <CloseIcon />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto bg-slate-100 p-4">
+                <div className="bg-white shadow-lg mx-auto min-w-[1000px] p-8" dangerouslySetInnerHTML={{ __html: previewContent }} />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       </Sidebar>
     </div>
   );

@@ -502,9 +502,7 @@ const UserRequests = () => {
 
   return (
     <div className="home requestsPage">
-      <Sidebar />
-      <div className="homeContainer">
-        <Navbar />
+      <Sidebar>
         <div className="requestsWrapper">
           <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
           <div className="statsRow">
@@ -524,9 +522,10 @@ const UserRequests = () => {
           <div className="contentSection">
             {activeTab !== "dtr" ? (
               <div className="requestsSplitLayout">
-                <div className="requestCard formColumn">
-                  <h2 className="cardTitle">Submit New Request</h2>
-                  <form onSubmit={handleSubmit}>
+                <Card className="requestCard formColumn shadow-sm border-0 bg-white">
+                  <CardContent className="pt-6">
+                    <h2 className="cardTitle">Submit New Request</h2>
+                    <form onSubmit={handleSubmit}>
                     <div className="formGroup">
                       <label>Request Type</label>
                       <select name="emp_reqTypeId" value={formData.emp_reqTypeId} onChange={handleInputChange} required>

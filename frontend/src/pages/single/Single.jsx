@@ -18,6 +18,9 @@ const Single = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
+  const isAdminOrAccountant = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
+
   useEffect(() => {
     const fetchUser = async () => {
       setLoading(true);
@@ -88,15 +91,17 @@ const Single = () => {
           
           {/* User Info Card */}
           <Card className="border-0 shadow-sm bg-white lg:col-span-1 relative overflow-hidden">
-            <Button 
-              asChild 
-              variant="ghost" 
-              className="absolute top-2 right-2 text-[#7451f8] hover:bg-[#7451f8]/10 bg-[#7451f8]/5 h-8 px-3 rounded-bl-xl rounded-tr-xl rounded-tl-sm rounded-br-sm"
-            >
-              <Link to={`/users/edit/${userId}`}>
-                <EditOutlinedIcon className="mr-1.5 h-3.5 w-3.5" /> Edit
-              </Link>
-            </Button>
+            {isAdminOrAccountant && (
+              <Button 
+                asChild 
+                variant="ghost" 
+                className="absolute top-2 right-2 text-[#7451f8] hover:bg-[#7451f8]/10 bg-[#7451f8]/5 h-8 px-3 rounded-bl-xl rounded-tr-xl rounded-tl-sm rounded-br-sm"
+              >
+                <Link to={`/users/edit/${userId}`}>
+                  <EditOutlinedIcon className="mr-1.5 h-3.5 w-3.5" /> Edit
+                </Link>
+              </Button>
+            )}
             
             <CardContent className="p-6 pt-10">
               <div className="flex flex-col sm:flex-row lg:flex-col items-center sm:items-start lg:items-center gap-6 mb-8 text-center sm:text-left lg:text-center">
@@ -136,10 +141,6 @@ const Single = () => {
           {/* Chart Card */}
           <Card className="border-0 shadow-sm bg-white lg:col-span-2 overflow-hidden flex flex-col">
             <CardContent className="p-0 flex-1 relative min-h-[300px]">
-               {/* 
-                 Chart.jsx handles its own padding and titles based on the original component structure. 
-                 We wrap it in a container that allows the chart to expand fully. 
-               */}
                <div className="absolute inset-0 w-full h-full overflow-x-auto overflow-y-hidden">
                  <div className="min-w-[500px] h-full">
                     <Chart aspect={3 / 1} title="User Attendance (Last 6 Months)" userId={userId} />
@@ -155,7 +156,6 @@ const Single = () => {
           <CardContent className="p-6">
             <h2 className="text-lg font-bold text-[#2A174E] mb-6">Last Activity Log</h2>
             <div className="overflow-x-auto">
-              {/* Note: Ensure your <Table> component handles internal minimum widths to trigger this scrollbar */}
               <div className="min-w-[800px]">
                 <Table userId={userId} />
               </div>

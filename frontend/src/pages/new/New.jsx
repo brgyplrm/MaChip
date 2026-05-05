@@ -36,6 +36,9 @@ const validateForm = (formData) => {
   return errors;
 };
 
+const roleMap = { "Employee": 3, "Supervisor": 2, "Admin Manager": 1, "Admin Accountant": 4 };
+const reverseRoleMap = { 3: "Employee", 2: "Supervisor", 1: "Admin Manager", 4: "Admin Accountant" };
+
 const New = ({ inputs, title }) => {
   const navigate = useNavigate();
   const [file, setFile] = useState("");
@@ -45,13 +48,20 @@ const New = ({ inputs, title }) => {
   const [showRfidModal, setShowRfidModal] = useState(false);
   const [rfidError, setRfidError] = useState("");
   
+  const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
+  const isAdminManager = currentUser?.user_RoleId === 1;
+  const isAccountant = currentUser?.user_RoleId === 4;
+
+  const [showAdminConfirm, setShowAdminConfirm] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+
   // Single Registration State
   const [formData, setFormData] = useState({
     user_Id: "",
     user_FirstName: "",
     user_LastName: "",
     user_MiddleName: "",
-    user_EmploymentStatus: "",
+    user_EmploymentStatus: "Regular",
     user_Role: "Employee",
     user_Email: "",
     user_Password: "",
@@ -132,7 +142,7 @@ const New = ({ inputs, title }) => {
       }
       
       if (id === "user_Role") {
-        updated.user_RoleId = value === "Admin" ? 1 : value === "Supervisor" ? 2 : 3;
+        updated.user_RoleId = roleMap[value] || 3;
       }
       if (id === "user_EmploymentStatus") {
         updated.user_EmploymentStatusId = value === "Regular" ? 1 : value === "Part-time" ? 2 : 3;
@@ -178,8 +188,14 @@ const New = ({ inputs, title }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (loading) return;
+
+    // Check if promoting to an Admin-related role (Role 1, 2, or 4)
+    if (isAdminManager && formData.user_RoleId !== 3 && !showAdminConfirm) {
+      setShowAdminConfirm(true);
+      return;
+    }
 
     const validationErrors = validateForm(formData);
     if (Object.keys(validationErrors).length > 0) {
@@ -204,6 +220,11 @@ const New = ({ inputs, title }) => {
       data.append("user_ProfilePic", file);
     }
 
+    // Add admin confirmation password if applicable
+    if (showAdminConfirm && adminPassword) {
+      data.append("adminConfirmPassword", adminPassword);
+    }
+
     try {
       const response = await fetchWithAuth("/api/users/registerUser", {
         method: "POST",
@@ -212,6 +233,8 @@ const New = ({ inputs, title }) => {
 
       if (response.ok) {
         setToast({ message: "User added successfully!", type: "success" });
+        setShowAdminConfirm(false);
+        setAdminPassword("");
         setTimeout(() => {
           navigate("/users");
         }, 1100);
@@ -416,7 +439,13 @@ const New = ({ inputs, title }) => {
                                 {input.id === "user_Role" && (
                                   <>
                                     <SelectItem value="Employee">Employee</SelectItem>
-                                    <SelectItem value="Admin">Admin</SelectItem>
+                                    {!isAccountant && (
+                                      <>
+                                        <SelectItem value="Supervisor">Supervisor</SelectItem>
+                                        <SelectItem value="Admin Manager">Admin Manager</SelectItem>
+                                        <SelectItem value="Admin Accountant">Admin Accountant</SelectItem>
+                                      </>
+                                    )}
                                   </>
                                 )}
                               </SelectContent>
@@ -571,6 +600,56 @@ const New = ({ inputs, title }) => {
           error={fingerprintError}
           title="Fingerprint Scanner" 
         />
+
+        {/* Admin Confirmation Modal */}
+        {showAdminConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <Card className="w-full max-w-md shadow-2xl border-0 animate-in zoom-in-95 duration-200">
+              <CardContent className="p-6">
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <VisibilityIcon className="h-8 w-8" />
+                  </div>
+                  <h2 className="text-xl font-bold text-[#2A174E]">Admin Promotion Required</h2>
+                  <p className="text-sm text-slate-500 mt-2">
+                    You are about to promote this user to <b className="text-slate-800">{formData.user_Role}</b>. 
+                    This grants elevated system access.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase">Verify Admin Identity</Label>
+                    <Input
+                      type="password"
+                      placeholder="Enter your admin password"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      className="h-12 border-slate-200 focus-visible:ring-[#2A174E]"
+                      autoFocus
+                    />
+                  </div>
+                  
+                  <div className="flex gap-3 pt-2">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1 h-11 border-slate-200" 
+                      onClick={() => { setShowAdminConfirm(false); setAdminPassword(""); }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white" 
+                      onClick={() => handleSubmit()}
+                    >
+                      Confirm Promotion
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
       </Sidebar>
     </div>

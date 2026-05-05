@@ -55,6 +55,9 @@ const Logs = () => {
   const [dayLogsData, setDayLogsData] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: 'log_Date', direction: 'desc' });
   
+  const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
+  const isAdminOrAccountant = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
+
   const period = useMemo(() => getCurrentPeriod(systemToday), [systemToday, getCurrentPeriod]);
 
   const [users, setUsers] = useState([]);
@@ -501,9 +504,15 @@ const Logs = () => {
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-right pr-6">
-                                  <Button variant="outline" size="sm" asChild className="border-blue-200 text-blue-800 hover:bg-blue-50">
-                                    <Link to={`/logs/edit/${row.user_Id}/${row.log_Date.split('T')[0]}?from=logs`}>Edit</Link>
-                                  </Button>
+                                  {isAdminOrAccountant ? (
+                                    <Button variant="outline" size="sm" asChild className="border-blue-200 text-blue-800 hover:bg-blue-50">
+                                      <Link to={`/logs/edit/${row.user_Id}/${row.log_Date.split('T')[0]}?from=logs`}>Edit</Link>
+                                    </Button>
+                                  ) : (
+                                    <Button variant="outline" size="sm" asChild className="border-blue-200 text-blue-800 hover:bg-blue-50">
+                                      <Link to={`/users/${row.user_Id}`}>View</Link>
+                                    </Button>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             );

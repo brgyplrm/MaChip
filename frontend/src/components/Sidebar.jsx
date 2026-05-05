@@ -67,6 +67,16 @@ const Sidebar = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
   
+  // New Role Check Logic
+  const roleId = userData?.user_RoleId;
+  const isManagement = (roleId === 1 || roleId === 2 || roleId === 4) && viewMode === "management";
+  const isAdmin = (roleId === 1 || roleId === 4) && viewMode === "management";
+  const isOps = (roleId === 1 || roleId === 2 || roleId === 4) && viewMode === "management";
+  const isMaster = (roleId === 1) && viewMode === "management";
+
+  const homePath = isManagement ? "/" : "/employeeHome";
+  const isActive = (path) => location.pathname === path;
+
   // Hybrid State for Profile Dropdown (Hover + Lock-on-click)
   const [isProfileHovered, setIsProfileHovered] = useState(false);
   const [isProfileLocked, setIsProfileLocked] = useState(false);
@@ -76,11 +86,6 @@ const Sidebar = ({ children }) => {
   const [isNotifHovered, setIsNotifHovered] = useState(false);
   const [isNotifLocked, setIsNotifLocked] = useState(false);
   const notifDropdownRef = useRef(null);
-
-  const isManagement = (userData?.user_RoleId === 1 || userData?.user_RoleId === 2) && viewMode === "management";
-  const isAdmin = userData?.user_RoleId === 1 && viewMode === "management";
-  const homePath = isManagement ? "/" : "/employeeHome";
-  const isActive = (path) => location.pathname === path;
 
   // Auto-expand the correct menu if the route changes dynamically
   useEffect(() => {
@@ -240,20 +245,24 @@ const Sidebar = ({ children }) => {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/users/newUser")}>
-                            <Link to="/users/newUser" className={isActive("/users/newUser") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Add New User
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/users/archived")}>
-                            <Link to="/users/archived" className={isActive("/users/archived") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              View Archived
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+                        {isAdmin && (
+                          <>
+                            <SidebarMenuSubItem>
+                              <SidebarMenuSubButton asChild isActive={isActive("/users/newUser")}>
+                                <Link to="/users/newUser" className={isActive("/users/newUser") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                                  Add New User
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                            <SidebarMenuSubItem>
+                              <SidebarMenuSubButton asChild isActive={isActive("/users/archived")}>
+                                <Link to="/users/archived" className={isActive("/users/archived") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                                  View Archived
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          </>
+                        )}
                       </SidebarMenuSub>
                     )}
                   </SidebarMenuItem>
@@ -331,6 +340,13 @@ const Sidebar = ({ children }) => {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/payroll/leave-summary")}>
+                            <Link to="/payroll/leave-summary" className={isActive("/payroll/leave-summary") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Leave Summary
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/maxicare")}>
                             <Link to="/maxicare" className={isActive("/maxicare") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Maxicare
@@ -379,8 +395,8 @@ const Sidebar = ({ children }) => {
                   </SidebarMenuItem>
                 )}
 
-                {/* Audit - Admin Only */}
-                {isAdmin && (
+                {/* Audit - Master Only */}
+                {isMaster && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
@@ -411,8 +427,8 @@ const Sidebar = ({ children }) => {
                   </SidebarMenuItem>
                 )}
 
-                {/* Settings - Management Only */}
-                {isManagement && (
+                {/* Settings - Admin Only */}
+                {isAdmin && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
@@ -583,7 +599,7 @@ const Sidebar = ({ children }) => {
                           <AccountCircleOutlinedIcon className="!text-[18px]" /> Profile
                         </Link>
                       </li>
-                      {(userData?.user_RoleId === 1 || userData?.user_RoleId === 2) && (
+                      {(Number(roleId) === 1 || Number(roleId) === 2 || Number(roleId) === 4) && (
                         <li>
                           <button 
                             onClick={() => { toggleViewMode(); setIsProfileLocked(false); setIsProfileHovered(false); }} 

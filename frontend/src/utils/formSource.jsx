@@ -15,7 +15,7 @@ export const userInputs = [
     id: "user_Role", // New ID for Role Status
     label: "Role Status",
     type: "select",
-    options: ["Employee", "Supervisor", "Admin"], // Updated values
+    options: ["Employee", "Supervisor", "Admin Manager", "Admin Accountant"], // Updated values
   },
   {
     id: "user_Email",

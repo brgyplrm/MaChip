@@ -210,11 +210,11 @@ const EmployeeHome = () => {
                     <div className="flex justify-between text-sm font-medium text-slate-700">
                       <span>Vacation Leave (VL)</span>
                       <span className="text-slate-500">
-                        {Math.min(balance.VL_used, balance.VL_total)} / {balance.VL_total}
+                        {Math.min(balance.VL_used || 0, balance.VL_total || 7)} / {balance.VL_total || 7}
                       </span>
                     </div>
                     <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#2A174E] rounded-full transition-all duration-500" style={{width: `${Math.min((balance.VL_used / balance.VL_total) * 100, 100)}%`}}></div>
+                      <div className="h-full bg-[#2A174E] rounded-full transition-all duration-500" style={{width: `${Math.min(((balance.VL_used || 0) / (balance.VL_total || 7)) * 100, 100)}%`}}></div>
                     </div>
                   </div>
 
@@ -222,13 +222,14 @@ const EmployeeHome = () => {
                     <div className="flex justify-between text-sm font-medium text-slate-700">
                       <span>Sick Leave (SL)</span>
                       <span className="text-slate-500">
-                        {Math.min(balance.SL_used, balance.SL_total) || 0} / {balance.SL_total}
+                        {Math.min(balance.SL_used || 0, balance.SL_total || 7)} / {balance.SL_total || 7}
                       </span>
                     </div>
                     <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#7451f8] rounded-full transition-all duration-500" style={{width: `${Math.min((balance.SL_used / balance.SL_total) * 100, 100) || 0}%`}}></div>
+                      <div className="h-full bg-[#7451f8] rounded-full transition-all duration-500" style={{width: `${Math.min(((balance.SL_used || 0) / (balance.SL_total || 7)) * 100, 100)}%`}}></div>
                     </div>
                   </div>
+
                 </div>
               )}
             </CardContent>
@@ -257,9 +258,21 @@ const EmployeeHome = () => {
               <div className="space-y-4">
                 {recentRequests.map(req => {
                   let dateDisplay = "";
-                  if (req.emp_reqTypeId === 1) dateDisplay = req.OT_DateOf;
-                  else if (req.emp_reqTypeId === 2) dateDisplay = req.DateonField;
-                  else dateDisplay = `${req.VL_StartDate || req.SL_StartDate} to ${req.VL_EndDate || req.SL_EndDate}`;
+                  if (req.emp_reqTypeId === 1) {
+                    dateDisplay = req.OT_DateOf;
+                  } else if (req.emp_reqTypeId === 2) {
+                    dateDisplay = req.DateonField;
+                  } else if (req.emp_reqTypeId === 5) {
+                    dateDisplay = req.LC_logDate;
+                  } else if (req.emp_reqTypeId === 6) {
+                    dateDisplay = req.EL_DateOfLeave;
+                  } else if (req.emp_reqTypeId === 7) {
+                    dateDisplay = req.HD_DateOfLeave;
+                  } else {
+                    const start = req.VL_StartDate || req.SL_StartDate;
+                    const end = req.VL_EndDate || req.SL_EndDate;
+                    dateDisplay = start === end ? start : `${start} to ${end}`;
+                  }
 
                   // Dynamic Styles based on status
                   const isApproved = req.status?.toLowerCase().includes("approve");

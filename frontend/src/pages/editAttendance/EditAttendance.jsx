@@ -15,6 +15,15 @@ const EditAttendance = () => {
   const fromPath = queryParams.get("from");
   const backPath = fromPath === "adminRequests" ? "/adminRequests" : "/logs";
 
+  const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
+  const isAdminOrAccountant = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
+
+  useEffect(() => {
+    if (!isAdminOrAccountant) {
+      navigate("/logs");
+    }
+  }, [isAdminOrAccountant, navigate]);
+
   const [formData, setFormData] = useState({
     morning_In: "",
     morning_Out: "",
@@ -101,9 +110,8 @@ const EditAttendance = () => {
   return (
     <div className="editAttendance">
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
-      <Sidebar />
+      <Sidebar>
       <div className="editAttendanceContainer">
-        <Navbar />
         <div className="top">
           <h1>Edit Attendance (ID: {formatUserId(userId)})</h1>
           <span className="dateSubtitle">{new Date(date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
@@ -222,6 +230,7 @@ const EditAttendance = () => {
           </div>
         </div>
       </div>
+      </Sidebar>
     </div>
   );
 };

@@ -1220,10 +1220,10 @@ exports.GetLeaveBalance = async (req, res) => {
 
     const balance = balanceResult[0];
     res.status(200).json({
-      VL_total: balance.VL_total || 7,
+      VL_total: (parseFloat(balance.VL_used) + parseFloat(balance.VL_balance)) || 7,
       VL_used: balance.VL_used || 0,
       VL_balance: balance.VL_balance,
-      SL_total: balance.SL_total || 7,
+      SL_total: (parseFloat(balance.SL_used) + parseFloat(balance.SL_balance)) || 7,
       SL_used: balance.SL_used || 0,
       SL_balance: balance.SL_balance,
     });

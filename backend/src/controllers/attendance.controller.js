@@ -833,8 +833,8 @@ exports.getEmployeeDashboardStats = async (req, res) => {
       { replacements: { user_Id, currentYear }, type: QueryTypes.SELECT }
     );
 
-    // 4. Leave Requests for the CURRENT MONTH
-    const monthlyRequests = await sequelize.query(
+    // 4. Recent Requests (Removed strict month filter to show most recent activity)
+    const recentRequests = await sequelize.query(
       `SELECT
         er."emp_reqId",
         er."emp_reqTypeId",
@@ -847,19 +847,24 @@ exports.getEmployeeDashboardStats = async (req, res) => {
         vl."EndDate" as "VL_EndDate",
         sl."StartDate" as "SL_StartDate",
         sl."EndDate" as "SL_EndDate",
-        ow."DateonField"
+        el."DateOfLeave" as "EL_DateOfLeave",
+        hd."DateOfLeave" as "HD_DateOfLeave",
+        ow."DateonField",
+        lc."logDate" as "LC_logDate"
       FROM "emp_Request" er
       LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
       LEFT JOIN "request_Status" rs ON er."emp_reqStatusId" = rs."reqStatId"
       LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
       LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+      LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+      LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+      LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
       WHERE er."user_Id" = :user_Id
-      AND EXTRACT(YEAR FROM er."date_Filed") = :currentYear
-      AND EXTRACT(MONTH FROM er."date_Filed") = :currentMonth
-      ORDER BY er."date_Filed" DESC`,
-      { replacements: { user_Id, currentYear, currentMonth }, type: QueryTypes.SELECT }
+      ORDER BY er."date_Filed" DESC, er."createdAt" DESC
+      LIMIT 10`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
     );
 
     res.status(200).json({
@@ -869,7 +874,11 @@ exports.getEmployeeDashboardStats = async (req, res) => {
         late: parseInt(attendanceStats[0].lateCount || 0),
         monthName: now.toLocaleString('default', { month: 'long' })
       },
-      leaveBalance: leaveBalance[0] || {
+      leaveBalance: leaveBalance[0] ? {
+        ...leaveBalance[0],
+        VL_total: (parseFloat(leaveBalance[0].VL_used) + parseFloat(leaveBalance[0].VL_balance)) || 7,
+        SL_total: (parseFloat(leaveBalance[0].SL_used) + parseFloat(leaveBalance[0].SL_balance)) || 7
+      } : {
         VL_total: 7, VL_used: 0, VL_balance: 7,
         SL_total: 7, SL_used: 0, SL_balance: 7
       },
@@ -879,7 +888,7 @@ exports.getEmployeeDashboardStats = async (req, res) => {
         timeIn: JSON.parse(log.time_Logged_inArr || "[]")[0] || "—",
         timeOut: JSON.parse(log.time_Logged_outArr || "[]").pop() || "—"
       })),
-      monthlyRequests: monthlyRequests
+      monthlyRequests: recentRequests
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

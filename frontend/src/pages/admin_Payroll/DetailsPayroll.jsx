@@ -17,6 +17,7 @@ import { fetchWithAuth } from "../../utils/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 const PayrollDetails = () => {
   const navigate = useNavigate();
@@ -69,6 +70,9 @@ const PayrollDetails = () => {
               SSS_Ded: preview.SSS_Ded,
               Philhealth_Ded: preview.Philhealth_Ded,
               HDMF_Ded: preview.HDMF_Ded,
+              SSS_Ded_ER: preview.SSS_Ded_ER,
+              Philhealth_Ded_ER: preview.Philhealth_Ded_ER,
+              HDMF_Ded_ER: preview.HDMF_Ded_ER,
               Tax_Ded: preview.Tax_Ded,
               healthCard_Amnt: preview.healthCard_Amnt,
               SSS_Loan: preview.SSS_Loan,
@@ -80,6 +84,9 @@ const PayrollDetails = () => {
               multiPurposeSavings: preview.multiPurposeSavings,
               totalDeductions: preview.totalDeductions,
               netPay: preview.netPay,
+              holidaysTotal: preview.holidaysTotal || 0,
+              holidaysRegularWorked: preview.workedHolidays?.regular || 0,
+              holidaysSpecialWorked: preview.workedHolidays?.special || 0,
               PaystatusName: "Draft",
               incentives: preview.incentives || 0,
               allowance: preview.allowance || 0
