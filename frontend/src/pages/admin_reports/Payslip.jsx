@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import "./payslip.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import PrintIcon from "@mui/icons-material/Print";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";

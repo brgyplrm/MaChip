@@ -1,11 +1,14 @@
-import "./notifications.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+import Sidebar from "../../components/Sidebar";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import { useNavigate } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
+
+// shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 const Notifications = () => {
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
@@ -122,102 +125,114 @@ const Notifications = () => {
   };
 
   return (
-    <div className="notifications">
-      <Sidebar />
-      <div className="notificationsContainer">
-        <Navbar />
-        <div className="wrapper">
-          <div className="notifHeader">
-            <div className="title">
-              <h1>System Notifications</h1>
-            </div>
-            <button className="markAllBtn" onClick={handleMarkAllRead}>
-              <DoneAllIcon className="btnIcon" /> Mark all as read
-            </button>
-          </div>
-
-          <div className="notifCard">
-            <div className="notifList">
-              {currentNotifs.length > 0 ? (
-                currentNotifs.map((notif) => (
-                  <div 
-                    key={notif.notifId} 
-                    className={`notifItem ${notif.isRead ? 'read' : 'unread'}`}
-                    onClick={() => handleNotifClick(notif)}
-                  >
-                    <div className="statusIndicator">
-                      {!notif.isRead && <FiberManualRecordIcon className="dot" />}
-                    </div>
-                    <div className="content">
-                      <p className="message">{notif.message}</p>
-                      <span className="timestamp">
-                        {new Date(notif.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="noNotifs">No notifications found.</div>
-              )}
-            </div>
-          </div>
-
-          {/* PAGINATION UI --- */}
-          <div className="paginationWrapper">
-            <nav aria-label="Notification pagination" className="paginationNav">
-              <ul className="paginationList">
-                <li>
-                  <button 
-                    className="pageBtn prev" 
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => prev - 1)}
-                  >
-                    Previous
-                  </button>
-                </li>
-                
-                {pageNumbers.map(number => (
-                  <li key={number}>
-                    <button 
-                      className={`pageBtn ${currentPage === number ? "active" : ""}`}
-                      onClick={() => setCurrentPage(number)}
-                    >
-                      {number}
-                    </button>
-                  </li>
-                ))}
-
-                <li>
-                  <button 
-                    className="pageBtn next" 
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(prev => prev + 1)}
-                  >
-                    Next
-                  </button>
-                </li>
-              </ul>
-              
-              <form className="goToPageForm" onSubmit={handleGoToPage}>
-                <div className="formGroup">
-                  <label htmlFor="goToPage">Go to</label>
-                  <input 
-                    type="number" 
-                    id="goToPage" 
-                    placeholder={totalPages}
-                    value={goToValue}
-                    onChange={(e) => setGoToValue(e.target.value)}
-                    min="1"
-                    max={totalPages}
-                    required 
-                  />
-                  <span>page</span>
-                </div>
-              </form>
-            </nav>
-          </div>
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
+      <div className="flex-1 p-4 md:p-4 w-full mx-auto overflow-x-hidden min-w-0">
+        
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">System Notifications</h1>
+          <Button 
+            variant="outline" 
+            onClick={handleMarkAllRead}
+            className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors shadow-sm"
+          >
+            <DoneAllIcon className="mr-2 h-4 w-4" /> Mark all as read
+          </Button>
         </div>
+
+        {/* Notifications List Card */}
+        <Card className="shadow-sm border-0 bg-white overflow-hidden mb-6">
+          <div className="max-h-[700px] overflow-y-auto">
+            {currentNotifs.length > 0 ? (
+              currentNotifs.map((notif) => (
+                <div 
+                  key={notif.notifId} 
+                  onClick={() => handleNotifClick(notif)}
+                  className={`flex items-start gap-4 p-5 border-b border-slate-100 cursor-pointer transition-colors border-l-4 ${
+                    notif.isRead 
+                      ? 'border-l-transparent bg-white hover:bg-slate-50' 
+                      : 'border-l-orange-500 bg-slate-50/50 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="pt-1 w-4 shrink-0 flex justify-center">
+                    {!notif.isRead && <FiberManualRecordIcon className="text-orange-500 h-3 w-3" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm leading-relaxed mb-1 ${notif.isRead ? 'font-normal text-slate-600' : 'font-bold text-slate-800'}`}>
+                      {notif.message}
+                    </p>
+                    <span className="text-xs text-slate-400">
+                      {new Date(notif.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-12 text-center text-slate-500 italic">
+                No notifications found.
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Pagination Controls */}
+        {notifications.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border border-slate-100 bg-white shadow-sm rounded-xl">
+            <div className="flex gap-2 items-center w-full sm:w-auto justify-between sm:justify-start">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => prev - 1)}
+                className="text-slate-600"
+              >
+                Previous
+              </Button>
+              <div className="hidden md:flex gap-1">
+                {pageNumbers.map(n => (
+                  <Button 
+                    key={n} 
+                    variant={currentPage === n ? "default" : "outline"} 
+                    size="sm" 
+                    className={currentPage === n ? "bg-[#2A174E] text-white hover:bg-[#1a0e30]" : "text-slate-600"}
+                    onClick={() => setCurrentPage(n)}
+                  >
+                    {n}
+                  </Button>
+                ))}
+              </div>
+              <span className="md:hidden text-sm text-slate-500 mx-2">Page {currentPage} of {totalPages}</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                className="text-slate-600"
+              >
+                Next
+              </Button>
+            </div>
+            
+            <form onSubmit={handleGoToPage} className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0">
+              <span className="text-sm font-medium text-slate-500">Go to:</span>
+              <Input 
+                type="number" 
+                value={goToValue}
+                onChange={(e) => setGoToValue(e.target.value)}
+                placeholder={totalPages}
+                min="1"
+                max={totalPages}
+                required
+                className="w-16 h-8 text-center focus-visible:ring-[#2A174E]" 
+              />
+              <span className="text-sm font-medium text-slate-500">page</span>
+            </form>
+          </div>
+        )}
+
       </div>
+      </Sidebar>
     </div>
   );
 };

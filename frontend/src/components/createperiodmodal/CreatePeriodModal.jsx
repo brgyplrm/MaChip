@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
-import "./createPeriodModal.scss";
 import { useSystemTime } from "../../context/SystemTimeContext";
+
+// shadcn/ui components
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const CreatePeriodModal = ({ isOpen, onClose, onCreate }) => {
   const { systemToday } = useSystemTime();
@@ -65,58 +68,78 @@ const CreatePeriodModal = ({ isOpen, onClose, onCreate }) => {
     });
   }, [systemToday]);
 
-  if (!isOpen) return null;
-
   const currentSelection = selectedOption === "current" ? options.current : options.next;
 
   return (
-    <div className="modalOverlay">
-      <div className="modalContent">
-        <h2>Create Payroll Period</h2>
-        <p className="modalSubtext">Only the current and next periods can be scheduled manually.</p>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="text-xl text-[#2A174E]">Create Payroll Period</DialogTitle>
+          <DialogDescription className="text-slate-500">
+            Only the current and next periods can be scheduled manually.
+          </DialogDescription>
+        </DialogHeader>
         
-        <div className="optionSelector">
+        <div className="space-y-4 py-4">
           <div 
-            className={`optionCard ${selectedOption === "current" ? "active" : ""}`}
+            className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
+              selectedOption === "current" 
+                ? "bg-[#f0ebfa] border-[#2A174E] ring-1 ring-[#2A174E]" 
+                : "bg-white border-slate-200 hover:border-slate-300"
+            }`}
             onClick={() => setSelectedOption("current")}
           >
-            <div className="radio"></div>
-            <div className="text">
-              <span className="type">Current Period</span>
-              <span className="label">{options.current?.label}</span>
+            <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mr-4 ${
+              selectedOption === "current" ? "border-[#2A174E]" : "border-slate-300"
+            }`}>
+              {selectedOption === "current" && <div className="w-2 h-2 rounded-full bg-[#2A174E]" />}
+            </div>
+            <div>
+              <span className="block text-sm font-semibold text-slate-800">Current Period</span>
+              <span className="block text-xs text-slate-500 mt-0.5">{options.current?.label}</span>
             </div>
           </div>
 
           <div 
-            className={`optionCard ${selectedOption === "next" ? "active" : ""}`}
+            className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
+              selectedOption === "next" 
+                ? "bg-[#f0ebfa] border-[#2A174E] ring-1 ring-[#2A174E]" 
+                : "bg-white border-slate-200 hover:border-slate-300"
+            }`}
             onClick={() => setSelectedOption("next")}
           >
-            <div className="radio"></div>
-            <div className="text">
-              <span className="type">Next Period</span>
-              <span className="label">{options.next?.label}</span>
+            <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mr-4 ${
+              selectedOption === "next" ? "border-[#2A174E]" : "border-slate-300"
+            }`}>
+              {selectedOption === "next" && <div className="w-2 h-2 rounded-full bg-[#2A174E]" />}
+            </div>
+            <div>
+              <span className="block text-sm font-semibold text-slate-800">Next Period</span>
+              <span className="block text-xs text-slate-500 mt-0.5">{options.next?.label}</span>
             </div>
           </div>
         </div>
 
         {currentSelection && (
-          <div className="periodDisplay">
-            <strong>Selected Range:</strong> {currentSelection.periodText}
+          <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg text-sm text-blue-800 flex items-center justify-center mb-2">
+            <strong className="mr-2">Selected Range:</strong> {currentSelection.periodText}
           </div>
         )}
 
-        <div className="modalActions">
-          <button className="cancelBtn" onClick={onClose}>Cancel</button>
-          <button 
-            className="createBtn" 
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 mt-4 sm:space-x-0">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-1/2 border-slate-200 text-slate-600">
+            Cancel
+          </Button>
+          <Button 
+            className="w-full sm:w-1/2 bg-[#2A174E] text-white hover:bg-[#1a0e30]" 
             disabled={!currentSelection}
             onClick={() => onCreate(currentSelection)}
           >
-            Create {selectedOption === "current" ? "Current" : "Next"} Period
-          </button>
-        </div>
-      </div>
-    </div>
+            Create {selectedOption === "current" ? "Current" : "Next"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

@@ -1,4 +1,3 @@
-import "./occupancy.scss";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import MeetingRoomOutlinedIcon from "@mui/icons-material/MeetingRoomOutlined";
@@ -84,29 +83,31 @@ const OccupancyList = () => {
   }, [fetchOccupancy]);
 
   return (
-    <div className="occupancyList">
+    <div className="bg-white rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] overflow-x-auto animate-[fadeInUp_0.3s_ease]">
       {/* ── Header ── */}
-      <div className="occupancyHeader">
-        <div className="occupancyHeaderLeft">
-          <MeetingRoomOutlinedIcon className="headerIcon" />
-          <span className="headerTitle">Currently In Office</span>
-          <span className="occupancyBadge">{count}</span>
+      <div className="flex items-center justify-between px-5 py-3.5 bg-[#2a174e] text-white">
+        <div className="flex items-center gap-2.5">
+          <MeetingRoomOutlinedIcon className="!text-[20px] text-white/85" />
+          <span className="text-[15px] font-semibold tracking-wide">Currently In Office</span>
+          <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full bg-[#1e7e4e] text-white text-[13px] font-bold">
+            {count}
+          </span>
         </div>
-        <div className="occupancyHeaderRight">
+        <div className="flex items-center gap-2.5">
           {lastUpdated && (
-            <span className="lastUpdated">
+            <span className="text-[11px] text-white/60">
               Updated {lastUpdated.toLocaleTimeString()}
             </span>
           )}
           <button
-            className="refreshBtn"
+            className="flex items-center justify-center w-[30px] h-[30px] rounded-full bg-white/10 hover:enabled:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 cursor-pointer"
             onClick={fetchOccupancy}
             disabled={loading}
             aria-label="Refresh occupancy"
           >
             <RefreshIcon
               fontSize="small"
-              className={loading ? "spinning" : ""}
+              className={loading ? "animate-spin" : ""}
             />
           </button>
         </div>
@@ -114,47 +115,49 @@ const OccupancyList = () => {
 
       {/* ── Body ── */}
       {loading && users.length === 0 ? (
-        <div className="occupancyEmpty">Loading...</div>
+        <div className="flex flex-col items-center justify-center gap-2 px-5 py-10 text-[#aaa] text-sm font-medium">Loading...</div>
       ) : users.length === 0 ? (
-        <div className="occupancyEmpty">
-          <PersonOutlinedIcon className="emptyIcon" />
+        <div className="flex flex-col items-center justify-center gap-2 px-5 py-10 text-[#aaa] text-sm font-medium text-center">
+          <PersonOutlinedIcon className="!text-[40px] text-[#ccc]" />
           <span>No one is currently in the office.</span>
         </div>
       ) : (
-        <table className="occupancyTable">
+        <table className="w-full border-collapse text-[13px]">
           <thead>
-            <tr>
-              <th>#</th>
-              <th>User ID</th>
-              <th>Name</th>
-              <th>Time In</th>
-              <th>View</th>
+            <tr className="bg-[#f7f5ff]">
+              <th className="px-4 py-2.5 text-left font-semibold text-[#555] border-b border-[#eee] whitespace-nowrap">#</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-[#555] border-b border-[#eee] whitespace-nowrap">User ID</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-[#555] border-b border-[#eee] whitespace-nowrap">Name</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-[#555] border-b border-[#eee] whitespace-nowrap">Time In</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-[#555] border-b border-[#eee] whitespace-nowrap text-right">Action</th>
             </tr>
           </thead>
           <tbody>
             {users.map((u, index) => (
-              <tr key={u.user_id}>
-                <td className="indexCell">{index + 1}</td>
-                <td className="idCell">{formatUserId(u.user_Id)}</td>
-                <td className="nameCell">
-                  <div className="nameWrapper">
-                    <div className="avatar">
-                      {u.firstName?.charAt(0).toUpperCase()}
+              <tr key={u.user_id} className="border-b border-[#f0f0f0] last:border-b-0 hover:bg-[#faf8ff] transition-colors duration-150">
+                <td className="px-4 py-2.5 text-[#aaa] text-xs w-8 align-middle">{index + 1}</td>
+                <td className="px-4 py-2.5 font-semibold text-[#2a174e] text-xs align-middle">{formatUserId(u.user_Id)}</td>
+                <td className="px-4 py-2.5 align-middle">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-[#2a174e] text-white flex items-center justify-center text-[13px] font-bold shrink-0 uppercase">
+                      {u.firstName?.charAt(0)}
                     </div>
-                    <span>
+                    <span className="font-medium whitespace-nowrap text-[#333]">
                       {u.firstName} {u.lastName}
                     </span>
                   </div>
                 </td>
-                <td className="timeCell">
-                  <span className="timeBadge">{u.time_In ?? "—"}</span>
+                <td className="px-4 py-2.5 align-middle">
+                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#1e7e4e]/10 text-[#1e7e4e] text-xs font-semibold whitespace-nowrap">
+                    {u.time_In ?? "—"}
+                  </span>
                 </td>
-                <td className="actionCell">
+                <td className="px-4 py-2.5 align-middle text-right">
                   <Link
                     to={`/users/${u.user_Id}`}
-                    style={{ textDecoration: "none" }}
+                    className="inline-block px-3.5 py-1 rounded-[5px] border-[1.5px] border-[#2a174e] text-[#2a174e] text-xs font-semibold hover:bg-[#2a174e] hover:text-white transition-all duration-200 no-underline cursor-pointer"
                   >
-                    <div className="viewButton">View</div>
+                    View
                   </Link>
                 </td>
               </tr>

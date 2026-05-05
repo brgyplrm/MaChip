@@ -1,0 +1,38 @@
+
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {
+      keyframes: {
+        'bell-shake': {
+          '0%': { transform: 'rotate(0)' },
+          '15%': { transform: 'rotate(10deg)' },
+          '30%': { transform: 'rotate(-10deg)' },
+          '45%': { transform: 'rotate(5deg)' },
+          '60%': { transform: 'rotate(-5deg)' },
+          '100%': { transform: 'rotate(0)' },
+        },
+      },
+      animation: {
+        'bell-shake': 'bell-shake 0.5s ease',
+      },
+      colors: {
+        // ... your other colors
+        sidebar: {
+          DEFAULT: 'hsl(var(--sidebar-background))',
+          foreground: 'hsl(var(--sidebar-foreground))',
+          primary: 'hsl(var(--sidebar-primary))',
+          'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
+          accent: 'hsl(var(--sidebar-accent))',
+          'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
+          border: 'hsl(var(--sidebar-border))',
+          ring: 'hsl(var(--sidebar-ring))',
+        },
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate")],
+}

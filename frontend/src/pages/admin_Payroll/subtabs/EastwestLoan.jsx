@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import "./loanModule.scss";
-import Sidebar from "../../../components/sidebar/Sidebar";
+import Sidebar from "../../../components/Sidebar";
 import Navbar from "../../../components/navbar/Navbar";
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
@@ -13,6 +12,16 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined';
+
+// shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 const EastwestLoan = () => {
   const { systemToday } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -21,12 +30,19 @@ const EastwestLoan = () => {
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [file, setFile] = useState(null);
   
   const [employeeList, setEmployeeList] = useState([]);
   const [expectedDates, setExpectedDates] = useState([]);
   const [data, setData] = useState([]);
+
+  const [batchForm, setBatchForm] = useState({
+    date: "",
+    amount: "",
+    selectedEmployees: []
+  });
   
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
@@ -37,7 +53,7 @@ const EastwestLoan = () => {
 
   const fetchCutoffDates = () => {
     const dates = [];
-    const year = selectedYear;
+    const year = parseInt(selectedYear);
     for (let m = 0; m < 12; m++) {
       const d15 = new Date(year, m, 15);
       dates.push(`${d15.getFullYear()}-${String(d15.getMonth() + 1).padStart(2, '0')}-15`);
@@ -94,6 +110,75 @@ const EastwestLoan = () => {
     fetchData();
   }, [selectedYear]);
 
+  const handleBatchSave = async () => {
+    if (!batchForm.date || !batchForm.amount || batchForm.selectedEmployees.length === 0) {
+      setToast({ message: "Please fill all fields and select at least one employee", type: "error" });
+      return;
+    }
+
+    const amount = parseFloat(batchForm.amount);
+    if (isNaN(amount)) {
+      setToast({ message: "Invalid amount", type: "error" });
+      return;
+    }
+
+    setLoading(true);
+    const updates = [];
+
+    batchForm.selectedEmployees.forEach(empId => {
+      updates.push({ date: batchForm.date, user_Id: empId, amount: amount, type });
+    });
+
+    try {
+      const res = await fetchWithAuth("/api/payroll/loans/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates })
+      });
+
+      if (res.ok) {
+        setToast({ message: "Batch update successful!", type: "success" });
+        setShowBatchModal(false);
+        fetchData();
+      } else {
+        const errData = await res.json();
+        setToast({ message: "Batch update failed: " + (errData.error || "Unknown error"), type: "error" });
+        fetchData();
+      }
+    } catch (err) {
+      setToast({ message: "Failed to sync batch update", type: "error" });
+      fetchData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleEmployeeSelection = (userId) => {
+    setBatchForm(prev => {
+      const isSelected = prev.selectedEmployees.includes(userId);
+      return {
+        ...prev,
+        selectedEmployees: isSelected 
+          ? prev.selectedEmployees.filter(id => id !== userId)
+          : [...prev.selectedEmployees, userId]
+      };
+    });
+  };
+
+  const selectAllEmployees = () => {
+    setBatchForm(prev => ({
+      ...prev,
+      selectedEmployees: employeeList.map(e => e.user_Id)
+    }));
+  };
+
+  const deselectAllEmployees = () => {
+    setBatchForm(prev => ({
+      ...prev,
+      selectedEmployees: []
+    }));
+  };
+
   const handleHeaderChange = (index, newDate) => {
     const updated = [...expectedDates];
     updated[index] = newDate;
@@ -111,11 +196,8 @@ const EastwestLoan = () => {
     
     // Sanitize input: remove commas and whitespace
     const sanitizedValue = editValue.replace(/,/g, "").trim();
-    
-    // Treat empty string as 0
     const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
     
-    // Reset editing cell immediately to prevent double calls from onBlur + onKeyDown
     setEditingCell(null);
 
     if (isNaN(val)) {
@@ -163,13 +245,9 @@ const EastwestLoan = () => {
   };
 
   const downloadTemplate = () => {
-    // Header row: month/year, Employee1 #ID, Employee2 #ID, ...
     const headers = ["month/year", ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
     const headerLine = headers.join(",");
-
-    // Rows: All 24 cutoff dates for the selected year
     const rows = expectedDates.map(date => {
-      // Add commas for each employee column (initially empty)
       const emptyValues = employeeList.map(() => "").join(",");
       return `${date},${emptyValues}`;
     });
@@ -202,9 +280,8 @@ const EastwestLoan = () => {
         const lines = text.split("\n").filter(line => line.trim() !== "");
         if (lines.length < 2) throw new Error("File is empty or missing data.");
 
-        // 1. Parse Headers to get Employee IDs
         const headers = lines[0].split(",");
-        const empMappings = []; // { colIndex, user_Id }
+        const empMappings = []; 
 
         for (let i = 1; i < headers.length; i++) {
           const header = headers[i];
@@ -214,7 +291,6 @@ const EastwestLoan = () => {
           }
         }
 
-        // 2. Parse Rows (Dates)
         const updates = [];
         for (let i = 1; i < lines.length; i++) {
           const columns = lines[i].split(",");
@@ -273,7 +349,7 @@ const EastwestLoan = () => {
 
     data.forEach(item => {
       const recordYear = new Date(item.date).getFullYear();
-      if (recordYear === selectedYear) {
+      if (recordYear === parseInt(selectedYear)) {
         Object.keys(item.values).forEach(empKey => {
           const amt = item.values[empKey].amount;
           if (amt > 0) {
@@ -300,197 +376,381 @@ const EastwestLoan = () => {
   };
 
   return (
-    <div className="loanModule">
-      <Sidebar />
-      <div className="loanContainer">
-        <Navbar />
-        {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
-        
-        <div className="header-wrapper">
-          <div className="top">
-            <div className="title-area">
-              <h1>Eastwest Loan Management</h1>
-              <div className="year-selector">
-                <FilterListIcon className="filter-icon" />
-                <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
-                  {(() => {
-                    const currentY = systemToday ? new Date(systemToday).getFullYear() : new Date().getFullYear();
-                    const startYear = 2011;
-                    const endYear = currentY + 10;
-                    const years = [];
-                    for (let y = endYear; y >= startYear; y--) {
-                      years.push(y);
-                    }
-                    return years.map(year => (
-                      <option key={year} value={year} style={year === currentY ? {fontWeight: 'bold', color: '#2563eb'} : {}}>
-                        Fiscal Year {year} {year === currentY ? "(Current)" : ""}
-                      </option>
-                    ));
-                  })()}
-                </select>
-              </div>
-            </div>
-            <div className="actions">
-                <button className="template-btn" onClick={downloadTemplate}>
-                    <DownloadIcon /> Template
-                </button>
-                <input type="file" accept=".csv" onChange={handleFileChange} id="csv-upload" style={{display: 'none'}} />
-                <label htmlFor="csv-upload" className="upload-btn">
-                   <CloudUploadIcon /> {file ? (file.name.length > 15 ? file.name.substring(0,12) + "..." : file.name) : "Choose CSV"}
-                </label>
-                {file && (
-                  <button className="process-btn" onClick={handleUpload} disabled={loading}>
-                    {loading ? "..." : "Upload"}
-                  </button>
-                )}
-                <button className={`edit-headers-btn ${isEditingTable ? 'active' : ''}`} onClick={() => setIsEditingTable(!isEditingTable)}>
-                  {isEditingTable ? <><CheckIcon /> Save Matrix</> : <><EditIcon /> Edit Matrix</>}
-                </button>
-                <button className="save-btn" onClick={fetchData} disabled={loading}>
-                  <SaveIcon /> {loading ? "Updating..." : "Update Payroll"}
-                </button>
-            </div>
-          </div>
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Dialog open={showBatchModal} onOpenChange={setShowBatchModal}>
+        <DialogContent className="max-w-2xl bg-white p-6 rounded-xl shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-[#2A174E]">Batch Details Upload ({type})</DialogTitle>
+            <DialogDescription>
+              Select a method to upload multiple employee loan repayment records at once.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Tabs defaultValue="form" className="w-full mt-4">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="form">Manual Entry Form</TabsTrigger>
+              <TabsTrigger value="csv">CSV File Upload</TabsTrigger>
+            </TabsList>
 
-          <div className="summary-cards">
-            <div className="card highlight">
-              <span className="label">BANK PARTNER</span>
-              <span className="val">Eastwest Bank</span>
-            </div>
-            <div className="card">
-              <span className="label">ACTIVE SUBSCRIBERS</span>
-              <span className="val">{stats.subscribers}</span>
-            </div>
-            <div className="card highlight">
-              <span className="label">TOTAL REPAID ({selectedYear})</span>
-              <span className="val">{peso(stats.totalPaid)}</span>
-            </div>
-            <div className="card">
-              <span className="label">FISCAL YEAR</span>
-              <span className="val">{selectedYear}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="content-body">
-          <div className="table-container">
-            <table className="pivoted-table">
-              <thead>
-                <tr className="row-1-months">
-                  <th className="sticky-col">
-                    <div className="vertical-stack">
-                      <span className="year">{selectedYear} Year</span>
-                      <span className="label">MONTHS / DATE</span>
-                    </div>
-                  </th>
-                  {employeeList.map((emp) => (
-                    <th key={emp.key} className="emp-header-cell">
-                      <div className="vertical-stack">
-                        <span className="name">{emp.name.split(',')[0]}</span>
-                        <span className="id">{emp.id}</span>
-                      </div>
-                    </th>
-                  ))}
-                  <th className="sticky-col-right total-loan-header">
-                    <div className="vertical-stack">
-                      <span className="year">TOTAL LOAN</span>
-                      <span className="label">THIS PERIOD</span>
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={employeeList.length + 2} className="empty-msg">Loading data...</td></tr>
-                ) : expectedDates.length > 0 ? (
-                  <>
-                    {expectedDates.map((dateStr, i) => {
-                      const dateObj = new Date(dateStr);
-                      const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
-                      const dayLabel = dateObj.getDate();
-                      const isCurrent = dateStr === currentCutoffDate;
-
+            <TabsContent value="form" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Target Month / Period</label>
+                  <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto p-2 border border-slate-200 rounded-md bg-slate-50">
+                    {expectedDates.map(dStr => {
+                      const isSelected = batchForm.date === dStr;
+                      const dObj = new Date(dStr);
                       return (
-                        <tr key={dateStr} className={isCurrent ? "current-row" : ""}>
-                          <td className="sticky-col date-label">
-                            {isEditingTable ? (
-                              <input 
-                                type="date" 
-                                value={dateStr}
-                                onChange={(e) => handleHeaderChange(i, e.target.value)}
-                                className="date-edit-input"
-                              />
-                            ) : (
-                              <>
-                                <span className="month">{monthLabel}</span>
-                                <span className="day">{dayLabel}</span>
-                                {isCurrent && <div className="curr-tag">CURR</div>}
-                              </>
-                            )}
-                          </td>
-                          {employeeList.map((emp) => {
-                            const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
-                            const record = actualRecord ? actualRecord.values[emp.key] : null;
-                            const amount = record ? record.amount : 0;
-                            const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
-                            const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
-
-                            // Legend Logic:
-                            // Green (paid) if amount > 0
-                            // Red (removed) if amount === 0 but record exists (explicitly zeroed)
-                            // Grey (unpaid) if amount === 0 and no record
-                            const statusClass = amount > 0 ? 'paid' : (record ? 'removed' : 'unpaid');
-
-                            return (
-                              <td key={emp.key} className={`amt ${statusClass} ${isEditing ? 'editing' : ''} ${isSyncing ? 'syncing' : ''}`} onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}>
-                                {isEditing ? (
-                                  <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => handleCellSave(dateStr, emp.key)} onKeyDown={(e) => e.key === 'Enter' && handleCellSave(dateStr, emp.key)} autoFocus className="cell-edit-input" />
-                                ) : isSyncing ? (
-                                  <div className="sync-spinner">...</div>
-                                ) : (
-                                  parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                )}
-                              </td>
-                            );
-                          })}
-                          <td className="sticky-col-right total-amt">
-                            {parseFloat(getRowTotal(dateStr) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                        </tr>
+                        <button
+                          key={dStr}
+                          type="button"
+                          onClick={() => setBatchForm(prev => ({ ...prev, date: dStr }))}
+                          className={`text-[11px] py-2 px-3 rounded-lg border transition-all text-left flex flex-col ${
+                            isSelected 
+                              ? "bg-[#2A174E] border-[#2A174E] text-white shadow-md font-bold" 
+                              : "bg-white border-slate-200 text-slate-600 hover:border-[#2A174E] hover:text-[#2A174E]"
+                          }`}
+                        >
+                          <span className={isSelected ? "text-yellow-400" : "text-slate-400"}>
+                            {dObj.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })}
+                          </span>
+                          <span>{dObj.toLocaleDateString('en-PH', { day: 'numeric', month: 'short' })}</span>
+                        </button>
                       );
                     })}
-                    <tr className="summary-row subtotal-row">
-                      <td className="sticky-col label-cell"><span className="summary-label">TOTAL PAID ({selectedYear})</span></td>
-                      {employeeList.map((emp) => {
-                        const empSubtotal = expectedDates.reduce((acc, dateStr) => {
-                          const period = data.find(d => isInSamePeriod(d.date, dateStr));
-                          return acc + (period?.values[emp.key]?.amount || 0);
-                        }, 0);
-                        return <td key={emp.key} className="amt total">{parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>;
-                      })}
-                      <td className="sticky-col-right total-amt final-total">
-                        {parseFloat(stats.totalPaid).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Amount (₱)</label>
+                  <Input 
+                    type="number" 
+                    placeholder="0.00"
+                    value={batchForm.amount}
+                    onChange={(e) => setBatchForm(prev => ({ ...prev, amount: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Select Employees</label>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="xs" onClick={selectAllEmployees} className="text-[10px] h-6 px-2 text-blue-600">Select All</Button>
+                    <Button variant="ghost" size="xs" onClick={deselectAllEmployees} className="text-[10px] h-6 px-2 text-slate-400">Clear</Button>
+                  </div>
+                </div>
+                <div className="border border-slate-200 rounded-lg p-3 max-h-[200px] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {employeeList.map(emp => (
+                    <div 
+                      key={emp.user_Id} 
+                      onClick={() => toggleEmployeeSelection(emp.user_Id)}
+                      className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${batchForm.selectedEmployees.includes(emp.user_Id) ? 'bg-blue-50 border border-blue-200' : 'bg-slate-50 border border-transparent hover:bg-slate-100'}`}
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${batchForm.selectedEmployees.includes(emp.user_Id) ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>
+                        {batchForm.selectedEmployees.includes(emp.user_Id) && <CheckIcon className="text-white !text-[10px]" />}
+                      </div>
+                      <span className="text-xs font-medium text-slate-700">{emp.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Button onClick={handleBatchSave} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={loading}>
+                {loading ? "Processing..." : "Apply Batch Update"}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="csv" className="space-y-6">
+              <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex flex-col items-center text-center">
+                <p className="text-sm text-blue-800 mb-4">Download our CSV template, fill it out with employee data, and upload it here.</p>
+                <Button variant="outline" size="sm" onClick={downloadTemplate} className="border-blue-600 text-blue-600 hover:bg-blue-100">
+                  <DownloadIcon className="mr-2 h-4 w-4" /> Download CSV Template
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-[#2A174E] transition-colors cursor-pointer relative">
+                  <Input 
+                    type="file" 
+                    accept=".csv" 
+                    onChange={handleFileChange} 
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <CloudUploadIcon className="text-slate-400 h-12 w-12 mb-2" />
+                  <p className="text-sm font-medium text-slate-600">{file ? file.name : "Click or drag CSV file here"}</p>
+                </div>
+                <Button onClick={handleUpload} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={!file || loading}>
+                  {loading ? "Uploading..." : "Upload and Process CSV"}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      <Sidebar>
+      <div className="flex-1 p-4 md:p-4 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
+        
+        {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
+        
+        {/* Top Header & Settings */}
+        <Card className="shadow-sm border-0 bg-white mb-6 py-2">
+          <CardContent className="p-6">
+            
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <h1 className="text-2xl font-bold text-[#2A174E] m-0">Eastwest Loan Management</h1>
+                <div className="flex items-center gap-2">
+                  <FilterListIcon className="text-slate-400 h-5 w-5" />
+                  <Select value={selectedYear} onValueChange={setSelectedYear}>
+                    <SelectTrigger className="w-[160px] h-9 bg-white">
+                      <SelectValue placeholder="Select Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 21 }, (_, i) => 2020 + i).map(year => (
+                        <SelectItem key={year} value={year.toString()}>Fiscal Year {year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-green-700 tracking-wider">BANK PARTNER</span>
+                <span className="text-base font-bold text-green-800 mt-1">Eastwest Bank</span>
+              </div>
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-slate-500 tracking-wider">ACTIVE SUBSCRIBERS</span>
+                <span className="text-base font-bold text-slate-800 mt-1">{stats.subscribers}</span>
+              </div>
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-green-700 tracking-wider">TOTAL REPAID ({selectedYear})</span>
+                <span className="text-base font-bold text-green-800 mt-1">{peso(stats.totalPaid)}</span>
+              </div>
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-center">
+                <span className="text-[10px] font-bold text-slate-500 tracking-wider">FISCAL YEAR</span>
+                <span className="text-base font-bold text-slate-800 mt-1">{selectedYear}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Matrix Table Section */}
+        <Card className="shadow-sm border-0 bg-white">
+          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-50 gap-4">
+            <CardTitle className="text-lg text-[#2A174E]">Employee Deduction History ({selectedYear})</CardTitle>
+            <div className="flex flex-wrap gap-2">
+              {isAdmin && (
+                <>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowBatchModal(true)}
+                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50"
+                >
+                  <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setIsEditingTable(!isEditingTable)}
+                  className={`${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
+                >
+                  {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Matrix</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Matrix</>}
+                </Button>
+                </>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {/* Main Matrix - Native HTML Table */}
+            <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-b-xl">
+              <table className="w-full min-w-max border-collapse text-sm">
+                
+                <thead className="sticky top-0 z-[50] shadow-sm">
+                  <tr>
+                    {/* Top-Left Header Cell */}
+                    <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-[#2A174E] p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                      <div className="flex flex-col leading-tight">
+                        <span className="text-[9px] font-black uppercase opacity-90">{selectedYear} Year</span>
+                        <span className="text-xs text-white font-bold">MONTHS / DATE</span>
+                      </div>
+                    </th>
+                    {/* Top Header Cells */}
+                    {employeeList.map((emp) => (
+                      <th key={emp.key} className="sticky top-0 z-[50] bg-[#2A174E] text-white border-x border-b-2 border-[#3d2270] min-w-[140px] p-3 text-center align-middle">
+                        <div className="flex flex-col leading-tight items-center">
+                          <span className="text-[11px] font-bold uppercase">{emp.name.split(',')[0]}</span>
+                          <span className="text-[9px] text-white/70 font-mono">{emp.id}</span>
+                        </div>
+                      </th>
+                    ))}
+                    {/* Top-Right Header Cell */}
+                    <th className="sticky right-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-l-2 border-b-2 border-[#2A174E] min-w-[120px] p-3 text-center align-middle shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                      <div className="flex flex-col leading-tight">
+                        <span className="text-[9px] font-black uppercase">TOTAL LOAN</span>
+                        <span className="text-xs text-white font-bold">THIS PERIOD</span>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={employeeList.length + 2} className="h-32 text-center text-slate-500 italic p-6">
+                        Loading data...
                       </td>
                     </tr>
-                    <tr className="summary-row all-time-row">
-                      <td className="sticky-col label-cell"><span className="summary-label">TOTAL LOANS (ALL-TIME)</span></td>
-                      {employeeList.map((emp) => {
-                        const totalLoans = data.reduce((acc, item) => acc + (item.values[emp.key]?.amount || 0), 0);
-                        return <td key={emp.key} className="amt total">{parseFloat(totalLoans).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>;
-                      })}
-                      <td className="sticky-col-right total-amt all-time">
-                        {parseFloat(data.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={employeeList.length + 2} className="h-32 text-center text-red-500 p-6">
+                        <p>Error: {error}</p>
+                        <Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
                       </td>
                     </tr>
-                  </>
-                ) : (
-                  <tr><td colSpan={employeeList.length + 2} className="empty-msg">No periods defined.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  ) : expectedDates.length > 0 ? (
+                    <>
+                      {expectedDates.map((dateStr, i) => {
+                        const dateObj = new Date(dateStr);
+                        const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
+                        const dayLabel = dateObj.getDate();
+                        const isCurrentRow = dateStr === currentCutoffDate;
+                        
+                        return (
+                          <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
+                            {/* Left Column Cell */}
+                            <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-[#2A174E] p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                              {isEditingTable ? (
+                                <Input 
+                                  type="date" 
+                                  value={dateStr}
+                                  onChange={(e) => handleHeaderChange(i, e.target.value)}
+                                  className="h-8 text-xs font-bold text-[#2A174E] focus-visible:ring-blue-500"
+                                />
+                              ) : (
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel}</span>
+                                  <span className="text-[10px] font-semibold text-slate-500">{dayLabel}</span>
+                                  {isCurrentRow && <span className="bg-yellow-400 text-[#2A174E] text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
+                                </div>
+                              )}
+                            </td>
+                            {/* Data Cells */}
+                            {employeeList.map((emp) => {
+                              const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
+                              const record = actualRecord ? actualRecord.values[emp.key] : null;
+                              const amount = record ? record.amount : 0;
+                              
+                              const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
+                              const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
+
+                              let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer ";
+                              if (isEditing) cellClass += "bg-white p-0 ";
+                              else if (isSyncing) cellClass += "bg-yellow-50 ";
+                              else if (amount > 0) cellClass += "text-green-800 font-bold ";
+                              else if (record) cellClass += "text-red-600 font-semibold opacity-80 "; 
+                              else cellClass += "text-slate-400 "; 
+
+                              return (
+                                <td 
+                                  key={emp.key} 
+                                  className={cellClass}
+                                  onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
+                                >
+                                  {isEditing ? (
+                                    <input 
+                                      type="text" 
+                                      value={editValue} 
+                                      onChange={(e) => setEditValue(e.target.value)} 
+                                      onBlur={() => handleCellSave(dateStr, emp.key)} 
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          handleCellSave(dateStr, emp.key);
+                                        }
+                                      }} 
+                                      autoFocus 
+                                      className="w-full h-10 border-2 border-[#2A174E] bg-white text-center font-mono text-[13px] text-black font-bold outline-none" 
+                                    />
+                                  ) : isSyncing ? (
+                                    <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
+                                  ) : (
+                                    amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"
+                                  )}
+                                </td>
+                              );
+                            })}
+                            
+                            {/* Right Column Cell (Row Total) */}
+                            <td className={`sticky right-0 z-[40] border-l-2 border-b border-[#2A174E] p-3 text-center align-middle font-bold text-[#2A174E] min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isCurrentRow ? "bg-blue-50" : "bg-white"}`}>
+                              {parseFloat(getRowTotal(dateStr) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {/* Footer Row (Total Paid - Current Year) */}
+                      <tr className="sticky bottom-[49px] z-[45] bg-slate-100 shadow-[0_-2px_4px_rgba(0,0,0,0.02)]">
+                        <td className="sticky left-0 z-[50] bg-slate-100 border-r-2 border-t-2 border-b border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL PAID ({selectedYear})</span>
+                        </td>
+                        {employeeList.map((emp) => {
+                          const empSubtotal = expectedDates.reduce((acc, dateStr) => {
+                            const period = data.find(d => isInSamePeriod(d.date, dateStr));
+                            const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
+                            return acc + val;
+                          }, 0);
+                          return (
+                            <td key={emp.key} className="border-r border-t-2 border-b border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
+                              {parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          );
+                        })}
+                        <td className="sticky right-0 z-[50] bg-[#2A174E] text-yellow-400 border-l-2 border-t-2 border-b border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          {parseFloat(stats.totalPaid).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+
+                      {/* Footer Row (Total Paid - All Time) */}
+                      <tr className="sticky bottom-0 z-[45] bg-slate-200 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
+                        <td className="sticky left-0 z-[50] bg-slate-200 border-r-2 border-t border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL LOANS (ALL-TIME)</span>
+                        </td>
+                        {employeeList.map((emp) => {
+                          const totalLoans = data.reduce((acc, item) => acc + (item.values[emp.key]?.amount || 0), 0);
+                          return (
+                            <td key={emp.key} className="border-r border-t border-slate-300 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
+                              {parseFloat(totalLoans).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          );
+                        })}
+                        <td className="sticky right-0 z-[50] bg-white text-[#2A174E] border-l-2 border-t border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          {(() => {
+                             const totalAllTime = data.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0);
+                             return parseFloat(totalAllTime).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                          })()}
+                        </td>
+                      </tr>
+                    </>
+                  ) : (
+                    <tr>
+                      <td colSpan={employeeList.length + 2} className="h-32 text-center text-slate-500 italic p-6">
+                        No periods defined.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
       </div>
+      </Sidebar>
     </div>
   );
 };

@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import "./payroll_EmployeeList.scss";
-import Sidebar from "../../components/sidebar/Sidebar";
-import Navbar from "../../components/navbar/Navbar";
+import Sidebar from "../../components/Sidebar";
 import SearchIcon from "@mui/icons-material/Search";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
@@ -17,6 +15,13 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Link } from "react-router-dom";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { fetchWithAuth } from "../../utils/api";
+
+// shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import EditPayrollModal from "../../components/editPayrollModal/EditPayrollModal";
 
 const EmployeeList = () => {
@@ -24,11 +29,13 @@ const EmployeeList = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterRole, setFilterRole] = useState("All Roles");
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [savingId, setSavingId] = useState(null);
   const [toast, setToast] = useState(null);
   const [visibleAccounts, setVisibleAccounts] = useState(new Set());
+  const isEditing = editingEmployee !== null;
 
   const toggleAccountVisibility = (id) => {
     setVisibleAccounts((prev) => {
@@ -161,126 +168,132 @@ const EmployeeList = () => {
   ).length;
 
   return (
-    <div className="employeeList">
-      <Sidebar />
-      <div className="employeeListContainer">
-        <Navbar />
-        <div className="wrapper">
-
-          {/* ── Header ── */}
-          <div className="pageHeader">
-            <div className="titleBlock">
-              <div className="titleWithBack">
-                <Link to="/payroll" className="backLink">
-                  <ArrowBackIcon className="backIcon" />
-                </Link>
-                <h1>
-                  Employee Masterlist
-                </h1>
-              </div>
-              <span>Manage employee records and daily compensation rates</span>
-            </div>
-            <button
-              className={`refreshBtn ${refreshing ? "spinning" : ""}`}
-              onClick={() => fetchEmployees(true)}
-              disabled={refreshing}
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
+      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
+        
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <div className="flex items-start md:items-center gap-4">
+            <Link 
+              to="/payroll" 
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
             >
-              <RefreshIcon />
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
-
-          <div className="infoAlert">
-            <div className="alertTitle">
-              <InfoOutlinedIcon className="icon" /> 
-              <h3>Employee Payroll Processing</h3>
-            </div>
-            <p>
-              Provide a daily rate to automatically calculate payroll for each employee. 
-              Employees without a daily rate will be excluded from payroll calculations.
-            </p>
-          </div>
-
-          {/* ── Summary Chips ── */}
-          <div className="summaryRow">
-            <div className="chip">
-              <span className="chipLabel">Total Employees</span>
-              <span className="chipValue">{employees.length}</span>
-            </div>
-            <div className="chip changed">
-              <SwapHorizIcon className="chipIcon" />
-              <span className="chipLabel">Rate Changes This Session</span>
-              <span className="chipValue">{changedCount}</span>
+              <ArrowBackIcon />
+            </Link>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Masterlist</h1>
+              <span className="text-sm text-slate-500 mt-1 block">Manage employee records and daily compensation rates</span>
             </div>
           </div>
+          <Button 
+            className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]" 
+            onClick={() => fetchEmployees(true)}
+            disabled={refreshing}
+          >
+            <RefreshIcon className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
 
-          {/* ── Filters ── */}
-          <div className="filterBar">
-            <div className="searchBox">
-              <SearchIcon className="icon" />
-              <input
+        {/* Info Alert */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
+          <div className="flex items-center gap-2 text-blue-800 font-bold mb-2">
+            <InfoOutlinedIcon className="h-5 w-5" /> 
+            <h3 className="text-base m-0">Employee Payroll Processing</h3>
+          </div>
+          <p className="text-blue-700 text-sm leading-relaxed m-0">
+            Provide a daily rate to automatically calculate payroll for each employee. 
+            Employees without a daily rate will be excluded from payroll calculations.
+          </p>
+        </div>
+
+        {/* Summary Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <Card className="shadow-sm border-slate-200 py-0">
+            <CardContent className="p-4 flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Employees</span>
+              <span className="text-2xl font-bold text-[#2A174E]">{employees.length}</span>
+            </CardContent>
+          </Card>
+          <Card className={`shadow-sm border transition-colors py-0 ${changedCount > 0 ? "bg-[#fcfaff] border-[#d1c4e9]" : "border-slate-200"}`}>
+            <CardContent className="p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <SwapHorizIcon className={changedCount > 0 ? "text-[#7c5cbf]" : "text-slate-400"} />
+                <span className={`text-sm font-semibold uppercase tracking-wider ${changedCount > 0 ? "text-[#7c5cbf]" : "text-slate-500"}`}>
+                  Rate Changes This Session
+                </span>
+              </div>
+              <span className={`text-2xl font-bold ${changedCount > 0 ? "text-[#4a2b8c]" : "text-[#2A174E]"}`}>{changedCount}</span>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <Card className="mb-6 shadow-sm border-0 py-0">
+          <CardContent className="p-4">
+            <div className="relative w-full md:w-96">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <Input
                 type="text"
                 placeholder="Search by name or employee number..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 bg-slate-50 border-slate-200 focus-visible:ring-[#2A174E]"
               />
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* ── Table ── */}
-          <div className="tableContainer">
+        {/* Table Container */}
+        <Card className="shadow-sm border-0 bg-white">
+          <CardContent className="p-0 overflow-x-auto">
             {loading ? (
-              <div className="loadingState">Loading employee records...</div>
+              <div className="p-12 text-center text-slate-400 italic">Loading employee records...</div>
             ) : (
-              <table className="empTable">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Emp</th>
-                    <th>Account Number</th>
-                    <th>Position</th>
-                    <th>Old Daily Rate</th>
-                    <th>New Daily Rate</th>
-                    <th>Last Updated</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="min-w-[1000px]">
+                <TableHeader className="bg-slate-50/50">
+                  <TableRow className="hover:bg-transparent border-b-slate-200">
+                    <TableHead className="font-semibold text-slate-500 uppercase text-xs w-12 text-center">#</TableHead>
+                    <TableHead className="font-semibold text-slate-500 uppercase text-xs">Emp</TableHead>
+                    <TableHead className="font-semibold text-slate-500 uppercase text-xs">Account Number</TableHead>
+                    <TableHead className="font-semibold text-slate-500 uppercase text-xs">Position</TableHead>
+                    <TableHead className="font-semibold text-slate-500 uppercase text-xs">Old Daily Rate</TableHead>
+                    <TableHead className="font-semibold text-slate-500 uppercase text-xs w-48">New Daily Rate</TableHead>
+                    <TableHead className="font-semibold text-slate-500 uppercase text-xs">Last Updated</TableHead>
+                    <TableHead className="font-semibold text-slate-500 uppercase text-xs text-right pr-6">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filtered.length > 0 ? (
                     filtered.map((emp, idx) => {
-                      const hasChanged =
-                        emp.previousDailyRate &&
-                        parseFloat(emp.previousDailyRate) !== parseFloat(emp.dailyRate);
-                      const rateWentUp =
-                        hasChanged &&
-                        parseFloat(emp.dailyRate) > parseFloat(emp.previousDailyRate);
+                      const hasChanged = emp.previousDailyRate && parseFloat(emp.previousDailyRate) !== parseFloat(emp.dailyRate);
+                      const rateWentUp = hasChanged && parseFloat(emp.dailyRate) > parseFloat(emp.previousDailyRate);
 
                       return (
-                        <tr key={emp.user_Id} className={hasChanged ? "rateChanged" : ""}>
-                          {/* Row number */}
-                          <td className="rowNum">{idx + 1}</td>
-
-                          {/* Combined Name and ID */}
-                          <td className="empName">
-                            <div className="nameBlock">
-                              <div className="avatar">
+                        <TableRow key={emp.user_Id} className={`border-b-slate-100 transition-colors ${hasChanged ? "bg-purple-50/30 hover:bg-purple-50/50" : "hover:bg-slate-50/50"}`}>
+                          
+                          <TableCell className="text-slate-400 text-xs text-center">{idx + 1}</TableCell>
+                          
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-[#f0ebfa] text-[#4a2b8c] font-bold text-xs flex items-center justify-center shrink-0 uppercase tracking-widest">
                                 {emp.user_FirstName?.[0]}{emp.user_LastName?.[0]}
                               </div>
                               <div className="flex flex-col">
-                                <span className="name font-semibold text-[#2A174E]">
+                                <span className="font-bold text-[#2A174E] text-sm">
                                   {emp.user_FirstName} {emp.user_LastName}
                                 </span>
-                                <span className="text-xs text-gray-500 font-mono">
+                                <span className="text-xs text-slate-500 font-mono">
                                   {formatUserId(emp.user_Id)}
                                 </span>
                               </div>
                             </div>
-                          </td>
+                          </TableCell>
 
-                          {/* Account Number */}
-                          <td className="accountNo">
+                          <TableCell>
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm min-w-[100px]">
+                              <span className="font-mono text-sm min-w-[100px] text-slate-700">
                                 {visibleAccounts.has(emp.user_Id) 
                                   ? (emp.account_Number || "—") 
                                   : maskAccountNumber(emp.account_Number)}
@@ -288,7 +301,7 @@ const EmployeeList = () => {
                               {emp.account_Number && (
                                 <button 
                                   onClick={() => toggleAccountVisibility(emp.user_Id)}
-                                  className="text-gray-400 hover:text-[#2A174E] transition-colors"
+                                  className="text-slate-400 hover:text-[#2A174E] transition-colors"
                                   title={visibleAccounts.has(emp.user_Id) ? "Hide Account Number" : "Show Account Number"}
                                 >
                                   {visibleAccounts.has(emp.user_Id) 
@@ -297,74 +310,68 @@ const EmployeeList = () => {
                                 </button>
                               )}
                             </div>
-                          </td>
+                          </TableCell>
 
-                          {/* Position */}
-                          <td className="position">{emp.user_Role || "—"}</td>
+                          <TableCell className="text-slate-600 text-sm">{emp.user_Role || "—"}</TableCell>
 
-                          {/* Old Daily Rate */}
-                          <td className="oldRate">
+                          <TableCell>
                             {hasChanged ? (
-                              <span className="oldRateValue">
-                                ₱{parseFloat(emp.previousDailyRate || 0).toLocaleString("en-PH", {
-                                  minimumFractionDigits: 2,
-                                })}
+                              <span className="text-sm text-slate-400 line-through decoration-slate-300">
+                                ₱{parseFloat(emp.previousDailyRate || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                               </span>
                             ) : (
-                              <span className="noChange">—</span>
+                              <span className="text-slate-300">—</span>
                             )}
-                          </td>
+                          </TableCell>
 
-                          {/* New Daily Rate */}
-                          <td className="newRate">
-                            <div className="rateDisplay">
-                              <span className={`rateValue ${hasChanged ? (rateWentUp ? "up" : "down") : ""}`}>
-                                ₱{parseFloat(emp.dailyRate || 0).toLocaleString("en-PH", {
-                                  minimumFractionDigits: 2,
-                                })}
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className={`font-bold text-sm ${hasChanged ? (rateWentUp ? "text-green-700" : "text-red-600") : "text-[#2A174E]"}`}>
+                                ₱{parseFloat(emp.dailyRate || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                               </span>
                               {hasChanged && (
                                 rateWentUp
-                                  ? <TrendingUpIcon className="trendIcon up" />
-                                  : <TrendingDownIcon className="trendIcon down" />
+                                  ? <TrendingUpIcon className="text-green-500 h-4 w-4" />
+                                  : <TrendingDownIcon className="text-red-500 h-4 w-4" />
                               )}
                             </div>
-                          </td>
+                          </TableCell>
 
-                          {/* Last Updated */}
-                          <td className="updatedAt">
+                          <TableCell className="text-xs text-slate-400 whitespace-nowrap">
                             {emp.rateUpdatedAt
                               ? new Date(emp.rateUpdatedAt).toLocaleDateString("en-PH", {
                                   month: "short", day: "numeric", year: "numeric",
                                 })
                               : "—"}
-                          </td>
+                          </TableCell>
 
-                          {/* Actions */}
-                          <td className="actions">
-                            <button
-                              className="editBtn"
+                          <TableCell className="text-right pr-6">
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleEdit(emp)}
-                              title="Edit compensation"
+                              className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
+                              title="Edit daily rate"
                             >
-                              <EditIcon sx={{ fontSize: 18 }} /> Edit
-                            </button>
-                          </td>
-                        </tr>
+                              <EditIcon className="h-4 w-4 mr-1" /> Edit Rate
+                            </Button>
+                          </TableCell>
+                        </TableRow>
                       );
                     })
                   ) : (
-                    <tr>
-                      <td colSpan="8" className="emptyState">
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic">
                         No employees found.
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+
       </div>
 
       <EditPayrollModal 
@@ -375,13 +382,14 @@ const EmployeeList = () => {
         isMasterlist={true}
       />
 
-      {/* ── Toast ── */}
+      {/* Floating Toast Notification */}
       {toast && (
-        <div className={`toast ${toast.type}`}>
-          {toast.type === "success" ? <CheckIcon /> : <CloseIcon />}
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg font-medium text-white ${toast.type === "success" ? "bg-green-600" : "bg-red-600"} animate-in slide-in-from-bottom-5`}>
+          {toast.type === "success" ? <CheckIcon fontSize="small" /> : <CloseIcon fontSize="small" /> }
           {toast.message}
         </div>
       )}
+      </Sidebar>
     </div>
   );
 };
