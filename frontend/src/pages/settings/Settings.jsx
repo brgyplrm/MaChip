@@ -18,6 +18,8 @@ const Settings = () => {
   const [realTime, setRealTime] = useState(new Date());
   const [mockEnabled, setMockEnabled] = useState(false);
   const [mockTime, setMockTime] = useState("");
+  const [vlRate, setVlRate] = useState(1.0);
+  const [slRate, setSlRate] = useState(1.0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,6 +35,8 @@ const Settings = () => {
         const data = await response.json();
         if (response.ok && data) {
           setMockEnabled(data.mockTimeEnabled);
+          setVlRate(data.vlRate ?? 1.0);
+          setSlRate(data.slRate ?? 1.0);
           if (data.mockTimeValue) {
             // Format for datetime-local input (YYYY-MM-DDTHH:mm)
             const date = new Date(data.mockTimeValue);
@@ -58,7 +62,9 @@ const Settings = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mockTimeEnabled: mockEnabled,
-          mockTimeValue: mockEnabled ? mockTime : null, // Send the string directly
+          mockTimeValue: mockEnabled ? mockTime : null,
+          vlRate: parseFloat(vlRate),
+          slRate: parseFloat(slRate),
         }),
       });
       if (response.ok) {
@@ -81,6 +87,40 @@ const Settings = () => {
         <div className="settingsWrapper">
           <h1 className="title">System Settings</h1>
           <div className="content">
+
+            {/* Left Section: Leave Conversion Settings */}
+            <div className="item">
+              <h2 className="itemTitle">Leave Conversion Config</h2>
+              <div className="details">
+                <div className="detailItem">
+                  <span className="itemKey">VL Reward Rate:</span>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    className="rateInput"
+                    value={vlRate}
+                    onChange={(e) => setVlRate(e.target.value)}
+                    placeholder="e.g. 1.0"
+                  />
+                </div>
+                <div className="detailItem">
+                  <span className="itemKey">SL Reward Rate:</span>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    className="rateInput"
+                    value={slRate}
+                    onChange={(e) => setSlRate(e.target.value)}
+                    placeholder="e.g. 1.0"
+                  />
+                </div>
+                {isAdmin && (
+                  <button className="saveButton" onClick={handleSaveSettings}>
+                    <SaveIcon className="icon" /> Save Config
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* Right Section: System Preferences */}
             <div className="item">

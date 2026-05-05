@@ -109,7 +109,9 @@ exports.updateSystemSettings = async (req, res) => {
     maxicareTotalGross, 
     maxicareMonthsToPay, 
     maxicareCycleStartDate,
-    maxicareDates
+    maxicareDates,
+    vlRate,
+    slRate
   } = req.body;
   try {
     const settings = await SystemSettings.findOne();
@@ -122,7 +124,9 @@ exports.updateSystemSettings = async (req, res) => {
       maxicareTotalGross, 
       maxicareMonthsToPay, 
       maxicareCycleStartDate,
-      maxicareDates
+      maxicareDates,
+      vlRate,
+      slRate
     };
 
     if (!settings) {

@@ -269,6 +269,60 @@ exports.markAttendance = async (req, res) => {
 
     const newLog = newLogResult[0][0];
 
+    // ── AUTO-CANCEL LEAVES IF CLOCKING IN ──────────────────────────────────
+    if (nextStatus === 1 || nextStatus === 4) {
+      const activeLeaves = await sequelize.query(
+        `SELECT er."emp_reqId", er."emp_reqTypeId", vl."NoDays" as "vlDays", sl."NoDays" as "slDays", el."NoDays" as "elDays", hd."NoDays" as "hdDays"
+         FROM "emp_Request" er
+         LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+         LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+         LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+         LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+         WHERE er."user_Id" = :target_user_Id 
+         AND er."emp_reqStatusId" IN (1, 2)
+         AND er."emp_reqTypeId" IN (3, 4, 6, 7)
+         AND (
+           (vl."StartDate" <= :todayStr AND vl."EndDate" >= :todayStr) OR
+           (sl."StartDate" <= :todayStr AND sl."EndDate" >= :todayStr) OR
+           (el."DateOfLeave" = :todayStr) OR
+           (hd."DateOfLeave" = :todayStr)
+         )`,
+        { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT }
+      );
+
+      for (const leave of activeLeaves) {
+        console.log(`[SYSTEM] Auto-canceling leave #${leave.emp_reqId} for user ${target_user_Id} due to clock-in.`);
+        
+        // 1. Update status to Canceled (4)
+        await sequelize.query(
+          `UPDATE "emp_Request" SET "emp_reqStatusId" = 4, "system_remarks" = COALESCE("system_remarks" || ' | ', '') || 'Auto-canceled due to clock-in'
+           WHERE "emp_reqId" = :emp_reqId`,
+          { replacements: { emp_reqId: leave.emp_reqId }, type: QueryTypes.UPDATE }
+        );
+
+        // 2. Refund Balance
+        const noDays = leave.vlDays || leave.slDays || leave.elDays || leave.hdDays || 0;
+        if (noDays > 0) {
+          const balanceField = (leave.emp_reqTypeId === 3 || leave.emp_reqTypeId === 7) ? "VL" : "SL";
+          await sequelize.query(
+            `UPDATE "Leave_Balance"
+             SET "${balanceField}_balance" = "${balanceField}_balance" + :noDays,
+                 "${balanceField}_used" = GREATEST(0, "${balanceField}_used" - :noDays)
+             WHERE "user_Id" = :target_user_Id AND "year" = :year`,
+            { replacements: { noDays, target_user_Id, year: now.getFullYear() }, type: QueryTypes.UPDATE }
+          );
+        }
+
+        await Notification.create({
+          user_Id: target_user_Id,
+          title: "Leave Auto-Canceled",
+          message: `Your leave request (#${leave.emp_reqId}) has been automatically canceled because you clocked in today.`,
+          isRead: false
+        });
+      }
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
     // ── Upsert employee_Logging_report ──────────────────────────────────────
     const isEntry = [1, 4, 5].includes(nextStatus);
     let reportLoggedStatus = nextStatus;
@@ -1313,4 +1367,3 @@ exports.updateAttendanceRecord = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-

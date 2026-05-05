@@ -151,11 +151,14 @@ const AdminRequests = () => {
 
   const getShortType = (typeName) => {
     if (!typeName) return "REQ";
-    if (typeName.includes("Vacation")) return "VL";
-    if (typeName.includes("Sick")) return "SL";
-    if (typeName.includes("Overtime")) return "OT";
-    if (typeName.includes("Onfield")) return "OW";
-    if (typeName.includes("Correction")) return "LC";
+    const name = typeName.toLowerCase();
+    if (name.includes("vacation")) return "VL";
+    if (name.includes("sick")) return "SL";
+    if (name.includes("overtime")) return "OT";
+    if (name.includes("onfield")) return "OW";
+    if (name.includes("correction")) return "LC";
+    if (name.includes("emergency")) return "EL";
+    if (name.includes("half-day")) return "HD";
     return "REQ";
   };
 
@@ -169,7 +172,11 @@ const AdminRequests = () => {
           ? `${req.OT_DateOf} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
           : req.LC_logDate
             ? req.LC_logDate
-            : req.DateonField;
+            : req.EL_DateOfLeave
+              ? req.EL_DateOfLeave
+              : req.HD_DateOfLeave
+                ? req.HD_DateOfLeave
+                : req.DateonField;
   };
 
   return (
@@ -342,7 +349,11 @@ const AdminRequests = () => {
                             ? `${current.OW_NoDays || 0} Day(s) (${current.OW_NoHrs || 0} Hrs)`
                             : current.emp_reqTypeId === 5 // Log Correction
                               ? `${current.LC_correctionCategory || "Correction"} for ${new Date(current.LC_logDate).toLocaleDateString()}`
-                              : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
+                              : current.emp_reqTypeId === 6 // Emergency
+                                ? `${current.EL_NoDays || 0} Day(s)`
+                                : current.emp_reqTypeId === 7 // Half-day
+                                  ? `Half-day (${current.HD_period})`
+                                  : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
                       </p>
                     </div>
 

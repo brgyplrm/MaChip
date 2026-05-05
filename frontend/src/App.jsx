@@ -19,6 +19,7 @@ import EastwestLoan from "./pages/admin_Payroll/subtabs/EastwestLoan";
 import GovLoans from "./pages/admin_Payroll/subtabs/GovLoans";
 import Cashadvances from "./pages/admin_Payroll/subtabs/Cashadvances";
 import LoanModule from "./pages/admin_Payroll/subtabs/LoanModule";
+import LeaveSummary from "./pages/admin_Payroll/subtabs/LeaveSummary";
 import EmployeeCalendar from "./pages/emp_Calendar/EmployeeCalendar"; 
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
@@ -125,6 +126,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1]}>
               <Cashadvances />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payroll/leave-summary"
+          element={
+            <ProtectedRoute allowedRoles={[1]}>
+              <LeaveSummary />
             </ProtectedRoute>
           }
         />

@@ -250,6 +250,12 @@ useEffect(() => {
                         <span>Cash Advances</span>
                       </li>
                     </NavLink>
+                    <NavLink to="/payroll/leave-summary" style={{ textDecoration: "none" }}>
+                      <li title="Leave Summary">
+                        <HistoryIcon className="icon sub-icon" />
+                        <span>Leave Summary</span>
+                      </li>
+                    </NavLink>
                   </ul>
                 )}
               </div>

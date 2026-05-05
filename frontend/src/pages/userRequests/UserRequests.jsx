@@ -145,6 +145,7 @@ const UserRequests = () => {
     claimedIn: "",
     claimedOut: "",
     correctionCategory: "",
+    period: "",
   });
 
   const [currentPeriodLogs, setCurrentPeriodLogs] = useState([]);
@@ -452,6 +453,14 @@ const UserRequests = () => {
       formDataToSubmit.append("claimedOut", formData.claimedOut);
       formDataToSubmit.append("correctionCategory", formData.correctionCategory);
       formDataToSubmit.append("reason", formData.remarks);
+    } else if (formData.emp_reqTypeId === "6") {
+      formDataToSubmit.append("DateOfLeave", formData.leaveStartDate);
+      formDataToSubmit.append("NoDays", 1);
+      formDataToSubmit.append("reason", formData.remarks);
+    } else if (formData.emp_reqTypeId === "7") {
+      formDataToSubmit.append("DateOfLeave", formData.leaveStartDate);
+      formDataToSubmit.append("period", formData.period);
+      formDataToSubmit.append("NoDays", 0.5);
     } else {
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
       formDataToSubmit.append("EndDate", formData.leaveEndDate);
@@ -545,9 +554,41 @@ const UserRequests = () => {
                         <option value="2">Onfield Work</option>
                         <option value="3">Vacation Leave (VL)</option>
                         <option value="4">Sick Leave (SL)</option>
+                        <option value="6">Emergency Leave (EL)</option>
+                        <option value="7">Half-Day</option>
                         <option value="5">Log Correction</option>
                       </select>
                     </div>
+
+                    {formData.emp_reqTypeId === "7" && (
+                      <div className="conditionalFields">
+                        <div className="formRow">
+                          <div className="formGroup">
+                            <label>Half-Day Date</label>
+                            <input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required />
+                          </div>
+                          <div className="formGroup">
+                            <label>Period</label>
+                            <select name="period" value={formData.period} onChange={handleInputChange} required>
+                                <option value="" disabled>Select period</option>
+                                <option value="Morning">Morning (8:30am - 12:30pm)</option>
+                                <option value="Afternoon">Afternoon (1:00pm - 5:30pm)</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {formData.emp_reqTypeId === "6" && (
+                      <div className="conditionalFields">
+                        <div className="formRow">
+                          <div className="formGroup">
+                            <label>Emergency Leave Date</label>
+                            <input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required />
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {formData.emp_reqTypeId === "5" && (
                       <div className="conditionalFields">
@@ -652,6 +693,8 @@ const UserRequests = () => {
                         let detailText = "";
                         if (req.emp_reqTypeId === 1) detailText = `${req.Total_Hrs} Hr(s) • ${req.OT_DateOf}`;
                         else if (req.emp_reqTypeId === 2) detailText = `${req.OW_NoDays} Day(s) • ${req.DateonField}`;
+                        else if (req.emp_reqTypeId === 6) detailText = `${req.EL_NoDays} Day(s) • ${req.EL_DateOfLeave}`;
+                        else if (req.emp_reqTypeId === 7) detailText = `Half-day (${req.HD_period}) • ${req.HD_DateOfLeave}`;
                         else detailText = `${req.VL_NoDays || req.SL_NoDays || 1} Day(s) • ${req.VL_StartDate || req.SL_StartDate}`;
 
                         return (

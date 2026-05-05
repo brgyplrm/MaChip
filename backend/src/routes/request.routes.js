@@ -10,6 +10,7 @@ const {
   GetRequestDetails,
   getCalendarReport,
   DeleteRequest,
+  getLeaveSummary,
 } = require("../controllers/userRequest.controlller");
 const upload = require("../middleware/upload");
 
@@ -22,6 +23,7 @@ router.post(
 router.get("/all", GetAllRequests);
 router.get("/calendar-report", getCalendarReport);
 router.get("/pending-count", GetPendingCount);
+router.get("/summary/:year", getLeaveSummary);
 router.get("/balance/:userId", GetLeaveBalance);
 router.get("/details/:requestId", GetRequestDetails);
 router.get("/:userId", GetUserRequests);

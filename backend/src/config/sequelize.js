@@ -48,7 +48,10 @@ const {
   Overtime_Request,
   Vacation_Leave,
   Sick_Leave,
+  Emergency_Leave,
+  HalfDay_Leave,
   Onfield_Work,
+  LogCorrection_Request,
   Leave_Balance,
 } = require("../models/request.model")(sequelize, DataTypes);
 
@@ -199,7 +202,9 @@ const connectDB = async () => {
         ['maxicareTotalGross', 'FLOAT DEFAULT 23410.67'],
         ['maxicareMonthsToPay', 'INTEGER DEFAULT 12'],
         ['maxicareCycleStartDate', 'DATE'],
-        ['maxicareDates', 'JSONB']
+        ['maxicareDates', 'JSONB'],
+        ['vlRate', 'DOUBLE PRECISION DEFAULT 1.0'],
+        ['slRate', 'DOUBLE PRECISION DEFAULT 1.0']
       ];
       for (const [col, type] of settingsCols) {
         await sequelize.query(`ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "${col}" ${type};`);
@@ -450,8 +455,12 @@ const connectDB = async () => {
         { reqStatId: 1, reqStatName: "Pending" },
         { reqStatId: 2, reqStatName: "Approved" },
         { reqStatId: 3, reqStatName: "Rejected" },
+        { reqStatId: 4, reqStatName: "Canceled" },
       ]);
       console.log("Seed: Request Status inserted.");
+    } else {
+      // Upsert Canceled if missing
+      await sequelize.query(`INSERT INTO "request_Status" ("reqStatId", "reqStatName") VALUES (4, 'Canceled') ON CONFLICT DO NOTHING;`);
     }
 
     // Seed request_Type
@@ -462,9 +471,15 @@ const connectDB = async () => {
         { reqTypeId: 2, reqTypeName: "Onfield Work" },
         { reqTypeId: 3, reqTypeName: "Vacation Leave" },
         { reqTypeId: 4, reqTypeName: "Sick Leave" },
-        { reqTypeId: 5, reqTypeName: "Log Correction" }
+        { reqTypeId: 5, reqTypeName: "Log Correction" },
+        { reqTypeId: 6, reqTypeName: "Emergency Leave" },
+        { reqTypeId: 7, reqTypeName: "Half-day Request" }
       ]);
       console.log("Seed: Request Type inserted.");
+    } else {
+      // Upsert new types if missing
+      await sequelize.query(`INSERT INTO "request_Type" ("reqTypeId", "reqTypeName") VALUES (6, 'Emergency Leave') ON CONFLICT DO NOTHING;`);
+      await sequelize.query(`INSERT INTO "request_Type" ("reqTypeId", "reqTypeName") VALUES (7, 'Half-day Request') ON CONFLICT DO NOTHING;`);
     }
 
     // Seed Payroll_status
@@ -512,7 +527,10 @@ module.exports = {
   Overtime_Request,
   Vacation_Leave,
   Sick_Leave,
+  Emergency_Leave,
+  HalfDay_Leave,
   Onfield_Work,
+  LogCorrection_Request,
   Leave_Balance,
   Payroll_status,
   Payroll_Earnings,

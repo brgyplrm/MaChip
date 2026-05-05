@@ -46,6 +46,7 @@
               display: flex;
               gap: 10px;
               font-size: 14px;
+              align-items: center;
 
               .itemKey {
                 font-weight: bold;
@@ -59,6 +60,44 @@
                     color: green;
                     font-weight: bold;
                 }
+              }
+
+              .rateInput {
+                width: 80px;
+                padding: 6px;
+                border: 1px solid lightgray;
+                border-radius: 4px;
+                outline: none;
+                &:focus {
+                  border-color: #2A174E;
+                }
+              }
+
+              .unit {
+                color: #777;
+                font-size: 12px;
+              }
+            }
+
+            .saveButton {
+              display: flex;
+              align-items: center;
+              gap: 5px;
+              padding: 8px 15px;
+              background-color: #2A174E;
+              color: white;
+              border: none;
+              border-radius: 5px;
+              cursor: pointer;
+              font-weight: bold;
+              margin-top: 10px;
+              
+              &:hover {
+                background-color: color.adjust(#2A174E, $lightness: -10%);
+              }
+
+              .icon {
+                font-size: 18px;
               }
             }
           }
@@ -88,28 +127,6 @@
               &:focus {
                 border-color: #2A174E;
               }
-            }
-          }
-
-          .saveButton {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            padding: 8px 15px;
-            background-color: #2A174E;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            margin-top: 10px;
-            
-            &:hover {
-              background-color: color.adjust(#2A174E, $lightness: -10%);
-            }
-
-            .icon {
-              font-size: 18px;
             }
           }
 

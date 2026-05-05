@@ -31,6 +31,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.JSONB,
         allowNull: true,
       },
+      vlRate: {
+        type: DataTypes.DOUBLE,
+        defaultValue: 1.0,
+      },
+      slRate: {
+        type: DataTypes.DOUBLE,
+        defaultValue: 1.0,
+      },
     },
     {
       timestamps: true,
