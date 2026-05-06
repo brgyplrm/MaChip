@@ -72,7 +72,7 @@ const Sidebar = ({ children }) => {
   const isManagement = (roleId === 1 || roleId === 2 || roleId === 4) && viewMode === "management";
   const isAdmin = (roleId === 1 || roleId === 4) && viewMode === "management";
   const isOps = (roleId === 1 || roleId === 2 || roleId === 4) && viewMode === "management";
-  const isMaster = (roleId === 1) && viewMode === "management";
+  const isMaster = roleId === 1 || roleId === 4;
 
   const homePath = isManagement ? "/" : "/employeeHome";
   const isActive = (path) => location.pathname === path;
@@ -412,7 +412,7 @@ const Sidebar = ({ children }) => {
                 )}
 
                 {/* Transaction - Management Only */}
-                {isManagement && (
+                {isMaster && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 

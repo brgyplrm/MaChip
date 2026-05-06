@@ -31,7 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const Maxicare = () => {
   const { systemToday } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const isAdmin = userData?.user_RoleId === 1;
+  const isAdmin = userData?.user_RoleId === 4 || 1;
 
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [isEditing, setIsEditing] = useState(false);
@@ -625,7 +625,7 @@ const Maxicare = () => {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase">Target Month / Period</label>
                   <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto p-2 border border-slate-200 rounded-md bg-slate-50">
-                    {expectedDates.map(dStr => {
+                    {expectedDates.map( dStr => {
                       const isSelected = batchForm.date === dStr;
                       const dObj = new Date(dStr);
                       return (
