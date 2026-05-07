@@ -68,13 +68,15 @@ const Sidebar = ({ children }) => {
   const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
   
   // New Role Check Logic
+  // Admin = 1, Supervisor = 2, Employee = 3, Accountant = 4
   const roleId = userData?.user_RoleId;
-  const isManagement = (roleId === 1 || roleId === 2 || roleId === 4) && viewMode === "management";
-  const isAdmin = (roleId === 1 || roleId === 4) && viewMode === "management";
-  const isOps = (roleId === 1 || roleId === 2 || roleId === 4) && viewMode === "management";
+  const isManagement = (roleId === 1 || roleId === 4) && viewMode === "management";
+  const isSupervisor = (roleId === 2) && viewMode === "management";
+  const isAdmin = (roleId === 1) && viewMode === "management";
   const isMaster = roleId === 1 || roleId === 4;
+  const isAccountant = roleId === 4;
 
-  const homePath = isManagement ? "/" : "/employeeHome";
+  const homePath = isManagement || isSupervisor ? "/" : "/employeeHome";
   const isActive = (path) => location.pathname === path;
 
   // Hybrid State for Profile Dropdown (Hover + Lock-on-click)
@@ -216,7 +218,7 @@ const Sidebar = ({ children }) => {
                     isActive={isActive("/calendar") || isActive("/employeeCalendar")}
                     className={isActive("/calendar") || isActive("/employeeCalendar") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
                   >
-                    <Link to={isManagement ? "/calendar" : "/employeeCalendar"}>
+                    <Link to={isManagement || isSupervisor ? "/calendar" : "/employeeCalendar"}>
                       <EditCalendarIcon className="!text-[22px]" />
                       <span className="ms-3 text-[14px]">Calendar</span>
                     </Link>
@@ -245,7 +247,7 @@ const Sidebar = ({ children }) => {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                        {isAdmin && (
+                        {isManagement && (
                           <>
                             <SidebarMenuSubItem>
                               <SidebarMenuSubButton asChild isActive={isActive("/users/newUser")}>
@@ -267,6 +269,23 @@ const Sidebar = ({ children }) => {
                     )}
                   </SidebarMenuItem>
                 )}
+                {isSupervisor && (
+                  <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={isActive("/users")}
+                    className={isActive("/users") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                  >
+                    <Link to="/users" className={isActive("/users") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                      <PersonOutlineIcon 
+                          className="!text-[22px]" 
+                          sx={{ strokeWidth: 1/2 }}
+                      />
+                      <span className="ms-3 text-[14px]">Users</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                )}
 
                 {/* Access Logs */}
                 <SidebarMenuItem>
@@ -275,7 +294,7 @@ const Sidebar = ({ children }) => {
                     isActive={isActive("/logs") || isActive("/accessLogs")}
                     className={isActive("/logs") || isActive("/accessLogs") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
                   >
-                    <Link to={isManagement ? "/logs" : "/accessLogs"}>
+                    <Link to={isManagement || isSupervisor ? "/logs" : "/accessLogs"}>
                       <HistoryIcon className="!text-[22px]" />
                       <span className="ms-3 text-[14px]">Access Logs</span>
                     </Link>
@@ -283,30 +302,43 @@ const Sidebar = ({ children }) => {
                 </SidebarMenuItem>
 
                 {/* Requests (Dropdown) */}
-                <SidebarMenuItem>
+                {!isAccountant && (
+                  <SidebarMenuItem>
                   <SidebarMenuButton 
-                    onClick={() => setIsRequestsOpen(!isRequestsOpen)}
-                    className="text-gray-500"
+                    asChild 
+                    isActive={isActive("/requests") || isActive("/adminRequests")}
+                    className={isActive("/requests") || isActive("/adminRequests") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
                   >
-                    <DescriptionIcon className="!text-[22px]" />
-                    <span className="flex-1 ms-3 text-left text-[14px]">Requests</span>
-                    <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isRequestsOpen ? "rotate-180" : ""}`} />
+                    <Link to={isAdmin || isSupervisor ? "/adminRequests" : "/requests"} className={isActive("/requests") || isActive("/adminRequests") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                      <DescriptionIcon 
+                          className="!text-[22px]" 
+                          sx={{ strokeWidth: 1/2 }}
+                      />
+                      <span className="ms-3 text-[14px]">Requests</span>
+                    </Link>
                   </SidebarMenuButton>
-                  {isRequestsOpen && (
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/adminRequests") || isActive("/requests")}>
-                          <Link to={isManagement ? "/adminRequests" : "/requests"} className={isActive("/adminRequests") || isActive("/requests") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                            View Requests
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  )}
                 </SidebarMenuItem>
+                )}
+                {isAccountant && (
+                  <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={isActive("/adminoversight")}
+                    className={isActive("/adminoversight") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                  >
+                    <Link to="/adminoversight" className={isActive("/adminoversight") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                      <DescriptionIcon 
+                          className="!text-[22px]" 
+                          sx={{ strokeWidth: 1/2 }}
+                      />
+                      <span className="ms-3 text-[14px]">Requests</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                )}
 
                 {/* Payroll (Dropdown) - Admin Only */}
-                {isAdmin && (
+                {isManagement && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       onClick={() => setIsPayrollOpen(!isPayrollOpen)}
@@ -380,7 +412,7 @@ const Sidebar = ({ children }) => {
                 )}
 
                 {/* Reports - Admin Only */}
-                {isAdmin && (
+                {isManagement && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
@@ -412,7 +444,7 @@ const Sidebar = ({ children }) => {
                 )}
 
                 {/* Transaction - Management Only */}
-                {isMaster && (
+                {isMaster || isSupervisor && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
@@ -428,7 +460,7 @@ const Sidebar = ({ children }) => {
                 )}
 
                 {/* Settings - Admin Only */}
-                {isAdmin && (
+                {isManagement && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 

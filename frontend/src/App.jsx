@@ -34,6 +34,8 @@ import UserLogs from "./pages/emp_UserLogs/UserLogs";
 import TransactionLog from "./components/transactionLog/TransactionLog";
 import AuditLog from "./components/auditLog/AuditLog";
 import ArchivedUsers from "./pages/archivedUsers/ArchivedUsers";
+import AdminRequestsOversight from "./pages/AdminRequestsOversight";
+import RequestsHistory from "./pages/RequestsHistory";
 
 function App() {
 
@@ -56,6 +58,24 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 2, 4]}>
               <AdminRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/adminoversight"
+          element={
+            <ProtectedRoute allowedRoles={[4]}>
+              <AdminRequestsOversight />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/requestsHistory"
+          element={
+            <ProtectedRoute allowedRoles={[4]}>
+              <RequestsHistory />
             </ProtectedRoute>
           }
         />
@@ -286,7 +306,7 @@ function App() {
         <Route
           path="transactionLog"
           element={
-            <ProtectedRoute allowedRoles={[1, 4]}>
+            <ProtectedRoute allowedRoles={[1, 2, 4]}>
               <TransactionLog />
             </ProtectedRoute>
           }
