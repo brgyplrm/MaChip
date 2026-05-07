@@ -17,6 +17,7 @@ import BottomNav from "../../components/BottomNav";
 import SearchOffIcon from '@mui/icons-material/SearchOff';
 import EmptyState from "../../components/EmptyState";
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
 const Home = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -224,45 +225,55 @@ const Home = () => {
           {/* Donut Chart Card */}
           <div className="bg-white p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex flex-col border-t-4 border-[#2A174E] min-w-0">
             <h2 className="text-gray-500 font-medium mb-1">Arrival Breakdown</h2>
-            <div className="flex-1 min-h-[180px] relative">
-              {isEmptyDonut && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mb-4">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">No Data</span>
+            
+            {isEmptyDonut ? (
+              <div className="flex-1 flex flex-col items-center justify-center">
+                <EmptyState 
+                  // Adding h-full, flex-1, and a min-height ensures it stretches perfectly
+                  className="h-full flex-1 min-h-[220px] border-0 bg-transparent hover:bg-transparent shadow-none p-2" 
+                  icon={<AccessTimeIcon className="w-8 h-8 text-slate-300" />}
+                  title="No Arrivals Yet"
+                  description="Attendance logs for today haven't been recorded."
+                />
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 min-h-[180px] relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={donutData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {donutData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={COLORS[index % COLORS.length]} 
+                          />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              )}
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={donutData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={isEmptyDonut ? 0 : 5}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {donutData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={isEmptyDonut ? "#f3f4f6" : COLORS[index % COLORS.length]} 
-                      />
-                    ))}
-                  </Pie>
-                  {!isEmptyDonut && <RechartsTooltip />}
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex justify-center gap-4 text-xs font-medium">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[0] }}></div>
-                <span>On Time</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[1] }}></div>
-                <span>Late Arrivals</span>
-              </div>
-            </div>
+                <div className="flex justify-center gap-4 text-xs font-medium mt-2">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[0] }}></div>
+                    <span>On Time</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[1] }}></div>
+                    <span>Late Arrivals</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Recent Pending Requests Card */}
@@ -308,16 +319,13 @@ const Home = () => {
                   );
                 })
               ) : (
-                <div className="h-full flex items-center justify-center py-2">
                 <EmptyState 
-                  // Override the height so it doesn't stretch the dashboard card too much
-                  className="min-h-[150px] border-slate-100 bg-white hover:bg-slate-50/50" 
-                  icon={<TaskAltIcon className="w-7 h-7 text-emerald-500" />}
+                  // Adding h-full, flex-1, and min-height matches the Arrivals card exactly
+                  className="h-full flex-1 min-h-[220px] border-slate-100 bg-white hover:bg-slate-50/50" 
+                  icon={<TaskAltIcon className="w-7 h-7 text-slate-300" />}
                   title="All Caught Up!"
-                  description="You have reviewed all pending employee requests. Enjoy the rest of your day."
-                  
+                  description="You have reviewed all pending requests."
                 />
-              </div>
               )}
             </div>
           </div>

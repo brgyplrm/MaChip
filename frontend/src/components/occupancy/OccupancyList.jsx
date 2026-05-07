@@ -6,6 +6,9 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import { formatUserId } from "../../utils/formatUserId";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
+import SearchOffIcon from '@mui/icons-material/SearchOff';
+import EmptyState from "../EmptyState";
+import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 
 // Returns milliseconds from current time until the next 12:00 AM (midnight)
 const msUntilMidnight = (currentTime) => {
@@ -117,10 +120,13 @@ const OccupancyList = () => {
       {loading && users.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 px-5 py-10 text-[#aaa] text-sm font-medium">Loading...</div>
       ) : users.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 px-5 py-10 text-[#aaa] text-sm font-medium text-center">
-          <PersonOutlinedIcon className="!text-[40px] text-[#ccc]" />
-          <span>No one is currently in the office.</span>
-        </div>
+          <div className="p-5">
+              <EmptyState 
+                icon={<MeetingRoomIcon className="w-8 h-8 text-slate-300" />}
+                title="Office is Empty"
+                description="There are currently no employee entry or exit logs recorded for today."
+              />
+          </div>
       ) : (
         <table className="w-full border-collapse text-[13px]">
           <thead>

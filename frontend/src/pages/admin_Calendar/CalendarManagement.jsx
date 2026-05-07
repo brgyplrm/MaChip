@@ -332,8 +332,8 @@ const CalendarManagement = () => {
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             {isAdmin && (
                 <>
-                  <button className="btn sync" onClick={handleSyncHolidays} disabled={loading} title="Sync Holidays from Official Gazette">
-                    <SyncIcon className={loading ? "spinning" : ""} /> Sync Holidays
+                  <button className="btn sync shadow-sm rounded p-1" onClick={handleSyncHolidays} disabled={loading} title="Sync Holidays from Official Gazette">
+                    <SyncIcon className={loading ? "spinning" : ""} />
                   </button>
                 <Button 
                 className="w-full sm:w-[170px] bg-[#2A174E] hover:bg-[#1a0e30] text-white"
@@ -357,6 +357,7 @@ const CalendarManagement = () => {
 
           {/* Legend Card */}
           <Card className="py-2">
+            <h2 className="text-sm font-semibold px-4">Legend</h2>
             <CardContent className="flex flex-wrap gap-4 items-center">
               <div className="flex items-center text-sm text-muted-foreground">
                 <div className="p-2 w-3 h-3 rounded-sm mr-2 bg-red-100 border border-red-300" />

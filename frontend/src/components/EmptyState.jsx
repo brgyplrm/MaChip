@@ -7,7 +7,7 @@ const EmptyState = ({
   action 
 }) => {
   return (
-    <div className="flex flex-col items-center justify-center w-full min-h-[350px] p-8 md:p-12 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 transition-all hover:bg-slate-50">
+    <div className="flex flex-col items-center justify-center w-full min-h-[150px] p-8 md:p-12 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 transition-all hover:bg-slate-50">
       
       {/* Icon Container */}
       {icon && (

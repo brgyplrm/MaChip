@@ -73,7 +73,7 @@ const Sidebar = ({ children }) => {
   const isManagement = (roleId === 1 || roleId === 4) && viewMode === "management";
   const isSupervisor = (roleId === 2) && viewMode === "management";
   const isAdmin = (roleId === 1) && viewMode === "management";
-  const isMaster = roleId === 1 || roleId === 4;
+  const isMaster = (roleId === 1 || roleId === 4);
   const isAccountant = roleId === 4;
 
   const homePath = isManagement || isSupervisor ? "/" : "/employeeHome";
@@ -444,7 +444,7 @@ const Sidebar = ({ children }) => {
                 )}
 
                 {/* Transaction - Management Only */}
-                {isMaster || isSupervisor && (
+                {(isMaster || isSupervisor) && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 

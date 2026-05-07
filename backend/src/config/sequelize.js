@@ -158,7 +158,7 @@ const connectDB = async () => {
 
     // Create any missing tables or update existing ones
     // In production, you'd use migrations, but for this dev setup sync is used.
-    await sequelize.sync();
+    await sequelize.sync({ alter: false }); // Set to true if you want Sequelize to automatically alter tables to match models
     console.log("All models were synchronized successfully.");
 
   } catch (error) {
