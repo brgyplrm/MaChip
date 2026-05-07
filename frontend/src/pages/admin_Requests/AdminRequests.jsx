@@ -4,6 +4,11 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import AttachmentIcon from "@mui/icons-material/Attachment";
+import SearchIcon from "@mui/icons-material/Search";
+import FilterListIcon from '@mui/icons-material/FilterList';
+import CloseIcon from '@mui/icons-material/Close';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
@@ -16,17 +21,27 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 
 const AdminRequests = () => {
   const navigate = useNavigate();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const [activeTab, setActiveTab] = useState("pending");
-  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [selectedReqId, setSelectedReqId] = useState(null); // Upgraded from selectedIdx
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [adminNote, setAdminNote] = useState("");
-  const [paymentStatus, setPaymentStatus] = useState("2"); // 2 = Leave without Pay (default) - String for Shadcn Select
+  const [paymentStatus, setPaymentStatus] = useState("2"); 
   const [toast, setToast] = useState({ message: "", type: "success" });
+
+  // History Filter States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  // Pagination States for the List
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8; // Showing 8 items per page for a nice fit
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -49,10 +64,12 @@ const AdminRequests = () => {
     return () => window.removeEventListener("dataRefresh", fetchRequests);
   }, []);
 
-  // Reset paymentStatus when selectedIdx or activeTab changes
+  // Reset states when changing tabs or filters
   useEffect(() => {
     setPaymentStatus("2"); 
-  }, [selectedIdx, activeTab]);
+    setCurrentPage(1);
+    setSelectedReqId(null);
+  }, [activeTab, searchQuery, typeFilter, statusFilter]);
 
   const formatTime = (time) => {
     if (!time) return "";
@@ -90,7 +107,6 @@ const AdminRequests = () => {
         });
         setAdminNote("");
 
-        // Only Admin (Role 1) gets redirected to Edit Attendance upon final approval (Status 2)
         if (userData?.user_RoleId === 1 && current?.emp_reqTypeId === 5 && statusId === 2) {
           const logDate = current.LC_logDate.split("T")[0];
           setTimeout(() => {
@@ -111,7 +127,19 @@ const AdminRequests = () => {
     }
   };
 
-  // Filter based on active tab and role hierarchy
+  const getShortType = (typeName) => {
+    if (!typeName) return "REQ";
+    const name = typeName.toLowerCase();
+    if (name.includes("vacation")) return "VL";
+    if (name.includes("sick")) return "SL";
+    if (name.includes("overtime")) return "OT";
+    if (name.includes("onfield")) return "OW";
+    if (name.includes("correction")) return "LC";
+    if (name.includes("emergency")) return "EL";
+    if (name.includes("half-day")) return "HD";
+    return "REQ";
+  };
+
   const filteredRequests = requests.filter((req) => {
     const isPending = req.emp_reqStatusId === 1;
     const isRecommended = req.emp_reqStatusId === 4;
@@ -135,33 +163,39 @@ const AdminRequests = () => {
     if (!matchesTab) return false;
 
     if (userData?.user_RoleId === 2) { 
-      return req.user_RoleId === 3 || req.user_RoleId === 1;
+      if (req.user_RoleId !== 3 && req.user_RoleId !== 1) return false;
     }
 
-    if (userData?.user_RoleId === 1) { 
-      return true;
+    if (activeTab === "completed") {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        req.userName?.toLowerCase().includes(query) || 
+        req.emp_reqId?.toString().includes(query);
+      
+      const shortType = getShortType(req.reqTypeName);
+      const matchesType = typeFilter === "All" || shortType === typeFilter;
+      
+      let matchesStatus = true;
+      if (statusFilter === "Approved") matchesStatus = req.emp_reqStatusId === 2;
+      if (statusFilter === "Rejected") matchesStatus = req.emp_reqStatusId === 3;
+
+      if (!matchesSearch || !matchesType || !matchesStatus) return false;
     }
 
     return true;
   });
 
-  const current =
-    filteredRequests.length > selectedIdx
-      ? filteredRequests[selectedIdx]
-      : null;
+  // Pagination Logic
+  const totalItems = filteredRequests.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const currentData = filteredRequests.slice(startIndex, endIndex);
 
-  const getShortType = (typeName) => {
-    if (!typeName) return "REQ";
-    const name = typeName.toLowerCase();
-    if (name.includes("vacation")) return "VL";
-    if (name.includes("sick")) return "SL";
-    if (name.includes("overtime")) return "OT";
-    if (name.includes("onfield")) return "OW";
-    if (name.includes("correction")) return "LC";
-    if (name.includes("emergency")) return "EL";
-    if (name.includes("half-day")) return "HD";
-    return "REQ";
-  };
+  // Derived current selection
+  const current = selectedReqId 
+    ? filteredRequests.find(r => r.emp_reqId === selectedReqId) 
+    : filteredRequests[0] || null;
 
   const getDates = (req) => {
     if (!req) return "";
@@ -197,112 +231,237 @@ const AdminRequests = () => {
     }
   };
 
+  const isFiltering = searchQuery !== "" || typeFilter !== "All" || statusFilter !== "All";
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setTypeFilter("All");
+    setStatusFilter("All");
+  };
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
       <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
+
+        {/* Header Section */}
+        <div className="mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">User Requests</h1>
+          <span className="text-sm text-slate-500 mt-1 block">
+              Monitor and process employee requests, leave filings, and log correction tickets.
+          </span>
+        </div>
         
-        {/* Statistics Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card className="shadow-sm border-0 py-0">
-            <CardContent className="p-6 flex justify-between items-center">
-              <div>
-                <span className="text-sm font-semibold text-slate-500">Pending Requests</span>
-                <p className="text-3xl font-bold text-[#2A174E] mt-1">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
+        {/* Dashboard-Style Statistics Cards */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          {/* Card 1: Pending */}
+          <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Pending Requests</p>
+                  <p className="text-4xl font-bold text-white">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Awaiting review and approval</p>
               </div>
-              <div className="bg-orange-50 text-orange-600 p-3 rounded-xl">
-                <HourglassEmptyIcon className="h-8 w-8" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm border-0 py-0">
-            <CardContent className="p-6 flex justify-between items-center">
-              <div>
-                <span className="text-sm font-semibold text-slate-500">Approved Total</span>
-                <p className="text-3xl font-bold text-[#2A174E] mt-1">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
-              </div>
-              <div className="bg-green-50 text-green-600 p-3 rounded-xl">
-                <CheckCircleOutlineIcon className="h-8 w-8" />
+              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <HourglassEmptyIcon className="h-6 w-6" />
               </div>
             </CardContent>
           </Card>
-          <Card className="shadow-sm border-0 py-0">
-            <CardContent className="p-6 flex justify-between items-center">
-              <div>
-                <span className="text-sm font-semibold text-slate-500">Rejected Total</span>
-                <p className="text-3xl font-bold text-[#2A174E] mt-1">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
+
+          {/* Card 2: Approved */}
+          <Card className="shadow-sm border-0 bg-[#3B4E17] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Approved Total</p>
+                  <p className="text-4xl font-bold text-white">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Processed and approved requests</p>
               </div>
-              <div className="bg-red-50 text-red-600 p-3 rounded-xl">
-                <CancelOutlinedIcon className="h-8 w-8" />
+              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <CheckCircleOutlineIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Rejected */}
+          <Card className="shadow-sm border-0 bg-[#ECC04B] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Rejected Total</p>
+                  <p className="text-4xl font-bold text-white">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Declined and unapproved requests</p>
+              </div>
+              <div className="bg-white/20 text-[#D4AF37] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <CancelOutlinedIcon className="h-6 w-6" />
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Filters Card (Only visible when viewing History) */}
+        {activeTab === "completed" && (
+          <Card className="shadow-sm border-0 bg-white mb-6 py-0 animate-in fade-in zoom-in-95 duration-200">
+            <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
+              
+              <div className="relative w-full xl:max-w-md">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Search by Employee Name or REQ ID..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                />
+              </div>
+              
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                      <SelectValue placeholder="Filter by Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All Types</SelectItem>
+                      <SelectItem value="VL">Vacation Leave</SelectItem>
+                      <SelectItem value="SL">Sick Leave</SelectItem>
+                      <SelectItem value="EL">Emergency Leave</SelectItem>
+                      <SelectItem value="HD">Half Day</SelectItem>
+                      <SelectItem value="OT">Overtime</SelectItem>
+                      <SelectItem value="OW">Field Work</SelectItem>
+                      <SelectItem value="LC">Log Correction</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center w-full sm:w-auto">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                      <SelectValue placeholder="Filter by Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All Statuses</SelectItem>
+                      <SelectItem value="Approved">Approved</SelectItem>
+                      <SelectItem value="Rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {isFiltering && (
+                  <Button 
+                    variant="ghost" 
+                    onClick={handleClearFilters}
+                    className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold"
+                  >
+                    <CloseIcon className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Main Split Content */}
         <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-220px)] min-h-[600px]">
           
-          {/* Left: Request Queue */}
+          {/* Left: Request Queue with Pagination */}
           <Card className="w-full lg:w-1/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-0">
             <div className="flex border-b border-slate-100 bg-slate-50/50">
               <button
                 className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "pending" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
-                onClick={() => { setActiveTab("pending"); setSelectedIdx(0); }}
+                onClick={() => setActiveTab("pending")}
               >
                 Pending
               </button>
               <button
                 className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "completed" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
-                onClick={() => { setActiveTab("completed"); setSelectedIdx(0); }}
+                onClick={() => setActiveTab("completed")}
               >
                 History
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 py-0">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">
-                {activeTab === "pending" ? "Queue" : "Past Requests"} ({filteredRequests.length})
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 py-0 custom-scrollbar">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1 mt-4">
+                {activeTab === "pending" ? "Queue" : "Past Requests"} ({totalItems})
               </h4>
               
               {loading ? (
                 <div className="text-center py-8 text-slate-500 animate-pulse">Syncing requests...</div>
-              ) : filteredRequests.length > 0 ? (
-                filteredRequests.map((req, index) => (
-                  <div
-                    key={req.emp_reqId}
-                    onClick={() => setSelectedIdx(index)}
-                    className={`p-4 border rounded-xl cursor-pointer transition-all ${selectedIdx === index ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
-                  >
-                    <div className="flex justify-between items-center mb-2">
-                      <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
-                        {getShortType(req.reqTypeName)}
-                      </Badge>
-                      <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
+              ) : currentData.length > 0 ? (
+                currentData.map((req) => {
+                  const isSelected = current?.emp_reqId === req.emp_reqId;
+                  return (
+                    <div
+                      key={req.emp_reqId}
+                      onClick={() => setSelectedReqId(req.emp_reqId)}
+                      className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
+                    >
+                      <div className="flex justify-between items-center mb-2">
+                        <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
+                          {getShortType(req.reqTypeName)}
+                        </Badge>
+                        <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
+                      </div>
+                      <p className="font-bold text-slate-800 text-sm mb-1">{req.userName}</p>
+                      <p className="text-xs text-slate-500">{getDates(req)}</p>
                     </div>
-                    <p className="font-bold text-slate-800 text-sm mb-1">{req.userName}</p>
-                    <p className="text-xs text-slate-500">{getDates(req)}</p>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl mt-2">
                   <div className="bg-green-100 text-green-600 p-4 rounded-full mb-4">
                     <CheckCircleOutlineIcon className="h-8 w-8" />
                   </div>
-                  <h5 className="font-bold text-[#2A174E] text-lg mb-2">All Caught Up!</h5>
+                  <h5 className="font-bold text-[#2A174E] text-lg mb-2">
+                    {activeTab === "pending" ? "All Caught Up!" : "No Records Found"}
+                  </h5>
                   <p className="text-sm text-slate-500 max-w-[200px]">
                     {activeTab === "pending" 
                       ? "There are no pending requests requiring your attention right now." 
-                      : "Your history is currently empty."}
+                      : "Your history is currently empty or does not match your search."}
                   </p>
                 </div>
               )}
             </div>
+
+            {/* Queue Pagination Footer */}
+            {totalItems > itemsPerPage && (
+              <div className="flex items-center justify-between p-3 border-t border-slate-100 bg-slate-50/50 shrink-0">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                  disabled={currentPage === 1}
+                  className="h-8 px-2"
+                >
+                  <ChevronLeftIcon className="h-4 w-4 text-slate-500" />
+                </Button>
+                <span className="text-xs font-semibold text-slate-500">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                  disabled={currentPage === totalPages}
+                  className="h-8 px-2"
+                >
+                  <ChevronRightIcon className="h-4 w-4 text-slate-500" />
+                </Button>
+              </div>
+            )}
           </Card>
 
           {/* Right: Detailed Review */}
           <Card className="w-full lg:w-2/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-2">
-            <CardContent className="flex-1 overflow-y-auto p-6 md:p-8">
+            <CardContent className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
               {current ? (
                 <>
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
@@ -550,7 +709,24 @@ const AdminRequests = () => {
           </Card>
         </div>
       </div>
-    </Sidebar>
+      
+      {/* Global styling for custom scrollbars to make the list look sleek */}
+      <style dangerouslySetContent={{__html: `
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e2e8f0; 
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #cbd5e1; 
+        }
+      `}} />
+      </Sidebar>
     </div>
   );
 };

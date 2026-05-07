@@ -73,7 +73,7 @@ const Widget = ({ type, amount, loading, description }) => {
             {loading ? "..." : amount}
           </span>
           {description && (
-            <span className="text-[14px] text-white/80 font-medium mt-1 italic">
+            <span className="text-xs text-white/80 font-medium mt-1 italic">
               {description}
             </span>
           )}

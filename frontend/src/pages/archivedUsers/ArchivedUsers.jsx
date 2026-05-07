@@ -3,6 +3,11 @@ import Sidebar from "../../components/Sidebar";
 import SearchIcon from "@mui/icons-material/Search";
 import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import CloseIcon from '@mui/icons-material/Close';
+import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
+import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
+import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
 import PermanentDeleteModal from "../../components/permanentDeleteModal/PermanentDeleteModal";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
@@ -24,8 +29,15 @@ const ArchivedUsers = () => {
   const [archivedUsers, setArchivedUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  
+  // Filter States
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("All Types");
+  const [roleFilter, setRoleFilter] = useState("All Roles");
+  const [statusFilter, setStatusFilter] = useState("All Statuses");
+
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const dismissToast = useCallback(
     () => setToast({ message: "", type: "success" }),
@@ -47,6 +59,11 @@ const ArchivedUsers = () => {
   useEffect(() => {
     fetchArchivedUsers();
   }, []);
+
+  // Reset to page 1 whenever filters or search terms change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter, statusFilter, itemsPerPage]);
 
   const handleRestore = async (user) => {
     try {
@@ -105,28 +122,42 @@ const ArchivedUsers = () => {
     setShowPermDelete(true);
   };
 
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setRoleFilter("All Roles");
+    setStatusFilter("All Statuses");
+    setCurrentPage(1);
+  };
+
+  const isFiltering = searchQuery !== "" || roleFilter !== "All Roles" || statusFilter !== "All Statuses";
+
   // Filter and Search Logic
   const filteredUsers = archivedUsers.filter(u => {
     const fullName = `${u.user_FirstName} ${u.user_LastName}`.toLowerCase();
     const email = (u.user_Email || "").toLowerCase();
     const query = searchQuery.toLowerCase();
 
-    const matchesSearch = fullName.includes(query) || email.includes(query);
-    const matchesFilter = filterType === "All Types" || u.user_Role === (filterType === "Employees" ? "Employee" : "Admin");
+    const matchesSearch = fullName.includes(query) || email.includes(query) || u.user_Id?.toString().includes(query);
+    const matchesRole = roleFilter === "All Roles" || u.user_Role === roleFilter;
+    const matchesStatus = statusFilter === "All Statuses" || u.user_EmploymentStatus === statusFilter;
 
-    return matchesSearch && matchesFilter;
+    return matchesSearch && matchesRole && matchesStatus;
   });
 
+  // Pagination Logic
+  const totalItems = filteredUsers.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  
+  // The actual slice of data to render on the current page
+  const currentData = filteredUsers.slice(startIndex, endIndex);
+
+  // Stats calculate from all fetched, not filtered (to show overall context)
   const stats = {
     total: archivedUsers.length,
     employees: archivedUsers.filter(u => u.user_Role === "Employee").length,
-    admins: archivedUsers.filter(u => u.user_Role === "Admin").length,
-  };
-
-  const handleSearchClick = () => {
-    // Example: You could trigger a refresh or simply log the query
-    console.log("Searching for:", searchQuery);
-    // fetchArchivedUsers(); // If you wanted to re-fetch from API on click
+    admins: archivedUsers.filter(u => u.user_Role !== "Employee").length,
   };
 
   return (
@@ -135,81 +166,118 @@ const ArchivedUsers = () => {
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
       <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
         
-        {/* Header section with back button */}
+        {/* Header section */}
         <div className="flex items-start md:items-center gap-4 mb-4">
-          <Link 
-            to="/users" 
-            className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
-          >
-            <ArrowBackIcon className="h-6 w-6" />
-          </Link>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-800 leading-tight">Archived Users</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Archived Users</h1>
             <span className="text-sm text-slate-500 mt-1 block">Manage archived user records - restore or permanently delete</span>
           </div>
         </div>
         <div className="h-4"></div>
 
-        {/* Statistics Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <Card className="shadow-sm border-0 bg-white">
-            <CardContent className="px-4 py-0">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Total Archived</p>
-              <p className="text-3xl font-bold text-slate-800">{stats.total}</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm border-0 bg-white">
-            <CardContent className="px-4 py-0">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Employee</p>
-              <p className="text-3xl font-bold text-blue-600">{stats.employees}</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm border-0 bg-white">
-            <CardContent className="px-4 py-0">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Admin</p>
-              <p className="text-3xl font-bold text-[#2A174E]">{stats.admins}</p>
-            </CardContent>
-          </Card>
+        {/* Dashboard-Style Widgets Row */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          
+          {/* Card 1 */}
+          <div className="bg-[#2A174E] p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
+            <div className="flex flex-col justify-between">
+              <div>
+                <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-1">Total Archived</p>
+                <p className="text-3xl font-bold text-white">{stats.total}</p>
+              </div>
+              <p className="text-xs text-white/80 italic mt-4">Total number of inactive accounts</p>
+            </div>
+            <div className="bg-white/20 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <ArchiveOutlinedIcon className="h-6 w-6" />
+            </div>
+          </div>
+
+          {/* Card 2 */}
+          <div className="bg-[#3B4E17] p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
+            <div className="flex flex-col justify-between">
+              <div>
+                <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-1">Employee</p>
+                <p className="text-3xl font-bold text-white">{stats.employees}</p>
+              </div>
+              <p className="text-xs text-white/80 italic mt-4">Archived standard staff records</p>
+            </div>
+            <div className="bg-white/20 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <GroupOutlinedIcon className="h-6 w-6" />
+            </div>
+          </div>
+
+          {/* Card 3 */}
+          <div className="bg-[#ECC04B] p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
+            <div className="flex flex-col justify-between">
+              <div>
+                <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-1">Admin & Supervisor</p>
+                <p className="text-3xl font-bold text-white">{stats.admins}</p>
+              </div>
+              <p className="text-xs text-white/80 italic mt-4">Archived management records</p>
+            </div>
+            <div className="bg-white/20 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <ManageAccountsOutlinedIcon className="h-6 w-6" />
+            </div>
+          </div>
+
         </div>
 
         {/* Filters Card */}
-        <Card className="mb-6 shadow-sm border-0 bg-white">
-          <CardContent className="px-4 flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="relative w-full md:flex-1">
-              <SearchIcon 
-                className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 cursor-pointer hover:text-[#2A174E] transition-colors" 
-                onClick={handleSearchClick}
-              />
+        <Card className="shadow-sm border-0 bg-white mb-6 py-0">
+          <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
+            
+            {/* Search Bar */}
+            <div className="relative w-full xl:max-w-md">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <Input
                 type="text"
-                placeholder="Search by name or email..."
+                placeholder="Search by ID, Name, or Email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-slate-50/50 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
               />
             </div>
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <div className="w-full md:w-48 shrink-0">
-                <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="bg-slate-50/50 border-slate-200 focus:ring-[#2A174E] w-full">
-                    <SelectValue placeholder="All Types" />
+            
+            {/* Dropdown Filters and Clear Button */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectValue placeholder="Filter by Role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All Types">All Types</SelectItem>
-                    <SelectItem value="Employees">Employees</SelectItem>
-                    <SelectItem value="Admins">Admins</SelectItem>
+                    <SelectItem value="All Roles">All Roles</SelectItem>
+                    <SelectItem value="Employee">Employee</SelectItem>
+                    <SelectItem value="Supervisor">Supervisor</SelectItem>
+                    <SelectItem value="Admin Manager">Admin Manager</SelectItem>
+                    <SelectItem value="Admin Accountant">Admin Accountant</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              {(searchQuery !== "" || filterType !== "All Types") && (
+
+              <div className="flex items-center w-full sm:w-auto">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectValue placeholder="Filter by Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All Statuses">All Statuses</SelectItem>
+                    <SelectItem value="Regular">Regular</SelectItem>
+                    <SelectItem value="Part-time">Part-time</SelectItem>
+                    <SelectItem value="Intern / OJT">Intern / OJT</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Conditionally Rendered Clear Button */}
+              {isFiltering && (
                 <Button 
                   variant="ghost" 
-                  onClick={() => {
-                    setSearchQuery("");
-                    setFilterType("All Types");
-                  }}
-                  className="text-slate-500 hover:text-red-500 transition-colors"
+                  onClick={handleClearFilters}
+                  className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold"
                 >
+                  <CloseIcon className="h-4 w-4 mr-1" />
                   Clear
                 </Button>
               )}
@@ -218,65 +286,128 @@ const ArchivedUsers = () => {
         </Card>
 
         {/* Table Card */}
-        <Card className="shadow-sm border-0 bg-white">
-          <CardContent className="px-4 py-0 overflow-x-auto">
-            <Table className="min-w-[800px]">
-              <TableHeader className="bg-slate-50/50">
-                <TableRow className="hover:bg-transparent border-b-slate-200">
-                  <TableHead className="font-semibold text-slate-700 py-4">User ID</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4">Name</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4">Email</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4">User Type</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4">Archived Date</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 text-right pr-6">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
-                    <TableRow key={user.user_Id} className="border-b-slate-100 hover:bg-slate-50/50">
-                      <TableCell className="font-semibold text-slate-800 py-4">{formatUserId(user.user_Id)}</TableCell>
-                      <TableCell className="font-semibold text-slate-800 py-4">{user.user_FirstName} {user.user_LastName}</TableCell>
-                      <TableCell className="text-slate-600 py-4">{user.user_Email || "—"}</TableCell>
-                      <TableCell className="py-4">
-                        <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold">
-                          {user.user_Role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-slate-600 py-4">
-                        {user.deletedAt ? new Date(user.deletedAt).toLocaleString() : "—"}
-                      </TableCell>
-                      <TableCell className="py-4 text-right pr-6">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white transition-colors"
-                            onClick={() => handleRestore(user)}
-                          >
-                            <RestoreIcon className="mr-1 h-4 w-4" /> Restore
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors"
-                            onClick={() => initiatePermanentDelete(user)}
-                          >
-                            <DeleteOutlineIcon className="mr-1 h-4 w-4" /> Delete
-                          </Button>
+        <Card className="shadow-sm border-0 bg-white py-0">
+          <CardContent className="p-0 flex flex-col">
+            <div className="overflow-x-auto">
+              <Table className="min-w-[800px] md:min-w-full">
+                <TableHeader className="bg-[#2A174E]">
+                  <TableRow className="hover:bg-transparent border-b-slate-200">
+                    <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">User ID</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Name</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Email</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Role</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Archived Date</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider text-right pr-6">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentData.length > 0 ? (
+                    currentData.map((user) => (
+                      <TableRow key={user.user_Id} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
+                        <TableCell className="font-bold text-[#2A174E] py-4 px-6">{formatUserId(user.user_Id)}</TableCell>
+                        <TableCell className="font-semibold text-slate-800 py-4">{user.user_FirstName} {user.user_LastName}</TableCell>
+                        <TableCell className="text-slate-600 py-4">{user.user_Email || "—"}</TableCell>
+                        <TableCell className="py-4">
+                          <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold">
+                            {user.user_Role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-slate-600 py-4 font-medium text-sm">
+                          {user.deletedAt ? new Date(user.deletedAt).toLocaleDateString() : "—"}
+                        </TableCell>
+                        <TableCell className="py-4 text-right pr-6">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white transition-colors"
+                              onClick={() => handleRestore(user)}
+                            >
+                              <RestoreIcon className="mr-1 h-4 w-4" /> Restore
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors"
+                              onClick={() => initiatePermanentDelete(user)}
+                            >
+                              <DeleteOutlineIcon className="mr-1 h-4 w-4" /> Delete
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center justify-center space-y-1">
+                          <SearchIcon className="h-8 w-8 text-slate-300 mb-2" />
+                          <span className="font-semibold text-slate-600">No archived users found</span>
+                          <span className="text-sm text-slate-400">Try adjusting your search or filters.</span>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground italic">
-                      No archived users found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalItems > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
+                
+                <div className="flex items-center gap-4 text-sm text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <span className="hidden sm:inline">Rows per page:</span>
+                    <Select 
+                      value={itemsPerPage.toString()} 
+                      onValueChange={(val) => setItemsPerPage(Number(val))}
+                    >
+                      <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
+                        <SelectValue placeholder="10" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="font-medium">
+                    Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                  >
+                    Previous
+                  </Button>
+                  
+                  <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
+                    {currentPage}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                  >
+                    Next
+                  </Button>
+                </div>
+
+              </div>
+            )}
           </CardContent>
         </Card>
 

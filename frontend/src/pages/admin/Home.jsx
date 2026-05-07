@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
-import Widget from "../../components/Widget";
 import Featured from "../../components/featured/Featured";
 import Chart from "../../components/chart/Chart";
 import OccupancyList from "../../components/occupancy/OccupancyList";
@@ -18,6 +17,9 @@ import SearchOffIcon from '@mui/icons-material/SearchOff';
 import EmptyState from "../../components/EmptyState";
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+
+// shadcn/ui components
+import { Card, CardContent } from "@/components/ui/card";
 
 const Home = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -190,32 +192,48 @@ const Home = () => {
           </div>
         </div>
 
-        {/* Widgets Grid */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 w-full">
-          <Link to="/logs" className="flex">
-            <Widget 
-              type="officeOccupancy" 
-              amount={stats.officeOccupancy} 
-              loading={statsLoading} 
-              description={`${stats.enteredCount || 0} entered, and ${stats.exitedCount || 0} exited`}
-            />
+        {/* Solid Color Widget Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+          
+          {/* Card 1: Office Occupancy */}
+          <Link to="/logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+            <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full">
+              <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Office Occupancy</p>
+                  <p className="text-4xl font-bold text-white">{statsLoading ? "..." : stats.officeOccupancy}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">{statsLoading ? "Loading logs..." : `${stats.enteredCount || 0} entered, and ${stats.exitedCount || 0} exited`}</p>
+              </CardContent>
+            </Card>
           </Link>
-          <Link to="/adminRequests" className="flex">
-            <Widget
-              type="pendingApprovals" 
-              amount={stats.pendingCount} 
-              loading={statsLoading} 
-              description="Pending requests awaiting action"
-            />
+
+          {/* Card 2: Pending Approvals */}
+          <Link to="/adminRequests" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+            <Card className="shadow-sm border-0 bg-[#3B4E17] py-0 h-full">
+              <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Pending Approvals</p>
+                  <p className="text-4xl font-bold text-white">{statsLoading ? "..." : stats.pendingCount}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Pending requests awaiting action</p>
+              </CardContent>
+            </Card>
           </Link>
-          <Link to="/payroll" className="flex">
-            <Widget
-              type="payrollPreview" 
-              amount={`₱${(stats.projectedPayroll || 0).toLocaleString()}`} 
-              loading={statsLoading} 
-              description="Projected monthly payroll"
-            />
+
+          {/* Card 3: Projected Payroll */}
+          <Link to="/payroll" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+            <Card className="shadow-sm border-0 bg-[#ECC04B] py-0 h-full">
+              <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Projected Payroll</p>
+                  <p className="text-4xl font-bold text-white">{statsLoading ? "..." : `₱${(stats.projectedPayroll || 0).toLocaleString()}`}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Projected monthly payroll total</p>
+              </CardContent>
+            </Card>
           </Link>
+
         </div>
 
         <div className="h-4"></div>
