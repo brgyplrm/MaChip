@@ -233,12 +233,6 @@ const PayrollPeriod = () => {
         {/* Header section with back button */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div className="flex items-start md:items-center gap-4">
-            <Link 
-              to="/payroll" 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
-            >
-              <ArrowBackIcon className="h-6 w-6" />
-            </Link>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-slate-800 leading-tight">
                 {selectedPeriod?.label} {selectedPeriod?.status === 'Draft' ? "Current Period" : "Previous Period"}

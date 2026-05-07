@@ -21,16 +21,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 const Payroll = () => {
   const { systemToday } = useSystemTime();
-  const [payrolls, setPayrolls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [activePeriod, setActivePeriod] = useState(null);
   const [upcomingPeriods, setUpcomingPeriods] = useState([]);
   const [allPeriods, setAllPeriods] = useState([]);
+
+  // Generate Confirmation Modal States
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+  const [generateConfirmText, setGenerateConfirmText] = useState("");
+  const [periodToGenerate, setPeriodToGenerate] = useState(null);
 
   // Filter & Pagination States
   const [searchQuery, setSearchQuery] = useState("");
@@ -124,6 +130,7 @@ const Payroll = () => {
       if (response.ok) {
         setAllPeriods(data);
         
+        // Find the "Draft" period which is currently active
         const draftPeriods = data.filter(p => p.status === 'Draft');
         const active = draftPeriods[0]; 
 
@@ -148,6 +155,7 @@ const Payroll = () => {
           setActivePeriod(null);
         }
 
+        // Determine what the next upcoming period dates should be
         let seedDate = data.length > 0 ? data[0].endDate : null;
         
         if (systemToday) {
@@ -195,22 +203,24 @@ const Payroll = () => {
 
   const isFiltering = searchQuery !== "" || statusFilter !== "All" || sortOrder !== "newest";
 
-  // Filter out the active draft period, then apply search/status filters
+  // Filter out the active draft period from the list table
   let filteredPeriods = allPeriods.filter(p => p.status !== 'Draft' || (activePeriod && p.periodId !== activePeriod.id));
 
+  // Apply Search
   if (searchQuery) {
     filteredPeriods = filteredPeriods.filter(p => 
       p.label?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }
 
+  // Apply Status
   if (statusFilter !== "All") {
     filteredPeriods = filteredPeriods.filter(p => 
       p.status?.toLowerCase() === statusFilter.toLowerCase()
     );
   }
 
-  // Sorting
+  // Apply Sorting
   filteredPeriods.sort((a, b) => {
     const dateA = new Date(a.startDate).getTime();
     const dateB = new Date(b.startDate).getTime();
@@ -237,14 +247,14 @@ const Payroll = () => {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white">
+            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
               <Link to="/payroll/employeeList">
                 <PeopleAltIcon className="mr-2 h-4 w-4" /> Employee List
               </Link>
             </Button>
             <Button 
               variant="outline" 
-              className="w-full sm:w-auto bg-[#f0ebfa] text-[#2A174E] border-[#c4b5e8] hover:bg-[#e0d4f5]"
+              className="w-full sm:w-auto bg-[#f0ebfa] text-[#2A174E] border-[#c4b5e8] hover:bg-[#e0d4f5] transition-colors"
               onClick={() => setIsCreateModalOpen(true)}
             >
               <EventNoteIcon className="mr-2 h-4 w-4" /> Payroll Schedule
@@ -357,7 +367,11 @@ const Payroll = () => {
                   <Button 
                     variant="outline"
                     className="w-full bg-white border-[#2A174E]/30 text-[#2A174E] hover:bg-[#f0ebfa] py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5"
-                    onClick={() => handleCreatePeriod(upcomingPeriods[0])}
+                    onClick={() => {
+                      setPeriodToGenerate(upcomingPeriods[0]);
+                      setGenerateConfirmText("");
+                      setShowGenerateConfirm(true);
+                    }}
                   >
                     <EventNoteIcon className="mr-2 h-4 w-4" /> Generate This Period
                   </Button>
@@ -427,7 +441,7 @@ const Payroll = () => {
         </Card>
 
         {/* Previous Periods Table */}
-        <Card className="shadow-sm border-0 bg-white min-w-0 py-0">
+        <Card className="shadow-sm border-0 bg-white min-w-0 py-0 flex flex-col">
           <CardContent className="p-0 flex flex-col">
             <div className="overflow-x-auto">
               <Table className="min-w-[800px] md:min-w-full">
@@ -542,6 +556,67 @@ const Payroll = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Generate Period Confirmation Modal */}
+        <Dialog open={showGenerateConfirm} onOpenChange={(open) => {
+          if (!open) {
+            setShowGenerateConfirm(false);
+            setGenerateConfirmText("");
+            setPeriodToGenerate(null);
+          }
+        }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-[#2A174E]">Confirm Schedule Generation</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-5 py-3">
+              <div className="text-sm text-slate-600 bg-orange-50 border border-orange-200 p-4 rounded-lg">
+                <p>
+                  You are about to generate the payroll period for <strong>{periodToGenerate?.label}</strong>.
+                </p>
+                <p className="mt-2 font-medium text-orange-800">
+                  Warning: Generating a new period will lock the currently active draft period. Ensure all previous records are finalized.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700">
+                  Type <strong>next schedule</strong> to confirm:
+                </Label>
+                <Input
+                  value={generateConfirmText}
+                  onChange={(e) => setGenerateConfirmText(e.target.value)}
+                  placeholder="next schedule"
+                  className="border-slate-300 focus-visible:ring-[#2A174E]"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex gap-2 sm:justify-end mt-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowGenerateConfirm(false);
+                  setGenerateConfirmText("");
+                  setPeriodToGenerate(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-[#2A174E] text-white hover:bg-[#1a0e30]"
+                disabled={generateConfirmText.toLowerCase() !== "next schedule"}
+                onClick={() => {
+                  handleCreatePeriod(periodToGenerate);
+                  setShowGenerateConfirm(false);
+                  setGenerateConfirmText("");
+                  setPeriodToGenerate(null);
+                }}
+              >
+                Confirm & Generate
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <CreatePeriodModal
           isOpen={isCreateModalOpen}
