@@ -721,6 +721,29 @@ const Maxicare = () => {
         
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={dismissToast} />}
         
+        {/* Header Section */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Maxicare HMO Management</h1>
+            <span className="text-sm text-slate-500 mt-1 block">
+              Manage employee health insurance deductions, track employer/employee shares, and configure the billing cycle.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <FilterListIcon className="text-slate-400 h-5 w-5" />
+            <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
+              <SelectTrigger className="w-[160px] h-9 bg-white font-bold text-slate-700">
+                <SelectValue placeholder="Select Year" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 21 }, (_, i) => 2020 + i).map(year => (
+                  <SelectItem key={year} value={year.toString()}>Fiscal Year {year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {/* Main Grid Architecture */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans">
           
@@ -836,19 +859,7 @@ const Maxicare = () => {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <TrendingUpIcon className="text-slate-400 !text-lg" />
-                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Year-to-Date Tracking</h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <FilterListIcon className="text-slate-400 h-5 w-5" />
-                <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
-                  <SelectTrigger className="w-[120px] h-8 text-xs font-bold">
-                    <SelectValue placeholder="Select Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2025">Year 2025</SelectItem>
-                    <SelectItem value="2026">Year 2026</SelectItem>
-                  </SelectContent>
-                </Select>
+                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Year-to-Date Tracking ({selectedYear})</h2>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

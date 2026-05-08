@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../../components/Sidebar";
-import Navbar from "../../../components/navbar/Navbar";
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -9,10 +8,17 @@ import CheckIcon from '@mui/icons-material/Check';
 import SaveIcon from '@mui/icons-material/Save';
 import DownloadIcon from '@mui/icons-material/Download';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import GroupIcon from '@mui/icons-material/Group';
+import EventIcon from '@mui/icons-material/Event';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined';
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 
 // shadcn/ui components
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,13 +27,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const Cashadvances = () => {
   const { systemToday } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const isAdmin = userData?.user_RoleId === 1;
+  const isAdmin = userData?.user_RoleId === 1 || userData?.user_RoleId === 4;
 
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  const systemYear = systemToday ? new Date(systemToday).getFullYear() : 2026;
+  const systemYear = systemToday ? new Date(systemToday).getFullYear() : new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(systemYear);
   
   const [employeeList, setEmployeeList] = useState([]);
@@ -39,6 +45,14 @@ const Cashadvances = () => {
   const [editValue, setEditValue] = useState("");
   const [syncingCell, setSyncingCell] = useState(null);
   const [file, setFile] = useState(null);
+
+  // Batch Upload States
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchForm, setBatchForm] = useState({
+    date: "",
+    amount: "",
+    selectedEmployees: []
+  });
 
   const fetchCutoffDates = () => {
     const dates = [];
@@ -101,6 +115,76 @@ const Cashadvances = () => {
     fetchData();
   }, [selectedYear]);
 
+  // Batch Form Functions
+  const handleBatchSave = async () => {
+    if (!batchForm.date || !batchForm.amount || batchForm.selectedEmployees.length === 0) {
+      setToast({ message: "Please fill all fields and select at least one employee", type: "error" });
+      return;
+    }
+
+    const amount = parseFloat(batchForm.amount);
+    if (isNaN(amount)) {
+      setToast({ message: "Invalid amount", type: "error" });
+      return;
+    }
+
+    setLoading(true);
+    const updates = [];
+
+    batchForm.selectedEmployees.forEach(empId => {
+      updates.push({ date: batchForm.date, user_Id: empId, amount: amount, type: "Cash Advance" });
+    });
+
+    try {
+      const res = await fetchWithAuth("/api/payroll/loans/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates })
+      });
+
+      if (res.ok) {
+        setToast({ message: "Batch update successful!", type: "success" });
+        setShowBatchModal(false);
+        fetchData();
+      } else {
+        const errData = await res.json();
+        setToast({ message: "Batch update failed: " + (errData.error || "Unknown error"), type: "error" });
+        fetchData();
+      }
+    } catch (err) {
+      setToast({ message: "Failed to sync batch update", type: "error" });
+      fetchData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleEmployeeSelection = (userId) => {
+    setBatchForm(prev => {
+      const isSelected = prev.selectedEmployees.includes(userId);
+      return {
+        ...prev,
+        selectedEmployees: isSelected 
+          ? prev.selectedEmployees.filter(id => id !== userId)
+          : [...prev.selectedEmployees, userId]
+      };
+    });
+  };
+
+  const selectAllEmployees = () => {
+    setBatchForm(prev => ({
+      ...prev,
+      selectedEmployees: employeeList.map(e => e.user_Id)
+    }));
+  };
+
+  const deselectAllEmployees = () => {
+    setBatchForm(prev => ({
+      ...prev,
+      selectedEmployees: []
+    }));
+  };
+
   const handleHeaderChange = index => newDate => {
     const updated = [...expectedDates];
     updated[index] = newDate;
@@ -155,11 +239,11 @@ const Cashadvances = () => {
       } else {
         const errData = await res.json();
         setToast({ message: "Sync failed: " + (errData.error || "Unknown error"), type: "error" });
-        fetchData(); // Rollback
+        fetchData(); 
       }
     } catch (err) {
       setToast({ message: "Failed to save", type: "error" });
-      fetchData(); // Rollback
+      fetchData(); 
     } finally {
       setTimeout(() => setSyncingCell(null), 500);
     }
@@ -246,6 +330,7 @@ const Cashadvances = () => {
 
         if (res.ok) {
           setToast({ message: `Successfully synced ${updates.length} records!`, type: "success" });
+          setShowBatchModal(false);
           fetchData();
           setFile(null);
         } else {
@@ -290,111 +375,234 @@ const Cashadvances = () => {
   };
 
   const stats = getSummaryStats();
+  const totalAllTime = data.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0);
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      
+      {/* Batch Upload Modal */}
+      <Dialog open={showBatchModal} onOpenChange={setShowBatchModal}>
+        <DialogContent className="max-w-2xl bg-white p-6 rounded-xl shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-[#2A174E]">Batch Details Upload (Cash Advances)</DialogTitle>
+            <DialogDescription>
+              Select a method to upload multiple employee cash advance repayment records at once.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Tabs defaultValue="form" className="w-full mt-4">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="form">Manual Entry Form</TabsTrigger>
+              <TabsTrigger value="csv">CSV File Upload</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="form" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Target Month / Period</label>
+                  <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto p-2 border border-slate-200 rounded-md bg-slate-50 custom-scrollbar">
+                    {expectedDates.map(dStr => {
+                      const isSelected = batchForm.date === dStr;
+                      const dObj = new Date(dStr);
+                      return (
+                        <button
+                          key={dStr}
+                          type="button"
+                          onClick={() => setBatchForm(prev => ({ ...prev, date: dStr }))}
+                          className={`text-[11px] py-2 px-3 rounded-lg border transition-all text-left flex flex-col ${
+                            isSelected 
+                              ? "bg-[#2A174E] border-[#2A174E] text-white shadow-md font-bold" 
+                              : "bg-white border-slate-200 text-slate-600 hover:border-[#2A174E] hover:text-[#2A174E]"
+                          }`}
+                        >
+                          <span className={isSelected ? "text-yellow-400" : "text-slate-400"}>
+                            {dObj.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })}
+                          </span>
+                          <span>{dObj.toLocaleDateString('en-PH', { day: 'numeric', month: 'short' })}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Amount (₱)</label>
+                  <Input 
+                    type="number" 
+                    placeholder="0.00"
+                    value={batchForm.amount}
+                    onChange={(e) => setBatchForm(prev => ({ ...prev, amount: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Select Employees</label>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="xs" onClick={selectAllEmployees} className="text-[10px] h-6 px-2 text-blue-600">Select All</Button>
+                    <Button variant="ghost" size="xs" onClick={deselectAllEmployees} className="text-[10px] h-6 px-2 text-slate-400">Clear</Button>
+                  </div>
+                </div>
+                <div className="border border-slate-200 rounded-lg p-3 max-h-[200px] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2 custom-scrollbar">
+                  {employeeList.map(emp => (
+                    <div 
+                      key={emp.user_Id} 
+                      onClick={() => toggleEmployeeSelection(emp.user_Id)}
+                      className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${batchForm.selectedEmployees.includes(emp.user_Id) ? 'bg-blue-50 border border-blue-200' : 'bg-slate-50 border border-transparent hover:bg-slate-100'}`}
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${batchForm.selectedEmployees.includes(emp.user_Id) ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>
+                        {batchForm.selectedEmployees.includes(emp.user_Id) && <CheckIcon className="text-white !text-[10px]" />}
+                      </div>
+                      <span className="text-xs font-medium text-slate-700">{emp.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Button onClick={handleBatchSave} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={loading}>
+                {loading ? "Processing..." : "Apply Batch Update"}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="csv" className="space-y-6">
+              <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex flex-col items-center text-center">
+                <p className="text-sm text-blue-800 mb-4">Download our CSV template, fill it out with employee data, and upload it here.</p>
+                <Button variant="outline" size="sm" onClick={downloadTemplate} className="border-blue-600 text-blue-600 hover:bg-blue-100">
+                  <DownloadIcon className="mr-2 h-4 w-4" /> Download CSV Template
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-[#2A174E] transition-colors cursor-pointer relative">
+                  <Input 
+                    type="file" 
+                    accept=".csv" 
+                    onChange={handleFileChange} 
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <CloudUploadIcon className="text-slate-400 h-12 w-12 mb-2" />
+                  <p className="text-sm font-medium text-slate-600">{file ? file.name : "Click or drag CSV file here"}</p>
+                </div>
+                <Button onClick={handleUpload} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={!file || loading}>
+                  {loading ? "Uploading..." : "Upload and Process CSV"}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
       <Sidebar>
-      <div className="flex-1 p-4 md:p-4 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-8 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
         
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
         
-        {/* Top Header & Settings */}
-        <Card className="shadow-sm border-0 bg-white mb-6 py-2">
-          <CardContent className="p-6">
-            
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                <h1 className="text-2xl font-bold text-[#2A174E] m-0">Cash Advance Management</h1>
-                <div className="flex items-center gap-2">
-                  <FilterListIcon className="text-slate-400 h-5 w-5" />
-                  <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
-                    <SelectTrigger className="w-[180px] h-9 bg-white">
-                      <SelectValue placeholder="Select Year" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(() => {
-                        const currentY = systemToday ? new Date(systemToday).getFullYear() : new Date().getFullYear();
-                        const startYear = 2011;
-                        const endYear = currentY + 10;
-                        const years = [];
-                        for (let y = endYear; y >= startYear; y--) {
-                          years.push(y);
-                        }
-                        return years.map(year => (
-                          <SelectItem key={year} value={year.toString()} className={year === currentY ? "font-bold text-blue-600" : ""}>
-                            Fiscal Year {year} {year === currentY ? "(Current)" : ""}
-                          </SelectItem>
-                        ));
-                      })()}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+        {/* Top Header */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Cash Advance Management</h1>
+            <span className="text-sm text-slate-500 mt-1 block">
+              Manage employee cash advances, track repayments, and configure deduction schedules.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <FilterListIcon className="text-slate-400 h-5 w-5" />
+            <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
+              <SelectTrigger className="w-[160px] h-9 bg-white font-bold text-slate-700">
+                <SelectValue placeholder="Select Year" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 11 }, (_, i) => new Date().getFullYear() - 4 + i).map(year => (
+                  <SelectItem key={year} value={year.toString()}>Fiscal Year {year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-                <Button variant="outline" onClick={downloadTemplate} className="w-full sm:w-auto border-[#2A174E] text-[#2A174E]">
-                  <DownloadIcon className="mr-2 h-4 w-4" /> Template
+        {/* Dashboard-Style Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans animate-in fade-in zoom-in-95 duration-200">
+          
+          {/* Card 1: Total Repaid This Year */}
+          <div className="md:col-span-2 border border-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden">
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-full max-w-xs">
+                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Total Repaid ({selectedYear})</p>
+                <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(stats.totalPaid)}</p>
+              </div>
+              <div className="text-right bg-green-50 px-3 py-1.5 rounded-md border border-green-100 flex items-center gap-1">
+                <AccountBalanceIcon className="text-green-600 !text-sm" />
+                <p className="text-sm font-semibold text-green-700">Cash Advances</p>
+              </div>
+            </div>
+            <div className="flex flex-col md:flex-row gap-4 mt-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 w-fit">
+                <EventIcon className="text-slate-400 !text-base" />
+                <span>Fiscal Year: <span className="text-slate-900 font-semibold ml-1">{selectedYear}</span></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Active Borrowers */}
+          <div className="border border-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-center items-center text-center">
+            <div className="h-12 w-12 bg-indigo-50 rounded-full flex items-center justify-center mb-4 border border-indigo-100">
+              <GroupIcon className="text-indigo-600" />
+            </div>
+            <p className="text-5xl font-extrabold text-slate-900">{stats.subscribers}</p>
+            <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mt-2">Active Deductions</p>
+            <p className="text-xs text-slate-400 mt-1">({selectedYear} Cohort)</p>
+          </div>
+
+          {/* Card 3: All-Time Stats */}
+          <div className="md:col-span-3 border border-slate-200 bg-slate-900 text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <AccountBalanceWalletIcon style={{ fontSize: '100px' }} />
+            </div>
+            <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 w-full">
+              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex-1 w-full">
+                <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Total Collections (All-Time)</p>
+                <p className="text-3xl font-bold text-white tracking-tight">{peso(totalAllTime)}</p>
+              </div>
+              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex-1 w-full">
+                <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Collections ({selectedYear})</p>
+                <p className="text-3xl font-bold text-white tracking-tight">{peso(stats.totalPaid)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Detailed View Table Header Actions */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4 mt-8">
+          <h3 className="text-xl font-bold text-[#2A174E]">Cash Advance History ({selectedYear})</h3>
+          <div className="flex flex-wrap gap-2">
+            {isAdmin && (
+              <>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowBatchModal(true)}
+                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
+                >
+                  <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
                 </Button>
-                <div className="w-full sm:w-auto relative">
-                  <input type="file" accept=".csv" onChange={handleFileChange} id="csv-upload" className="hidden" />
-                  <label htmlFor="csv-upload" className="flex items-center justify-center w-full sm:w-auto h-10 px-4 border border-dashed border-[#2A174E] text-[#2A174E] rounded-md cursor-pointer hover:bg-slate-50 font-medium text-sm transition-colors">
-                    <CloudUploadIcon className="mr-2 h-4 w-4" /> {file ? (file.name.length > 15 ? file.name.substring(0,12) + "..." : file.name) : "Choose CSV"}
-                  </label>
-                </div>
-                {file && (
-                  <Button onClick={handleUpload} disabled={loading} className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]">
-                    {loading ? "..." : "Upload"}
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex flex-col justify-center">
-                <span className="text-[10px] font-bold text-green-700 tracking-wider">CATEGORY</span>
-                <span className="text-base font-bold text-green-800 mt-1">Cash Advances</span>
-              </div>
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-center">
-                <span className="text-[10px] font-bold text-slate-500 tracking-wider">ACTIVE SUBSCRIBERS</span>
-                <span className="text-base font-bold text-slate-800 mt-1">{stats.subscribers}</span>
-              </div>
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex flex-col justify-center">
-                <span className="text-[10px] font-bold text-green-700 tracking-wider">TOTAL REPAID ({selectedYear})</span>
-                <span className="text-base font-bold text-green-800 mt-1">{peso(stats.totalPaid)}</span>
-              </div>
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-center">
-                <span className="text-[10px] font-bold text-slate-500 tracking-wider">FISCAL YEAR</span>
-                <span className="text-base font-bold text-slate-800 mt-1">{selectedYear}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Matrix Table Section */}
-        <Card className="shadow-sm border-0 bg-white">
-          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-50 gap-4">
-            <CardTitle className="text-lg text-[#2A174E]">Cash Advance Matrix ({selectedYear})</CardTitle>
-            <div className="flex flex-wrap gap-2">
-              {isAdmin && (
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => setIsEditingTable(!isEditingTable)}
-                  className={`${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
+                  className={`h-9 ${isEditingTable ? "bg-green-500 hover:bg-green-600 text-white border-transparent" : "border-[#2A174E] text-[#2A174E] hover:bg-slate-50"}`}
                 >
-                  {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Table</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Table</>}
+                  {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Matrix</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Matrix</>}
                 </Button>
-              )}
-              <Button size="sm" onClick={fetchData} disabled={loading} className="bg-[#2A174E] hover:bg-[#1a0e30] text-white">
-                <SaveIcon className="mr-1 h-4 w-4" /> {loading ? "Updating..." : "Refresh Data"}
-              </Button>
-            </div>
-          </CardHeader>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Matrix Table Section */}
+        <Card className="shadow-sm border-0 bg-white">
           <CardContent className="p-0">
-            {/* The 2D Scroll Container */}
-            <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-b-xl">
+            <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-xl custom-scrollbar">
               <table className="w-full min-w-max border-collapse text-sm">
                 
                 <thead className="sticky top-0 z-[50] shadow-sm">
@@ -493,7 +701,7 @@ const Cashadvances = () => {
                                         }
                                       }}
                                       autoFocus
-                                      className="w-full h-10 border-2 border-blue-500 bg-blue-50 text-center font-mono text-[13px] text-blue-900 outline-none"
+                                      className="w-full h-10 border-2 border-[#2A174E] bg-white text-center font-mono text-[13px] text-black font-bold outline-none"
                                     />
                                   ) : isSyncing ? (
                                     <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
@@ -560,6 +768,25 @@ const Cashadvances = () => {
         </Card>
 
       </div>
+
+      {/* Global styling for custom scrollbars */}
+      <style dangerouslySetContent={{__html: `
+        .custom-scrollbar::-webkit-scrollbar {
+          height: 10px;
+          width: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f1f5f9; 
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1; 
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8; 
+        }
+      `}} />
       </Sidebar>
     </div>
   );
