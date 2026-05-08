@@ -1,22 +1,28 @@
-import "./editUser.scss";
+import React, { useState, useEffect, useCallback } from "react";
 import Sidebar from "../../components/Sidebar";
-import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
-import { useNavigate } from "react-router-dom";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
 import { fetchWithAuth } from "../../utils/api";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import VpnKeyOutlinedIcon from '@mui/icons-material/VpnKeyOutlined';
 
+// shadcn/ui components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 // ── Validation helpers ────────────────────────────────────────────────────────
-
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[a-zA-Z\s]+$/;
-
 
 const validateForm = (formData) => {
   const errors = {};
@@ -24,520 +30,705 @@ const validateForm = (formData) => {
   if (!formData.user_FirstName || !formData.user_FirstName.trim()) {
     errors.user_FirstName = "First name is required.";
   } else if (!nameRegex.test(formData.user_FirstName)) {
-    errors.user_FirstName =
-      "First Name cannot contain numbers or special characters";
+    errors.user_FirstName = "First Name cannot contain numbers or special characters";
   }
 
   if (!formData.user_LastName || !formData.user_LastName.trim()) {
     errors.user_LastName = "Last name is required.";
   } else if (!nameRegex.test(formData.user_LastName)) {
-    errors.user_LastName =
-      "Last Name cannot contain numbers or special characters";
-  }
-
-  if (formData.user_MiddleName && formData.user_MiddleName.trim() !== "" && !nameRegex.test(formData.user_MiddleName)) {
-    errors.user_MiddleName =
-      "Middle Name cannot contain numbers or special characters";
+    errors.user_LastName = "Last Name cannot contain numbers or special characters";
   }
 
   if (!formData.user_Email || !formData.user_Email.trim()) {
     errors.user_Email = "Email is required.";
-  } else if (!EMAIL_REGEX.test(formData.user_Email.trim())) {
-    errors.user_Email = "Please enter a valid email address.";
+  } else if (!EMAIL_REGEX.test(formData.user_Email)) {
+    errors.user_Email = "Invalid email format.";
   }
 
-  // Password is optional on edit — only validate if the user typed something
-  if (formData.user_Password && formData.user_Password.length < 6) {
-    errors.user_Password = "New password must be at least 6 characters.";
+  if (!formData.user_PhoneNumber || !formData.user_PhoneNumber.trim()) {
+    errors.user_PhoneNumber = "Phone number is required.";
+  }
+
+  if (!formData.user_Address || !formData.user_Address.trim()) {
+    errors.user_Address = "Address is required.";
+  }
+
+  if (!formData.user_Role) {
+    errors.user_Role = "Role is required.";
+  }
+
+  if (!formData.user_EmploymentStatus) {
+    errors.user_EmploymentStatus = "Employment Status is required.";
+  }
+
+  if (!formData.user_Password || !formData.user_Password.trim()) {
+    errors.user_Password = "Password is required.";
+  } else if (formData.user_Password.length < 6) {
+    errors.user_Password = "Password must be at least 6 characters.";
   }
 
   return errors;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-const roleMap = { "Employee": 3, "Supervisor": 2, "Admin Manager": 1, "Admin Accountant": 4 };
-const reverseRoleMap = { 3: "Employee", 2: "Supervisor", 1: "Admin Manager", 4: "Admin Accountant" };
-const statusMap = { Regular: 1, "Part-time": 2, "Intern / OJT": 3 };
-const reverseStatusMap = { 1: "Regular", 2: "Part-time", 3: "Intern / OJT" };
-
-const Edit = ({ inputs, title }) => {
+const Edit = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
 
   const [file, setFile] = useState("");
-  const [formData, setFormData] = useState({});
+  const [existingAvatar, setExistingAvatar] = useState("");
+  const [formData, setFormData] = useState({
+    user_FirstName: "",
+    user_LastName: "",
+    user_Email: "",
+    user_PhoneNumber: "",
+    user_Address: "",
+    user_Role: "",
+    user_EmploymentStatus: "",
+    user_Password: "",
+    user_MachipId: "",
+    user_FingerprintId: "",
+    user_DOB: "",
+    user_Gender: "",
+    shift_Schedule: "",
+    dailyRate: "",
+    healthCard_Amnt: "",
+    SSS_Ded: "",
+    Philhealth_Ded: "",
+    HDMF_Ded: "",
+    Tax_Ded: "",
+    SSS_Loan: "",
+    HDMF_Loan: "",
+    calamityLoan_Amnt: "",
+    eastwest_Loan: "",
+    globe_Deduction: "",
+    multiPurposeSavings: "",
+    advances_Amnt: ""
+  });
+
+  const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
-  const [showAccountNumber, setShowAccountNumber] = useState(false);
-  const [displayPic, setDisplayPic] = useState("");
+  const [toast, setToast] = useState({ message: "", type: "success" });
+  
+  const [originalRole, setOriginalRole] = useState("");
   const [showAdminConfirm, setShowAdminConfirm] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
+
   const [showRfidModal, setShowRfidModal] = useState(false);
-  const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [rfidError, setRfidError] = useState("");
-  const [fingerprintError, setFingerprintError] = useState("");
   const [originalMachipId, setOriginalMachipId] = useState("");
   const [originalFingerprintId, setOriginalFingerprintId] = useState("");
 
-  const [errors, setErrors] = useState({});
-  const [toast, setToast] = useState({ message: "", type: "success" });
+  const [showFingerprintModal, setShowFingerprintModal] = useState(false);
+  const [fingerprintError, setFingerprintError] = useState("");
 
-  const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
-  const isAdminManager = currentUser?.user_RoleId === 1;
-  const isAccountant = currentUser?.user_RoleId === 4;
-  const isAdminOrAccountant = isAdminManager || isAccountant;
+  const dismissToast = useCallback(() => {
+    setToast({ message: "", type: "success" });
+  }, []);
 
-  const dismissToast = useCallback(() => setToast({ message: "", type: "success" }), []);
-  const clearError = (id) => setErrors((prev) => ({ ...prev, [id]: "" }));
-  const handleCancel = () => navigate(-1);
+  const showToastMsg = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast({ message: "", type: "success" }), 3000);
+  };
 
   useEffect(() => {
-    const fetchUserData = async () => {
+    const fetchUser = async () => {
       try {
         const response = await fetchWithAuth(`/api/users/${userId}`);
         if (response.ok) {
-          const data = await response.json();
-          const { user_Password, ...otherData } = data;
-          
+          const userData = await response.json();
           setFormData({
-            ...otherData,
-            user_Role: reverseRoleMap[data.user_RoleId] || "Employee",
-            user_EmploymentStatus: reverseStatusMap[data.user_EmploymentStatusId] || "Regular"
+            user_FirstName: userData.user_FirstName || "",
+            user_LastName: userData.user_LastName || "",
+            user_Email: userData.user_Email || "",
+            user_PhoneNumber: userData.user_PhoneNumber || "",
+            user_Address: userData.user_Address || "",
+            user_Role: userData.user_Role || "",
+            user_EmploymentStatus: userData.user_EmploymentStatus || "",
+            user_Password: userData.user_Password || "",
+            user_MachipId: userData.user_MachipId || "",
+            user_FingerprintId: userData.user_FingerprintId || "",
+            user_DOB: userData.user_DOB ? userData.user_DOB.split('T')[0] : "",
+            user_Gender: userData.user_Gender || "",
+            shift_Schedule: userData.shift_Schedule || "",
+            dailyRate: userData.dailyRate || "",
+            healthCard_Amnt: userData.healthCard_Amnt || "",
+            SSS_Ded: userData.SSS_Ded || "",
+            Philhealth_Ded: userData.Philhealth_Ded || "",
+            HDMF_Ded: userData.HDMF_Ded || "",
+            Tax_Ded: userData.Tax_Ded || "",
+            SSS_Loan: userData.SSS_Loan || "",
+            HDMF_Loan: userData.HDMF_Loan || "",
+            calamityLoan_Amnt: userData.calamityLoan_Amnt || "",
+            eastwest_Loan: userData.eastwest_Loan || "",
+            globe_Deduction: userData.globe_Deduction || "",
+            multiPurposeSavings: userData.multiPurposeSavings || "",
+            advances_Amnt: userData.advances_Amnt || ""
           });
-          setOriginalMachipId(data.user_MachipId || "");
-          setOriginalFingerprintId(data.user_FingerprintId || "");
-
-          if (data.user_ProfilePic) {
-            setDisplayPic(`/api/uploads/${data.user_ProfilePic}`);
-          }
+          setExistingAvatar(userData.user_Avatar || "");
+          setOriginalRole(userData.user_Role);
+          setOriginalMachipId(userData.user_MachipId || "");
+          setOriginalFingerprintId(userData.user_FingerprintId || "");
+        } else {
+          showToastMsg("Failed to fetch user data.", "error");
         }
       } catch (err) {
-        console.error("Error fetching user data:", err);
+        showToastMsg("Error fetching user data.", "error");
       }
     };
-    fetchUserData();
+    fetchUser();
   }, [userId]);
 
-  const handleInput = (e) => {
-    const { id, value } = e.target;
-    setFormData((prev) => ({ ...prev, [id]: value }));
-    clearError(id);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleSelectChange = (name, value) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+
+  const generatePassword = () => {
+    const length = 12;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+~`|}{[]:;?><,./-=";
+    let password = "";
+    for (let i = 0, n = charset.length; i < length; ++i) {
+      password += charset.charAt(Math.floor(Math.random() * n));
+    }
+    setFormData((prev) => ({ ...prev, user_Password: password }));
+    if (errors.user_Password) setErrors((prev) => ({ ...prev, user_Password: "" }));
   };
 
   const handleScanRFID = async () => {
-    setShowRfidModal(true);
-    setFormData((prev) => ({ ...prev, user_MachipId: "" }));
     setRfidError("");
     try {
-      const response = await fetchWithAuth("/api/users/generateRfid");
-      const data = await response.json();
-
-      if (response.ok) {
-        if (data.rfid === originalMachipId) {
-          setRfidError("Same card used. Please try a different MaChip.");
-          setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
-          setToast({
-            message: "Same card used. Please try a different MaChip.",
-            type: "error",
-          });
+      const controllerResponse = await fetchWithAuth("/api/controller/status");
+      if (!controllerResponse.ok) {
+        setRfidError("Controller is offline. Cannot scan RFID.");
+        return;
+      }
+  
+      const scanResponse = await fetchWithAuth("/api/controller/scan-rfid", { method: "POST" });
+      const scanData = await scanResponse.json();
+  
+      if (scanResponse.ok && scanData.rfid) {
+        if (scanData.rfid === originalMachipId) {
+          setFormData(prev => ({ ...prev, user_MachipId: scanData.rfid }));
+          setShowRfidModal(false);
+          return;
+        }
+  
+        const checkResponse = await fetchWithAuth(`/api/users/check-machip/${scanData.rfid}`);
+        const checkData = await checkResponse.json();
+  
+        if (checkResponse.ok && checkData.exists && checkData.user_Id !== parseInt(userId)) {
+          setRfidError("This MaChip ID is already assigned to another user.");
         } else {
-          setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
-          clearError("user_MachipId");
-          setToast({
-            message: `New MaChip scanned! ID updated to: ${data.rfid}`,
-            type: "success",
-          });
+          setFormData(prev => ({ ...prev, user_MachipId: scanData.rfid }));
+          setShowRfidModal(false);
         }
       } else {
-        setRfidError(data.error || "Failed to scan RFID. Please try again.");
-        if (data.rfid) setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
-        setToast({
-          message: data.error || "Failed to scan RFID.",
-          type: "error",
-        });
+        setRfidError(scanData.error || "Failed to scan RFID. Please try again.");
       }
     } catch (err) {
-      console.error("Error scanning RFID:", err);
-      const isNetworkError = err instanceof TypeError || err.message === "NetworkError";
-      setRfidError(isNetworkError ? "Connection lost or backend unreachable. Check your server." : "An error occurred while scanning.");
-      setToast({
-        message: isNetworkError ? "Connection error: Check if backend is running." : "An error occurred while scanning the chip.",
-        type: "error",
-      });
+      setRfidError("Connection error during RFID scan.");
     }
   };
-
+  
   const handleScanFingerprint = async () => {
-    setShowFingerprintModal(true);
-    setFormData((prev) => ({ ...prev, user_FingerprintId: "" }));
     setFingerprintError("");
     try {
-      const response = await fetchWithAuth(`/api/users/generateFingerprint?userId=${userId}`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setFormData((prev) => ({ 
-          ...prev, 
-          user_FingerprintId: data.fingerprintId,
-          user_FingerprintTemplate: data.template || "" 
-        }));
-        clearError("user_FingerprintId");
-        setToast({
-          message: `Fingerprint scanned! ID updated to slot: ${data.fingerprintId}`,
-          type: "success",
-        });
-      } else {
-        setFingerprintError(data.error || "Failed to scan Fingerprint. Please try again.");
-        setToast({
-          message: data.error || "Failed to scan Fingerprint.",
-          type: "error",
-        });
+      const controllerResponse = await fetchWithAuth("/api/controller/status");
+      if (!controllerResponse.ok) {
+        setFingerprintError("Controller is offline. Cannot scan Fingerprint.");
+        return;
       }
-    } catch (err) {
-      console.error("Error scanning Fingerprint:", err);
-      setFingerprintError("An error occurred while scanning.");
-      setToast({
-        message: "An error occurred while scanning the fingerprint.",
-        type: "error",
-      });
-    }
-  };
+  
+      const scanResponse = await fetchWithAuth("/api/controller/scan-fingerprint", { method: "POST" });
+      const scanData = await scanResponse.json();
+  
+      if (scanResponse.ok && scanData.fingerprintId !== undefined) {
+        const fpIdStr = scanData.fingerprintId.toString();
 
-  const handleUpdate = async (e) => {
-    if (e) e.preventDefault();
+        if (fpIdStr === originalFingerprintId) {
+          setFormData(prev => ({ ...prev, user_FingerprintId: fpIdStr }));
+          setShowFingerprintModal(false);
+          return;
+        }
 
-    // 1. Check if promoting to an Admin-related role (Role 1, 2, or 4)
-    // Only show confirmation if current user is Admin Manager (Role 1) and target role is NOT Employee
-    const targetRoleId = roleMap[formData.user_Role] || 3;
-    if (isAdminManager && targetRoleId !== 3 && !showAdminConfirm) {
-      setShowAdminConfirm(true);
-      return;
-    }
-
-    // 2. Validate
-    const validationErrors = validateForm(formData);
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      setToast({ message: "Please fix the highlighted errors.", type: "error" });
-      return;
-    }
-
-    const submissionData = new FormData();
-    Object.keys(formData).forEach((key) => {
-      // Exclude these because we map them manually below, or they are not needed in body
-      if (["user_RoleId", "user_EmploymentStatusId", "user_Role", "user_EmploymentStatus"].includes(key)) return;
-      
-      if (formData[key] !== null && formData[key] !== undefined) {
-        submissionData.append(key, formData[key]);
-      }
-    });
-
-    // Map the string values to their numeric IDs for the backend
-    submissionData.append("user_RoleId", roleMap[formData.user_Role] || 3);
-    submissionData.append("user_EmploymentStatusId", statusMap[formData.user_EmploymentStatus] || 1);
-
-    if (file) {
-      submissionData.append("user_ProfilePic", file);
-    }
-
-    // If we're doing the admin password check
-    if (showAdminConfirm) {
-      submissionData.append("adminConfirmPassword", adminPassword);
-    }
-
-    const operatorId = currentUser?.user_Id || currentUser?.userId;
-    console.log("[DEBUG] Sending update request:", {
-      targetUserId: userId,
-      operatorId,
-      newRole: formData.user_Role,
-      hasConfirmPass: !!adminPassword
-    });
-
-    try {
-      const response = await fetchWithAuth(`/api/users/updateUser/${userId}`, {
-        method: "PUT",
-        body: submissionData,
-      });
-
-      if (response.ok) {
-        setToast({ message: "User profile updated successfully!", type: "success" });
-        setShowAdminConfirm(false);
-        setAdminPassword("");
-
-        // Refresh localStorage if updating own profile
-        if (currentUser?.user_Id === parseInt(userId)) {
-          const updatedRes = await fetchWithAuth(`/api/users/${userId}`);
-          if (updatedRes.ok) {
-            const updatedData = await updatedRes.json();
-            const { user_Password, ...safeData } = updatedData;
-            localStorage.setItem("userData", JSON.stringify(safeData));
-            // Trigger custom event for Navbar to update immediately
-            window.dispatchEvent(new Event("userUpdate"));
-          }
+        const checkResponse = await fetchWithAuth(`/api/users/check-fingerprint/${fpIdStr}`);
+        const checkData = await checkResponse.json();
+  
+        if (checkResponse.ok && checkData.exists && checkData.user_Id !== parseInt(userId)) {
+          setFingerprintError("This Fingerprint ID is already assigned to another user.");
+        } else {
+          setFormData(prev => ({ ...prev, user_FingerprintId: fpIdStr }));
+          setShowFingerprintModal(false);
         }
       } else {
-        const errorData = await response.json();
-        setToast({ message: errorData.error || "Failed to update.", type: "error" });
+        setFingerprintError(scanData.error || "Failed to enroll fingerprint. Please try again.");
       }
     } catch (err) {
-      setToast({ message: "Connection error.", type: "error" });
+      setFingerprintError("Connection error during fingerprint scan.");
     }
   };
 
-  const confirmAdminPromotion = () => {
-    if (!adminPassword) {
-      setToast({ message: "Please enter your password to confirm.", type: "error" });
+  const handleUpdate = async (adminVerification = null) => {
+    try {
+      const formDataToSend = new FormData();
+
+      Object.keys(formData).forEach((key) => {
+        if (formData[key] !== null && formData[key] !== undefined && formData[key] !== "") {
+          formDataToSend.append(key, formData[key]);
+        }
+      });
+
+      if (file) {
+        formDataToSend.append("user_Avatar", file);
+      }
+
+      if (adminVerification) {
+        formDataToSend.append("adminPassword", adminVerification);
+      }
+
+      const response = await fetch(`/api/users/${userId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: formDataToSend,
+      });
+
+      if (response.ok) {
+        showToastMsg("User profile successfully updated!", "success");
+        setTimeout(() => navigate(-1), 2000);
+      } else {
+        const errorData = await response.json();
+        showToastMsg(errorData.error || "Failed to update user.", "error");
+      }
+    } catch (error) {
+      showToastMsg("Network error occurred.", "error");
+    }
+  };
+
+  const handleSubmit = (e) => {
+    if (e) e.preventDefault();
+    const validationErrors = validateForm(formData);
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      showToastMsg("Please fix the validation errors before saving.", "error");
       return;
     }
-    handleUpdate();
+
+    if (['Admin Manager', 'Admin Accountant'].includes(formData.user_Role) && originalRole !== formData.user_Role) {
+      setShowAdminConfirm(true);
+    } else {
+      handleUpdate();
+    }
   };
 
- return (
-  <div className="new">
-    <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
-    <Sidebar>
-    <div className="newContainer">
-      <div className="top">
-        <h1>{title} (ID: {formatUserId(userId)})</h1>
-      </div>
-      <div className="bottom">
-        {/* Left Side: Profile Picture Preview */}
+  const confirmAdminPromotion = async () => {
+    if (!adminPassword) {
+      showToastMsg("Please enter your admin password to confirm.", "error");
+      return;
+    }
+    setShowAdminConfirm(false);
+    handleUpdate(adminPassword);
+  };
 
-        <div className="leftIdentity">
-            <div className="imageContainer">
-              <img
-                src={
-                  file
-                    ? URL.createObjectURL(file)
-                    : formData.user_ProfilePic
-                      ? `/api/uploads/${formData.user_ProfilePic}`
-                      : "/avatar.webp"
-                }
-                alt="Profile Preview"
-              />
-              <div className="fileInput">
-                <label htmlFor="file">
-                  <DriveFolderUploadOutlinedIcon className="icon" /> <div className="fileInput-label">Edit Image:</div>
-                </label>
-                <input
-                  type="file"
-                  id="file"
-                  onChange={(e) => {
-                    const selectedFile = e.target.files[0];
-                    if (selectedFile) {
-                      const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
-                      if (!allowedTypes.includes(selectedFile.type)) {
-                        setToast({ 
-                          message: "Invalid file format. Only png, jpg, and jpeg are allowed!", 
-                          type: "error" 
-                        });
-                        e.target.value = null; // Clear input
-                        return;
-                      }
-                      setFile(selectedFile);
-                    }
-                  }}
-                  style={{ display: "none" }}
-                />
-              </div>
-            </div>
+  const renderError = (field) => {
+    return errors[field] ? <span className="text-red-500 text-xs mt-1 block">{errors[field]}</span> : null;
+  };
 
-            {/* Real-time Name Display */}
-            <h1 className="userName">
-              {formData.user_FirstName || "First"} {formData.user_LastName || "Last"}
-            </h1>
-
-            {/* Real-time Role Display */}
-            <span className="userRole">
-              {formData.user_Role || "Select Role"}
-            </span>
-
-            {/* Real-time Employment Status Badge */}
-            <div className={`statusBadge ${formData.user_EmploymentStatus?.toLowerCase().replace(" ", "") || "regular"}`}>
-              {formData.user_EmploymentStatus || "Regular"}
+  return (
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
+      <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
+      
+      <div className="flex-1 p-4 md:p-8 w-full max-w-6xl mx-auto overflow-x-hidden min-w-0">
+        
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full hover:bg-slate-200">
+              <ArrowBackIcon className="text-slate-600" />
+            </Button>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Edit Profile: {formatUserId(userId)}</h1>
+              <span className="text-sm text-slate-500 mt-1 block">Update employee records, compensation, and security access.</span>
             </div>
           </div>
+          <Button onClick={handleSubmit} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm h-11 px-6">
+            Save Changes
+          </Button>
+        </div>
 
-        {/* Right Side: Form Inputs */}
-        <div className="right">
-          <form onSubmit={handleUpdate}>
-            <div className="fullNameSection">
-            <label>
-              Full Name <span className="requiredMark">*</span>
-            </label>
-            <div className="nameInputsRow">
-              <div className="nameGroup">
-                <input
-                  type="text"
-                  id="user_FirstName"
-                  placeholder="First Name"
-                  value={formData.user_FirstName || ""}
-                  onChange={handleInput}
-                />
-                {errors.user_FirstName && <span className="error">{errors.user_FirstName}</span>}
-              </div>
-              {/* ADDED: Middle Name Column */}
-              <div className="nameGroup">
-                <input
-                  type="text"
-                  id="user_MiddleName"
-                  placeholder="Middle Name"
-                  value={formData.user_MiddleName || ""}
-                  onChange={handleInput}
-                />
-              </div>
-              <div className="nameGroup">
-                <input
-                  type="text"
-                  id="user_LastName"
-                  placeholder="Last Name"
-                  value={formData.user_LastName || ""}
-                  onChange={handleInput}
-                />
-                {errors.user_LastName && <span className="error">{errors.user_LastName}</span>}
-              </div>
-            </div>
-          </div>
+        <Tabs defaultValue="personal" className="w-full">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0 mb-6">
+            <TabsTrigger value="personal" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
+              Personal Information
+            </TabsTrigger>
+            <TabsTrigger value="employment" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
+              Employment & Comp
+            </TabsTrigger>
+            <TabsTrigger value="security" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
+              Security & Hardware
+            </TabsTrigger>
+          </TabsList>
 
-          {inputs
-            .filter((input) => {
-              // Only Admin Manager and Accountant can see/edit administrative fields
-              if (!isAdminOrAccountant) {
-                return !["user_EmploymentStatus", "user_Role", "user_MachipId", "user_Password"].includes(input.id);
-              }
-              return true;
-            })
-            .map((input) => (
-              <div className="formInput" key={input.id}>
-                <label>{input.label}</label>
-                <div className="inputActionWrapper">
-                          {/* Logic for Employment Status Dropdown */}
-                  {input.type === "select" ? (
-                    <select id={input.id} value={formData[input.id] || ""} onChange={handleInput}>
-                      <option value="" disabled>Select {input.label}</option>
-                                  {/* If you updated formSource, use input.options.map here */}
-                                  {input.id === "user_EmploymentStatus" && (
-                                    <>
-                                      <option value="Regular">Regular</option>
-                                      <option value="Part-time">Part-time</option>
-                                      <option value="Intern / OJT">Intern / OJT</option>
-                                    </>
-                                  )}
-                                  {input.id === "user_Role" && (
-                                    <>
-                                      <option value="Employee">Employee</option>
-                                      {!isAccountant && (
-                                        <>
-                                          <option value="Supervisor">Supervisor</option>
-                                          <option value="Admin Manager">Admin Manager</option>
-                                          <option value="Admin Accountant">Admin Accountant</option>
-                                        </>
-                                      )}
-                                    </>
-                                  )}
-                    </select>
-                  ) : (
-                    <>
-                      <input
-                        id={input.id}
-                        type={
-                          (input.id === "user_Password" && showPassword) || 
-                          (input.id === "account_Number" && showAccountNumber) 
-                            ? "text" 
-                            : input.type
+          {/* TAB 1: Personal Information */}
+          <TabsContent value="personal">
+            <Card className="shadow-sm border-0 bg-white">
+              <CardHeader className="border-b border-slate-100 pb-4">
+                <CardTitle className="text-lg text-[#2A174E]">Personal Details</CardTitle>
+                <CardDescription>Basic contact and identity information.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                
+                <div className="flex flex-col md:flex-row gap-8 mb-6">
+                  {/* Avatar Upload */}
+                  <div className="flex flex-col items-center justify-center gap-3 w-full md:w-1/4">
+                    <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-slate-100 shadow-sm relative group bg-slate-50 flex items-center justify-center">
+                      <img
+                        src={
+                          file
+                            ? URL.createObjectURL(file)
+                            : existingAvatar
+                            ? `/api/uploads/${existingAvatar}`
+                            : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"
                         }
-                        value={formData[input.id] || ""}
-                        onChange={handleInput}
-                        readOnly={input.label === "User ID"} // User ID remains read-only for everyone
+                        alt="Avatar"
+                        className="w-full h-full object-cover"
                       />
-                      {input.id === "user_Password" && (
-                                <div className="eyeIcon" onClick={() => setShowPassword(!showPassword)}>
-                                  {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                                </div>
-                      )}
-                      {input.id === "account_Number" && (
-                                <div className="eyeIcon" onClick={() => setShowAccountNumber(!showAccountNumber)}>
-                                  {showAccountNumber ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                                </div>
-                      )}
-                    </>
-                  )}
+                      <label htmlFor="file" className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white">
+                        <DriveFolderUploadOutlinedIcon />
+                      </label>
+                    </div>
+                    <input
+                      type="file"
+                      id="file"
+                      onChange={(e) => setFile(e.target.files[0])}
+                      style={{ display: "none" }}
+                      accept="image/*"
+                    />
+                    <span className="text-xs font-semibold text-slate-500">Upload Photo</span>
+                  </div>
 
-                  {/* Re-Scan button: Only visible to Admin or Accountant */}
-                  {isAdminOrAccountant && input.label === "MaChip ID" && (
-                    <button type="button" className="scanBtn" onClick={handleScanRFID}>
-                      RE-SCAN
-                    </button>
-                  )}
-                  {isAdminOrAccountant && input.label === "Fingerprint ID" && (
-                    <button type="button" className="scanBtn" onClick={handleScanFingerprint}>
-                      RE-SCAN
-                    </button>
-                  )}
+                  {/* Basic Info Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full md:w-3/4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">First Name <span className="text-red-500">*</span></Label>
+                      <Input name="user_FirstName" value={formData.user_FirstName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                      {renderError("user_FirstName")}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Last Name <span className="text-red-500">*</span></Label>
+                      <Input name="user_LastName" value={formData.user_LastName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                      {renderError("user_LastName")}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address <span className="text-red-500">*</span></Label>
+                      <Input name="user_Email" type="email" value={formData.user_Email} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                      {renderError("user_Email")}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number <span className="text-red-500">*</span></Label>
+                      <Input name="user_PhoneNumber" value={formData.user_PhoneNumber} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                      {renderError("user_PhoneNumber")}
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500">*</span></Label>
+                      <Input name="user_Address" value={formData.user_Address} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                      {renderError("user_Address")}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date of Birth</Label>
+                      <Input name="user_DOB" type="date" value={formData.user_DOB} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Gender</Label>
+                      <Select value={formData.user_Gender} onValueChange={(val) => handleSelectChange("user_Gender", val)}>
+                        <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                          <SelectValue placeholder="Select Gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
+
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* TAB 2: Employment & Compensation */}
+          <TabsContent value="employment">
+            <div className="space-y-6">
+              <Card className="shadow-sm border-0 bg-white">
+                <CardHeader className="border-b border-slate-100 pb-4">
+                  <CardTitle className="text-lg text-[#2A174E]">Role & Status</CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">System Role <span className="text-red-500">*</span></Label>
+                    <Select value={formData.user_Role} onValueChange={(val) => handleSelectChange("user_Role", val)}>
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectValue placeholder="Select Role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Employee">Employee</SelectItem>
+                        <SelectItem value="Supervisor">Supervisor</SelectItem>
+                        <SelectItem value="Admin Manager">Admin Manager</SelectItem>
+                        <SelectItem value="Admin Accountant">Admin Accountant</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {renderError("user_Role")}
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employment Status <span className="text-red-500">*</span></Label>
+                    <Select value={formData.user_EmploymentStatus} onValueChange={(val) => handleSelectChange("user_EmploymentStatus", val)}>
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectValue placeholder="Select Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Regular">Regular</SelectItem>
+                        <SelectItem value="Part-time">Part-time</SelectItem>
+                        <SelectItem value="Intern / OJT">Intern / OJT</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {renderError("user_EmploymentStatus")}
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Shift Schedule</Label>
+                    <Select value={formData.shift_Schedule} onValueChange={(val) => handleSelectChange("shift_Schedule", val)}>
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectValue placeholder="Select Schedule" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Morning Shift (8 AM - 5 PM)">Morning Shift (8 AM - 5 PM)</SelectItem>
+                        <SelectItem value="Night Shift (8 PM - 5 AM)">Night Shift (8 PM - 5 AM)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm border-0 bg-white">
+                <CardHeader className="border-b border-slate-100 pb-4">
+                  <CardTitle className="text-lg text-[#2A174E]">Compensation & Deductions</CardTitle>
+                  <CardDescription>Leave empty or 0 if not applicable.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                  
+                  {/* Daily Rate */}
+                  <div className="space-y-2 sm:col-span-2 md:col-span-4 bg-slate-50 p-4 rounded-xl border border-slate-100 mb-2">
+                    <Label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Base Daily Rate (₱)</Label>
+                    <Input name="dailyRate" type="number" step="0.01" value={formData.dailyRate} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E] font-mono text-lg bg-white"/>
+                  </div>
+
+                  {/* Standard Deductions */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">SSS Deduction</Label>
+                    <Input name="SSS_Ded" type="number" step="0.01" value={formData.SSS_Ded} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Philhealth Ded</Label>
+                    <Input name="Philhealth_Ded" type="number" step="0.01" value={formData.Philhealth_Ded} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">HDMF/Pag-IBIG Ded</Label>
+                    <Input name="HDMF_Ded" type="number" step="0.01" value={formData.HDMF_Ded} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tax Deduction</Label>
+                    <Input name="Tax_Ded" type="number" step="0.01" value={formData.Tax_Ded} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+
+                  {/* Loans & Others */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">SSS Loan</Label>
+                    <Input name="SSS_Loan" type="number" step="0.01" value={formData.SSS_Loan} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">HDMF Loan</Label>
+                    <Input name="HDMF_Loan" type="number" step="0.01" value={formData.HDMF_Loan} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Calamity Loan</Label>
+                    <Input name="calamityLoan_Amnt" type="number" step="0.01" value={formData.calamityLoan_Amnt} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Eastwest Loan</Label>
+                    <Input name="eastwest_Loan" type="number" step="0.01" value={formData.eastwest_Loan} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Maxicare / Health</Label>
+                    <Input name="healthCard_Amnt" type="number" step="0.01" value={formData.healthCard_Amnt} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Globe Deduction</Label>
+                    <Input name="globe_Deduction" type="number" step="0.01" value={formData.globe_Deduction} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">MP Savings</Label>
+                    <Input name="multiPurposeSavings" type="number" step="0.01" value={formData.multiPurposeSavings} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cash Advances</Label>
+                    <Input name="advances_Amnt" type="number" step="0.01" value={formData.advances_Amnt} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* TAB 3: Security & Hardware */}
+          <TabsContent value="security">
+            <Card className="shadow-sm border-0 bg-white">
+              <CardHeader className="border-b border-slate-100 pb-4">
+                <CardTitle className="text-lg text-[#2A174E]">Security & Access Configuration</CardTitle>
+                <CardDescription>Manage password and biometric hardware tokens.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-8">
+                
+                {/* Password Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2 relative">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">System Password <span className="text-red-500">*</span></Label>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        name="user_Password"
+                        value={formData.user_Password}
+                        onChange={handleChange}
+                        className="pr-10 border-slate-200 focus-visible:ring-[#2A174E]"
+                      />
+                      <div 
+                        className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600" 
+                        onClick={togglePasswordVisibility}
+                      >
+                        {showPassword ? <VisibilityOffIcon fontSize="small"/> : <VisibilityIcon fontSize="small"/>}
+                      </div>
+                    </div>
+                    {renderError("user_Password")}
+                  </div>
+                  <div className="flex items-end">
+                    <Button variant="outline" onClick={generatePassword} className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-slate-50">
+                      <VpnKeyOutlinedIcon className="mr-2 h-4 w-4" /> Auto-Generate
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Biometrics Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                  <div className="space-y-3 bg-slate-50 p-5 rounded-xl border border-slate-200">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">MaChip Hardware Token</Label>
+                        <p className="text-lg font-mono font-bold text-[#2A174E] mt-1 break-all">
+                          {formData.user_MachipId || "Unlinked"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button onClick={() => setShowRfidModal(true)} className="w-full bg-[#2A174E] text-white hover:bg-[#1a0e30]">
+                      Scan / Assign MaChip
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3 bg-slate-50 p-5 rounded-xl border border-slate-200">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fingerprint Template</Label>
+                        <p className="text-lg font-mono font-bold text-[#2A174E] mt-1 break-all">
+                          {formData.user_FingerprintId || "Unenrolled"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button onClick={() => setShowFingerprintModal(true)} className="w-full bg-[#2A174E] text-white hover:bg-[#1a0e30]">
+                      Enroll Fingerprint
+                    </Button>
+                  </div>
+                </div>
+
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Admin Verification Dialog */}
+        <Dialog open={showAdminConfirm} onOpenChange={(open) => {
+          if(!open) {
+            setShowAdminConfirm(false);
+            setAdminPassword("");
+          }
+        }}>
+          <DialogContent className="sm:max-w-md bg-white border-0 shadow-2xl rounded-xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-[#2A174E]">Verify Administrator Override</DialogTitle>
+              <DialogDescription className="text-slate-500 mt-2 leading-relaxed">
+                You are about to promote this user to <b>{formData.user_Role}</b>. This grants elevated system access. Please enter your current admin password to verify this critical action.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase">Your Admin Password</Label>
+                <Input
+                  type="password"
+                  placeholder="Enter your password..."
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="h-12 border-slate-200 focus-visible:ring-[#2A174E]"
+                  autoFocus
+                />
               </div>
-          ))}
-          </form>
-        </div>
+            </div>
+            <DialogFooter className="flex sm:justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowAdminConfirm(false); setAdminPassword(""); }} className="border-slate-200">
+                Cancel
+              </Button>
+              <Button onClick={confirmAdminPromotion} className="bg-[#2A174E] hover:bg-[#1a0e30] text-white">
+                Confirm Promotion
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
-      {/* Bottom Center: Action Button */}
-      <div className="bottom-center">
-        <button className="cancelButton" onClick={handleCancel}>
-          Cancel
-        </button>
-        <button className="submitButton" onClick={handleUpdate}>
-          Update Profile
-        </button>
-      </div>
+      
+      {/* Modals for Scanning */}
+      <RfidScanModal 
+        isOpen={showRfidModal} 
+        onClose={() => setShowRfidModal(false)}
+        onRescan={handleScanRFID}
+        scannedId={formData.user_MachipId} 
+        error={rfidError}
+        currentId={originalMachipId}
+      />
+      <RfidScanModal 
+        isOpen={showFingerprintModal} 
+        onClose={() => setShowFingerprintModal(false)}
+        onRescan={handleScanFingerprint}
+        scannedId={formData.user_FingerprintId} 
+        error={fingerprintError}
+        currentId={originalFingerprintId}
+        title="Fingerprint Scanner"
+      />
+
+      </Sidebar>
     </div>
-
-    {/* Admin Confirmation Modal */}
-    {showAdminConfirm && (
-      <div className="adminConfirmOverlay">
-        <div className="adminConfirmModal">
-          <h2>Admin Promotion Required</h2>
-          <p>You are about to promote this user to <b>{formData.user_Role}</b>. This grants elevated system access.</p>
-          <p className="subtext">Please enter your current admin password to verify this action:</p>
-          <input
-            type="password"
-            placeholder="Confirm Admin Password"
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-            className="adminPassInput"
-            autoFocus
-          />
-          <div className="modalButtons">
-            <button className="cancel" onClick={() => { setShowAdminConfirm(false); setAdminPassword(""); }}>
-              Cancel
-            </button>
-            <button className="confirm" onClick={confirmAdminPromotion}>
-              Confirm Promotion
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    <RfidScanModal 
-      isOpen={showRfidModal} 
-      onClose={() => setShowRfidModal(false)}
-      onRescan={handleScanRFID}
-      scannedId={formData.user_MachipId} 
-      error={rfidError}
-      currentId={originalMachipId}
-    />
-    <RfidScanModal 
-      isOpen={showFingerprintModal} 
-      onClose={() => setShowFingerprintModal(false)}
-      onRescan={handleScanFingerprint}
-      scannedId={formData.user_FingerprintId} 
-      error={fingerprintError}
-      currentId={originalFingerprintId}
-      title="Fingerprint Scanner"
-    />
-    </Sidebar>
-  </div>
-);
+  );
 };
 
 export default Edit;

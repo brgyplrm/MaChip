@@ -1,8 +1,13 @@
+import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
-import { useState, useEffect } from "react";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import SaveIcon from "@mui/icons-material/Save";
+import MemoryIcon from "@mui/icons-material/Memory";
+import CurrencyExchangeIcon from "@mui/icons-material/CurrencyExchange";
+import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
+import CheckIcon from "@mui/icons-material/Check";
+import CloseIcon from "@mui/icons-material/Close";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
 
@@ -16,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 
 const Settings = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const isAdmin = userData?.user_RoleId === 1;
+  const isAdmin = userData?.user_RoleId === 1 || userData?.user_RoleId === 4;
 
   const { refreshSystemTime } = useSystemTime();
   const [realTime, setRealTime] = useState(new Date());
@@ -25,6 +30,13 @@ const Settings = () => {
   const [vlRate, setVlRate] = useState(1.0);
   const [slRate, setSlRate] = useState(1.0);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -57,6 +69,7 @@ const Settings = () => {
   }, []);
 
   const handleSaveSettings = async () => {
+    setSaving(true);
     try {
       const response = await fetchWithAuth("/api/system/settings", {
         method: "POST",
@@ -70,141 +83,186 @@ const Settings = () => {
       });
       if (response.ok) {
         await refreshSystemTime();
-        alert("System settings updated successfully!");
+        showToast("System settings updated successfully!");
       } else {
-        alert("Failed to update settings.");
+        showToast("Failed to update settings.", "error");
       }
     } catch (error) {
       console.error("Error saving settings:", error);
-      alert("Error connecting to server.");
+      showToast("Error connecting to server.", "error");
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-8 w-full max-w-[1200px] mx-auto overflow-x-hidden min-w-0">
         
-        <div className="mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">System Settings</h1>
-          <span className="text-sm text-slate-500 mt-1 block">Manage system configurations and environments</span>
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">System Settings</h1>
+            <span className="text-sm text-slate-500 mt-1 block">Manage core system configurations and operational environments.</span>
+          </div>
+          {isAdmin && (
+            <Button 
+              onClick={handleSaveSettings} 
+              disabled={loading || saving}
+              className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm h-11 px-6"
+            >
+              <SaveIcon className="mr-2 h-4 w-4" /> 
+              {saving ? "Saving..." : "Save All Settings"}
+            </Button>
+          )}
         </div>
 
-        <Card className="shadow-sm border-0 bg-white mb-6">
-          <CardHeader className="border-b border-slate-100 pb-4 mb-4">
-            <CardTitle className="text-lg text-[#2A174E]">General Configuration</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left Section: Leave Conversion Settings */}
-            <div className="item">
-              <h2 className="itemTitle">Leave Conversion Config</h2>
-              <div className="details">
-                <div className="detailItem">
-                  <span className="itemKey">VL Reward Rate:</span>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    className="rateInput"
-                    value={vlRate}
-                    onChange={(e) => setVlRate(e.target.value)}
-                    placeholder="e.g. 1.0"
-                  />
-                </div>
-                <div className="detailItem">
-                  <span className="itemKey">SL Reward Rate:</span>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    className="rateInput"
-                    value={slRate}
-                    onChange={(e) => setSlRate(e.target.value)}
-                    placeholder="e.g. 1.0"
-                  />
-                </div>
-                {isAdmin && (
-                  <button className="saveButton" onClick={handleSaveSettings}>
-                    <SaveIcon className="icon" /> Save Config
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Right Section: System Preferences */}
-            <div className="item">
-              <h2 className="itemTitle">MaChip Configuration</h2>
-              <div className="details">
-                <div className="detailItem">
-                  <span className="itemKey">Authentication Mode:</span>
-                  <span className="itemValue">Biometrics + Microchip</span>
-                </div>
-                <div className="detailItem">
-                  <span className="itemKey">System Status:</span>
-                  <span className="itemValue statusActive">Online</span>
-                </div>
-                {/* <button className="editButton">System Sync</button> */}
-              </div>
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                <span className="text-sm font-bold text-slate-500 uppercase tracking-wider">System Status</span>
-                <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100 w-fit">
-                  Online
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Time Settings Card */}
-          <Card className="shadow-sm border-0 bg-white">
-            <CardHeader className="border-b border-slate-100 pb-4 mb-4">
-              <CardTitle className="text-lg text-[#2A174E]">System Time & Date</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
+        {loading ? (
+          <div className="text-center p-12 text-slate-400 animate-pulse">Loading configurations...</div>
+        ) : (
+          <div className="space-y-6">
+            
+            {/* Top Row: Conversion & Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              <div className="flex flex-col gap-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Current Real-Time</span>
-                <div className="flex items-center gap-4 text-[#2A174E] font-semibold">
-                  <span className="flex items-center gap-1.5"><AccessTimeIcon className="text-slate-400 h-4 w-4" /> {realTime.toLocaleTimeString()}</span>
-                  <span className="flex items-center gap-1.5"><CalendarTodayIcon className="text-slate-400 h-4 w-4" /> {realTime.toLocaleDateString()}</span>
-                </div>
-              </div>
+              {/* Leave Conversion Settings */}
+              <Card className="shadow-sm border-0 bg-white">
+                <CardHeader className="border-b border-slate-100 pb-4 mb-4 bg-slate-50/50 rounded-t-xl">
+                  <CardTitle className="text-lg text-[#2A174E] flex items-center gap-2">
+                    <CurrencyExchangeIcon className="h-5 w-5 text-slate-400" />
+                    Leave Conversion Config
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Vacation Leave (VL) Reward Rate</Label>
+                    <Input 
+                      type="number" 
+                      step="0.01"
+                      value={vlRate}
+                      onChange={(e) => setVlRate(e.target.value)}
+                      disabled={!isAdmin}
+                      placeholder="e.g. 1.0"
+                      className="border-slate-200 focus-visible:ring-[#2A174E]"
+                    />
+                    <p className="text-xs text-slate-400">Multiplier applied to unused VL days during year-end conversion.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sick Leave (SL) Reward Rate</Label>
+                    <Input 
+                      type="number" 
+                      step="0.01"
+                      value={slRate}
+                      onChange={(e) => setSlRate(e.target.value)}
+                      disabled={!isAdmin}
+                      placeholder="e.g. 1.0"
+                      className="border-slate-200 focus-visible:ring-[#2A174E]"
+                    />
+                    <p className="text-xs text-slate-400">Multiplier applied to unused SL days during year-end conversion.</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-              {isAdmin && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="mock-mode" className="text-sm font-bold text-slate-500 uppercase tracking-wider cursor-pointer">Mock Time Enabled</Label>
+              {/* MaChip / System Status */}
+              <Card className="shadow-sm border-0 bg-white">
+                <CardHeader className="border-b border-slate-100 pb-4 mb-4 bg-slate-50/50 rounded-t-xl">
+                  <CardTitle className="text-lg text-[#2A174E] flex items-center gap-2">
+                    <MemoryIcon className="h-5 w-5 text-slate-400" />
+                    MaChip Hardware Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex justify-between items-center p-4 bg-slate-50 rounded-lg border border-slate-100">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Authentication Mode</Label>
+                      <p className="text-sm font-semibold text-slate-800">Biometrics + Microchip</p>
+                    </div>
+                    <MemoryIcon className="text-slate-300 h-8 w-8" />
+                  </div>
+                  
+                  <div className="flex justify-between items-center p-4 bg-slate-50 rounded-lg border border-slate-100">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Connection Status</Label>
+                      <p className="text-sm font-semibold text-slate-800">Main Terminal Gateway</p>
+                    </div>
+                    <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 shadow-sm px-3 py-1">
+                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-2"></span> Online
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Bottom Row: Time Environment */}
+            <Card className="shadow-sm border-0 bg-white">
+              <CardHeader className="border-b border-slate-100 pb-4 mb-4 bg-slate-50/50 rounded-t-xl">
+                <CardTitle className="text-lg text-[#2A174E] flex items-center gap-2">
+                  <SettingsSuggestIcon className="h-5 w-5 text-slate-400" />
+                  System Time Environment
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                
+                {/* Real Time Display */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Current Real-Time Engine</Label>
+                    <p className="text-sm text-indigo-900/70">The absolute server time, regardless of mock settings.</p>
+                  </div>
+                  <div className="flex items-center gap-4 text-[#2A174E] font-bold text-lg bg-white px-4 py-2 rounded-lg shadow-sm border border-indigo-100">
+                    <span className="flex items-center gap-1.5"><CalendarTodayIcon className="text-indigo-400 h-5 w-5" /> {realTime.toLocaleDateString()}</span>
+                    <span className="text-indigo-200">|</span>
+                    <span className="flex items-center gap-1.5"><AccessTimeIcon className="text-indigo-400 h-5 w-5" /> {realTime.toLocaleTimeString()}</span>
+                  </div>
+                </div>
+
+                {/* Mock Time Controls */}
+                <div className={`p-5 rounded-xl border transition-colors ${mockEnabled ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="mock-mode" className="text-sm font-bold text-slate-700 cursor-pointer">Enable Mock Time (Testing Mode)</Label>
+                      <p className="text-xs text-slate-500 max-w-md">Overrides the global system time for all attendance and payroll calculations. Use strictly for testing future/past scenarios.</p>
+                    </div>
                     <Switch 
                       id="mock-mode"
                       checked={mockEnabled} 
                       onCheckedChange={setMockEnabled}
+                      disabled={!isAdmin}
                       className="data-[state=checked]:bg-[#2A174E]"
                     />
                   </div>
 
                   {mockEnabled && (
-                    <div className="space-y-3 pt-2">
-                      <Label htmlFor="mock-time" className="text-sm font-bold text-[#2A174E]">Set Mock Date & Time</Label>
+                    <div className="space-y-3 pt-4 border-t border-amber-200/50 animate-in fade-in slide-in-from-top-2">
+                      <Label htmlFor="mock-time" className="text-xs font-bold text-amber-700 uppercase tracking-wider">Set Simulated Date & Time</Label>
                       <Input 
                         id="mock-time"
                         type="datetime-local" 
                         value={mockTime}
                         onChange={(e) => setMockTime(e.target.value)}
-                        className="bg-white focus-visible:ring-[#2A174E]"
+                        disabled={!isAdmin}
+                        className="bg-white border-amber-200 focus-visible:ring-amber-500 max-w-md"
                       />
                     </div>
                   )}
+                </div>
 
-                  <div className="pt-4 border-t border-slate-100 mt-2">
-                    <Button onClick={handleSaveSettings} className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]">
-                      <SaveIcon className="mr-2 h-4 w-4" /> Save Time Settings
-                    </Button>
-                  </div>
-                </>
-              )}
+              </CardContent>
+            </Card>
 
-            </CardContent>
-          </Card>
+          </div>
+        )}
 
+      </div>
+
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg font-medium text-white ${toast.type === "success" ? "bg-green-600" : "bg-red-600"} animate-in slide-in-from-bottom-5`}>
+          {toast.type === "success" ? <CheckIcon fontSize="small" /> : <CloseIcon fontSize="small" /> }
+          {toast.message}
         </div>
+      )}
       </Sidebar>
     </div>
   );

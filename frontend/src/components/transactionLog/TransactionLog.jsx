@@ -3,6 +3,12 @@ import Sidebar from "../../components/Sidebar";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import CloseIcon from "@mui/icons-material/Close";
+import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
+import PaymentsIcon from "@mui/icons-material/Payments";
+import SyncIcon from "@mui/icons-material/Sync";
+import GppBadIcon from "@mui/icons-material/GppBad";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
@@ -23,9 +29,9 @@ const TransactionLog = () => {
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
 
+  // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage] = useState(10);
-  const [goToValue, setGoToValue] = useState("");
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -44,6 +50,19 @@ const TransactionLog = () => {
     fetchTransactions();
   }, []);
 
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, actionFilter, itemsPerPage]);
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setActionFilter("All Actions");
+    setCurrentPage(1);
+  };
+
+  const isFiltering = searchTerm !== "" || actionFilter !== "All Actions";
+
   const filteredData = transactions.filter(t => {
     const matchesSearch = (t.emp_FirstName + " " + t.emp_LastName).toLowerCase().includes(searchTerm.toLowerCase()) || 
                           t.event_Type.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -52,28 +71,12 @@ const TransactionLog = () => {
     return matchesSearch && matchesAction;
   });
 
-  const indexOfLastLog = currentPage * rowsPerPage;
-  const indexOfFirstLog = indexOfLastLog - rowsPerPage;
-  const currentLogs = filteredData.slice(indexOfFirstLog, indexOfLastLog);
-  const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, actionFilter]);
-
-  const handleGoToPage = (e) => {
-    e.preventDefault();
-    const pageNum = parseInt(goToValue);
-    if (pageNum >= 1 && pageNum <= totalPages) {
-      setCurrentPage(pageNum);
-      setGoToValue("");
-    }
-  };
-
-  const pageNumbers = [];
-  for (let i = 1; i <= totalPages; i++) {
-    pageNumbers.push(i);
-  }
+  // Pagination Logic
+  const totalItems = filteredData.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const currentLogs = filteredData.slice(startIndex, endIndex);
 
   const uniqueActions = ["All Actions", ...new Set(transactions.map(t => t.event_Type))];
 
@@ -150,108 +153,229 @@ const TransactionLog = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
         
+        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Transaction Log</h1>
-            <span className="text-sm text-slate-500 mt-1 block">View and track all financial and system transactions</span>
+            <span className="text-sm text-slate-500 mt-1 block">View and track all financial events, batch runs, and system anomalies.</span>
           </div>
-          <Button variant="outline" className="w-full md:w-auto bg-white border-slate-300 text-slate-700" onClick={handleExport}>
+          <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={handleExport}>
             <FileDownloadIcon className="mr-2 h-4 w-4" /> Export CSV
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Transactions</label><p className="text-2xl font-bold text-slate-800 mt-1">{stats.total}</p></CardContent></Card>
-          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payroll Releases</label><p className="text-2xl font-bold text-green-500 mt-1">{stats.payrollReleases}</p></CardContent></Card>
-          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Batch Runs</label><p className="text-2xl font-bold text-amber-500 mt-1">{stats.batchRuns}</p></CardContent></Card>
-          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Unauthorized Scans</label><p className="text-2xl font-bold text-red-600 mt-1">{stats.unauthorizedScans}</p></CardContent></Card>
+        {/* Dashboard-Style Widgets Row */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in zoom-in-95 duration-200">
+          {/* Card 1: Total Transactions */}
+          <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Total Events</p>
+                  <p className="text-4xl font-bold text-white">{stats.total}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">All recorded transactions</p>
+              </div>
+              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <FormatListBulletedIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Payroll Releases */}
+          <Card className="shadow-sm border-0 bg-[#3B4E17] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Payroll Releases</p>
+                  <p className="text-4xl font-bold text-white">{stats.payrollReleases}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Successful fund disbursements</p>
+              </div>
+              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <PaymentsIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Batch Runs */}
+          <Card className="shadow-sm border-0 bg-[#ECC04B] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Batch Runs</p>
+                  <p className="text-4xl font-bold text-white">{stats.batchRuns}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Automated bulk generations</p>
+              </div>
+              <div className="bg-white/20 text-[#D4AF37] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <SyncIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 4: Unauthorized Scans (Red Theme) */}
+          <Card className="shadow-sm border-0 bg-[#991b1b] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Anomalies</p>
+                  <p className="text-4xl font-bold text-white">{stats.unauthorizedScans}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Unauthorized or failed scans</p>
+              </div>
+              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <GppBadIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <Card className="mb-6 shadow-sm border-0 py-0">
-          <CardContent className="p-4 flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input type="text" placeholder="Search by user, action, or details..." onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-slate-50/50" />
+        {/* Filters Card */}
+        <Card className="shadow-sm border-0 bg-white mb-6 py-0">
+          <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full xl:max-w-md">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Search by user, action, or details..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+              />
             </div>
-            <div className="w-full md:w-64">
-              <Select value={actionFilter} onValueChange={setActionFilter}>
-                <SelectTrigger className="bg-slate-50/50">
-                  <SelectValue placeholder="All Actions" />
-                </SelectTrigger>
-                <SelectContent>
-                  {uniqueActions.map(a => <SelectItem key={a} value={a}>{a.replace(/_/g, " ")}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
+                <Select value={actionFilter} onValueChange={setActionFilter}>
+                  <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectValue placeholder="All Actions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uniqueActions.map(a => <SelectItem key={a} value={a}>{a.replace(/_/g, " ")}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isFiltering && (
+                <Button 
+                  variant="ghost" 
+                  onClick={handleClearFilters}
+                  className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold"
+                >
+                  <CloseIcon className="h-4 w-4 mr-1" /> Clear
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-0 bg-white py-2 px-4">
+        {/* Table Card */}
+        <Card className="shadow-sm border-0 bg-white py-0">
           <CardContent className="p-0 overflow-x-auto">
-            {loading ? <div className="p-12 text-center text-slate-400">Loading...</div> : (
-              <Table className="min-w-[900px]">
-                <TableHeader className="bg-slate-50/50">
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Initiated By</TableHead>
-                    <TableHead>Event Category</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>IP Address</TableHead>
-                    <TableHead className="text-right pr-6">Details</TableHead>
+            {loading ? <div className="p-12 text-center text-slate-400">Loading records...</div> : (
+              <Table className="min-w-[1000px] md:min-w-full">
+                <TableHeader className="bg-[#2B174F]">
+                  <TableRow className="hover:bg-transparent border-b-0">
+                    <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Timestamp</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Initiated By</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Event Category</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider w-1/4">Description</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">IP Address</TableHead>
+                    <TableHead className="font-semibold text-white py-4 text-right pr-6 uppercase text-xs tracking-wider">Details</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentLogs.map((t) => {
-                    let badgeColor = "bg-slate-100 text-slate-700";
-                    const eventLower = t.event_Type.toLowerCase();
-                    if (eventLower.includes("fail") || eventLower.includes("reject") || eventLower.includes("unauth")) badgeColor = "bg-red-100 text-red-800";
-                    else if (eventLower.includes("success") || eventLower.includes("release") || eventLower.includes("complete")) badgeColor = "bg-green-100 text-green-800";
-                    else if (eventLower.includes("batch") || eventLower.includes("gen")) badgeColor = "bg-amber-100 text-amber-800";
+                  {currentLogs.length > 0 ? (
+                    currentLogs.map((t) => {
+                      let badgeColor = "bg-slate-100 text-slate-700 border-slate-200";
+                      const eventLower = t.event_Type.toLowerCase();
+                      if (eventLower.includes("fail") || eventLower.includes("reject") || eventLower.includes("unauth")) badgeColor = "bg-red-100 text-red-800 border-red-200";
+                      else if (eventLower.includes("success") || eventLower.includes("release") || eventLower.includes("complete")) badgeColor = "bg-green-100 text-green-800 border-green-200";
+                      else if (eventLower.includes("batch") || eventLower.includes("gen")) badgeColor = "bg-amber-100 text-amber-800 border-amber-200";
 
-                    return (
-                      <TableRow key={t.transId} className="hover:bg-slate-50/50">
-                        <TableCell className="text-slate-500 text-xs">{new Date(t.createdAt).toLocaleString()}</TableCell>
-                        <TableCell className="font-semibold text-[#2A174E]">
-                          {t.emp_FirstName 
-                            ? `${t.emp_FirstName} ${t.emp_LastName} (${formatUserId(t.user_Id)})` 
-                            : t.event_Type === "UNAUTHORIZED_SCAN" ? `Unknown Device` : "System"
-                          }
-                        </TableCell>
-                        <TableCell><Badge variant="secondary" className={`${badgeColor} uppercase tracking-wider text-[10px]`}>{t.event_Type.replace(/_/g, " ")}</Badge></TableCell>
-                        <TableCell className="text-slate-500 text-sm max-w-[300px] truncate" title={t.description}>{maskDescription(t.description, t.event_Type)}</TableCell>
-                        <TableCell className="text-slate-400 font-mono text-xs">{t.ip_Address || t.metadata?.deviceIp || "Local"}</TableCell>
-                        <TableCell className="text-right pr-6">
-                          <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="text-[#6439ff] hover:bg-indigo-50">
-                            <VisibilityIcon className="mr-1 h-4 w-4"/>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {currentLogs.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24 text-slate-400">No transactions found.</TableCell></TableRow>}
+                      return (
+                        <TableRow key={t.transId} className="hover:bg-slate-50/50 border-b-slate-100 transition-colors">
+                          <TableCell className="text-slate-500 text-xs py-4 px-6">{new Date(t.createdAt).toLocaleString()}</TableCell>
+                          <TableCell className="font-semibold text-[#2A174E] py-4">
+                            {t.emp_FirstName 
+                              ? `${t.emp_FirstName} ${t.emp_LastName} (${formatUserId(t.user_Id)})` 
+                              : t.event_Type === "UNAUTHORIZED_SCAN" ? `Unknown Device` : "System"
+                            }
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <Badge variant="outline" className={`${badgeColor} uppercase tracking-wider text-[10px]`}>{t.event_Type.replace(/_/g, " ")}</Badge>
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-sm max-w-[300px] truncate py-4" title={t.description}>{maskDescription(t.description, t.event_Type)}</TableCell>
+                          <TableCell className="text-slate-400 font-mono text-xs py-4">{t.ip_Address || t.metadata?.deviceIp || "Local"}</TableCell>
+                          <TableCell className="text-right pr-6 py-4">
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="text-[#2A174E] hover:bg-slate-100 border border-transparent hover:border-slate-200">
+                              <VisibilityIcon className="mr-1 h-4 w-4"/> View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center h-24 text-slate-400 italic">No transactions found.</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             )}
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-100 bg-slate-50/30">
-              <div className="flex gap-2 items-center">
-                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>Previous</Button>
-                <div className="hidden md:flex gap-1">
-                  {pageNumbers.map(n => (
-                    <Button key={n} variant={currentPage === n ? "default" : "outline"} size="sm" className={currentPage === n ? "bg-[#2A174E] text-white" : ""} onClick={() => setCurrentPage(n)}>{n}</Button>
-                  ))}
+            {/* Pagination Controls */}
+            {totalItems > 0 && !loading && (
+              <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
+                <div className="flex items-center gap-4 text-sm text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <span className="hidden sm:inline">Rows per page:</span>
+                    <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(Number(val))}>
+                      <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
+                        <SelectValue placeholder="10" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="font-medium">
+                    Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
+                  </div>
                 </div>
-                <span className="md:hidden text-sm text-slate-500 mx-2">Page {currentPage} of {totalPages}</span>
-                <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Next</Button>
-              </div>
-              <form onSubmit={handleGoToPage} className="flex items-center gap-2">
-                <span className="text-sm text-slate-500">Go to:</span>
-                <Input type="number" value={goToValue} onChange={(e) => setGoToValue(e.target.value)} placeholder={totalPages} className="w-16 h-8 text-center" />
-              </form>
-            </div>
 
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                  >
+                    Previous
+                  </Button>
+                  <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
+                    {currentPage}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

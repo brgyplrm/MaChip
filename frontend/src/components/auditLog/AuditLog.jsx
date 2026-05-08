@@ -3,6 +3,12 @@ import Sidebar from "../../components/Sidebar";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import CloseIcon from "@mui/icons-material/Close";
+import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import UpdateIcon from "@mui/icons-material/Update";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
@@ -23,9 +29,9 @@ const AuditLogs = () => {
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
 
+  // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage] = useState(10);
-  const [goToValue, setGoToValue] = useState("");
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -44,6 +50,19 @@ const AuditLogs = () => {
     fetchLogs();
   }, []);
 
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterAction, itemsPerPage]);
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setFilterAction("All Actions");
+    setCurrentPage(1);
+  };
+
+  const isFiltering = searchQuery !== "" || filterAction !== "All Actions";
+
   const filteredLogs = logs.filter(log => {
     const matchesSearch = (log.user_FirstName + " " + log.user_LastName).toLowerCase().includes(searchQuery.toLowerCase()) || 
                           log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -52,28 +71,12 @@ const AuditLogs = () => {
     return matchesSearch && matchesAction;
   });
 
-  const indexOfLastLog = currentPage * rowsPerPage;
-  const indexOfFirstLog = indexOfLastLog - rowsPerPage;
-  const currentLogs = filteredLogs.slice(indexOfFirstLog, indexOfLastLog);
-  const totalPages = Math.ceil(filteredLogs.length / rowsPerPage) || 1;
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, filterAction]);
-
-  const handleGoToPage = (e) => {
-    e.preventDefault();
-    const pageNum = parseInt(goToValue);
-    if (pageNum >= 1 && pageNum <= totalPages) {
-      setCurrentPage(pageNum);
-      setGoToValue("");
-    }
-  };
-
-  const pageNumbers = [];
-  for (let i = 1; i <= totalPages; i++) {
-    pageNumbers.push(i);
-  }
+  // Pagination Logic
+  const totalItems = filteredLogs.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const currentLogs = filteredLogs.slice(startIndex, endIndex);
 
   const uniqueActions = ["All Actions", ...new Set(logs.map(l => l.action))];
 
@@ -139,100 +142,216 @@ const AuditLogs = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-4 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">System Audit Logs</h1>
-            <span className="text-sm text-slate-500 mt-1 block">Monitor administrative activities</span>
+            <span className="text-sm text-slate-500 mt-1 block">Monitor administrative activities, changes, and system access.</span>
           </div>
-          <Button variant="outline" className="w-full md:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white" onClick={handleExport}>
-            <FileDownloadIcon className="mr-2 h-4 w-4" /> Export
+          <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={handleExport}>
+            <FileDownloadIcon className="mr-2 h-4 w-4" /> Export CSV
           </Button>
         </div>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Actions</label><p className="text-2xl font-bold text-slate-800 mt-1">{stats.totalActions}</p></CardContent></Card>
-          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Security Alerts</label><p className="text-2xl font-bold text-red-500 mt-1">{stats.securityAlerts}</p></CardContent></Card>
-          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Updates</label><p className="text-2xl font-bold text-slate-800 mt-1">{stats.userUpdates}</p></CardContent></Card>
-          <Card className="shadow-sm border-0 py-0"><CardContent className="p-6"><label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Admins</label><p className="text-2xl font-bold text-[#2A174E] mt-1">{stats.activeAdmins}</p></CardContent></Card>
+        {/* Dashboard-Style Widgets Row */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in zoom-in-95 duration-200">
+          {/* Card 1: Total Actions */}
+          <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Total Actions</p>
+                  <p className="text-4xl font-bold text-white">{stats.totalActions}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">All recorded system changes</p>
+              </div>
+              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <FormatListBulletedIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Security Alerts (Red Theme) */}
+          <Card className="shadow-sm border-0 bg-[#991b1b] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Security Alerts</p>
+                  <p className="text-4xl font-bold text-white">{stats.securityAlerts}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Deletions and sensitive updates</p>
+              </div>
+              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <WarningAmberIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Updates */}
+          <Card className="shadow-sm border-0 bg-[#3B4E17] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">User Updates</p>
+                  <p className="text-4xl font-bold text-white">{stats.userUpdates}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Profile and rate modifications</p>
+              </div>
+              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <UpdateIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 4: Active Admins */}
+          <Card className="shadow-sm border-0 bg-[#ECC04B] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Active Admins</p>
+                  <p className="text-4xl font-bold text-white">{stats.activeAdmins}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Unique administrators logged</p>
+              </div>
+              <div className="bg-white/20 text-[#D4AF37] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <AdminPanelSettingsIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Filter Bar */}
-        <Card className="mb-6 shadow-sm border-0 py-0">
-          <CardContent className="p-4 flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input type="text" placeholder="Search..." onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 bg-slate-50/50" />
+        {/* Filters Card */}
+        <Card className="shadow-sm border-0 bg-white mb-6 py-0">
+          <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full xl:max-w-md">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Search logs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+              />
             </div>
-            <div className="w-full md:w-64">
-              <Select value={filterAction} onValueChange={setFilterAction}>
-                <SelectTrigger className="bg-slate-50/50">
-                  <SelectValue placeholder="All Actions" />
-                </SelectTrigger>
-                <SelectContent>
-                  {uniqueActions.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
+                <Select value={filterAction} onValueChange={setFilterAction}>
+                  <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectValue placeholder="All Actions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uniqueActions.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isFiltering && (
+                <Button 
+                  variant="ghost" 
+                  onClick={handleClearFilters}
+                  className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold"
+                >
+                  <CloseIcon className="h-4 w-4 mr-1" /> Clear
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Table */}
-        <Card className="shadow-sm border-0 bg-white py-2 px-4">
+        {/* Table Card */}
+        <Card className="shadow-sm border-0 bg-white py-0">
           <CardContent className="p-0 overflow-x-auto">
-            {loading ? <div className="p-12 text-center text-slate-400">Loading...</div> : (
-              <Table className="min-w-[900px]">
-                <TableHeader className="bg-slate-50/50">
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Module</TableHead>
-                    <TableHead>Administrator</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Target</TableHead>
-                    <TableHead className="text-right pr-6">Details</TableHead>
+            {loading ? <div className="p-12 text-center text-slate-400">Loading records...</div> : (
+              <Table className="min-w-[900px] md:min-w-full">
+                <TableHeader className="bg-[#2B174F]">
+                  <TableRow className="hover:bg-transparent border-b-0">
+                    <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Timestamp</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Module</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Administrator</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Action</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Target</TableHead>
+                    <TableHead className="font-semibold text-white py-4 text-right pr-6 uppercase text-xs tracking-wider">Details</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentLogs.map((log) => (
-                    <TableRow key={log.auditId} className="hover:bg-slate-50/50">
-                      <TableCell className="text-slate-500 text-xs">{new Date(log.createdAt).toLocaleString()}</TableCell>
-                      <TableCell><Badge variant="secondary" className="bg-slate-100 text-slate-600">{log.module || "System"}</Badge></TableCell>
-                      <TableCell className="font-semibold text-[#2A174E]">{log.user_FirstName} {log.user_LastName}</TableCell>
-                      <TableCell><Badge variant="outline">{log.action}</Badge></TableCell>
-                      <TableCell className="font-semibold text-slate-700">{log.target_Table} #{log.target_Id}</TableCell>
-                      <TableCell className="text-right pr-6">
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)} className="text-[#2A174E] hover:bg-slate-100">
-                          <VisibilityIcon className="mr-1 h-4 w-4"/> View
-                        </Button>
-                      </TableCell>
+                  {currentLogs.length > 0 ? (
+                    currentLogs.map((log) => (
+                      <TableRow key={log.auditId} className="hover:bg-slate-50/50 border-b-slate-100 transition-colors">
+                        <TableCell className="text-slate-500 text-xs py-4 px-6">{new Date(log.createdAt).toLocaleString()}</TableCell>
+                        <TableCell className="py-4">
+                          <Badge variant="secondary" className="bg-slate-100 text-slate-600">{log.module || "System"}</Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold text-[#2A174E] py-4">{log.user_FirstName} {log.user_LastName}</TableCell>
+                        <TableCell className="py-4"><Badge variant="outline" className="border-slate-200">{log.action}</Badge></TableCell>
+                        <TableCell className="font-semibold text-slate-700 py-4">{log.target_Table} #{log.target_Id}</TableCell>
+                        <TableCell className="text-right pr-6 py-4">
+                          <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)} className="text-[#2A174E] hover:bg-slate-100 border border-transparent hover:border-slate-200">
+                            <VisibilityIcon className="mr-1 h-4 w-4"/> View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center h-24 text-slate-400 italic">No logs found.</TableCell>
                     </TableRow>
-                  ))}
-                  {currentLogs.length === 0 && <TableRow><TableCell colSpan={6} className="text-center h-24 text-slate-400">No logs found.</TableCell></TableRow>}
+                  )}
                 </TableBody>
               </Table>
             )}
 
             {/* Pagination Controls */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-100 bg-slate-50/30">
-              <div className="flex gap-2 items-center">
-                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>Previous</Button>
-                <div className="hidden md:flex gap-1">
-                  {pageNumbers.map(n => (
-                    <Button key={n} variant={currentPage === n ? "default" : "outline"} size="sm" className={currentPage === n ? "bg-[#2A174E] text-white" : ""} onClick={() => setCurrentPage(n)}>{n}</Button>
-                  ))}
+            {totalItems > 0 && !loading && (
+              <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
+                <div className="flex items-center gap-4 text-sm text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <span className="hidden sm:inline">Rows per page:</span>
+                    <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(Number(val))}>
+                      <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
+                        <SelectValue placeholder="10" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="font-medium">
+                    Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
+                  </div>
                 </div>
-                <span className="md:hidden text-sm text-slate-500 mx-2">Page {currentPage} of {totalPages}</span>
-                <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>Next</Button>
-              </div>
-              <form onSubmit={handleGoToPage} className="flex items-center gap-2">
-                <span className="text-sm text-slate-500">Go to:</span>
-                <Input type="number" value={goToValue} onChange={(e) => setGoToValue(e.target.value)} placeholder={totalPages} className="w-16 h-8 text-center" />
-              </form>
-            </div>
 
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                  >
+                    Previous
+                  </Button>
+                  <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
+                    {currentPage}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

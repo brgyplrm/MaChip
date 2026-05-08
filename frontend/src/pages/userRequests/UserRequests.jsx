@@ -1,15 +1,14 @@
-import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CancelIcon from '@mui/icons-material/Cancel';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import Toast from "../../components/toast/Toast";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
-import { Link } from "react-router-dom";
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import AttachmentIcon from '@mui/icons-material/Attachment';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import HistoryIcon from '@mui/icons-material/History';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
@@ -18,20 +17,23 @@ import { useSystemTime } from "../../context/SystemTimeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 
 const UserRequests = () => {
   const { systemToday } = useSystemTime();
-  const dtrRef = useRef();
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const [activeTab, setActiveTab] = useState("submit"); 
+  const [activeTab, setActiveTab] = useState("submit"); // "submit" or "history"
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [historyRequests, setHistoryRequests] = useState([]);
   const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0 });
-  const [dtrData, setDtrData] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Pagination & History States
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+  const [selectedReqId, setSelectedReqId] = useState(null);
 
   useEffect(() => {
     const pending = historyRequests.filter(r => r.emp_reqStatusId === 1).length;
@@ -74,15 +76,8 @@ const UserRequests = () => {
   }, []);
 
   const payroll = useMemo(() => getPayrollDates(systemToday), [systemToday, getPayrollDates]);
-  const [dtrStartDate, setDtrStartDate] = useState(payroll.start);
-  const [dtrEndDate, setDtrEndDate] = useState(payroll.end);
   const [balance, setBalance] = useState({ VL_balance: 0, SL_balance: 0 });
   const [minAllowedDate, setMinAllowedDate] = useState("");
-
-  useEffect(() => {
-    setDtrStartDate(payroll.start);
-    setDtrEndDate(payroll.end);
-  }, [payroll]);
 
   const fetchPayrollPeriods = async () => {
     try {
@@ -101,30 +96,6 @@ const UserRequests = () => {
       }
     } catch (error) {
       console.error("Error fetching periods:", error);
-    }
-  };
-
-  const handleDownloadDTR = async () => {
-    const element = dtrRef.current;
-    if (!element) return;
-
-    try {
-      const canvas = await html2canvas(element, { 
-        scale: 2, 
-        useCORS: true, 
-        backgroundColor: "#f7f1e3" 
-      });
-      
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`DTR_${userData?.user_LastName || "Report"}.pdf`);
-    } catch (error) {
-      setToast({ message: "Failed to generate PDF", type: "error" });
     }
   };
 
@@ -311,27 +282,9 @@ const UserRequests = () => {
       const data = await response.json();
       if (response.ok) {
         setHistoryRequests(data);
-      } else {
-        console.error("Failed to fetch history:", data.error);
       }
     } catch (error) {
       console.error("Error fetching history:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchDTR = async () => {
-    if (!userData?.user_Id) return;
-    setLoading(true);
-    try {
-      const response = await fetchWithAuth(`/api/attendance/report?startDate=${dtrStartDate}&endDate=${dtrEndDate}&user_Id=${userData.user_Id}`);
-      const data = await response.json();
-      if (response.ok) {
-        setDtrData(data);
-      }
-    } catch (error) {
-      console.error("Error fetching DTR:", error);
     } finally {
       setLoading(false);
     }
@@ -343,7 +296,6 @@ const UserRequests = () => {
     const handleRefresh = () => {
       fetchBalance();
       fetchHistory();
-      if (activeTab === "dtr") fetchDTR();
     };
     window.addEventListener("dataRefresh", handleRefresh);
     return () => window.removeEventListener("dataRefresh", handleRefresh);
@@ -351,9 +303,6 @@ const UserRequests = () => {
 
   useEffect(() => {
     fetchHistory();
-    if (activeTab === "dtr") {
-      fetchDTR();
-    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -385,11 +334,15 @@ const UserRequests = () => {
     const newValue = type === "checkbox" ? checked : type === "file" ? files[0] : value;
     setFormData((prev) => ({ ...prev, [name]: newValue }));
 
-    if (name === "correctionCategory") {
-      refreshLogDisplay(formData.logCorrDate, newValue, currentPeriodLogs);
-    }
     if (name === "otDate") {
       suggestOTTimes(newValue);
+    }
+  };
+
+  const handleSelectChange = (name, val) => {
+    setFormData((prev) => ({ ...prev, [name]: val }));
+    if (name === "correctionCategory") {
+      refreshLogDisplay(formData.logCorrDate, val, currentPeriodLogs);
     }
   };
 
@@ -484,6 +437,7 @@ const UserRequests = () => {
         });
         fetchBalance();
         fetchHistory();
+        setActiveTab("history"); // Auto-switch to history to see it pending
       } else {
         setToast({ message: result.error || "Failed to submit request", type: "error" });
       }
@@ -492,270 +446,628 @@ const UserRequests = () => {
     }
   };
 
-  const getStatusClasses = (status) => {
-    if (!status) return { box: "bg-amber-50 border-amber-200", icon: "text-amber-500", badge: "bg-amber-500 hover:bg-amber-600" };
-    const s = status.toLowerCase();
-    if (s.includes("approve")) return { box: "bg-green-50 border-green-200", icon: "text-green-600", badge: "bg-green-500 hover:bg-green-600" };
-    if (s.includes("reject") || s.includes("denied")) return { box: "bg-red-50 border-red-200", icon: "text-red-600", badge: "bg-red-500 hover:bg-red-600" };
-    return { box: "bg-amber-50 border-amber-200", icon: "text-amber-500", badge: "bg-amber-500 hover:bg-amber-600" };
+  // --- Pagination & Formatting Logic for History ---
+  const totalItems = historyRequests.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const currentHistoryData = historyRequests.slice(startIndex, endIndex);
+  
+  const currentReq = selectedReqId ? historyRequests.find(r => r.emp_reqId === selectedReqId) : historyRequests[0];
+
+  useEffect(() => {
+    if (activeTab === "history" && historyRequests.length > 0 && !selectedReqId) {
+      setSelectedReqId(historyRequests[0].emp_reqId);
+    }
+  }, [activeTab, historyRequests, selectedReqId]);
+
+  const formatTime = (time) => {
+    if (!time) return "";
+    const [hours, minutes] = time.split(":");
+    const h = parseInt(hours, 10);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const getDates = (req) => {
+    if (!req) return "";
+    return req.VL_StartDate
+      ? `${new Date(req.VL_StartDate).toLocaleDateString()} — ${new Date(req.VL_EndDate).toLocaleDateString()}`
+      : req.SL_StartDate
+        ? `${new Date(req.SL_StartDate).toLocaleDateString()} — ${new Date(req.SL_EndDate).toLocaleDateString()}`
+        : req.OT_DateOf
+          ? `${new Date(req.OT_DateOf).toLocaleDateString()} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
+          : req.LC_logDate
+            ? new Date(req.LC_logDate).toLocaleDateString()
+            : req.EL_DateOfLeave
+              ? new Date(req.EL_DateOfLeave).toLocaleDateString()
+              : req.HD_DateOfLeave
+                ? new Date(req.HD_DateOfLeave).toLocaleDateString()
+                : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : "";
+  };
+
+  const getShortType = (typeName) => {
+    if (!typeName) return "REQ";
+    const name = typeName.toLowerCase();
+    if (name.includes("vacation")) return "VL";
+    if (name.includes("sick")) return "SL";
+    if (name.includes("overtime")) return "OT";
+    if (name.includes("onfield") || name.includes("field")) return "OW";
+    if (name.includes("correction")) return "LC";
+    if (name.includes("emergency")) return "EL";
+    if (name.includes("half-day") || name.includes("half")) return "HD";
+    return "REQ";
+  };
+
+  const getStatusColor = (statusId) => {
+    if (statusId === 1 || statusId === 4) return "bg-orange-100 text-orange-800 hover:bg-orange-100";
+    if (statusId === 2) return "bg-green-100 text-green-800 hover:bg-green-100";
+    if (statusId === 3) return "bg-red-100 text-red-800 hover:bg-red-100";
+    return "bg-slate-100 text-slate-800";
+  };
+
+  const getTypeColor = (shortType) => {
+    switch (shortType) {
+      case "VL": return "bg-indigo-100 text-indigo-800 border-transparent";
+      case "SL": return "bg-rose-100 text-rose-800 border-transparent";
+      case "OW": return "bg-orange-100 text-orange-800 border-transparent";
+      case "OT": return "bg-blue-100 text-blue-800 border-transparent";
+      case "LC": return "bg-emerald-100 text-emerald-800 border-transparent";
+      default: return "bg-slate-100 text-slate-800 border-transparent";
+    }
   };
 
   return (
-    <div className="home requestsPage">
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-        <div className="requestsWrapper">
-          <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-          <div className="statsRow">
-            <div className="statCard">
-              <div className="info"><span>Pending Requests</span><p>{stats.pending}</p></div>
-              <HourglassEmptyIcon className="icon pending" />
-            </div>
-            <div className="statCard">
-              <div className="info"><span>Approved Total</span><p>{stats.approved}</p></div>
-              <CheckCircleOutlineIcon className="icon approved" />
-            </div>
-            <div className="statCard">
-              <div className="info"><span>Rejected Total</span><p>{stats.rejected}</p></div>
-              <CancelOutlinedIcon className="icon rejected" />
-            </div>
-          </div><br />
-          <div className="contentSection">
-            {activeTab !== "dtr" ? (
-              <div className="requestsSplitLayout">
-                <Card className="requestCard formColumn shadow-sm border-0 bg-white">
-                  <CardContent className="pt-6">
-                    <h2 className="cardTitle">Submit New Request</h2>
-                    <form onSubmit={handleSubmit}>
-                    <div className="formGroup">
-                      <label>Request Type</label>
-                      <select name="emp_reqTypeId" value={formData.emp_reqTypeId} onChange={handleInputChange} required>
-                        <option value="" disabled>Select request type</option>
-                        <option value="1">Overtime (OT)</option>
-                        <option value="2">Onfield Work</option>
-                        <option value="3">Vacation Leave (VL)</option>
-                        <option value="4">Sick Leave (SL)</option>
-                        <option value="6">Emergency Leave (EL)</option>
-                        <option value="7">Half-Day</option>
-                        <option value="5">Log Correction</option>
-                      </select>
-                    </div>
+      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
+      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
 
-                    {formData.emp_reqTypeId === "7" && (
-                      <div className="conditionalFields">
-                        <div className="formRow">
-                          <div className="formGroup">
-                            <label>Half-Day Date</label>
-                            <input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required />
-                          </div>
-                          <div className="formGroup">
-                            <label>Period</label>
-                            <select name="period" value={formData.period} onChange={handleInputChange} required>
-                                <option value="" disabled>Select period</option>
-                                <option value="Morning">Morning (8:30am - 12:30pm)</option>
-                                <option value="Afternoon">Afternoon (1:00pm - 5:30pm)</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {formData.emp_reqTypeId === "6" && (
-                      <div className="conditionalFields">
-                        <div className="formRow">
-                          <div className="formGroup">
-                            <label>Emergency Leave Date</label>
-                            <input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {formData.emp_reqTypeId === "5" && (
-                      <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
-                        <p className="text-sm text-slate-500 italic">Current Period: {payroll.payEnding}</p>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Correction Category</label>
-                          <Select 
-                            value={formData.correctionCategory} 
-                            onValueChange={(val) => handleInputChange({ target: { name: 'correctionCategory', value: val, type: 'select' } })}
-                          >
-                            <SelectTrigger className="w-full bg-slate-50/50">
-                              <SelectValue placeholder="Select category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Morning">Morning (Time-In)</SelectItem>
-                              <SelectItem value="Afternoon">Afternoon (Time-Out)</SelectItem>
-                              <SelectItem value="Overtime">Overtime Correction</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Date to Correct</label>
-                          <Select 
-                            value={formData.logCorrDate} 
-                            onValueChange={(val) => handleLogDateChange(val)}
-                          >
-                            <SelectTrigger className="w-full bg-slate-50/50">
-                              <SelectValue placeholder="Select a date" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {periodDates.map(date => (
-                                <SelectItem key={date} value={date}>{new Date(date).toLocaleDateString()}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">Current In</label>
-                            <Input type="text" value={formData.currentIn || "No Log"} readOnly className="bg-slate-100 text-slate-500" />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">Current Out</label>
-                            <Input type="text" value={formData.currentOut || "No Log"} readOnly className="bg-slate-100 text-slate-500" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">Claimed In</label>
-                            <Input type="time" name="claimedIn" value={formData.claimedIn} onChange={handleInputChange} required className="bg-slate-50/50" />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">Claimed Out</label>
-                            <Input type="time" name="claimedOut" value={formData.claimedOut} onChange={handleInputChange} required className="bg-slate-50/50" />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {formData.emp_reqTypeId === "1" && (
-                      <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">OT Date</label>
-                          <Input type="date" name="otDate" value={formData.otDate} min={minAllowedDate} onChange={handleInputChange} required className="bg-slate-50/50" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">Time From</label>
-                            <Input type="time" name="hrFrom" value={formData.hrFrom} onChange={handleInputChange} required className="bg-slate-50/50" />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">Time To</label>
-                            <Input type="time" name="hrTo" value={formData.hrTo} onChange={handleInputChange} required className="bg-slate-50/50" />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Total Hours</label>
-                          <Input type="number" name="totalHrs" value={formData.totalHrs} readOnly className="bg-slate-100 text-slate-500" />
-                        </div>
-                      </div>
-                    )}
-
-                    {formData.emp_reqTypeId === "2" && (
-                      <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Onfield Date</label>
-                          <Input type="date" name="otDate" value={formData.otDate} min={minAllowedDate} onChange={handleInputChange} required className="bg-slate-50/50" />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Expected Hours</label>
-                          <Input type="number" name="totalHrs" value={formData.totalHrs} onChange={handleInputChange} step="0.5" min="1" max="8" required className="bg-slate-50/50" />
-                        </div>
-                      </div>
-                    )}
-
-                    {(formData.emp_reqTypeId === "3" || formData.emp_reqTypeId === "4") && (
-                      <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">Start Date</label>
-                            <Input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">End Date</label>
-                            <Input type="date" name="leaveEndDate" min={minAllowedDate} value={formData.leaveEndDate} onChange={handleInputChange} required className="bg-slate-50/50" />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Number of Days</label>
-                          <Input type="number" name="noDays" value={formData.noDays} readOnly className="bg-slate-100 text-slate-500" />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700">Description / Purpose</label>
-                      <Textarea name="remarks" placeholder="Please provide details..." value={formData.remarks} onChange={handleInputChange} required className="bg-slate-50/50 h-24 resize-none" />
-                    </div>
-
-                    <Button type="submit" className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white py-6">
-                      Submit Request
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-
-              {/* Right Column: History */}
-              <Card className="lg:col-span-5 shadow-sm border-0 bg-white h-fit max-h-[800px] flex flex-col">
-                <CardHeader>
-                  <CardTitle className="text-xl text-[#2A174E]">All My Requests</CardTitle>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-y-auto pr-2">
-                  <div className="space-y-3">
-                    {loading ? (
-                      <p className="text-slate-500 italic">Loading requests...</p>
-                    ) : historyRequests.length > 0 ? (
-                      historyRequests.slice(0, 15).map(req => {
-                        const style = getStatusClasses(req.status);
-                        
-                        let detailText = "";
-                        if (req.emp_reqTypeId === 1) detailText = `${req.Total_Hrs} Hr(s) • ${req.OT_DateOf}`;
-                        else if (req.emp_reqTypeId === 2) detailText = `${req.OW_NoDays} Day(s) • ${req.DateonField}`;
-                        else if (req.emp_reqTypeId === 6) detailText = `${req.EL_NoDays} Day(s) • ${req.EL_DateOfLeave}`;
-                        else if (req.emp_reqTypeId === 7) detailText = `Half-day (${req.HD_period}) • ${req.HD_DateOfLeave}`;
-                        else detailText = `${req.VL_NoDays || req.SL_NoDays || 1} Day(s) • ${req.VL_StartDate || req.SL_StartDate}`;
-
-                        return (
-                          <Link to={`/requests/${req.emp_reqId}`} key={req.emp_reqId} className="block transition-transform hover:-translate-y-0.5">
-                            <div className={`flex items-center gap-4 p-4 border rounded-xl shadow-sm ${style.box}`}>
-                              <div className="hidden sm:block shrink-0">
-                                {req.status?.toLowerCase().includes("approve") ? <CheckCircleIcon className={`h-8 w-8 ${style.icon}`} /> : 
-                                 req.status?.toLowerCase().includes("reject") ? <CancelIcon className={`h-8 w-8 ${style.icon}`} /> : 
-                                 <HourglassEmptyIcon className={`h-8 w-8 ${style.icon}`} />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <Badge variant="secondary" className="mb-1 bg-slate-200 text-slate-700 hover:bg-slate-200 font-bold">{req.reqTypeName}</Badge>
-                                <p className="text-sm text-slate-600 truncate">{req.status} • {detailText}</p>
-                              </div>
-                              <Badge className={`shrink-0 ${style.badge} text-white shadow-none`}>
-                                {req.status}
-                              </Badge>
-                            </div>
-                          </Link>
-                        );
-                      })
-                    ) : (
-                      <p className="text-slate-500 italic text-center py-8">No requests found.</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-            </div>
-          ) : (
-            <div className="bg-[#f7f1e3] p-8 rounded-xl shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold text-slate-800 uppercase tracking-widest m-0">Daily Time Record</h2>
-                  <Button className="bg-green-500 hover:bg-green-600 text-white" onClick={handleDownloadDTR}>
-                    <CloudUploadIcon className="mr-2 h-4 w-4" /> Export PDF
-                  </Button>
-              </div>
-              <div className="max-w-[600px] mx-auto text-slate-900" ref={dtrRef}>
-                 {/* DTR Display Logic is handled by the PDF generator, this div just holds the ref if needed for on-screen view */}
-              </div>
-            </div>
-          )}
+        {/* Header Section */}
+        <div className="mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">My Requests</h1>
+          <span className="text-sm text-slate-500 mt-1 block">
+              Submit and track your leave, overtime, and log corrections.
+          </span>
         </div>
+        
+        {/* Dashboard-Style Statistics Cards */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          {/* Card 1: Pending */}
+          <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Pending Requests</p>
+                  <p className="text-4xl font-bold text-white">{stats.pending}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Awaiting admin approval</p>
+              </div>
+              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <HourglassEmptyIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Approved */}
+          <Card className="shadow-sm border-0 bg-[#3B4E17] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Approved Total</p>
+                  <p className="text-4xl font-bold text-white">{stats.approved}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Processed and approved requests</p>
+              </div>
+              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <CheckCircleOutlineIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Rejected */}
+          <Card className="shadow-sm border-0 bg-[#ECC04B] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Rejected Total</p>
+                  <p className="text-4xl font-bold text-white">{stats.rejected}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Declined and unapproved requests</p>
+              </div>
+              <div className="bg-white/20 text-[#D4AF37] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <CancelOutlinedIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Split Content */}
+        <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-220px)] min-h-[600px]">
+          
+          {/* Left: Request Queue or Guidelines */}
+          <Card className="w-full lg:w-1/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-0">
+            <div className="flex border-b border-slate-100 bg-slate-50/50 shrink-0">
+              <button
+                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "submit" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                onClick={() => setActiveTab("submit")}
+              >
+                <AddCircleOutlineIcon className="h-4 w-4 mr-1 mb-0.5" /> Submit Request
+              </button>
+              <button
+                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "history" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                onClick={() => setActiveTab("history")}
+              >
+                <HistoryIcon className="h-4 w-4 mr-1 mb-0.5" /> History
+              </button>
+            </div>
+            
+            {activeTab === "submit" ? (
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Your Leave Balances</h4>
+                  <div className="flex justify-between items-center mb-2">
+                     <span className="text-sm font-semibold text-slate-700">Vacation Leave (VL)</span>
+                     <Badge className="bg-indigo-100 text-indigo-800">{balance.VL_balance} days</Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                     <span className="text-sm font-semibold text-slate-700">Sick Leave (SL)</span>
+                     <Badge className="bg-rose-100 text-rose-800">{balance.SL_balance} days</Badge>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                  <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Filing Guidelines</h4>
+                  <ul className="text-xs text-blue-700 space-y-2 list-disc pl-4 font-medium">
+                    <li>Vacation Leaves must be filed at least 3 days in advance.</li>
+                    <li>Log corrections are for the current period only.</li>
+                    <li>Attachments are strictly required for Sick Leaves exceeding 2 days.</li>
+                    <li>Sundays cannot be filed for Log Corrections.</li>
+                  </ul>
+                </div>
+
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 py-0 custom-scrollbar">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1 mt-4">
+                  Past Requests ({totalItems})
+                </h4>
+                
+                {loading ? (
+                  <div className="text-center py-8 text-slate-500 animate-pulse">Syncing history...</div>
+                ) : currentHistoryData.length > 0 ? (
+                  currentHistoryData.map((req) => {
+                    const isSelected = currentReq?.emp_reqId === req.emp_reqId;
+                    return (
+                      <div
+                        key={req.emp_reqId}
+                        onClick={() => setSelectedReqId(req.emp_reqId)}
+                        className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
+                            {getShortType(req.reqTypeName)}
+                          </Badge>
+                          <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
+                        </div>
+                        <p className="font-bold text-slate-800 text-sm mb-1">{req.reqTypeName}</p>
+                        <p className="text-xs text-slate-500">{getDates(req)}</p>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl mt-2">
+                    <HourglassEmptyIcon className="h-8 w-8 text-slate-300 mb-2" />
+                    <h5 className="font-bold text-[#2A174E] text-sm mb-1">No Records Found</h5>
+                    <p className="text-xs text-slate-500">Your history is currently empty.</p>
+                  </div>
+                )}
+
+                {/* Queue Pagination Footer */}
+                {totalItems > itemsPerPage && (
+                  <div className="flex items-center justify-between py-4 shrink-0">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                      disabled={currentPage === 1}
+                      className="h-8 px-2"
+                    >
+                      <ChevronLeftIcon className="h-4 w-4 text-slate-500" />
+                    </Button>
+                    <span className="text-xs font-semibold text-slate-500">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                      disabled={currentPage === totalPages}
+                      className="h-8 px-2"
+                    >
+                      <ChevronRightIcon className="h-4 w-4 text-slate-500" />
+                    </Button>
+                  </div>
+                )}
+
+              </div>
+            )}
+          </Card>
+
+          {/* Right: Detailed Review / Form Pane */}
+          <Card className="w-full lg:w-2/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-2">
+            {activeTab === "submit" ? (
+              <CardContent className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
+                <div className="mb-6">
+                  <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Submit New Request</h3>
+                  <p className="text-sm text-slate-500 mt-1">Fill out the form below to file a new attendance or leave request.</p>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Request Type <span className="text-red-500">*</span></label>
+                    <Select value={formData.emp_reqTypeId} onValueChange={(val) => handleSelectChange("emp_reqTypeId", val)} required>
+                      <SelectTrigger className="w-full bg-slate-50/50 border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectValue placeholder="Select request type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Overtime (OT)</SelectItem>
+                        <SelectItem value="2">Onfield Work</SelectItem>
+                        <SelectItem value="3">Vacation Leave (VL)</SelectItem>
+                        <SelectItem value="4">Sick Leave (SL)</SelectItem>
+                        <SelectItem value="5">Log Correction</SelectItem>
+                        <SelectItem value="6">Emergency Leave (EL)</SelectItem>
+                        <SelectItem value="7">Half-Day</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* CONDITIONAL FIELDS */}
+                  {formData.emp_reqTypeId === "7" && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100 border-dashed">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Half-Day Date</label>
+                        <Input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Period</label>
+                        <Select value={formData.period} onValueChange={(val) => handleSelectChange('period', val)} required>
+                          <SelectTrigger className="w-full bg-slate-50/50 border-slate-200">
+                            <SelectValue placeholder="Select period" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Morning">Morning (8:30am - 12:30pm)</SelectItem>
+                            <SelectItem value="Afternoon">Afternoon (1:00pm - 5:30pm)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.emp_reqTypeId === "6" && (
+                    <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Emergency Leave Date</label>
+                        <Input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.emp_reqTypeId === "5" && (
+                    <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                      <p className="text-xs font-bold text-slate-500 uppercase">Current Period: <span className="text-[#2A174E]">{payroll.payEnding}</span></p>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Correction Category</label>
+                        <Select value={formData.correctionCategory} onValueChange={(val) => handleSelectChange('correctionCategory', val)}>
+                          <SelectTrigger className="w-full bg-slate-50/50">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Morning">Morning (Time-In)</SelectItem>
+                            <SelectItem value="Afternoon">Afternoon (Time-Out)</SelectItem>
+                            <SelectItem value="Overtime">Overtime Correction</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Date to Correct</label>
+                        <Select value={formData.logCorrDate} onValueChange={(val) => handleLogDateChange(val)}>
+                          <SelectTrigger className="w-full bg-slate-50/50">
+                            <SelectValue placeholder="Select a date" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {periodDates.map(date => (
+                              <SelectItem key={date} value={date}>{new Date(date).toLocaleDateString()}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Current In</label>
+                          <Input type="text" value={formData.currentIn || "No Log"} readOnly className="bg-slate-100 text-slate-500" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Current Out</label>
+                          <Input type="text" value={formData.currentOut || "No Log"} readOnly className="bg-slate-100 text-slate-500" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Claimed In</label>
+                          <Input type="time" name="claimedIn" value={formData.claimedIn} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Claimed Out</label>
+                          <Input type="time" name="claimedOut" value={formData.claimedOut} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.emp_reqTypeId === "1" && (
+                    <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">OT Date</label>
+                        <Input type="date" name="otDate" value={formData.otDate} min={minAllowedDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Time From</label>
+                          <Input type="time" name="hrFrom" value={formData.hrFrom} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Time To</label>
+                          <Input type="time" name="hrTo" value={formData.hrTo} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Total Hours</label>
+                        <Input type="number" name="totalHrs" value={formData.totalHrs} readOnly className="bg-slate-100 text-slate-500 font-bold" />
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.emp_reqTypeId === "2" && (
+                    <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Onfield Date</label>
+                        <Input type="date" name="otDate" value={formData.otDate} min={minAllowedDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Expected Hours</label>
+                        <Input type="number" name="totalHrs" value={formData.totalHrs} onChange={handleInputChange} step="0.5" min="1" max="8" required className="bg-slate-50/50" />
+                      </div>
+                    </div>
+                  )}
+
+                  {(formData.emp_reqTypeId === "3" || formData.emp_reqTypeId === "4") && (
+                    <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Start Date</label>
+                          <Input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">End Date</label>
+                          <Input type="date" name="leaveEndDate" min={minAllowedDate} value={formData.leaveEndDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Number of Days</label>
+                        <Input type="number" name="noDays" value={formData.noDays} readOnly className="bg-slate-100 text-slate-500 font-bold" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2 pt-4 border-t border-slate-100 border-dashed">
+                    <label className="text-sm font-bold text-slate-700">Description / Purpose <span className="text-red-500">*</span></label>
+                    <Textarea name="remarks" placeholder="Please provide detailed remarks..." value={formData.remarks} onChange={handleInputChange} required className="bg-slate-50/50 resize-none h-24" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Attachment (Optional)</label>
+                    <Input type="file" name="proofFile" onChange={handleInputChange} accept="image/png, image/jpeg, image/jpg" className="bg-slate-50/50 cursor-pointer" />
+                    <p className="text-xs text-slate-400">Required for Sick Leaves spanning more than 2 days.</p>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 flex justify-end">
+                    <Button type="submit" className="bg-[#2A174E] text-white hover:bg-[#1a0e30] w-full sm:w-auto px-8">Submit Request</Button>
+                  </div>
+                </form>
+
+              </CardContent>
+            ) : (
+              <CardContent className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
+                {currentReq ? (
+                  <>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
+                      <div>
+                        <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {currentReq.reqTypeName}</h3>
+                        <p className="text-sm text-slate-500 mt-1">Submitted on {currentReq.date_Filed ? new Date(currentReq.date_Filed).toLocaleDateString() : ""}</p>
+                      </div>
+                      <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(currentReq.emp_reqStatusId)}`}>
+                        {currentReq.status}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-xl border border-slate-100 mb-4">
+                      
+                      <div className="space-y-1 sm:col-span-2 xl:col-span-1 p-3 -m-3 rounded-lg ">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Requested Schedule</label>
+                        <p className="font-bold text-[#2A174E]">{getDates(currentReq)}</p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duration / Details</label>
+                        <p className="font-semibold text-slate-800">
+                          {currentReq.emp_reqTypeId === 1
+                            ? `${currentReq.Total_Hrs || 0} Hrs`
+                            : currentReq.emp_reqTypeId === 2
+                              ? `${currentReq.OW_NoDays || 0} Day(s) (${currentReq.OW_NoHrs || 0} Hrs)`
+                              : currentReq.emp_reqTypeId === 5
+                                ? `${currentReq.LC_correctionCategory || "Correction"} for ${new Date(currentReq.LC_logDate).toLocaleDateString()}`
+                                : currentReq.emp_reqTypeId === 6 
+                                  ? `${currentReq.EL_NoDays || 0} Day(s)`
+                                  : currentReq.emp_reqTypeId === 7 
+                                    ? `Half-day (${currentReq.HD_period})`
+                                    : `${currentReq.VL_NoDays || currentReq.SL_NoDays || 0} Day(s)`}
+                        </p>
+                      </div>
+
+                      {currentReq.emp_reqTypeId === 1 && (
+                        <>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Time From</label>
+                            <p className="font-semibold text-slate-800">{formatTime(currentReq.HrFrom)}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Time To</label>
+                            <p className="font-semibold text-slate-800">{formatTime(currentReq.HrTo)}</p>
+                          </div>
+                        </>
+                      )}
+
+                      {currentReq.emp_reqTypeId === 5 && (
+                        <>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Category</label>
+                            <Badge variant="outline" className="mt-1">{currentReq.LC_correctionCategory || "N/A"}</Badge>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Current In (System)</label>
+                            <p className="font-semibold text-slate-800">{currentReq.LC_currentIn || "No Log"}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Current Out (System)</label>
+                            <p className="font-semibold text-slate-800">{currentReq.LC_currentOut || "No Log"}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Claimed In</label>
+                            <p className="font-bold text-blue-700">{formatTime(currentReq.LC_claimedIn)}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Claimed Out</label>
+                            <p className="font-bold text-blue-700">{formatTime(currentReq.LC_claimedOut)}</p>
+                          </div>
+                        </>
+                      )}
+
+                      {currentReq.emp_reqTypeId !== 1 && currentReq.emp_reqTypeId !== 5 && (
+                        <>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Status</label>
+                            <p className="font-semibold text-slate-800 mt-1">
+                                {currentReq.VL_withPayName || currentReq.SL_withPayName || (currentReq.emp_reqStatusId === 1 ? "Pending" : "N/A")}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                              {currentReq.emp_reqStatusId === 1 ? "Remaining Balance" : "Leave Used"}
+                            </label>
+                            <p className="font-semibold text-slate-800 mt-1">
+                              {currentReq.emp_reqTypeId === 3 
+                                ? (currentReq.emp_reqStatusId === 1 ? `${currentReq.VL_balance || 0} VL Remaining` : `${currentReq.VL_NoDays || 0} Day(s) Used`)
+                                : currentReq.emp_reqTypeId === 4 
+                                ? (currentReq.emp_reqStatusId === 1 ? `${currentReq.SL_balance || 0} SL Remaining` : `${currentReq.SL_NoDays || 0} Day(s) Used`)
+                                : "N/A"}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Processed By</label>
+                            <p className="font-semibold text-slate-800">{currentReq.approverName ? `${currentReq.approverName} (${formatUserId(currentReq.processedBy)})` : "Pending Review"}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
+                            <p className="font-semibold text-slate-800">{currentReq.date_Processed || "Pending"}</p>
+                          </div>
+                        </>
+                      )}
+
+                      {currentReq.emp_reqTypeId === 5 && (
+                        <>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Recommended By</label>
+                            <p className="font-semibold text-slate-800">{currentReq.recommenderName ? `${currentReq.recommenderName} (${formatUserId(currentReq.recommendedBy)})` : "Pending Recommendation"}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Approved By</label>
+                            <p className="font-semibold text-slate-800">{currentReq.approverName ? `${currentReq.approverName} (${formatUserId(currentReq.processedBy)})` : "Pending Approval"}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
+                            <p className="font-semibold text-slate-800">{currentReq.date_Processed || "Pending"}</p>
+                          </div>
+                        </>
+                      )}
+
+                      {(currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File) && (
+                        <div className="space-y-1 col-span-1 sm:col-span-2 xl:col-span-3">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachment</label>
+                          <div>
+                            <a 
+                              href={`/api/uploads/${currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center text-[#2A174E] font-semibold hover:underline mt-1"
+                            >
+                              <AttachmentIcon className="mr-1 h-4 w-4" /> View Attachment
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3 border-t border-slate-200 pt-4 mt-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your Remarks / Purpose</label>
+                        <p className="text-sm text-slate-700 italic bg-white p-4 rounded-lg border border-slate-200">"{currentReq.remarks || "No details provided"}"</p>
+                      </div>
+
+                      {currentReq.system_remarks && (
+                        <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3">
+                          <label className="text-xs font-bold text-red-600 uppercase tracking-wider">System Validation Note:</label>
+                          <p className="text-sm text-red-700 italic bg-red-50 p-4 rounded-lg border border-red-200">"{currentReq.system_remarks}"</p>
+                        </div>
+                      )}
+
+                      {currentReq.admin_remarks && (
+                        <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Admin Reply</label>
+                          <p className="text-sm text-slate-700 italic bg-white p-4 rounded-lg border border-slate-200">"{currentReq.admin_remarks}"</p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 p-12">
+                     <HourglassEmptyIcon className="h-12 w-12 text-slate-300 mb-4" />
+                     <p>Select a request from your history queue to view details.</p>
+                  </div>
+                )}
+              </CardContent>
+            )}
+          </Card>
+
+        </div>
+        
+        {/* Global styling for custom scrollbars */}
+        <style dangerouslySetContent={{__html: `
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent; 
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+          }
+        `}} />
       </div>
       </Sidebar>
     </div>
