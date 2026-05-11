@@ -49,6 +49,7 @@ const New = ({ inputs = [], title }) => {
   const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [showRfidModal, setShowRfidModal] = useState(false);
   const [rfidError, setRfidError] = useState("");
+  const [localScannedId, setLocalScannedId] = useState("");
   
   const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
   const isAdminManager = currentUser?.user_RoleId === 1;
@@ -102,10 +103,45 @@ const New = ({ inputs = [], title }) => {
 
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [fingerprintError, setFingerprintError] = useState("");
+  const [localFingerprintId, setLocalFingerprintId] = useState("");
+
+  useEffect(() => {
+    if (showRfidModal) {
+      setLocalScannedId("");
+      setRfidError("");
+      handleScanRFID();
+      fetchWithAuth("/api/system/reg-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: formData.user_Id || "temp", type: 'RFID' })
+      }).catch(err => console.error("Failed to start RFID session:", err));
+    } else {
+      fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
+        .catch(err => console.error("Failed to clear RFID session:", err));
+    }
+  }, [showRfidModal, formData.user_Id]);
+
+  useEffect(() => {
+    if (showFingerprintModal) {
+      setLocalFingerprintId("");
+      setFingerprintError("");
+      handleScanFingerprint();
+      fetchWithAuth("/api/system/reg-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: formData.user_Id || "temp", type: 'FP' })
+      }).catch(err => console.error("Failed to start FP session:", err));
+    } else {
+      fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
+        .catch(err => console.error("Failed to clear FP session:", err));
+      fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" })
+        .catch(err => console.error("Failed to clear in-memory FP session:", err));
+    }
+  }, [showFingerprintModal, formData.user_Id]);
 
   const handleScanFingerprint = async () => {
-    setShowFingerprintModal(true); 
-    setFormData(prev => ({ ...prev, user_FingerprintId: "", user_FingerprintTemplate: "" }));
+    setShowFingerprintModal(true);
+    setLocalFingerprintId("");
     setFingerprintError("");
 
     try {
@@ -113,19 +149,15 @@ const New = ({ inputs = [], title }) => {
       const data = await response.json();
 
       if (response.ok) {
-        setFormData((prev) => ({ 
-          ...prev, 
-          user_FingerprintId: data.fingerprintId,
-          user_FingerprintTemplate: data.template || "" 
-        }));
-        setToast({ message: `Fingerprint registered: ${data.fingerprintId}`, type: "success" });
+        setLocalFingerprintId(data.fingerprintId);
+        if (data.template) {
+           setFormData(prev => ({ ...prev, user_FingerprintTemplate: data.template }));
+        }
       } else {
         setFingerprintError(data.error || "Failed to scan fingerprint.");
-        setToast({ message: data.error || "Scan failed.", type: "error" });
       }
     } catch (err) {
       setFingerprintError("An error occurred during scanning.");
-      setToast({ message: "An error occurred.", type: "error" });
     }
   };
 
@@ -176,8 +208,8 @@ const New = ({ inputs = [], title }) => {
   };
 
   const handleScanRFID = async () => {
-    setShowRfidModal(true); 
-    setFormData(prev => ({ ...prev, user_MachipId: "" }));
+    setShowRfidModal(true);
+    setLocalScannedId("");
     setRfidError("");
 
     try {
@@ -185,16 +217,22 @@ const New = ({ inputs = [], title }) => {
       const data = await response.json();
 
       if (response.ok) {
-        setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
-        setToast({ message: `New MaChip scanned: ${data.rfid}`, type: "success" });
+        // Check for duplicates
+        const checkResponse = await fetchWithAuth(`/api/users/check-machip/${data.rfid}`);
+        const checkData = await checkResponse.json();
+
+        if (checkResponse.ok && checkData.exists) {
+          setRfidError("This MaChip ID is already assigned to another user.");
+          setLocalScannedId(data.rfid);
+        } else {
+          setLocalScannedId(data.rfid);
+        }
       } else {
         setRfidError(data.error || "Failed to scan RFID. Please try again.");
-        if (data.rfid) setFormData((prev) => ({ ...prev, user_MachipId: data.rfid }));
-        setToast({ message: data.error || "Failed to scan RFID.", type: "error" });
+        if (data.rfid) setLocalScannedId(data.rfid);
       }
     } catch (err) {
       setRfidError("An error occurred while scanning.");
-      setToast({ message: "An error occurred while scanning.", type: "error" });
     }
   };
 
@@ -430,11 +468,11 @@ const New = ({ inputs = [], title }) => {
         </div>
 
         <Tabs defaultValue="single" className="w-full ">
-          <TabsList className="grid w-full grid-cols-2 mb-6 h-15! bg-[#2A174E] p-2">
-            <TabsTrigger value="single" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] font-semibold text-white transition-all text-md">
+          <TabsList className="grid w-full grid-cols-2 mb-6 h-15! bg-[white] p-2">
+            <TabsTrigger value="single" className="data-[state=active]:bg-[#2A174E] data-[state=active]:text-white font-semibold text-grey-500 transition-all text-md shadow-sm">
               Single Registration
             </TabsTrigger>
-            <TabsTrigger value="batch" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] font-semibold text-white transition-all text-md">
+            <TabsTrigger value="batch" className="data-[state=active]:bg-[#2A174E] data-[state=active]:text-white font-semibold text-grey-500 transition-all text-md shadow-sm">
               Batch Upload (CSV)
             </TabsTrigger>
           </TabsList>
@@ -723,14 +761,24 @@ const New = ({ inputs = [], title }) => {
           isOpen={showRfidModal} 
           onClose={() => setShowRfidModal(false)}
           onRescan={handleScanRFID}
-          scannedId={formData.user_MachipId} 
+          onConfirm={() => {
+            setFormData(prev => ({ ...prev, user_MachipId: localScannedId }));
+            setShowRfidModal(false);
+            setToast({ message: `MaChip linked: ${localScannedId}`, type: "success" });
+          }}
+          scannedId={localScannedId} 
           error={rfidError}
         />
         <RfidScanModal 
           isOpen={showFingerprintModal} 
           onClose={() => setShowFingerprintModal(false)}
           onRescan={handleScanFingerprint}
-          scannedId={formData.user_FingerprintId} 
+          onConfirm={() => {
+            setFormData(prev => ({ ...prev, user_FingerprintId: localFingerprintId }));
+            setShowFingerprintModal(false);
+            setToast({ message: `Fingerprint slot ${localFingerprintId} assigned`, type: "success" });
+          }}
+          scannedId={localFingerprintId} 
           error={fingerprintError}
           title="Fingerprint Scanner" 
         />

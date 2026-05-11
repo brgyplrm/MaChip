@@ -1,4 +1,4 @@
-const { sequelize, SystemSettings, Holiday, PayrollPeriod } = require("../config/sequelize.js");
+const { sequelize, SystemSettings, Holiday, PayrollPeriod, System_State } = require("../config/sequelize.js");
 const { getSystemTime } = require("../utils/systemTime.js");
 const { QueryTypes } = require("sequelize");
 const { syncHolidaysService } = require('../utils/holidaySyncService');
@@ -62,28 +62,6 @@ exports.updateHoliday = async (req, res) => {
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logAudit(req, currentAdminId, "System Settings", "UPDATE_HOLIDAY", "Holiday", holiday.holidayId, oldData, newData);
-
-    res.status(200).json(holiday);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.updateHoliday = async (req, res) => {
-  try {
-    const { holidayId } = req.params;
-    const { name, date, type } = req.body;
-
-    const holiday = await Holiday.findByPk(holidayId);
-    if (!holiday) {
-      return res.status(404).json({ error: "Holiday not found." });
-    }
-
-    const oldHoliday = holiday.toJSON();
-    await holiday.update({ name, date, type });
-
-    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logAudit(req, currentAdminId, "System Settings", "UPDATE_HOLIDAY", "Holiday", holiday.holidayId, oldHoliday, holiday.toJSON());
 
     res.status(200).json(holiday);
   } catch (error) {
@@ -310,3 +288,33 @@ exports.getTransactionLogs = async (req, res) => {
   }
 };
 
+exports.setRegistrationSession = async (req, res) => {
+  const { userId, type } = req.body; // type: 'RFID' or 'FP'
+  try {
+    const [session, created] = await System_State.findOrCreate({
+      where: { key: 'REGISTRATION_SESSION' },
+      defaults: { value: JSON.stringify({ userId, type }) }
+    });
+
+    if (!session) {
+       return res.status(500).json({ success: false, message: "Failed to create session" });
+    }
+
+    if (!created) {
+      await session.update({ value: JSON.stringify({ userId, type }) });
+    }
+
+    res.status(200).json({ success: true, message: "Registration session started" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.clearRegistrationSession = async (req, res) => {
+  try {
+    await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
+    res.status(200).json({ success: true, message: "Registration session cleared" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

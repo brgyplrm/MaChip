@@ -18,4 +18,7 @@ router.post("/payroll-periods", requireAdmin, systemController.createPayrollPeri
 router.get("/audit-logs", requireMaster, systemController.getAuditLogs);
 router.get("/transaction-logs", requireMaster, systemController.getTransactionLogs);
 
+router.post("/reg-session", requireAdmin, systemController.setRegistrationSession);
+router.delete("/reg-session", requireAdmin, systemController.clearRegistrationSession);
+
 module.exports = router;

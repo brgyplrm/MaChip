@@ -111,5 +111,29 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: true, freezeTableName: true },
   );
 
-  return { SystemSettings, Holiday, Audit_Log, Transaction_Log };
+  const System_State = sequelize.define(
+    "System_State",
+    {
+      stateId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      key: {
+        type: DataTypes.STRING,
+        unique: true,
+        allowNull: false,
+      },
+      value: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
+    },
+    {
+      timestamps: true,
+      freezeTableName: true,
+    },
+  );
+
+  return { SystemSettings, Holiday, Audit_Log, Transaction_Log, System_State };
 };

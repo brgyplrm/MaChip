@@ -1,4 +1,11 @@
-const { sequelize, Notification, User } = require("../config/sequelize.js");
+const { 
+  sequelize, 
+  Notification, 
+  User, 
+  user_logging, 
+  logged_status, 
+  attendance_status 
+} = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime } = require("../utils/systemTime.js");
 const { logAudit, logTransaction } = require("../utils/logger");
@@ -26,8 +33,56 @@ exports.markAttendance = async (req, res) => {
     
     const timeStr = now.toTimeString().split(" ")[0];
 
+    // ── BULK CLOCK OUT LOGIC ───────────────────────────────────────────────
+    if (user_Id === "all" && forcedStatus === 2) {
+      const activeReports = await sequelize.query(
+        `SELECT r."user_id", u."user_FirstName", u."user_LastName"
+         FROM "employee_Logging_report" r
+         JOIN "User" u ON r."user_id" = u."user_Id"
+         WHERE r."log_Date" = :todayStr AND r."logged_StatusId" = 1`,
+        { replacements: { todayStr }, type: QueryTypes.SELECT }
+      );
+
+      if (activeReports.length === 0) {
+        return res.status(200).json({ message: "No employees are currently clocked in." });
+      }
+
+      let successCount = 0;
+      for (const report of activeReports) {
+        // For each user, we record a simple clock-out
+        // To keep it simple, we insert a log and update the report
+        const targetId = report.user_id;
+        const totalMinutes = now.getHours() * 60 + now.getMinutes();
+        const isLunchWindow = totalMinutes >= 690 && totalMinutes < 810;
+        const nextStatus = isLunchWindow ? 3 : 2;
+
+        await sequelize.query(
+          `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId")
+           VALUES (:targetId, :todayStr, :timeStr, :nextStatus)`,
+          { replacements: { targetId, todayStr, timeStr, nextStatus }, type: QueryTypes.INSERT }
+        );
+
+        const outArr = JSON.parse((await sequelize.query(
+          `SELECT "time_Logged_outArr" FROM "employee_Logging_report" WHERE "user_id" = :targetId AND "log_Date" = :todayStr`,
+          { replacements: { targetId, todayStr }, type: QueryTypes.SELECT }
+        ))[0].time_Logged_outArr || "[]");
+        
+        outArr.push(timeStr);
+
+        await sequelize.query(
+          `UPDATE "employee_Logging_report" 
+           SET "time_Logged_outArr" = :outArr, "logged_StatusId" = 2
+           WHERE "user_id" = :targetId AND "log_Date" = :todayStr`,
+          { replacements: { outArr: JSON.stringify(outArr), targetId, todayStr }, type: QueryTypes.UPDATE }
+        );
+        successCount++;
+      }
+
+      return res.status(200).json({ message: `Successfully clocked out ${successCount} employee(s).` });
+    }
+
     let user;
-    if (user_Id) {
+    if (user_Id && user_Id !== "all") {
       // Try user_Id first, then user_MachipId
       user = await User.findOne({ 
         where: { 
@@ -38,17 +93,10 @@ exports.markAttendance = async (req, res) => {
           deletedAt: null 
         } 
       });
-    } else {
-      // Fallback: Select an active user
-      const users = await sequelize.query(
-        `SELECT * FROM "User" WHERE "deletedAt" IS NULL ORDER BY RANDOM() LIMIT 1`,
-        { type: QueryTypes.SELECT }
-      );
-      user = users[0];
     }
 
     if (!user) {
-      return res.status(404).json({ error: "User not found or inactive." });
+      return res.status(404).json({ error: "User not found or no specific employee selected." });
     }
 
     const target_user_Id = user.user_Id;
@@ -139,7 +187,10 @@ exports.markAttendance = async (req, res) => {
     if (forcedStatus === 1 && [1, 4, 5].includes(currentStatus)) {
       return res.status(400).json({ error: `User ${user.user_FirstName} is already clocked in.` });
     }
-    if (forcedStatus === 2 && (currentStatus === null || [2, 3, 6].includes(currentStatus))) {
+    
+    // For Manual Out (2), we only block if they are ALREADY in status 2 (Clock Out).
+    // This allows them to "Manual Out" (2) even if they haven't scanned in yet, or are currently on break.
+    if (forcedStatus === 2 && currentStatus === 2) {
       return res.status(400).json({ error: `User ${user.user_FirstName} is already clocked out.` });
     }
 
@@ -585,54 +636,43 @@ exports.viewUserLogs = async (req, res) => {
 // ── View All Attendance ───────────────────────────────────────────────────────
 exports.viewAllAttendance = async (req, res) => {
   try {
-    const logs = await sequelize.query(
-      `SELECT
-         ul."user_loggingId",
-         ul."user_id",
-         ul."time_Logged",
-         ul."log_Date",
-         ul."logged_StatusId",
-         ul."attendance_StatusId",
-         u."user_Id",
-         u."user_FirstName",
-         u."user_LastName",
-         u."user_MachipId",
-         CASE 
-           WHEN ul."logged_StatusId" = 1 AND (
-             -- Suspicious First In (Outside 4 AM - 5:30 PM)
-             ((ul."time_Logged" >= '17:30:00' OR ul."time_Logged" < '04:00:00') AND NOT EXISTS (
-               SELECT 1 FROM "user_logging" prev 
-               WHERE prev."user_id" = ul."user_id" AND prev."log_Date" = ul."log_Date" 
-               AND prev."logged_StatusId" = 1 AND prev."user_loggingId" < ul."user_loggingId"
-             ))
-             OR
-             -- Suspicious Re-entry (After 5:30 PM)
-             (ul."time_Logged" >= '17:30:00' AND EXISTS (
-               SELECT 1 FROM "user_logging" prev 
-               WHERE prev."user_id" = ul."user_id" AND prev."log_Date" = ul."log_Date" 
-               AND prev."logged_StatusId" = 1 AND prev."user_loggingId" < ul."user_loggingId"
-             ))
-           )
-           AND NOT EXISTS (
-             SELECT 1 FROM "Overtime_Request" ot
-             JOIN "emp_Request" er ON ot."emp_reqId" = er."emp_reqId"
-             WHERE ot."user_Id" = ul."user_id" AND ot."OT_DateOf" = ul."log_Date" AND er."emp_reqStatusId" = 2
-             AND ul."time_Logged" BETWEEN ot."HrFrom" AND ot."HrTo"
-           )
-           THEN ls."statusName" || ' (Suspicious)'
-           ELSE ls."statusName"
-         END AS "loggedStatusName",
-         att."statusName" AS "attendanceStatusName"
-       FROM "user_logging" ul
-       LEFT JOIN "User" u ON u."user_Id" = ul."user_id"
-       LEFT JOIN "logged_status" ls ON ls."statusId" = ul."logged_StatusId"
-       LEFT JOIN "attendance_status" att ON att."statusId" = ul."attendance_StatusId"
-       ORDER BY ul."user_loggingId" DESC`,
-      { type: QueryTypes.SELECT },
-    );
+    const logs = await user_logging.findAll({
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: ["user_Id", "user_FirstName", "user_LastName", "user_MachipId"],
+        },
+        {
+          model: logged_status,
+          as: "loggedStatus",
+          attributes: ["statusName"],
+        },
+        {
+          model: attendance_status,
+          as: "attendanceStatus",
+          attributes: ["statusName"],
+        },
+      ],
+      order: [["user_loggingId", "DESC"]],
+    });
 
-    res.status(200).json(logs);
+    // Map to the format expected by the frontend
+    const formattedLogs = logs.map(log => {
+      const plain = log.get({ plain: true });
+      return {
+        ...plain,
+        user_FirstName: plain.user?.user_FirstName,
+        user_LastName: plain.user?.user_LastName,
+        user_MachipId: plain.user?.user_MachipId,
+        loggedStatusName: plain.loggedStatus?.statusName,
+        attendanceStatusName: plain.attendanceStatus?.statusName
+      };
+    });
+
+    res.status(200).json(formattedLogs);
   } catch (error) {
+    console.error("[VIEW ALL ATTENDANCE ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -762,7 +802,14 @@ exports.getMonthlyAttendanceStats = async (req, res) => {
       { replacements: { currentYear }, type: QueryTypes.SELECT }
     );
 
-    res.status(200).json(stats);
+    const formattedStats = stats.map(s => ({
+      ...s,
+      OnTime: parseInt(s.OnTime || 0),
+      Late: parseInt(s.Late || 0),
+      Absent: parseInt(s.Absent || 0)
+    }));
+
+    res.status(200).json(formattedStats);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

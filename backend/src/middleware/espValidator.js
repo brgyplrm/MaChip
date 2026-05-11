@@ -30,8 +30,9 @@ const espValidator = (req, res, next) => {
 
     // Fallback for legacy/non-secure requests during transition
     if (!signature || !timestamp) {
-        // If the body is already decrypted (legacy), just pass it
-        if (req.body && !req.body.encryptedData) {
+        // Allow GET requests without signature (mostly polling) 
+        // OR POST requests where the body is already decrypted/plaintext
+        if (req.method === 'GET' || (req.body && !req.body.encryptedData)) {
             return next();
         }
         return res.status(403).json({ success: false, message: "Secure communication required (Missing Sig/TS)." });

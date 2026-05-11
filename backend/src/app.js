@@ -34,6 +34,7 @@ app.use(helmet());
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "http://192.168.1.19:5173",
   "http://192.168.254.106:5173",
   "http://192.168.254.100:5173",
   "http://192.168.254.101:5173",
@@ -41,7 +42,8 @@ const allowedOrigins = [
   "http://192.168.1.100:5173",
   "http://192.168.1.106:5173",
   "http://192.168.254.108:5173",
-  "http://192.168.254.112:5173"
+  "http://192.168.254.112:5173",
+  "http://10.27.99.95:5173"
 ];
 
 app.use(
@@ -206,6 +208,6 @@ setInterval(async () => {
 }, 60 * 1000); 
 
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}.`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server is running on port ${PORT} (Listening on 0.0.0.0).`);
 });

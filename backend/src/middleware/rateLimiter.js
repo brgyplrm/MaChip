@@ -16,60 +16,62 @@ const keyByUser = (req) => {
       return `user_${decoded.user_Id}`;
     }
   } catch (_) {
-    // Token invalid or missing — fall back to IP
+    // Token invalid or missing
   }
-  // Use express-rate-limit's default IP detection which handles IPv6
   return req.ip;
 };
 
+const isESP32 = (req) => {
+  return req.headers["x-esp32-key"] !== undefined || req.headers["x-api-key"] !== undefined;
+};
+
 // ── Login Limiter ─────────────────────────────────────────────────────────────
-// Keyed by IP because user has no token yet at login time.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
-  // Removing custom keyGenerator to let it use the internal safe IP logic
+  max: 20,
   message: { error: "Too many login attempts. Please try again after 15 minutes." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: true, keyGeneratorIpFallback: false },
+  validate: { trustProxy: true },
 });
 
 // ── HIGH_FREQ_ROUTES ──────────────────────────────────────────────────────────
-// These fire every ~30s per user. Skip them from general limiter entirely.
 const HIGH_FREQ_ROUTES = [
   "/api/notifications/unread-count",
   "/api/system/time",
   "/api/attendance/status",
   "/api/attendance/stats",
   "/api/attendance/occupancy",
+  "/api/esp",
+  "/api/rfid"
 ];
 
 // ── Polling Limiter ───────────────────────────────────────────────────────────
-// Per-user keyed. 300 per user per 15 min is plenty (covers multiple tabs).
 const pollingLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
+  windowMs: 10 * 60 * 1000,
+  max: 1000,
   keyGenerator: keyByUser,
-  message: { error: "Excessive polling detected. Please slow down." },
+  skip: (req) => isESP32(req),
+  message: { error: "Excessive polling detected. Please slow down.", code: 429 },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: true, keyGeneratorIpFallback: false },
+  validate: { trustProxy: true, keyGeneratorIpFallback: false }, // Fix for IPv6 validation error
 });
 
 // ── General Limiter ───────────────────────────────────────────────────────────
-// Per-user keyed. 500 req/15min per user is generous for normal usage.
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500,
+  max: 1000,
   keyGenerator: keyByUser,
-  message: { error: "Too many requests. Please slow down." },
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { trustProxy: true, keyGeneratorIpFallback: false },
   skip: (req) =>
+    isESP32(req) || 
     HIGH_FREQ_ROUTES.some((route) =>
       req.baseUrl.concat(req.path).startsWith(route)
     ),
+  message: { error: "Too many requests. Please slow down.", code: 429 },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: true, keyGeneratorIpFallback: false }, // Fix for IPv6 validation error
 });
 
 module.exports = { loginLimiter, generalLimiter, pollingLimiter, HIGH_FREQ_ROUTES };

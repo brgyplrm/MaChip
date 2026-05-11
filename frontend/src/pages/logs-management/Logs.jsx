@@ -197,7 +197,7 @@ const Logs = () => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ forcedStatus }),
+          body: JSON.stringify({ forcedStatus, user_Id: selectedUser }),
         },
       );
 
@@ -205,7 +205,8 @@ const Logs = () => {
 
       if (response.ok) {
         setToast({ message: data.message || "Attendance marked successfully!", type: "success" });
-        await fetchLogs();
+        if (viewMode === "raw") await fetchLogs();
+        else await fetchDayLogs();
       } else {
         setToast({ message: data.error || "Failed to mark attendance. Please try again.", type: "error" });
       }
@@ -328,26 +329,6 @@ const Logs = () => {
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
-
-                {/* Clock In / Out Actions */}
-                {/* {viewMode === "raw" && (
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <Button
-                      className="flex-1 sm:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30] w-full sm:w-[110px] h-11"
-                      onClick={() => handleGenerateLogs(1)}
-                      disabled={loading}
-                    >
-                      {loading ? "..." : "Clock In"} 
-                    </Button>
-                    <Button
-                      className="flex-1 sm:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30] w-full sm:w-[110px] h-11"
-                      onClick={() => handleGenerateLogs(2)}
-                      disabled={loading}
-                    >
-                      {loading ? "..." : "Clock Out"}
-                    </Button>
-                  </div>
-                )} */}
             </div>
           </div>
 
@@ -484,6 +465,17 @@ const Logs = () => {
                     Clear
                   </Button>
                 )}
+
+                {/* Manual Attendance Actions */}
+                <div className="flex gap-2 w-full sm:w-auto border-l border-slate-200 pl-4 ml-2">
+                  <Button
+                    className="flex-1 sm:flex-none bg-[#B91C1C] text-white hover:bg-[#991B1B] h-10 px-4 text-xs font-bold uppercase tracking-wider"
+                    onClick={() => handleGenerateLogs(2)}
+                    disabled={loading}
+                  >
+                    {loading ? "..." : "Manual Out"}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

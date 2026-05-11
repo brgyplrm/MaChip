@@ -4,7 +4,15 @@ const attendanceController = require("../controllers/attendance.controller.js");
 const espValidator = require("../middleware/espValidator.js");
 
 // URL will be: http://localhost:3000/api/attendance/mark
-router.post("/mark", espValidator, attendanceController.markAttendance);
+// Allow both hardware (espValidator) and authenticated web users
+router.post("/mark", (req, res, next) => {
+    // If it's a hardware request (has x-esp32-key), use espValidator
+    if (req.headers['x-esp32-key']) {
+        return espValidator(req, res, next);
+    }
+    // Otherwise, it must be an authenticated user (already handled by app.use("/api", authMiddleware))
+    next();
+}, attendanceController.markAttendance);
 
 router.get("/report", attendanceController.getAttendanceReport);
 

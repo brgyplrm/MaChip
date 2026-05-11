@@ -45,14 +45,6 @@ const validateForm = (formData) => {
     errors.user_Email = "Invalid email format.";
   }
 
-  if (!formData.user_PhoneNumber || !formData.user_PhoneNumber.trim()) {
-    errors.user_PhoneNumber = "Phone number is required.";
-  }
-
-  if (!formData.user_Address || !formData.user_Address.trim()) {
-    errors.user_Address = "Address is required.";
-  }
-
   if (!formData.user_Role) {
     errors.user_Role = "Role is required.";
   }
@@ -61,10 +53,11 @@ const validateForm = (formData) => {
     errors.user_EmploymentStatus = "Employment Status is required.";
   }
 
-  if (!formData.user_Password || !formData.user_Password.trim()) {
-    errors.user_Password = "Password is required.";
-  } else if (formData.user_Password.length < 6) {
-    errors.user_Password = "Password must be at least 6 characters.";
+  // Password is only required if user starts typing a new one
+  if (formData.user_Password && formData.user_Password.trim() !== "") {
+    if (formData.user_Password.length < 6) {
+      errors.user_Password = "Password must be at least 6 characters.";
+    }
   }
 
   return errors;
@@ -115,11 +108,47 @@ const Edit = () => {
 
   const [showRfidModal, setShowRfidModal] = useState(false);
   const [rfidError, setRfidError] = useState("");
+  const [localScannedId, setLocalScannedId] = useState("");
   const [originalMachipId, setOriginalMachipId] = useState("");
   const [originalFingerprintId, setOriginalFingerprintId] = useState("");
 
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [fingerprintError, setFingerprintError] = useState("");
+  const [localFingerprintId, setLocalFingerprintId] = useState("");
+
+  useEffect(() => {
+    if (showRfidModal) {
+      setLocalScannedId("");
+      setRfidError("");
+      handleScanRFID();
+      fetchWithAuth("/api/system/reg-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, type: 'RFID' })
+      }).catch(err => console.error("Failed to start RFID session:", err));
+    } else {
+      fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
+        .catch(err => console.error("Failed to clear RFID session:", err));
+    }
+  }, [showRfidModal, userId]);
+
+  useEffect(() => {
+    if (showFingerprintModal) {
+      setLocalFingerprintId("");
+      setFingerprintError("");
+      handleScanFingerprint();
+      fetchWithAuth("/api/system/reg-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, type: 'FP' })
+      }).catch(err => console.error("Failed to start FP session:", err));
+    } else {
+      fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
+        .catch(err => console.error("Failed to clear FP session:", err));
+      fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" })
+        .catch(err => console.error("Failed to clear in-memory FP session:", err));
+    }
+  }, [showFingerprintModal, userId]);
 
   const dismissToast = useCallback(() => {
     setToast({ message: "", type: "success" });
@@ -144,7 +173,7 @@ const Edit = () => {
             user_Address: userData.user_Address || "",
             user_Role: userData.user_Role || "",
             user_EmploymentStatus: userData.user_EmploymentStatus || "",
-            user_Password: userData.user_Password || "",
+            user_Password: "", // Do not show hash, leave empty for optional update
             user_MachipId: userData.user_MachipId || "",
             user_FingerprintId: userData.user_FingerprintId || "",
             user_DOB: userData.user_DOB ? userData.user_DOB.split('T')[0] : "",
@@ -205,21 +234,16 @@ const Edit = () => {
   };
 
   const handleScanRFID = async () => {
+    setShowRfidModal(true);
     setRfidError("");
+    setLocalScannedId("");
     try {
-      const controllerResponse = await fetchWithAuth("/api/controller/status");
-      if (!controllerResponse.ok) {
-        setRfidError("Controller is offline. Cannot scan RFID.");
-        return;
-      }
-  
-      const scanResponse = await fetchWithAuth("/api/controller/scan-rfid", { method: "POST" });
+      const scanResponse = await fetchWithAuth("/api/users/generateRfid");
       const scanData = await scanResponse.json();
   
       if (scanResponse.ok && scanData.rfid) {
         if (scanData.rfid === originalMachipId) {
-          setFormData(prev => ({ ...prev, user_MachipId: scanData.rfid }));
-          setShowRfidModal(false);
+          setLocalScannedId(scanData.rfid);
           return;
         }
   
@@ -228,9 +252,9 @@ const Edit = () => {
   
         if (checkResponse.ok && checkData.exists && checkData.user_Id !== parseInt(userId)) {
           setRfidError("This MaChip ID is already assigned to another user.");
+          setLocalScannedId(scanData.rfid);
         } else {
-          setFormData(prev => ({ ...prev, user_MachipId: scanData.rfid }));
-          setShowRfidModal(false);
+          setLocalScannedId(scanData.rfid);
         }
       } else {
         setRfidError(scanData.error || "Failed to scan RFID. Please try again.");
@@ -241,23 +265,18 @@ const Edit = () => {
   };
   
   const handleScanFingerprint = async () => {
+    setShowFingerprintModal(true);
     setFingerprintError("");
+    setLocalFingerprintId("");
     try {
-      const controllerResponse = await fetchWithAuth("/api/controller/status");
-      if (!controllerResponse.ok) {
-        setFingerprintError("Controller is offline. Cannot scan Fingerprint.");
-        return;
-      }
-  
-      const scanResponse = await fetchWithAuth("/api/controller/scan-fingerprint", { method: "POST" });
+      const scanResponse = await fetchWithAuth(`/api/users/generateFingerprint?userId=${userId}`);
       const scanData = await scanResponse.json();
   
       if (scanResponse.ok && scanData.fingerprintId !== undefined) {
         const fpIdStr = scanData.fingerprintId.toString();
 
         if (fpIdStr === originalFingerprintId) {
-          setFormData(prev => ({ ...prev, user_FingerprintId: fpIdStr }));
-          setShowFingerprintModal(false);
+          setLocalFingerprintId(fpIdStr);
           return;
         }
 
@@ -266,9 +285,9 @@ const Edit = () => {
   
         if (checkResponse.ok && checkData.exists && checkData.user_Id !== parseInt(userId)) {
           setFingerprintError("This Fingerprint ID is already assigned to another user.");
+          setLocalFingerprintId(fpIdStr);
         } else {
-          setFormData(prev => ({ ...prev, user_FingerprintId: fpIdStr }));
-          setShowFingerprintModal(false);
+          setLocalFingerprintId(fpIdStr);
         }
       } else {
         setFingerprintError(scanData.error || "Failed to enroll fingerprint. Please try again.");
@@ -296,7 +315,7 @@ const Edit = () => {
         formDataToSend.append("adminPassword", adminVerification);
       }
 
-      const response = await fetch(`/api/users/${userId}`, {
+      const response = await fetch(`/api/users/updateUser/${userId}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -322,6 +341,7 @@ const Edit = () => {
     
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      console.error("[VALIDATION ERROR] Fields failed validation:", validationErrors);
       showToastMsg("Please fix the validation errors before saving.", "error");
       return;
     }
@@ -712,7 +732,11 @@ const Edit = () => {
         isOpen={showRfidModal} 
         onClose={() => setShowRfidModal(false)}
         onRescan={handleScanRFID}
-        scannedId={formData.user_MachipId} 
+        onConfirm={() => {
+          setFormData(prev => ({ ...prev, user_MachipId: localScannedId }));
+          setShowRfidModal(false);
+        }}
+        scannedId={localScannedId} 
         error={rfidError}
         currentId={originalMachipId}
       />
@@ -720,7 +744,11 @@ const Edit = () => {
         isOpen={showFingerprintModal} 
         onClose={() => setShowFingerprintModal(false)}
         onRescan={handleScanFingerprint}
-        scannedId={formData.user_FingerprintId} 
+        onConfirm={() => {
+          setFormData(prev => ({ ...prev, user_FingerprintId: localFingerprintId }));
+          setShowFingerprintModal(false);
+        }}
+        scannedId={localFingerprintId} 
         error={fingerprintError}
         currentId={originalFingerprintId}
         title="Fingerprint Scanner"

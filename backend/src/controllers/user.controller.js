@@ -444,8 +444,6 @@ exports.updateUser = async (req, res) => {
   } = req.body || {};
 
   try {
-    // ...
-    
     // Check if new Fingerprint ID is already assigned to another active user
     if (user_FingerprintId) {
       const existingFP = await sequelize.query(
@@ -825,6 +823,38 @@ exports.updateDailyRate = async (req, res) => {
     });
   } catch (error) {
     console.error("[UPDATE DAILY RATE ERROR]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.checkMaChip = async (req, res) => {
+  const { uid } = req.params;
+  try {
+    const results = await sequelize.query(
+      `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :uid AND "deletedAt" IS NULL LIMIT 1`,
+      { replacements: { uid }, type: QueryTypes.SELECT }
+    );
+    if (results.length > 0) {
+      return res.status(200).json({ exists: true, user_Id: results[0].user_Id });
+    }
+    res.status(200).json({ exists: false });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.checkFingerprint = async (req, res) => {
+  const { slot } = req.params;
+  try {
+    const results = await sequelize.query(
+      `SELECT "user_Id" FROM "User" WHERE "user_FingerprintId" = :slot AND "deletedAt" IS NULL LIMIT 1`,
+      { replacements: { slot: parseInt(slot) }, type: QueryTypes.SELECT }
+    );
+    if (results.length > 0) {
+      return res.status(200).json({ exists: true, user_Id: results[0].user_Id });
+    }
+    res.status(200).json({ exists: false });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };

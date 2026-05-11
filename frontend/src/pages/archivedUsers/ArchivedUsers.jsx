@@ -179,43 +179,43 @@ const ArchivedUsers = () => {
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
           
           {/* Card 1 */}
-          <div className="bg-[#2A174E] p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
+          <div className="bg-[#FAF2FF] p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
             <div className="flex flex-col justify-between">
               <div>
-                <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-1">Total Archived</p>
-                <p className="text-3xl font-bold text-white">{stats.total}</p>
+                <p className="text-[13px] font-bold text-[#2B174F] uppercase tracking-wider mb-1">Total Archived</p>
+                <p className="text-3xl font-bold text-[#2B174F]">{stats.total}</p>
               </div>
-              <p className="text-xs text-white/80 italic mt-4">Total number of inactive accounts</p>
+              <p className="text-xs text-[#2B174F]/80 italic mt-4">Total number of inactive accounts</p>
             </div>
-            <div className="bg-white/20 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+            <div className="bg-[#2A174E]/20 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
               <ArchiveOutlinedIcon className="h-6 w-6" />
             </div>
           </div>
 
           {/* Card 2 */}
-          <div className="bg-[#3B4E17] p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
+          <div className="bg-[#F8FFF2] p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
             <div className="flex flex-col justify-between">
               <div>
-                <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-1">Employee</p>
-                <p className="text-3xl font-bold text-white">{stats.employees}</p>
+                <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-1">Employee</p>
+                <p className="text-3xl font-bold text-[#3B4E17]">{stats.employees}</p>
               </div>
-              <p className="text-xs text-white/80 italic mt-4">Archived standard staff records</p>
+              <p className="text-xs text-[#3B4E17]/80 italic mt-4">Archived standard staff records</p>
             </div>
-            <div className="bg-white/20 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+            <div className="bg-[#3B4E17]/20 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
               <GroupOutlinedIcon className="h-6 w-6" />
             </div>
           </div>
 
           {/* Card 3 */}
-          <div className="bg-[#ECC04B] p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
+          <div className="bg-[#FFFFF2] p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
             <div className="flex flex-col justify-between">
               <div>
-                <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-1">Admin & Supervisor</p>
-                <p className="text-3xl font-bold text-white">{stats.admins}</p>
+                <p className="text-[13px] font-bold text-[#ECC04B] uppercase tracking-wider mb-1">Admin & Supervisor</p>
+                <p className="text-3xl font-bold text-[#ECC04B]">{stats.admins}</p>
               </div>
-              <p className="text-xs text-white/80 italic mt-4">Archived management records</p>
+              <p className="text-xs text-[#ECC04B]/80 italic mt-4">Archived management records</p>
             </div>
-            <div className="bg-white/20 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+            <div className="bg-[#ECC04B]/20 text-[#ECC04B] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
               <ManageAccountsOutlinedIcon className="h-6 w-6" />
             </div>
           </div>
