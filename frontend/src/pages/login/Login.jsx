@@ -110,7 +110,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-5 box-border bg-[linear-gradient(90deg,#2a174e_0%,#ffffff_28%,#ffffff_72%,#ffae00_100%)]">
-      {loading && <LoadingScreen />}
+      {/* {loading && <LoadingScreen />} */}
       {/* ── Toast ── */}
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
 

@@ -409,7 +409,7 @@ const GovLoans = () => {
   const renderSummaryTable = (typeObj) => {
     const typeData = allData[typeObj.id] || [];
     return (
-      <Card key={typeObj.id} className="shadow-sm border-0 bg-white">
+      <Card key={typeObj.id} className="shadow-sm border-0 bg-white pb-0 pt-4">
         <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-slate-50">
           <CardTitle className="text-base text-[#2A174E]">{typeObj.label} Summary</CardTitle>
           <Button variant="link" onClick={() => setActiveTab(typeObj.id)} className="text-blue-500 font-bold uppercase text-[11px] hover:underline">View Details</Button>
@@ -723,7 +723,7 @@ const GovLoans = () => {
                 </div>
               </div>
 
-              <Card className="shadow-sm border-0 bg-white">
+              <Card className="shadow-sm border-0 bg-white py-0">
                 <CardContent className="p-0">
                   <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-xl custom-scrollbar">
                     <table className="w-full min-w-max border-collapse text-sm">

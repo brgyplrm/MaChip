@@ -237,16 +237,16 @@ const PayrollEmployeeList = () => {
         {/* Dashboard-Style Widgets Row */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
           {/* Card 1: Total Employees */}
-          <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Total Employees</p>
-                  <p className="text-4xl font-bold text-white">{employees.length}</p>
+                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Employees</p>
+                  <p className="text-4xl font-bold text-[#2A174E]">{employees.length}</p>
                 </div>
-                <p className="text-xs text-white/70 italic mt-4">Active masterlist records</p>
+                <p className="text-xs text-[#2A174E]/70 italic mt-4">Active masterlist records</p>
               </div>
-              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <PeopleAltIcon className="h-6 w-6" />
               </div>
             </CardContent>

@@ -600,7 +600,7 @@ const Cashadvances = () => {
         </div>
 
         {/* Matrix Table Section */}
-        <Card className="shadow-sm border-0 bg-white">
+        <Card className="shadow-sm border-0 bg-white py-0">
           <CardContent className="p-0">
             <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-xl custom-scrollbar">
               <table className="w-full min-w-max border-collapse text-sm">

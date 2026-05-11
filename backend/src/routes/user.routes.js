@@ -52,7 +52,7 @@ router.get("/check-machip/:uid", requireAdmin, userController.checkMaChip);
 router.get("/check-fingerprint/:slot", requireAdmin, userController.checkFingerprint);
 
 // GET employee masterlist with daily rate columns
-router.get("/employees/masterlist", requireStaff, userController.getMasterlist);
+router.get("/employees/masterlist", requireAdmin, userController.getMasterlist);
 
 // PATCH employee daily rate
 router.patch("/employees/:user_Id/daily-rate", requireAdmin, userController.updateDailyRate);

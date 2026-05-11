@@ -272,46 +272,46 @@ const AdminReports = () => {
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in zoom-in-95 duration-200">
             {activeReport === "attendance" && (
               <>
-                <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full min-w-0">
+                <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Total Present</p>
-                        <p className="text-4xl font-bold text-white">{attStats.present}</p>
+                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Present</p>
+                        <p className="text-4xl font-bold text-[#2A174E]">{attStats.present}</p>
                       </div>
-                      <p className="text-xs text-white/70 italic mt-4">Total recorded present days</p>
+                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Total recorded present days</p>
                     </div>
-                    <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <CheckCircleOutlineIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-0 bg-[#3B4E17] py-0 h-full min-w-0">
+                <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Total Hours</p>
-                        <p className="text-4xl font-bold text-white">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p>
+                        <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Hours</p>
+                        <p className="text-4xl font-bold text-[#3B4E17]">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p>
                       </div>
-                      <p className="text-xs text-white/70 italic mt-4">Total clocked working hours</p>
+                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Total clocked working hours</p>
                     </div>
-                    <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <AccessTimeIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-0 bg-[#ECC04B] py-0 h-full min-w-0">
+                <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Lates / Absences</p>
-                        <p className="text-4xl font-bold text-white">{attStats.late + attStats.absent}</p>
+                        <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Lates / Absences</p>
+                        <p className="text-4xl font-bold text-[#BB8B26]">{attStats.late + attStats.absent}</p>
                       </div>
-                      <p className="text-xs text-white/70 italic mt-4">Recorded infractions in period</p>
+                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Recorded infractions in period</p>
                     </div>
-                    <div className="bg-white/20 text-[#D4AF37] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <AssignmentLateIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
@@ -321,46 +321,46 @@ const AdminReports = () => {
 
             {activeReport === "payroll" && (
               <>
-                <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full min-w-0">
+                <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Total Net Pay</p>
-                        <p className="text-4xl font-bold text-white">{peso(payStats.net)}</p>
+                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Net Pay</p>
+                        <p className="text-4xl font-bold text-[#2A174E]">{peso(payStats.net)}</p>
                       </div>
-                      <p className="text-xs text-white/70 italic mt-4">Calculated total distribution amount</p>
+                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Calculated total distribution amount</p>
                     </div>
-                    <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <PaymentsIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-0 bg-[#3B4E17] py-0 h-full min-w-0">
+                <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Total Earnings</p>
-                        <p className="text-4xl font-bold text-white">{peso(payStats.earn)}</p>
+                        <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Earnings</p>
+                        <p className="text-4xl font-bold text-[#3B4E17]">{peso(payStats.earn)}</p>
                       </div>
-                      <p className="text-xs text-white/70 italic mt-4">Gross pay including OT and allowances</p>
+                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross pay including OT and allowances</p>
                     </div>
-                    <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <KeyboardDoubleArrowUpIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-0 bg-[#ECC04B] py-0 h-full min-w-0">
+                <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Total Deductions</p>
-                        <p className="text-4xl font-bold text-white">{peso(payStats.ded)}</p>
+                        <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Deductions</p>
+                        <p className="text-4xl font-bold text-[#BB8B26]">{peso(payStats.ded)}</p>
                       </div>
-                      <p className="text-xs text-white/70 italic mt-4">Withholdings including taxes and loans</p>
+                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings including taxes and loans</p>
                     </div>
-                    <div className="bg-white/20 text-[#D4AF37] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
@@ -370,16 +370,16 @@ const AdminReports = () => {
 
             {activeReport === "calendar" && (
               <>
-                <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full min-w-0 md:col-span-3">
+                <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0 md:col-span-3">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Total Logged Events</p>
-                        <p className="text-4xl font-bold text-white">{calendarData.length}</p>
+                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Logged Events</p>
+                        <p className="text-4xl font-bold text-[#2A174E]">{calendarData.length}</p>
                       </div>
-                      <p className="text-xs text-white/70 italic mt-4">Holidays, leaves, and system events tracked in this period</p>
+                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Holidays, leaves, and system events tracked in this period</p>
                     </div>
-                    <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <EventNoteIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
@@ -389,7 +389,7 @@ const AdminReports = () => {
           </div>
 
           {/* Filters Card */}
-          <Card className="mb-6 shadow-sm border-0 bg-white">
+          <Card className="mb-6 shadow-sm border-0 bg-white py-0">
             <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
               
               <div className="flex items-center gap-2 font-bold text-slate-700 w-full xl:w-auto">

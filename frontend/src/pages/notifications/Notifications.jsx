@@ -142,7 +142,7 @@ const Notifications = () => {
         </div>
 
         {/* Notifications List Card */}
-        <Card className="shadow-sm border-0 bg-white overflow-hidden mb-6">
+        <Card className="shadow-sm border-0 bg-white overflow-hidden mb-6 py-0">
           <div className="max-h-[700px] overflow-y-auto">
             {currentNotifs.length > 0 ? (
               currentNotifs.map((notif) => (

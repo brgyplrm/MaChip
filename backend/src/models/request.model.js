@@ -71,6 +71,7 @@ module.exports = (sequelize, DataTypes) => {
       OT_DateOf: { type: DataTypes.DATEONLY, allowNull: false },
       HrFrom: { type: DataTypes.STRING, allowNull: false },
       HrTo: { type: DataTypes.STRING, allowNull: false },
+      reason: { type: DataTypes.TEXT, allowNull: false },
       Total_Hrs: { type: DataTypes.FLOAT, allowNull: false },
     },
     { timestamps: false, freezeTableName: true },
@@ -90,6 +91,7 @@ module.exports = (sequelize, DataTypes) => {
       StartDate: { type: DataTypes.DATEONLY, allowNull: false },
       EndDate: { type: DataTypes.DATEONLY, allowNull: false },
       NoDays: { type: DataTypes.SMALLINT, allowNull: false },
+      reason: { type: DataTypes.TEXT, allowNull: false },
       WithPayID: { type: DataTypes.SMALLINT, allowNull: false },
     },
     { timestamps: false, freezeTableName: true },
@@ -110,6 +112,7 @@ module.exports = (sequelize, DataTypes) => {
       EndDate: { type: DataTypes.DATEONLY, allowNull: false },
       NoDays: { type: DataTypes.SMALLINT, allowNull: false },
       proof_File: { type: DataTypes.STRING, allowNull: true }, // doctor's cert path
+      reason: { type: DataTypes.TEXT, allowNull: false },
       WithPayID: { type: DataTypes.SMALLINT, allowNull: false },
     },
     { timestamps: false, freezeTableName: true },
@@ -148,6 +151,7 @@ module.exports = (sequelize, DataTypes) => {
       DateOfLeave: { type: DataTypes.DATEONLY, allowNull: false },
       period: { type: DataTypes.STRING, allowNull: false }, // "Morning" or "Afternoon"
       timeRange: { type: DataTypes.STRING, allowNull: false }, // e.g. "08:30am - 12:00pm"
+      reason: { type: DataTypes.TEXT, allowNull: false },
       WithPayID: { type: DataTypes.SMALLINT, allowNull: false },
     },
     { timestamps: false, freezeTableName: true },
@@ -168,6 +172,7 @@ module.exports = (sequelize, DataTypes) => {
       NoDays: { type: DataTypes.SMALLINT, allowNull: false },
       NoHrs: { type: DataTypes.FLOAT, allowNull: false },
       destination: { type: DataTypes.STRING, allowNull: true },
+      reason: { type: DataTypes.TEXT, allowNull: false },
       proof_File: { type: DataTypes.STRING, allowNull: true },
     },
     { timestamps: false, freezeTableName: true },
