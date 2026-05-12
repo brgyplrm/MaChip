@@ -555,10 +555,10 @@ const CalendarManagement = () => {
                   </div>
                 ) : (
                     <EmptyState 
-                      className="h-full min-h-0 border-0 bg-transparent hover:bg-transparent shadow-none p-4"
-                      icon={<EventAvailableIcon className="w-8 h-8 text-slate-300" />}
+                      className="!h-full !min-h-0 border-0 bg-transparent hover:bg-transparent shadow-none !p-2"
+                      icon={<EventAvailableIcon sx={{ fontSize: 32 }} className="text-slate-300" />}
                       title="Clear Schedule!"
-                      description="No holidays are coming up. It's a straight run of regular working days."
+                      description="No holidays are coming up."
                     />
                 )}
               </CardContent>
@@ -606,10 +606,10 @@ const CalendarManagement = () => {
                   </div>
                 ) : (
                     <EmptyState 
-                      className="h-full min-h-0 border-0 bg-transparent hover:bg-transparent shadow-none p-4"
-                      icon={<MapIcon className="w-8 h-8 text-slate-300" />}
+                      className="!h-full !min-h-0 border-0 bg-transparent hover:bg-transparent shadow-none !p-2"
+                      icon={<MapIcon sx={{ fontSize: 32 }} className="text-slate-300" />}
                       title="No Tasks Found"
-                      description="There are currently no field assignments or deadlines scheduled."
+                      description="No field assignments scheduled."
                     />
                 )}
               </CardContent>
