@@ -332,11 +332,10 @@ const Logs = () => {
             </div>
           </div>
 
-          {/* Dashboard-Style Widgets Row */}
+          {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-            
-            {/* Card 1: Total */}
-            <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
+            {/* Card 1: Total Active Users */}
+            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
@@ -353,8 +352,8 @@ const Logs = () => {
               </CardContent>
             </Card>
 
-            {/* Card 2: Ins / On Time */}
-            <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
+            {/* Card 2: Employees */}
+            <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
@@ -373,8 +372,8 @@ const Logs = () => {
               </CardContent>
             </Card>
 
-            {/* Card 3: Outs / Late/Absent */}
-            <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
+            {/* Card 3: Admins & Supervisors */}
+            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
@@ -392,7 +391,6 @@ const Logs = () => {
                 </div>
               </CardContent>
             </Card>
-
           </div>
 
           {/* Filters Card */}

@@ -6,7 +6,21 @@ import OccupancyList from "../../components/occupancy/OccupancyList";
 import Toast from "../../components/toast/Toast";
 import { fetchWithAuth } from "../../utils/api";
 import { Navigate, Link } from "react-router-dom";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
+import { 
+  PieChart, 
+  Pie, 
+  Cell, 
+  ResponsiveContainer, 
+  Tooltip as RechartsTooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend, 
+  AreaChart, 
+  Area
+} from "recharts";
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import HistoryIcon from '@mui/icons-material/History';
 import PaymentsIcon from '@mui/icons-material/Payments';
@@ -19,7 +33,8 @@ import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
 // shadcn/ui components
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Home = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -59,7 +74,6 @@ const Home = () => {
     year: 'numeric' 
   });
 
-  // If management role is in employee mode, redirect them to the employee dashboard
   if (viewMode === "employee") {
     return <Navigate to="/employeeHome" replace />;
   }
@@ -83,7 +97,6 @@ const Home = () => {
       const response = await fetchWithAuth("/api/request/all");
       if (response.ok) {
         const data = await response.json();
-        // Filter for Pending (1) or Recommended (4)
         const pending = data.filter(r => r.emp_reqStatusId === 1 || r.emp_reqStatusId === 4).slice(0, 3);
         setPendingRequests(pending);
       }
@@ -105,7 +118,6 @@ const Home = () => {
   };
 
   useEffect(() => {
-    // Show for both Admins (1) and Supervisors (2)
     const fetchPendingCount = async () => {
       if (!(userData?.user_RoleId === 1 || userData?.user_RoleId === 2)) return;
       try {
@@ -129,7 +141,6 @@ const Home = () => {
     fetchPayrollPeriods();
     fetchPendingRequests();
 
-    // Poll every 60 seconds as a fallback
     const interval = setInterval(() => {
       fetchDashboardStats();
       fetchPendingRequests();
@@ -158,8 +169,40 @@ const Home = () => {
       ];
   const COLORS = ["#4DE189", "#ECC04B"];
 
+  // Bar chart data for detailed breakdown
+  const barData = [
+    { name: "On Time", value: stats.onTimeCount, color: "#4DE189" },
+    { name: "Late", value: stats.lateArrivalsCount, color: "#ECC04B" },
+    { name: "Absent", value: stats.absentCount, color: "#F44336" },
+    { name: "On Leave", value: stats.onLeaveCount, color: "#2196F3" },
+  ];
+
   const nextPayroll = payrollPeriods.length > 0 ? payrollPeriods[0] : null;
   const daysRemaining = nextPayroll ? Math.ceil((new Date(nextPayroll.endDate) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+
+  const chartData = {
+    monthly: [
+      { name: "Jun", percentage: 87.8 },
+      { name: "Jul", percentage: 78.4 },
+      { name: "Aug", percentage: 88.4 },
+      { name: "Sep", percentage: 80.1 },
+      { name: "Oct", percentage: 83.3 },
+      { name: "Nov", percentage: 74.9 },
+    ],
+    weekly: [
+      { name: "Mon", percentage: 95 },
+      { name: "Tue", percentage: 92 },
+      { name: "Wed", percentage: 89 },
+      { name: "Thu", percentage: 94 },
+      { name: "Fri", percentage: 81 },
+    ],
+    yearly: [
+      { name: "2023", percentage: 82 },
+      { name: "2024", percentage: 88 },
+      { name: "2025", percentage: 85 },
+      { name: "2026", percentage: 91 },
+    ]
+  };
 
   return (
     <Sidebar>
@@ -173,7 +216,7 @@ const Home = () => {
         <div className="h-2"></div>
 
         {/* Greeting Banner */}
-        <div className=" rounded-xl p-0 md:p-0 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-white w-full">
+        <div className="rounded-xl p-0 md:p-0 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-white w-full">
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold mb-1 tracking-tight text-[#2A174E]">
               {getGreeting()}, {userData?.user_FirstName || "User"}!
@@ -194,8 +237,6 @@ const Home = () => {
 
         {/* Solid Color Widget Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-          
-          {/* Card 1: Office Occupancy */}
           <Link to="/logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
             <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full">
               <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
@@ -208,7 +249,6 @@ const Home = () => {
             </Card>
           </Link>
 
-          {/* Card 2: Pending Approvals */}
           <Link to="/adminRequests" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
             <Card className="shadow-sm border-0 bg-[#3B4E17] py-0 h-full">
               <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
@@ -221,7 +261,6 @@ const Home = () => {
             </Card>
           </Link>
 
-          {/* Card 3: Projected Payroll */}
           <Link to="/payroll" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
             <Card className="shadow-sm border-0 bg-[#ECC04B] py-0 h-full">
               <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
@@ -233,21 +272,18 @@ const Home = () => {
               </CardContent>
             </Card>
           </Link>
-
         </div>
 
         <div className="h-4"></div>
 
-        {/* New Sections Grid */}
+        {/* Small Summary Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-2 w-full">
           {/* Donut Chart Card */}
-          <div className="bg-white p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex flex-col border-t-4 border-[#2A174E] min-w-0">
+          <div className="bg-white p-5 rounded-xl shadow-sm flex flex-col border-t-4 border-[#2A174E] min-w-0">
             <h2 className="text-gray-500 font-medium mb-1">Arrival Breakdown</h2>
-            
             {isEmptyDonut ? (
               <div className="flex-1 flex flex-col items-center justify-center">
                 <EmptyState 
-                  // Adding h-full, flex-1, and a min-height ensures it stretches perfectly
                   className="h-full flex-1 min-h-[220px] border-0 bg-transparent hover:bg-transparent shadow-none p-2" 
                   icon={<AccessTimeIcon className="w-8 h-8 text-slate-300" />}
                   title="No Arrivals Yet"
@@ -295,7 +331,7 @@ const Home = () => {
           </div>
 
           {/* Recent Pending Requests Card */}
-          <div className="bg-white p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex flex-col border-t-4 border-[#3B4E17] min-w-0">
+          <div className="bg-white p-5 rounded-xl shadow-sm flex flex-col border-t-4 border-[#3B4E17] min-w-0">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-gray-500 font-medium">Pending Requests</h2>
               <Link to="/adminRequests" className="text-xs text-[#3B4E17]/60 font-semibold hover:underline hover:text-[#3B4E17]/80">View All</Link>
@@ -338,7 +374,6 @@ const Home = () => {
                 })
               ) : (
                 <EmptyState 
-                  // Adding h-full, flex-1, and min-height matches the Arrivals card exactly
                   className="h-full flex-1 min-h-[220px] border-slate-100 bg-white hover:bg-slate-50/50" 
                   icon={<TaskAltIcon className="w-7 h-7 text-slate-300" />}
                   title="All Caught Up!"
@@ -349,13 +384,11 @@ const Home = () => {
           </div>
 
           {/* Next Payroll Run Card */}
-          <div className="bg-white p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] text-[#D4AF37] flex flex-col justify-between border-t-4 border-[#D4AF37] min-w-0">
+          <div className="bg-white p-5 rounded-xl shadow-sm text-[#D4AF37] flex flex-col justify-between border-t-4 border-[#D4AF37] min-w-0">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-[#033A55]/80 font-medium">Next Payroll Run</h2>
-                <Link to="/payroll">
                 <Link to="/adminRequests" className="text-xs text-[#D4AF37]/60 font-semibold hover:underline hover:text-[#D4AF37]/80">View All</Link>
-                </Link>
               </div>
               <div className="text-5xl font-bold mb-3 truncate h-13">
                 {daysRemaining > 0 ? `${daysRemaining} Days Left` : "Processing..."}
@@ -383,10 +416,76 @@ const Home = () => {
           </div>
         </div>
 
-        <div className="h-4"></div>
+        <div className="h-8"></div>
+
+        {/* Multi-Tab Chart Section */}
+        <Card className="shadow-sm border-gray-200">
+          <Tabs defaultValue="monthly" className="w-full">
+            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
+              <div>
+                <CardTitle className="text-xl font-bold text-[#2A174E]">Overall Attendance</CardTitle>
+                <CardDescription>Comparison of attendance rates over time</CardDescription>
+              </div>
+              
+              {/* shadcn Tabs Switcher */}
+              <TabsList className="bg-slate-100 p-1">
+                <TabsTrigger value="weekly" className="text-xs px-4">Weekly</TabsTrigger>
+                <TabsTrigger value="monthly" className="text-xs px-4">Monthly</TabsTrigger>
+                <TabsTrigger value="yearly" className="text-xs px-4">Yearly</TabsTrigger>
+              </TabsList>
+            </CardHeader>
+
+            <CardContent>
+              {Object.keys(chartData).map((key) => (
+                <TabsContent key={key} value={key} className="mt-0">
+                  <div className="h-[350px] w-full pt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData[key]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorPct" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3B4E17" stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor="#3B4E17" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis 
+                          dataKey="name" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fill: '#64748b', fontSize: 12, fontWeight: 500 }}
+                          dy={10}
+                        />
+                        <YAxis 
+                          domain={[60, 100]} 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fill: '#64748b', fontSize: 12 }}
+                        />
+                        <RechartsTooltip 
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                          formatter={(value) => [`${value}%`, "Attendance"]}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="percentage" 
+                          stroke="#3B4E17" 
+                          strokeWidth={3}
+                          fillOpacity={1} 
+                          fill="url(#colorPct)" 
+                          dot={{ r: 4, fill: "#3B4E17", strokeWidth: 2, stroke: "#fff" }}
+                          activeDot={{ r: 6, strokeWidth: 0 }}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </TabsContent>
+              ))}
+            </CardContent>
+          </Tabs>
+        </Card>
 
         {/* Occupancy List Section */}
-        <div className="w-full overflow-x-auto min-w-0 mt-3 shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)]">
+        <div className="w-full overflow-x-auto min-w-0 mt-3 shadow-sm rounded-xl">
           <OccupancyList />
         </div>
         <div className="h-6"></div>

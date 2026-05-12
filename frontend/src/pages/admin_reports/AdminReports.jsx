@@ -268,13 +268,15 @@ const AdminReports = () => {
             </TabsList>
           </Tabs>
 
-          {/* Dynamic Dashboard-Style Statistics Row */}
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in zoom-in-95 duration-200">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 w-full animate-in fade-in zoom-in-95 duration-200">
             {activeReport === "attendance" && (
               <>
-                <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
-                  <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                {/* Statistics Cards */}
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+                  {/* Card 1: Total Present */}
+                  <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                    <CardContent className="px-5 py-5 flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
                       <div>
                         <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Present</p>
                         <p className="text-4xl font-bold text-[#2A174E]">{attStats.present}</p>
@@ -284,12 +286,13 @@ const AdminReports = () => {
                     <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <CheckCircleOutlineIcon className="h-6 w-6" />
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
-                  <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    </CardContent>
+                  </Card>
+          
+                  {/* Card 2: Total Hours */}
+                  <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                    <CardContent className="px-5 py-5 flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
                       <div>
                         <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Hours</p>
                         <p className="text-4xl font-bold text-[#3B4E17]">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p>
@@ -299,12 +302,13 @@ const AdminReports = () => {
                     <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <AccessTimeIcon className="h-6 w-6" />
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
-                  <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    </CardContent>
+                  </Card>
+          
+                  {/* Card 3: Lates/Absences */}
+                  <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                    <CardContent className="px-5 py-5 flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
                       <div>
                         <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Lates / Absences</p>
                         <p className="text-4xl font-bold text-[#BB8B26]">{attStats.late + attStats.absent}</p>
@@ -314,16 +318,17 @@ const AdminReports = () => {
                     <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <AssignmentLateIcon className="h-6 w-6" />
                     </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </div>
               </>
             )}
 
             {activeReport === "payroll" && (
               <>
-                <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
-                  <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+              <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                    <CardContent className="px-5 py-5 flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
                       <div>
                         <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Net Pay</p>
                         <p className="text-4xl font-bold text-[#2A174E]">{peso(payStats.net)}</p>
@@ -333,12 +338,13 @@ const AdminReports = () => {
                     <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <PaymentsIcon className="h-6 w-6" />
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
-                  <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    </CardContent>
+                  </Card>
+          
+                  {/* Card 2: Employees */}
+                  <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                    <CardContent className="px-5 py-5 flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
                       <div>
                         <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Earnings</p>
                         <p className="text-4xl font-bold text-[#3B4E17]">{peso(payStats.earn)}</p>
@@ -348,12 +354,13 @@ const AdminReports = () => {
                     <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <KeyboardDoubleArrowUpIcon className="h-6 w-6" />
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
-                  <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    </CardContent>
+                  </Card>
+          
+                  {/* Card 3: Admins & Supervisors */}
+                  <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                    <CardContent className="px-5 py-5 flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
                       <div>
                         <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Deductions</p>
                         <p className="text-4xl font-bold text-[#BB8B26]">{peso(payStats.ded)}</p>
@@ -363,16 +370,17 @@ const AdminReports = () => {
                     <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
                     </div>
-                  </CardContent>
-                </Card>
-              </>
+                    </CardContent>
+                  </Card>
+              </> 
+              
             )}
 
             {activeReport === "calendar" && (
               <>
-                <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0 md:col-span-3">
-                  <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+              <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                    <CardContent className="px-5 py-5 flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
                       <div>
                         <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Logged Events</p>
                         <p className="text-4xl font-bold text-[#2A174E]">{calendarData.length}</p>
@@ -382,14 +390,14 @@ const AdminReports = () => {
                     <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <EventNoteIcon className="h-6 w-6" />
                     </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
               </>
             )}
           </div>
 
           {/* Filters Card */}
-          <Card className="mb-6 shadow-sm border-0 bg-white py-0">
+          <Card className="mb-6 mt-6 shadow-sm border-0 bg-white py-0">
             <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
               
               <div className="flex items-center gap-2 font-bold text-slate-700 w-full xl:w-auto">

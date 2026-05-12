@@ -526,7 +526,7 @@ const EastwestLoan = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans">
           
           {/* Card 1: Total Repaid This Year */}
-          <div className="md:col-span-2 border border-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden">
+          <div className="md:col-span-2 border-t-5 border-[#2A174E]  bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden">
             <div className="flex justify-between items-start mb-6">
               <div className="w-full max-w-xs">
                 <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Total Repaid ({selectedYear})</p>
@@ -546,8 +546,8 @@ const EastwestLoan = () => {
           </div>
 
           {/* Card 2: Active Borrowers */}
-          <div className="border border-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-center items-center text-center">
-            <div className="h-12 w-12 bg-indigo-50 rounded-full flex items-center justify-center mb-4 border border-indigo-100">
+          <div className="border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-center items-center text-center">
+            <div className="h-12 w-12 bg-[#2A174E]/5 rounded-full flex items-center justify-center mb-4 border border-[#2A174E]/50">
               <GroupIcon className="text-indigo-600" />
             </div>
             <p className="text-5xl font-extrabold text-slate-900">{stats.subscribers}</p>
@@ -556,16 +556,16 @@ const EastwestLoan = () => {
           </div>
 
           {/* Card 3: All-Time Stats */}
-          <div className="md:col-span-3 border border-slate-200 bg-slate-900 text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="md:col-span-3 border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
              <div className="absolute top-0 right-0 p-4 opacity-10">
               <AccountBalanceWalletIcon style={{ fontSize: '100px' }} />
             </div>
             <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 w-full">
-               <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex-1 w-full">
+               <div className="[#2A174E]/50 p-4 rounded-lg border border-[#7A52B5]/30 flex-1 w-full">
                  <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Total Collections (All-Time)</p>
                  <p className="text-3xl font-bold text-white tracking-tight">{peso(totalAllTime)}</p>
                </div>
-               <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex-1 w-full">
+               <div className="[#2A174E]/50 p-4 rounded-lg border border-[#7A52B5]/30 flex-1 w-full">
                  <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Collections ({selectedYear})</p>
                  <p className="text-3xl font-bold text-white tracking-tight">{peso(stats.totalPaid)}</p>
                </div>

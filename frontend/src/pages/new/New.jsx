@@ -460,301 +460,310 @@ const New = ({ inputs = [], title }) => {
       <Sidebar>
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />  
       <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0 max-w-7xl mx-auto">
-        
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">{title}</h1>
-          <p className="text-sm text-slate-500 mt-1">Register a new employee into the system.</p>
-        </div>
+  
+      <Tabs defaultValue="single" className="w-full">
+        {/* Combined Header & Tabs Row */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">{title}</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Register a new employee into the system or upload multiple records.
+            </p>
+          </div>
 
-        <Tabs defaultValue="single" className="w-full ">
-          <TabsList className="grid w-full grid-cols-2 mb-6 h-15! bg-[white] p-2">
-            <TabsTrigger value="single" className="data-[state=active]:bg-[#2A174E] data-[state=active]:text-white font-semibold text-grey-500 transition-all text-md shadow-sm">
+          {/* Tabs List aligned to the right on large screens */}
+          <TabsList className="grid w-full sm:w-[350px] grid-cols-2 h-11 bg-slate-200/60 p-1 rounded-lg shrink-0">
+            <TabsTrigger 
+              value="single" 
+              className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md"
+            >
               Single Registration
             </TabsTrigger>
-            <TabsTrigger value="batch" className="data-[state=active]:bg-[#2A174E] data-[state=active]:text-white font-semibold text-grey-500 transition-all text-md shadow-sm">
+            <TabsTrigger 
+              value="batch" 
+              className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md"
+            >
               Batch Upload (CSV)
             </TabsTrigger>
           </TabsList>
+        </div>
 
-          {/* SINGLE REGISTRATION TAB */}
-          <TabsContent value="single" className="space-y-6 mt-0 ">
-            <Card className="shadow-sm border-0 bg-white overflow-hidden border-t-4 border-[#2A174E] py-0">
-              <div className="flex flex-col lg:flex-row min-h-[600px]">
-                
-                {/* Left Column: Identity Preview */}
-                <div className="w-full lg:w-[350px] bg-slate-50/50 border-b lg:border-b-0 lg:border-r border-slate-200 p-8 flex flex-col items-center justify-center">
-                  <div className="relative mb-6">
-                    <img
-                      src={
-                        file
-                          ? URL.createObjectURL(file)
-                          : formData.user_ProfilePic
-                            ? `/api/uploads/${formData.user_ProfilePic}`
-                            : "/avatar.webp"
-                      }
-                      alt="Profile Preview"
-                      className="w-40 h-40 rounded-full object-cover border-4 border-white shadow-lg"
-                    />
-                    <div className="absolute -bottom-2 w-full flex justify-center">
-                      <label htmlFor="file" className="cursor-pointer bg-white px-4 py-1.5 rounded-full shadow-md border border-slate-200 flex items-center gap-1.5 text-xs font-bold text-[#2A174E] hover:text-white hover:bg-[#2A174E] transition-colors">
-                        <DriveFolderUploadOutlinedIcon fontSize="small" /> Upload
-                      </label>
-                      <input
-                        type="file"
-                        id="file"
-                        onChange={(e) => {
-                          const selectedFile = e.target.files[0];
-                          if (selectedFile) {
-                            const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
-                            if (!allowedTypes.includes(selectedFile.type)) {
-                              setToast({ message: "Invalid format. Only PNG, JPG, and JPEG allowed!", type: "error" });
-                              e.target.value = null;
-                              return;
+        {/* Form Content */}
+        <TabsContent value="single" className="space-y-6 mt-0">
+          <Card className="shadow-sm border-0 bg-white overflow-hidden border-t-4 border-[#2A174E] py-0">
+                    <div className="flex flex-col lg:flex-row min-h-[600px]">
+                      
+                      {/* Left Column: Identity Preview */}
+                      <div className="w-full lg:w-[350px] bg-slate-50/50 border-b lg:border-b-0 lg:border-r border-slate-200 p-8 flex flex-col items-center justify-center">
+                        <div className="relative mb-6">
+                          <img
+                            src={
+                              file
+                                ? URL.createObjectURL(file)
+                                : formData.user_ProfilePic
+                                  ? `/api/uploads/${formData.user_ProfilePic}`
+                                  : "/avatar.webp"
                             }
-                            setFile(selectedFile);
-                          }
-                        }}
-                        className="hidden"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="text-center mt-6">
-                    <h2 className="text-xl font-bold text-[#2A174E] capitalize break-words">
-                      {formData.user_FirstName || "First"} {formData.user_LastName || "Last"}
-                    </h2>
-                    <p className="text-sm font-medium text-slate-500 my-2">
-                      {formData.user_Role || "Select Role"}
-                    </p>
-                    <Badge variant="secondary" className={`font-bold uppercase tracking-wider ${getStatusBadgeStyle(formData.user_EmploymentStatus)}`}>
-                      {formData.user_EmploymentStatus || "Regular"}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Right Column: Multi-Step Form */}
-                <div className="w-full lg:flex-1 p-6 md:p-10 flex flex-col">
-                  
-                  {/* Stepper Header Indicator */}
-                  <div className="relative mb-10 mx-auto w-full max-w-lg">
-                     <div className="absolute left-0 top-[15px] w-full h-[2px] bg-slate-100 z-0"></div>
-                     <div className="absolute left-0 top-[15px] h-[2px] bg-[#2A174E] z-0 transition-all duration-500 ease-in-out" style={{ width: `${((activeStep - 1) / (totalSteps - 1)) * 100}%` }}></div>
-
-                     <div className="flex justify-between relative z-10">
-                       {steps.map(step => (
-                         <div key={step.id} className="flex flex-col items-center gap-2 bg-white px-2">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all duration-300 shadow-sm ${activeStep >= step.id ? 'bg-[#2A174E] border-[#2A174E] text-white scale-110' : 'bg-white border-slate-200 text-slate-400'}`}>
-                              {activeStep > step.id ? <CheckIcon fontSize="small" /> : step.id}
-                            </div>
-                            <span className={`text-[11px] font-bold uppercase tracking-wider ${activeStep >= step.id ? 'text-[#2A174E]' : 'text-slate-400'}`}>
-                              {step.title}
-                            </span>
-                         </div>
-                       ))}
-                     </div>
-                  </div>
-
-                  {/* Form Content Area */}
-                  <div className="flex-1 min-h-[350px]">
-                    {/* STEP 1: Personal Info */}
-                    {activeStep === 1 && (
-                      <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                        <div className="space-y-4">
-                          <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 block">Personal Details</Label>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                            <div className="space-y-1">
-                              <Label className="text-xs text-slate-500">First Name <span className="text-red-500">*</span></Label>
-                              <Input id="user_FirstName" placeholder="Juan" value={formData.user_FirstName} onChange={handleInput} className={errors.user_FirstName ? "border-red-500" : ""} />
-                              {errors.user_FirstName && <span className="text-xs text-red-500">{errors.user_FirstName}</span>}
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs text-slate-500">Middle Name</Label>
-                              <Input id="user_MiddleName" placeholder="Perez" value={formData.user_MiddleName} onChange={handleInput} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs text-slate-500">Last Name <span className="text-red-500">*</span></Label>
-                              <Input id="user_LastName" placeholder="Dela Cruz" value={formData.user_LastName} onChange={handleInput} className={errors.user_LastName ? "border-red-500" : ""} />
-                              {errors.user_LastName && <span className="text-xs text-red-500">{errors.user_LastName}</span>}
-                            </div>
+                            alt="Profile Preview"
+                            className="w-40 h-40 rounded-full object-cover border-4 border-white shadow-lg"
+                          />
+                          <div className="absolute -bottom-2 w-full flex justify-center">
+                            <label htmlFor="file" className="cursor-pointer bg-white px-4 py-1.5 rounded-full shadow-md border border-slate-200 flex items-center gap-1.5 text-xs font-bold text-[#2A174E] hover:text-white hover:bg-[#2A174E] transition-colors">
+                              <DriveFolderUploadOutlinedIcon fontSize="small" /> Upload
+                            </label>
+                            <input
+                              type="file"
+                              id="file"
+                              onChange={(e) => {
+                                const selectedFile = e.target.files[0];
+                                if (selectedFile) {
+                                  const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+                                  if (!allowedTypes.includes(selectedFile.type)) {
+                                    setToast({ message: "Invalid format. Only PNG, JPG, and JPEG allowed!", type: "error" });
+                                    e.target.value = null;
+                                    return;
+                                  }
+                                  setFile(selectedFile);
+                                }
+                              }}
+                              className="hidden"
+                            />
                           </div>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {inputs.filter(i => step1Fields.includes(i.id)).map(renderDynamicInput)}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* STEP 2: Employment & Bank Details */}
-                    {activeStep === 2 && (
-                      <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
                         
-                        {/* Segment 1: Employment Configuration */}
-                        <div className="space-y-4">
-                          <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 flex items-center gap-2">
-                            <WorkIcon className="text-[#2A174E] h-5 w-5" /> Employment Configuration
-                          </Label>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {inputs.filter(i => step2Fields.includes(i.id)).map(renderDynamicInput)}
-                          </div>
+                        <div className="text-center mt-6">
+                          <h2 className="text-xl font-bold text-[#2A174E] capitalize break-words">
+                            {formData.user_FirstName || "First"} {formData.user_LastName || "Last"}
+                          </h2>
+                          <p className="text-sm font-medium text-slate-500 my-2">
+                            {formData.user_Role || "Select Role"}
+                          </p>
+                          <Badge variant="secondary" className={`font-bold uppercase tracking-wider ${getStatusBadgeStyle(formData.user_EmploymentStatus)}`}>
+                            {formData.user_EmploymentStatus || "Regular"}
+                          </Badge>
                         </div>
+                      </div>
 
-                        {/* Segment 2: Bank Details */}
-                        <div className="space-y-4">
-                          <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 flex items-center gap-2">
-                            <AccountBalanceIcon className="text-[#2A174E] h-5 w-5" /> Bank & Payroll Details
-                          </Label>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            
-                            <div className="space-y-2">
-                              <Label className="text-slate-600 font-semibold">Bank Company <span className="text-red-500">*</span></Label>
-                              <Select value={formData.bank_Company} onValueChange={(val) => handleInput({ target: { id: "bank_Company", value: val } })}>
-                                <SelectTrigger className={`bg-white w-full ${errors.bank_Company ? "border-red-500" : ""}`}>
-                                  <SelectValue placeholder="Select Bank" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {PHILIPPINE_BANKS.map((bank, idx) => (
-                                    <SelectItem key={idx} value={bank}>{bank}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {errors.bank_Company && <span className="text-xs text-red-500 block">{errors.bank_Company}</span>}
-                            </div>
+                      {/* Right Column: Multi-Step Form */}
+                      <div className="w-full lg:flex-1 p-6 md:p-10 flex flex-col">
+                        
+                        {/* Stepper Header Indicator */}
+                        <div className="relative mb-10 mx-auto w-full max-w-lg">
+                          <div className="absolute left-0 top-[15px] w-full h-[2px] bg-slate-100 z-0"></div>
+                          <div className="absolute left-0 top-[15px] h-[2px] bg-[#2A174E] z-0 transition-all duration-500 ease-in-out" style={{ width: `${((activeStep - 1) / (totalSteps - 1)) * 100}%` }}></div>
 
-                            <div className="space-y-2">
-                              <Label className="text-slate-600 font-semibold">Account Name <span className="text-red-500">*</span></Label>
-                              <Input 
-                                id="bank_AccountName" 
-                                placeholder="Juan Dela Cruz" 
-                                value={formData.bank_AccountName} 
-                                onChange={handleInput} 
-                                className={errors.bank_AccountName ? "border-red-500" : ""} 
-                              />
-                              {errors.bank_AccountName && <span className="text-xs text-red-500 block">{errors.bank_AccountName}</span>}
-                            </div>
-
-                            <div className="space-y-2 md:col-span-2">
-                              <Label className="text-slate-600 font-semibold">Account Number <span className="text-red-500">*</span></Label>
-                              <div className="relative">
-                                <Input 
-                                  id="account_Number" 
-                                  type={showAccountNumber ? "text" : "password"}
-                                  placeholder="e.g. 00123456789" 
-                                  value={formData.account_Number} 
-                                  onChange={handleInput} 
-                                  className={`bg-white pr-10 ${errors.account_Number ? "border-red-500" : ""}`} 
-                                />
-                                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowAccountNumber(!showAccountNumber)}>
-                                  {showAccountNumber ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                                </button>
+                          <div className="flex justify-between relative z-10">
+                            {steps.map(step => (
+                              <div key={step.id} className="flex flex-col items-center gap-2 bg-white px-2">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all duration-300 shadow-sm ${activeStep >= step.id ? 'bg-[#2A174E] border-[#2A174E] text-white scale-110' : 'bg-white border-slate-200 text-slate-400'}`}>
+                                    {activeStep > step.id ? <CheckIcon fontSize="small" /> : step.id}
+                                  </div>
+                                  <span className={`text-[11px] font-bold uppercase tracking-wider ${activeStep >= step.id ? 'text-[#2A174E]' : 'text-slate-400'}`}>
+                                    {step.title}
+                                  </span>
                               </div>
-                              {errors.account_Number && <span className="text-xs text-red-500 block">{errors.account_Number}</span>}
-                            </div>
-
+                            ))}
                           </div>
                         </div>
 
-                      </div>
-                    )}
+                        {/* Form Content Area */}
+                        <div className="flex-1 min-h-[350px]">
+                          {/* STEP 1: Personal Info */}
+                          {activeStep === 1 && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                              <div className="space-y-4">
+                                <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 block">Personal Details</Label>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-slate-500">First Name <span className="text-red-500">*</span></Label>
+                                    <Input id="user_FirstName" placeholder="Juan" value={formData.user_FirstName} onChange={handleInput} className={errors.user_FirstName ? "border-red-500" : ""} />
+                                    {errors.user_FirstName && <span className="text-xs text-red-500">{errors.user_FirstName}</span>}
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-slate-500">Middle Name</Label>
+                                    <Input id="user_MiddleName" placeholder="Perez" value={formData.user_MiddleName} onChange={handleInput} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-slate-500">Last Name <span className="text-red-500">*</span></Label>
+                                    <Input id="user_LastName" placeholder="Dela Cruz" value={formData.user_LastName} onChange={handleInput} className={errors.user_LastName ? "border-red-500" : ""} />
+                                    {errors.user_LastName && <span className="text-xs text-red-500">{errors.user_LastName}</span>}
+                                  </div>
+                                </div>
+                              </div>
 
-                    {/* STEP 3: Security */}
-                    {activeStep === 3 && (
-                      <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-6">
-                         <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 block">Security & Biometrics</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {inputs.filter(i => step3Fields.includes(i.id)).map(renderDynamicInput)}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {inputs.filter(i => step1Fields.includes(i.id)).map(renderDynamicInput)}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* STEP 2: Employment & Bank Details */}
+                          {activeStep === 2 && (
+                            <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
+                              
+                              {/* Segment 1: Employment Configuration */}
+                              <div className="space-y-4">
+                                <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 flex items-center gap-2">
+                                  <WorkIcon className="text-[#2A174E] h-5 w-5" /> Employment Configuration
+                                </Label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  {inputs.filter(i => step2Fields.includes(i.id)).map(renderDynamicInput)}
+                                </div>
+                              </div>
+
+                              {/* Segment 2: Bank Details */}
+                              <div className="space-y-4">
+                                <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 flex items-center gap-2">
+                                  <AccountBalanceIcon className="text-[#2A174E] h-5 w-5" /> Bank & Payroll Details
+                                </Label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  
+                                  <div className="space-y-2">
+                                    <Label className="text-slate-600 font-semibold">Bank Company <span className="text-red-500">*</span></Label>
+                                    <Select value={formData.bank_Company} onValueChange={(val) => handleInput({ target: { id: "bank_Company", value: val } })}>
+                                      <SelectTrigger className={`bg-white w-full ${errors.bank_Company ? "border-red-500" : ""}`}>
+                                        <SelectValue placeholder="Select Bank" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {PHILIPPINE_BANKS.map((bank, idx) => (
+                                          <SelectItem key={idx} value={bank}>{bank}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {errors.bank_Company && <span className="text-xs text-red-500 block">{errors.bank_Company}</span>}
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label className="text-slate-600 font-semibold">Account Name <span className="text-red-500">*</span></Label>
+                                    <Input 
+                                      id="bank_AccountName" 
+                                      placeholder="Juan Dela Cruz" 
+                                      value={formData.bank_AccountName} 
+                                      onChange={handleInput} 
+                                      className={errors.bank_AccountName ? "border-red-500" : ""} 
+                                    />
+                                    {errors.bank_AccountName && <span className="text-xs text-red-500 block">{errors.bank_AccountName}</span>}
+                                  </div>
+
+                                  <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-slate-600 font-semibold">Account Number <span className="text-red-500">*</span></Label>
+                                    <div className="relative">
+                                      <Input 
+                                        id="account_Number" 
+                                        type={showAccountNumber ? "text" : "password"}
+                                        placeholder="e.g. 00123456789" 
+                                        value={formData.account_Number} 
+                                        onChange={handleInput} 
+                                        className={`bg-white pr-10 ${errors.account_Number ? "border-red-500" : ""}`} 
+                                      />
+                                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowAccountNumber(!showAccountNumber)}>
+                                        {showAccountNumber ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                                      </button>
+                                    </div>
+                                    {errors.account_Number && <span className="text-xs text-red-500 block">{errors.account_Number}</span>}
+                                  </div>
+
+                                </div>
+                              </div>
+
+                            </div>
+                          )}
+
+                          {/* STEP 3: Security */}
+                          {activeStep === 3 && (
+                            <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-6">
+                              <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 block">Security & Biometrics</Label>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {inputs.filter(i => step3Fields.includes(i.id)).map(renderDynamicInput)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Navigation Footer */}
+                        <div className="flex justify-between items-center mt-10 pt-6 border-t border-slate-100">
+                          <Button 
+                            variant="outline" 
+                            onClick={handlePrevStep} 
+                            disabled={activeStep === 1}
+                            className="w-24 border-slate-200"
+                          >
+                            Back
+                          </Button>
+                          
+                          {activeStep < totalSteps ? (
+                            <Button onClick={handleNextStep} className="w-32 bg-[#2A174E] hover:bg-[#1a0e30] text-white">
+                              Continue
+                            </Button>
+                          ) : (
+                            <Button onClick={handleSubmit} disabled={loading} className="w-32 bg-green-600 hover:bg-green-700 text-white font-bold shadow-md">
+                              {loading ? "Saving..." : "Finish & Save"}
+                            </Button>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Navigation Footer */}
-                  <div className="flex justify-between items-center mt-10 pt-6 border-t border-slate-100">
+                    </div>
+              </Card>
+        </TabsContent>
+
+        <TabsContent value="batch" className="mt-0">
+          <Card className="shadow-sm border-0 bg-white border-t-4 border-[#2A174E]">
+                <CardContent className="flex flex-col items-center justify-center p-8 md:p-16 min-h-[400px]">
+                  
+                  <div className="bg-slate-50 p-6 rounded-full mb-6">
+                    <UploadFileIcon className="text-[#2A174E] h-16 w-16 opacity-80" />
+                  </div>
+                  
+                  <div className="text-center mb-10 max-w-lg">
+                    <h3 className="text-2xl font-bold text-[#2A174E] mb-2">Upload CSV File</h3>
+                    <p className="text-slate-500 leading-relaxed">
+                      Register multiple users quickly by uploading a properly formatted CSV file. 
+                      If you don't have the template yet, download it below to get started.
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-col items-center gap-5 w-full max-w-md">
+                    
                     <Button 
                       variant="outline" 
-                      onClick={handlePrevStep} 
-                      disabled={activeStep === 1}
-                      className="w-24 border-slate-200"
+                      onClick={downloadCsvTemplate} 
+                      className="w-full h-12 text-[#2A174E] border-[#2A174E] hover:bg-[#f0ebfa] font-semibold"
                     >
-                      Back
+                      <FileDownloadOutlinedIcon className="mr-2 h-5 w-5" /> Download CSV Template
                     </Button>
                     
-                    {activeStep < totalSteps ? (
-                      <Button onClick={handleNextStep} className="w-32 bg-[#2A174E] hover:bg-[#1a0e30] text-white">
-                        Continue
-                      </Button>
-                    ) : (
-                      <Button onClick={handleSubmit} disabled={loading} className="w-32 bg-green-600 hover:bg-green-700 text-white font-bold shadow-md">
-                        {loading ? "Saving..." : "Finish & Save"}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            </Card>
-          </TabsContent>
-
-          {/* BATCH UPLOAD TAB */}
-          <TabsContent value="batch" className="mt-0">
-            <Card className="shadow-sm border-0 bg-white border-t-4 border-[#2A174E]">
-              <CardContent className="flex flex-col items-center justify-center p-8 md:p-16 min-h-[400px]">
-                
-                <div className="bg-slate-50 p-6 rounded-full mb-6">
-                  <UploadFileIcon className="text-[#2A174E] h-16 w-16 opacity-80" />
-                </div>
-                
-                <div className="text-center mb-10 max-w-lg">
-                  <h3 className="text-2xl font-bold text-[#2A174E] mb-2">Upload CSV File</h3>
-                  <p className="text-slate-500 leading-relaxed">
-                    Register multiple users quickly by uploading a properly formatted CSV file. 
-                    If you don't have the template yet, download it below to get started.
-                  </p>
-                </div>
-                
-                <div className="flex flex-col items-center gap-5 w-full max-w-md">
-                  
-                  <Button 
-                    variant="outline" 
-                    onClick={downloadCsvTemplate} 
-                    className="w-full h-12 text-[#2A174E] border-[#2A174E] hover:bg-[#f0ebfa] font-semibold"
-                  >
-                    <FileDownloadOutlinedIcon className="mr-2 h-5 w-5" /> Download CSV Template
-                  </Button>
-                  
-                  <div className="w-full relative border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:bg-slate-50 transition-colors">
-                    <Input 
-                      type="file" 
-                      accept=".csv" 
-                      onChange={handleCsvChange} 
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                    />
-                    <div className="pointer-events-none">
-                      {csvFile ? (
-                        <p className="text-green-600 font-semibold flex items-center justify-center gap-2">
-                          <span className="truncate max-w-[200px]">{csvFile.name}</span> selected
-                        </p>
-                      ) : (
-                        <p className="text-slate-500 font-medium">Click to browse or drag and drop a .csv file here</p>
-                      )}
+                    <div className="w-full relative border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:bg-slate-50 transition-colors">
+                      <Input 
+                        type="file" 
+                        accept=".csv" 
+                        onChange={handleCsvChange} 
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                      />
+                      <div className="pointer-events-none">
+                        {csvFile ? (
+                          <p className="text-green-600 font-semibold flex items-center justify-center gap-2">
+                            <span className="truncate max-w-[200px]">{csvFile.name}</span> selected
+                          </p>
+                        ) : (
+                          <p className="text-slate-500 font-medium">Click to browse or drag and drop a .csv file here</p>
+                        )}
+                      </div>
                     </div>
+
+                    <Button 
+                      onClick={handleBatchSubmit} 
+                      disabled={batchLoading || !csvFile} 
+                      className="w-full h-12 bg-[#2A174E] hover:bg-[#1a0e30] text-white font-semibold shadow-sm mt-2"
+                    >
+                      {batchLoading ? "Processing..." : "Upload and Register Users"}
+                    </Button>
+
                   </div>
-
-                  <Button 
-                    onClick={handleBatchSubmit} 
-                    disabled={batchLoading || !csvFile} 
-                    className="w-full h-12 bg-[#2A174E] hover:bg-[#1a0e30] text-white font-semibold shadow-sm mt-2"
-                  >
-                    {batchLoading ? "Processing..." : "Upload and Register Users"}
-                  </Button>
-
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-        </Tabs>
+                </CardContent>
+              </Card>
+        </TabsContent>
+      </Tabs>
 
         {/* Modals */}
         <RfidScanModal 

@@ -555,16 +555,16 @@ const Cashadvances = () => {
           </div>
 
           {/* Card 3: All-Time Stats */}
-          <div className="md:col-span-3 border border-slate-200 bg-slate-900 text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="md:col-span-3 border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="absolute top-0 right-0 p-4 opacity-10">
               <AccountBalanceWalletIcon style={{ fontSize: '100px' }} />
             </div>
             <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 w-full">
-              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex-1 w-full">
+              <div className="bg-[#2A174E] p-4 rounded-lg border border-[#7A52B5]/30 flex-1 w-full">
                 <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Total Collections (All-Time)</p>
                 <p className="text-3xl font-bold text-white tracking-tight">{peso(totalAllTime)}</p>
               </div>
-              <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex-1 w-full">
+              <div className="bg-[#2A174E] p-4 rounded-lg border border-[#7A52B5]/30 flex-1 w-full">
                 <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Collections ({selectedYear})</p>
                 <p className="text-3xl font-bold text-white tracking-tight">{peso(stats.totalPaid)}</p>
               </div>

@@ -9,7 +9,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 
@@ -162,6 +162,12 @@ const PayrollDetails = () => {
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div className="flex items-start sm:items-center gap-4">
+            <Link 
+              to="/payroll/payrollPeriod" 
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
+            >
+              <ArrowBackIcon className="h-6 w-6" />
+            </Link>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Payroll Details</h1>
               <span className="text-sm text-slate-500 mt-1 block font-mono">Payroll ID: {payroll.payrollId}</span>
@@ -169,7 +175,7 @@ const PayrollDetails = () => {
           </div>
           <Badge 
             variant="secondary" 
-            className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider ${payroll.PaystatusName?.toLowerCase() === "released" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}
+            className={`px-4 py-3 text-xs font-bold uppercase tracking-wider ${payroll.PaystatusName?.toLowerCase() === "released" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}
           >
             {payroll.PaystatusName}
           </Badge>
@@ -204,10 +210,10 @@ const PayrollDetails = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           
           {/* Employee Information Card */}
-          <Card className="border-0 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-50 py-0">
-              <CardTitle className="text-base flex items-center gap-2 text-slate-800">
-                <PersonOutlineIcon className="text-slate-400 h-5 w-5" /> Employee Information
+          <Card className="border-0 shadow-sm bg-white py-0">
+            <CardHeader className="border-b border-slate-50 py-4 bg-[#2A174E]">
+              <CardTitle className="text-base flex items-center gap-2 text-white">
+                <PersonOutlineIcon className="text-white h-5 w-5" /> Employee Information
               </CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -231,10 +237,10 @@ const PayrollDetails = () => {
           </Card>
 
           {/* Pay Period Card */}
-          <Card className="border-0 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-50 py-0">
-              <CardTitle className="text-base flex items-center gap-2 text-slate-800">
-                <CalendarTodayIcon className="text-slate-400 h-5 w-5" /> Pay Period
+          <Card className="border-0 shadow-sm bg-white py-0 h-[300px]">
+            <CardHeader className="border-b border-slate-50 py-4 bg-[#2A174E]">
+              <CardTitle className="text-base flex items-center gap-2 text-white">
+                <CalendarTodayIcon className="text-white h-5 w-5" /> Pay Period
               </CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -266,10 +272,10 @@ const PayrollDetails = () => {
           </Card>
 
           {/* Earnings Breakdown Card */}
-          <Card className="border-0 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-50 py-0">
-              <CardTitle className="text-base flex items-center gap-2 text-slate-800">
-                <TrendingUpIcon className="text-green-500 h-5 w-5" /> Earnings Breakdown
+          <Card className="border-0 shadow-sm bg-white py-0">
+            <CardHeader className="border-b border-slate-50 py-4 bg-green-900">
+              <CardTitle className="text-base flex items-center gap-2 text-white">
+                <TrendingUpIcon className="text-green-100 h-5 w-5" /> Earnings Breakdown
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -313,10 +319,10 @@ const PayrollDetails = () => {
           </Card>
 
           {/* Deductions Breakdown Card */}
-          <Card className="border-0 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-50 py-0">
-              <CardTitle className="text-base flex items-center gap-2 text-slate-800">
-                <TrendingDownIcon className="text-red-500 h-5 w-5" /> {activeTab === 'overview' ? 'Deductions Breakdown' : activeTab === 'govt' ? 'Government Contributions' : 'Other Deductions'}
+          <Card className="border-0 shadow-sm bg-white py-0">
+            <CardHeader className="border-b border-slate-50 py-4 bg-red-500">
+              <CardTitle className="text-base flex items-center gap-2 text-white">
+                <TrendingDownIcon className="text-red-200 h-5 w-5" /> {activeTab === 'overview' ? 'Deductions Breakdown' : activeTab === 'govt' ? 'Government Contributions' : 'Other Deductions'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

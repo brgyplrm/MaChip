@@ -14,6 +14,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Link } from "react-router-dom";
+import EmptyState from "../../components/EmptyState";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -175,52 +176,41 @@ const ArchivedUsers = () => {
         </div>
         <div className="h-4"></div>
 
-        {/* Dashboard-Style Widgets Row */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-          
-          {/* Card 1 */}
-          <div className="bg-[#FAF2FF] shadow-sm p-5 rounded-xl flex justify-between min-w-0">
-            <div className="flex flex-col justify-between">
-              <div>
-                <p className="text-[13px] font-bold text-[#2B174F] uppercase tracking-wider mb-1">Total Archived</p>
-                <p className="text-3xl font-bold text-[#2B174F]">{stats.total}</p>
+        {/* Statistics Cards */}
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+                {/* Card 1: Total Active Users */}
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+                    <div>
+                      <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Archived</p>
+                      <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
+                    </div>
+                    <p className="text-xs text-[#2A174E]/70 italic mt-4">Total registered active accounts</p>
+                  </CardContent>
+                </Card>
+        
+                {/* Card 2: Employees */}
+                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+                    <div>
+                      <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Employees</p>
+                      <p className="text-4xl font-bold text-[#3B4E17]">{stats.employees}</p>
+                    </div>
+                    <p className="text-xs text-[#3B4E17]/70 italic mt-4">Active standard staff records</p>
+                  </CardContent>
+                </Card>
+        
+                {/* Card 3: Admins & Supervisors */}
+                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+                    <div>
+                      <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Admin & Supervisor</p>
+                      <p className="text-4xl font-bold text-[#BB8B26]">{stats.admins}</p>
+                    </div>
+                    <p className="text-xs text-[#BB8B26]/70 italic mt-4">Active management records</p>
+                  </CardContent>
+                </Card>
               </div>
-              <p className="text-xs text-[#2B174F]/80 italic mt-4">Total number of inactive accounts</p>
-            </div>
-            <div className="bg-[#2A174E]/20 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-              <ArchiveOutlinedIcon className="h-6 w-6" />
-            </div>
-          </div>
-
-          {/* Card 2 */}
-          <div className="bg-[#F8FFF2] shadow-sm p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
-            <div className="flex flex-col justify-between">
-              <div>
-                <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-1">Employee</p>
-                <p className="text-3xl font-bold text-[#3B4E17]">{stats.employees}</p>
-              </div>
-              <p className="text-xs text-[#3B4E17]/80 italic mt-4">Archived standard staff records</p>
-            </div>
-            <div className="bg-[#3B4E17]/20 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-              <GroupOutlinedIcon className="h-6 w-6" />
-            </div>
-          </div>
-
-          {/* Card 3 */}
-          <div className="bg-[#FFFFF2] shadow-sm p-5 rounded-xl shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] flex justify-between min-w-0">
-            <div className="flex flex-col justify-between">
-              <div>
-                <p className="text-[13px] font-bold text-[#ECC04B] uppercase tracking-wider mb-1">Admin & Supervisor</p>
-                <p className="text-3xl font-bold text-[#ECC04B]">{stats.admins}</p>
-              </div>
-              <p className="text-xs text-[#ECC04B]/80 italic mt-4">Archived management records</p>
-            </div>
-            <div className="bg-[#ECC04B]/20 text-[#ECC04B] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-              <ManageAccountsOutlinedIcon className="h-6 w-6" />
-            </div>
-          </div>
-
-        </div>
 
         {/* Filters Card */}
         <Card className="shadow-sm border-0 bg-white mb-6 py-0">
@@ -339,11 +329,33 @@ const ArchivedUsers = () => {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                        <div className="flex flex-col items-center justify-center space-y-1">
-                          <SearchIcon className="h-8 w-8 text-slate-300 mb-2" />
-                          <span className="font-semibold text-slate-600">No archived users found</span>
-                          <span className="text-sm text-slate-400">Try adjusting your search or filters.</span>
+                      <TableCell colSpan={6} className="p-0 border-0">
+                        {/* Utilizing your EmptyState component */}
+                        <div className="p-8">
+                          <EmptyState
+                            icon={
+                              isFiltering ? (
+                                <SearchIcon className="h-8 w-8 text-slate-400" />
+                              ) : (
+                                <ArchiveOutlinedIcon className="h-8 w-8 text-slate-400" />
+                              )
+                            }
+                            title={isFiltering ? "No matching records" : "No archived users"}
+                            description={
+                              isFiltering 
+                                ? "We couldn't find anyone matching your search or filters. Try adjusting your criteria." 
+                                : "There are no users currently in the archive. Records you delete will appear here."
+                            }
+                            action={isFiltering && (
+                              <Button 
+                                variant="outline" 
+                                onClick={handleClearFilters}
+                                className="text-slate-600 border-slate-200 hover:bg-slate-100 font-semibold rounded-lg"
+                              >
+                                Clear Filters
+                              </Button>
+                            )}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>

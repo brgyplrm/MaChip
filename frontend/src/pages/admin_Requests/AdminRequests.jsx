@@ -251,13 +251,13 @@ const AdminRequests = () => {
               Monitor and process employee requests, leave filings, and log correction tickets.
           </span>
         </div>
-        
-        {/* Dashboard-Style Statistics Cards */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-          {/* Card 1: Pending */}
-          <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
-              <div className="flex flex-col justify-between">
+
+         {/* Statistics Cards */}
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+            {/* Card 1: Total Active Users */}
+            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                <div className="flex flex-col justify-between">
                 <div>
                   <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Pending Requests</p>
                   <p className="text-4xl font-bold text-[#2A174E]">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
@@ -267,13 +267,13 @@ const AdminRequests = () => {
               <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <HourglassEmptyIcon className="h-6 w-6" />
               </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Card 2: Approved */}
-          <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
-              <div className="flex flex-col justify-between">
+            {/* Card 2: Employees */}
+            <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                <div className="flex flex-col justify-between">
                 <div>
                   <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Approved Total</p>
                   <p className="text-4xl font-bold text-[#3B4E17]">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
@@ -283,13 +283,13 @@ const AdminRequests = () => {
               <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CheckCircleOutlineIcon className="h-6 w-6" />
               </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Card 3: Rejected */}
-          <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
-              <div className="flex flex-col justify-between">
+            {/* Card 3: Admins & Supervisors */}
+            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                <div className="flex flex-col justify-between">
                 <div>
                   <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Rejected Total</p>
                   <p className="text-4xl font-bold text-[#BB8B26]">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
@@ -299,9 +299,9 @@ const AdminRequests = () => {
               <div className="bg-white/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CancelOutlinedIcon className="h-6 w-6" />
               </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
 
         {/* Filters Card (Only visible when viewing History) */}
         {activeTab === "completed" && (

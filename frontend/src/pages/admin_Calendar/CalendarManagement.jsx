@@ -554,14 +554,12 @@ const CalendarManagement = () => {
                     })}
                   </div>
                 ) : (
-                  <div className="h-full flex items-center justify-center">
                     <EmptyState 
-                      className="min-h-0 h-full w-full border-0 bg-transparent hover:bg-transparent shadow-none p-0"
+                      className="h-full min-h-0 border-0 bg-transparent hover:bg-transparent shadow-none p-4"
                       icon={<EventAvailableIcon className="w-8 h-8 text-slate-300" />}
                       title="Clear Schedule!"
                       description="No holidays are coming up. It's a straight run of regular working days."
                     />
-                  </div>
                 )}
               </CardContent>
             </Card>
@@ -607,14 +605,12 @@ const CalendarManagement = () => {
                     })}
                   </div>
                 ) : (
-                  <div className="h-full flex items-center justify-center">
                     <EmptyState 
-                      className="min-h-0 h-full w-full border-0 bg-transparent hover:bg-transparent shadow-none p-0"
+                      className="h-full min-h-0 border-0 bg-transparent hover:bg-transparent shadow-none p-4"
                       icon={<MapIcon className="w-8 h-8 text-slate-300" />}
                       title="No Tasks Found"
                       description="There are currently no field assignments or deadlines scheduled."
                     />
-                  </div>
                 )}
               </CardContent>
             </Card>

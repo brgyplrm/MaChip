@@ -745,10 +745,10 @@ const Maxicare = () => {
         </div>
 
         {/* Main Grid Architecture */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6 w-full text-left font-sans">
           
           {/* Domain A: Policy Overview */}
-          <div className="md:col-span-2 border border-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden">
+          <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden border-t-5 border-[#2A174E] border-x border-x-slate-200">
             <div className="flex justify-between items-start mb-6">
               <div className="w-full max-w-xs">
                 <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Total Gross Premium</p>
@@ -797,35 +797,17 @@ const Maxicare = () => {
           </div>
 
           {/* Domain A.2: Active Subscribers */}
-          <div className="border border-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-center items-center text-center">
-            <div className="h-12 w-12 bg-indigo-50 rounded-full flex items-center justify-center mb-4 border border-indigo-100">
-              <GroupIcon className="text-indigo-600" />
+          <div className="border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-center items-center text-center">
+            <div className="h-12 w-12 bg-[#2A174E]/5 rounded-full flex items-center justify-center mb-4 border border-[#2A174E]/50">
+              <GroupIcon className="text-[#2A174E]" />
             </div>
             <p className="text-5xl font-extrabold text-slate-900">{activeSubscribers}</p>
             <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mt-2">Active Subscribers</p>
             <p className="text-xs text-slate-400 mt-1">({selectedYear} Cohort)</p>
           </div>
 
-          {/* Domain B: Financial Split */}
-          <div className="md:col-span-2 border border-slate-200 bg-white rounded-xl shadow-sm flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100">
-            <div className="flex-1 p-6 flex flex-col justify-center">
-              <div className="flex items-center gap-2 mb-2">
-                <PieChartIcon className="text-emerald-500 !text-base" />
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Employer Share ({employerShare}%)</p>
-              </div>
-              <p className="text-3xl font-bold text-slate-800">{peso(employerShareAmount)}</p>
-            </div>
-            <div className="flex-1 p-6 flex flex-col justify-center">
-              <div className="flex items-center gap-2 mb-2">
-                <PieChartIcon className="text-orange-500 !text-base" />
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Employee Share ({100 - employerShare}%)</p>
-              </div>
-              <p className="text-3xl font-bold text-slate-800">{peso(employeeShareAmount)}</p>
-            </div>
-          </div>
-
           {/* Domain C: Amortization Details */}
-          <div className="border border-slate-200 bg-slate-900 text-white p-6 rounded-xl shadow-sm relative overflow-hidden">
+          <div className="border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-10">
               <AccountBalanceWalletIcon style={{ fontSize: '100px' }} />
             </div>
@@ -854,8 +836,26 @@ const Maxicare = () => {
             </div>
           </div>
 
+          {/* Domain B: Financial Split */}
+          <div className="md:col-span-2 border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white rounded-xl shadow-sm flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 h-full">
+            <div className="flex-1 p-6 flex flex-col justify-center">
+              <div className="flex items-center gap-2 mb-2">
+                <PieChartIcon className="text-emerald-500 !text-base" />
+                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Employer Share ({employerShare}%)</p>
+              </div>
+              <p className="text-3xl font-bold text-slate-800">{peso(employerShareAmount)}</p>
+            </div>
+            <div className="flex-1 p-6 flex flex-col justify-center">
+              <div className="flex items-center gap-2 mb-2">
+                <PieChartIcon className="text-orange-500 !text-base" />
+                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Employee Share ({100 - employerShare}%)</p>
+              </div>
+              <p className="text-3xl font-bold text-slate-800">{peso(employeeShareAmount)}</p>
+            </div>
+          </div>
+
           {/* Domain D: YTD Tracking */}
-          <div className="md:col-span-3 border border-slate-200 bg-white p-6 rounded-xl shadow-sm mt-2">
+         <div className="md:col-span-2 border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm h-full">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <TrendingUpIcon className="text-slate-400 !text-lg" />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, react } from "react";
 import Sidebar from "../../components/Sidebar";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -9,10 +9,26 @@ import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import CloseIcon from "@mui/icons-material/Close";
 import SortIcon from "@mui/icons-material/Sort";
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
+import EmptyState from "../../components/EmptyState";
 import { Link } from "react-router-dom";
 import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodModal";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  Legend, 
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -233,6 +249,7 @@ const Payroll = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentData = filteredPeriods.slice(startIndex, endIndex);
+
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
@@ -491,11 +508,23 @@ const Payroll = () => {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                        <div className="flex flex-col items-center justify-center space-y-1">
-                          <SearchIcon className="h-8 w-8 text-slate-300 mb-2" />
-                          <span className="font-semibold text-slate-600">No periods found</span>
-                          <span className="text-sm text-slate-400">Adjust your search or filters to see more results.</span>
-                        </div>
+                        <EmptyState 
+                          icon={<SearchOffIcon className="w-8 h-8 text-slate-300" />}
+                          title="No Payroll Periods Found"
+                          description={searchQuery 
+                            ? `We couldn't find any results matching "${searchQuery}". Please try a different search term.` 
+                            : "There are currently no processed or locked payroll periods recorded."
+                          }
+                          action={searchQuery && (
+                            <Button 
+                              variant="outline" 
+                              onClick={handleClearFilters}
+                              className="text-[#2A174E] border-[#2A174E] hover:bg-[#f0ebfa]"
+                            >
+                              Clear Search
+                            </Button>
+                          )}
+                        />
                       </TableCell>
                     </TableRow>
                   )}

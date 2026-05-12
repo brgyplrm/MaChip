@@ -364,13 +364,13 @@ const Sidebar = ({ children }) => {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
+                        {/* <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll/payrollPeriod")}>
                             <Link to="/payroll/payrollPeriod" className={isActive("/payroll/payrollPeriod") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Payroll Details
                             </Link>
                           </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+                        </SidebarMenuSubItem> */}
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll/leave-summary")}>
                             <Link to="/payroll/leave-summary" className={isActive("/payroll/leave-summary") ? "text-[#2A174E] font-bold" : "text-gray-500"}>

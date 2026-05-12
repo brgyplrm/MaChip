@@ -232,11 +232,17 @@ const PayrollPeriod = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:px-4 py-6 w-full overflow-x-hidden min-w-0">
         
         {/* Header section with back button */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div className="flex items-start md:items-center gap-4">
+            <Link 
+              to="/payroll" 
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
+            >
+              <ArrowBackIcon className="h-6 w-6" />
+            </Link>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">
                 {selectedPeriod?.label} {selectedPeriod?.status === 'Draft' ? "Current Period" : "Previous Period"}
@@ -249,13 +255,6 @@ const PayrollPeriod = () => {
 
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0">
             <Button 
-              className={`w-full sm:w-auto bg-[#e6f7ff] text-[#004085] border border-[#b8daff] hover:bg-[#bae7ff] ${selectedPeriod?.status !== 'Draft' ? "opacity-50 cursor-not-allowed" : ""}`}
-              onClick={() => setIsConfirmOpen(true)}
-              disabled={selectedPeriod?.status !== 'Draft'}
-            >
-              <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}
-            </Button>
-            <Button 
               className="w-full sm:w-auto bg-[#f8fafc] text-[#2A174E] border border-slate-200 hover:bg-slate-100" 
               onClick={handlePreviewSummary}
               disabled={loading || payrolls.length === 0}
@@ -263,28 +262,36 @@ const PayrollPeriod = () => {
               <VisibilityIcon className="mr-2 h-4 w-4" /> Summary View
             </Button>
             <Button 
+              className={`w-full sm:w-auto bg-[#2A174E] text-white border border-[#b8daff] hover:bg-[#BA90E9] ${selectedPeriod?.status !== 'Draft' ? "opacity-50 cursor-not-allowed" : ""}`}
+              onClick={() => setIsConfirmOpen(true)}
+              disabled={selectedPeriod?.status !== 'Draft'}
+            >
+              <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}
+            </Button>
+            
+            {/* <Button 
               className="w-full sm:w-auto bg-green-600 text-white hover:bg-green-700" 
               onClick={handleDownloadSummary}
               disabled={loading || payrolls.length === 0 || selectedPeriod?.status === 'Draft'}
             >
               <DownloadIcon className="mr-2 h-4 w-4" /> Export PDF
-            </Button>
-            <Button 
+            </Button> */}
+            {/* <Button 
               className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]" 
               onClick={() => fetchData(true)}
               disabled={refreshing}
             >
               <RefreshIcon className={` h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            </Button>
+            </Button> */}
           </div>
         </div>
 
-        {/* Dashboard-Style Statistics Row */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-          {/* Card 1: Net Pay */}
-          <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
-              <div className="flex flex-col justify-between">
+         {/* Statistics Cards */}
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+            {/* Card 1: Total Active Users */}
+            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                <div className="flex flex-col justify-between">
                 <div>
                   <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Net Pay</p>
                   <p className="text-3xl font-bold text-[#2A174E]">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
@@ -294,13 +301,13 @@ const PayrollPeriod = () => {
               <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <PaymentsIcon className="h-6 w-6" />
               </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Card 2: Earnings */}
-          <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
-              <div className="flex flex-col justify-between">
+            {/* Card 2: Employees */}
+            <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                 <div className="flex flex-col justify-between">
                 <div>
                   <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Earnings</p>
                   <p className="text-3xl font-bold text-[#3B4E17]">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
@@ -310,13 +317,13 @@ const PayrollPeriod = () => {
               <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <KeyboardDoubleArrowUpIcon className="h-6 w-6" />
               </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Card 3: Deductions */}
-          <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
-              <div className="flex flex-col justify-between">
+            {/* Card 3: Admins & Supervisors */}
+            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                <div className="flex flex-col justify-between">
                 <div>
                   <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Deductions</p>
                   <p className="text-3xl font-bold text-[#BB8B26]">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
@@ -326,9 +333,9 @@ const PayrollPeriod = () => {
               <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
               </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
 
         {/* Filters Card */}
         <Card className="shadow-sm border-0 bg-white mb-6 py-0">
@@ -505,7 +512,7 @@ const PayrollPeriod = () => {
       {/* Summary Preview Modal */}
       {showSummaryPreview && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl border-0 overflow-hidden">
+          <Card className="w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl border-0 overflow-hidden py-0">
             <CardContent className="p-0 flex flex-col h-full">
               <div className="flex justify-between items-center p-4 bg-[#2A174E] text-white">
                 <h3 className="font-bold text-lg flex items-center gap-2">

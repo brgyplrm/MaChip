@@ -200,11 +200,17 @@ const PayrollEmployeeList = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:py-4 w-full overflow-x-hidden min-w-0">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
           <div className="flex items-start md:items-center gap-4">
+            <Link 
+              to="/payroll" 
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
+            >
+              <ArrowBackIcon className="h-6 w-6" />
+            </Link>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Masterlist</h1>
               <span className="text-sm text-slate-500 mt-1 block">Manage employee records and daily compensation rates</span>
@@ -237,7 +243,7 @@ const PayrollEmployeeList = () => {
         {/* Dashboard-Style Widgets Row */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
           {/* Card 1: Total Employees */}
-          <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-5 border-[#2A174E] bg-white py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
@@ -253,11 +259,11 @@ const PayrollEmployeeList = () => {
           </Card>
 
           {/* Card 2: Rate Changes (Dynamic Colors) */}
-          <Card className={`shadow-sm border-0 py-0 h-full min-w-0 transition-colors duration-500 ${changedCount > 0 ? "bg-[#ECC04B]" : "bg-slate-200"}`}>
+          <Card className={`shadow-sm border-0 py-0 h-full min-w-0 transition-colors duration-500 ${changedCount > 0 ? "bg-[#ECC04B]" : "bg-[#FCFBFA]"}`}>
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className={`text-xs font-bold uppercase tracking-wider mb-2 transition-colors ${changedCount > 0 ? "text-white" : "text-slate-500"}`}>
+                  <p className={`text-xs font-bold uppercase tracking-wider mb-2 transition-colors ${changedCount > 0 ? "text-white" : "text-[slate-500]"}`}>
                     Rate Changes
                   </p>
                   <p className={`text-4xl font-bold transition-colors ${changedCount > 0 ? "text-white" : "text-slate-700"}`}>

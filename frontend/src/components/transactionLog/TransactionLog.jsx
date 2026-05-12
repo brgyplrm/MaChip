@@ -166,10 +166,10 @@ const TransactionLog = () => {
           </Button>
         </div>
 
-        {/* Dashboard-Style Widgets Row */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in zoom-in-95 duration-200">
-          {/* Card 1: Total Transactions */}
-          <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
+         {/* Statistics Cards */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          {/* Card 1: Total Active Users */}
+          <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
@@ -184,8 +184,8 @@ const TransactionLog = () => {
             </CardContent>
           </Card>
 
-          {/* Card 2: Payroll Releases */}
-          <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
+          {/* Card 2: Employees */}
+          <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
@@ -200,8 +200,8 @@ const TransactionLog = () => {
             </CardContent>
           </Card>
 
-          {/* Card 3: Batch Runs */}
-          <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
+          {/* Card 3: Admins & Supervisors */}
+          <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
@@ -216,17 +216,17 @@ const TransactionLog = () => {
             </CardContent>
           </Card>
 
-          {/* Card 4: Unauthorized Scans (Red Theme) */}
-          <Card className="shadow-sm border-0 bg-[#991b1b] py-0 h-full min-w-0">
+          {/* Card 4: Security Alerts */}
+          <Card className="border-t-5 border-[#991b1b] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-[13px] font-bold text-white uppercase tracking-wider mb-2">Anomalies</p>
-                  <p className="text-4xl font-bold text-white">{stats.unauthorizedScans}</p>
+                  <p className="text-[13px] font-bold text-[#991b1b] uppercase tracking-wider mb-2">Anomalies</p>
+                  <p className="text-4xl font-bold text-[#991b1b]">{stats.unauthorizedScans}</p>
                 </div>
-                <p className="text-xs text-white/70 italic mt-4">Unauthorized or failed scans</p>
+                <p className="text-xs text-[#991b1b]/70 italic mt-4">Unauthorized or failed scans</p>
               </div>
-              <div className="bg-white/10 text-white p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-[#991b1b]/10 text-[#991b1b] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <GppBadIcon className="h-6 w-6" />
               </div>
             </CardContent>

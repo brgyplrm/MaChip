@@ -127,10 +127,10 @@ const Settings = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Leave Conversion Settings */}
-              <Card className="shadow-sm border-0 bg-white">
-                <CardHeader className="border-b border-slate-100 pb-4 mb-4 bg-slate-50/50 rounded-t-xl">
-                  <CardTitle className="text-lg text-[#2A174E] flex items-center gap-2">
-                    <CurrencyExchangeIcon className="h-5 w-5 text-slate-400" />
+              <Card className="shadow-sm border-0 bg-white py-0">
+                <CardHeader className="border-b border-slate-100 pb-4 mb-4 bg-[#2A174E] rounded-t-xl py-4">
+                  <CardTitle className="text-lg text-white flex items-center gap-2">
+                    <CurrencyExchangeIcon className="h-5 w-5 text-white" />
                     Leave Conversion Config
                   </CardTitle>
                 </CardHeader>
@@ -165,10 +165,10 @@ const Settings = () => {
               </Card>
 
               {/* MaChip / System Status */}
-              <Card className="shadow-sm border-0 bg-white">
-                <CardHeader className="border-b border-slate-100 pb-4 mb-4 bg-slate-50/50 rounded-t-xl">
-                  <CardTitle className="text-lg text-[#2A174E] flex items-center gap-2">
-                    <MemoryIcon className="h-5 w-5 text-slate-400" />
+              <Card className="shadow-sm border-0 bg-white pt-0 pb-6">
+                <CardHeader className="border-b border-slate-100 pb-4 mb-4 bg-[#2A174E] rounded-t-xl py-4">
+                  <CardTitle className="text-lg text-white flex items-center gap-2">
+                    <MemoryIcon className="h-5 w-5 text-white" />
                     MaChip Hardware Status
                   </CardTitle>
                 </CardHeader>
@@ -195,10 +195,10 @@ const Settings = () => {
             </div>
 
             {/* Bottom Row: Time Environment */}
-            <Card className="shadow-sm border-0 bg-white">
-              <CardHeader className="border-b border-slate-100 pb-4 mb-4 bg-slate-50/50 rounded-t-xl">
-                <CardTitle className="text-lg text-[#2A174E] flex items-center gap-2">
-                  <SettingsSuggestIcon className="h-5 w-5 text-slate-400" />
+            <Card className="shadow-sm border-0 bg-white pt-0 pb-6">
+              <CardHeader className="border-b border-slate-100 pb-4 mb-4 bg-[#2A174E] rounded-t-xl py-4">
+                <CardTitle className="text-lg text-white flex items-center gap-2">
+                  <SettingsSuggestIcon className="h-5 w-5 text-white" />
                   System Time Environment
                 </CardTitle>
               </CardHeader>
