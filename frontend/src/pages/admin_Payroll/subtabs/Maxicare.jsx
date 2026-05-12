@@ -420,6 +420,13 @@ const Maxicare = () => {
     setFile(e.target.files[0]);
   };
 
+  const handleRenewalChange = (months) => {
+  setConfig(prev => ({
+    ...prev,
+    monthsToPay: parseInt(months)
+  }));
+};
+
   const downloadTemplate = () => {
     const csvContent = "Date,EmployeeID,EmployeeName,Amount\n2025-10-15,MACJ-001,Cruzat Jenny,487.72\n2025-10-15,MACJ-002,Monis Gracel,487.72";
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -593,6 +600,8 @@ const Maxicare = () => {
             setCutoffs={setCutoffs}
             employerShare={employerShare}
             setEmployerShare={setEmployerShare}
+            cycleStartDate={config.cycleStartDate}
+            setCycleStartDate={(date) => setConfig(prev => ({ ...prev, cycleStartDate: date }))}
           />
           <div className="flex justify-center pb-6">
             <button 
