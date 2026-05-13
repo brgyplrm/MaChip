@@ -2,8 +2,11 @@ const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { sendPayrollEmail } = require("../utils/emailService");
-const { generatePayslipPDF, generateDtrPDF } = require("../utils/pdfGenerator");
+const { generatePayslipPDF } = require("../utils/pdfGenerator");
 const { generateDTRPDF } = require("../utils/dtrGenerator");
+const { decrypt } = require("../utils/encryption");
+
+// ... (rest of imports remains similar)
 const { getAttendanceReportInternal } = require("./attendance.controller");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { computeMonthlyShares, computePeriodTax } = require("../utils/govtDeductions");
@@ -345,14 +348,25 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
         { type: QueryTypes.SELECT }
       );
       if (settings.length > 0 && settings[0].maxicareDates) {
-        const schedule = settings[0].maxicareDates;
-        const periodEndStr = typeof period_End === 'string' ? period_End : period_End.toISOString().split('T')[0];
-        const isScheduled = schedule.some(d => {
-          const d1 = new Date(d).toISOString().split('T')[0];
-          const d2 = new Date(periodEndStr).toISOString().split('T')[0];
-          return d1 === d2;
-        });
-        if (!isScheduled) hCard = 0;
+        let schedule = settings[0].maxicareDates;
+        // Ensure schedule is an array even if stored as a stringified JSON in some environments
+        if (typeof schedule === 'string') {
+          try { schedule = JSON.parse(schedule); } catch (e) { schedule = []; }
+        }
+
+        if (Array.isArray(schedule)) {
+          const periodEndStr = typeof period_End === 'string' ? period_End : period_End.toISOString().split('T')[0];
+          const isScheduled = schedule.some(d => {
+            try {
+              const d1 = new Date(d).toISOString().split('T')[0];
+              const d2 = new Date(periodEndStr).toISOString().split('T')[0];
+              return d1 === d2;
+            } catch (e) { return false; }
+          });
+          if (!isScheduled) hCard = 0;
+        } else {
+          hCard = 0; // If it's not an array, treat as not scheduled
+        }
       }
     }
   } catch (err) {
@@ -491,7 +505,7 @@ exports.generateBatchPayroll = async (req, res) => {
 
     const employees = await sequelize.query(
       `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email", "dailyRate", 
-              "sss_Share", "philhealth_Share", "hdmf_Share" 
+              "sss_Share", "philhealth_Share", "hdmf_Share", "account_Number" 
        FROM "User" 
        WHERE "deletedAt" IS NULL AND "dailyRate" > 0`, 
       { type: QueryTypes.SELECT }
@@ -499,6 +513,7 @@ exports.generateBatchPayroll = async (req, res) => {
 
     let processedCount = 0;
     let skippedCount = 0;
+    const newPayrollsForEmail = [];
 
     for (const emp of employees) {
       const existing = await sequelize.query(
@@ -612,7 +627,15 @@ exports.generateBatchPayroll = async (req, res) => {
       }
       // ──────────────────────────────────────────────────────────────────────
 
-      processedCount++;    }
+      // Collect data for background email dispatch
+      newPayrollsForEmail.push({
+        emp,
+        payrollId,
+        fullStats
+      });
+
+      processedCount++;
+    }
 
     if (periodId) {
       await sequelize.query(
@@ -624,7 +647,51 @@ exports.generateBatchPayroll = async (req, res) => {
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logTransaction(null, currentAdminId, "BATCH_PAYROLL_GEN", `Generated batch payroll for period ${period_Start} to ${period_End}`, { processedCount, periodId }, req);
 
-    res.status(201).json({ message: "Batch payroll generated successfully.", processed: processedCount, skipped: skippedCount });
+    // ── Background Email Dispatch ───────────────────────────────────────────
+    if (newPayrollsForEmail.length > 0) {
+      console.log(`[BATCH EMAIL] Starting background dispatch for ${newPayrollsForEmail.length} emails...`);
+      (async () => {
+        for (const item of newPayrollsForEmail) {
+          try {
+            const { emp, fullStats } = item;
+            const dtrData = await getAttendanceReportInternal(period_Start, period_End, emp.user_Id);
+            
+            const payslipBuffer = await generatePayslipPDF({
+              ...fullStats,
+              user_FirstName: emp.user_FirstName,
+              user_LastName: emp.user_LastName,
+              period_Start,
+              period_End,
+              accountNo: decrypt(emp.account_Number) || "—"
+            });
+
+            const dtrBuffer = await generateDTRPDF({
+              employee: emp,
+              dtrData,
+              period_Start,
+              period_End,
+              netPay: fullStats.netPay
+            });
+
+            await sendPayrollEmail({
+              email: emp.user_Email,
+              name: `${emp.user_FirstName} ${emp.user_LastName}`,
+              period: `${period_Start} to ${period_End}`,
+              netPay: fullStats.netPay,
+              attachments: [
+                { filename: `Payslip_${emp.user_LastName}.pdf`, content: payslipBuffer },
+                { filename: `DTR_${emp.user_LastName}.pdf`, content: dtrBuffer }
+              ]
+            });
+          } catch (emailErr) {
+            console.error(`[BATCH EMAIL ERROR] for ${item.emp.user_Email}:`, emailErr.message);
+          }
+        }
+        console.log(`[BATCH EMAIL] Background dispatch completed.`);
+      })();
+    }
+
+    res.status(201).json({ message: "Batch payroll generated and emails are being sent.", processed: processedCount, skipped: skippedCount });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -820,6 +887,49 @@ exports.generatePayroll = async (req, res) => {
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logTransaction(null, currentAdminId, "PAYROLL_GEN", `Generated payroll for user ${user_Id} for period ${period_Start} to ${period_End}`, { payrollId }, req);
 
+    // ── Send Email ──────────────────────────────────────────────────────────
+    try {
+      const empRow = await sequelize.query(
+        `SELECT "user_FirstName", "user_LastName", "user_Email", "account_Number" FROM "User" WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id }, type: QueryTypes.SELECT }
+      );
+      if (empRow.length > 0) {
+        const emp = empRow[0];
+        const dtrData = await getAttendanceReportInternal(period_Start, period_End, user_Id);
+        
+        const payslipBuffer = await generatePayslipPDF({
+          ...fullStats,
+          user_FirstName: emp.user_FirstName,
+          user_LastName: emp.user_LastName,
+          period_Start,
+          period_End,
+          accountNo: decrypt(emp.account_Number) || "—"
+        });
+
+        const dtrBuffer = await generateDTRPDF({
+          employee: { user_Id, ...emp },
+          dtrData,
+          period_Start,
+          period_End,
+          netPay: fullStats.netPay
+        });
+
+        await sendPayrollEmail({
+          email: emp.user_Email,
+          name: `${emp.user_FirstName} ${emp.user_LastName}`,
+          period: `${period_Start} to ${period_End}`,
+          netPay: fullStats.netPay,
+          attachments: [
+            { filename: `Payslip_${emp.user_LastName}.pdf`, content: payslipBuffer },
+            { filename: `DTR_${emp.user_LastName}.pdf`, content: dtrBuffer }
+          ]
+        });
+      }
+    } catch (emailErr) {
+      console.error(`[PAYROLL EMAIL ERROR] for user ${user_Id}:`, emailErr.message);
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
     // ── Auto-record/link to Ledger Tables ─────────────────────────────────
     // 1. Cash Advance Link
     await sequelize.query(
@@ -910,7 +1020,74 @@ exports.releasePayroll = async (req, res) => {
   }
 };
 
-// ── Update Payroll (Basic) ────────────────────────────────────────────────────
+// ── Resend Payroll Email ──────────────────────────────────────────────────────
+exports.resendPayrollEmail = async (req, res) => {
+  const { payrollId } = req.params;
+  try {
+    const payrollResult = await sequelize.query(
+      `SELECT p.*, u."user_FirstName", u."user_LastName", u."user_Email", u."account_Number"
+       FROM "Payroll" p
+       JOIN "User" u ON u."user_Id" = p."user_Id"
+       WHERE p."payrollId" = :payrollId`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+
+    if (payrollResult.length === 0) {
+      return res.status(404).json({ error: "Payroll record not found." });
+    }
+
+    const payroll = payrollResult[0];
+
+    // Need to fetch full stats from Payroll_Earnings and Payroll_Deductions for the PDF
+    const earnings = await sequelize.query(
+      `SELECT * FROM "Payroll_Earnings" WHERE "payrollId" = :payrollId`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+    const deductions = await sequelize.query(
+      `SELECT * FROM "Payroll_Deductions" WHERE "payrollId" = :payrollId`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+
+    const fullStats = {
+      ...payroll,
+      ...(earnings[0] || {}),
+      ...(deductions[0] || {})
+    };
+
+    const dtrData = await getAttendanceReportInternal(payroll.period_Start, payroll.period_End, payroll.user_Id);
+    
+    const [payslipBuffer, dtrBuffer] = await Promise.all([
+      generatePayslipPDF({
+        ...fullStats,
+        user_FirstName: payroll.user_FirstName,
+        user_LastName: payroll.user_LastName,
+        accountNo: decrypt(payroll.account_Number) || "—"
+      }),
+      generateDTRPDF({
+        employee: payroll,
+        dtrData,
+        period_Start: payroll.period_Start,
+        period_End: payroll.period_End,
+        netPay: payroll.netPay
+      })
+    ]);
+
+    await sendPayrollEmail({
+      email: payroll.user_Email,
+      name: `${payroll.user_FirstName} ${payroll.user_LastName}`,
+      period: `${payroll.period_Start} to ${payroll.period_End}`,
+      netPay: payroll.netPay,
+      attachments: [
+        { filename: `Payslip_${payroll.user_LastName}.pdf`, content: payslipBuffer },
+        { filename: `DTR_${payroll.user_LastName}.pdf`, content: dtrBuffer }
+      ]
+    });
+
+    res.status(200).json({ message: "Payroll email resent successfully." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 exports.updatePayroll = async (req, res) => {
   const { payrollId } = req.params;
   const { status, netPay, totalEarnings, totalDeductions } = req.body;

@@ -137,6 +137,7 @@ const Edit = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loadingGovt, setLoadingGovt] = useState(false);
+  const [userData, setUserData] = useState(null);
   
   const [originalRole, setOriginalRole] = useState("");
 // ... (rest of state)
@@ -269,6 +270,7 @@ const Edit = () => {
             bank_Company: userData.bank_Company || "UnionBank of the Philippines",
             bank_AccountName: userData.bank_AccountName || ""
           });
+          setUserData(userData);
           setExistingAvatar(userData.user_Avatar || "");
           setOriginalRole(userData.user_Role);
           setOriginalMachipId(userData.user_MachipId || "");
@@ -408,7 +410,7 @@ const Edit = () => {
       // 2. PhilHealth (5% total split 50/50)
       const ph_clamped = Math.min(Math.max(monthly, 10000), 100000);
       const ph_ee = Math.round((ph_clamped * 0.05 / 2) * 100) / 100;
-
+      
       // 3. HDMF (2% capped at 10,000 salary)
       const hdmf_mfs = Math.min(monthly, 10000);
       const hdmf_ee = Math.round(hdmf_mfs * (monthly <= 1500 ? 0.01 : 0.02));

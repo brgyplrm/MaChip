@@ -3,6 +3,7 @@ import Sidebar from "../../components/Sidebar";
 import Chart from "../../components/chart/Chart";
 import Table from "../../components/table/Table";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import PaymentsIcon from "@mui/icons-material/Payments";
 import { formatUserId } from "../../utils/formatUserId";
 import { Link, useParams } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
@@ -184,8 +185,9 @@ const Single = () => {
                       
                       // PhilHealth
                       const ph_clamped = Math.min(Math.max(monthly, 10000), 100000);
-                      const ph_ee = parseFloat(user.philhealth_Share || 0);
-                      const ph_er = Math.round((ph_clamped * 0.05 / 2) * 100) / 100;
+                      const ph_total = Math.round((ph_clamped * 0.05) * 100) / 100;
+                      const ph_ee = ph_total / 2;
+                      const ph_er = ph_total / 2;
                       
                       // HDMF
                       const hdmf_mfs = Math.min(monthly, 10000);

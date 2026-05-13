@@ -133,6 +133,11 @@ app.get("/test-query", async (req, res) => {
 const errorHandler = require("./middleware/errorHandler");
 app.use(errorHandler);
 
+const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
+const { syncHolidaysService } = require("./utils/holidaySyncService");
+const { checkPendingRequests } = require("./utils/requestEscalation");
+const { getSystemTime } = require("./utils/systemTime");
+
 // ── Database Connection and Background Tasks ──────────────────────────────────
 connectDB().then(async () => {
   // 1. Holiday Sync (Startup): Ensure holidays are up-to-date
@@ -145,78 +150,78 @@ connectDB().then(async () => {
 
   // 2. Perform backfill for missing absences within the CURRENT PERIOD only
   console.log("[INIT] Running period-restricted backfill for absences...");
-  const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
-  const { getSystemTime } = require("./utils/systemTime");
-  const now = await getSystemTime();
-  
-  // Logic to determine current period start
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const day = now.getDate();
-  let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
-
-  // Backfill from period start until today
-  let checkDate = new Date(periodStart);
-  while (checkDate <= now) {
-    await ensureAbsentsMarked(new Date(checkDate));
-    checkDate.setDate(checkDate.getDate() + 1);
-  }
-  console.log("[INIT] Backfill complete.");
-});
-
-const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
-const { syncHolidaysService } = require("./utils/holidaySyncService");
-const { checkPendingRequests } = require("./utils/requestEscalation");
-const { getSystemTime } = require("./utils/systemTime");
-
-let lastAbsentCheckDate = null;
-let lastBackfillDate = null;
-
-setInterval(async () => {
-  const now = await getSystemTime();
-  const dateStr = now.toDateString(); 
-  const hour = now.getHours();
-  const minute = now.getMinutes();
-
-  // 1. Shift-End Check (Daily 5:30 PM): Mark TODAY's absences
-  if (hour === 17 && minute === 30) {
-    if (lastAbsentCheckDate !== dateStr) {
-      console.log(`[SCHEDULED] 5:30 PM: Marking today's absences...`);
-      lastAbsentCheckDate = dateStr; 
-      await ensureAbsentsMarked();
-    } else {
-      // Just a low-level debug to confirm the interval is hitting but skipping
-      // console.log(`[DEBUG] 5:30 PM check skipped (already ran today)`);
-    }
-  }
-
-  // 2. Start-of-Day Sync (Daily 4:00 AM): Backfill the entire CURRENT PERIOD
-  if (hour === 4 && minute === 0 && lastBackfillDate !== dateStr) {
-    console.log(`[SCHEDULED] 4:00 AM: Running period-restricted backfill...`);
-    lastBackfillDate = dateStr;
+  try {
+    const now = await getSystemTime();
     
+    // Logic to determine current period start
     const year = now.getFullYear();
     const month = now.getMonth();
     const day = now.getDate();
     let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
 
+    // Backfill from period start until today
     let checkDate = new Date(periodStart);
     while (checkDate <= now) {
       await ensureAbsentsMarked(new Date(checkDate));
       checkDate.setDate(checkDate.getDate() + 1);
     }
+    console.log("[INIT] Backfill complete.");
+  } catch (err) {
+    console.error("[INIT] Backfill failed:", err.message);
   }
 
-  // 3. Yearly Holiday Sync (January 1st at 12:01 AM)
-  if (now.getMonth() === 0 && now.getDate() === 1 && hour === 0 && minute === 1) {
-    console.log("[SCHEDULED] January 1st: Syncing holidays for the new year...");
-    syncHolidaysService();
-  }
+  // 3. Start Scheduled Tasks
+  let lastAbsentCheckDate = null;
+  let lastBackfillDate = null;
 
-  checkPendingRequests();
-}, 60 * 1000); 
+  setInterval(async () => {
+    try {
+      const now = await getSystemTime();
+      const dateStr = now.toDateString(); 
+      const hour = now.getHours();
+      const minute = now.getMinutes();
 
-const PORT = process.env.PORT || 4000;
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server is running on port ${PORT} (Listening on 0.0.0.0).`);
+      // 1. Shift-End Check (Daily 5:30 PM): Mark TODAY's absences
+      if (hour === 17 && minute === 30) {
+        if (lastAbsentCheckDate !== dateStr) {
+          console.log(`[SCHEDULED] 5:30 PM: Marking today's absences...`);
+          lastAbsentCheckDate = dateStr; 
+          await ensureAbsentsMarked();
+        }
+      }
+
+      // 2. Start-of-Day Sync (Daily 4:00 AM): Backfill the entire CURRENT PERIOD
+      if (hour === 4 && minute === 0 && lastBackfillDate !== dateStr) {
+        console.log(`[SCHEDULED] 4:00 AM: Running period-restricted backfill...`);
+        lastBackfillDate = dateStr;
+        
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const day = now.getDate();
+        let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
+
+        let checkDate = new Date(periodStart);
+        while (checkDate <= now) {
+          await ensureAbsentsMarked(new Date(checkDate));
+          checkDate.setDate(checkDate.getDate() + 1);
+        }
+      }
+
+      // 3. Yearly Holiday Sync (January 1st at 12:01 AM)
+      if (now.getMonth() === 0 && now.getDate() === 1 && hour === 0 && minute === 1) {
+        console.log("[SCHEDULED] January 1st: Syncing holidays for the new year...");
+        syncHolidaysService();
+      }
+
+      checkPendingRequests();
+    } catch (err) {
+      console.error("[SCHEDULED] Task error:", err.message);
+    }
+  }, 60 * 1000); 
+
+  // 4. Start Server
+  const PORT = process.env.PORT || 4000;
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server is running on port ${PORT} (Listening on 0.0.0.0).`);
+  });
 });

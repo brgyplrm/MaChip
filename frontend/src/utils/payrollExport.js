@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import * as zip from "@zip.js/zip.js";
 
 /**
  * Generates a PDF blob for a single employee payslip
@@ -73,15 +73,12 @@ const generatePayslipPDF = (p) => {
 };
 
 /**
- * Batch exports all payrolls in the list to a ZIP file
+ * Batch exports all payrolls in the list to a ZIP file with optional password
  */
-export const exportBatchToZip = async (payrolls, periodLabel = "Payroll") => {
+export const exportBatchToZip = async (payrolls, periodLabel = "Payroll", password = null) => {
   if (!payrolls || payrolls.length === 0) return;
 
-  const zip = new JSZip();
-  
   // Format period label for filenames (e.g., "March16-31")
-  // Extract month and days from the first record
   const first = payrolls[0];
   const [startY, startM, startD] = first.period_Start.split('-').map(Number);
   const [endY, endM, endD] = first.period_End.split('-').map(Number);
@@ -91,14 +88,22 @@ export const exportBatchToZip = async (payrolls, periodLabel = "Payroll") => {
   const monthName = startObj.toLocaleString('en-US', { month: 'long' });
   const filenamePeriod = `${monthName}${startD}-${endD}`; // e.g. "March16-31"
 
-  payrolls.forEach((p) => {
-    const pdfBlob = generatePayslipPDF(p);
-    const pdfFilename = `${filenamePeriod}_Payslip(${p.user_LastName}).pdf`;
-    zip.file(pdfFilename, pdfBlob);
-  });
+  const blobWriter = new zip.BlobWriter("application/zip");
+  const zipWriter = new zip.ZipWriter(blobWriter, { password });
 
-  const zipContent = await zip.generateAsync({ type: "blob" });
-  const zipFilename = `${filenamePeriod}_MaChipPayslip.zip`;
-  
-  saveAs(zipContent, zipFilename);
+  try {
+    for (const p of payrolls) {
+      const pdfBlob = generatePayslipPDF(p);
+      const pdfFilename = `${filenamePeriod}_Payslip(${p.user_LastName}).pdf`;
+      await zipWriter.add(pdfFilename, new zip.BlobReader(pdfBlob));
+    }
+
+    await zipWriter.close();
+    const zipBlob = await blobWriter.getData();
+    const zipFilename = `${filenamePeriod}_MaChipPayslip.zip`;
+    saveAs(zipBlob, zipFilename);
+  } catch (error) {
+    console.error("ZIP Error:", error);
+    throw error;
+  }
 };

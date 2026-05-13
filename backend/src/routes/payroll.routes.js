@@ -20,6 +20,7 @@ const {
   syncMaxicareHistory,
   getLoanHistory,
   syncLoanHistory,
+  resendPayrollEmail
 } = require("../controllers/payroll.controller");
 const { requireAdmin, requireStaff } = require("../middleware/roleCheck.js");
 
@@ -41,5 +42,6 @@ router.get("/:payrollId", requireStaff, getPayrollById);
 router.put("/update/:payrollId", requireAdmin, updatePayroll);
 router.put("/update-full/:payrollId", requireAdmin, updatePayrollFull);
 router.put("/release/:payrollId", requireAdmin, releasePayroll);
+router.post("/resend-email/:payrollId", requireAdmin, resendPayrollEmail);
 
 module.exports = router;
