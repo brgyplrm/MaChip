@@ -416,8 +416,8 @@ const Payroll = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="All">All Statuses</SelectItem>
-                    <SelectItem value="Locked">Locked</SelectItem>
                     <SelectItem value="Released">Released</SelectItem>
+                    <SelectItem value="Draft">Draft</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
