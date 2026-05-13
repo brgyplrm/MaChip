@@ -7,7 +7,6 @@ import PaymentsIcon from "@mui/icons-material/Payments";
 import { formatUserId } from "../../utils/formatUserId";
 import { Link, useParams } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
-import PaymentsIcon from "@mui/icons-material/Payment";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
