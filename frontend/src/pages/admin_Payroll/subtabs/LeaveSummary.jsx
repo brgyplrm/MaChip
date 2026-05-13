@@ -42,53 +42,115 @@ const LeaveSummary = () => {
     fetchData();
   }, [year]);
 
-  const SummaryTable = ({ type, showRemaining = true, showConversion = true }) => (
+  // LeaveSummary.jsx
+
+// Mapping for dynamic column labels and rates
+const TAB_CONFIG = {
+  vl: { 
+    totalLabel: "Total", 
+    rateLabel: "Remaining (7 Max)", 
+    conversionLabel: "Total Conversion",
+    showRemaining: true, 
+    showConversion: true 
+  },
+  sl: { 
+    totalLabel: "Total", 
+    rateLabel: "Remaining (7 Max)", 
+    conversionLabel: "Total Conversion",
+    showRemaining: true, 
+    showConversion: true 
+  },
+  ot: { 
+    totalLabel: "Total No. of Hrs Worked", 
+    rateLabel: "Daily Rate", 
+    conversionLabel: "Total Overtime Pay",
+    showRemaining: true, 
+    showConversion: true 
+  },
+  lates: { 
+    totalLabel: "Total No. of Minutes Late", 
+    rateLabel: "Rate per Minute", 
+    conversionLabel: "Total Lates Deduction",
+    showRemaining: true, 
+    showConversion: true 
+  },
+  absences: { 
+    totalLabel: "Total No. of Days Absent", 
+    rateLabel: "Rate per Hour", 
+    conversionLabel: "Total Absences Deduction",
+    showRemaining: true, 
+    showConversion: true 
+  }
+};
+
+const SummaryTable = ({ type }) => {
+  const config = TAB_CONFIG[type];
+  
+  // Pagination State for internal table
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  
+  const totalItems = data.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage; // <--- This was missing
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const currentData = data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  return (
     <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
-      <CardContent className="p-0">
+      <CardContent className="p-0 flex flex-col">
         <div className="overflow-x-auto custom-scrollbar relative">
           <Table className="min-w-max border-separate border-spacing-0">
             <TableHeader className="bg-[#2B174F]">
               <TableRow className="hover:bg-transparent border-b-0">
-                {/* STICKY LEFT: Name */}
-                <TableHead className="sticky left-0 z-30 bg-[#2B174F] font-semibold text-white h-auto py-4 px-6 uppercase text-xs tracking-wider border-r border-[#45297e] min-w-[220px] shadow-[2px_0_5px_rgba(0,0,0,0.2)]">
+                <TableHead className="sticky left-0 z-30 bg-[#2B174F] font-semibold text-white h-auto py-4 px-6 uppercase text-[10px] tracking-wider border-r border-[#45297e] min-w-[200px] shadow-[2px_0_5px_rgba(0,0,0,0.2)]">
                   Employee Name
                 </TableHead>
                 
                 {months.map(m => (
-                  <TableHead key={m} className="font-semibold text-white h-auto py-4 text-center uppercase text-xs tracking-wider min-w-[70px]">
+                  <TableHead key={m} className="font-semibold text-white h-auto py-4 text-center uppercase text-[10px] tracking-wider min-w-[70px]">
                     {m}
                   </TableHead>
                 ))}
                 
-                {/* STICKY RIGHT: Totals */}
-                <TableHead className={`sticky right-${showConversion ? (showRemaining ? '[340px]' : '[140px]') : '0'} z-20 font-bold text-white h-auto py-4 text-center uppercase text-xs tracking-wider bg-[#1d0f36] min-w-[80px] shadow-[-2px_0_5px_rgba(0,0,0,0.2)]`}>
-                  Total
+                <TableHead className="sticky right-[260px] z-20 font-bold text-white h-auto py-4 text-center uppercase text-[10px] tracking-wider bg-[#1d0f36] min-w-[120px] shadow-[-2px_0_5px_rgba(0,0,0,0.2)]">
+                  {config.totalLabel}
                 </TableHead>
 
-                {showRemaining && (
-                  <TableHead className={`sticky right-${showConversion ? '[140px]' : '0'} z-20 font-semibold text-white h-auto py-4 text-center uppercase text-xs tracking-wider bg-[#1d0f36] min-w-[120px] border-l border-[#45297e]`}>
-                    Remaining <span className="normal-case tracking-normal opacity-80">(7 Max)</span>
-                  </TableHead>
-                )}
+                <TableHead className="sticky right-[140px] z-20 font-semibold text-white h-auto py-4 text-center uppercase text-[10px] tracking-wider bg-[#1d0f36] min-w-[120px] border-l border-[#45297e]">
+                  {config.rateLabel}
+                </TableHead>
 
-                {showConversion && (
-                  <TableHead className="sticky right-0 z-20 font-semibold text-white h-auto py-4 text-right uppercase text-xs tracking-wider pr-6 bg-[#1d0f36] min-w-[140px] border-l border-[#45297e]">
-                    Total Conversion
-                  </TableHead>
-                )}
+                <TableHead className="sticky right-0 z-20 font-semibold text-white h-auto py-4 text-right uppercase text-[10px] tracking-wider pr-6 bg-[#1d0f36] min-w-[140px] border-l border-[#45297e]">
+                  {config.conversionLabel}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map(row => {
+              {currentData.map(row => {
                 const monthlyValues = row[type] || [];
                 const total = monthlyValues.reduce((a, b) => a + b, 0);
-                const remaining = type === "vl" ? row.vlRemaining : row.slRemaining;
-                const rate = type === "vl" ? rates.vlRate : rates.slRate;
-                const conversion = (remaining * rate).toLocaleString(undefined, { minimumFractionDigits: 2 });
+                
+                // Dynamic mapping for values based on type
+                let rateValue = 0;
+                let finalAmount = 0;
+
+                if (type === "vl" || type === "sl") {
+                  rateValue = type === "vl" ? row.vlRemaining : row.slRemaining;
+                  finalAmount = rateValue * (type === "vl" ? rates.vlRate : rates.slRate);
+                } else if (type === "ot") {
+                  rateValue = row.dailyRate || 0;
+                  finalAmount = (total / 8) * rateValue; // Assuming 8hr day for OT pay calc
+                } else if (type === "lates") {
+                  rateValue = row.ratePerMin || 0;
+                  finalAmount = total * rateValue;
+                } else if (type === "absences") {
+                  rateValue = row.ratePerHr || 0;
+                  finalAmount = (total * 8) * rateValue; // Days * 8hrs * rate
+                }
 
                 return (
                   <TableRow key={row.user_Id} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors group">
-                    {/* STICKY LEFT: Body */}
                     <TableCell className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 py-4 px-6 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
                       <div className="flex flex-col">
                         <span className="font-bold text-[#2A174E] text-sm">{row.name}</span>
@@ -104,31 +166,39 @@ const LeaveSummary = () => {
                       </TableCell>
                     ))}
 
-                    {/* STICKY RIGHT: Body */}
-                    <TableCell className={`sticky right-${showConversion ? (showRemaining ? '[340px]' : '[140px]') : '0'} z-10 bg-slate-50 font-bold text-slate-700 text-center shadow-[-2px_0_5px_rgba(0,0,0,0.02)]`}>
+                    <TableCell className="sticky right-[260px] z-10 bg-slate-50 font-bold text-slate-700 text-center shadow-[-2px_0_5px_rgba(0,0,0,0.02)]">
                       {total > 0 ? total : "—"}
                     </TableCell>
 
-                    {showRemaining && (
-                      <TableCell className={`sticky right-${showConversion ? '[140px]' : '0'} z-10 bg-blue-50/50 font-bold text-blue-600 text-center border-l border-slate-100`}>
-                        {remaining}
-                      </TableCell>
-                    )}
+                    <TableCell className="sticky right-[140px] z-10 bg-blue-50/50 font-bold text-[#2A174E] text-center border-l border-slate-100">
+                      {type === "vl" || type === "sl" ? rateValue : `₱${rateValue.toFixed(2)}`}
+                    </TableCell>
 
-                    {showConversion && (
-                      <TableCell className="sticky right-0 z-10 bg-green-50/50 text-right py-4 pr-6 font-bold text-green-600 border-l border-slate-100">
-                        ₱{conversion}
-                      </TableCell>
-                    )}
+                    <TableCell className={`sticky right-0 z-10 text-right py-4 pr-6 font-bold border-l border-slate-100 ${type === "ot" ? "text-green-600 bg-green-50/50" : "text-red-600 bg-red-50/50"}`}>
+                      ₱{finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </TableCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
         </div>
+
+        {/* --- Standard Pagination Footer --- */}
+        <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
+          <div className="text-sm text-slate-500 font-medium">
+            Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+            <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">{currentPage}</div>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
+};
 
   return (
     <Sidebar>

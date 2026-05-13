@@ -9,15 +9,20 @@ import Edit from "./pages/editUser/Edit";
 import EditAttendance from "./pages/editAttendance/EditAttendance";
 import Logs from "./pages/logs-management/Logs";
 import AdminRequests from "./pages/admin_Requests/AdminRequests";
+import RequestSummary from "./pages/admin_Requests/RequestSummary";
 import RequestDetails from "./pages/request_Details/RequestDetails";
 import Payroll from "./pages/admin_Payroll/PayrollManagement";
 import PayrollPeriod from "./pages/admin_Payroll/PayrollPeriod";
 import PayrollDetails from "./pages/admin_Payroll/DetailsPayroll";
 import PayrollList from "./pages/admin_Payroll/PayrollEmployeeList";
 import Maxicare from "./pages/admin_Payroll/subtabs/Maxicare";
+import MaxicareHistory from "./pages/admin_Payroll/subtabs/MaxicareHistory";
 import EastwestLoan from "./pages/admin_Payroll/subtabs/EastwestLoan";
+import EastwestLoanHistory from "./pages/admin_Payroll/subtabs/EastwestLoanHistory";
 import GovLoans from "./pages/admin_Payroll/subtabs/GovLoans";
+import GovLoansHistory from "./pages/admin_Payroll/subtabs/GovLoansHistory";
 import Cashadvances from "./pages/admin_Payroll/subtabs/Cashadvances";
+import CashAdvancesHistory from "./pages/admin_Payroll/subtabs/CashAdvanceHistory";
 import LoanModule from "./pages/admin_Payroll/subtabs/LoanModule";
 import LeaveSummary from "./pages/admin_Payroll/subtabs/LeaveSummary";
 import EmployeeCalendar from "./pages/emp_Calendar/EmployeeCalendar"; 
@@ -36,6 +41,7 @@ import AuditLog from "./components/auditLog/AuditLog";
 import ArchivedUsers from "./pages/archivedUsers/ArchivedUsers";
 import AdminRequestsOversight from "./pages/AdminRequestsOversight";
 import RequestsHistory from "./pages/RequestsHistory";
+import FAQ from "./components/FAQ";
 
 function App() {
 
@@ -58,6 +64,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 2, 4]}>
               <AdminRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/requestSum"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 4]}>
+              <RequestSummary />
             </ProtectedRoute>
           }
         />
@@ -125,10 +140,28 @@ function App() {
         />
 
         <Route
+          path="/maxicare/history"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <MaxicareHistory />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/eastwestloan"
           element={
             <ProtectedRoute allowedRoles={[1, 4]}>
               <EastwestLoan />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/eastwestloan/history"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <EastwestLoanHistory />
             </ProtectedRoute>
           }
         />
@@ -143,10 +176,28 @@ function App() {
         />
 
         <Route
+          path="/govloans/history"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <GovLoansHistory />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/cashadvances"
           element={
             <ProtectedRoute allowedRoles={[1, 4]}>
               <Cashadvances />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/cashadvances/history"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <CashAdvancesHistory />
             </ProtectedRoute>
           }
         />
@@ -335,6 +386,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="faq"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <FAQ />
             </ProtectedRoute>
           }
         />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, react } from "react";
+import React, { useState, useEffect, useCallback, react, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -41,6 +41,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 
 const Payroll = () => {
+  const [yearFilter, setYearFilter] = useState("All Years");
   const { systemToday } = useSystemTime();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,6 +56,12 @@ const Payroll = () => {
   const [sortOrder, setSortOrder] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Generate a range of years (e.g., 5 years back from today)
+  const availableYears = useMemo(() => {
+  const currentYear = systemToday.getFullYear();
+  return Array.from({ length: 6 }, (_, i) => (currentYear - i).toString());
+}, [systemToday]);
 
   const formatLocalISO = (date) => {
     const year = date.getFullYear();
@@ -204,17 +211,17 @@ const Payroll = () => {
   // --- Filtering & Sorting Logic ---
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, sortOrder, itemsPerPage]);
+  }, [searchQuery, statusFilter, sortOrder, yearFilter, itemsPerPage]);
 
   const handleClearFilters = () => {
     setSearchQuery("");
     setStatusFilter("All");
+    setYearFilter("All Years"); // Reset the year filter
     setSortOrder("newest");
     setCurrentPage(1);
   };
 
-  const isFiltering = searchQuery !== "" || statusFilter !== "All" || sortOrder !== "newest";
-
+  const isFiltering = searchQuery !== "" || statusFilter !== "All" || yearFilter !== "All Years" || sortOrder !== "newest";
   // Filter out the active draft period from the list table
   let filteredPeriods = allPeriods.filter(p => p.status !== 'Draft' || (activePeriod && p.periodId !== activePeriod.id));
 
@@ -230,6 +237,14 @@ const Payroll = () => {
     filteredPeriods = filteredPeriods.filter(p => 
       p.status?.toLowerCase() === statusFilter.toLowerCase()
     );
+  }
+
+  // Apply Year Filter
+  if (yearFilter !== "All Years") {
+    filteredPeriods = filteredPeriods.filter(p => {
+      const periodYear = new Date(p.startDate).getFullYear().toString();
+      return periodYear === yearFilter;
+    });
   }
 
   // Apply Sorting
@@ -265,13 +280,13 @@ const Payroll = () => {
                 <PeopleAltIcon className="mr-2 h-4 w-4" /> Employee List
               </Link>
             </Button>
-            <Button 
+            {/* <Button 
               variant="outline" 
               className="w-full sm:w-auto bg-[#f0ebfa] text-[#2A174E] border-[#c4b5e8] hover:bg-[#e0d4f5] transition-colors"
               onClick={() => setIsCreateModalOpen(true)}
             >
               <EventNoteIcon className="mr-2 h-4 w-4" /> Payroll Schedule
-            </Button>
+            </Button> */}
             <Button 
               className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]"
               onClick={fetchActive}
@@ -408,6 +423,21 @@ const Payroll = () => {
             </div>
             
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+              {/* NEW: Year Filter */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <CalendarMonthIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
+                <Select value={yearFilter} onValueChange={setYearFilter}>
+                  <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All Years">All Years</SelectItem>
+                    {availableYears.map(year => (
+                      <SelectItem key={year} value={year}>{year}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
                 <Select value={statusFilter} onValueChange={setStatusFilter}>

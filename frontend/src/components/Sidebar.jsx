@@ -15,6 +15,7 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DescriptionIcon from '@mui/icons-material/Description';
+import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
 
 import {
   Sidebar as ShadcnSidebar,
@@ -31,6 +32,7 @@ import {
   SidebarGroupContent,
   SidebarInset,
   SidebarProvider,
+  SidebarFooter
 } from "./ui/sidebar";
 
 import {
@@ -465,6 +467,22 @@ const Sidebar = ({ children }) => {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+          {/* Sidebar.jsx: Place this inside <SidebarFooter> */}
+          <SidebarFooter className="py-4 mt-[280px]">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  className="w-full justify-start hover:bg-[#f0ebfa] hover:text-[#2A174E] transition-colors"
+                >
+                  <Link to="/faq" className="flex items-center gap-3 px-2 py-1.5">
+                    <HelpOutlinedIcon className="!text-[20px]" />
+                    <span className="font-semibold text-sm">Help & Support</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
         </SidebarContent>
       </ShadcnSidebar>
 

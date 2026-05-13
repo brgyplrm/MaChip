@@ -9,8 +9,10 @@ import CheckIcon from '@mui/icons-material/Check';
 import SaveIcon from '@mui/icons-material/Save';
 import DownloadIcon from '@mui/icons-material/Download';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import { HistoryIcon } from "lucide-react";
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
+import { Link } from "react-router-dom";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -556,6 +558,11 @@ const EastwestLoan = () => {
               Manage employee loan deductions, track repayments, and configure matrix schedules.
             </span>
           </div>
+          <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E]">
+            <Link to="/eastwestloan/history">
+              <HistoryIcon className="mr-2 h-4 w-4" /> View Remittance History
+            </Link>
+          </Button>
           <div className="flex items-center gap-2">
             <FilterListIcon className="text-slate-400 h-5 w-5" />
             <Select value={selectedYear} onValueChange={setSelectedYear}>

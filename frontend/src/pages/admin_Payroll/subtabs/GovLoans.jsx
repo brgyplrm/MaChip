@@ -16,6 +16,8 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined';
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
+import { Link } from "react-router-dom";
+import { HistoryIcon } from "lucide-react";
 
 // shadcn/ui components
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -651,6 +653,11 @@ const GovLoans = () => {
               Manage statutory loans like SSS, Pag-IBIG, and other government deductions.
             </span>
           </div>
+          <Button variant="outline" asChild className="ml-[150px] border-[#2A174E] text-[#2A174E]">
+            <Link to="/govloans/history">
+              <HistoryIcon className="mr-2 h-4 w-4" /> View Agency History
+            </Link>
+          </Button>
           <div className="flex items-center gap-2">
             <FilterListIcon className="text-slate-400 h-5 w-5" />
             <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>

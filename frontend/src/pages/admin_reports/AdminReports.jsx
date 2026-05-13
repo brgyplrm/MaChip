@@ -278,8 +278,11 @@ const AdminReports = () => {
               <span className="text-sm text-slate-500 mt-1 block">Generate, analyze, and export system attendance and payroll data.</span>
             </div>
             <div className="flex items-center gap-3 w-full md:w-auto">
-              <Button onClick={handleCSVExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
+              {/* <Button onClick={handleCSVExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
                 <FileDownloadIcon className="mr-2 h-4 w-4" /> Export CSV
+              </Button> */}
+              <Button onClick={""} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
+                <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
               </Button>
               {activeReport === "payroll" && (
                 <Button 

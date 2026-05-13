@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -17,6 +17,7 @@ import { fetchWithAuth } from "../../utils/api";
 import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
 import KeyboardDoubleArrowDownIcon from '@mui/icons-material/KeyboardDoubleArrowDown';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import { useSystemTime } from "../../context/SystemTimeContext";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const PayrollPeriod = () => {
+  const { systemToday } = useSystemTime();
   const [payrolls, setPayrolls] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [selectedPeriod, setSelectedPeriod] = useState(null);
@@ -52,6 +54,20 @@ const PayrollPeriod = () => {
   const [statusFilter, setStatusFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const isPeriodEndReached = useMemo(() => {
+    if (!selectedPeriod?.endDate || !systemToday) return false;
+    
+    // Normalize both dates to midnight for an accurate day-to-day comparison
+    const end = new Date(selectedPeriod.endDate);
+    end.setHours(0, 0, 0, 0);
+    
+    const today = new Date(systemToday);
+    today.setHours(0, 0, 0, 0);
+
+    // Button is enabled only if Today is on or after the Period End Date
+    return today >= end;
+  }, [selectedPeriod, systemToday]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -261,12 +277,17 @@ const PayrollPeriod = () => {
             >
               <VisibilityIcon className="mr-2 h-4 w-4" /> Summary View
             </Button>
+            {/* Updated Process Batch Button */}
             <Button 
-              className={`w-full sm:w-auto bg-[#2A174E] text-white border border-[#b8daff] hover:bg-[#BA90E9] ${selectedPeriod?.status !== 'Draft' ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`w-full sm:w-auto bg-[#2A174E] text-white border border-[#b8daff] hover:bg-[#BA90E9] ${
+                (selectedPeriod?.status !== 'Draft' || !isPeriodEndReached) ? "opacity-50 cursor-not-allowed" : ""
+              }`}
               onClick={() => setIsConfirmOpen(true)}
-              disabled={selectedPeriod?.status !== 'Draft'}
+              disabled={selectedPeriod?.status !== 'Draft' || !isPeriodEndReached}
+              title={!isPeriodEndReached ? `Processing is available starting ${new Date(selectedPeriod?.endDate).toLocaleDateString()}` : ""}
             >
-              <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}
+              <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> 
+              {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}
             </Button>
             
             {/* <Button 

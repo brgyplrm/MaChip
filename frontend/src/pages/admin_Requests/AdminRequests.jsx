@@ -12,7 +12,8 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import AssessmentIcon  from "@mui/icons-material/Assessment";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ const AdminRequests = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [dateFilter, setDateFilter] = useState("");
 
   // Pagination States for the List
   const [currentPage, setCurrentPage] = useState(1);
@@ -172,6 +174,8 @@ const AdminRequests = () => {
 
     if (activeTab === "completed") {
       const query = searchQuery.toLowerCase();
+      
+      // Search Name or ID
       const matchesSearch = 
         req.userName?.toLowerCase().includes(query) || 
         req.emp_reqId?.toString().includes(query);
@@ -183,7 +187,10 @@ const AdminRequests = () => {
       if (statusFilter === "Approved") matchesStatus = req.emp_reqStatusId === 2;
       if (statusFilter === "Rejected") matchesStatus = req.emp_reqStatusId === 3;
 
-      if (!matchesSearch || !matchesType || !matchesStatus) return false;
+      // NEW: Date Filter Logic
+      const matchesDate = !dateFilter || req.date_Filed?.includes(dateFilter);
+
+      if (!matchesSearch || !matchesType || !matchesStatus || !matchesDate) return false;
     }
 
     return true;
@@ -248,11 +255,22 @@ const AdminRequests = () => {
       <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0 bg-slate-50 min-h-screen">
 
         {/* Header Section */}
-        <div className="mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">User Requests</h1>
           <span className="text-sm text-slate-500 mt-1 block">
               Monitor and process employee requests, leave filings, and log correction tickets.
           </span>
+
+          {/* NEW: Redirect to Request Summary Button */}
+          <Button 
+            variant="outline" 
+            asChild
+            className="w-full md:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#f0ebfa] font-semibold shadow-sm transition-all"
+          >
+            <Link to="/requestSum">
+              <AssessmentIcon className="mr-2 h-4 w-4" /> View Request Summary
+            </Link>
+          </Button>
         </div>
 
          {/* Statistics Cards */}
@@ -311,11 +329,12 @@ const AdminRequests = () => {
           <Card className="shadow-sm border-0 bg-white mb-6 py-0 animate-in fade-in zoom-in-95 duration-200">
             <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
               
+              {/* Search by Name/ID */}
               <div className="relative w-full xl:max-w-md">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                 <Input
                   type="text"
-                  placeholder="Search by Employee Name or REQ ID..."
+                  placeholder="Search Employee Name or REQ ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
@@ -323,29 +342,36 @@ const AdminRequests = () => {
               </div>
               
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+                
+                {/* NEW: Date Filed Picker */}
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
+                  <Input
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="w-full sm:w-[150px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors h-10"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                      <SelectValue placeholder="Filter by Type" />
+                    <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50">
+                      <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="All">All Types</SelectItem>
-                      <SelectItem value="VL">Vacation Leave</SelectItem>
-                      <SelectItem value="SL">Sick Leave</SelectItem>
-                      <SelectItem value="EL">Emergency Leave</SelectItem>
-                      <SelectItem value="HD">Half Day</SelectItem>
+                      <SelectItem value="VL">Vacation</SelectItem>
+                      <SelectItem value="SL">Sick</SelectItem>
                       <SelectItem value="OT">Overtime</SelectItem>
                       <SelectItem value="OW">Field Work</SelectItem>
-                      <SelectItem value="LC">Log Correction</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="flex items-center w-full sm:w-auto">
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                      <SelectValue placeholder="Filter by Status" />
+                    <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50">
+                      <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="All">All Statuses</SelectItem>
@@ -355,11 +381,14 @@ const AdminRequests = () => {
                   </Select>
                 </div>
 
-                {isFiltering && (
+                {(isFiltering || dateFilter) && (
                   <Button 
                     variant="ghost" 
-                    onClick={handleClearFilters}
-                    className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold"
+                    onClick={() => {
+                      handleClearFilters();
+                      setDateFilter("");
+                    }}
+                    className="w-full sm:w-auto text-slate-500 hover:text-red-600 font-semibold"
                   >
                     <CloseIcon className="h-4 w-4 mr-1" />
                     Clear

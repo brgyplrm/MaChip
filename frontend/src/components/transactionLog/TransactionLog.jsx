@@ -161,8 +161,8 @@ const TransactionLog = () => {
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Transaction Log</h1>
             <span className="text-sm text-slate-500 mt-1 block">View and track all financial events, batch runs, and system anomalies.</span>
           </div>
-          <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={handleExport}>
-            <FileDownloadIcon className="mr-2 h-4 w-4" /> Export CSV
+          <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={""}>
+            <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
           </Button>
         </div>
 
