@@ -353,7 +353,7 @@ const Sidebar = ({ children }) => {
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll")}>
                             <Link to="/payroll" className={isActive("/payroll") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Payroll Managament
+                              Payroll Management
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
