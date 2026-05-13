@@ -81,7 +81,10 @@ exports.registerUser = async (req, res) => {
     // Check if MaChip ID already exists in ACTIVE users (only if provided)
     if (user_MachipId) {
       const existingMachip = await sequelize.query(
-        `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :user_MachipId AND "deletedAt" IS NULL`,
+        `SELECT h."user_Id" 
+         FROM "User_Hardware" h
+         JOIN "User" u ON h."user_Id" = u."user_Id"
+         WHERE h."user_MachipId" = :user_MachipId AND u."deletedAt" IS NULL`,
         { replacements: { user_MachipId }, type: QueryTypes.SELECT },
       );
 
@@ -123,55 +126,118 @@ exports.registerUser = async (req, res) => {
     const dailyRate = parseFloat(req.body.dailyRate) || 0;
     const shares = computeMonthlyShares(dailyRate);
 
-    // Insert new user
-    await sequelize.query(
-      `INSERT INTO "User" (
-        "user_Id", "user_FirstName", "user_LastName",
-        "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_FingerprintId", 
-        "user_FingerprintTemplate", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", 
-        "account_Number", "bank_Company", "bank_AccountName", "department", "position", "hireDate", "taxStatus", 
-        "dailyRate", "sss_Share", "philhealth_Share", "hdmf_Share", "createdAt", "updatedAt"
-      ) VALUES (
-        :user_Id, :user_FirstName, :user_LastName,
-        :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_FingerprintId, 
-        :user_FingerprintTemplate, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, 
-        :account_Number, :bank_Company, :bank_AccountName, :department, :position, :hireDate, :taxStatus,
-        :dailyRate, :sss, :ph, :hd, :now, :now
-      )`,
-      {
-        replacements: {
-          user_Id,
-          user_FirstName: req.body.user_FirstName,
-          user_LastName: req.body.user_LastName,
-          user_MiddleName: req.body.user_MiddleName || null,
-          user_Email: req.body.user_Email || null,
-          user_Password: hashedPassword,
-          user_MachipId: req.body.user_MachipId || null,
-          user_FingerprintId: req.body.user_FingerprintId || null,
-          user_FingerprintTemplate: req.body.user_FingerprintTemplate || null,
-          user_RoleId: req.body.user_RoleId || 2,
-          user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
-          user_ProfilePic: req.file ? req.file.filename : null,
-          account_Number: encrypt(account_Number),
-          bank_Company: bank_Company || "UnionBank of the Philippines",
-          bank_AccountName: bank_AccountName || null,
-          department: req.body.department || null,
-          position: req.body.position || null,
-          hireDate: req.body.hireDate || null,
-          taxStatus: req.body.taxStatus || "S",
-          dailyRate,
-          sss: parseFloat(req.body.SSS_Ded) || shares.sss_Share,
-          ph: parseFloat(req.body.Philhealth_Ded) || shares.philhealth_Share,
-          hd: parseFloat(req.body.HDMF_Ded) || shares.hdmf_Share,
-          now: nowStr,
+    // Use a transaction for atomic insertion across normalized tables
+    const transaction = await sequelize.transaction();
+    try {
+      // 1. Insert Core User
+      await sequelize.query(
+        `INSERT INTO "User" (
+          "user_Id", "user_FirstName", "user_LastName",
+          "user_MiddleName", "user_Email", "user_Password", 
+          "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", 
+          "department", "position", "hireDate", "taxStatus", 
+          "dailyRate", "createdAt", "updatedAt"
+        ) VALUES (
+          :user_Id, :user_FirstName, :user_LastName,
+          :user_MiddleName, :user_Email, :user_Password, 
+          :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, 
+          :department, :position, :hireDate, :taxStatus,
+          :dailyRate, :now, :now
+        )`,
+        {
+          replacements: {
+            user_Id,
+            user_FirstName: req.body.user_FirstName,
+            user_LastName: req.body.user_LastName,
+            user_MiddleName: req.body.user_MiddleName || null,
+            user_Email: req.body.user_Email || null,
+            user_Password: hashedPassword,
+            user_RoleId: req.body.user_RoleId || 2,
+            user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
+            user_ProfilePic: req.file ? req.file.filename : null,
+            department: req.body.department || null,
+            position: req.body.position || null,
+            hireDate: req.body.hireDate || null,
+            taxStatus: req.body.taxStatus || "S",
+            dailyRate,
+            now: nowStr,
+          },
+          type: QueryTypes.INSERT,
+          transaction
         },
-        type: QueryTypes.INSERT,
-      },
-    );
+      );
 
-    // Fetch the created user to return
+      // 2. Insert Banking Info
+      await sequelize.query(
+        `INSERT INTO "User_Banking" (
+          "user_Id", "account_Number", "bank_Company", "bank_AccountName", "createdAt", "updatedAt"
+        ) VALUES (:user_Id, :account_Number, :bank_Company, :bank_AccountName, :now, :now)`,
+        {
+          replacements: {
+            user_Id,
+            account_Number: encrypt(account_Number),
+            bank_Company: bank_Company || "UnionBank of the Philippines",
+            bank_AccountName: bank_AccountName || null,
+            now: nowStr
+          },
+          type: QueryTypes.INSERT,
+          transaction
+        }
+      );
+
+      // 3. Insert Deduction Profile
+      await sequelize.query(
+        `INSERT INTO "User_Deduction_Profile" (
+          "user_Id", "sss_Share", "philhealth_Share", "hdmf_Share", "createdAt", "updatedAt"
+        ) VALUES (:user_Id, :sss, :ph, :hd, :now, :now)`,
+        {
+          replacements: {
+            user_Id,
+            sss: parseFloat(req.body.SSS_Ded) || shares.sss_Share,
+            ph: parseFloat(req.body.Philhealth_Ded) || shares.philhealth_Share,
+            hd: parseFloat(req.body.HDMF_Ded) || shares.hdmf_Share,
+            now: nowStr
+          },
+          type: QueryTypes.INSERT,
+          transaction
+        }
+      );
+
+      // 4. Insert Hardware Info
+      await sequelize.query(
+        `INSERT INTO "User_Hardware" (
+          "user_Id", "user_MachipId", "user_FingerprintId", "user_FingerprintTemplate", "createdAt", "updatedAt"
+        ) VALUES (:user_Id, :user_MachipId, :user_FingerprintId, :user_FingerprintTemplate, :now, :now)`,
+        {
+          replacements: {
+            user_Id,
+            user_MachipId: req.body.user_MachipId || null,
+            user_FingerprintId: req.body.user_FingerprintId || null,
+            user_FingerprintTemplate: req.body.user_FingerprintTemplate || null,
+            now: nowStr
+          },
+          type: QueryTypes.INSERT,
+          transaction
+        }
+      );
+
+      await transaction.commit();
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+
+    // Fetch the created user to return (including associations)
     const newUserResult = await sequelize.query(
-      `SELECT * FROM "User" WHERE "user_Id" = :user_Id`,
+      `SELECT u.*, 
+              b."account_Number", b."bank_Company", b."bank_AccountName",
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share",
+              h."user_MachipId", h."user_FingerprintId"
+       FROM "User" u
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+       WHERE u."user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
     const newUser = newUserResult[0];
@@ -205,10 +271,20 @@ exports.registerUser = async (req, res) => {
 exports.viewAllUsers = async (req, res) => {
   try {
     const users = await sequelize.query(
-      `SELECT u.*, r."roleName" AS "user_Role", s."statusName" AS "user_EmploymentStatus"
+      `SELECT u.*, 
+              r."roleName" AS "user_Role", 
+              s."statusName" AS "user_EmploymentStatus",
+              b."account_Number", b."bank_Company", b."bank_AccountName",
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
+              d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
+              d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              h."user_MachipId", h."user_FingerprintId"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
        WHERE u."deletedAt" IS NULL
        ORDER BY u."user_Id" ASC`,
       { type: QueryTypes.SELECT },
@@ -231,10 +307,20 @@ exports.viewAllUsers = async (req, res) => {
 exports.viewArchivedUsers = async (req, res) => {
   try {
     const users = await sequelize.query(
-      `SELECT u.*, r."roleName" AS "user_Role", s."statusName" AS "user_EmploymentStatus"
+      `SELECT u.*, 
+              r."roleName" AS "user_Role", 
+              s."statusName" AS "user_EmploymentStatus",
+              b."account_Number", b."bank_Company", b."bank_AccountName",
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
+              d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
+              d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              h."user_MachipId", h."user_FingerprintId"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
        WHERE u."deletedAt" IS NOT NULL
        ORDER BY u."user_Id" ASC`,
       { type: QueryTypes.SELECT },
@@ -258,10 +344,20 @@ exports.viewUserById = async (req, res) => {
   const { user_Id } = req.params;
   try {
     const user = await sequelize.query(
-      `SELECT u.*, r."roleName" AS "user_Role", s."statusName" AS "user_EmploymentStatus"
+      `SELECT u.*, 
+              r."roleName" AS "user_Role", 
+              s."statusName" AS "user_EmploymentStatus",
+              b."account_Number", b."bank_Company", b."bank_AccountName",
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
+              d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
+              d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              h."user_MachipId", h."user_FingerprintId"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
        WHERE u."user_Id" = :user_Id AND u."deletedAt" IS NULL`,
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );    if (user.length > 0) {
@@ -293,27 +389,30 @@ exports.deleteUser = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    // 1. Get current user info to handle MachipId prefixing
-    const userResult = await sequelize.query(
-      `SELECT "user_MachipId" FROM "User" WHERE "user_Id" = :user_Id`,
+    // 1. Get current hardware info to handle MachipId prefixing
+    const hardwareResult = await sequelize.query(
+      `SELECT "user_MachipId" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT }
     );
     
-    if (userResult.length === 0) {
-      return res.status(404).json({ message: "User not found." });
-    }
-
-    const currentMachipId = userResult[0].user_MachipId;
+    const currentMachipId = hardwareResult.length > 0 ? hardwareResult[0].user_MachipId : null;
     // Append unique suffix to MachipId to free it up for others
     const archivedMachipId = currentMachipId ? `${currentMachipId}-ARCHIVED-${user_Id}` : null;
 
     const result = await sequelize.query(
-      `UPDATE "User" SET "deletedAt" = :now, "user_MachipId" = :archivedMachipId
+      `UPDATE "User" SET "deletedAt" = :now
        WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
-      { replacements: { user_Id, now: nowStr, archivedMachipId }, type: QueryTypes.UPDATE },
+      { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE },
     );
 
     if (result) {
+      // Also soft-delete hardware info and archive the MachipId
+      await sequelize.query(
+        `UPDATE "User_Hardware" SET "deletedAt" = :now, "user_MachipId" = :archivedMachipId
+         WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id, now: nowStr, archivedMachipId }, type: QueryTypes.UPDATE },
+      );
+
       const user = await sequelize.query(`SELECT * FROM "User" WHERE "user_Id" = :user_Id`, { replacements: { user_Id }, type: QueryTypes.SELECT });
       await logAudit(req, currentAdminId || 1, "User Management", "SOFT_DELETE_USER", "User", user_Id, user[0], null);
       res.status(200).json({ message: "User soft-deleted successfully." });
@@ -343,7 +442,13 @@ exports.restoreUser = async (req, res) => {
       return res.status(400).json({ message: "User is not deleted." });
     }
 
-    const currentMachipId = user[0].user_MachipId;
+    // 1. Get current hardware info
+    const hardwareResult = await sequelize.query(
+      `SELECT "user_MachipId" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+
+    const currentMachipId = hardwareResult.length > 0 ? hardwareResult[0].user_MachipId : null;
     let targetMachipId = null;
 
     if (currentMachipId) {
@@ -354,7 +459,10 @@ exports.restoreUser = async (req, res) => {
       
       // Check if this ID is already assigned to an ACTIVE user
       const taken = await sequelize.query(
-        `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :targetMachipId AND "deletedAt" IS NULL AND "user_Id" != :user_Id`,
+        `SELECT h."user_Id" 
+         FROM "User_Hardware" h
+         JOIN "User" u ON h."user_Id" = u."user_Id"
+         WHERE h."user_MachipId" = :targetMachipId AND u."deletedAt" IS NULL AND u."user_Id" != :user_Id`,
         { replacements: { targetMachipId, user_Id }, type: QueryTypes.SELECT }
       );
 
@@ -365,7 +473,13 @@ exports.restoreUser = async (req, res) => {
     }
 
     await sequelize.query(
-      `UPDATE "User" SET "deletedAt" = NULL, "user_MachipId" = :targetMachipId WHERE "user_Id" = :user_Id`,
+      `UPDATE "User" SET "deletedAt" = NULL WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.UPDATE },
+    );
+
+    // Also restore hardware info
+    await sequelize.query(
+      `UPDATE "User_Hardware" SET "deletedAt" = NULL, "user_MachipId" = :targetMachipId WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id, targetMachipId }, type: QueryTypes.UPDATE },
     );
 
@@ -499,12 +613,30 @@ exports.updateUser = async (req, res) => {
     // Check if new Fingerprint ID is already assigned to another active user
     if (user_FingerprintId) {
       const existingFP = await sequelize.query(
-        `SELECT "user_Id" FROM "User" WHERE "user_FingerprintId" = :user_FingerprintId AND "deletedAt" IS NULL AND "user_Id" != :targetId`,
+        `SELECT h."user_Id" 
+         FROM "User_Hardware" h
+         JOIN "User" u ON h."user_Id" = u."user_Id"
+         WHERE h."user_FingerprintId" = :user_FingerprintId AND u."deletedAt" IS NULL AND u."user_Id" != :targetId`,
         { replacements: { user_FingerprintId, targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
       );
 
       if (existingFP.length > 0) {
         return res.status(400).json({ error: "Fingerprint ID is already assigned to another active user." });
+      }
+    }
+
+    // Check if new MaChip ID is already assigned to another active user
+    if (user_MachipId) {
+      const existingMachip = await sequelize.query(
+        `SELECT h."user_Id" 
+         FROM "User_Hardware" h
+         JOIN "User" u ON h."user_Id" = u."user_Id"
+         WHERE h."user_MachipId" = :user_MachipId AND u."deletedAt" IS NULL AND u."user_Id" != :targetId`,
+        { replacements: { user_MachipId, targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
+      );
+
+      if (existingMachip.length > 0) {
+        return res.status(400).json({ error: "MaChip ID is already assigned to another active user." });
       }
     }
 
@@ -517,131 +649,188 @@ exports.updateUser = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    const parsedDailyRate = parseFloat(dailyRate) || oldUser.dailyRate || 0;
-    const rateChanged = Math.abs(parsedDailyRate - oldUser.dailyRate) > 0.01;
+    const transaction = await sequelize.transaction();
+    try {
+      const parsedDailyRate = parseFloat(dailyRate) || oldUser.dailyRate || 0;
+      const rateChanged = Math.abs(parsedDailyRate - oldUser.dailyRate) > 0.01;
 
-    // Auto-compute Government Deductions
-    const shares = computeMonthlyShares(parsedDailyRate);
-    
-    // Logic: Use provided values if they exist, otherwise auto-compute if rate changed or if they are 0
-    let finalSSS = parseFloat(SSS_Ded);
-    if (isNaN(finalSSS) || (rateChanged && finalSSS === parseFloat(oldUser.sss_Share))) {
-      finalSSS = shares.sss_Share;
+      // Auto-compute Government Deductions
+      const shares = computeMonthlyShares(parsedDailyRate);
+      
+      // Logic: Use provided values if they exist, otherwise auto-compute if rate changed or if they are 0
+      let finalSSS = parseFloat(SSS_Ded);
+      if (isNaN(finalSSS) || (rateChanged && finalSSS === parseFloat(oldUser.sss_Share))) {
+        finalSSS = shares.sss_Share;
+      }
+
+      let finalPH = parseFloat(Philhealth_Ded);
+      if (isNaN(finalPH) || (rateChanged && finalPH === parseFloat(oldUser.philhealth_Share))) {
+        finalPH = shares.philhealth_Share;
+      }
+
+      let finalHD = parseFloat(HDMF_Ded);
+      if (isNaN(finalHD) || (rateChanged && finalHD === parseFloat(oldUser.hdmf_Share))) {
+        finalHD = shares.hdmf_Share;
+      }
+
+      // Build replacements object with explicit types
+      const replacements = {
+        targetId: parseInt(user_Id),
+        firstName: user_FirstName || null,
+        lastName: user_LastName || null,
+        middleName: user_MiddleName || null,
+        machipId: user_MachipId || null,
+        fingerprintId: user_FingerprintId || null,
+        roleId: parseInt(user_RoleId) || 3,
+        statusId: parseInt(user_EmploymentStatusId) || 1,
+        email: user_Email || null,
+        accountNumber: encrypt(account_Number) || null,
+        bankCompany: bank_Company || null,
+        bankAccountName: bank_AccountName || null,
+        department: department || null,
+        position: position || null,
+        hireDate: hireDate || null,
+        taxStatus: taxStatus || "S",
+        dailyRate: parsedDailyRate,
+        sss: finalSSS,
+        ph: finalPH,
+        hd: finalHD,
+        tax: parseFloat(Tax_Ded) || oldUser.tax_Share || 0,
+        hc: parseFloat(healthCard_Amnt) || oldUser.healthCard_Amnt || 0,
+        sl: parseFloat(SSS_Loan) || oldUser.SSS_Loan || 0,
+        hl: parseFloat(HDMF_Loan) || oldUser.HDMF_Loan || 0,
+        cl: parseFloat(calamityLoan_Amnt) || oldUser.calamityLoan_Amnt || 0,
+        el: parseFloat(eastwest_Loan) || oldUser.eastwest_Loan || 0,
+        gd: parseFloat(globe_Deduction) || oldUser.globe_Deduction || 0,
+        ms: parseFloat(multiPurposeSavings) || oldUser.multiPurposeSavings || 0,
+        aa: parseFloat(advances_Amnt) || oldUser.advances_Amnt || 0,
+        updatedAt: nowStr
+      };
+
+      // Handle Daily Rate Update logic (tracking previous rate)
+      let rateUpdateSql = "";
+      if (Math.abs(replacements.dailyRate - oldUser.dailyRate) > 0.01) {
+        replacements.prevRate = oldUser.dailyRate;
+        replacements.rateUpdate = nowStr;
+        rateUpdateSql = `, "previousDailyRate" = :prevRate, "rateUpdatedAt" = :rateUpdate`;
+      }
+
+      let sql = `
+        UPDATE "User" SET 
+          "user_FirstName" = :firstName,
+          "user_LastName"  = :lastName,
+          "user_MiddleName"= :middleName,
+          "user_RoleId"    = :roleId,
+          "user_EmploymentStatusId" = :statusId,
+          "user_Email"     = :email,
+          "department"     = :department,
+          "position"       = :position,
+          "hireDate"       = :hireDate,
+          "taxStatus"      = :taxStatus,
+          "dailyRate"      = :dailyRate,
+          "updatedAt"      = :updatedAt
+          ${rateUpdateSql}
+      `;
+
+      // Only update template if provided and not empty
+      if (req.body.user_FingerprintTemplate && req.body.user_FingerprintTemplate.trim() !== "") {
+        replacements.fingerprintTemplate = req.body.user_FingerprintTemplate;
+      }
+
+      if (user_Password && user_Password.trim() !== "") {
+        const salt = await bcrypt.genSalt(10);
+        replacements.hashedPass = await bcrypt.hash(user_Password, salt);
+        sql += `, "user_Password" = :hashedPass`;
+      }
+
+      if (req.file) {
+        replacements.profilePic = req.file.filename;
+        sql += `, "user_ProfilePic" = :profilePic`;
+      }
+
+      sql += ` WHERE "user_Id" = :targetId AND "deletedAt" IS NULL`;
+
+      const [resUpdate, metadata] = await sequelize.query(sql, { replacements, type: QueryTypes.UPDATE, transaction });
+
+      // 2. Update/Insert Banking
+      await sequelize.query(
+        `INSERT INTO "User_Banking" ("user_Id", "account_Number", "bank_Company", "bank_AccountName", "createdAt", "updatedAt")
+         VALUES (:targetId, :accountNumber, :bankCompany, :bankAccountName, :updatedAt, :updatedAt)
+         ON CONFLICT ("user_Id") DO UPDATE SET
+          "account_Number" = EXCLUDED."account_Number",
+          "bank_Company" = EXCLUDED."bank_Company",
+          "bank_AccountName" = EXCLUDED."bank_AccountName",
+          "updatedAt" = EXCLUDED."updatedAt"`,
+        { replacements, type: QueryTypes.INSERT, transaction }
+      );
+
+      // 3. Update/Insert Deductions
+      await sequelize.query(
+        `INSERT INTO "User_Deduction_Profile" (
+          "user_Id", "sss_Share", "philhealth_Share", "hdmf_Share", "tax_Share", "healthCard_Amnt",
+          "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", "eastwest_Loan", "globe_Deduction",
+          "multiPurposeSavings", "advances_Amnt", "createdAt", "updatedAt"
+        ) VALUES (
+          :targetId, :sss, :ph, :hd, :tax, :hc, :sl, :hl, :cl, :el, :gd, :ms, :aa, :updatedAt, :updatedAt
+        ) ON CONFLICT ("user_Id") DO UPDATE SET
+          "sss_Share" = EXCLUDED."sss_Share",
+          "philhealth_Share" = EXCLUDED."philhealth_Share",
+          "hdmf_Share" = EXCLUDED."hdmf_Share",
+          "tax_Share" = EXCLUDED."tax_Share",
+          "healthCard_Amnt" = EXCLUDED."healthCard_Amnt",
+          "SSS_Loan" = EXCLUDED."SSS_Loan",
+          "HDMF_Loan" = EXCLUDED."HDMF_Loan",
+          "calamityLoan_Amnt" = EXCLUDED."calamityLoan_Amnt",
+          "eastwest_Loan" = EXCLUDED."eastwest_Loan",
+          "globe_Deduction" = EXCLUDED."globe_Deduction",
+          "multiPurposeSavings" = EXCLUDED."multiPurposeSavings",
+          "advances_Amnt" = EXCLUDED."advances_Amnt",
+          "updatedAt" = EXCLUDED."updatedAt"`,
+        { replacements, type: QueryTypes.INSERT, transaction }
+      );
+
+      // 4. Update/Insert Hardware
+      let hardwareSql = `
+        INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "user_FingerprintId", "createdAt", "updatedAt")
+        VALUES (:targetId, :machipId, :fingerprintId, :updatedAt, :updatedAt)
+        ON CONFLICT ("user_Id") DO UPDATE SET
+          "user_MachipId" = EXCLUDED."user_MachipId",
+          "user_FingerprintId" = EXCLUDED."user_FingerprintId",
+          "updatedAt" = EXCLUDED."updatedAt"
+      `;
+      
+      if (replacements.fingerprintTemplate) {
+        hardwareSql = `
+          INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "user_FingerprintId", "user_FingerprintTemplate", "createdAt", "updatedAt")
+          VALUES (:targetId, :machipId, :fingerprintId, :fingerprintTemplate, :updatedAt, :updatedAt)
+          ON CONFLICT ("user_Id") DO UPDATE SET
+            "user_MachipId" = EXCLUDED."user_MachipId",
+            "user_FingerprintId" = EXCLUDED."user_FingerprintId",
+            "user_FingerprintTemplate" = EXCLUDED."user_FingerprintTemplate",
+            "updatedAt" = EXCLUDED."updatedAt"
+        `;
+      }
+      
+      await sequelize.query(hardwareSql, { replacements, type: QueryTypes.INSERT, transaction });
+
+      await transaction.commit();
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
     }
-
-    let finalPH = parseFloat(Philhealth_Ded);
-    if (isNaN(finalPH) || (rateChanged && finalPH === parseFloat(oldUser.philhealth_Share))) {
-      finalPH = shares.philhealth_Share;
-    }
-
-    let finalHD = parseFloat(HDMF_Ded);
-    if (isNaN(finalHD) || (rateChanged && finalHD === parseFloat(oldUser.hdmf_Share))) {
-      finalHD = shares.hdmf_Share;
-    }
-
-    // Build replacements object with explicit types
-    const replacements = {
-      targetId: parseInt(user_Id),
-      firstName: user_FirstName || null,
-      lastName: user_LastName || null,
-      middleName: user_MiddleName || null,
-      machipId: user_MachipId || null,
-      fingerprintId: user_FingerprintId || null,
-      roleId: parseInt(user_RoleId) || 3,
-      statusId: parseInt(user_EmploymentStatusId) || 1,
-      email: user_Email || null,
-      accountNumber: encrypt(account_Number) || null,
-      bankCompany: bank_Company || null,
-      bankAccountName: bank_AccountName || null,
-      department: department || null,
-      position: position || null,
-      hireDate: hireDate || null,
-      taxStatus: taxStatus || "S",
-      dailyRate: parsedDailyRate,
-      sss: finalSSS,
-      ph: finalPH,
-      hd: finalHD,
-      tax: parseFloat(Tax_Ded) || oldUser.tax_Share || 0,
-      hc: parseFloat(healthCard_Amnt) || oldUser.healthCard_Amnt || 0,
-      sl: parseFloat(SSS_Loan) || oldUser.SSS_Loan || 0,
-      hl: parseFloat(HDMF_Loan) || oldUser.HDMF_Loan || 0,
-      cl: parseFloat(calamityLoan_Amnt) || oldUser.calamityLoan_Amnt || 0,
-      el: parseFloat(eastwest_Loan) || oldUser.eastwest_Loan || 0,
-      gd: parseFloat(globe_Deduction) || oldUser.globe_Deduction || 0,
-      ms: parseFloat(multiPurposeSavings) || oldUser.multiPurposeSavings || 0,
-      aa: parseFloat(advances_Amnt) || oldUser.advances_Amnt || 0,
-      updatedAt: nowStr
-    };
-
-    // Handle Daily Rate Update logic (tracking previous rate)
-    let rateUpdateSql = "";
-    if (Math.abs(replacements.dailyRate - oldUser.dailyRate) > 0.01) {
-      replacements.prevRate = oldUser.dailyRate;
-      replacements.rateUpdate = nowStr;
-      rateUpdateSql = `, "previousDailyRate" = :prevRate, "rateUpdatedAt" = :rateUpdate`;
-    }
-
-    let sql = `
-      UPDATE "User" SET 
-        "user_FirstName" = :firstName,
-        "user_LastName"  = :lastName,
-        "user_MiddleName"= :middleName,
-        "user_MachipId"  = :machipId,
-        "user_FingerprintId" = :fingerprintId,
-        "user_RoleId"    = :roleId,
-        "user_EmploymentStatusId" = :statusId,
-        "user_Email"     = :email,
-        "account_Number" = :accountNumber,
-        "bank_Company"   = :bankCompany,
-        "bank_AccountName" = :bankAccountName,
-        "department"     = :department,
-        "position"       = :position,
-        "hireDate"       = :hireDate,
-        "taxStatus"      = :taxStatus,
-        "dailyRate"      = :dailyRate,
-        "sss_Share"      = :sss,
-        "philhealth_Share" = :ph,
-        "hdmf_Share"     = :hd,
-        "tax_Share"      = :tax,
-        "healthCard_Amnt" = :hc,
-        "SSS_Loan"       = :sl,
-        "HDMF_Loan"      = :hl,
-        "calamityLoan_Amnt" = :cl,
-        "eastwest_Loan"  = :el,
-        "globe_Deduction"= :gd,
-        "multiPurposeSavings" = :ms,
-        "advances_Amnt"  = :aa,
-        "updatedAt"      = :updatedAt
-        ${rateUpdateSql}
-    `;
-
-    // Only update template if provided and not empty
-    if (req.body.user_FingerprintTemplate && req.body.user_FingerprintTemplate.trim() !== "") {
-      replacements.fingerprintTemplate = req.body.user_FingerprintTemplate;
-      sql += `, "user_FingerprintTemplate" = :fingerprintTemplate`;
-    }
-
-    if (user_Password && user_Password.trim() !== "") {
-      const salt = await bcrypt.genSalt(10);
-      replacements.hashedPass = await bcrypt.hash(user_Password, salt);
-      sql += `, "user_Password" = :hashedPass`;
-    }
-
-    if (req.file) {
-      replacements.profilePic = req.file.filename;
-      sql += `, "user_ProfilePic" = :profilePic`;
-    }
-
-    sql += ` WHERE "user_Id" = :targetId AND "deletedAt" IS NULL`;
-
-    console.log("[DEBUG] Executing SQL in updateUser:", sql);
-    console.log("[DEBUG] Replacements:", { ...replacements, fingerprintTemplate: replacements.fingerprintTemplate ? "REDACTED" : "NONE" });
-
-    const [result, metadata] = await sequelize.query(sql, { replacements, type: QueryTypes.UPDATE });
-    console.log("[DEBUG] Affected Rows in updateUser:", metadata);
 
     const updatedUserResult = await sequelize.query(
-      `SELECT * FROM "User" WHERE "user_Id" = :targetId`,
+      `SELECT u.*, 
+              b."account_Number", b."bank_Company", b."bank_AccountName",
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
+              d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
+              d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              h."user_MachipId", h."user_FingerprintId"
+       FROM "User" u
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+       WHERE u."user_Id" = :targetId`,
       { replacements: { targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
     );
 
@@ -735,37 +924,31 @@ exports.getMasterlist = async (req, res) => {
          u."user_LastName",
          u."user_MiddleName",
          u."user_Email",
-         u."user_MachipId",
          u."user_RoleId",
          u."user_EmploymentStatusId",
          u."user_ProfilePic",
-         u."account_Number",
          u."dailyRate",
          u."previousDailyRate",
          u."rateUpdatedAt",
-         u."sss_Share",
-         u."philhealth_Share",
-         u."hdmf_Share",
-         u."tax_Share",
-         u."healthCard_Amnt",
-         u."SSS_Loan",
-         u."HDMF_Loan",
-         u."calamityLoan_Amnt",
-         u."advances_Amnt",
-         u."globe_Deduction",
-         u."eastwest_Loan",
-         u."multiPurposeSavings",
          u."taxStatus",
          u."department",
          u."position",
          u."hireDate",
          u."createdAt",
          u."updatedAt",
+         b."account_Number", b."bank_Company", b."bank_AccountName",
+         d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
+         d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
+         d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+         h."user_MachipId", h."user_FingerprintId",
          r."roleName"          AS "user_Role",
          es."statusName"       AS "employmentStatus"
        FROM "User" u
        LEFT JOIN "user_Role"        r  ON u."user_RoleId"             = r."roleId"
        LEFT JOIN "employementStatus" es ON u."user_EmploymentStatusId" = es."statusId"
+       LEFT JOIN "User_Banking"     b  ON u."user_Id"                 = b."user_Id"
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id"            = d."user_Id"
+       LEFT JOIN "User_Hardware"    h  ON u."user_Id"                 = h."user_Id"
        WHERE u."deletedAt" IS NULL
        ORDER BY u."user_Id" ASC`,
       { type: QueryTypes.SELECT },
@@ -875,30 +1058,54 @@ exports.updateDailyRate = async (req, res) => {
     console.log(`[UPDATE_RATE] Final Shares: SSS=${finalSSS}, PH=${finalPH}, HD=${finalHD}, Tax=${finalTax}`);
     console.log(`[UPDATE_RATE] Other Deds: HC=${fHC}, SL=${fSL}, HL=${fHL}, CL=${fCL}, AA=${fAA}, GD=${fGD}, EL=${fEL}, MS=${fMS}`);
 
+    const transaction = await sequelize.transaction();
     try {
-      const [result, metadata] = await sequelize.query(
+      // 1. Update User Table (Daily Rate)
+      await sequelize.query(
         `UPDATE "User"
          SET
            "previousDailyRate"   = "dailyRate",
            "dailyRate"           = :newDailyRate,
-           "sss_Share"           = :sss,
-           "philhealth_Share"    = :ph,
-           "hdmf_Share"          = :hd,
-           "tax_Share"           = :tax,
-           "healthCard_Amnt"     = :hc,
-           "SSS_Loan"            = :sl,
-           "HDMF_Loan"           = :hl,
-           "calamityLoan_Amnt"   = :cl,
-           "advances_Amnt"       = :aa,
-           "globe_Deduction"     = :gd,
-           "eastwest_Loan"       = :el,
-           "multiPurposeSavings" = :ms,
            "rateUpdatedAt"       = :now,
            "updatedAt"           = :now
          WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
         {
           replacements: { 
             newDailyRate: parsed, 
+            now: nowStr, 
+            user_Id 
+          },
+          type: QueryTypes.UPDATE,
+          transaction
+        },
+      );
+
+      // 2. Update/Insert Deductions Table
+      await sequelize.query(
+        `INSERT INTO "User_Deduction_Profile" (
+          "user_Id", "sss_Share", "philhealth_Share", "hdmf_Share", "tax_Share",
+          "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt",
+          "advances_Amnt", "globe_Deduction", "eastwest_Loan", "multiPurposeSavings",
+          "createdAt", "updatedAt"
+        ) VALUES (
+          :user_Id, :sss, :ph, :hd, :tax, :hc, :sl, :hl, :cl, :aa, :gd, :el, :ms, :now, :now
+        ) ON CONFLICT ("user_Id") DO UPDATE SET
+          "sss_Share" = EXCLUDED."sss_Share",
+          "philhealth_Share" = EXCLUDED."philhealth_Share",
+          "hdmf_Share" = EXCLUDED."hdmf_Share",
+          "tax_Share" = EXCLUDED."tax_Share",
+          "healthCard_Amnt" = EXCLUDED."healthCard_Amnt",
+          "SSS_Loan" = EXCLUDED."SSS_Loan",
+          "HDMF_Loan" = EXCLUDED."HDMF_Loan",
+          "calamityLoan_Amnt" = EXCLUDED."calamityLoan_Amnt",
+          "advances_Amnt" = EXCLUDED."advances_Amnt",
+          "globe_Deduction" = EXCLUDED."globe_Deduction",
+          "eastwest_Loan" = EXCLUDED."eastwest_Loan",
+          "multiPurposeSavings" = EXCLUDED."multiPurposeSavings",
+          "updatedAt" = EXCLUDED."updatedAt"`,
+        {
+          replacements: {
+            user_Id,
             sss: finalSSS,
             ph: finalPH,
             hd: finalHD,
@@ -911,31 +1118,30 @@ exports.updateDailyRate = async (req, res) => {
             gd: fGD,
             el: fEL,
             ms: fMS,
-            now: nowStr, 
-            user_Id 
+            now: nowStr
           },
-          type: QueryTypes.UPDATE,
-        },
+          type: QueryTypes.INSERT,
+          transaction
+        }
       );
-      console.log(`[UPDATE_RATE] SQL Executed. Affected Rows:`, metadata);
-    } catch (sqlErr) {
-      console.error("[SQL UPDATE ERROR]:", sqlErr.message);
-      // Fallback
-      await sequelize.query(
-        `UPDATE "User" SET "dailyRate" = :newDailyRate, "previousDailyRate" = "dailyRate", "rateUpdatedAt" = :now WHERE "user_Id" = :user_Id`,
-        { replacements: { newDailyRate: parsed, now: nowStr, user_Id }, type: QueryTypes.UPDATE }
-      );
+
+      await transaction.commit();
+      console.log(`[UPDATE_RATE] Normalized tables updated successfully.`);
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
     }
 
     const updatedResult = await sequelize.query(
       `SELECT
-         "user_Id", "user_FirstName", "user_LastName",
-         "dailyRate", "previousDailyRate", "rateUpdatedAt",
-         "sss_Share", "philhealth_Share", "hdmf_Share", "tax_Share",
-         "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt",
-         "advances_Amnt", "globe_Deduction", "multiPurposeSavings"
-       FROM "User"
-       WHERE "user_Id" = :user_Id`,
+         u."user_Id", u."user_FirstName", u."user_LastName",
+         u."dailyRate", u."previousDailyRate", u."rateUpdatedAt",
+         d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
+         d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
+         d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings"
+       FROM "User" u
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       WHERE u."user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
 
@@ -958,7 +1164,7 @@ exports.checkMaChip = async (req, res) => {
   const { uid } = req.params;
   try {
     const results = await sequelize.query(
-      `SELECT "user_Id" FROM "User" WHERE "user_MachipId" = :uid AND "deletedAt" IS NULL LIMIT 1`,
+      `SELECT "user_Id" FROM "User_Hardware" WHERE "user_MachipId" = :uid LIMIT 1`,
       { replacements: { uid }, type: QueryTypes.SELECT }
     );
     if (results.length > 0) {
@@ -974,7 +1180,7 @@ exports.checkFingerprint = async (req, res) => {
   const { slot } = req.params;
   try {
     const results = await sequelize.query(
-      `SELECT "user_Id" FROM "User" WHERE "user_FingerprintId" = :slot AND "deletedAt" IS NULL LIMIT 1`,
+      `SELECT "user_Id" FROM "User_Hardware" WHERE "user_FingerprintId" = :slot LIMIT 1`,
       { replacements: { slot: parseInt(slot) }, type: QueryTypes.SELECT }
     );
     if (results.length > 0) {
@@ -1100,44 +1306,79 @@ exports.batchRegisterUsers = async (req, res) => {
           encAccount = encrypt(userData.account_Number);
         }
 
-        await sequelize.query(
-          `INSERT INTO "User" (
-            "user_Id", "user_FirstName", "user_LastName", "user_MiddleName",
-            "user_Email", "user_Password", "user_RoleId", "user_EmploymentStatusId",
-            "bank_Company", "bank_AccountName", "account_Number",
-            "department", "position", "hireDate", "taxStatus",
-            "createdAt", "updatedAt"
-          ) VALUES (
-            :user_Id, :user_FirstName, :user_LastName, :user_MiddleName,
-            :user_Email, :user_Password, :roleId, :statusId,
-            :bank_Company, :bank_AccountName, :account_Number,
-            :department, :position, :hireDate, :taxStatus,
-            :now, :now
-          )`,
-          {
-            replacements: {
-              user_Id: nextId,
-              user_FirstName: userData.user_FirstName,
-              user_LastName: userData.user_LastName,
-              user_MiddleName: userData.user_MiddleName || null,
-              user_Email: userData.user_Email,
-              user_Password: hashedPassword,
-              roleId,
-              statusId,
-              bank_Company: normalizedBank,
-              bank_AccountName: userData.bank_AccountName || null,
-              account_Number: encAccount,
-              department: userData.department || null,
-              position: userData.position || null,
-              hireDate: userData.hireDate || null,
-              taxStatus: userData.taxStatus || "S",
-              now: nowStr
-            },
-            type: QueryTypes.INSERT
-          }
-        );
+        const trans = await sequelize.transaction();
+        try {
+          // 1. Core User
+          await sequelize.query(
+            `INSERT INTO "User" (
+              "user_Id", "user_FirstName", "user_LastName", "user_MiddleName",
+              "user_Email", "user_Password", "user_RoleId", "user_EmploymentStatusId",
+              "department", "position", "hireDate", "taxStatus",
+              "createdAt", "updatedAt"
+            ) VALUES (
+              :user_Id, :user_FirstName, :user_LastName, :user_MiddleName,
+              :user_Email, :user_Password, :roleId, :statusId,
+              :department, :position, :hireDate, :taxStatus,
+              :now, :now
+            )`,
+            {
+              replacements: {
+                user_Id: nextId,
+                user_FirstName: userData.user_FirstName,
+                user_LastName: userData.user_LastName,
+                user_MiddleName: userData.user_MiddleName || null,
+                user_Email: userData.user_Email,
+                user_Password: hashedPassword,
+                roleId,
+                statusId,
+                department: userData.department || null,
+                position: userData.position || null,
+                hireDate: userData.hireDate || null,
+                taxStatus: userData.taxStatus || "S",
+                now: nowStr
+              },
+              type: QueryTypes.INSERT,
+              transaction: trans
+            }
+          );
 
-        results.success++;
+          // 2. Banking
+          await sequelize.query(
+            `INSERT INTO "User_Banking" ("user_Id", "bank_Company", "bank_AccountName", "account_Number", "createdAt", "updatedAt")
+             VALUES (:user_Id, :bank_Company, :bank_AccountName, :account_Number, :now, :now)`,
+            {
+              replacements: {
+                user_Id: nextId,
+                bank_Company: normalizedBank,
+                bank_AccountName: userData.bank_AccountName || null,
+                account_Number: encAccount,
+                now: nowStr
+              },
+              type: QueryTypes.INSERT,
+              transaction: trans
+            }
+          );
+
+          // 3. Hardware (Placeholder)
+          await sequelize.query(
+            `INSERT INTO "User_Hardware" ("user_Id", "createdAt", "updatedAt")
+             VALUES (:user_Id, :now, :now)`,
+            { replacements: { user_Id: nextId, now: nowStr }, type: QueryTypes.INSERT, transaction: trans }
+          );
+
+          // 4. Deduction Profile (Initialize with 0s or defaults)
+          await sequelize.query(
+            `INSERT INTO "User_Deduction_Profile" ("user_Id", "createdAt", "updatedAt")
+             VALUES (:user_Id, :now, :now)`,
+            { replacements: { user_Id: nextId, now: nowStr }, type: QueryTypes.INSERT, transaction: trans }
+          );
+
+          await trans.commit();
+          results.success++;
+        } catch (innerErr) {
+          await trans.rollback();
+          throw innerErr;
+        }
 
         // Send welcome email after successful registration (Non-blocking)
         const displayId = `MACJ-${String(nextId).padStart(3, "0")}`;

@@ -14,3 +14,11 @@ uploads
 db_manager.js
 test_leave_insertion.js
 
+sync_db.js
+seed_requests.js
+reproduce_500.js
+reproduce_500_full.js
+test_all_attendance.js
+test_query.js
+check_config.js
+check_db.js

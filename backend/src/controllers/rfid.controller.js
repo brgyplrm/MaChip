@@ -123,21 +123,25 @@ exports.scanRFID = async (req, res) => {
       is2FA = true;
     }
 
-    // 1. Find User by MachipId (Case-Insensitive) or FingerprintId
+    // 1. Find User by MachipId (Case-Insensitive) or FingerprintId via Hardware join
     let user;
     if (action === "fingerprint_scan") {
       user = await User.findOne({
-        where: { user_FingerprintId: parseInt(uid), deletedAt: null }
+        include: [{
+          model: sequelize.models.User_Hardware,
+          as: 'hardware',
+          where: { user_FingerprintId: parseInt(uid) }
+        }],
+        where: { deletedAt: null }
       });
     } else {
-      // Use case-insensitive search for RFID
       user = await User.findOne({
-        where: {
-          [sequelize.Sequelize.Op.and]: [
-            sequelize.where(sequelize.fn('LOWER', sequelize.col('user_MachipId')), rfidUid.toLowerCase()),
-            { deletedAt: null }
-          ]
-        }
+        include: [{
+          model: sequelize.models.User_Hardware,
+          as: 'hardware',
+          where: sequelize.where(sequelize.fn('LOWER', sequelize.col('hardware.user_MachipId')), rfidUid.toLowerCase())
+        }],
+        where: { deletedAt: null }
       });
     }
 
@@ -173,10 +177,13 @@ exports.scanRFID = async (req, res) => {
       return res.status(404).json({ success: false, message: "Access Denied" });
     }
 
+    // Since we used include, we can access hardware properties
+    const hardware = user.hardware;
+
     // ── 2FA FLOW TRIGGER ────────────────────────────────────────────────────
     // If the user has a Fingerprint ID enrolled, but only RFID was scanned,
     // we tell the device to proceed to biometric verification.
-    if (!is2FA && user.user_FingerprintId && action !== "fingerprint_scan") {
+    if (!is2FA && hardware?.user_FingerprintId && action !== "fingerprint_scan") {
       console.log(`[2FA] User ${user.user_FirstName} requires biometric verification. Triggering ESP32...`);
       return res.status(200).json({
         success: true,
@@ -188,9 +195,9 @@ exports.scanRFID = async (req, res) => {
 
     // ── 2FA Verification ────────────────────────────────────────────────────
     if (is2FA) {
-      console.log(`[2FA-DEBUG] User: ${user.user_FirstName}, DB FingerId: ${user.user_FingerprintId} (${typeof user.user_FingerprintId}), Scanned FingerId: ${scannedFingerId} (${typeof scannedFingerId})`);
+      console.log(`[2FA-DEBUG] User: ${user.user_FirstName}, DB FingerId: ${hardware?.user_FingerprintId} (${typeof hardware?.user_FingerprintId}), Scanned FingerId: ${scannedFingerId} (${typeof scannedFingerId})`);
       
-      const dbFingerId = parseInt(user.user_FingerprintId);
+      const dbFingerId = parseInt(hardware?.user_FingerprintId);
       const inputFingerId = parseInt(scannedFingerId);
 
       if (isNaN(dbFingerId) || dbFingerId !== inputFingerId) {
@@ -406,7 +413,14 @@ exports.generateRfid = async (req, res) => {
       captureSession.scannedUid = null;
       captureSession.isCapturing = false;
       clearInterval(checkInterval);
-      User.findOne({ where: { user_MachipId: uid, deletedAt: null } }).then(user => {
+      User.findOne({ 
+        include: [{
+          model: sequelize.models.User_Hardware,
+          as: 'hardware',
+          where: { user_MachipId: uid }
+        }],
+        where: { deletedAt: null } 
+      }).then(user => {
         if (user) return res.status(400).json({ error: "MaChip ID is already assigned to another user.", rfid: uid });
         return res.status(200).json({ rfid: uid });
       }).catch(err => res.status(500).json({ error: "Internal Server Error" }));
@@ -426,7 +440,7 @@ exports.generateFingerprint = async (req, res) => {
   
   try {
     const result = await sequelize.query(
-      `SELECT MAX("user_FingerprintId") AS "maxSlot" FROM "User"`,
+      `SELECT MAX("user_FingerprintId") AS "maxSlot" FROM "User_Hardware"`,
       { type: QueryTypes.SELECT }
     );
     const nextSlot = (result[0].maxSlot ? parseInt(result[0].maxSlot) : 0) + 1;
@@ -489,7 +503,7 @@ exports.getFingerprintSession = async (req, res) => {
         // ONLY promote if there isn't ALREADY an active session being tracked
         if (!fpCaptureSession.isCapturing || Date.now() > fpCaptureSession.expiresAt) {
           const result = await sequelize.query(
-            `SELECT MAX("user_FingerprintId") AS "maxSlot" FROM "User"`,
+            `SELECT MAX("user_FingerprintId") AS "maxSlot" FROM "User_Hardware"`,
             { type: QueryTypes.SELECT }
           );
           const nextSlot = (result[0].maxSlot ? parseInt(result[0].maxSlot) : 0) + 1;
@@ -545,12 +559,17 @@ exports.confirmFingerprintEnroll = async (req, res) => {
       const targetUserId = parseInt(targetUserIdRaw);
       if (targetUserIdRaw && targetUserIdRaw !== "temp_registration" && !isNaN(targetUserId)) {
         try {
-          const [result, metadata] = await sequelize.query(
-            `UPDATE "User" SET 
-              "user_FingerprintTemplate" = :template,
-              "user_FingerprintId" = :slotId
-             WHERE "user_Id" = :targetUserId`,
-            { replacements: { template, slotId: finalSlotId, targetUserId }, type: QueryTypes.UPDATE }
+          const now = await getSystemTime();
+          const nowStr = now.toISOString();
+
+          await sequelize.query(
+            `INSERT INTO "User_Hardware" ("user_Id", "user_FingerprintTemplate", "user_FingerprintId", "createdAt", "updatedAt")
+             VALUES (:targetUserId, :template, :slotId, :now, :now)
+             ON CONFLICT ("user_Id") DO UPDATE SET
+              "user_FingerprintTemplate" = EXCLUDED."user_FingerprintTemplate",
+              "user_FingerprintId" = EXCLUDED."user_FingerprintId",
+              "updatedAt" = EXCLUDED."updatedAt"`,
+            { replacements: { template, slotId: finalSlotId, targetUserId, now: nowStr }, type: QueryTypes.INSERT }
           );
           console.log(`[FP-LINK] Success! Slot ${finalSlotId} saved for user ${targetUserId}`);
         } catch (err) {
@@ -582,7 +601,10 @@ exports.getFingerprintTemplate = async (req, res) => {
 
   try {
     const [user] = await sequelize.query(
-      `SELECT "user_FingerprintTemplate" FROM "User" WHERE "user_MachipId" = :uid AND "deletedAt" IS NULL LIMIT 1`,
+      `SELECT h."user_FingerprintTemplate" 
+       FROM "User" u
+       INNER JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+       WHERE h."user_MachipId" = :uid AND u."deletedAt" IS NULL LIMIT 1`,
       { replacements: { uid }, type: QueryTypes.SELECT }
     );
 

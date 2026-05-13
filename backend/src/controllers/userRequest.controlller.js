@@ -1387,10 +1387,12 @@ exports.getLeaveSummary = async (req, res) => {
   try {
     const currentYear = parseInt(year || new Date().getFullYear());
 
-    // 1. Fetch all active users
+    // 1. Fetch all active users with their hardware info
     const users = await sequelize.query(
-      `SELECT "user_Id", "user_FirstName", "user_LastName", "user_MachipId", "dailyRate"
-       FROM "User" WHERE "deletedAt" IS NULL ORDER BY "user_LastName" ASC`,
+      `SELECT u."user_Id", u."user_FirstName", u."user_LastName", h."user_MachipId", u."dailyRate"
+       FROM "User" u
+       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+       WHERE u."deletedAt" IS NULL ORDER BY u."user_LastName" ASC`,
       { type: QueryTypes.SELECT }
     );
 

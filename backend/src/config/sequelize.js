@@ -28,7 +28,7 @@ const sequelize = new Sequelize(
 );
 
 // ── Models ────────────────────────────────────────────────────────────────────
-const { User, user_Role, employementStatus } = require("../models/user.models")(
+const { User, user_Role, employementStatus, User_Banking, User_Deduction_Profile, User_Hardware } = require("../models/user.models")(
   sequelize,
   DataTypes,
 );
@@ -171,6 +171,9 @@ module.exports = {
   sequelize,
   connectDB,
   User,
+  User_Banking,
+  User_Deduction_Profile,
+  User_Hardware,
   user_logging,
   employee_Logging_report,
   logged_status,

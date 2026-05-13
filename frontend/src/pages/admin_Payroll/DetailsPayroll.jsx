@@ -89,7 +89,9 @@ const PayrollDetails = () => {
               holidaysSpecialWorked: preview.workedHolidays?.special || 0,
               PaystatusName: "Draft",
               incentives: preview.incentives || 0,
-              allowance: preview.allowance || 0
+              allowance: preview.allowance || 0,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
             });
           }
         } else {

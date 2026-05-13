@@ -2,6 +2,7 @@ const {
   sequelize, 
   Notification, 
   User, 
+  User_Hardware,
   user_logging, 
   logged_status, 
   attendance_status 
@@ -83,15 +84,19 @@ exports.markAttendance = async (req, res) => {
 
     let user;
     if (user_Id && user_Id !== "all") {
-      // Try user_Id first, then user_MachipId
+      // Try user_Id first, then user_MachipId via hardware association
       user = await User.findOne({ 
         where: { 
           [sequelize.Sequelize.Op.or]: [
             { user_Id: isNaN(parseInt(user_Id)) ? -1 : parseInt(user_Id) }, 
-            { user_MachipId: user_Id }
+            { '$hardware.user_MachipId$': user_Id }
           ],
           deletedAt: null 
-        } 
+        },
+        include: [{
+          model: User_Hardware,
+          as: 'hardware'
+        }]
       });
     }
 
@@ -652,7 +657,14 @@ exports.viewAllAttendance = async (req, res) => {
         {
           model: User,
           as: "user",
-          attributes: ["user_Id", "user_FirstName", "user_LastName", "user_MachipId"],
+          attributes: ["user_Id", "user_FirstName", "user_LastName"],
+          include: [
+            {
+              model: User_Hardware,
+              as: "hardware",
+              attributes: ["user_MachipId"],
+            }
+          ]
         },
         {
           model: logged_status,
@@ -675,7 +687,7 @@ exports.viewAllAttendance = async (req, res) => {
         ...plain,
         user_FirstName: plain.user?.user_FirstName,
         user_LastName: plain.user?.user_LastName,
-        user_MachipId: plain.user?.user_MachipId,
+        user_MachipId: plain.user?.hardware?.user_MachipId,
         loggedStatusName: plain.loggedStatus?.statusName,
         attendanceStatusName: plain.attendanceStatus?.statusName
       };
@@ -1138,25 +1150,26 @@ exports.getDashboardStats = async (req, res) => {
     const payrollResult = await sequelize.query(
       `SELECT SUM(
         GREATEST(
-          ("dailyRate" * :workDaysInMonth) - 
+          (u."dailyRate" * :workDaysInMonth) - 
           (
-            COALESCE("sss_Share", 0) + 
-            COALESCE("philhealth_Share", 0) + 
-            COALESCE("hdmf_Share", 0) + 
-            COALESCE("tax_Share", 0) + 
-            COALESCE("healthCard_Amnt", 0) + 
-            COALESCE("SSS_Loan", 0) + 
-            COALESCE("HDMF_Loan", 0) + 
-            COALESCE("calamityLoan_Amnt", 0) + 
-            COALESCE("advances_Amnt", 0) + 
-            COALESCE("globe_Deduction", 0) + 
-            COALESCE("multiPurposeSavings", 0)
+            COALESCE(d."sss_Share", 0) + 
+            COALESCE(d."philhealth_Share", 0) + 
+            COALESCE(d."hdmf_Share", 0) + 
+            COALESCE(d."tax_Share", 0) + 
+            COALESCE(d."healthCard_Amnt", 0) + 
+            COALESCE(d."SSS_Loan", 0) + 
+            COALESCE(d."HDMF_Loan", 0) + 
+            COALESCE(d."calamityLoan_Amnt", 0) + 
+            COALESCE(d."advances_Amnt", 0) + 
+            COALESCE(d."globe_Deduction", 0) + 
+            COALESCE(d."multiPurposeSavings", 0)
           ), 
           0
         )
       ) as projected 
-      FROM "User" 
-      WHERE "deletedAt" IS NULL`,
+      FROM "User" u
+      LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+      WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0`,
       { replacements: { workDaysInMonth }, type: QueryTypes.SELECT }
     );
     const projectedPayroll = Math.round(parseFloat(payrollResult[0].projected || 0));
@@ -1228,13 +1241,14 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       u."user_Id" as "actual_user_Id",
       u."user_FirstName",
       u."user_LastName",
-      u."user_MachipId",
+      h."user_MachipId",
       a."statusName" AS "attendanceStatusName",
       CASE WHEN er."emp_reqStatusId" = 2 THEN ot."HrFrom" ELSE NULL END AS "ot_HrFrom",
       CASE WHEN er."emp_reqStatusId" = 2 THEN ot."HrTo" ELSE NULL END AS "ot_HrTo",
       CASE WHEN er."emp_reqStatusId" = 2 THEN ot."Total_Hrs" ELSE NULL END AS "ot_Total_Hrs"
     FROM "employee_Logging_report" r
     LEFT JOIN "User" u ON u."user_Id" = r."user_id"
+    LEFT JOIN "User_Hardware" h ON h."user_Id" = u."user_Id"
     LEFT JOIN "attendance_status" a ON a."statusId" = r."attendance_StatusId"
     LEFT JOIN "Overtime_Request" ot ON ot."user_Id" = r."user_id" AND ot."OT_DateOf"::date = r."log_Date"::date
     LEFT JOIN "emp_Request" er ON er."emp_reqId" = ot."emp_reqId"
@@ -1441,6 +1455,7 @@ exports.getAttendanceReport = async (req, res) => {
     const data = await getAttendanceReportInternal(startDate, endDate, user_Id);
     res.status(200).json(data);
   } catch (error) {
+    console.error("[GET ATTENDANCE REPORT ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };

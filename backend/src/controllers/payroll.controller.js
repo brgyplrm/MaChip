@@ -279,10 +279,13 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   let hCard = 0, sLoan = 0, hLoan = 0, cLoan = 0, advAmnt = 0, gDed = 0, mpSave = 0, ewLoan = 0;
 
   const user = await sequelize.query(
-    `SELECT "dailyRate", "sss_Share", "philhealth_Share", "hdmf_Share", "tax_Share",
-            "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt",
-            "advances_Amnt", "globe_Deduction", "multiPurposeSavings", "eastwest_Loan"
-     FROM "User" WHERE "user_Id" = :user_Id`,
+    `SELECT u."dailyRate", 
+            d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
+            d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
+            d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings", d."eastwest_Loan"
+     FROM "User" u
+     LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+     WHERE u."user_Id" = :user_Id`,
     { replacements: { user_Id }, type: QueryTypes.SELECT }
   );
 
@@ -504,10 +507,12 @@ exports.generateBatchPayroll = async (req, res) => {
     const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
 
     const employees = await sequelize.query(
-      `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email", "dailyRate", 
-              "sss_Share", "philhealth_Share", "hdmf_Share", "account_Number" 
-       FROM "User" 
-       WHERE "deletedAt" IS NULL AND "dailyRate" > 0`, 
+      `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_Email", u."dailyRate", 
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share", b."account_Number" 
+       FROM "User" u
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0`, 
       { type: QueryTypes.SELECT }
     );
 
@@ -1186,17 +1191,19 @@ exports.getPayrollReport = async (req, res) => {
     let query = `
       SELECT
         p.*,
-        u."user_FirstName", u."user_LastName", u."user_MachipId",
+        u."user_FirstName", u."user_LastName", h."user_MachipId",
         ps."PaystatusName" AS "statusName",
         d.*,
         (COALESCE(d."healthCard_Amnt",0) +
          COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
-         COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",        e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
+         COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
+        e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
         e."specialHol_Adj", e."incentives", e."allowance"
       FROM "Payroll" p
       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+      LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
@@ -1264,12 +1271,15 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
     // 1. Try to get saved payroll records
     let payrollRows = await sequelize.query(
       `SELECT p.*,
-              u."user_FirstName", u."user_LastName", u."account_Number" AS "accountNo",
-              u."user_MachipId", u."department", u."position", u."taxStatus", u."hireDate",
-              u."sss_Share", u."philhealth_Share", u."hdmf_Share", u."previousDailyRate",
+              u."user_FirstName", u."user_LastName", b."account_Number" AS "accountNo",
+              h."user_MachipId", u."department", u."position", u."taxStatus", u."hireDate",
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share", u."previousDailyRate",
               pe.*, pd.*
        FROM "Payroll" p
        LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
        LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId"
        LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId"
        WHERE p."period_Start" = :period_Start AND p."period_End" = :period_End
@@ -1280,11 +1290,14 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
     // 2. If no saved records (Draft mode), perform live calculations for PDF
     if (payrollRows.length === 0) {
       const employees = await sequelize.query(
-        `SELECT "user_Id", "user_FirstName", "user_LastName", "user_MachipId", 
-                "department", "position", "taxStatus", "hireDate",
-                "sss_Share", "philhealth_Share", "hdmf_Share", "account_Number", "previousDailyRate"
-         FROM "User" 
-         WHERE "dailyRate" > 0 AND "deletedAt" IS NULL`,
+        `SELECT u."user_Id", u."user_FirstName", u."user_LastName", h."user_MachipId", 
+                u."department", u."position", u."taxStatus", u."hireDate",
+                d."sss_Share", d."philhealth_Share", d."hdmf_Share", b."account_Number", u."previousDailyRate"
+         FROM "User" u
+         LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+         LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+         LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+         WHERE u."dailyRate" > 0 AND u."deletedAt" IS NULL`,
         { type: QueryTypes.SELECT }
       );
 
@@ -1335,12 +1348,15 @@ exports.getPayrollSummaryPreview = async (req, res) => {
     // 1. Try to get saved payroll records
     let payrollRows = await sequelize.query(
       `SELECT p.*, 
-              u."user_FirstName", u."user_LastName", u."account_Number" AS "accountNo", 
-              u."user_MachipId", u."department", u."position", u."taxStatus", u."hireDate",
-              u."sss_Share", u."philhealth_Share", u."hdmf_Share",
+              u."user_FirstName", u."user_LastName", b."account_Number" AS "accountNo", 
+              h."user_MachipId", u."department", u."position", u."taxStatus", u."hireDate",
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share",
               pe.*, pd.*
        FROM "Payroll" p
        LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
        LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId"
        LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId"
        WHERE p."period_Start" = :period_Start AND p."period_End" = :period_End
@@ -1351,11 +1367,14 @@ exports.getPayrollSummaryPreview = async (req, res) => {
     // 2. If no saved records (Draft mode), perform live calculations for preview
     if (payrollRows.length === 0) {
       const employees = await sequelize.query(
-        `SELECT "user_Id", "user_FirstName", "user_LastName", "user_MachipId", 
-                "department", "position", "taxStatus", "hireDate",
-                "sss_Share", "philhealth_Share", "hdmf_Share", "account_Number"
-         FROM "User" 
-         WHERE "dailyRate" > 0 AND "deletedAt" IS NULL`,
+        `SELECT u."user_Id", u."user_FirstName", u."user_LastName", h."user_MachipId", 
+                u."department", u."position", u."taxStatus", u."hireDate",
+                d."sss_Share", d."philhealth_Share", d."hdmf_Share", b."account_Number"
+         FROM "User" u
+         LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+         LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+         LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+         WHERE u."dailyRate" > 0 AND u."deletedAt" IS NULL`,
         { type: QueryTypes.SELECT }
       );
       

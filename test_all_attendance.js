@@ -13,11 +13,12 @@ async function run() {
          u."user_Id",
          u."user_FirstName",
          u."user_LastName",
-         u."user_MachipId",
+         h."user_MachipId",
          ls."statusName" AS "loggedStatusName",
          att."statusName" AS "attendanceStatusName"
        FROM "user_logging" ul
        LEFT JOIN "User" u ON u."user_Id" = ul."user_id"
+       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
        LEFT JOIN "logged_status" ls ON ls."statusId" = ul."logged_StatusId"
        LEFT JOIN "attendance_status" att ON att."statusId" = ul."attendance_StatusId"
        ORDER BY ul."user_loggingId" DESC`,
