@@ -67,9 +67,16 @@ const New = ({ inputs = [], title }) => {
     { id: 3, title: "Security" }
   ];
 
+  const DEPARTMENT_POSITIONS = {
+  "Admin": ["LCB/MANAGER"],
+  "Finance": ["ACCOUNTING STAFF"],
+  "Operations": ["DECLARANT", "MESSENGER"],
+  "Forwarding": ["SUPERVISOR"]
+};
+
   // Group fields logically (Removed account_number as it's explicitly rendered now)
   const step1Fields = ["user_Email"];
-  const step2Fields = ["user_Role", "user_EmploymentStatus", "user_Id"];
+  const step2Fields = ["user_Role", "user_EmploymentStatus", "user_Id", "department", "position", "taxStatus"];
   const step3Fields = ["user_Password", "user_MachipId", "user_FingerprintId"];
 
   // Single Registration State
@@ -83,6 +90,9 @@ const New = ({ inputs = [], title }) => {
     user_Role: "Employee",
     user_RoleId: 3,
     user_Email: "",
+    department: "",
+    position: "",
+    taxStatus: "S",
     user_Password: "",
     user_MachipId: "",
     user_FingerprintId: "",
@@ -252,6 +262,10 @@ const New = ({ inputs = [], title }) => {
       if (!formData.user_Email?.trim()) newErrors.user_Email = "Required";
       else if (!EMAIL_REGEX.test(formData.user_Email.trim())) newErrors.user_Email = "Invalid email format";
     } else if (step === 2) {
+      if (!formData.user_Role) newErrors.user_Role = "Required";
+      if (!formData.department?.trim()) newErrors.department = "Department is required";
+      if (!formData.position?.trim()) newErrors.position = "Position is required";
+      if (!formData.taxStatus) newErrors.taxStatus = "Tax Status is required";
       if (!formData.user_Role) newErrors.user_Role = "Required";
       if (!formData.user_EmploymentStatus) newErrors.user_EmploymentStatus = "Required";
       if (!formData.bank_Company) newErrors.bank_Company = "Required";
@@ -475,7 +489,7 @@ const New = ({ inputs = [], title }) => {
   
       <Tabs defaultValue="single" className="w-full">
         {/* Combined Header & Tabs Row */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-8">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">{title}</h1>
             <p className="text-sm text-slate-500 mt-1">
@@ -618,8 +632,74 @@ const New = ({ inputs = [], title }) => {
                                 <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 flex items-center gap-2">
                                   <WorkIcon className="text-[#2A174E] h-5 w-5" /> Employment Configuration
                                 </Label>
+                                
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                  {inputs.filter(i => step2Fields.includes(i.id)).map(renderDynamicInput)}
+                                  {/* Existing Role & Status Selects */}
+                                  {inputs.filter(i => ["user_Role", "user_EmploymentStatus"].includes(i.id)).map(renderDynamicInput)}
+
+                                  {/* Updated Department Dropdown */}
+                                    <div className="space-y-2">
+                                      <Label className="text-slate-600 font-semibold">Department <span className="text-red-500">*</span></Label>
+                                      <Select 
+                                        value={formData.department} 
+                                        onValueChange={(val) => {
+                                          handleInput({ target: { id: "department", value: val } });
+                                          // Reset position when department changes to prevent invalid combinations
+                                          setFormData(prev => ({ ...prev, position: "" }));
+                                        }}
+                                      >
+                                        <SelectTrigger className={`bg-white w-full ${errors.department ? "border-red-500" : ""}`}>
+                                          <SelectValue placeholder="Select Department" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {Object.keys(DEPARTMENT_POSITIONS).map((dept) => (
+                                            <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      {errors.department && <span className="text-xs text-red-500 block">{errors.department}</span>}
+                                    </div>
+
+                                    {/* Updated Position Dropdown (Conditional) */}
+                                    <div className="space-y-2">
+                                      <Label className="text-slate-600 font-semibold">Position <span className="text-red-500">*</span></Label>
+                                      <Select 
+                                        value={formData.position} 
+                                        onValueChange={(val) => handleInput({ target: { id: "position", value: val } })}
+                                        disabled={!formData.department} // Disable if no department is selected
+                                      >
+                                        <SelectTrigger className={`bg-white w-full ${errors.position ? "border-red-500" : ""}`}>
+                                          <SelectValue placeholder={formData.department ? "Select Position" : "Select Department first"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {formData.department && DEPARTMENT_POSITIONS[formData.department].map((pos) => (
+                                            <SelectItem key={pos} value={pos}>{pos}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      {errors.position && <span className="text-xs text-red-500 block">{errors.position}</span>}
+                                    </div>
+
+                                  {/* Tax Status Selection */}
+                                  <div className="space-y-2">
+                                    <Label className="text-slate-600 font-semibold">Tax Status (S/M) <span className="text-red-500">*</span></Label>
+                                    <Select 
+                                      value={formData.taxStatus} 
+                                      onValueChange={(val) => handleInput({ target: { id: "taxStatus", value: val } })}
+                                    >
+                                      <SelectTrigger className={`bg-white w-full ${errors.taxStatus ? "border-red-500" : ""}`}>
+                                        <SelectValue placeholder="Select Status" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="S">Single (S)</SelectItem>
+                                        <SelectItem value="M">Married (M)</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    {errors.taxStatus && <span className="text-xs text-red-500 block">{errors.taxStatus}</span>}
+                                  </div>
+
+                                  {/* Employee ID (MACJ ID) */}
+                                  {inputs.filter(i => i.id === "user_Id").map(renderDynamicInput)}
                                 </div>
                               </div>
 

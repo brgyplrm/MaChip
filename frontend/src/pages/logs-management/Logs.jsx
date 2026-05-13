@@ -14,6 +14,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AssignmentLateIcon from '@mui/icons-material/AssignmentLate';
+import AssessmentIcon  from "@mui/icons-material/Assessment";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "recharts";
 
 const formatDateStr = (dateStr) => {
   if (!dateStr) return "—";
@@ -35,6 +37,11 @@ const Logs = () => {
   const [viewMode, setViewMode] = useState("raw"); // "raw" or "day"
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+
+  // New Filter States
+const [filterDate, setFilterDate] = useState(""); // Specific date (YYYY-MM-DD)
+const [startTime, setStartTime] = useState(""); // Start time (HH:mm)
+const [endTime, setEndTime] = useState("");     // End time (HH:mm)
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -230,6 +237,34 @@ const Logs = () => {
 
   // 1. Filter Raw Data
   const filteredRawData = logData.filter((item) => {
+    // Date Filter
+    const itemDate = new Date(item.log_Date).toISOString().split('T')[0];
+    const matchesDate = !filterDate || itemDate === filterDate;
+
+    // Time Range Filter Logic
+    let matchesTime = true;
+    if (startTime || endTime) {
+      // Helper to convert "08:30 AM" to "08:30" (24h)
+      const convertTo24h = (timeStr) => {
+        if (!timeStr || timeStr === "—") return null;
+        const [time, modifier] = timeStr.split(' ');
+        let [hours, minutes] = time.split(':');
+        if (hours === '12') hours = '00';
+        if (modifier === 'PM') hours = parseInt(hours, 10) + 12;
+        return `${String(hours).padStart(2, '0')}:${minutes}`;
+      };
+
+      const logTime24 = convertTo24h(item.time);
+      
+      if (logTime24) {
+        const startMatch = !startTime || logTime24 >= startTime;
+        const endMatch = !endTime || logTime24 <= endTime;
+        matchesTime = startMatch && endMatch;
+      } else {
+        matchesTime = false;
+      }
+  }
+
     const query = searchQuery.toLowerCase();
     const matchesSearch =
       item.user_Id_formatted?.toLowerCase().includes(query) ||
@@ -242,43 +277,76 @@ const Logs = () => {
     const matchesUser = selectedUser === "all" || item.user_Id?.toString() === selectedUser;
     const matchesStatus = statusFilter === "All" || item.log_type?.toLowerCase().includes(statusFilter.toLowerCase());
 
-    return matchesSearch && matchesUser && matchesStatus;
+    return matchesSearch && matchesUser && matchesStatus && matchesDate && matchesTime;
   });
 
   // 2. Filter & Sort Day Data
-  const sortedAndFilteredDayLogs = useMemo(() => {
-    let sortableItems = [...dayLogsData];
-    
-    // Sort
-    if (sortConfig !== null) {
-      sortableItems.sort((a, b) => {
-        let aVal = a[sortConfig.key];
-        let bVal = b[sortConfig.key];
-        
-        if (sortConfig.key === 'log_Date') {
-          aVal = new Date(aVal).getTime();
-          bVal = new Date(bVal).getTime();
-        }
-
-        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    
-    // Filter
-    const query = searchQuery.toLowerCase();
-    return sortableItems.filter((item) => {
-      const matchesSearch = 
-        item.userName?.toLowerCase().includes(query) ||
-        item.user_Id?.toString().toLowerCase().includes(query) ||
-        item.status?.toLowerCase().includes(query);
+  // 2. Filter & Sort Day Data
+const sortedAndFilteredDayLogs = useMemo(() => {
+  let sortableItems = [...dayLogsData];
+  
+  // Sorting logic remains the same
+  if (sortConfig !== null) {
+    sortableItems.sort((a, b) => {
+      let aVal = a[sortConfig.key];
+      let bVal = b[sortConfig.key];
       
-      const matchesStatus = statusFilter === "All" || item.status?.toLowerCase().includes(statusFilter.toLowerCase());
+      if (sortConfig.key === 'log_Date') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      }
 
-      return matchesSearch && matchesStatus;
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
     });
-  }, [dayLogsData, sortConfig, searchQuery, statusFilter]);
+  }
+  
+  const query = searchQuery.toLowerCase();
+
+  return sortableItems.filter((item) => {
+    // Basic Search & Status Filters
+    const matchesSearch = 
+      item.userName?.toLowerCase().includes(query) ||
+      item.user_Id?.toString().toLowerCase().includes(query) ||
+      item.status?.toLowerCase().includes(query);
+    
+    const matchesStatus = statusFilter === "All" || item.status?.toLowerCase().includes(statusFilter.toLowerCase());
+
+    // --- NEW: Temporal Filters ---
+
+    // 1. Specific Date Filter
+    // Format the log_Date (ISO) to YYYY-MM-DD for comparison
+    const itemDate = item.log_Date.split('T')[0];
+    const matchesDate = !filterDate || itemDate === filterDate;
+
+    // 2. Time Range Filter (Applied to 'Morning In')
+    let matchesTime = true;
+    if (startTime || endTime) {
+      const convertTo24h = (timeStr) => {
+        if (!timeStr || timeStr === "—") return null;
+        const [time, modifier] = timeStr.split(' ');
+        let [hours, minutes] = time.split(':');
+        if (hours === '12') hours = '00';
+        if (modifier === 'PM') hours = String(parseInt(hours, 10) + 12);
+        return `${hours.padStart(2, '0')}:${minutes}`;
+      };
+
+      const amIn24 = convertTo24h(item.morning_In);
+      
+      if (amIn24) {
+        const startMatch = !startTime || amIn24 >= startTime;
+        const endMatch = !endTime || amIn24 <= endTime;
+        matchesTime = startMatch && endMatch;
+      } else {
+        // If they haven't clocked in yet and a time filter is set, hide the record
+        matchesTime = false;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesDate && matchesTime;
+  });
+}, [dayLogsData, sortConfig, searchQuery, statusFilter, filterDate, startTime, endTime]); // Ensure dependencies are updated
 
   // 3. Unify Active Data
   const activeData = viewMode === "raw" ? filteredRawData : sortedAndFilteredDayLogs;
@@ -321,8 +389,19 @@ const Logs = () => {
                 {viewMode === "raw" ? "Real-time biometric and manual clock events" : "Aggregated Day Logs"} ({period.startDate} to {period.endDate})
               </span>
             </div>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+            {/* NEW: Redirect to Reports Button */}
+            <Button 
+              variant="outline" 
+              asChild
+              className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#f0ebfa] font-semibold"
+            >
+              <Link to="/adminReports" state={{ activeTab: "attendance" }}>
+                <AssessmentIcon className="mr-2 h-4 w-4" /> View Detailed Reports
+              </Link>
+            </Button>
+          
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
                 {/* View Mode Toggle (Tabs integrated into Header) */}
                 <Tabs value={viewMode} onValueChange={(val) => setViewMode(val)} className="w-full sm:w-[320px] xl:w-[320px]">
                   <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 p-1 rounded-lg">
@@ -335,10 +414,10 @@ const Logs = () => {
                   </TabsList>
                 </Tabs>
             </div>
-          </div>
-
+          <div className="h-4"></div>
+ 
           {/* Statistics Cards */}
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-4 w-full">
             {/* Card 1: Total Active Users */}
             <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
@@ -401,27 +480,25 @@ const Logs = () => {
           </div>
 
           {/* Filters Card */}
-          <Card className="shadow-sm border-0 bg-white mb-6 py-0">
-            <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
+          <Card className="shadow-sm border-0 bg-white mb-4 py-0">
+            <CardContent className="p-4 sm:p-6 space-y-4">
               
-              <div className="relative w-full xl:max-w-md">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <Input
-                  type="text"
-                  placeholder="Search logs..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
-                />
-              </div>
-              
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
-                  
-                  {/* User Dropdown */}
+              {/* First Row: Search and Basic Filters */}
+              <div className="flex flex-col xl:flex-row gap-4 items-center justify-between">
+                <div className="relative w-full xl:max-w-md">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search logs..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                  />
+                </div>
+                
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
                   <Select value={selectedUser} onValueChange={setSelectedUser}>
-                    <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50">
                       <SelectValue placeholder="All Users" />
                     </SelectTrigger>
                     <SelectContent>
@@ -433,48 +510,74 @@ const Logs = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
 
-                {/* Status/Type Dropdown */}
-                <div className="flex items-center w-full sm:w-auto">
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                      <SelectValue placeholder="Filter by Status" />
+                    <SelectTrigger className="w-full sm:w-[150px] border-slate-200 bg-slate-50">
+                      <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="All">All {viewMode === "raw" ? "Types" : "Statuses"}</SelectItem>
                       {viewMode === "raw" ? (
-                        <>
-                          <SelectItem value="in">Clock In</SelectItem>
-                          <SelectItem value="out">Clock Out</SelectItem>
-                        </>
+                        <><SelectItem value="in">Clock In</SelectItem><SelectItem value="out">Clock Out</SelectItem></>
                       ) : (
-                        <>
-                          <SelectItem value="On Time">On Time</SelectItem>
-                          <SelectItem value="Late">Late</SelectItem>
-                          <SelectItem value="Absent">Absent</SelectItem>
-                        </>
+                        <><SelectItem value="On Time">On Time</SelectItem><SelectItem value="Late">Late</SelectItem><SelectItem value="Absent">Absent</SelectItem></>
                       )}
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
 
-                {/* Clear Button */}
-                {isFiltering && (
-                  <Button 
-                    variant="ghost" 
-                    onClick={handleClearFilters}
-                    className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold"
-                  >
-                    <CloseIcon className="h-4 w-4 mr-1" />
-                    Clear
-                  </Button>
-                )}
+              {/* Second Row: Specific Date & Time Filtering */}
+              <div className="flex flex-col lg:flex-row items-center gap-4 pt-2 border-t border-slate-50">
+                <div className="flex flex-col w-full lg:w-auto">
+                  <Label className="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Specific Date</Label>
+                  <Input 
+                    type="date" 
+                    value={filterDate} 
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="h-9 border-slate-200 bg-slate-50 w-full lg:w-[160px]"
+                  />
+                </div>
 
-                {/* Manual Attendance Actions */}
-                <div className="flex gap-2 w-full sm:w-auto border-l border-slate-200 pl-4 ml-2">
+                <div className="flex items-end gap-2 w-full lg:w-auto">
+                  <div className="flex flex-col flex-1 lg:w-[120px]">
+                    <Label className="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Start Time</Label>
+                    <Input 
+                      type="time" 
+                      value={startTime} 
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="h-9 border-slate-200 bg-slate-50"
+                    />
+                  </div>
+                  <span className="mb-2 text-slate-300">—</span>
+                  <div className="flex flex-col flex-1 lg:w-[120px]">
+                    <Label className="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">End Time</Label>
+                    <Input 
+                      type="time" 
+                      value={endTime} 
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="h-9 border-slate-200 bg-slate-50"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 w-full lg:w-auto lg:ml-auto items-end h-full">
+                  {(isFiltering || filterDate || startTime || endTime) && (
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => {
+                        handleClearFilters();
+                        setFilterDate("");
+                        setStartTime("");
+                        setEndTime("");
+                      }}
+                      className="text-slate-500 hover:text-red-600 hover:bg-red-50 h-9"
+                    >
+                      <CloseIcon className="h-4 w-4 mr-1" /> Clear All
+                    </Button>
+                  )}
                   <Button
-                    className="flex-1 sm:flex-none bg-[#B91C1C] text-white hover:bg-[#991B1B] h-10 px-4 text-xs font-bold uppercase tracking-wider"
+                    className="bg-[#B91C1C] text-white hover:bg-[#991B1B] h-9 px-4 text-xs font-bold uppercase"
                     onClick={() => handleGenerateLogs(2)}
                     disabled={loading}
                   >

@@ -15,6 +15,8 @@ import { fetchWithAuth } from "../../utils/api";
 import { useState, useEffect } from "react";
 import { formatUserId } from "../../utils/formatUserId";
 import EmptyState from "@/components/EmptyState";
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownload';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "lucide-react";
+
 
 const CalendarManagement = () => {
   const { systemToday } = useSystemTime();
@@ -43,6 +48,61 @@ const CalendarManagement = () => {
   const monthName = currentDate.toLocaleString('default', { month: 'long' });
   const monthIndex = currentDate.getMonth();
   const year = currentDate.getFullYear();
+
+  const [batchFile, setBatchFile] = useState(null);
+  const [batchLoading, setBatchLoading] = useState(false);
+
+  const [selectedHolidayDetails, setSelectedHolidayDetails] = useState(null);
+
+  // --- NEW: BATCH CSV LOGIC ---
+  const downloadBatchTemplate = () => {
+    const headers = "type,name,date,details\n";
+    const sample = "Holiday,Independence Day,2026-06-12,Regular Holiday\nDue Date,BIR Filing,2026-06-15,Form 1701Q Submission";
+    const blob = new Blob([headers + sample], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "calendar_batch_template.csv";
+    a.click();
+  };
+
+  const downloadFieldWorkTemplate = () => {
+  const headers = "empNo,date,location,hours,purpose\n";
+  const sample = "EMP001,2026-05-20,Client Site A,8.0,System Installation\nEMP002,2026-05-20,Warehouse B,4.0,Inventory Audit";
+  const blob = new Blob([headers + sample], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "fieldwork_batch_template.csv";
+  a.click();
+};
+
+  const handleBatchUpload = async () => {
+    if (!batchFile) return setToast({ message: "Please select a file.", type: "error" });
+    setBatchLoading(true);
+    
+    const formData = new FormData();
+    formData.append("csvFile", batchFile);
+
+    try {
+      const response = await fetchWithAuth("/api/system/batch-calendar", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        setToast({ message: "Events uploaded successfully!", type: "success" });
+        setModalType(null);
+        fetchCalendarEvents();
+      } else {
+        setToast({ message: "Upload failed.", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Network error.", type: "error" });
+    } finally {
+      setBatchLoading(false);
+    }
+  };
 
   const getEventsForDay = (day) => {
     const targetDateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -121,6 +181,11 @@ const CalendarManagement = () => {
       e.type === "Field Work" && 
       e.date.split('T')[0] === holiday.date.split('T')[0]
     );
+
+    setSelectedHolidayDetails({
+    holiday,
+    matchingWork
+  });
 
     if (matchingWork.length > 0) {
       setSelectedHolidayWork({ holiday, matchingWork });
@@ -565,6 +630,34 @@ const CalendarManagement = () => {
               </CardContent>
             </Card>
 
+            {/* 2. NEW: Due Dates List Card */}
+            <Card className="shadow-sm border-0 bg-white flex flex-col flex-1 py-0 border-t-4 border-teal-500 min-h-[250px]">
+              <CardHeader className="pb-0 pt-4">
+                <CardTitle className="text-lg text-teal-700">Administrative Due Dates</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 flex-1 overflow-y-auto custom-scrollbar">
+                {events.filter(e => e.type === "Due Date").length > 0 ? (
+                  <div className="space-y-2 mt-2">
+                    {events.filter(e => e.type === "Due Date").map((item, idx) => (
+                      <div className="group transition-all flex flex-row justify-between items-center p-3 bg-slate-50 rounded-lg border border-l-4 border-l-teal-500" key={idx}>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-slate-800 truncate">{item.name}</p>
+                          <span className="text-[11px] text-muted-foreground block">
+                            {new Date(item.date).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500" onClick={() => initiateDelete(item.id, 'Due Date')}>
+                          <DeleteIcon className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState className="!h-full !border-0 bg-transparent" title="No Due Dates" description="No deadlines set." />
+                )}
+              </CardContent>
+            </Card>
+
             {/* Field Work & Due Dates List Card */}
             <Card className="shadow-sm border-0 bg-white flex flex-col h-[320px] py-0 border-t-4 border-[#FFB33D]">
               <CardHeader className="pb-0 pt-5">
@@ -669,197 +762,432 @@ const CalendarManagement = () => {
           </DialogContent>
         </Dialog>
 
-        {/* MAIN ADD/EDIT DIALOG (Handles Holidays, Field Work, and Due Dates) */}
-        <Dialog open={!!modalType} onOpenChange={(open) => !open && setModalType(null)}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle className="text-[#2A174E] text-lg font-bold text-center">
-                {modalType === 'editHoliday' ? 'Edit Holiday' : 'Add Calendar Event'}
-              </DialogTitle>
-            </DialogHeader>
+       {/* MAIN ADD/EDIT DIALOG (Holidays, Field Work, and Due Dates with Integrated Batch) */}
+      <Dialog open={!!modalType} onOpenChange={(open) => !open && setModalType(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-[#2A174E] text-lg font-bold text-center">
+              {modalType === 'editHoliday' ? 'Edit Holiday' : 'Add Calendar Event'}
+            </DialogTitle>
+          </DialogHeader>
 
-            {/* TAB SELECTOR FOR ADMINS */}
-            {modalType === 'addEvent' && isAdmin && (
-              <div className="flex w-full border-b border-slate-200 mb-2 mt-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('fieldWork')}
-                  className={`flex-1 pb-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'fieldWork' ? 'border-[#ff8c00] text-[#ff8c00]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-                >
-                  Field Work
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('holiday')}
-                  className={`flex-1 pb-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'holiday' ? 'border-[#2A174E] text-[#2A174E]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-                >
-                  Holiday
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('dueDate')}
-                  className={`flex-1 pb-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'dueDate' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-                >
-                  Due Date
-                </button>
-              </div>
-            )}
+          {modalType === 'addEvent' && isAdmin && (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              {/* Main Category Selection */}
+              <TabsList className="grid w-full grid-cols-3 h-11 bg-slate-200/60 p-1 rounded-lg mb-6">
+                <TabsTrigger value="fieldWork" className="font-bold data-[state=active]:text-orange-600">Field Work</TabsTrigger>
+                <TabsTrigger value="holiday" className="font-bold data-[state=active]:text-red-600">Holiday</TabsTrigger>
+                <TabsTrigger value="dueDate" className="font-bold data-[state=active]:text-teal-600">Due Date</TabsTrigger>
+              </TabsList>
 
-            <form onSubmit={handleModalSubmit}>
-              <div className="grid gap-4 p-2 h-[300px] content-start overflow-y-auto custom-scrollbar pr-1">
-                
-                {/* --- ADD DUE DATE FORM --- */}
-                {(modalType === 'addEvent' && activeTab === 'dueDate') && (
-                  <>
+              {/* --- FIELD WORK TAB --- */}
+              <TabsContent value="fieldWork" className="mt-0">
+                <Tabs defaultValue="single">
+                  <TabsList className="flex gap-4 bg-transparent mb-4">
+                    <TabsTrigger value="single" className="
+                     px-4 py-2 bg-transparent shadow-none rounded-none
+                        text-sm font-semibold text-slate-400
+                        /* Remove all default borders first */
+                        border-0 
+                        /* Force specific sides to 0 while applying bottom */
+                        data-[state=active]:bg-transparent 
+                        data-[state=active]:shadow-0
+                        data-[state=active]:text-orange-900 
+                        data-[state=active]:border-b-2 
+                        data-[state=active]:border-x-0 
+                        data-[state=active]:border-t-0
+                        data-[state=active]:border-orange-500 
+                        transition-all">
+                      Single Entry
+                    </TabsTrigger>
+                    <TabsTrigger value="batch" className="
+                        px-4 py-2 bg-transparent shadow-none rounded-none
+                        text-sm font-semibold text-slate-400
+                        /* Remove all default borders first */
+                        border-0 
+                        /* Force specific sides to 0 while applying bottom */
+                        data-[state=active]:bg-transparent 
+                        data-[state=active]:shadow-0
+                        data-[state=active]:text-orange-900 
+                        data-[state=active]:border-b-2 
+                        data-[state=active]:border-x-0 
+                        data-[state=active]:border-t-0
+                        data-[state=active]:border-orange-500 
+                        transition-all">
+                      Batch Upload
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="single" className="space-y-4">
                     <div className="grid gap-2">
-                      <Label htmlFor="due-title">Title / Name</Label>
-                      <Input 
-                        id="due-title"
-                        placeholder="e.g., BIR Tax Deadline" 
-                        value={dueDateForm.title}
-                        onChange={(e) => setDueDateForm({...dueDateForm, title: e.target.value})}
-                        required
-                        className="w-full focus-visible:ring-teal-500" 
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="due-date">Date</Label>
-                      <Input 
-                        id="due-date"
-                        type="date" 
-                        value={dueDateForm.date}
-                        onChange={(e) => setDueDateForm({...dueDateForm, date: e.target.value})}
-                        required
-                        className="w-full focus-visible:ring-teal-500"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="due-desc">Description (Optional)</Label>
-                      <Input 
-                        id="due-desc"
-                        placeholder="e.g., Submit Form 1601-C"
-                        value={dueDateForm.description}
-                        onChange={(e) => setDueDateForm({...dueDateForm, description: e.target.value})}
-                        className="w-full focus-visible:ring-teal-500"
-                      />
-                    </div>
-                  </>
-                )}
-
-                {/* --- ADD FIELD WORK FORM --- */}
-                {(modalType === 'addEvent' && activeTab === 'fieldWork') && (
-                  <>
-                    <div className="grid gap-2">
-                      <Label htmlFor="employee">Select Employee</Label>
-                      <Select value={fieldWorkForm.userId} onValueChange={(val) => setFieldWorkForm({...fieldWorkForm, userId: val})} required>
+                      <Label>Select Employee</Label>
+                      <Select value={fieldWorkForm.userId} onValueChange={(val) => setFieldWorkForm({...fieldWorkForm, userId: val})}>
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Choose Employee..." />
                         </SelectTrigger>
                         <SelectContent>
                           {employees.map(emp => (
                             <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
-                              {formatUserId(emp.user_Id)} - {emp.user_LastName} {emp.user_FirstName?.charAt(0)}.
+                              {formatUserId(emp.user_Id)} - {emp.user_LastName}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="date">Date</Label>
-                      <Input 
-                        id="date"
-                        type="date" 
-                        value={fieldWorkForm.date}
-                        onChange={(e) => setFieldWorkForm({...fieldWorkForm, date: e.target.value})}
-                        required
-                        className="w-full"
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label>Date</Label>
+                        <Input type="date" value={fieldWorkForm.date} onChange={(e) => setFieldWorkForm({...fieldWorkForm, date: e.target.value})} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>Hours</Label>
+                        <Input type="number" step="0.5" value={fieldWorkForm.hours} onChange={(e) => setFieldWorkForm({...fieldWorkForm, hours: e.target.value})} />
+                      </div>
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="location">Location</Label>
-                      <Input 
-                        id="location"
-                        placeholder="e.g., Client Site A" 
-                        value={fieldWorkForm.location}
-                        onChange={(e) => setFieldWorkForm({...fieldWorkForm, location: e.target.value})}
-                        required
-                        className="w-full"
-                      />
+                      <Label>Location</Label>
+                      <Input placeholder="e.g., Client Site A" value={fieldWorkForm.location} onChange={(e) => setFieldWorkForm({...fieldWorkForm, location: e.target.value})} />
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="hours">Hours</Label>
-                      <Input 
-                        id="hours"
-                        type="number" 
-                        step="0.5"
-                        value={fieldWorkForm.hours}
-                        onChange={(e) => setFieldWorkForm({...fieldWorkForm, hours: e.target.value})}
-                        required
-                        className="w-full"
-                      />
-                    </div>
-                  </>
-                )}
+                    <DialogFooter className="flex gap-2">
+                      <Button type="button" variant="outline" onClick={() => setModalType(null)} className="flex-1">Cancel</Button>
+                      <Button className="flex-1 bg-orange-500 hover:bg-orange-600 text-white" onClick={handleFieldWorkSubmit}>Assign</Button>
+                    </DialogFooter>
+                  </TabsContent>
 
-                {/* --- ADD/EDIT HOLIDAY FORM --- */}
-                {(modalType === 'editHoliday' || (modalType === 'addEvent' && activeTab === 'holiday')) && (
-                  <>
+                  <TabsContent value="batch" className="mt-0">
+                    <div className="space-y-4">
+                      {/* Visual Header Icon & Text */}
+                      <div className="flex flex-col items-center justify-center pt-4">
+                        <div className="bg-orange-50 p-6 rounded-full mb-4">
+                          <UploadFileIcon className="text-orange-600 h-12 w-12 opacity-80" />
+                        </div>
+                        <div className="text-center mb-6 max-w-sm">
+                          <h3 className="text-xl font-bold text-slate-900 mb-1">Batch Field Assignment</h3>
+                          <p className="text-slate-500 text-sm leading-relaxed">
+                            Bulk assign multiple employees to field work locations. 
+                            Use the template below to ensure data accuracy.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-center gap-4 w-full">
+                        {/* Template Download - Matches New.jsx button style but keeps orange theme */}
+                        <Button 
+                          variant="outline" 
+                          onClick={downloadFieldWorkTemplate} 
+                          className="w-full h-11 text-orange-700 border-orange-200 hover:bg-orange-50 font-semibold"
+                        >
+                          <FileDownloadOutlinedIcon className="mr-2 h-4 w-4" /> Download Field Template
+                        </Button>
+                        
+                        {/* Dashed Upload Area */}
+                        <div className="w-full relative border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors group">
+                          <Input 
+                            type="file" 
+                            accept=".csv" 
+                            onChange={(e) => setBatchFile(e.target.files[0])} 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                          />
+                          <div className="pointer-events-none">
+                            {batchFile ? (
+                              <p className="text-green-600 font-semibold flex items-center justify-center gap-2">
+                                <span className="truncate max-w-[200px]">{batchFile.name}</span> selected
+                              </p>
+                            ) : (
+                              <div className="space-y-1">
+                                <p className="text-slate-500 font-medium">Click to browse or drag and drop CSV</p>
+                                <p className="text-xs text-slate-400">Standard fieldwork_batch_template.csv</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Footer */}
+                        <DialogFooter className="flex gap-2 w-full pt-2">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => setModalType(null)} 
+                            className="flex-1 h-11"
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={handleBatchUpload} 
+                            disabled={batchLoading || !batchFile} 
+                            className="flex-[2] h-11 bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-sm"
+                          >
+                            {batchLoading ? "Processing..." : "Confirm Batch Upload"}
+                          </Button>
+                        </DialogFooter>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </TabsContent>
+
+              {/* --- HOLIDAY TAB --- */}
+              <TabsContent value="holiday" className="mt-0">
+                <Tabs defaultValue="single">
+                  <TabsList className="flex gap-4 bg-transparent mb-4">
+                    <TabsTrigger value="single" className="
+                        px-4 py-2 bg-transparent shadow-none rounded-none
+                        text-sm font-semibold text-slate-400
+                        /* Remove all default borders first */
+                        border-0 
+                        /* Force specific sides to 0 while applying bottom */
+                        data-[state=active]:bg-transparent 
+                        data-[state=active]:shadow-0
+                        data-[state=active]:text-red-900 
+                        data-[state=active]:border-b-2 
+                        data-[state=active]:border-x-0 
+                        data-[state=active]:border-t-0
+                        data-[state=active]:border-red-600 
+                        transition-all">
+                      Single Entry</TabsTrigger>
+                    <TabsTrigger value="batch" className="
+                    px-4 py-2 bg-transparent shadow-none rounded-none
+                        text-sm font-semibold text-slate-400
+                        /* Remove all default borders first */
+                        border-0 
+                        /* Force specific sides to 0 while applying bottom */
+                        data-[state=active]:bg-transparent 
+                        data-[state=active]:shadow-0
+                        data-[state=active]:text-red-900 
+                        data-[state=active]:border-b-2 
+                        data-[state=active]:border-x-0 
+                        data-[state=active]:border-t-0
+                        data-[state=active]:border-red-600 
+                        transition-all">
+                      Batch Upload
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="single" className="space-y-4">
                     <div className="grid gap-2">
-                      <Label htmlFor="name">Holiday Name</Label>
-                      <Input 
-                        id="name"
-                        placeholder="Enter name" 
-                        value={holidayForm.name}
-                        onChange={(e) => setHolidayForm({...holidayForm, name: e.target.value})}
-                        required
-                        className="w-full focus-visible:ring-[#2A174E]/90" 
-                      />
+                      <Label>Holiday Name</Label>
+                      <Input placeholder="e.g., Independence Day" value={holidayForm.name} onChange={(e) => setHolidayForm({...holidayForm, name: e.target.value})} />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="date">Date</Label>
-                      <Input 
-                        id="date"
-                        type="date" 
-                        value={holidayForm.date}
-                        onChange={(e) => setHolidayForm({...holidayForm, date: e.target.value})}
-                        required
-                        className="w-full"
-                      />
+                      <Label>Date</Label>
+                      <Input type="date" value={holidayForm.date} onChange={(e) => setHolidayForm({...holidayForm, date: e.target.value})} />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="type">Type</Label>
+                      <Label>Type</Label>
                       <Select value={holidayForm.type} onValueChange={(val) => setHolidayForm({...holidayForm, type: val})}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Regular Holiday" className="text-red-700">Regular Holiday</SelectItem>
-                          <SelectItem value="Special Holiday" className="text-purple-700">Special Holiday</SelectItem>
+                          <SelectItem value="Regular Holiday">Regular Holiday</SelectItem>
+                          <SelectItem value="Special Holiday">Special Holiday</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                  </>
-                )}
-              </div>
-              <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
-                <Button type="button" variant="outline" onClick={() => setModalType(null)} className="w-full sm:w-auto">
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  className={`w-full sm:w-auto text-white ${
-                    modalType === 'editHoliday' ? 'bg-[#2A174E] hover:bg-[#1a0e30]' 
-                    : activeTab === 'fieldWork' ? 'bg-[#ff8c00] hover:bg-[#e67e00]'
-                    : activeTab === 'dueDate' ? 'bg-teal-600 hover:bg-teal-700'
-                    : 'bg-[#2A174E] hover:bg-[#1a0e30]'
-                  }`}
-                >
-                  {modalType === 'editHoliday' ? 'Save Changes' : 'Submit'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                    <DialogFooter className="flex gap-2">
+                      <Button type="button" variant="outline" onClick={() => setModalType(null)} className="flex-1">Cancel</Button>
+                      <Button className="flex-1 bg-red-600 text-white" onClick={handleHolidaySubmit}>Save</Button>
+                    </DialogFooter>
+                  </TabsContent>
+
+                  <TabsContent value="batch" className="mt-0">
+                    <div className="space-y-4">
+                      {/* Visual Header Icon & Text */}
+                      <div className="flex flex-col items-center justify-center pt-4">
+                        <div className="bg-red-50 p-6 rounded-full mb-4">
+                          <UploadFileIcon className="text-red-600 h-12 w-12 opacity-80" />
+                        </div>
+                        <div className="text-center mb-6 max-w-sm">
+                          <h3 className="text-xl font-bold text-slate-900 mb-1">Batch Holiday Upload</h3>
+                          <p className="text-slate-500 text-sm leading-relaxed">
+                            Quickly register multiple regular or special holidays. 
+                            Use the template to ensure dates are formatted correctly.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-center gap-4 w-full">
+                        {/* Template Download */}
+                        <Button 
+                          variant="outline" 
+                          onClick={downloadBatchTemplate} 
+                          className="w-full h-11 text-red-700 border-red-200 hover:bg-red-50 font-semibold"
+                        >
+                          <FileDownloadOutlinedIcon className="mr-2 h-4 w-4" /> Download Holiday Template
+                        </Button>
+                        
+                        {/* Dashed Upload Area */}
+                        <div className="w-full relative border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors group">
+                          <Input 
+                            type="file" 
+                            accept=".csv" 
+                            onChange={(e) => setBatchFile(e.target.files[0])} 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                          />
+                          <div className="pointer-events-none">
+                            {batchFile ? (
+                              <p className="text-green-600 font-semibold flex items-center justify-center gap-2">
+                                <CheckIcon className="h-4 w-4" /> <span className="truncate max-w-[200px]">{batchFile.name}</span>
+                              </p>
+                            ) : (
+                              <div className="space-y-1">
+                                <p className="text-slate-500 font-medium">Click to browse or drag and drop CSV</p>
+                                <p className="text-xs text-slate-400">Supported format: .csv</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Footer */}
+                        <DialogFooter className="flex gap-2 w-full pt-2">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => setModalType(null)} 
+                            className="flex-1 h-11"
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={handleBatchUpload} 
+                            disabled={batchLoading || !batchFile} 
+                            className="flex-[2] h-11 bg-red-600 hover:bg-red-700 text-white font-semibold shadow-sm"
+                          >
+                            {batchLoading ? "Processing..." : "Upload Holidays"}
+                          </Button>
+                        </DialogFooter>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </TabsContent>
+
+              {/* --- DUE DATE TAB --- */}
+              <TabsContent value="dueDate" className="mt-0">
+                <Tabs defaultValue="single">
+                  <TabsList className="flex gap-4 bg-transparent mb-4">
+                    <TabsTrigger value="single" className="
+                     px-4 py-2 bg-transparent shadow-none rounded-none
+                        text-sm font-semibold text-slate-400
+                        /* Remove all default borders first */
+                        border-0 
+                        /* Force specific sides to 0 while applying bottom */
+                        data-[state=active]:bg-transparent 
+                        data-[state=active]:shadow-0
+                        data-[state=active]:text-teal-900 
+                        data-[state=active]:border-b-2 
+                        data-[state=active]:border-x-0 
+                        data-[state=active]:border-t-0
+                        data-[state=active]:border-teal-500 
+                        transition-all">
+                      Single Entry
+                      </TabsTrigger>
+                    <TabsTrigger value="batch" className="
+                     px-4 py-2 bg-transparent shadow-none rounded-none
+                        text-sm font-semibold text-slate-400
+                        /* Remove all default borders first */
+                        border-0 
+                        /* Force specific sides to 0 while applying bottom */
+                        data-[state=active]:bg-transparent 
+                        data-[state=active]:shadow-0
+                        data-[state=active]:text-teal-900
+                        data-[state=active]:border-b-2 
+                        data-[state=active]:border-x-0 
+                        data-[state=active]:border-t-0
+                        data-[state=active]:border-teal-500 
+                        transition-all">
+                      Batch Upload
+                      </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="single" className="space-y-4">
+                    <div className="grid gap-2">
+                      <Label>Title</Label>
+                      <Input placeholder="e.g., BIR Tax Deadline" value={dueDateForm.title} onChange={(e) => setDueDateForm({...dueDateForm, title: e.target.value})} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Deadline Date</Label>
+                      <Input type="date" value={dueDateForm.date} onChange={(e) => setDueDateForm({...dueDateForm, date: e.target.value})} />
+                    </div>
+                    <DialogFooter className="flex gap-2">
+                      <Button type="button" variant="outline" onClick={() => setModalType(null)} className="flex-1">Cancel</Button>
+                      <Button className="flex-1 bg-teal-600 text-white" onClick={handleDueDateSubmit}>Set Due Date</Button>
+                    </DialogFooter>
+                  </TabsContent>
+
+                  <TabsContent value="batch" className="mt-0">
+                    <div className="space-y-4">
+                      {/* Visual Header Icon & Text */}
+                      <div className="flex flex-col items-center justify-center pt-4">
+                        <div className="bg-teal-50 p-6 rounded-full mb-4">
+                          <UploadFileIcon className="text-teal-600 h-12 w-12 opacity-80" />
+                        </div>
+                        <div className="text-center mb-6 max-w-sm">
+                          <h3 className="text-xl font-bold text-slate-900 mb-1">Batch Due Date Upload</h3>
+                          <p className="text-slate-500 text-sm leading-relaxed">
+                            Import multiple administrative deadlines or custom project due dates 
+                            into the system calendar.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-center gap-4 w-full">
+                        {/* Template Download */}
+                        <Button 
+                          variant="outline" 
+                          onClick={downloadBatchTemplate} 
+                          className="w-full h-11 text-teal-700 border-teal-200 hover:bg-teal-50 font-semibold"
+                        >
+                          <FileDownloadOutlinedIcon className="mr-2 h-4 w-4" /> Download Due Date Template
+                        </Button>
+                        
+                        {/* Dashed Upload Area */}
+                        <div className="w-full relative border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors group">
+                          <Input 
+                            type="file" 
+                            accept=".csv" 
+                            onChange={(e) => setBatchFile(e.target.files[0])} 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                          />
+                          <div className="pointer-events-none">
+                            {batchFile ? (
+                              <p className="text-green-600 font-semibold flex items-center justify-center gap-2">
+                                <CheckIcon className="h-4 w-4" /> <span className="truncate max-w-[200px]">{batchFile.name}</span>
+                              </p>
+                            ) : (
+                              <div className="space-y-1">
+                                <p className="text-slate-500 font-medium">Click to browse or drag and drop CSV</p>
+                                <p className="text-xs text-slate-400">File must contain name, date, and details</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Footer */}
+                        <DialogFooter className="flex gap-2 w-full pt-2">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => setModalType(null)} 
+                            className="flex-1 h-11"
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={handleBatchUpload} 
+                            disabled={batchLoading || !batchFile} 
+                            className="flex-[2] h-11 bg-teal-600 hover:bg-teal-700 text-white font-semibold shadow-sm"
+                          >
+                            {batchLoading ? "Processing..." : "Upload Due Dates"}
+                          </Button>
+                        </DialogFooter>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </TabsContent>
+            </Tabs>
+          )}
+        </DialogContent>
+      </Dialog>
 
         {/* DELETE CONFIRMATION ALERT DIALOG */}
         <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
@@ -896,24 +1224,130 @@ const CalendarManagement = () => {
           </DialogContent>
         </Dialog>
 
+        {/* HOLIDAY DETAIL DIALOG */}
+        <Dialog 
+          open={!!selectedHolidayDetails} 
+          onOpenChange={(open) => !open && setSelectedHolidayDetails(null)}
+        >
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle className="text-[#2A174E] flex items-center gap-2">
+                <EventAvailableIcon className={
+                  selectedHolidayDetails?.holiday.details?.toLowerCase().includes("special") 
+                  ? "text-purple-500" 
+                  : "text-red-500"
+                } />
+                Holiday Details
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 pt-4">
+              {/* Primary Info Card */}
+              <div className={`p-5 rounded-xl border-l-4 shadow-sm ${
+                selectedHolidayDetails?.holiday.details?.toLowerCase().includes("special") 
+                  ? "bg-purple-50 border-purple-500" 
+                  : "bg-red-50 border-red-500"
+              }`}>
+                <h3 className="text-xl font-bold text-slate-800 mb-1">
+                  {selectedHolidayDetails?.holiday.name}
+                </h3>
+                <p className="text-sm font-medium text-slate-600">
+                  {selectedHolidayDetails?.holiday.date && new Date(selectedHolidayDetails.holiday.date).toLocaleDateString('en-US', { 
+                    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+                  })}
+                </p>
+                {/* <Badge className={`mt-3 font-bold uppercase tracking-widest text-[10px] ${
+                  selectedHolidayDetails?.holiday.details?.toLowerCase().includes("special") 
+                    ? "bg-purple-200 text-purple-800 hover:bg-purple-200" 
+                    : "bg-red-200 text-red-800 hover:bg-red-200"
+                }`}>
+                  {selectedHolidayDetails?.holiday.details || "Regular Holiday"}
+                </Badge> */}
+              </div>
+
+              {/* Conflicting Field Work Section */}
+              {selectedHolidayDetails?.matchingWork.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-[11px] font-bold text-slate-400 uppercase tracking-tighter">
+                    Employees Assigned on this Day
+                  </Label>
+                  {selectedHolidayDetails.matchingWork.map((work, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-[#2A174E]">{work.name}</span>
+                        <span className="text-[11px] text-slate-500">{work.details}</span>
+                      </div>
+                      <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">
+                        Field Work
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* System Note */}
+              <div className="text-[11px] text-slate-400 italic text-center px-4">
+                Official holiday records are synced with the Philippine National Calendar.
+              </div>
+            </div>
+
+            <DialogFooter className="sm:justify-center">
+              <Button 
+                variant="outline" 
+                className="w-full sm:w-32" 
+                onClick={() => setSelectedHolidayDetails(null)}
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* FIELD WORK LOG DIALOG */}
         <Dialog open={!!selectedFieldLog} onOpenChange={(open) => !open && setSelectedFieldLog(null)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Field Work Log Summary</DialogTitle>
+              <DialogTitle className="text-[#2A174E] flex items-center gap-2">
+                <AssignmentIcon className="text-orange-500" />
+                Field Work Log Summary
+              </DialogTitle>
             </DialogHeader>
-            <div className="space-y-2 text-sm pt-4">
-              <div className="flex justify-between">
-                <span className="font-semibold text-muted-foreground">Date:</span> 
-                <span className="text-slate-800 font-medium">{selectedFieldLog?.date}</span>
+            <div className="space-y-4 text-sm pt-4">
+              {/* Employee Name Section */}
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <span className="font-semibold text-slate-500">Employee:</span> 
+                <span className="text-[#2A174E] font-bold text-base">
+                  {selectedFieldLog?.name || "N/A"}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span className="font-semibold text-muted-foreground">Task:</span> 
-                <span className="text-slate-800 text-right max-w-[60%] font-medium">{selectedFieldLog?.details}</span>
+
+              <div className="grid grid-cols-1 gap-3 px-1">
+                <div className="flex justify-between border-b border-slate-100 pb-2">
+                  <span className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Date</span> 
+                  <span className="text-slate-800 font-medium">{selectedFieldLog?.date}</span>
+                </div>
+                
+                {/* Hours Display */}
+                <div className="flex justify-between border-b border-slate-100 pb-2">
+                  <span className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">No. of Hours</span> 
+                  <span className="text-orange-600 font-bold">{selectedFieldLog?.hours || selectedFieldLog?.NoHrs || "8"} Hours</span>
+                </div>
+
+                <div className="flex justify-between border-b border-slate-100 pb-2">
+                  <span className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Location</span> 
+                  <span className="text-slate-800 text-right max-w-[60%] font-medium">{selectedFieldLog?.details}</span>
+                </div>
               </div>
-              <hr className="my-4 border-slate-100" />
-              <p className="text-xs italic text-green-600 m-0">This assignment is automatically credited as 8 hours worked on-field.</p>
+              
+              <div className="p-3 bg-orange-50 rounded-lg text-[11px] text-orange-700 italic border border-orange-100">
+                Note: This is a system-verified field assignment. Attendance is automatically credited for this duration.
+              </div>
             </div>
+            <DialogFooter>
+              <Button variant="outline" className="w-full" onClick={() => setSelectedFieldLog(null)}>
+                Close Summary
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
