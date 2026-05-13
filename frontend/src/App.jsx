@@ -306,7 +306,7 @@ function App() {
         <Route
           path="transactionLog"
           element={
-            <ProtectedRoute allowedRoles={[1, 2, 4]}>
+            <ProtectedRoute allowedRoles={[1, 4]}>
               <TransactionLog />
             </ProtectedRoute>
           }

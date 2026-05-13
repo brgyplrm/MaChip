@@ -155,8 +155,17 @@ const AdminReports = () => {
     let headers = [];
 
     if (activeReport === "attendance") {
-      headers = ["Employee MaChip ID", "Employee Name", "Date", "Time In", "Time Out", "Hours Worked", "Status", "Remarks"];
-      dataToExport = attendanceData.map(r => [r.machipId, r.userName, r.log_Date, r.time_In, r.time_Out, r.hoursWorked, r.status, r.remarks]);
+      headers = ["Employee ID", "Employee Name", "Date", "Time In", "Time Out", "Hours Worked", "Status", "Remarks"];
+      dataToExport = attendanceData.map(r => [
+        formatUserId(r.user_Id), 
+        r.userName, 
+        new Date(r.log_Date).toLocaleDateString(), 
+        r.time_In, 
+        r.time_Out, 
+        r.hoursWorked, 
+        r.status, 
+        r.remarks
+      ]);
     } else if (activeReport === "payroll") {
       headers = [
         "Emp ID", "Employee Name", "Period Start", "Period End", "Days Worked", "Hours Worked", 
@@ -228,8 +237,7 @@ const AdminReports = () => {
 
   return (
     <Sidebar>
-      <div className="flex flex-col w-full min-h-screen bg-slate-50">
-        <div className="flex-1 p-4 md:p-8 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-8 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0 bg-slate-50 min-h-screen">
           
           {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -660,7 +668,7 @@ const AdminReports = () => {
         </div>
 
         {/* Global styling for custom scrollbars */}
-        <style dangerouslySetContent={{__html: `
+        <style dangerouslySetInnerHTML={{__html: `
           .custom-scrollbar::-webkit-scrollbar {
             height: 10px;
             width: 10px;
@@ -677,7 +685,6 @@ const AdminReports = () => {
             background: #94a3b8; 
           }
         `}} />
-      </div>
     </Sidebar>
   );
 };

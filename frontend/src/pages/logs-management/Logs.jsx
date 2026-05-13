@@ -291,13 +291,18 @@ const Logs = () => {
   const currentData = activeData.slice(startIndex, endIndex);
 
   // ------------------ STATISTICS CALCULATION ------------------
+  const todayRawLogs = useMemo(() => {
+    const todayStr = systemToday.toLocaleDateString();
+    return logData.filter(l => l.log_Date === todayStr);
+  }, [logData, systemToday]);
+
   const stats = {
-    total: viewMode === "raw" ? logData.length : dayLogsData.length,
+    total: viewMode === "raw" ? todayRawLogs.length : dayLogsData.length,
     metric1: viewMode === "raw" 
-      ? logData.filter(l => l.log_type?.toLowerCase().includes("in")).length 
+      ? todayRawLogs.filter(l => l.log_type?.toLowerCase().includes("in")).length 
       : dayLogsData.filter(l => l.status === "On Time").length,
     metric2: viewMode === "raw"
-      ? logData.filter(l => l.log_type?.toLowerCase().includes("out")).length
+      ? todayRawLogs.filter(l => l.log_type?.toLowerCase().includes("out")).length
       : dayLogsData.filter(l => l.status && l.status !== "On Time").length,
   };
 
@@ -344,7 +349,9 @@ const Logs = () => {
                     </p>
                     <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
                   </div>
-                  <p className="text-xs text-[#2A174E]/70 italic mt-4">All captured records for context</p>
+                  <p className="text-xs text-[#2A174E]/70 italic mt-4">
+                    {viewMode === "raw" ? "Total events captured today" : "All captured records for context"}
+                  </p>
                 </div>
                 <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                   <FormatListBulletedIcon className="h-6 w-6" />
@@ -363,7 +370,7 @@ const Logs = () => {
                     <p className="text-4xl font-bold text-[#3B4E17]">{stats.metric1}</p>
                   </div>
                   <p className="text-xs text-[#3B4E17]/70 italic mt-4">
-                    {viewMode === "raw" ? "Total entry scans recorded" : "Employees arriving on or before 8:00 AM"}
+                    {viewMode === "raw" ? "Entry scans recorded today" : "Employees arriving on or before 8:00 AM"}
                   </p>
                 </div>
                 <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
@@ -383,7 +390,7 @@ const Logs = () => {
                     <p className="text-4xl font-bold text-[#BB8B26]">{stats.metric2}</p>
                   </div>
                   <p className="text-xs text-[#BB8B26]/70 italic mt-4">
-                    {viewMode === "raw" ? "Total exit scans recorded" : "Days recorded with infractions"}
+                    {viewMode === "raw" ? "Exit scans recorded today" : "Days recorded with infractions"}
                   </p>
                 </div>
                 <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">

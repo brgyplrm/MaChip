@@ -264,18 +264,20 @@ const GovLoans = () => {
   };
 
   const downloadTemplate = () => {
-    const headers = ["month/year", ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
+    const templateId = `GOV_LOAN_${activeTab.toUpperCase()}_TEMPLATE`;
+    const headers = [templateId, ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
     const headerLine = headers.join(",");
     const rows = expectedDates.map(date => {
       const emptyValues = employeeList.map(() => "").join(",");
       return `${date},${emptyValues}`;
     });
-    const csvContent = [headerLine, ...rows].join("\n");
+    const csvContent = "\uFEFF" + [headerLine, ...rows].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `gov_loan_${activeTab}_matrix_${selectedYear}.csv`;
+    const filename = `gov_loan_${activeTab}_matrix_${selectedYear}.csv`;
+    a.download = filename;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -294,10 +296,24 @@ const GovLoans = () => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const text = e.target.result;
+        const rawText = e.target.result;
+        const text = rawText.replace(/^\uFEFF/, '');
         const lines = text.split("\n").filter(line => line.trim() !== "");
         if (lines.length < 2) throw new Error("File is empty or missing data.");
-        
+
+        const headers = lines[0].split(",");
+        const templateId = headers[0]?.trim();
+        const expectedId = `GOV_LOAN_${activeTab.toUpperCase()}_TEMPLATE`;
+
+        if (templateId !== expectedId) {
+          setToast({ 
+            message: `Invalid template. You are trying to upload a file for "${templateId.replace(/_/g, ' ')}" into the "${activeTab.replace(/_/g, ' ')}" section. Please download the latest template.`, 
+            type: "error" 
+          });
+          setLoading(false);
+          return;
+        }
+
         const currentType = govTypes.find(t => t.id === activeTab);
         if (!currentType) {
           setToast({ message: "Invalid tab selected", type: "error" });
@@ -305,7 +321,6 @@ const GovLoans = () => {
           return;
         }
 
-        const headers = lines[0].split(",");
         const empMappings = []; 
 
         for (let i = 1; i < headers.length; i++) {
@@ -324,7 +339,9 @@ const GovLoans = () => {
 
           empMappings.forEach(mapping => {
             const amount = parseFloat(columns[mapping.colIndex]?.trim() || 0);
-            if (amount > 0) {
+            const isValidDate = !isNaN(new Date(date).getTime());
+            
+            if (amount > 0 && isValidDate) {
               updates.push({
                 date,
                 user_Id: mapping.user_Id,
@@ -606,7 +623,7 @@ const GovLoans = () => {
                 <SelectValue placeholder="Select Year" />
               </SelectTrigger>
               <SelectContent>
-                {Array.from({ length: 11 }, (_, i) => new Date().getFullYear() - 4 + i).map(year => (
+                {Array.from({ length: 21 }, (_, i) => 2020 + i).map(year => (
                   <SelectItem key={year} value={year.toString()}>Fiscal Year {year}</SelectItem>
                 ))}
               </SelectContent>
@@ -980,7 +997,7 @@ const GovLoans = () => {
         </div>
 
         {/* Global styling for custom scrollbars */}
-        <style dangerouslySetContent={{__html: `
+        <style dangerouslySetInnerHTML={{__html: `
           .custom-scrollbar::-webkit-scrollbar {
             height: 10px;
             width: 10px;

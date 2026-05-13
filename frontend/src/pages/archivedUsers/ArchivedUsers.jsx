@@ -40,6 +40,8 @@ const ArchivedUsers = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
+
   const dismissToast = useCallback(
     () => setToast({ message: "", type: "success" }),
     [],
@@ -315,14 +317,16 @@ const ArchivedUsers = () => {
                             >
                               <RestoreIcon className="mr-1 h-4 w-4" /> Restore
                             </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors"
-                              onClick={() => initiatePermanentDelete(user)}
-                            >
-                              <DeleteOutlineIcon className="mr-1 h-4 w-4" /> Delete
-                            </Button>
+                            {currentUser?.user_Id !== user.user_Id && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors"
+                                onClick={() => initiatePermanentDelete(user)}
+                              >
+                                <DeleteOutlineIcon className="mr-1 h-4 w-4" /> Delete
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

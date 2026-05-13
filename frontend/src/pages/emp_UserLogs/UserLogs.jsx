@@ -708,7 +708,7 @@ const UserLogs = () => {
         </Tabs>
 
         {/* Global styling for custom scrollbars */}
-        <style dangerouslySetContent={{__html: `
+        <style dangerouslySetInnerHTML={{__html: `
           .custom-scrollbar::-webkit-scrollbar {
             height: 10px;
             width: 10px;

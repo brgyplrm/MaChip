@@ -109,8 +109,11 @@ const Datatable = () => {
       user.user_Id?.toString().includes(searchTerm)
     );
 
-    const matchesRole = roleFilter === "All Roles" || user.user_Role === roleFilter;
-    const matchesStatus = statusFilter === "All Statuses" || user.user_EmploymentStatus === statusFilter;
+    const matchesRole = roleFilter === "All Roles" || 
+      (user.user_Role && user.user_Role.toLowerCase() === roleFilter.toLowerCase());
+      
+    const matchesStatus = statusFilter === "All Statuses" || 
+      (user.user_EmploymentStatus && user.user_EmploymentStatus.toLowerCase().trim() === statusFilter.toLowerCase().trim());
 
     return matchesSearch && matchesRole && matchesStatus;
   });
@@ -129,6 +132,13 @@ const Datatable = () => {
     total: data.length,
     employees: data.filter(u => u.user_Role === "Employee").length,
     admins: data.filter(u => u.user_Role !== "Employee").length,
+  };
+
+  const getStatusBadgeStyle = (status) => {
+    const s = status?.toLowerCase() || "";
+    if (s.includes("regular")) return "bg-emerald-50 text-emerald-700 border-emerald-100";
+    if (s.includes("part-time")) return "bg-blue-50 text-blue-700 border-blue-100";
+    return "bg-amber-50 text-amber-700 border-amber-100";
   };
 
   return (
@@ -277,6 +287,7 @@ const Datatable = () => {
                   <TableHead className="font-semibold text-slate-700 py-4 px-6 uppercase text-xs tracking-wider text-white">User ID</TableHead>
                   <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white">Full Name</TableHead>
                   <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white">Role</TableHead>
+                  <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white">Status</TableHead>
                   <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white hidden md:table-cell">MaChip ID</TableHead>
                   <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white hidden md:table-cell">Email</TableHead>
                   <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white text-right pr-6">Actions</TableHead>
@@ -293,6 +304,11 @@ const Datatable = () => {
                           {user.user_Role}
                         </span>
                       </TableCell>
+                      <TableCell className="py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${getStatusBadgeStyle(user.user_EmploymentStatus)}`}>
+                          {user.user_EmploymentStatus || "—"}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-slate-400 py-4 hidden md:table-cell font-mono text-xs">{user.user_MachipId || "—"}</TableCell>
                       <TableCell className="text-slate-500 py-4 hidden md:table-cell">{user.user_Email || "—"}</TableCell>
                       <TableCell className="text-right pr-6 py-4">
@@ -305,7 +321,7 @@ const Datatable = () => {
                           >
                             <Link to={`/users/${user.user_Id}`}>View</Link>
                           </Button>
-                          {isAdminOrAccountant && (
+                          {isAdminOrAccountant && currentUser?.user_Id !== user.user_Id && (
                             <Button 
                               variant="outline" 
                               size="sm" 
@@ -321,7 +337,7 @@ const Datatable = () => {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                       <div className="flex flex-col items-center justify-center space-y-1">
                         <SearchIcon className="h-8 w-8 text-slate-300 mb-2" />
                         <span className="font-semibold text-slate-600">No users found</span>

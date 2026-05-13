@@ -110,7 +110,8 @@ const CalendarManagement = () => {
   };
 
   const userData = JSON.parse(localStorage.getItem("userData") || "{}");
-  const isAdmin = userData.user_RoleId === 1;
+  const isManagerOrAccountant = [1, 4].includes(parseInt(userData.user_RoleId));
+  const isAdmin = isManagerOrAccountant; // Using isAdmin as the gatekeeper for editing features
 
   const [selectedHolidayWork, setSelectedHolidayWork] = useState(null);
   const [selectedFieldLog, setSelectedFieldLog] = useState(null);
@@ -156,7 +157,7 @@ const CalendarManagement = () => {
       id: holiday.id,
       name: holiday.name,
       date: holiday.date.split('T')[0],
-      type: holiday.type || "Regular Holiday"
+      type: holiday.details || "Regular Holiday"
     });
     setModalType('editHoliday');
   };
@@ -515,13 +516,13 @@ const CalendarManagement = () => {
             {/* Holidays List Card */}
             <Card className="shadow-sm border-0 bg-white flex flex-col h-[320px] py-0 border-t-4 border-[#2A174E]">
               <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-[#2A174E]">Upcoming Holidays</CardTitle>
+                <CardTitle className="text-lg text-[#2A174E]">Holidays</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 flex-1 overflow-y-auto custom-scrollbar">
                 {getUpcomingHolidays().length > 0 ? (
                   <div className="space-y-2 mt-2">
                     {getUpcomingHolidays().map((holiday, idx) => {
-                      const isSpecial = holiday.type?.toLowerCase().includes("special");
+                      const isSpecial = holiday.type?.toLowerCase().includes("special") || holiday.details?.toLowerCase().includes("special");
                       const accentColor = isSpecial ? "border-l-purple-500" : "border-l-red-500";
                       
                       return (
@@ -533,7 +534,7 @@ const CalendarManagement = () => {
                           <div>
                             <p className="font-semibold text-sm text-slate-800">{holiday.name}</p>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(holiday.date).toLocaleDateString()} • {holiday.type}
+                              {new Date(holiday.date).toLocaleDateString()} • {holiday.details || holiday.type}
                             </span>
                           </div>
                           {isAdmin && (
@@ -555,10 +556,10 @@ const CalendarManagement = () => {
                   </div>
                 ) : (
                     <EmptyState 
-                      className="!h-full !min-h-0 border-0 bg-transparent hover:bg-transparent shadow-none !p-2"
+                      className="min-h-0 h-full w-full border-0 bg-transparent hover:bg-transparent shadow-none p-0"
                       icon={<EventAvailableIcon sx={{ fontSize: 32 }} className="text-slate-300" />}
-                      title="Clear Schedule!"
-                      description="No holidays are coming up."
+                      title="No Holidays"
+                      description="There are no holidays registered for this period."
                     />
                 )}
               </CardContent>
@@ -968,23 +969,21 @@ const CalendarManagement = () => {
             </div>
           </DialogContent>
         </Dialog>
-
-        <style dangerouslySetContent={{__html: `  
-          .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent; 
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1; 
-            border-radius: 4px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8; 
-          }
-        `}} />
-
+<style dangerouslySetInnerHTML={{__html: `  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent; 
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1; 
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8; 
+  }
+`}} />
       </div>
     </Sidebar>
   );

@@ -1,5 +1,7 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
+const fs = require('fs');
+const path = require('path');
 const bcrypt = require("bcryptjs");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { validateEmailActive, sendWelcomeEmail, sendPasswordUpdateEmail } = require("../utils/emailService");
@@ -33,13 +35,24 @@ exports.registerUser = async (req, res) => {
       user_MachipId, 
       user_Email, 
       user_Password,
-      account_Number
+      account_Number,
+      bank_Company,
+      bank_AccountName
     } = req.body || {};
 
     if (!user_FirstName || !user_LastName || !user_Email || !user_Password) {
       return res.status(400).json({
         error: "Missing required fields (First Name, Last Name, Email, or Password).",
       });
+    }
+
+    if (account_Number) {
+      if (!/^\d+$/.test(account_Number)) {
+        return res.status(400).json({ error: "Account Number must contain numbers only." });
+      }
+      if (![12, 15].includes(account_Number.length)) {
+        return res.status(400).json({ error: "Account Number must be 12 or 15 digits." });
+      }
     }
 
     if (req.body.user_MiddleName && /\d/.test(req.body.user_MiddleName)) {
@@ -107,18 +120,23 @@ exports.registerUser = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    const dailyRate = parseFloat(req.body.dailyRate) || 0;
+    const shares = computeMonthlyShares(dailyRate);
+
     // Insert new user
     await sequelize.query(
       `INSERT INTO "User" (
         "user_Id", "user_FirstName", "user_LastName",
         "user_MiddleName", "user_Email", "user_Password", "user_MachipId", "user_FingerprintId", 
         "user_FingerprintTemplate", "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", 
-        "account_Number", "department", "position", "hireDate", "taxStatus", "createdAt", "updatedAt"
+        "account_Number", "bank_Company", "bank_AccountName", "department", "position", "hireDate", "taxStatus", 
+        "dailyRate", "sss_Share", "philhealth_Share", "hdmf_Share", "createdAt", "updatedAt"
       ) VALUES (
         :user_Id, :user_FirstName, :user_LastName,
         :user_MiddleName, :user_Email, :user_Password, :user_MachipId, :user_FingerprintId, 
         :user_FingerprintTemplate, :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, 
-        :account_Number, :department, :position, :hireDate, :taxStatus, :now, :now
+        :account_Number, :bank_Company, :bank_AccountName, :department, :position, :hireDate, :taxStatus,
+        :dailyRate, :sss, :ph, :hd, :now, :now
       )`,
       {
         replacements: {
@@ -135,10 +153,16 @@ exports.registerUser = async (req, res) => {
           user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
           user_ProfilePic: req.file ? req.file.filename : null,
           account_Number: encrypt(account_Number),
+          bank_Company: bank_Company || "UnionBank of the Philippines",
+          bank_AccountName: bank_AccountName || null,
           department: req.body.department || null,
           position: req.body.position || null,
           hireDate: req.body.hireDate || null,
           taxStatus: req.body.taxStatus || "S",
+          dailyRate,
+          sss: parseFloat(req.body.SSS_Ded) || shares.sss_Share,
+          ph: parseFloat(req.body.Philhealth_Ded) || shares.philhealth_Share,
+          hd: parseFloat(req.body.HDMF_Ded) || shares.hdmf_Share,
           now: nowStr,
         },
         type: QueryTypes.INSERT,
@@ -181,10 +205,12 @@ exports.registerUser = async (req, res) => {
 exports.viewAllUsers = async (req, res) => {
   try {
     const users = await sequelize.query(
-      `SELECT u.*, r."roleName" AS "user_Role" 
+      `SELECT u.*, r."roleName" AS "user_Role", s."statusName" AS "user_EmploymentStatus"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
-       WHERE u."deletedAt" IS NULL`,
+       LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
+       WHERE u."deletedAt" IS NULL
+       ORDER BY u."user_Id" ASC`,
       { type: QueryTypes.SELECT },
     );
 
@@ -205,10 +231,12 @@ exports.viewAllUsers = async (req, res) => {
 exports.viewArchivedUsers = async (req, res) => {
   try {
     const users = await sequelize.query(
-      `SELECT u.*, r."roleName" AS "user_Role" 
+      `SELECT u.*, r."roleName" AS "user_Role", s."statusName" AS "user_EmploymentStatus"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
-       WHERE u."deletedAt" IS NOT NULL`,
+       LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
+       WHERE u."deletedAt" IS NOT NULL
+       ORDER BY u."user_Id" ASC`,
       { type: QueryTypes.SELECT },
     );
 
@@ -230,13 +258,13 @@ exports.viewUserById = async (req, res) => {
   const { user_Id } = req.params;
   try {
     const user = await sequelize.query(
-      `SELECT u.*, r."roleName" AS "user_Role"
+      `SELECT u.*, r."roleName" AS "user_Role", s."statusName" AS "user_EmploymentStatus"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
+       LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
        WHERE u."user_Id" = :user_Id AND u."deletedAt" IS NULL`,
       { replacements: { user_Id }, type: QueryTypes.SELECT },
-    );
-    if (user.length > 0) {
+    );    if (user.length > 0) {
       const userData = user[0];
       if (userData.account_Number) {
         userData.account_Number = decrypt(userData.account_Number);
@@ -437,11 +465,35 @@ exports.updateUser = async (req, res) => {
     user_Password,
     adminConfirmPassword,
     account_Number,
+    bank_Company,
+    bank_AccountName,
     department,
     position,
     hireDate,
     taxStatus,
+    dailyRate,
+    SSS_Ded,
+    Philhealth_Ded,
+    HDMF_Ded,
+    Tax_Ded,
+    healthCard_Amnt,
+    SSS_Loan,
+    HDMF_Loan,
+    calamityLoan_Amnt,
+    eastwest_Loan,
+    globe_Deduction,
+    multiPurposeSavings,
+    advances_Amnt
   } = req.body || {};
+
+  if (account_Number) {
+    if (!/^\d+$/.test(account_Number)) {
+      return res.status(400).json({ error: "Account Number must contain numbers only." });
+    }
+    if (![12, 15].includes(account_Number.length)) {
+      return res.status(400).json({ error: "Account Number must be 12 or 15 digits." });
+    }
+  }
 
   try {
     // Check if new Fingerprint ID is already assigned to another active user
@@ -465,6 +517,28 @@ exports.updateUser = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    const parsedDailyRate = parseFloat(dailyRate) || oldUser.dailyRate || 0;
+    const rateChanged = Math.abs(parsedDailyRate - oldUser.dailyRate) > 0.01;
+
+    // Auto-compute Government Deductions
+    const shares = computeMonthlyShares(parsedDailyRate);
+    
+    // Logic: Use provided values if they exist, otherwise auto-compute if rate changed or if they are 0
+    let finalSSS = parseFloat(SSS_Ded);
+    if (isNaN(finalSSS) || (rateChanged && finalSSS === parseFloat(oldUser.sss_Share))) {
+      finalSSS = shares.sss_Share;
+    }
+
+    let finalPH = parseFloat(Philhealth_Ded);
+    if (isNaN(finalPH) || (rateChanged && finalPH === parseFloat(oldUser.philhealth_Share))) {
+      finalPH = shares.philhealth_Share;
+    }
+
+    let finalHD = parseFloat(HDMF_Ded);
+    if (isNaN(finalHD) || (rateChanged && finalHD === parseFloat(oldUser.hdmf_Share))) {
+      finalHD = shares.hdmf_Share;
+    }
+
     // Build replacements object with explicit types
     const replacements = {
       targetId: parseInt(user_Id),
@@ -477,12 +551,35 @@ exports.updateUser = async (req, res) => {
       statusId: parseInt(user_EmploymentStatusId) || 1,
       email: user_Email || null,
       accountNumber: encrypt(account_Number) || null,
+      bankCompany: bank_Company || null,
+      bankAccountName: bank_AccountName || null,
       department: department || null,
       position: position || null,
       hireDate: hireDate || null,
       taxStatus: taxStatus || "S",
+      dailyRate: parsedDailyRate,
+      sss: finalSSS,
+      ph: finalPH,
+      hd: finalHD,
+      tax: parseFloat(Tax_Ded) || oldUser.tax_Share || 0,
+      hc: parseFloat(healthCard_Amnt) || oldUser.healthCard_Amnt || 0,
+      sl: parseFloat(SSS_Loan) || oldUser.SSS_Loan || 0,
+      hl: parseFloat(HDMF_Loan) || oldUser.HDMF_Loan || 0,
+      cl: parseFloat(calamityLoan_Amnt) || oldUser.calamityLoan_Amnt || 0,
+      el: parseFloat(eastwest_Loan) || oldUser.eastwest_Loan || 0,
+      gd: parseFloat(globe_Deduction) || oldUser.globe_Deduction || 0,
+      ms: parseFloat(multiPurposeSavings) || oldUser.multiPurposeSavings || 0,
+      aa: parseFloat(advances_Amnt) || oldUser.advances_Amnt || 0,
       updatedAt: nowStr
     };
+
+    // Handle Daily Rate Update logic (tracking previous rate)
+    let rateUpdateSql = "";
+    if (Math.abs(replacements.dailyRate - oldUser.dailyRate) > 0.01) {
+      replacements.prevRate = oldUser.dailyRate;
+      replacements.rateUpdate = nowStr;
+      rateUpdateSql = `, "previousDailyRate" = :prevRate, "rateUpdatedAt" = :rateUpdate`;
+    }
 
     let sql = `
       UPDATE "User" SET 
@@ -495,11 +592,27 @@ exports.updateUser = async (req, res) => {
         "user_EmploymentStatusId" = :statusId,
         "user_Email"     = :email,
         "account_Number" = :accountNumber,
+        "bank_Company"   = :bankCompany,
+        "bank_AccountName" = :bankAccountName,
         "department"     = :department,
         "position"       = :position,
         "hireDate"       = :hireDate,
         "taxStatus"      = :taxStatus,
+        "dailyRate"      = :dailyRate,
+        "sss_Share"      = :sss,
+        "philhealth_Share" = :ph,
+        "hdmf_Share"     = :hd,
+        "tax_Share"      = :tax,
+        "healthCard_Amnt" = :hc,
+        "SSS_Loan"       = :sl,
+        "HDMF_Loan"      = :hl,
+        "calamityLoan_Amnt" = :cl,
+        "eastwest_Loan"  = :el,
+        "globe_Deduction"= :gd,
+        "multiPurposeSavings" = :ms,
+        "advances_Amnt"  = :aa,
         "updatedAt"      = :updatedAt
+        ${rateUpdateSql}
     `;
 
     // Only update template if provided and not empty
@@ -721,18 +834,32 @@ exports.updateDailyRate = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    // Ensure manual shares are treated as numbers and never as empty strings
+    // Ensure manual shares are treated as numbers
     let finalSSS = parseFloat(sss_Share);
     let finalPH  = parseFloat(philhealth_Share);
     let finalHD  = parseFloat(hdmf_Share);
     let finalTax = parseFloat(req.body.tax_Share || req.body.Tax_Ded) || 0;
 
-    // If manual shares are not valid numbers, auto-compute based on the new rate.
-    if (isNaN(finalSSS) || isNaN(finalPH) || isNaN(finalHD)) {
+    // AUTO-UPDATE LOGIC: 
+    // If the rate has changed, we should recompute shares unless the user 
+    // explicitly provided NEW manual values that are different from both the old ones 
+    // and the default calculation. For simplicity, if the rate changed and the 
+    // provided shares are NaN, or if they match the OLD shares, we recompute.
+    const rateChanged = Math.abs(parsed - currentRate) > 0.01;
+    
+    if (rateChanged || isNaN(finalSSS) || isNaN(finalPH) || isNaN(finalHD)) {
       const shares = computeMonthlyShares(parsed);
-      if (isNaN(finalSSS)) finalSSS = shares.sss_Share;
-      if (isNaN(finalPH))  finalPH  = shares.philhealth_Share;
-      if (isNaN(finalHD))  finalHD  = shares.hdmf_Share;
+      
+      // If SSS was not provided OR it matches the old rate's SSS, update it to the new one
+      if (isNaN(finalSSS) || (rateChanged && finalSSS === parseFloat(existing[0].sss_Share))) {
+        finalSSS = shares.sss_Share;
+      }
+      if (isNaN(finalPH) || (rateChanged && finalPH === parseFloat(existing[0].philhealth_Share))) {
+        finalPH = shares.philhealth_Share;
+      }
+      if (isNaN(finalHD) || (rateChanged && finalHD === parseFloat(existing[0].hdmf_Share))) {
+        finalHD = shares.hdmf_Share;
+      }
     }
 
     // Process other deductions
@@ -855,6 +982,190 @@ exports.checkFingerprint = async (req, res) => {
     }
     res.status(200).json({ exists: false });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Batch Register Users (CSV) ────────────────────────────────────────────────
+exports.batchRegisterUsers = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No CSV file uploaded." });
+  }
+
+  const filePath = req.file.path;
+
+  try {
+    const rawContent = fs.readFileSync(filePath, 'utf8');
+    const content = rawContent.replace(/^\uFEFF/, '');
+    const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    if (lines.length < 2) {
+      return res.status(400).json({ error: "CSV file is empty or missing data." });
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim());
+    const usersData = [];
+
+    // Map headers to indices
+    const headerMap = {};
+    headers.forEach((h, i) => headerMap[h] = i);
+
+    const requiredFields = ['user_FirstName', 'user_LastName', 'user_Email', 'user_Password'];
+    for (const field of requiredFields) {
+      if (headerMap[field] === undefined) {
+        return res.status(400).json({ error: `Missing required column: ${field}` });
+      }
+    }
+
+    // Role and Status Maps
+    const roleMap = { "Admin Manager": 1, "Supervisor": 2, "Employee": 3, "Admin Accountant": 4 };
+    const statusMap = { "Regular": 1, "Part-time": 2, "Intern / OJT": 3 };
+
+    // Bank Normalization Map
+    const bankMap = {
+      "unionbank": "UnionBank of the Philippines",
+      "bdo": "BDO Unibank (BDO)",
+      "bpi": "Bank of the Philippine Islands (BPI)",
+      "metrobank": "Metropolitan Bank and Trust (Metrobank)",
+      "landbank": "Land Bank of the Philippines (LANDBANK)",
+      "pnb": "Philippine National Bank (PNB)",
+      "chinabank": "China Banking Corporation (Chinabank)",
+      "rcbc": "Rizal Commercial Banking Corporation (RCBC)",
+      "eastwest": "EastWest Bank",
+      "gcash": "GCash",
+      "maya": "Maya Bank"
+    };
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.trim());
+      if (cols.length < headers.length) continue;
+
+      const userData = {};
+      headers.forEach((h, idx) => {
+        userData[h] = cols[idx];
+      });
+
+      try {
+        // Validation
+        if (!userData.user_FirstName || !userData.user_LastName || !userData.user_Email || !userData.user_Password) {
+          throw new Error("Missing required data in row " + (i + 1));
+        }
+
+        // Check if email exists
+        const [existing] = await sequelize.query(
+          `SELECT "user_Id" FROM "User" WHERE "user_Email" = :email`,
+          { replacements: { email: userData.user_Email }, type: QueryTypes.SELECT }
+        );
+
+        if (existing) {
+          throw new Error(`Email ${userData.user_Email} already exists.`);
+        }
+
+        // Get next ID
+        const [maxIdResult] = await sequelize.query(
+          `SELECT MAX("user_Id") AS "maxId" FROM "User"`,
+          { type: QueryTypes.SELECT }
+        );
+        const nextId = (maxIdResult.maxId ? parseInt(maxIdResult.maxId) : 0) + 1;
+
+        const roleId = roleMap[userData.user_Role] || 3;
+        const statusId = statusMap[userData.user_EmploymentStatus] || 1;
+
+        // Bank Normalization
+        let normalizedBank = userData.bank_Company || "UnionBank of the Philippines";
+        const bankKey = normalizedBank.toLowerCase().replace(/\s+/g, '');
+        for (const [key, fullName] of Object.entries(bankMap)) {
+          if (bankKey.includes(key)) {
+            normalizedBank = fullName;
+            break;
+          }
+        }
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(userData.user_Password, salt);
+
+        // Encrypt Account Number if present
+        let encAccount = null;
+        if (userData.account_Number) {
+          encAccount = encrypt(userData.account_Number);
+        }
+
+        await sequelize.query(
+          `INSERT INTO "User" (
+            "user_Id", "user_FirstName", "user_LastName", "user_MiddleName",
+            "user_Email", "user_Password", "user_RoleId", "user_EmploymentStatusId",
+            "bank_Company", "bank_AccountName", "account_Number",
+            "department", "position", "hireDate", "taxStatus",
+            "createdAt", "updatedAt"
+          ) VALUES (
+            :user_Id, :user_FirstName, :user_LastName, :user_MiddleName,
+            :user_Email, :user_Password, :roleId, :statusId,
+            :bank_Company, :bank_AccountName, :account_Number,
+            :department, :position, :hireDate, :taxStatus,
+            :now, :now
+          )`,
+          {
+            replacements: {
+              user_Id: nextId,
+              user_FirstName: userData.user_FirstName,
+              user_LastName: userData.user_LastName,
+              user_MiddleName: userData.user_MiddleName || null,
+              user_Email: userData.user_Email,
+              user_Password: hashedPassword,
+              roleId,
+              statusId,
+              bank_Company: normalizedBank,
+              bank_AccountName: userData.bank_AccountName || null,
+              account_Number: encAccount,
+              department: userData.department || null,
+              position: userData.position || null,
+              hireDate: userData.hireDate || null,
+              taxStatus: userData.taxStatus || "S",
+              now: nowStr
+            },
+            type: QueryTypes.INSERT
+          }
+        );
+
+        results.success++;
+
+        // Send welcome email after successful registration (Non-blocking)
+        const displayId = `MACJ-${String(nextId).padStart(3, "0")}`;
+        sendWelcomeEmail({
+          email: userData.user_Email,
+          password: userData.user_Password, // Use raw password from CSV
+          name: `${userData.user_FirstName} ${userData.user_LastName}`,
+          displayId: displayId
+        }).catch(emailError => {
+          console.error(`[BATCH WELCOME EMAIL ERROR for ${userData.user_Email}]:`, emailError.message);
+        });
+      } catch (err) {
+        results.failed++;
+        results.errors.push(`Row ${i + 1}: ${err.message}`);
+      }
+    }
+
+    // Clean up uploaded file
+    fs.unlinkSync(filePath);
+
+    res.status(200).json({
+      message: `Processed ${lines.length - 1} rows. ${results.success} succeeded, ${results.failed} failed.`,
+      results
+    });
+
+  } catch (error) {
+    console.error("[BATCH REGISTER ERROR]:", error);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.status(500).json({ error: error.message });
   }
 };

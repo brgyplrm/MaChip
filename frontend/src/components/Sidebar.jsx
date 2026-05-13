@@ -73,7 +73,7 @@ const Sidebar = ({ children }) => {
   const isManagement = (roleId === 1 || roleId === 4) && viewMode === "management";
   const isSupervisor = (roleId === 2) && viewMode === "management";
   const isAdmin = (roleId === 1) && viewMode === "management";
-  const isMaster = (roleId === 1 || roleId === 4);
+  const isMaster = (roleId === 1 || roleId === 4) && viewMode === "management";
   const isAccountant = roleId === 4;
 
   const homePath = isManagement || isSupervisor ? "/" : "/employeeHome";
@@ -301,15 +301,21 @@ const Sidebar = ({ children }) => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
-                {/* Requests (Dropdown) */}
-                {!isAccountant && (
-                  <SidebarMenuItem>
+                {/* Requests Link */}
+                <SidebarMenuItem>
                   <SidebarMenuButton 
                     asChild 
-                    isActive={isActive("/requests") || isActive("/adminRequests")}
-                    className={isActive("/requests") || isActive("/adminRequests") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                    isActive={isActive("/requests") || isActive("/adminRequests") || isActive("/adminoversight")}
+                    className={(isActive("/requests") || isActive("/adminRequests") || isActive("/adminoversight")) ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
                   >
-                    <Link to={isAdmin || isSupervisor ? "/adminRequests" : "/requests"} className={isActive("/requests") || isActive("/adminRequests") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                    <Link 
+                      to={
+                        viewMode === "employee" 
+                          ? "/requests" 
+                          : (isAccountant ? "/adminoversight" : (isAdmin || isSupervisor ? "/adminRequests" : "/requests"))
+                      } 
+                      className={(isActive("/requests") || isActive("/adminRequests") || isActive("/adminoversight")) ? "text-[#2A174E] font-bold" : "text-gray-500"}
+                    >
                       <DescriptionIcon 
                           className="!text-[22px]" 
                           sx={{ strokeWidth: 1/2 }}
@@ -318,24 +324,6 @@ const Sidebar = ({ children }) => {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                )}
-                {isAccountant && (
-                  <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={isActive("/adminoversight")}
-                    className={isActive("/adminoversight") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
-                  >
-                    <Link to="/adminoversight" className={isActive("/adminoversight") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                      <DescriptionIcon 
-                          className="!text-[22px]" 
-                          sx={{ strokeWidth: 1/2 }}
-                      />
-                      <span className="ms-3 text-[14px]">Requests</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                )}
 
                 {/* Payroll (Dropdown) - Admin Only */}
                 {isManagement && (
@@ -353,7 +341,7 @@ const Sidebar = ({ children }) => {
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll")}>
                             <Link to="/payroll" className={isActive("/payroll") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Payroll Managament
+                              Payroll Management
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -444,7 +432,7 @@ const Sidebar = ({ children }) => {
                 )}
 
                 {/* Transaction - Management Only */}
-                {(isMaster || isSupervisor) && (
+                {isMaster && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 

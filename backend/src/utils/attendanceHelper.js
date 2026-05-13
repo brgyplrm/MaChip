@@ -69,6 +69,17 @@ async function ensureAbsentsMarked(targetDate = null) {
 
     // 2. Process Absents (Bulk) - Only past 5:30 PM (or for past days) and not Sunday
     if (isPastCutoff && dayOfWeek !== 0) {
+      // Check if today is a holiday
+      const isHoliday = await sequelize.query(
+        `SELECT 1 FROM "Holiday" WHERE "date" = :todayStr`,
+        { replacements: { todayStr }, type: QueryTypes.SELECT }
+      );
+
+      if (isHoliday.length > 0) {
+        console.log(`[SYSTEM] Skipping absence check for ${todayStr}: It is a holiday.`);
+        return; 
+      }
+
       const absentUsers = await sequelize.query(
         `SELECT u."user_Id", u."user_FirstName", u."user_LastName"
          FROM "User" u
@@ -130,16 +141,16 @@ async function ensureAbsentsMarked(targetDate = null) {
             console.error("[ERROR] Payroll auto-sync failed:", pErr.message);
           }
           // ──────────────────────────────────────────────────────────────────
-
-          // Emit Socket Event for real-time dashboard update
-          try {
-            const { getIO } = require("../config/socket");
-            const io = getIO();
-            if (io) {
-              io.emit("NEW_ATTENDANCE_LOG", { userId, status: "Absent" });
-            }
-          } catch (err) {}
         }
+
+        // Emit ONCE for all absent users to update dashboards
+        try {
+          const { getIO } = require("../config/socket");
+          const io = getIO();
+          if (io) {
+            io.emit("NEW_ATTENDANCE_LOG", { count: absentUsers.length, status: "Absent" });
+          }
+        } catch (err) {}
       } else {
         console.log(`[DEBUG] No absent users found for ${todayStr}.`);
       }

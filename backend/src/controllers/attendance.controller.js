@@ -323,7 +323,7 @@ exports.markAttendance = async (req, res) => {
     // ── AUTO-CANCEL LEAVES IF CLOCKING IN ──────────────────────────────────
     if (nextStatus === 1 || nextStatus === 4) {
       const activeLeaves = await sequelize.query(
-        `SELECT er."emp_reqId", er."emp_reqTypeId", vl."NoDays" as "vlDays", sl."NoDays" as "slDays", el."NoDays" as "elDays", hd."NoDays" as "hdDays"
+        `SELECT er."emp_reqId", er."emp_reqStatusId", er."emp_reqTypeId", vl."NoDays" as "vlDays", sl."NoDays" as "slDays", el."NoDays" as "elDays", hd."NoDays" as "hdDays"
          FROM "emp_Request" er
          LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
          LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
@@ -344,6 +344,8 @@ exports.markAttendance = async (req, res) => {
       for (const leave of activeLeaves) {
         console.log(`[SYSTEM] Auto-canceling leave #${leave.emp_reqId} for user ${target_user_Id} due to clock-in.`);
         
+        const oldStatus = Number(leave.emp_reqStatusId);
+
         // 1. Update status to Canceled (4)
         await sequelize.query(
           `UPDATE "emp_Request" SET "emp_reqStatusId" = 4, "system_remarks" = COALESCE("system_remarks" || ' | ', '') || 'Auto-canceled due to clock-in'
@@ -351,9 +353,9 @@ exports.markAttendance = async (req, res) => {
           { replacements: { emp_reqId: leave.emp_reqId }, type: QueryTypes.UPDATE }
         );
 
-        // 2. Refund Balance
+        // 2. Refund Balance (ONLY if it was previously Approved)
         const noDays = leave.vlDays || leave.slDays || leave.elDays || leave.hdDays || 0;
-        if (noDays > 0) {
+        if (noDays > 0 && oldStatus === 2) {
           const balanceField = (leave.emp_reqTypeId === 3 || leave.emp_reqTypeId === 7) ? "VL" : "SL";
           await sequelize.query(
             `UPDATE "Leave_Balance"
@@ -783,6 +785,91 @@ exports.StatusLogic = async (req, res) => {
   }
 };
 
+// ── Get Overall Attendance Stats (Weekly, Quarterly, Yearly) ────────────────
+exports.getOverallAttendanceStats = async (req, res) => {
+  try {
+    const now = await getSystemTime();
+    const currentYear = now.getFullYear();
+
+    // 1. Weekly Stats (Last 7 Days)
+    const weeklyRaw = await sequelize.query(
+      `SELECT 
+         to_char("log_Date", 'Dy') as name,
+         COUNT(*) as total,
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent,
+         "log_Date"
+       FROM "employee_Logging_report"
+       WHERE "log_Date" > :now::date - interval '7 days'
+       AND EXTRACT(DOW FROM "log_Date") != 0 -- Exclude Sundays
+       GROUP BY name, "log_Date"
+       ORDER BY "log_Date" ASC`,
+      { replacements: { now }, type: QueryTypes.SELECT }
+    );
+    const weekly = weeklyRaw.map(d => {
+      const total = parseInt(d.total);
+      const absent = parseInt(d.absent);
+      return {
+        name: d.name,
+        percentage: total > 0 ? Math.round(((total - absent) / total) * 1000) / 10 : 100
+      };
+    });
+
+    // 2. Quarterly Stats (Current Half Year - Jan-Jun or Jul-Dec)
+    const isFirstHalf = now.getMonth() < 6;
+    const startMonth = isFirstHalf ? 1 : 7;
+    const endMonth = isFirstHalf ? 6 : 12;
+
+    const quarterlyRaw = await sequelize.query(
+      `SELECT 
+         to_char(to_date(EXTRACT(MONTH FROM "log_Date")::text, 'MM'), 'Mon') as name,
+         COUNT(*) as total,
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent,
+         EXTRACT(MONTH FROM "log_Date") as month_num
+       FROM "employee_Logging_report"
+       WHERE EXTRACT(YEAR FROM "log_Date") = :currentYear
+       AND EXTRACT(MONTH FROM "log_Date") BETWEEN :startMonth AND :endMonth
+       AND EXTRACT(DOW FROM "log_Date") != 0 -- Exclude Sundays
+       GROUP BY name, month_num
+       ORDER BY month_num ASC`,
+      { replacements: { currentYear, startMonth, endMonth }, type: QueryTypes.SELECT }
+    );
+    const quarterly = quarterlyRaw.map(d => {
+      const total = parseInt(d.total);
+      const absent = parseInt(d.absent);
+      return {
+        name: d.name,
+        percentage: total > 0 ? Math.round(((total - absent) / total) * 1000) / 10 : 100
+      };
+    });
+
+    // 3. Yearly Stats (Last 5 Years)
+    const yearlyRaw = await sequelize.query(
+      `SELECT 
+         EXTRACT(YEAR FROM "log_Date")::text as name,
+         COUNT(*) as total,
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent
+       FROM "employee_Logging_report"
+       WHERE EXTRACT(DOW FROM "log_Date") != 0 -- Exclude Sundays
+       GROUP BY name
+       ORDER BY name ASC
+       LIMIT 5`,
+      { type: QueryTypes.SELECT }
+    );
+    const yearly = yearlyRaw.map(d => {
+      const total = parseInt(d.total);
+      const absent = parseInt(d.absent);
+      return {
+        name: d.name,
+        percentage: total > 0 ? Math.round(((total - absent) / total) * 1000) / 10 : 100
+      };
+    });
+
+    res.status(200).json({ weekly, quarterly, yearly });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // ── Get Monthly Attendance Stats (Global) ────────────────────────────────────
 exports.getMonthlyAttendanceStats = async (req, res) => {
   try {
@@ -914,30 +1001,46 @@ exports.getEmployeeDashboardStats = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT }
     );
 
+    // Safe parsing helper
+    const safeParseArray = (val) => {
+      if (!val) return [];
+      if (Array.isArray(val)) return val;
+      try {
+        return JSON.parse(val);
+      } catch (e) {
+        return [];
+      }
+    };
+
     res.status(200).json({
       attendance: {
-        absent: parseInt(attendanceStats[0].absentCount || 0),
-        onTime: parseInt(attendanceStats[0].onTimeCount || 0),
-        late: parseInt(attendanceStats[0].lateCount || 0),
+        absent: parseInt(attendanceStats[0]?.absentCount || 0),
+        onTime: parseInt(attendanceStats[0]?.onTimeCount || 0),
+        late: parseInt(attendanceStats[0]?.lateCount || 0),
         monthName: now.toLocaleString('default', { month: 'long' })
       },
       leaveBalance: leaveBalance[0] ? {
         ...leaveBalance[0],
-        VL_total: (parseFloat(leaveBalance[0].VL_used) + parseFloat(leaveBalance[0].VL_balance)) || 7,
-        SL_total: (parseFloat(leaveBalance[0].SL_used) + parseFloat(leaveBalance[0].SL_balance)) || 7
+        VL_total: (parseFloat(leaveBalance[0].VL_used || 0) + parseFloat(leaveBalance[0].VL_balance || 7)),
+        SL_total: (parseFloat(leaveBalance[0].SL_used || 0) + parseFloat(leaveBalance[0].SL_balance || 7))
       } : {
         VL_total: 7, VL_used: 0, VL_balance: 7,
         SL_total: 7, SL_used: 0, SL_balance: 7
       },
-      recentLogs: recentLogs.map(log => ({
-        date: log.log_Date,
-        status: log.attendanceStatus || "—",
-        timeIn: JSON.parse(log.time_Logged_inArr || "[]")[0] || "—",
-        timeOut: JSON.parse(log.time_Logged_outArr || "[]").pop() || "—"
-      })),
-      monthlyRequests: recentRequests
+      recentLogs: recentLogs.map(log => {
+        const inArr = safeParseArray(log.time_Logged_inArr);
+        const outArr = safeParseArray(log.time_Logged_outArr);
+        return {
+          date: log.log_Date,
+          status: log.attendanceStatus || "—",
+          timeIn: inArr[0] || "—",
+          timeOut: outArr.length > 0 ? outArr[outArr.length - 1] : "—"
+        };
+      }),
+      monthlyRequests: recentRequests || []
     });
   } catch (error) {
+    console.error("[DASHBOARD_STATS_ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -1012,10 +1115,40 @@ exports.getDashboardStats = async (req, res) => {
       pendingCount = pendingResult[0].count;
     }
 
-    // Projected Monthly Payroll (Sum of all user's dailyRate * 22 days)
+    // Dynamic Workdays Calculation (Excluding Sundays)
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    let workDaysInMonth = 0;
+    for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() !== 0) { // 0 = Sunday
+        workDaysInMonth++;
+      }
+    }
+
+    // Projected Monthly Net Payroll
     const payrollResult = await sequelize.query(
-      `SELECT SUM("dailyRate" * 22) as projected FROM "User" WHERE "deletedAt" IS NULL`,
-      { type: QueryTypes.SELECT }
+      `SELECT SUM(
+        GREATEST(
+          ("dailyRate" * :workDaysInMonth) - 
+          (
+            COALESCE("sss_Share", 0) + 
+            COALESCE("philhealth_Share", 0) + 
+            COALESCE("hdmf_Share", 0) + 
+            COALESCE("tax_Share", 0) + 
+            COALESCE("healthCard_Amnt", 0) + 
+            COALESCE("SSS_Loan", 0) + 
+            COALESCE("HDMF_Loan", 0) + 
+            COALESCE("calamityLoan_Amnt", 0) + 
+            COALESCE("advances_Amnt", 0) + 
+            COALESCE("globe_Deduction", 0) + 
+            COALESCE("multiPurposeSavings", 0)
+          ), 
+          0
+        )
+      ) as projected 
+      FROM "User" 
+      WHERE "deletedAt" IS NULL`,
+      { replacements: { workDaysInMonth }, type: QueryTypes.SELECT }
     );
     const projectedPayroll = Math.round(parseFloat(payrollResult[0].projected || 0));
 

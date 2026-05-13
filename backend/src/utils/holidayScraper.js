@@ -12,6 +12,7 @@ const REGULAR_HOLIDAY_KEYWORDS = [
   "araw ng kagitingan", // Apr 9  – Day of Valor
   "day of valor",       // Apr 9  – English alias
   "labor day",          // May 1
+  "labour day",         // May 1 (alternate spelling)
   "independence day",   // Jun 12
   "national heroes day",// last Mon of Aug
   "bonifacio day",      // Nov 30

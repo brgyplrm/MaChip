@@ -60,4 +60,7 @@ router.patch("/employees/:user_Id/daily-rate", requireAdmin, userController.upda
 // Bulk Update Maxicare Deductions
 router.patch("/bulk-maxicare", requireAdmin, userController.bulkUpdateMaxicare);
 
+// Batch Register Users from CSV
+router.post("/batch-register", requireAdmin, upload.single("csvFile"), userController.batchRegisterUsers);
+
 module.exports = router;

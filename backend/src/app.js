@@ -135,7 +135,15 @@ app.use(errorHandler);
 
 // ── Database Connection and Background Tasks ──────────────────────────────────
 connectDB().then(async () => {
-  // Perform backfill for missing absences within the CURRENT PERIOD only
+  // 1. Holiday Sync (Startup): Ensure holidays are up-to-date
+  console.log("[INIT] Synchronizing Philippine holidays...");
+  try {
+    await syncHolidaysService();
+  } catch (err) {
+    console.error("[INIT] Holiday sync failed:", err.message);
+  }
+
+  // 2. Perform backfill for missing absences within the CURRENT PERIOD only
   console.log("[INIT] Running period-restricted backfill for absences...");
   const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
   const { getSystemTime } = require("./utils/systemTime");

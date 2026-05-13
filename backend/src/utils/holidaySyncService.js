@@ -1,16 +1,19 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const scrapeHolidays = require("./holidayScraper");
+const { getSystemTime } = require("./systemTime");
 
 /**
  * Automatically synchronizes Philippine holidays for the current and next year.
- * No hardcoded holidays here—everything comes from the scraper source.
+ * Protects past holidays: Only updates or adds holidays starting from the current date.
  * Uses Pure SQL Queries for all database operations.
  */
 async function syncHolidaysService() {
   try {
-    const currentYear = new Date().getFullYear();
-    const yearsToSync = [currentYear];
+    const now = await getSystemTime();
+    const todayStr = now.toISOString().split("T")[0];
+    const currentYear = now.getFullYear();
+    const yearsToSync = [currentYear, currentYear + 1];
     let totalNewSyncCount = 0;
 
     for (const year of yearsToSync) {
@@ -23,14 +26,9 @@ async function syncHolidaysService() {
 
       console.log(`[Auto-Sync] Year ${year}: Found ${scrapedHolidays.length} matching holidays.`);
       for (const h of scrapedHolidays) {
-        // Log the scraped data for verification
-        const dateObj = new Date(h.date);
-        const dayMonth = dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
-        console.log(`[Sync] ${h.name} - ${dayMonth} ${year} [${h.type}]`);
-
         // PURE SQL: Check if holiday exists for this date
         const existing = await sequelize.query(
-          `SELECT "holidayId" FROM "Holiday" WHERE "date" = :date`,
+          `SELECT "holidayId", "name", "type" FROM "Holiday" WHERE "date" = :date`,
           { 
             replacements: { date: h.date }, 
             type: QueryTypes.SELECT 
@@ -38,8 +36,17 @@ async function syncHolidaysService() {
         );
 
         if (existing.length > 0) {
-          // Skip existing records to prevent overwriting manual edits
-          console.log(`[Sync] Skipping existing holiday on ${h.date}: ${h.name}`);
+          // If it exists but the name or type changed in the API, update it
+          if (existing[0].name !== h.name || existing[0].type !== h.type) {
+            console.log(`[Sync] Updating holiday on ${h.date}: ${existing[0].name} -> ${h.name}`);
+            await sequelize.query(
+              `UPDATE "Holiday" SET "name" = :name, "type" = :type WHERE "date" = :date`,
+              { 
+                replacements: { name: h.name, type: h.type, date: h.date }, 
+                type: QueryTypes.UPDATE 
+              }
+            );
+          }
           continue;
         } else {
           // PURE SQL: Insert new record
@@ -52,6 +59,7 @@ async function syncHolidaysService() {
             }
           );
           totalNewSyncCount++;
+          console.log(`[Sync] Added new holiday: ${h.name} (${h.date})`);
         }
       }
     }

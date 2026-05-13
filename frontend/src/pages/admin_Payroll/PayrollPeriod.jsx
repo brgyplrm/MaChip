@@ -534,8 +534,7 @@ const PayrollPeriod = () => {
           </Card>
         </div>
       )}
-
-      <style dangerouslySetContent={{__html: `
+      <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar {
           width: 8px;
           height: 8px;

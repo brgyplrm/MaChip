@@ -49,11 +49,6 @@ const Payroll = () => {
   const [upcomingPeriods, setUpcomingPeriods] = useState([]);
   const [allPeriods, setAllPeriods] = useState([]);
 
-  // Generate Confirmation Modal States
-  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
-  const [generateConfirmText, setGenerateConfirmText] = useState("");
-  const [periodToGenerate, setPeriodToGenerate] = useState(null);
-
   // Filter & Pagination States
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -147,6 +142,7 @@ const Payroll = () => {
         setAllPeriods(data);
         
         // Find the "Draft" period which is currently active
+        // Logic: The most recent draft is considered active
         const draftPeriods = data.filter(p => p.status === 'Draft');
         const active = draftPeriods[0]; 
 
@@ -343,7 +339,7 @@ const Payroll = () => {
               <Card className="flex flex-col flex-1 border-2 border-dashed border-slate-200 shadow-none bg-slate-50/50 justify-center items-center p-8 min-h-[300px] text-center">
                 <CalendarMonthIcon className="h-12 w-12 text-slate-300 mb-4" />
                 <h3 className="font-bold text-slate-600 mb-1">No Active Period</h3>
-                <p className="text-slate-500 max-w-[250px] text-sm">There are currently no draft payroll periods. Use the next period card to start one.</p>
+                <p className="text-slate-500 max-w-[250px] text-sm">There are currently no draft payroll periods for the current date.</p>
               </Card>
             )}
           </div>
@@ -378,19 +374,15 @@ const Payroll = () => {
                       <p className="text-sm font-semibold text-slate-600">{new Date(upcomingPeriods[0].endDate).toLocaleDateString()}</p>
                     </div>
                   </div>
-                  <p className="text-slate-500 text-sm px-2">This is the automated schedule for the <span className="font-semibold text-slate-700">{upcomingPeriods[0].half.toLowerCase()}</span>. Generating it now will lock previous unreleased periods.</p>
+                  <p className="text-slate-500 text-sm px-2">This is the automated schedule for the <span className="font-semibold text-slate-700">{upcomingPeriods[0].half.toLowerCase()}</span>. The system will automatically activate this once the current period ends.</p>
                 </CardContent>
-                <div className="p-6 pt-0 mt-auto">
+                <div className="p-6 pt-0 mt-auto opacity-50 cursor-not-allowed">
                   <Button 
                     variant="outline"
-                    className="w-full bg-white border-[#2A174E]/30 text-[#2A174E] hover:bg-[#f0ebfa] py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5"
-                    onClick={() => {
-                      setPeriodToGenerate(upcomingPeriods[0]);
-                      setGenerateConfirmText("");
-                      setShowGenerateConfirm(true);
-                    }}
+                    disabled
+                    className="w-full bg-slate-50 border-slate-200 text-slate-400 py-6 text-sm shadow-none"
                   >
-                    <EventNoteIcon className="mr-2 h-4 w-4" /> Generate This Period
+                    <EventNoteIcon className="mr-2 h-4 w-4" /> Automatic Generation
                   </Button>
                 </div>
               </Card>
@@ -586,72 +578,12 @@ const Payroll = () => {
           </CardContent>
         </Card>
 
-        {/* Generate Period Confirmation Modal */}
-        <Dialog open={showGenerateConfirm} onOpenChange={(open) => {
-          if (!open) {
-            setShowGenerateConfirm(false);
-            setGenerateConfirmText("");
-            setPeriodToGenerate(null);
-          }
-        }}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-[#2A174E]">Confirm Schedule Generation</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-5 py-3">
-              <div className="text-sm text-slate-600 bg-orange-50 border border-orange-200 p-4 rounded-lg">
-                <p>
-                  You are about to generate the payroll period for <strong>{periodToGenerate?.label}</strong>.
-                </p>
-                <p className="mt-2 font-medium text-orange-800">
-                  Warning: Generating a new period will lock the currently active draft period. Ensure all previous records are finalized.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-slate-700">
-                  Type <strong>next schedule</strong> to confirm:
-                </Label>
-                <Input
-                  value={generateConfirmText}
-                  onChange={(e) => setGenerateConfirmText(e.target.value)}
-                  placeholder="next schedule"
-                  className="border-slate-300 focus-visible:ring-[#2A174E]"
-                  autoComplete="off"
-                />
-              </div>
-            </div>
-            <DialogFooter className="flex gap-2 sm:justify-end mt-2">
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setShowGenerateConfirm(false);
-                  setGenerateConfirmText("");
-                  setPeriodToGenerate(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="bg-[#2A174E] text-white hover:bg-[#1a0e30]"
-                disabled={generateConfirmText.toLowerCase() !== "next schedule"}
-                onClick={() => {
-                  handleCreatePeriod(periodToGenerate);
-                  setShowGenerateConfirm(false);
-                  setGenerateConfirmText("");
-                  setPeriodToGenerate(null);
-                }}
-              >
-                Confirm & Generate
-              </Button>
-            </DialogFooter>
+        <Dialog open={loading && !refreshing}>
+          <DialogContent className="sm:max-w-[425px] flex flex-col items-center justify-center p-10">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2A174E]"></div>
+            <p className="mt-4 font-medium text-slate-600">Loading payroll data...</p>
           </DialogContent>
         </Dialog>
-
-        <CreatePeriodModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          onCreate={handleCreatePeriod}
-        />
       </div>
       </Sidebar>
     </div>

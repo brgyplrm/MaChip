@@ -76,7 +76,7 @@ const UserRequests = () => {
   }, []);
 
   const payroll = useMemo(() => getPayrollDates(systemToday), [systemToday, getPayrollDates]);
-  const [balance, setBalance] = useState({ VL_balance: 0, SL_balance: 0 });
+  const [balance, setBalance] = useState(null);
   const [minAllowedDate, setMinAllowedDate] = useState("");
 
   const fetchPayrollPeriods = async () => {
@@ -349,8 +349,16 @@ const UserRequests = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     let isInsufficient = false;
-    if (formData.emp_reqTypeId === "3" && formData.noDays > balance.VL_balance) isInsufficient = true;
-    else if (formData.emp_reqTypeId === "4" && formData.noDays > balance.SL_balance) isInsufficient = true;
+    if (balance) {
+      const vlBal = parseFloat(balance.VL_balance);
+      const slBal = parseFloat(balance.SL_balance);
+      const requestedDays = parseFloat(formData.noDays);
+
+      if (formData.emp_reqTypeId === "3" && requestedDays > vlBal) isInsufficient = true;
+      else if (formData.emp_reqTypeId === "4" && requestedDays > slBal) isInsufficient = true;
+      else if (formData.emp_reqTypeId === "6" && requestedDays > (vlBal + slBal)) isInsufficient = true;
+      else if (formData.emp_reqTypeId === "7" && 0.5 > vlBal) isInsufficient = true;
+    }
 
     let isLateFiling = false;
     if (formData.emp_reqTypeId === "3") {
@@ -610,11 +618,11 @@ const UserRequests = () => {
                   <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Your Leave Balances</h4>
                   <div className="flex justify-between items-center mb-2">
                      <span className="text-sm font-semibold text-slate-700">Vacation Leave (VL)</span>
-                     <Badge className="bg-indigo-100 text-indigo-800">{balance.VL_balance} days</Badge>
+                     <Badge className="bg-indigo-100 text-indigo-800">{balance ? balance.VL_balance : "..."} days</Badge>
                   </div>
                   <div className="flex justify-between items-center">
                      <span className="text-sm font-semibold text-slate-700">Sick Leave (SL)</span>
-                     <Badge className="bg-rose-100 text-rose-800">{balance.SL_balance} days</Badge>
+                     <Badge className="bg-rose-100 text-rose-800">{balance ? balance.SL_balance : "..."} days</Badge>
                   </div>
                 </div>
 
@@ -1053,7 +1061,7 @@ const UserRequests = () => {
         </div>
         
         {/* Global styling for custom scrollbars */}
-        <style dangerouslySetContent={{__html: `
+        <style dangerouslySetInnerHTML={{__html: `
           .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
           }

@@ -24,6 +24,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[a-zA-Z\s]+$/;
 
+const PHILIPPINE_BANKS = [
+  "BDO Unibank (BDO)",
+  "Bank of the Philippine Islands (BPI)",
+  "Metropolitan Bank and Trust (Metrobank)",
+  "Land Bank of the Philippines (LANDBANK)",
+  "Security Bank",
+  "UnionBank of the Philippines",
+  "Philippine National Bank (PNB)",
+  "China Banking Corporation (Chinabank)",
+  "Rizal Commercial Banking Corporation (RCBC)",
+  "EastWest Bank",
+  "GCash",
+  "Maya Bank"
+];
+
 const validateForm = (formData) => {
   const errors = {};
 
@@ -53,6 +68,20 @@ const validateForm = (formData) => {
     errors.user_EmploymentStatus = "Employment Status is required.";
   }
 
+  if (!formData.account_Number || !formData.account_Number.trim()) {
+    errors.account_Number = "Account number is required.";
+  } else if (![12, 15].includes(formData.account_Number.length)) {
+    errors.account_Number = "Account number must be 12 or 15 digits.";
+  }
+
+  if (!formData.bank_Company) {
+    errors.bank_Company = "Bank is required.";
+  }
+
+  if (!formData.bank_AccountName || !formData.bank_AccountName.trim()) {
+    errors.bank_AccountName = "Account name is required.";
+  }
+
   // Password is only required if user starts typing a new one
   if (formData.user_Password && formData.user_Password.trim() !== "") {
     if (formData.user_Password.length < 6) {
@@ -69,6 +98,7 @@ const Edit = () => {
 
   const [file, setFile] = useState("");
   const [existingAvatar, setExistingAvatar] = useState("");
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [formData, setFormData] = useState({
     user_FirstName: "",
     user_LastName: "",
@@ -76,7 +106,9 @@ const Edit = () => {
     user_PhoneNumber: "",
     user_Address: "",
     user_Role: "",
+    user_RoleId: "",
     user_EmploymentStatus: "",
+    user_EmploymentStatusId: "",
     user_Password: "",
     user_MachipId: "",
     user_FingerprintId: "",
@@ -95,14 +127,53 @@ const Edit = () => {
     eastwest_Loan: "",
     globe_Deduction: "",
     multiPurposeSavings: "",
-    advances_Amnt: ""
+    advances_Amnt: "",
+    account_Number: "",
+    bank_Company: "",
+    bank_AccountName: ""
   });
 
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [loadingGovt, setLoadingGovt] = useState(false);
   
   const [originalRole, setOriginalRole] = useState("");
+// ... (rest of state)
+
+  // ── Automatic Calculation ──────────────────────────────────────────────────
+  useEffect(() => {
+    const rate = parseFloat(formData.dailyRate);
+    if (!isNaN(rate) && rate > 0 && !loadingGovt) {
+      const timer = setTimeout(() => {
+        handleCalculateGovt(rate);
+      }, 1000); // Debounce
+      return () => clearTimeout(timer);
+    }
+  }, [formData.dailyRate]);
+
+  const handleCalculateGovt = async (rate) => {
+    setLoadingGovt(true);
+    try {
+      const gross = rate * 26;
+      const response = await fetchWithAuth(`/api/payroll/govt-deductions-preview?grossPay=${gross}&user_Id=${userId}`);
+      const result = await response.json();
+      if (response.ok) {
+        setFormData(prev => ({
+          ...prev,
+          SSS_Ded: result.SSS_Ded,
+          Philhealth_Ded: result.Philhealth_Ded,
+          HDMF_Ded: result.HDMF_Ded,
+          Tax_Ded: result.Tax_Ded
+        }));
+      }
+    } catch (error) {
+      console.error("Calculation error:", error);
+    } finally {
+      setLoadingGovt(false);
+    }
+  };
+  // ──────────────────────────────────────────────────────────────────────────
   const [showAdminConfirm, setShowAdminConfirm] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
 
@@ -172,7 +243,9 @@ const Edit = () => {
             user_PhoneNumber: userData.user_PhoneNumber || "",
             user_Address: userData.user_Address || "",
             user_Role: userData.user_Role || "",
+            user_RoleId: userData.user_RoleId || 3,
             user_EmploymentStatus: userData.user_EmploymentStatus || "",
+            user_EmploymentStatusId: userData.user_EmploymentStatusId || 1,
             user_Password: "", // Do not show hash, leave empty for optional update
             user_MachipId: userData.user_MachipId || "",
             user_FingerprintId: userData.user_FingerprintId || "",
@@ -191,7 +264,10 @@ const Edit = () => {
             eastwest_Loan: userData.eastwest_Loan || "",
             globe_Deduction: userData.globe_Deduction || "",
             multiPurposeSavings: userData.multiPurposeSavings || "",
-            advances_Amnt: userData.advances_Amnt || ""
+            advances_Amnt: userData.advances_Amnt || "",
+            account_Number: userData.account_Number || "",
+            bank_Company: userData.bank_Company || "UnionBank of the Philippines",
+            bank_AccountName: userData.bank_AccountName || ""
           });
           setExistingAvatar(userData.user_Avatar || "");
           setOriginalRole(userData.user_Role);
@@ -209,6 +285,12 @@ const Edit = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // Only allow digits for account_Number
+    if (name === "account_Number" && value !== "" && !/^\d+$/.test(value)) {
+      return; 
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -216,7 +298,23 @@ const Edit = () => {
   };
 
   const handleSelectChange = (name, value) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: value };
+      
+      // Sync Role ID
+      if (name === "user_Role") {
+        const roleMap = { "Admin Manager": 1, "Supervisor": 2, "Employee": 3, "Admin Accountant": 4 };
+        updated.user_RoleId = roleMap[value] || 3;
+      }
+      
+      // Sync Employment Status ID
+      if (name === "user_EmploymentStatus") {
+        const statusMap = { "Regular": 1, "Part-time": 2, "Intern / OJT": 3 };
+        updated.user_EmploymentStatusId = statusMap[value] || 1;
+      }
+      
+      return updated;
+    });
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
@@ -296,6 +394,35 @@ const Edit = () => {
       setFingerprintError("Connection error during fingerprint scan.");
     }
   };
+
+  // ── Auto-Compute Govt Deductions ───────────────────────────────────────────
+  useEffect(() => {
+    const rate = parseFloat(formData.dailyRate);
+    if (!isNaN(rate) && rate > 0) {
+      const monthly = rate * 26;
+
+      // 1. SSS Computation (Approximate Table Logic)
+      const sss_msc = Math.min(Math.max(Math.round(monthly / 500) * 500, 5000), 35000);
+      const sss_ee = Math.round(sss_msc * 0.05 * 100) / 100;
+
+      // 2. PhilHealth (5% total split 50/50)
+      const ph_clamped = Math.min(Math.max(monthly, 10000), 100000);
+      const ph_ee = Math.round((ph_clamped * 0.05 / 2) * 100) / 100;
+
+      // 3. HDMF (2% capped at 10,000 salary)
+      const hdmf_mfs = Math.min(monthly, 10000);
+      const hdmf_ee = Math.round(hdmf_mfs * (monthly <= 1500 ? 0.01 : 0.02));
+
+      // Update form data IF they are currently 0 or empty (prevent overwriting manual entry on load)
+      // Or if the rate was just changed
+      setFormData(prev => ({
+        ...prev,
+        SSS_Ded: prev.SSS_Ded === "" || prev.SSS_Ded == 0 || prev.dailyRate !== userData?.dailyRate ? sss_ee : prev.SSS_Ded,
+        Philhealth_Ded: prev.Philhealth_Ded === "" || prev.Philhealth_Ded == 0 || prev.dailyRate !== userData?.dailyRate ? ph_ee : prev.Philhealth_Ded,
+        HDMF_Ded: prev.HDMF_Ded === "" || prev.HDMF_Ded == 0 || prev.dailyRate !== userData?.dailyRate ? hdmf_ee : prev.HDMF_Ded
+      }));
+    }
+  }, [formData.dailyRate, userData?.dailyRate]);
 
   const handleUpdate = async (adminVerification = null) => {
     try {
@@ -607,6 +734,61 @@ const Edit = () => {
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cash Advances</Label>
                     <Input name="advances_Amnt" type="number" step="0.01" value={formData.advances_Amnt} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                  </div>
+
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm border-0 bg-white">
+                <CardHeader className="border-b border-slate-100 pb-4">
+                  <CardTitle className="text-lg text-[#2A174E]">Bank & Payroll Details</CardTitle>
+                  <CardDescription>Configure payout destination.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bank Company <span className="text-red-500">*</span></Label>
+                    <Select value={formData.bank_Company} onValueChange={(val) => handleSelectChange("bank_Company", val)}>
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectValue placeholder="Select Bank" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PHILIPPINE_BANKS.map((bank, idx) => (
+                          <SelectItem key={idx} value={bank}>{bank}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {renderError("bank_Company")}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Name <span className="text-red-500">*</span></Label>
+                    <Input 
+                      name="bank_AccountName" 
+                      placeholder="Juan Dela Cruz" 
+                      value={formData.bank_AccountName} 
+                      onChange={handleChange} 
+                      className="border-slate-200 focus-visible:ring-[#2A174E]" 
+                    />
+                    {renderError("bank_AccountName")}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Number <span className="text-red-500">*</span></Label>
+                    <div className="relative">
+                      <Input 
+                        name="account_Number" 
+                        type={showAccountNumber ? "text" : "password"}
+                        placeholder="e.g. 00123456789" 
+                        value={formData.account_Number} 
+                        onChange={handleChange} 
+                        className="pr-10 border-slate-200 focus-visible:ring-[#2A174E]" 
+                      />
+                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowAccountNumber(!showAccountNumber)}>
+                        {showAccountNumber ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                      </button>
+                    </div>
+                    {renderError("account_Number")}
                   </div>
 
                 </CardContent>

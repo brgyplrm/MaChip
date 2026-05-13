@@ -57,6 +57,11 @@ const Home = () => {
   const [statsLoading, setStatsLoading] = useState(true);
   const [payrollPeriods, setPayrollPeriods] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [chartData, setChartData] = useState({
+    weekly: [],
+    quarterly: [],
+    yearly: []
+  });
 
   // Dynamic Greeting Logic
   const getGreeting = () => {
@@ -117,6 +122,18 @@ const Home = () => {
     }
   };
 
+  const fetchOverallStats = async () => {
+    try {
+      const response = await fetchWithAuth("/api/attendance/overall-stats");
+      if (response.ok) {
+        const data = await response.json();
+        setChartData(data);
+      }
+    } catch (error) {
+      console.error("Error fetching overall stats:", error);
+    }
+  };
+
   useEffect(() => {
     const fetchPendingCount = async () => {
       if (!(userData?.user_RoleId === 1 || userData?.user_RoleId === 2)) return;
@@ -140,10 +157,12 @@ const Home = () => {
     fetchDashboardStats();
     fetchPayrollPeriods();
     fetchPendingRequests();
+    fetchOverallStats();
 
     const interval = setInterval(() => {
       fetchDashboardStats();
       fetchPendingRequests();
+      fetchOverallStats();
     }, 60000);
 
     const handleRefresh = () => {
@@ -151,6 +170,7 @@ const Home = () => {
       fetchDashboardStats();
       fetchPayrollPeriods();
       fetchPendingRequests();
+      fetchOverallStats();
     };
 
     window.addEventListener("dataRefresh", handleRefresh);
@@ -179,30 +199,6 @@ const Home = () => {
 
   const nextPayroll = payrollPeriods.length > 0 ? payrollPeriods[0] : null;
   const daysRemaining = nextPayroll ? Math.ceil((new Date(nextPayroll.endDate) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
-
-  const chartData = {
-    monthly: [
-      { name: "Jun", percentage: 87.8 },
-      { name: "Jul", percentage: 78.4 },
-      { name: "Aug", percentage: 88.4 },
-      { name: "Sep", percentage: 80.1 },
-      { name: "Oct", percentage: 83.3 },
-      { name: "Nov", percentage: 74.9 },
-    ],
-    weekly: [
-      { name: "Mon", percentage: 95 },
-      { name: "Tue", percentage: 92 },
-      { name: "Wed", percentage: 89 },
-      { name: "Thu", percentage: 94 },
-      { name: "Fri", percentage: 81 },
-    ],
-    yearly: [
-      { name: "2023", percentage: 82 },
-      { name: "2024", percentage: 88 },
-      { name: "2025", percentage: 85 },
-      { name: "2026", percentage: 91 },
-    ]
-  };
 
   return (
     <Sidebar>
@@ -265,14 +261,13 @@ const Home = () => {
             <Card className="shadow-sm border-0 bg-[#ECC04B] py-0 h-full">
               <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
                 <div>
-                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Projected Payroll</p>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Projected Monthly (Net)</p>
                   <p className="text-4xl font-bold text-white">{statsLoading ? "..." : `₱${(stats.projectedPayroll || 0).toLocaleString()}`}</p>
                 </div>
-                <p className="text-xs text-white/70 italic mt-4">Projected monthly payroll total</p>
+                <p className="text-xs text-white/70 italic mt-4">Estimated net payout after deductions</p>
               </CardContent>
             </Card>
-          </Link>
-        </div>
+          </Link>        </div>
 
         <div className="h-4"></div>
 
@@ -420,7 +415,7 @@ const Home = () => {
 
         {/* Multi-Tab Chart Section */}
         <Card className="shadow-sm border-gray-200">
-          <Tabs defaultValue="monthly" className="w-full">
+          <Tabs defaultValue="weekly" className="w-full">
             <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
               <div>
                 <CardTitle className="text-xl font-bold text-[#2A174E]">Overall Attendance</CardTitle>
@@ -430,7 +425,7 @@ const Home = () => {
               {/* shadcn Tabs Switcher */}
               <TabsList className="bg-slate-100 p-1">
                 <TabsTrigger value="weekly" className="text-xs px-4">Weekly</TabsTrigger>
-                <TabsTrigger value="monthly" className="text-xs px-4">Monthly</TabsTrigger>
+                <TabsTrigger value="quarterly" className="text-xs px-4">Quarterly</TabsTrigger>
                 <TabsTrigger value="yearly" className="text-xs px-4">Yearly</TabsTrigger>
               </TabsList>
             </CardHeader>

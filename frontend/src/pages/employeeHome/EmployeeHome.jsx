@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const EmployeeHome = () => {
-  const userData = JSON.parse(localStorage.getItem("userData"));
+  const [userData, setUserData] = useState(() => JSON.parse(localStorage.getItem("userData")));
   const [dashboardStats, setDashboardStats] = useState({
     attendance: { absent: 0, onTime: 0, late: 0, monthName: "" },
     leaveBalance: { VL_total: 7, VL_used: 0, VL_balance: 7, SL_total: 7, SL_used: 0, SL_balance: 7 },
@@ -31,15 +31,30 @@ const EmployeeHome = () => {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!userData?.user_Id) return;
+      const storedUser = JSON.parse(localStorage.getItem("userData"));
+      if (!storedUser?.user_Id) return;
+      
+      setUserData(storedUser);
+      const currentId = storedUser.user_Id;
+      console.log("[DEBUG] Fetching dashboard for ID:", currentId);
+      
+      setLoading(true);
       try {
         const [statsRes, notifRes] = await Promise.all([
-          fetchWithAuth(`/api/attendance/employee-dashboard/${userData.user_Id}`),
-          fetchWithAuth(`/api/notifications/unread-count/${userData.user_Id}`)
+          fetchWithAuth(`/api/attendance/employee-dashboard/${currentId}`),
+          fetchWithAuth(`/api/notifications/unread-count/${currentId}`)
         ]);
 
+        console.log("[DEBUG] Dashboard response status:", statsRes.status);
         if (statsRes.ok) {
-          setDashboardStats(await statsRes.json());
+          const data = await statsRes.json();
+          console.log("[DEBUG] Dashboard data received:", data);
+          setDashboardStats(data);
+        } else {
+          setToast({
+            message: "Failed to load dashboard statistics.",
+            type: "error"
+          });
         }
         if (notifRes.ok) {
           const notifData = await notifRes.json();
@@ -59,9 +74,17 @@ const EmployeeHome = () => {
 
     fetchDashboardData();
 
+    // Listen for storage changes (viewMode toggling or login/logout)
+    window.addEventListener("storage", fetchDashboardData);
     window.addEventListener("dataRefresh", fetchDashboardData);
-    return () => window.removeEventListener("dataRefresh", fetchDashboardData);
-  }, [userData?.user_Id]);
+    
+    return () => {
+      window.removeEventListener("storage", fetchDashboardData);
+      window.removeEventListener("dataRefresh", fetchDashboardData);
+    };
+  }, []);
+
+  if (!userData) return null;
 
   const att = dashboardStats.attendance;
   const balance = dashboardStats.leaveBalance;
@@ -349,7 +372,7 @@ const EmployeeHome = () => {
         </div>
 
         {/* Global styling for custom scrollbars */}
-        <style dangerouslySetContent={{__html: `
+        <style dangerouslySetInnerHTML={{__html: `
           .custom-scrollbar::-webkit-scrollbar {
             width: 8px;
           }

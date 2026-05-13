@@ -45,11 +45,13 @@ const Sidebar = () => {
   const isAdminRole = roleId === 1;
   const isSupervisorRole = roleId === 2;
   const isEmployeeRole = roleId === 3;
+  const isAccountantRole = roleId === 4;
 
   // View Mode Logic
   const viewMode = localStorage.getItem("viewMode") || "management";
-  const isManagementView = viewMode === "management" && (isAdminRole || isSupervisorRole);
+  const isManagementView = viewMode === "management" && (isAdminRole || isSupervisorRole || isAccountantRole);
   const isEmployeeView = isEmployeeRole || viewMode === "employee";
+  const isMaster = (isAdminRole || isAccountantRole) && viewMode === "management";
 
   const [showLogoutModal, setShowLogoutModal] = useState(false); // Modal state
   const [isCollapsed, setIsCollapsed] = useState(window.innerWidth <= 768);  const navigate = useNavigate();
@@ -273,7 +275,7 @@ useEffect(() => {
           )}
 
           {/* Admin only Pages */}
-          {isManagementView && isAdminRole && (
+          {isMaster && (
             <>
             <p className="title">{(isCollapsed && !isOverlayOpen) ? "..." : "SYSTEM LOGS"}</p>
             <NavLink to="/auditLogs" style={{ textDecoration: "none" }}>

@@ -148,9 +148,12 @@ const AdminRequests = () => {
     let matchesTab = false;
     if (activeTab === "pending") {
       if (userData?.user_RoleId === 1) { 
+        // Admins see everything pending, including Supervisor self-requests
         matchesTab = isPending || isRecommended;
-      } else { 
-        matchesTab = isPending;
+      } else if (userData?.user_RoleId === 2) {
+        // Supervisors see pending requests from Employees (Role 3) AND Admins (Role 1),
+        // but NOT their own requests (those go to Admin)
+        matchesTab = isPending && req.user_Id !== userData.user_Id && (req.user_RoleId === 3 || req.user_RoleId === 1);
       }
     } else { 
       if (userData?.user_RoleId === 1) {
@@ -162,9 +165,10 @@ const AdminRequests = () => {
 
     if (!matchesTab) return false;
 
-    if (userData?.user_RoleId === 2) { 
-      if (req.user_RoleId !== 3 && req.user_RoleId !== 1) return false;
-    }
+    // Remove the redundant Role 2 check here since we handled it in matchesTab
+    // if (userData?.user_RoleId === 2) { 
+    //   if (req.user_RoleId !== 3 && req.user_RoleId !== 1) return false;
+    // }
 
     if (activeTab === "completed") {
       const query = searchQuery.toLowerCase();
@@ -239,10 +243,9 @@ const AdminRequests = () => {
   };
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-slate-50">
-      <Sidebar>
+    <Sidebar>
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
+      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0 bg-slate-50 min-h-screen">
 
         {/* Header Section */}
         <div className="mb-6">
@@ -474,10 +477,8 @@ const AdminRequests = () => {
                       {(current.emp_reqStatusId === 1 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
                         <>
                           {current.user_Id === userData?.user_Id ? (
-                            <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-blue-100 text-blue-800">Self-Request</Badge>
-                          ) : (userData?.user_RoleId === 2 && current.user_RoleId === 1) ? (
-                            <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-purple-100 text-purple-800">Admin Review Required</Badge>
-                          ) : userData?.user_RoleId === 4 ? (
+                            <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-blue-100 text-blue-800">Your Self-Request</Badge>
+                          ) : (userData?.user_RoleId === 4) ? (
                              <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-slate-100 text-slate-500 italic">View Only</Badge>
                           ) : (
                             <div className="flex gap-2 w-full">
@@ -492,9 +493,14 @@ const AdminRequests = () => {
                         </>
                       )}
                       {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || current.emp_reqStatusId === 4) && (
-                        <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(current.emp_reqStatusId)}`}>
-                          {current.status}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(current.emp_reqStatusId)}`}>
+                            {current.status}
+                          </Badge>
+                          {current.emp_reqStatusId === 4 && userData?.user_RoleId === 2 && (
+                            <span className="text-[10px] font-bold text-blue-600 uppercase italic">Awaiting Admin Final Action</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -711,7 +717,7 @@ const AdminRequests = () => {
       </div>
       
       {/* Global styling for custom scrollbars to make the list look sleek */}
-      <style dangerouslySetContent={{__html: `
+      <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }
@@ -726,8 +732,7 @@ const AdminRequests = () => {
           background: #cbd5e1; 
         }
       `}} />
-      </Sidebar>
-    </div>
+    </Sidebar>
   );
 };
 

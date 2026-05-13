@@ -25,7 +25,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (allowedRoles) {
     const hasRoleAccess = allowedRoles.includes(userRole);
     
-    const isEmployeeMode = (userRole === 1 || userRole === 2) && viewMode === "employee";
+    const isEmployeeMode = (userRole === 1 || userRole === 2 || userRole === 4) && viewMode === "employee";
     const canAccessAsEmployee = isEmployeeMode && allowedRoles.includes(3);
 
     if (!hasRoleAccess && !canAccessAsEmployee) {

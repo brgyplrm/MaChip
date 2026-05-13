@@ -42,12 +42,16 @@ const Maxicare = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [employerShare, setEmployerShare] = useState(50);
+  const [initialSyncDone, setInitialSyncDone] = useState(false);
+  const [excludedDates, setExcludedDates] = useState([]);
   
   const [config, setConfig] = useState({
     totalGross: 0,
-    monthsToPay: 0,
+    monthsToPay: 12,
     cycleStartDate: "",
   });
+
+  const [cycleConfigs, setCycleConfigs] = useState({}); // Map of year -> { totalGross, monthsToPay }
 
   const [batchForm, setBatchForm] = useState({
     date: "",
@@ -65,6 +69,18 @@ const Maxicare = () => {
   const [editingCell, setEditingCell] = useState(null); 
   const [editValue, setEditValue] = useState("");
   const [syncingCell, setSyncingCell] = useState(null); 
+
+  // Helper to check if a date's period has any contribution data within a specific cycle
+  const hasContributionInCycle = (dateStr, cycleRange) => {
+    if (!cycleRange) return false;
+    const record = data.find(item => {
+      const itemDate = new Date(item.date);
+      return isInSamePeriod(item.date, dateStr) && 
+             itemDate >= cycleRange.start && 
+             itemDate <= cycleRange.deductionEnd;
+    });
+    return record && Object.values(record.values).some(v => v.amount > 0);
+  };
 
   const generateExpectedDates = (startDateStr, months) => {
     if (!startDateStr || !months) return [];
@@ -89,6 +105,130 @@ const Maxicare = () => {
     return dates;
   };
 
+  const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const currentCutoffDate = systemToday 
+    ? expectedDates.find(d => d >= formatDateLocal(systemToday))
+    : null;
+
+  // ── Unified Date Logic for Table (Renewal Period Based) ────────────────────
+  const getCycleRange = (year = selectedYear) => {
+    // Use cycle-specific start date if available, fallback to global config
+    const startDate = cycleConfigs[year]?.cycleStartDate || config.cycleStartDate;
+    if (!startDate) return null;
+    
+    const baseStart = new Date(startDate);
+    
+    // Extract month/day using UTC to avoid timezone shifts from YYYY-MM-DD strings
+    const startMonth = baseStart.getUTCMonth();
+    const startDay = baseStart.getUTCDate();
+    
+    // Create range anchored to the requested year
+    const start = new Date(year, startMonth, startDay, 0, 0, 0);
+    const end = new Date(start);
+    
+    // Use cycle-specific monthsToPay if available, otherwise fallback to current config
+    const months = cycleConfigs[year]?.monthsToPay || config.monthsToPay || 12;
+    end.setMonth(start.getMonth() + (parseInt(months) || 12));
+    
+    // deductionEnd: The last millisecond of the final month of the cycle
+    const deductionEnd = new Date(end);
+    deductionEnd.setMonth(deductionEnd.getMonth() + 1, 0); 
+    deductionEnd.setHours(23, 59, 59, 999);
+    
+    return { start, end, deductionEnd };
+  };
+
+  const cycle = getCycleRange();
+
+  // Generate a virtual template for the currently selected year to help with historical initialization
+  const virtualExpectedDates = () => {
+    if (!cycle) return [];
+    const startDate = cycleConfigs[selectedYear]?.cycleStartDate || config.cycleStartDate;
+    const months = cycleConfigs[selectedYear]?.monthsToPay || config.monthsToPay || 12;
+    
+    if (!startDate || !months) return [];
+    
+    const baseDate = new Date(startDate);
+    const virtualStart = `${selectedYear}-${String(baseDate.getUTCMonth() + 1).padStart(2, '0')}-${String(baseDate.getUTCDate()).padStart(2, '0')}`;
+    
+    return generateExpectedDates(virtualStart, months);
+  };
+
+  const currentVirtualDates = virtualExpectedDates();
+
+  const cycleData = data.filter(item => {
+    if (!cycle) return false;
+    const itemDate = new Date(item.date);
+    return itemDate >= cycle.start && itemDate <= cycle.deductionEnd;
+  });
+
+  const cycleHasAnyData = cycleData.some(item => Object.values(item.values).some(v => v.amount > 0));
+  
+  const isUnconfigured = !cycleConfigs[selectedYear];
+
+  const displayDates = [...new Set([
+    ...expectedDates,
+    ...currentVirtualDates,
+    ...data.map(d => d.date)
+  ])].filter(d => {
+    // 0. Filter out dates manually removed in this session
+    if (excludedDates.includes(d)) return false;
+
+    if (!cycle) return new Date(d).getFullYear() === selectedYear;
+    
+    // Normalize dDate for comparison
+    const dDate = new Date(d);
+    dDate.setHours(0, 0, 0, 0);
+    
+    // 1. Strict Boundary Check
+    const isInBroadRange = dDate >= cycle.start && dDate <= cycle.deductionEnd;
+    if (!isInBroadRange) return false;
+
+    // 2. Prevent "Start Date of Next Cycle" from appearing at the end of this cycle
+    const nextCycleStart = new Date(cycle.start);
+    const months = cycleConfigs[selectedYear]?.monthsToPay || config.monthsToPay || 12;
+    nextCycleStart.setMonth(nextCycleStart.getMonth() + parseInt(months));
+    nextCycleStart.setHours(0, 0, 0, 0);
+    
+    if (dDate.getTime() === nextCycleStart.getTime()) return false;
+
+    // 3. Smart Overlap Protection:
+    // If this date's period was already used/paid in the previous cycle, 
+    // hide it from this cycle to avoid double-listing.
+    const prevCycle = getCycleRange(selectedYear - 1);
+    if (prevCycle && hasContributionInCycle(d, prevCycle)) return false;
+
+    // 4. Logic: Show strict 12-month body, but only show extra tail-end dates if they have data
+    const isInStrictTerm = dDate >= cycle.start && dDate <= cycle.end;
+    const isInExtraZone = dDate > cycle.end && dDate <= cycle.deductionEnd;
+
+    if (isInStrictTerm) {
+      // In the main 12-month body, show everything (including empty slots)
+      return true;
+    }
+
+    if (isInExtraZone) {
+      // In the "Overtime" zone (e.g. Aug 15/31), only show if there's actually a contribution in THIS cycle
+      return hasContributionInCycle(d, cycle);
+    }
+    
+    return false;
+  }).sort();
+
+  const getCycleLabel = () => {
+    const months = cycleConfigs[selectedYear]?.monthsToPay || config.monthsToPay || 12;
+    const endYear = selectedYear + Math.max(1, Math.ceil(months / 12));
+    return `Cycle ${selectedYear}-${endYear}`;
+  };
+
+  const getRenewalPeriod = () => {
+    if (!cycle) return "Not Set";
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    return `${cycle.start.toLocaleDateString('en-PH', options)} TO ${cycle.end.toLocaleDateString('en-PH', options)}`.toUpperCase();
+  };
+  // ──────────────────────────────────────────────────────────────────────────
+
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -96,16 +236,46 @@ const Maxicare = () => {
       const settingsRes = await fetchWithAuth("/api/system/settings");
       const settingsData = await settingsRes.json();
       if (settingsRes.ok && settingsData) {
+        // Parse dates and configs from maxicareDates (which might be an array or an object)
+        let savedDates = [];
+        let configs = {};
+        
+        if (Array.isArray(settingsData.maxicareDates)) {
+          savedDates = settingsData.maxicareDates;
+        } else if (settingsData.maxicareDates && typeof settingsData.maxicareDates === 'object') {
+          savedDates = settingsData.maxicareDates.dates || [];
+          configs = settingsData.maxicareDates.configs || {};
+        }
+
+        setCycleConfigs(configs);
+
+        // Current config for the selected year
+        const currentYearConfig = configs[selectedYear] || {
+          totalGross: 0,
+          monthsToPay: 12,
+          cycleStartDate: settingsData.maxicareCycleStartDate || ""
+        };
+
         setConfig({
-          totalGross: settingsData.maxicareTotalGross,
-          monthsToPay: settingsData.maxicareMonthsToPay,
-          cycleStartDate: settingsData.maxicareCycleStartDate || "",
+          totalGross: currentYearConfig.totalGross,
+          monthsToPay: currentYearConfig.monthsToPay,
+          cycleStartDate: currentYearConfig.cycleStartDate || settingsData.maxicareCycleStartDate || "",
         });
 
-        if (settingsData.maxicareDates && settingsData.maxicareDates.length > 0) {
-          setExpectedDates(settingsData.maxicareDates);
-        } else if (settingsData.maxicareCycleStartDate) {
-          setExpectedDates(generateExpectedDates(settingsData.maxicareCycleStartDate, settingsData.maxicareMonthsToPay));
+        // Sync selectedYear with the loaded configuration's start year ONLY on first load
+        const initialDate = currentYearConfig.cycleStartDate || settingsData.maxicareCycleStartDate;
+        if (!initialSyncDone && initialDate) {
+          const startDate = new Date(initialDate);
+          if (!isNaN(startDate.getFullYear())) {
+            setSelectedYear(startDate.getFullYear());
+          }
+          setInitialSyncDone(true);
+        }
+
+        if (savedDates.length > 0) {
+          setExpectedDates(savedDates);
+        } else if (initialDate) {
+          setExpectedDates(generateExpectedDates(initialDate, currentYearConfig.monthsToPay || settingsData.maxicareMonthsToPay));
         }
       }
 
@@ -182,6 +352,51 @@ const Maxicare = () => {
     const updated = [...expectedDates];
     updated[index] = newDate;
     setExpectedDates(updated);
+  };
+
+  const removePeriod = (dateStr) => {
+    setExcludedDates(prev => [...prev, dateStr]);
+    setToast({ message: "Period removed from table. Save to persist changes.", type: "success" });
+  };
+
+  const clearYearTemplate = () => {
+    if (!cycle) {
+      const updated = expectedDates.filter(d => new Date(d).getFullYear() !== selectedYear);
+      setExpectedDates(updated);
+      setToast({ message: `Cleared template dates for ${selectedYear}.`, type: "success" });
+      return;
+    }
+    const updated = expectedDates.filter(d => {
+      const dDate = new Date(d);
+      return dDate < cycle.start || dDate > cycle.end;
+    });
+    setExpectedDates(updated);
+    setToast({ message: `Cleared template dates for cycle starting ${selectedYear}. History remains intact.`, type: "success" });
+  };
+
+  const addPeriod = () => {
+    const lastDate = displayDates.length > 0 
+      ? displayDates[displayDates.length - 1] 
+      : (cycle ? formatDateLocal(cycle.start) : `${selectedYear}-01-01`);
+    
+    const next = new Date(lastDate);
+    // Simple logic: if last was 15th, go to end of month. If last was end, go to 15th of next.
+    if (next.getDate() <= 15) {
+      next.setMonth(next.getMonth() + 1, 0); // Last day of current month
+    } else {
+      next.setMonth(next.getMonth() + 1, 15); // 15th of next month
+    }
+    
+    const nextStr = formatDateLocal(next);
+    // Ensure we stay within cycle if one exists
+    if (cycle && new Date(nextStr) > cycle.end) {
+      setToast({ message: "Cannot add period outside of renewal cycle.", type: "error" });
+      return;
+    }
+
+    if (!expectedDates.includes(nextStr)) {
+      setExpectedDates(prev => [...prev, nextStr].sort());
+    }
   };
 
   const handleCellDoubleClick = (date, empKey, currentVal) => {
@@ -290,8 +505,13 @@ const Maxicare = () => {
     let totalPaid = 0;
 
     data.forEach(item => {
-      const recordYear = new Date(item.date).getFullYear();
-      if (recordYear === parseInt(selectedYear)) {
+      const dDate = new Date(item.date);
+      // Use deductionEnd to capture tail-end payments in stats
+      const isInScope = cycle 
+        ? (dDate >= cycle.start && dDate <= cycle.deductionEnd)
+        : (dDate.getFullYear() === parseInt(selectedYear));
+
+      if (isInScope) {
         Object.keys(item.values).forEach(empKey => {
           const amt = item.values[empKey].amount;
           if (amt > 0) {
@@ -314,14 +534,33 @@ const Maxicare = () => {
   const saveSettings = async () => {
     try {
       setLoading(true);
+
+      // Merge existing expectedDates with virtual ones from current session, then remove excluded ones
+      const finalDates = [...new Set([...expectedDates, ...virtualExpectedDates()])]
+        .filter(d => !excludedDates.includes(d))
+        .sort();
+
+      // Update cycleConfigs for the selected year
+      const updatedConfigs = {
+        ...cycleConfigs,
+        [selectedYear]: {
+          totalGross: config.totalGross,
+          monthsToPay: config.monthsToPay,
+          cycleStartDate: config.cycleStartDate
+        }
+      };
+
       const settingsRes = await fetchWithAuth("/api/system/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          maxicareTotalGross: config.totalGross,
-          maxicareMonthsToPay: config.monthsToPay,
-          maxicareCycleStartDate: config.cycleStartDate,
-          maxicareDates: expectedDates
+          maxicareTotalGross: config.totalGross, // Update global as fallback
+          maxicareMonthsToPay: config.monthsToPay, // Update global as fallback
+          maxicareCycleStartDate: config.cycleStartDate, // Update global as fallback
+          maxicareDates: {
+            dates: finalDates,
+            configs: updatedConfigs
+          }
         })
       });
 
@@ -339,6 +578,7 @@ const Maxicare = () => {
       if (settingsRes.ok && userRes.ok) {
         setIsEditing(false);
         setIsEditingTable(false);
+        setExcludedDates([]); // Clear session exclusions after successful save
         fetchData();
         setToast({ message: "Maxicare configuration and employee deductions saved!", type: "success" });
       }
@@ -391,29 +631,76 @@ const Maxicare = () => {
     fetchData();
   }, []);
 
+  // Sync local config when selectedYear changes (user switching cycles)
+  useEffect(() => {
+    if (initialSyncDone) {
+      if (cycleConfigs[selectedYear]) {
+        const c = cycleConfigs[selectedYear];
+        setConfig(prev => ({
+          ...prev,
+          totalGross: c.totalGross,
+          monthsToPay: c.monthsToPay,
+          cycleStartDate: c.cycleStartDate || prev.cycleStartDate
+        }));
+        // If there's a saved config, we should have already loaded the dates in fetchData
+        // But if they aren't there, we'll let the virtual template handle it
+      } else {
+        // Reset only the Premium (Total Gross) to 0 for unconfigured cycle
+        // Preserve Renewal Term (monthsToPay) and Employer Share (separate state)
+        setConfig(prev => ({
+          ...prev,
+          totalGross: 0,
+          // monthsToPay is kept as is (e.g. 12)
+          // cycleStartDate is kept as baseline
+        }));
+        
+        // Clear manual expected dates so the Virtual Template takes over for the new year
+        setExpectedDates([]);
+        setExcludedDates([]);
+      }
+    }
+  }, [selectedYear, initialSyncDone, cycleConfigs]);
+
   const activeSubscribers = stats.subscribers;
   const annualPremiumTotal = config.totalGross * activeSubscribers;
   const employerShareAmount = config.totalGross * (employerShare / 100);
   const employeeShareAmount = config.totalGross * ((100 - employerShare) / 100);
   const deductionCutoff = config.monthsToPay > 0 ? employeeShareAmount / (config.monthsToPay * 2) : 0;
 
-  const getRenewalPeriod = () => {
-    if (!config.cycleStartDate) return "Not Set";
-    const start = new Date(config.cycleStartDate);
-    const end = new Date(start);
-    end.setMonth(start.getMonth() + (config.monthsToPay || 12));
-    end.setDate(end.getDate() - 1);
-    
-    const options = { month: 'short', day: 'numeric', year: 'numeric' };
-    return `${start.toLocaleDateString('en-PH', options)} - ${end.toLocaleDateString('en-PH', options)}`;
-  };
+  // ── Auto-generate expected dates when config changes ──────────────────────
+  useEffect(() => {
+    if (config.cycleStartDate && config.monthsToPay && (isEditing || showCalculator)) {
+      const newDates = generateExpectedDates(config.cycleStartDate, config.monthsToPay);
+      // Only update if they actually changed to avoid unnecessary re-renders
+      if (JSON.stringify(newDates) !== JSON.stringify(expectedDates)) {
+        setExpectedDates(newDates);
+      }
+    }
+  }, [config.cycleStartDate, config.monthsToPay, isEditing, showCalculator]);
+  // ──────────────────────────────────────────────────────────────────────────
 
   const handleConfigChange = (e) => {
     const { name, value, type } = e.target;
+    
+    let sanitizedValue = value;
+    if (name === 'totalGross') {
+      sanitizedValue = value.replace(/,/g, '');
+      if (isNaN(sanitizedValue) && sanitizedValue !== '') return;
+      sanitizedValue = sanitizedValue === '' ? 0 : parseFloat(sanitizedValue);
+    } else if (type === 'number') {
+      sanitizedValue = parseFloat(value) || 0;
+    }
+
     setConfig(prev => ({ 
       ...prev, 
-      [name]: type === 'number' ? parseFloat(value) || 0 : value 
+      [name]: sanitizedValue
     }));
+    
+    // Sync selectedYear if the cycle start date is changed
+    if (name === 'cycleStartDate' && value) {
+      const year = new Date(value).getFullYear();
+      if (!isNaN(year)) setSelectedYear(year);
+    }
   };
 
   const handleFileChange = (e) => {
@@ -428,13 +715,26 @@ const Maxicare = () => {
 };
 
   const downloadTemplate = () => {
-    const csvContent = "Date,EmployeeID,EmployeeName,Amount\n2025-10-15,MACJ-001,Cruzat Jenny,487.72\n2025-10-15,MACJ-002,Monis Gracel,487.72";
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const templateId = "MAXICARE_HMO_TEMPLATE";
+    const headers = [templateId, ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
+    const headerLine = headers.join(",");
+
+    const rows = expectedDates.map(date => {
+      const emptyValues = employeeList.map(() => "").join(",");
+      return `${date},${emptyValues}`;
+    });
+
+    const csvContent = "\uFEFF" + [headerLine, ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'maxicare_template.csv';
+    const filename = cycle 
+      ? `maxicare_hmo_matrix_${cycle.start.getFullYear()}-${cycle.end.getFullYear()}.csv`
+      : `maxicare_hmo_matrix_${selectedYear}.csv`;
+    a.download = filename;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const handleUpload = () => {
@@ -442,46 +742,79 @@ const Maxicare = () => {
     setLoading(true);
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
-        const text = e.target.result;
+        const rawText = e.target.result;
+        const text = rawText.replace(/^\uFEFF/, '');
         const lines = text.split("\n").filter(line => line.trim() !== "");
-        
-        const rawData = lines.slice(1).map(line => {
-          const values = line.split(",");
-          return {
-            date: values[0]?.trim(),
-            id: values[1]?.trim(),
-            name: values[2]?.trim(),
-            amount: parseFloat(values[3]?.trim() || 0)
-          };
-        }).filter(item => item.id && item.date);
+        if (lines.length < 2) throw new Error("File is empty or missing data.");
 
-        const uniqueDates = [...new Set(rawData.map(item => item.date))].sort();
-        const uniqueEmps = [];
-        const empMap = new Map();
-        rawData.forEach(item => {
-          if (!empMap.has(item.id)) {
-            empMap.set(item.id, item.name);
-            uniqueEmps.push({ id: item.id, name: item.name, key: item.id.toLowerCase().replace(/\s/g, '') });
-          }
-        });
+        const headers = lines[0].split(",");
+        const templateId = headers[0]?.trim();
 
-        const newData = uniqueDates.map(date => {
-          const values = {};
-          rawData.filter(item => item.date === date).forEach(item => {
-            const emp = uniqueEmps.find(e => e.id === item.id);
-            if (emp) values[emp.key] = { amount: item.amount, status: 'paid' };
+        if (templateId !== "MAXICARE_HMO_TEMPLATE") {
+          setToast({ 
+            message: `Invalid template. You are trying to upload a file for "${templateId.replace(/_/g, ' ')}" into the Maxicare HMO section. Please download the latest template.`, 
+            type: "error" 
           });
-          return { date, values };
+          setLoading(false);
+          return;
+        }
+
+        const empMappings = []; 
+
+        for (let i = 1; i < headers.length; i++) {
+          const header = headers[i];
+          const match = header.match(/#MACJ-(\d+)/i);
+          if (match) {
+            empMappings.push({ colIndex: i, user_Id: parseInt(match[1]) });
+          }
+        }
+
+        const updates = [];
+        for (let i = 1; i < lines.length; i++) {
+          const columns = lines[i].split(",");
+          const date = columns[0]?.trim();
+          if (!date) continue;
+
+          empMappings.forEach(mapping => {
+            const amount = parseFloat(columns[mapping.colIndex]?.trim() || 0);
+            const isValidDate = !isNaN(new Date(date).getTime());
+
+            if (amount > 0 && isValidDate) {
+              updates.push({
+                date,
+                user_Id: mapping.user_Id,
+                amount
+              });
+            }
+          });
+        }
+
+        if (updates.length === 0) {
+          setToast({ message: "No non-zero amounts found in CSV", type: "error" });
+          setLoading(false);
+          return;
+        }
+
+        const res = await fetchWithAuth("/api/payroll/maxicare/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updates })
         });
 
-        setEmployeeList(uniqueEmps);
-        setData(newData);
-        setLoading(false);
-        setToast({ message: "CSV Processed Successfully", type: "success" });
+        if (res.ok) {
+          setToast({ message: `Successfully synced ${updates.length} records!`, type: "success" });
+          setShowBatchModal(false);
+          fetchData();
+          setFile(null);
+        } else {
+          const err = await res.json();
+          setToast({ message: "Sync error: " + (err.error || "Unknown"), type: "error" });
+        }
       } catch (err) {
         setToast({ message: "Error parsing CSV. Please ensure it follows the template.", type: "error" });
+      } finally {
         setLoading(false);
       }
     };
@@ -583,12 +916,6 @@ const Maxicare = () => {
     }));
   };
 
-  const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-  const currentCutoffDate = systemToday 
-    ? expectedDates.find(d => d >= formatDateLocal(systemToday))
-    : null;
-
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Dialog open={showCalculator} onOpenChange={setShowCalculator}>
@@ -601,11 +928,20 @@ const Maxicare = () => {
             employerShare={employerShare}
             setEmployerShare={setEmployerShare}
             cycleStartDate={config.cycleStartDate}
-            setCycleStartDate={(date) => setConfig(prev => ({ ...prev, cycleStartDate: date }))}
+            setCycleStartDate={(date) => {
+              setConfig(prev => ({ ...prev, cycleStartDate: date }));
+              if (date) {
+                const year = new Date(date).getFullYear();
+                if (!isNaN(year)) setSelectedYear(year);
+              }
+            }}
           />
           <div className="flex justify-center pb-6">
             <button 
-              onClick={() => setShowCalculator(false)}
+              onClick={async () => {
+                await saveSettings();
+                setShowCalculator(false);
+              }}
               className="bg-[#2A174E] text-white px-8 py-3 rounded-lg font-bold hover:bg-[#1a0e30] transition-colors shadow-lg"
             >
               Continue to Maxicare Management
@@ -739,15 +1075,20 @@ const Maxicare = () => {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <FilterListIcon className="text-slate-400 h-5 w-5" />
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-tight">Policy Cycle</span>
             <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
-              <SelectTrigger className="w-[160px] h-9 bg-white font-bold text-slate-700">
-                <SelectValue placeholder="Select Year" />
+              <SelectTrigger className="w-[200px] h-9 bg-white font-bold text-slate-700">
+                <SelectValue placeholder="Select Cycle" />
               </SelectTrigger>
               <SelectContent>
-                {Array.from({ length: 21 }, (_, i) => 2020 + i).map(year => (
-                  <SelectItem key={year} value={year.toString()}>Fiscal Year {year}</SelectItem>
-                ))}
+                {Array.from({ length: 21 }, (_, i) => 2020 + i).map(year => {
+                  const endYear = year + Math.max(1, Math.ceil((config.monthsToPay || 12) / 12));
+                  return (
+                    <SelectItem key={year} value={year.toString()}>
+                      Cycle {year} - {endYear}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -763,9 +1104,9 @@ const Maxicare = () => {
                 <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Total Gross Premium</p>
                 {isEditing ? (
                   <Input 
-                    type="number" 
+                    type="text" 
                     name="totalGross" 
-                    value={config.totalGross} 
+                    value={config.totalGross?.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} 
                     onChange={handleConfigChange}
                     autoFocus
                     className="text-3xl font-extrabold text-slate-900 tracking-tight w-full bg-slate-50 border border-slate-300 rounded p-1 mt-1 h-auto"
@@ -774,9 +1115,11 @@ const Maxicare = () => {
                   <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(config.totalGross)}</p>
                 )}
               </div>
-              <div className="text-right bg-blue-50 px-3 py-1.5 rounded-md border border-blue-100 flex items-center gap-1">
-                <SecurityIcon className="text-blue-600 !text-sm" />
-                <p className="text-sm font-semibold text-blue-700">Active Policy</p>
+              <div className={`text-right px-3 py-1.5 rounded-md border flex items-center gap-1 ${isUnconfigured ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
+                <SecurityIcon className={isUnconfigured ? 'text-amber-600 !text-sm' : 'text-blue-600 !text-sm'} />
+                <p className={`text-sm font-semibold ${isUnconfigured ? 'text-amber-700' : 'text-blue-700'}`}>
+                  {isUnconfigured ? 'Plan Preview' : 'Active Policy'}
+                </p>
               </div>
             </div>
             
@@ -812,7 +1155,7 @@ const Maxicare = () => {
             </div>
             <p className="text-5xl font-extrabold text-slate-900">{activeSubscribers}</p>
             <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mt-2">Active Subscribers</p>
-            <p className="text-xs text-slate-400 mt-1">({selectedYear} Cohort)</p>
+            <p className="text-xs text-slate-400 mt-1">({getCycleLabel()})</p>
           </div>
 
           {/* Domain C: Amortization Details */}
@@ -868,7 +1211,7 @@ const Maxicare = () => {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <TrendingUpIcon className="text-slate-400 !text-lg" />
-                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Year-to-Date Tracking ({selectedYear})</h2>
+                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Cycle Tracking ({getCycleLabel()})</h2>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -887,14 +1230,17 @@ const Maxicare = () => {
 
         {/* Matrix Table Section */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4 mt-8">
-          <h3 className="text-xl font-bold text-[#2A174E]">Employee Deduction History ({selectedYear})</h3>
+          <h3 className="text-xl font-bold text-[#2A174E]">Employee Deduction History ({getCycleLabel()})</h3>
           <div className="flex flex-wrap gap-2">
             {isAdmin && (
               <>
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => setShowCalculator(true)}
+                  onClick={() => {
+                    setIsEditing(true);
+                    setShowCalculator(true);
+                  }}
                   className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50"
                   disabled={loading}
                 >
@@ -911,11 +1257,39 @@ const Maxicare = () => {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => isEditingTable ? saveSettings() : setIsEditingTable(true)}
+                  onClick={() => {
+                    if (isEditingTable) {
+                      saveSettings();
+                    } else {
+                      setIsEditingTable(true);
+                      setIsEditing(true);
+                    }
+                  }}
                   className={`${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
                 >
                   {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Table</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Table</>}
                 </Button>
+
+                {isEditingTable && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={addPeriod}
+                      className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                    >
+                      Add Period
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={clearYearTemplate}
+                      className="border-rose-600 text-rose-600 hover:bg-rose-50"
+                    >
+                      Empty Months
+                    </Button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -928,7 +1302,7 @@ const Maxicare = () => {
                 <tr>
                   <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-[#2A174E] p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                     <div className="flex flex-col leading-tight">
-                      <span className="text-[9px] font-black uppercase opacity-90">{selectedYear} Year</span>
+                      <span className="text-[9px] font-black uppercase opacity-90">{getCycleLabel()}</span>
                       <span className="text-xs text-white font-bold">MONTHS / DATE</span>
                     </div>
                   </th>
@@ -956,27 +1330,38 @@ const Maxicare = () => {
                       <Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
                     </td>
                   </tr>
-                ) : expectedDates.length > 0 ? (
+                ) : displayDates.length > 0 ? (
                   <>
-                    {expectedDates.map((dateStr, i) => {
+                    {displayDates.map((dateStr, i) => {
                       const dateObj = new Date(dateStr);
-                      const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'long' });
+                      const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'short' });
                       const dayLabel = dateObj.getDate();
                       const isCurrentRow = dateStr === currentCutoffDate;
                       
                       return (
                         <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
                           <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-[#2A174E] p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                            {isEditingTable ? (
+                            {isEditingTable && expectedDates.includes(dateStr) ? (
                               <Input 
                                 type="date" 
                                 value={dateStr}
-                                onChange={(e) => handleHeaderChange(i, e.target.value)}
+                                onChange={(e) => handleHeaderChange(expectedDates.indexOf(dateStr), e.target.value)}
                                 className="h-8 text-xs font-bold text-[#2A174E] focus-visible:ring-blue-500"
                               />
                             ) : (
                               <div className="flex flex-col">
-                                <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel}</span>
+                                <div className="flex justify-between items-start">
+                                  <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel} ({dateObj.getFullYear()})</span>
+                                  {isEditingTable && (
+                                    <button 
+                                      onClick={() => removePeriod(dateStr)}
+                                      className="text-rose-500 hover:text-rose-700 p-0.5 -mt-1"
+                                      title="Remove this row"
+                                    >
+                                      <DeleteIcon className="!text-sm" />
+                                    </button>
+                                  )}
+                                </div>
                                 <span className="text-[10px] font-semibold text-slate-500">{dayLabel}</span>
                                 {isCurrentRow && <span className="bg-yellow-400 text-[#2A174E] text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
                               </div>
@@ -999,13 +1384,13 @@ const Maxicare = () => {
                               } else if (record.amount === 0) {
                                 amount = 0;
                                 status = 'removed';
-                              } else {
+                              } else if (!isUnconfigured) {
                                 amount = userRate;
                                 status = 'estimated';
                                 isProjection = true;
                               }
                             } else {
-                              if (dateStr >= todayStr) {
+                              if (!isUnconfigured && dateStr >= todayStr) {
                                 amount = userRate;
                                 status = 'estimated';
                                 isProjection = true;
@@ -1064,23 +1449,41 @@ const Maxicare = () => {
                   </>
                 ) : (
                   <tr>
-                    <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
-                      No periods defined.
+                    <td colSpan={employeeList.length + 1} className="h-64 text-center p-12">
+                      <div className="flex flex-col items-center justify-center space-y-4">
+                        <div className="bg-slate-100 p-4 rounded-full">
+                           <EventIcon className="h-8 w-8 text-slate-400" />
+                        </div>
+                        <div className="max-w-md">
+                          <p className="text-slate-800 font-bold text-lg">No configuration found for {getCycleLabel()}</p>
+                          <p className="text-slate-500 text-sm mt-1">
+                            This renewal cycle has no planned periods or deduction history. You can initialize it using the 
+                            <span className="font-bold text-[#2A174E]"> Edit Config</span> button above, or manually add periods by clicking 
+                            <span className="font-bold text-[#2A174E]"> Edit Table</span>.
+                          </p>
+                        </div>
+                        <Button 
+                          onClick={() => setShowCalculator(true)}
+                          className="bg-[#2A174E] text-white hover:bg-[#1a0e30]"
+                        >
+                          Initialize Cycle
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 )}
               </tbody>
 
               {/* Footer Rows */}
-              {expectedDates.length > 0 && !loading && !error && (
+              {displayDates.length > 0 && !loading && !error && (
                 <tfoot className="sticky bottom-0 z-[50] shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
                   {/* Subtotal Row */}
                   <tr className="bg-slate-100 border-b border-slate-300">
                     <td className="sticky left-0 z-[60] bg-slate-100 border-r-2 border-t-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                      <span className="text-[11px] font-black tracking-wider text-[#2A174E]">SUBTOTAL</span>
+                      <span className="text-[11px] font-black tracking-wider text-[#2A174E]">CYCLE TOTAL</span>
                     </td>
                     {employeeList.map((emp) => {
-                      const historicalDates = currentCutoffDate ? expectedDates.filter(d => d < currentCutoffDate) : expectedDates;
+                      const historicalDates = displayDates.filter(d => !currentCutoffDate || d < currentCutoffDate);
                       const empSubtotal = historicalDates.reduce((acc, dateStr) => {
                         const period = data.find(d => isInSamePeriod(d.date, dateStr));
                         const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
@@ -1100,7 +1503,7 @@ const Maxicare = () => {
                       <span className="text-[11px] font-black tracking-wider text-[#2A174E]">BALANCE</span>
                     </td>
                     {employeeList.map((emp) => {
-                      const historicalDates = currentCutoffDate ? expectedDates.filter(d => d < currentCutoffDate) : expectedDates;
+                      const historicalDates = displayDates.filter(d => !currentCutoffDate || d < currentCutoffDate);
                       const empSubtotal = historicalDates.reduce((acc, dateStr) => {
                         const period = data.find(d => isInSamePeriod(d.date, dateStr));
                         const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
@@ -1108,6 +1511,8 @@ const Maxicare = () => {
                       }, 0);
                       
                       const isSubscriber = (parseFloat(emp.expectedDeduction) || 0) > 0 || empSubtotal > 0;
+                      // Balance is usually against the whole cycle, but here we show it per year view.
+                      // For simplicity, we'll keep the logic consistent with current view.
                       const balance = isSubscriber ? (employeeShareAmount - empSubtotal) : 0;
 
                       return (

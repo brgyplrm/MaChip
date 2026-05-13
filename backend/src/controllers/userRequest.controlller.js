@@ -128,22 +128,14 @@ exports.UserCreateRequest = async (req, res) => {
       .json({ error: "User Id and Request Type are required" });
   }
 
+  const t = await sequelize.transaction();
+
   try {
-    // --- ADMIN SELF-REQUEST GUARD ---
-    const requesterRoleCheck = await sequelize.query(
-      `SELECT "user_RoleId" FROM "User" WHERE "user_Id" = :userId`,
-      { replacements: { userId: finalUserId }, type: QueryTypes.SELECT }
-    );
-    
-    if (requesterRoleCheck.length > 0 && Number(requesterRoleCheck[0].user_RoleId) === 1) {
-      return res.status(403).json({ error: "Admins are not allowed to file requests." });
-    }
-    // --------------------------------
-    const now = await getSystemTime();
-    const nowStr = formatForSQL(now);
+  const now = await getSystemTime();    const nowStr = formatForSQL(now);
     const todayStr = now.toISOString().split("T")[0];
 
     const finalRemarks = remarks || reason || purpose || null;
+    const finalReason = reason || purpose || remarks || "No reason provided";
 
     // --- PAYROLL PERIOD BLOCK CHECK ---
     let periodCheckSql = "";
@@ -167,9 +159,11 @@ exports.UserCreateRequest = async (req, res) => {
     if (periodCheckSql) {
       const closedPeriod = await sequelize.query(periodCheckSql, { 
         replacements: periodReplacements, 
-        type: QueryTypes.SELECT 
+        type: QueryTypes.SELECT,
+        transaction: t
       });
       if (closedPeriod.length > 0) {
+        await t.rollback();
         return res.status(400).json({ 
           error: `This is a past period (${closedPeriod[0].label}). Requests can no longer be filed for finalized or processing payrolls.` 
         });
@@ -189,11 +183,13 @@ exports.UserCreateRequest = async (req, res) => {
               OR "date" = (:endDate::date + INTERVAL '1 day')`,
           { 
             replacements: { startDate: leaveDateStart, endDate: leaveDateEnd }, 
-            type: QueryTypes.SELECT 
+            type: QueryTypes.SELECT,
+            transaction: t
           }
         );
 
         if (holidayCheck.length > 0) {
+          await t.rollback();
           return res.status(400).json({ 
             error: "Filing leave before or after a holiday is strictly prohibited (Sandwich Rule)." 
           });
@@ -210,6 +206,7 @@ exports.UserCreateRequest = async (req, res) => {
     if ([3, 4, 6, 7].includes(finalReqTypeId)) {
       const checkDays = finalReqTypeId === 7 ? 0.5 : finalNoDays;
       if (!StartDate && !req.body.DateOfLeave) {
+        await t.rollback();
         return res.status(400).json({ error: "Leave date is required" });
       }
 
@@ -218,6 +215,7 @@ exports.UserCreateRequest = async (req, res) => {
         {
           replacements: { userId: finalUserId, year: currentYear },
           type: QueryTypes.SELECT,
+          transaction: t
         },
       );
 
@@ -228,6 +226,7 @@ exports.UserCreateRequest = async (req, res) => {
           {
             replacements: { userId: finalUserId, year: currentYear },
             type: QueryTypes.INSERT,
+            transaction: t
           },
         );
         balanceResult = await sequelize.query(
@@ -235,6 +234,7 @@ exports.UserCreateRequest = async (req, res) => {
           {
             replacements: { userId: finalUserId, year: currentYear },
             type: QueryTypes.SELECT,
+            transaction: t
           },
         );
       }
@@ -263,6 +263,7 @@ exports.UserCreateRequest = async (req, res) => {
         const cutoff = new Date(leaveDate + "T06:30:00");
         
         if (filingTime > cutoff) {
+          await t.rollback();
           return res.status(400).json({ 
             error: "Emergency Leave must be filed at least 2 hours before work hours (by 6:30 AM)." 
           });
@@ -295,10 +296,12 @@ exports.UserCreateRequest = async (req, res) => {
         {
           replacements: { userId: finalUserId, StartDate, EndDate },
           type: QueryTypes.SELECT,
+          transaction: t
         },
       );
 
       if (overlapCheck.length > 0) {
+        await t.rollback();
         return res.status(400).json({ 
           error: "You already have a pending or approved leave request for these dates." 
         });
@@ -322,6 +325,7 @@ exports.UserCreateRequest = async (req, res) => {
           now: nowStr,
         },
         type: QueryTypes.INSERT,
+        transaction: t,
       },
     );
 
@@ -333,6 +337,7 @@ exports.UserCreateRequest = async (req, res) => {
     // Overtime = 1
     if (finalReqTypeId === 1) {
       if (!finalOTDate || !HrFrom || !HrTo || !Total_Hrs || !reason) {
+        await t.rollback();
         return res.status(400).json({ error: "Overtime fields are required" });
       }
       const otResult = await sequelize.query(
@@ -348,6 +353,7 @@ exports.UserCreateRequest = async (req, res) => {
             reason,
           },
           type: QueryTypes.INSERT,
+          transaction: t,
         },
       );
 
@@ -356,6 +362,7 @@ exports.UserCreateRequest = async (req, res) => {
       // Onfield Work
     } else if (finalReqTypeId === 2) {
       if (!finalDateOnField || !finalNoDays || !NoHrs) {
+        await t.rollback();
         return res
           .status(400)
           .json({ error: "Onfield Work fields are required" });
@@ -363,8 +370,8 @@ exports.UserCreateRequest = async (req, res) => {
 
       const onfieldResult = await sequelize.query(
         `INSERT INTO "Onfield_Work"
-        ("emp_reqId", "user_Id", "DateonField", "NoDays", "NoHrs", "destination", "proof_File")
-        VALUES (:emp_reqId, :userId, :DateonField, :NoDays, :NoHrs, :destination, :proof_File)
+        ("emp_reqId", "user_Id", "DateonField", "NoDays", "NoHrs", "destination", "reason", "proof_File")
+        VALUES (:emp_reqId, :userId, :DateonField, :NoDays, :NoHrs, :destination, :reason, :proof_File)
         RETURNING *`,
         {
           replacements: {
@@ -374,36 +381,21 @@ exports.UserCreateRequest = async (req, res) => {
             NoDays: finalNoDays,
             NoHrs: parseFloat(NoHrs),
             destination: destination || null,
+            reason: finalReason,
             proof_File: proof_File,
           },
           type: QueryTypes.INSERT,
+          transaction: t,
         },
       );
       childData = onfieldResult[0][0];
-
-      // Email for Onfield Work if auto-approved (Type 2)
-      if (finalStatus === 2) {
-        const userInfo = await sequelize.query(
-          `SELECT "user_Email", "user_FirstName", "user_LastName" FROM "User" WHERE "user_Id" = :userId`,
-          { replacements: { userId: finalUserId }, type: QueryTypes.SELECT }
-        );
-        if (userInfo.length > 0 && userInfo[0].user_Email) {
-          sendOnfieldEmail({
-            email: userInfo[0].user_Email,
-            name: `${userInfo[0].user_FirstName} ${userInfo[0].user_LastName}`,
-            date: finalDateOnField,
-            destination: destination || "N/A",
-            noHrs: parseFloat(NoHrs)
-          }).catch(err => console.error("[ONFIELD EMAIL FAILED]:", err.message));
-        }
-      }
 
       // Leave Request (Vacation Leave)
     } else if (finalReqTypeId === 3) {
       const vlResult = await sequelize.query(
         `INSERT INTO "Vacation_Leave"
-        ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "purpose", "WithPayID")
-        VALUES (:emp_reqId, :userId, :StartDate, :EndDate, :NoDays, :purpose, :WithPayID)
+        ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "reason", "WithPayID")
+        VALUES (:emp_reqId, :userId, :StartDate, :EndDate, :NoDays, :reason, :WithPayID)
         RETURNING *`,
         {
           replacements: {
@@ -412,37 +404,25 @@ exports.UserCreateRequest = async (req, res) => {
             StartDate,
             EndDate,
             NoDays: finalNoDays,
-            purpose: purpose || reason || null,
+            reason: finalReason,
             WithPayID: 2, // Default: Leave without Pay
           },
           type: QueryTypes.INSERT,
+          transaction: t
         },
       );
       childData = vlResult[0][0];
 
-      // Update Leave Balance for VL
-      await sequelize.query(
-        `UPDATE "Leave_Balance"
-         SET "VL_balance" = GREATEST(0, "VL_balance" - :NoDays),
-             "VL_used" = "VL_used" + :NoDays
-         WHERE "user_Id" = :userId AND "year" = :year`,
-        {
-          replacements: {
-            NoDays: finalNoDays,
-            userId: finalUserId,
-            year: currentYear,
-          },
-          type: QueryTypes.UPDATE,
-        },
-      );
+      // REMOVED: Immediate deduction of Leave Balance for VL. 
+      // Deduction now happens upon approval in UpdateStatusRequest.
       
     }
     // Sick Leave
     else if (finalReqTypeId === 4) {
       const slResult = await sequelize.query(
         `INSERT INTO "Sick_Leave"
-        ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "proof_File", "WithPayID")
-        VALUES (:emp_reqId, :userId, :StartDate, :EndDate, :NoDays, :proof_File, :WithPayID)
+        ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "proof_File", "reason", "WithPayID")
+        VALUES (:emp_reqId, :userId, :StartDate, :EndDate, :NoDays, :proof_File, :reason, :WithPayID)
         RETURNING *`,
         {
           replacements: {
@@ -452,32 +432,21 @@ exports.UserCreateRequest = async (req, res) => {
             EndDate,
             NoDays: finalNoDays,
             proof_File: proof_File,
+            reason: finalReason,
             WithPayID: 2, // Default: Leave without Pay
           },
           type: QueryTypes.INSERT,
+          transaction: t
         },
       );
       childData = slResult[0][0];
 
-      // Update Leave Balance for SL
-      await sequelize.query(
-        `UPDATE "Leave_Balance"
-         SET "SL_balance" = GREATEST(0, "SL_balance" - :NoDays),
-             "SL_used" = "SL_used" + :NoDays
-         WHERE "user_Id" = :userId AND "year" = :year`,
-        {
-          replacements: {
-            NoDays: finalNoDays,
-            userId: finalUserId,
-            year: currentYear,
-          },
-          type: QueryTypes.UPDATE,
-        },
-      );
+      // REMOVED: Immediate deduction of Leave Balance for SL.
+      // Deduction now happens upon approval in UpdateStatusRequest.
     }
     // Emergency Leave (Type 6)
     else if (finalReqTypeId === 6) {
-      const { DateOfLeave, reason } = req.body;
+      const { DateOfLeave, reason: reqReason } = req.body;
       const elResult = await sequelize.query(
         `INSERT INTO "Emergency_Leave"
         ("emp_reqId", "user_Id", "DateOfLeave", "NoDays", "reason", "WithPayID")
@@ -489,40 +458,17 @@ exports.UserCreateRequest = async (req, res) => {
             userId: finalUserId,
             DateOfLeave,
             NoDays: finalNoDays,
-            reason: reason || finalRemarks || "No reason provided",
+            reason: reqReason || finalReason,
             WithPayID: 1, // EL is usually paid if balance exists
           },
           type: QueryTypes.INSERT,
+          transaction: t
         },
       );
       childData = elResult[0][0];
 
-      // Update Balance: Deduct from SL first, then VL
-      const balanceRes = await sequelize.query(
-        `SELECT "SL_balance", "VL_balance" FROM "Leave_Balance" WHERE "user_Id" = :userId AND "year" = :year`,
-        { replacements: { userId: finalUserId, year: currentYear }, type: QueryTypes.SELECT }
-      );
-      
-      let slDeduct = 0;
-      let vlDeduct = 0;
-      const slBal = parseFloat(balanceRes[0].SL_balance);
-      
-      if (slBal >= finalNoDays) {
-        slDeduct = finalNoDays;
-      } else {
-        slDeduct = slBal;
-        vlDeduct = finalNoDays - slBal;
-      }
-
-      await sequelize.query(
-        `UPDATE "Leave_Balance"
-         SET "SL_balance" = GREATEST(0, "SL_balance" - :slDeduct),
-             "SL_used" = "SL_used" + :slDeduct,
-             "VL_balance" = GREATEST(0, "VL_balance" - :vlDeduct),
-             "VL_used" = "VL_used" + :vlDeduct
-         WHERE "user_Id" = :userId AND "year" = :year`,
-        { replacements: { slDeduct, vlDeduct, userId: finalUserId, year: currentYear }, type: QueryTypes.UPDATE }
-      );
+      // REMOVED: Immediate deduction of Leave Balance for EL.
+      // Deduction now happens upon approval in UpdateStatusRequest.
     }
     // Half-Day Leave (Type 7)
     else if (finalReqTypeId === 7) {
@@ -531,8 +477,8 @@ exports.UserCreateRequest = async (req, res) => {
       
       const hdResult = await sequelize.query(
         `INSERT INTO "HalfDay_Leave"
-        ("emp_reqId", "user_Id", "DateOfLeave", "period", "timeRange", "WithPayID")
-        VALUES (:emp_reqId, :userId, :DateOfLeave, :period, :timeRange, :WithPayID)
+        ("emp_reqId", "user_Id", "DateOfLeave", "period", "timeRange", "WithPayID", "reason")
+        VALUES (:emp_reqId, :userId, :DateOfLeave, :period, :timeRange, :WithPayID, :reason)
         RETURNING *`,
         {
           replacements: {
@@ -542,20 +488,16 @@ exports.UserCreateRequest = async (req, res) => {
             period,
             timeRange,
             WithPayID: 1, // Default: With Pay
+            reason: finalReason
           },
           type: QueryTypes.INSERT,
+          transaction: t
         },
       );
       childData = hdResult[0][0];
 
-      // Update Balance: Deduct 0.5 from VL
-      await sequelize.query(
-        `UPDATE "Leave_Balance"
-         SET "VL_balance" = GREATEST(0, "VL_balance" - 0.5),
-             "VL_used" = "VL_used" + 0.5
-         WHERE "user_Id" = :userId AND "year" = :year`,
-        { replacements: { userId: finalUserId, year: currentYear }, type: QueryTypes.UPDATE }
-      );
+      // REMOVED: Immediate deduction of Leave Balance for Half-Day.
+      // Deduction now happens upon approval in UpdateStatusRequest.
     }
     // Log Correction
     else if (finalReqTypeId === 5) {
@@ -579,12 +521,17 @@ exports.UserCreateRequest = async (req, res) => {
             proof_File: proof_File,
           },
           type: QueryTypes.INSERT,
+          transaction: t
         },
       );
       childData = lcResult[0][0];
     } else {
+      await t.rollback();
       return res.status(400).json({ error: "Invalid Request Type" });
     }
+
+    // Commit transaction BEFORE notifications to ensure data is persistent
+    await t.commit();
 
     // 4. Notifications
     const typeNameMap = { 1: "Overtime", 2: "Onfield Work", 3: "Vacation Leave", 4: "Sick Leave", 5: "Log Correction", 6: "Emergency Leave", 7: "Half-Day Leave" };
@@ -673,22 +620,7 @@ exports.UserCreateRequest = async (req, res) => {
           }
         );
 
-        // 2. Email Notification (Tiered Logic)
-        // If Employee (Role 3), initially only Supervisor 2 receives the email.
-        // For our implementation, we'll send to all eligible approvers found by the query
-        // but we can filter specifically for Supervisor 2 if we have their ID.
-        // Given the requirement: "the email will be receive by the supervisor 2 that i have request"
-        // And "if the request last like 8hrs or 12 hrs the admin 1 and supervisor 1 will be receives"
-        
-        // Let's assume Supervisor 2 is user_Id 2 (based on your previous log showing Jane Doe with ID 2).
-        // If we don't want to hardcode, we notify all eligible ones, 
-        // OR we specifically target Supervisor 2 first. 
-        
-        // Logic: Send email if it's an immediate approver.
         if (approver.user_Email) {
-          // If Employee requests, notify Supervisor 2 (user_Id 2) immediately.
-          // If Supervisor requests, notify Admin/Supervisor 1 immediately.
-          
           let shouldSendImmediate = false;
           if (requesterRole === 3 && approver.user_Id === 2) { // Employee -> Supervisor 2
             shouldSendImmediate = true;
@@ -726,6 +658,7 @@ exports.UserCreateRequest = async (req, res) => {
       },
     });
   } catch (error) {
+    if (t) await t.rollback();
     res.status(500).json({ error: error.message });
   }
 };
@@ -751,10 +684,10 @@ exports.GetUserRequests = async (req, res) => {
         er.remarks,
         er.admin_remarks,
         er.system_remarks,
-        ot."OT_DateOf",
-        ot."HrFrom",
-        ot."HrTo",
-        ot."Total_Hrs",
+        ot."OT_DateOf" as "OT_DateOf",
+        ot."HrFrom" as "HrFrom",
+        ot."HrTo" as "HrTo",
+        ot."Total_Hrs" as "Total_Hrs",
         vl."StartDate" as "VL_StartDate",
         vl."EndDate" as "VL_EndDate",
         vl."NoDays" as "VL_NoDays",
@@ -770,7 +703,7 @@ exports.GetUserRequests = async (req, res) => {
         hd."period" as "HD_period",
         hd."timeRange" as "HD_timeRange",
         wphd."withPayName" as "HD_withPayName",
-        ow."DateonField",
+        ow."DateonField" as "DateonField",
         ow."NoDays" as "OW_NoDays",
         ow."NoHrs" as "OW_NoHrs",
         lc."logDate" as "LC_logDate",
@@ -779,6 +712,10 @@ exports.GetUserRequests = async (req, res) => {
         lc."claimedIn" as "LC_claimedIn",
         lc."claimedOut" as "LC_claimedOut",
         lc."correctionCategory" as "LC_correctionCategory",
+        lb."VL_balance",
+        lb."SL_balance",
+        lb."VL_used",
+        lb."SL_used",
         er."processedBy",
         er."recommendedBy",
         ap."user_FirstName" || ' ' || ap."user_LastName" as "approverName",
@@ -799,8 +736,9 @@ exports.GetUserRequests = async (req, res) => {
       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
       LEFT JOIN "User" ap ON er."processedBy" = ap."user_Id"
       LEFT JOIN "User" rc ON er."recommendedBy" = rc."user_Id"
+      LEFT JOIN "Leave_Balance" lb ON er."user_Id" = lb."user_Id" AND lb."year" = (SELECT EXTRACT(YEAR FROM CURRENT_DATE))
       WHERE er."user_Id" = :userId
-      ORDER BY er."date_Filed" DESC`,
+      ORDER BY er."createdAt" DESC`,
       {
         replacements: { userId },
         type: QueryTypes.SELECT,
@@ -833,10 +771,10 @@ exports.GetAllRequests = async (req, res) => {
         er.remarks,
         er.admin_remarks,
         er.system_remarks,
-        ot."OT_DateOf",
-        ot."HrFrom",
-        ot."HrTo",
-        ot."Total_Hrs",
+        ot."OT_DateOf" as "OT_DateOf",
+        ot."HrFrom" as "HrFrom",
+        ot."HrTo" as "HrTo",
+        ot."Total_Hrs" as "Total_Hrs",
         vl."StartDate" as "VL_StartDate",
         vl."EndDate" as "VL_EndDate",
         vl."NoDays" as "VL_NoDays",
@@ -853,7 +791,7 @@ exports.GetAllRequests = async (req, res) => {
         hd."period" as "HD_period",
         hd."timeRange" as "HD_timeRange",
         wphd."withPayName" as "HD_withPayName",
-        ow."DateonField",
+        ow."DateonField" as "DateonField",
         ow."NoDays" as "OW_NoDays",
         ow."NoHrs" as "OW_NoHrs",
         ow."destination",
@@ -891,7 +829,7 @@ exports.GetAllRequests = async (req, res) => {
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
       LEFT JOIN "Leave_Balance" lb ON er."user_Id" = lb."user_Id" AND lb."year" = :currentYear
-      ORDER BY er."date_Filed" DESC`,
+      ORDER BY er."createdAt" DESC`,
       {
         replacements: { currentYear },
         type: QueryTypes.SELECT,
@@ -951,16 +889,19 @@ exports.UpdateStatusRequest = async (req, res) => {
     // Admin: Payroll/Management, can see but CANNOT approve/reject.
     
     let isAuthorized = false;
-    let finalStatusId = Number(emp_reqStatusId);
+    const finalStatusId = Number(emp_reqStatusId);
+
+    // --- SELF-APPROVAL GUARD ---
+    if (operatorId === requesterId) {
+      return res.status(403).json({ 
+        error: "You cannot approve or reject your own request. Please ask another authorized supervisor or manager to process it." 
+      });
+    }
 
     if (processorRole === 2) { // Supervisor
-      if (operatorId !== requesterId) {
-        isAuthorized = true;
-      } else {
-        return res.status(403).json({ error: "You cannot approve your own request." });
-      }
+      isAuthorized = true;
     } else if (processorRole === 1) { // Admin
-      return res.status(403).json({ error: "Admins (Payroll) are restricted to viewing only and cannot approve or reject requests." });
+      isAuthorized = true;
     }
 
     if (!isAuthorized) {
@@ -997,6 +938,119 @@ exports.UpdateStatusRequest = async (req, res) => {
       replacements,
       type: QueryTypes.UPDATE,
     });
+
+    // --- LEAVE BALANCE DEDUCTION/REVERSAL ---
+    const leaveTypes = [3, 4, 6, 7];
+    const typeId = Number(request.emp_reqTypeId);
+    
+    if (leaveTypes.includes(typeId)) {
+      const currentYear = new Date(request.date_Filed).getFullYear();
+      const userId = Number(request.user_Id);
+
+      // Helper to get NoDays from child tables
+      const getNoDays = async () => {
+        let tableName = "";
+        if (typeId === 3) tableName = "Vacation_Leave";
+        else if (typeId === 4) tableName = "Sick_Leave";
+        else if (typeId === 6) tableName = "Emergency_Leave";
+        else if (typeId === 7) return 0.5;
+
+        const childRes = await sequelize.query(
+          `SELECT "NoDays" FROM "${tableName}" WHERE "emp_reqId" = :emp_reqId`,
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+        );
+        return childRes.length > 0 ? parseFloat(childRes[0].NoDays) : 0;
+      };
+
+      const noDays = await getNoDays();
+
+      // Case 1: Deduct (Pending/Rejected -> Approved)
+      if (finalStatusId === 2 && currentStatus !== 2) {
+        if (typeId === 3 || typeId === 7) {
+          await sequelize.query(
+            `UPDATE "Leave_Balance"
+             SET "VL_balance" = GREATEST(0, "VL_balance" - :noDays),
+                 "VL_used" = "VL_used" + :noDays
+             WHERE "user_Id" = :userId AND "year" = :year`,
+            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+          );
+        } else if (typeId === 4) {
+          await sequelize.query(
+            `UPDATE "Leave_Balance"
+             SET "SL_balance" = GREATEST(0, "SL_balance" - :noDays),
+                 "SL_used" = "SL_used" + :noDays
+             WHERE "user_Id" = :userId AND "year" = :year`,
+            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+          );
+        } else if (typeId === 6) {
+          // EL: Deduct from SL first, then VL
+          const balRes = await sequelize.query(
+            `SELECT "SL_balance", "VL_balance" FROM "Leave_Balance" WHERE "user_Id" = :userId AND "year" = :year`,
+            { replacements: { userId, year: currentYear }, type: QueryTypes.SELECT }
+          );
+          if (balRes.length > 0) {
+            let slDeduct = 0;
+            let vlDeduct = 0;
+            const slBal = parseFloat(balRes[0].SL_balance);
+            if (slBal >= noDays) {
+              slDeduct = noDays;
+            } else {
+              slDeduct = slBal;
+              vlDeduct = noDays - slBal;
+            }
+            await sequelize.query(
+              `UPDATE "Leave_Balance"
+               SET "SL_balance" = GREATEST(0, "SL_balance" - :slDeduct),
+                   "SL_used" = "SL_used" + :slDeduct,
+                   "VL_balance" = GREATEST(0, "VL_balance" - :vlDeduct),
+                   "VL_used" = "VL_used" + :vlDeduct
+               WHERE "user_Id" = :userId AND "year" = :year`,
+              { replacements: { slDeduct, vlDeduct, userId, year: currentYear }, type: QueryTypes.UPDATE }
+            );
+          }
+        }
+      }
+      // Case 2: Revert (Approved -> Rejected/Pending/Cancelled)
+      else if (currentStatus === 2 && finalStatusId !== 2) {
+        if (typeId === 3 || typeId === 7) {
+          await sequelize.query(
+            `UPDATE "Leave_Balance"
+             SET "VL_balance" = "VL_balance" + :noDays,
+                 "VL_used" = GREATEST(0, "VL_used" - :noDays)
+             WHERE "user_Id" = :userId AND "year" = :year`,
+            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+          );
+        } else if (typeId === 4) {
+          await sequelize.query(
+            `UPDATE "Leave_Balance"
+             SET "SL_balance" = "SL_balance" + :noDays,
+                 "SL_used" = GREATEST(0, "SL_used" - :noDays)
+             WHERE "user_Id" = :userId AND "year" = :year`,
+            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+          );
+        } else if (typeId === 6) {
+           // Reverting EL is tricky because we don't know exactly how it was split between SL and VL.
+           // However, we can assume it was split the same way (SL first, then VL) based on the USED amounts.
+           // But a safer way is to just look at how much SL_used and VL_used were increased.
+           // For simplicity, let's just reverse the "SL first then VL" logic using the current balances as a hint,
+           // or better, just add it back to SL first up to its cap? 
+           // Actually, the system seems to have a fixed cap (7 days).
+           // Let's just restore it to SL first, then VL.
+           
+           let toRestore = noDays;
+           // We can't easily know the original SL balance before deduction without more audit logs.
+           // But we can just add it back to SL.
+           await sequelize.query(
+             `UPDATE "Leave_Balance"
+              SET "SL_balance" = "SL_balance" + :noDays,
+                  "SL_used" = GREATEST(0, "SL_used" - :noDays)
+              WHERE "user_Id" = :userId AND "year" = :year`,
+             { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+           );
+           // NOTE: This might overfill SL if it was originally split, but it's a reasonable fallback.
+        }
+      }
+    }
 
     // --- AUTO-UPDATE ATTENDANCE FOR LOG CORRECTION ---
     if (finalStatusId === 2 && isLogCorrection) {
@@ -1253,10 +1307,10 @@ exports.GetRequestDetails = async (req, res) => {
         er.remarks,
         er.admin_remarks,
         er.system_remarks,
-        ot."OT_DateOf",
-        ot."HrFrom",
-        ot."HrTo",
-        ot."Total_Hrs",
+        ot."OT_DateOf" as "OT_DateOf",
+        ot."HrFrom" as "HrFrom",
+        ot."HrTo" as "HrTo",
+        ot."Total_Hrs" as "Total_Hrs",
         vl."StartDate" as "VL_StartDate",
         vl."EndDate" as "VL_EndDate",
         vl."NoDays" as "VL_NoDays",
@@ -1273,7 +1327,7 @@ exports.GetRequestDetails = async (req, res) => {
         hd."period" as "HD_period",
         hd."timeRange" as "HD_timeRange",
         wphd."withPayName" as "HD_withPayName",
-        ow."DateonField",
+        ow."DateonField" as "DateonField",
         ow."NoDays" as "OW_NoDays",
         ow."NoHrs" as "OW_NoHrs",
         ow."destination",
@@ -1286,6 +1340,8 @@ exports.GetRequestDetails = async (req, res) => {
         lc."correctionCategory" as "LC_correctionCategory",
         lc."proof_File" as "LC_proof_File",
         lb."VL_balance",
+        lb."SL_balance",
+        lb."VL_used",
         lb."SL_used",
         er."processedBy",
         er."recommendedBy",

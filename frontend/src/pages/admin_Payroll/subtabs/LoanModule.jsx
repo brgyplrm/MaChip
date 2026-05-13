@@ -174,7 +174,7 @@ const Cashadvances = () => {
       return `${date},${emptyValues}`;
     });
 
-    const csvContent = [headerLine, ...rows].join("\n");
+    const csvContent = "\uFEFF" + [headerLine, ...rows].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -198,7 +198,8 @@ const Cashadvances = () => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const text = e.target.result;
+        const rawText = e.target.result;
+        const text = rawText.replace(/^\uFEFF/, '');
         const lines = text.split("\n").filter(line => line.trim() !== "");
         if (lines.length < 2) throw new Error("File is empty or missing data.");
 

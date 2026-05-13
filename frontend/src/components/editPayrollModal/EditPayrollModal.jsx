@@ -53,9 +53,7 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
   useEffect(() => {
     const rate = parseFloat(sanitize(formData.dailyRate));
     if (!isNaN(rate) && rate > 0) {
-      // Only auto-calculate if govt fields are essentially empty or this is a new setup
-      const isGovtEmpty = !formData.SSS_Ded || formData.SSS_Ded == 0;
-      if (isGovtEmpty && !loading) {
+      if (!loading) {
         const timer = setTimeout(() => {
           handleCalculateGovt();
         }, 1000); // Debounce to avoid too many requests

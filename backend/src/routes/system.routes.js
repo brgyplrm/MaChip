@@ -1,18 +1,19 @@
 const express = require("express");
 const router = express.Router();
 const systemController = require("../controllers/system.controller.js");
-const { requireAdmin, requireMaster } = require("../middleware/roleCheck.js");
+const { requireAdmin, requireMaster, requireRole } = require("../middleware/roleCheck.js");
+const authMiddleware = require("../middleware/auth.js");
 
 router.get("/settings", requireAdmin, systemController.getSystemSettings);
-router.post("/settings", requireAdmin, systemController.updateSystemSettings);
+router.post("/settings", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateSystemSettings);
 router.get("/time", systemController.getSystemTime);
-router.get("/holidays", requireAdmin, systemController.getHolidays);
-router.post("/holidays", requireAdmin, systemController.createHoliday);
-router.put("/holidays/:holidayId", requireAdmin, systemController.updateHoliday);
-router.delete("/holidays/:holidayId", requireAdmin, systemController.deleteHoliday);
-router.post("/sync-holidays", requireAdmin, systemController.syncHolidays);
+router.get("/holidays", authMiddleware, systemController.getHolidays);
+router.post("/holidays", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.createHoliday);
+router.put("/holidays/:holidayId", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateHoliday);
+router.delete("/holidays/:holidayId", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.deleteHoliday);
+router.post("/sync-holidays", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.syncHolidays);
 
-router.get("/payroll-periods", requireAdmin, systemController.getPayrollPeriods);
+router.get("/payroll-periods", systemController.getPayrollPeriods);
 router.post("/payroll-periods", requireAdmin, systemController.createPayrollPeriod);
 
 router.get("/audit-logs", requireMaster, systemController.getAuditLogs);

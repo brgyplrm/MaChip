@@ -114,6 +114,10 @@ exports.updateSystemSettings = async (req, res) => {
     vlRate,
     slRate
   } = req.body;
+
+  // Debug log for Maxicare configuration tracking
+  console.log("[DEBUG] UPDATE_SYSTEM_SETTINGS Received Payload:", JSON.stringify(req.body, null, 2));
+
   try {
     const settings = await SystemSettings.findOne();
     let oldSettings = null;
@@ -178,36 +182,40 @@ const ensureCurrentPeriodExists = async () => {
     try {
         const now = await getSystemTime();
         const year = now.getFullYear();
-        const month = now.getMonth(); // 0-indexed
+        const month = now.getMonth();
         const day = now.getDate();
 
-        let startDate, endDate, label;
+        const periodsToEnsure = [];
 
-        if (day <= 15) {
-            startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-            endDate = `${year}-${String(month + 1).padStart(2, '0')}-15`;
-            label = `${now.toLocaleString('default', { month: 'long' })} 1-15, ${year}`;
-        } else {
-            startDate = `${year}-${String(month + 1).padStart(2, '0')}-16`;
-            // Get last day of month
+        // Always ensure the 1st half exists (1-15)
+        const firstHalfStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        const firstHalfEnd = `${year}-${String(month + 1).padStart(2, '0')}-15`;
+        const firstHalfLabel = `${now.toLocaleString('default', { month: 'long' })} 1-15, ${year}`;
+        periodsToEnsure.push({ startDate: firstHalfStart, endDate: firstHalfEnd, label: firstHalfLabel });
+
+        // If today is past the 15th, also ensure the 2nd half exists (16-EOF)
+        if (day > 15) {
+            const secondHalfStart = `${year}-${String(month + 1).padStart(2, '0')}-16`;
             const lastDay = new Date(year, month + 1, 0).getDate();
-            endDate = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
-            label = `${now.toLocaleString('default', { month: 'long' })} 16-${lastDay}, ${year}`;
+            const secondHalfEnd = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
+            const secondHalfLabel = `${now.toLocaleString('default', { month: 'long' })} 16-${lastDay}, ${year}`;
+            periodsToEnsure.push({ startDate: secondHalfStart, endDate: secondHalfEnd, label: secondHalfLabel });
         }
 
-        // Check if this specific period already exists
-        const existing = await PayrollPeriod.findOne({
-            where: { startDate, endDate }
-        });
-
-        if (!existing) {
-            console.log(`[SYSTEM] Auto-creating missing payroll period: ${label}`);
-            await PayrollPeriod.create({
-                startDate,
-                endDate,
-                label,
-                status: 'Draft'
+        for (const p of periodsToEnsure) {
+            const existing = await PayrollPeriod.findOne({
+                where: { startDate: p.startDate, endDate: p.endDate }
             });
+
+            if (!existing) {
+                console.log(`[SYSTEM] Auto-creating missing payroll period: ${p.label}`);
+                await PayrollPeriod.create({
+                    startDate: p.startDate,
+                    endDate: p.endDate,
+                    label: p.label,
+                    status: 'Draft'
+                });
+            }
         }
     } catch (error) {
         console.error("[ERROR] ensureCurrentPeriodExists:", error.message);
@@ -219,13 +227,20 @@ exports.getPayrollPeriods = async (req, res) => {
         // Automatically check and create current period before returning list
         await ensureCurrentPeriodExists();
 
+        // Check if user is staff/admin (matching roleCheck.js logic)
+        const userRole = req.user.user_Role;
+        const userRoleId = parseInt(req.user.user_RoleId);
+        const isStaff = [1, 2, 4].includes(userRoleId) || 
+                        ["Admin Manager", "Supervisor", "Admin Accountant", "Admin"].includes(userRole);
+
         const periods = await sequelize.query(
             `SELECT 
                 pp."periodId",
                 pp."startDate",
                 pp."endDate",
                 pp."label",
-                pp."status",
+                pp."status"
+                ${isStaff ? `,
                 -- If Draft, show eligible employees. If not, show processed count.
                 (CASE 
                     WHEN pp."status" = 'Draft' THEN (SELECT COUNT(*)::int FROM "User" WHERE "deletedAt" IS NULL AND "dailyRate" > 0)
@@ -241,6 +256,7 @@ exports.getPayrollPeriods = async (req, res) => {
                     )
                     ELSE COALESCE((SELECT SUM("netPay") FROM "Payroll" p3 WHERE p3."periodId" = pp."periodId"), 0)
                 END) AS "totalAmount"
+                ` : ''}
              FROM "PayrollPeriod" pp
              ORDER BY pp."startDate" DESC`,
             { type: QueryTypes.SELECT }

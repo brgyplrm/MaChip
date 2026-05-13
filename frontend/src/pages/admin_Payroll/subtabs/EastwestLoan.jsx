@@ -249,19 +249,21 @@ const EastwestLoan = () => {
   };
 
   const downloadTemplate = () => {
-    const headers = ["month/year", ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
+    const templateId = "EASTWEST_LOAN_TEMPLATE";
+    const headers = [templateId, ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
     const headerLine = headers.join(",");
     const rows = expectedDates.map(date => {
       const emptyValues = employeeList.map(() => "").join(",");
       return `${date},${emptyValues}`;
     });
 
-    const csvContent = [headerLine, ...rows].join("\n");
+    const csvContent = "\uFEFF" + [headerLine, ...rows].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `eastwest_loan_matrix_${selectedYear}.csv`;
+    const filename = `eastwest_loan_matrix_${selectedYear}.csv`;
+    a.download = filename;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -280,11 +282,23 @@ const EastwestLoan = () => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const text = e.target.result;
+        const rawText = e.target.result;
+        const text = rawText.replace(/^\uFEFF/, '');
         const lines = text.split("\n").filter(line => line.trim() !== "");
         if (lines.length < 2) throw new Error("File is empty or missing data.");
 
         const headers = lines[0].split(",");
+        const templateId = headers[0]?.trim();
+
+        if (templateId !== "EASTWEST_LOAN_TEMPLATE") {
+          setToast({ 
+            message: `Invalid template. You are trying to upload a file for "${templateId.replace(/_/g, ' ')}" into the Eastwest Loan section. Please download the latest template.`, 
+            type: "error" 
+          });
+          setLoading(false);
+          return;
+        }
+
         const empMappings = []; 
 
         for (let i = 1; i < headers.length; i++) {
@@ -785,7 +799,7 @@ const EastwestLoan = () => {
       </div>
 
       {/* Global styling for custom scrollbars */}
-      <style dangerouslySetContent={{__html: `
+      <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar {
           height: 10px;
           width: 10px;

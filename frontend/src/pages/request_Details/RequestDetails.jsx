@@ -166,94 +166,45 @@ const RequestDetails = () => {
             </CardContent>
           </Card>
 
-          {/* Specific Details Section */}
+          {/* Requested Schedule Section */}
           <Card className="border-0 shadow-sm bg-white">
             <CardHeader className="border-b border-slate-50 pb-4 mb-4">
               <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
-                <CalendarTodayIcon className="text-slate-400 h-5 w-5" /> Specific Details
+                <CalendarTodayIcon className="text-slate-400 h-5 w-5" /> Requested Schedule
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               
-              {/* Overtime Details */}
-              {request.emp_reqTypeId === 1 && (
-                <>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time From</label>
-                    <p className="font-semibold text-slate-800">{formatTime(request.HrFrom)}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time To</label>
-                    <p className="font-semibold text-slate-800">{formatTime(request.HrTo)}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Hours</label>
-                    <p className="font-bold text-[#2A174E]">{request.Total_Hrs} Hrs</p>
-                  </div>
-                </>
-              )}
+              {/* Duration / Details */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Duration / Details</label>
+                <p className="font-bold text-[#2A174E]">
+                  {request.emp_reqTypeId === 1 && `${request.Total_Hrs} Hrs`}
+                  {request.emp_reqTypeId === 2 && `${request.OW_NoHrs} Hrs (${request.OW_NoDays} Day)`}
+                  {(request.emp_reqTypeId === 3 || request.emp_reqTypeId === 4) && `${request.VL_NoDays || request.SL_NoDays} Day(s)`}
+                  {request.emp_reqTypeId === 5 && `Correction: ${request.LC_correctionCategory}`}
+                </p>
+              </div>
 
-              {/* On-field Details */}
-              {request.emp_reqTypeId === 2 && (
-                <>
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Destination</label>
-                    <p className="font-semibold text-slate-800">{request.destination}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Hours</label>
-                    <p className="font-bold text-[#2A174E]">{request.OW_NoHrs} Hrs</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Days</label>
-                    <p className="font-semibold text-slate-800">{request.OW_NoDays} Day(s)</p>
-                  </div>
-                </>
-              )}
+              {/* Time From */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time From</label>
+                <p className="font-semibold text-slate-800">
+                  {request.emp_reqTypeId === 1 ? formatTime(request.HrFrom) : 
+                   request.emp_reqTypeId === 5 ? formatTime(request.LC_claimedIn) : 
+                   (request.VL_StartDate || request.SL_StartDate || request.DateonField || "—")}
+                </p>
+              </div>
 
-              {/* Log Correction Details */}
-              {request.emp_reqTypeId === 5 && (
-                <>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Current Time-In</label>
-                    <p className="font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded w-fit">{request.LC_currentIn || "No Log"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Current Time-Out</label>
-                    <p className="font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded w-fit">{request.LC_currentOut || "No Log"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Claimed Time-In</label>
-                    <p className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-1 rounded w-fit">{formatTime(request.LC_claimedIn)}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Claimed Time-Out</label>
-                    <p className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-1 rounded w-fit">{formatTime(request.LC_claimedOut)}</p>
-                  </div>
-                </>
-              )}
-
-              {/* Leave Details (VL/SL) */}
-              {(request.emp_reqTypeId === 3 || request.emp_reqTypeId === 4) && (
-                <>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Start Date</label>
-                    <p className="font-semibold text-slate-800">{request.VL_StartDate || request.SL_StartDate}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">End Date</label>
-                    <p className="font-semibold text-slate-800">{request.VL_EndDate || request.SL_EndDate}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Days</label>
-                    <p className="font-bold text-[#2A174E]">{request.VL_NoDays || request.SL_NoDays} Day(s)</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Payment Status</label>
-                    <p className="font-semibold text-slate-800">{request.VL_withPayName || request.SL_withPayName || "N/A"}</p>
-                  </div>
-                </>
-              )}
+              {/* Time To */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time To</label>
+                <p className="font-semibold text-slate-800">
+                  {request.emp_reqTypeId === 1 ? formatTime(request.HrTo) : 
+                   request.emp_reqTypeId === 5 ? formatTime(request.LC_claimedOut) : 
+                   (request.VL_EndDate || request.SL_EndDate || "—")}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -312,13 +263,18 @@ const RequestDetails = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-[#2A174E] uppercase tracking-wider block">Management Note / Remarks</label>
+                  <label className="text-xs font-bold text-[#2A174E] uppercase tracking-wider block">Admin Note (Optional)</label>
                   <p className="text-slate-700 bg-white p-4 rounded-xl border border-slate-200">
                     {request.admin_remarks || "No additional notes provided."}
                   </p>
                 </div>
               </CardContent>
             </Card>
+          ) || (
+            /* Show Admin Note section even if pending, but maybe empty or for editing if needed. 
+               The user prompt shows "Admin Note (Optional)" so I'll ensure it's visible or at least labeled correctly when processed.
+            */
+            null
           )}
 
           {/* Timeline */}

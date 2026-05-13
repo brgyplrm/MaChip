@@ -28,9 +28,9 @@ const requireRole = (...allowedRoles) => {
 
 /**
  * SuperAdmin / Manager Level (Full Access)
- * Allows: Role 1 (Admin Manager)
+ * Allows: Role 1 (Admin Manager) & Role 4 (Admin Accountant)
  */
-const requireMaster = requireRole(1, "Admin Manager");
+const requireMaster = requireRole(1, 4, "Admin Manager", "Admin Accountant");
 
 /**
  * Financial / User Management Level

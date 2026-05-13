@@ -90,9 +90,8 @@ const EmployeeCalendar = () => {
   };
 
   const getUpcomingHolidays = () => {
-    const todayStr = systemToday.toISOString().split('T')[0];
     return events
-      .filter(h => h.type === "Holiday" && h.date.split('T')[0] >= todayStr)
+      .filter(h => h.type === "Holiday")
       .sort((a, b) => a.date.localeCompare(b.date));
   };
 
@@ -237,7 +236,7 @@ const EmployeeCalendar = () => {
             {/* Holidays List Card */}
             <Card className="shadow-sm border-0 bg-white flex flex-col h-[320px] py-0 border-t-4 border-[#2A174E]">
               <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-[#2A174E]">Upcoming Holidays</CardTitle>
+                <CardTitle className="text-lg text-[#2A174E]">Holidays</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 flex-1 overflow-y-auto custom-scrollbar">
                 {getUpcomingHolidays().length > 0 ? (
@@ -254,7 +253,7 @@ const EmployeeCalendar = () => {
                           <div>
                             <p className="font-semibold text-sm text-slate-800">{holiday.name}</p>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(holiday.date).toLocaleDateString()} • {holiday.type}
+                              {new Date(holiday.date).toLocaleDateString()} • {holiday.details || holiday.type}
                             </span>
                           </div>
                         </div>
@@ -266,8 +265,8 @@ const EmployeeCalendar = () => {
                     <EmptyState 
                       className="min-h-0 h-full w-full border-0 bg-transparent hover:bg-transparent shadow-none p-0"
                       icon={<EventAvailableIcon className="w-8 h-8 text-slate-300" />}
-                      title="Clear Schedule!"
-                      description="No holidays are coming up. It's a straight run of regular working days."
+                      title="No Holidays"
+                      description="There are no holidays registered for this period."
                     />
                   </div>
                 )}
@@ -414,7 +413,7 @@ const EmployeeCalendar = () => {
         </Dialog>
 
         {/* Global styling for custom scrollbars */}
-        <style dangerouslySetContent={{__html: `  
+        <style dangerouslySetInnerHTML={{__html: `  
           .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
           }

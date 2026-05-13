@@ -35,22 +35,18 @@ export const RealTimeProvider = ({ children }) => {
     }
 
     newSocket.on("NEW_ATTENDANCE_LOG", (data) => {
-      console.log("[SOCKET] New attendance log detected", data);
       refreshData();
     });
 
     newSocket.on("NEW_REQUEST", () => {
-      console.log("[SOCKET] New request submitted");
       refreshData();
     });
 
     newSocket.on("REQUEST_STATUS_UPDATED", () => {
-      console.log("[SOCKET] Request status updated");
       refreshData();
     });
 
     newSocket.on("NOTIFICATION_UPDATE", () => {
-      console.log("[SOCKET] Notification update received");
       // Specific event for notification counts/lists
       window.dispatchEvent(new Event("notificationRefresh"));
     });
@@ -62,14 +58,12 @@ export const RealTimeProvider = ({ children }) => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        console.log("[FOCUS] Tab became visible, refreshing data...");
         refreshData();
         window.dispatchEvent(new Event("notificationRefresh"));
       }
     };
 
     const handleFocus = () => {
-      console.log("[FOCUS] Window gained focus, refreshing data...");
       refreshData();
     };
 

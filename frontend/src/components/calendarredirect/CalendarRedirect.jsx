@@ -7,7 +7,7 @@ const CalendarRedirect = () => {
   const viewMode = localStorage.getItem("viewMode") || "management";
 
   // If Management role AND in management mode, show management; otherwise show employee view
-  if ((roleId === 1 || roleId === 2) && viewMode === "management") {
+  if ((roleId === 1 || roleId === 2 || roleId === 4) && viewMode === "management") {
     return <CalendarManagement />;
   }
   

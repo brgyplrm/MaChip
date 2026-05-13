@@ -151,6 +151,107 @@ const Single = () => {
           
         </div>
 
+        {/* Middle Section: Gov't Breakdown & Details */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Government Contributions Table */}
+          <Card className="border-0 shadow-sm bg-white overflow-hidden">
+            <div className="bg-[#2A174E] p-4">
+              <h2 className="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
+                <PaymentsIcon className="h-4 w-4 text-blue-200" /> Government Contributions (Monthly)
+              </h2>
+            </div>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-100">
+                      <th className="p-4 text-left">Deduction Name</th>
+                      <th className="p-4 text-right">Employee</th>
+                      <th className="p-4 text-right">Employer</th>
+                      <th className="p-4 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(() => {
+                      const rate = parseFloat(user.dailyRate || 0);
+                      const monthly = rate * 26;
+                      
+                      // SSS
+                      const sss_msc = Math.min(Math.max(Math.round(monthly / 500) * 500, 5000), 35000);
+                      const sss_ee = parseFloat(user.sss_Share || 0);
+                      const sss_er = Math.round((sss_msc * 0.10 + (sss_msc >= 15000 ? 30 : 10)) * 100) / 100;
+                      
+                      // PhilHealth
+                      const ph_clamped = Math.min(Math.max(monthly, 10000), 100000);
+                      const ph_ee = parseFloat(user.philhealth_Share || 0);
+                      const ph_er = Math.round((ph_clamped * 0.05 / 2) * 100) / 100;
+                      
+                      // HDMF
+                      const hdmf_mfs = Math.min(monthly, 10000);
+                      const hdmf_ee = parseFloat(user.hdmf_Share || 0);
+                      const hdmf_er = Math.round(hdmf_mfs * 0.02);
+
+                      const format = (v) => `₱${v.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+
+                      return (
+                        <>
+                          <tr className="hover:bg-slate-50/50 transition-colors">
+                            <td className="p-4 font-medium text-slate-700">SSS Contribution</td>
+                            <td className="p-4 text-right text-slate-600">{format(sss_ee)}</td>
+                            <td className="p-4 text-right text-slate-600">{format(sss_er)}</td>
+                            <td className="p-4 text-right font-bold text-[#2A174E]">{format(sss_ee + sss_er)}</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50/50 transition-colors">
+                            <td className="p-4 font-medium text-slate-700">PhilHealth</td>
+                            <td className="p-4 text-right text-slate-600">{format(ph_ee)}</td>
+                            <td className="p-4 text-right text-slate-600">{format(ph_er)}</td>
+                            <td className="p-4 text-right font-bold text-[#2A174E]">{format(ph_ee + ph_er)}</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50/50 transition-colors">
+                            <td className="p-4 font-medium text-slate-700">HDMF (Pag-IBIG)</td>
+                            <td className="p-4 text-right text-slate-600">{format(hdmf_ee)}</td>
+                            <td className="p-4 text-right text-slate-600">{format(hdmf_er)}</td>
+                            <td className="p-4 text-right font-bold text-[#2A174E]">{format(hdmf_ee + hdmf_er)}</td>
+                          </tr>
+                          <tr className="bg-slate-50 font-bold border-t-2 border-slate-100">
+                            <td className="p-4 text-slate-800">Total Government</td>
+                            <td className="p-4 text-right text-slate-800">{format(sss_ee + ph_ee + hdmf_ee)}</td>
+                            <td className="p-4 text-right text-slate-800">{format(sss_er + ph_er + hdmf_er)}</td>
+                            <td className="p-4 text-right text-blue-700">{format(sss_ee + ph_ee + hdmf_ee + sss_er + ph_er + hdmf_er)}</td>
+                          </tr>
+                        </>
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Additional Professional Details Card */}
+          <Card className="border-0 shadow-sm bg-white p-6">
+            <h2 className="text-lg font-bold text-[#2A174E] mb-6 border-b border-slate-50 pb-4">Professional Details</h2>
+            <div className="grid grid-cols-2 gap-y-4">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Base Daily Rate</span>
+                <span className="text-lg font-bold text-slate-800">₱{parseFloat(user.dailyRate || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Department</span>
+                <span className="font-semibold text-slate-700">{user.department || "General"}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Position</span>
+                <span className="font-semibold text-slate-700">{user.position || "Employee"}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date Hired</span>
+                <span className="font-semibold text-slate-700">{user.hireDate || "N/A"}</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+
         {/* Bottom Section: Activity Log Table */}
         <Card className="border-0 shadow-sm bg-white">
           <CardContent className="p-6">

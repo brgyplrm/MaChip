@@ -20,16 +20,16 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter (only allow images and pdf)
+// File filter (only allow images, pdf, and csv)
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|pdf/;
+  const allowedTypes = /jpeg|jpg|png|pdf|csv/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
+  const mimetype = allowedTypes.test(file.mimetype) || file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel';
 
-  if (extname && mimetype) {
+  if (extname || mimetype) {
     return cb(null, true);
   } else {
-    cb(new Error('Invalid file format. Only images (jpeg, jpg, png) and PDF are allowed!'));
+    cb(new Error('Invalid file format. Only images (jpeg, jpg, png), PDF, and CSV are allowed!'));
   }
 };
 

@@ -14,16 +14,23 @@ const HmoCalculatorModal = ({
   cycleStartDate,
   setCycleStartDate
 }) => {
-  // Initial default states
-  const defaultPremium = 23410.67;
-  const defaultCutoffs = 24;
-  const defaultEmployerShare = 50;
-
   // Derived calculations
   const employeeSharePct = 100 - employerShare;
-  const employerCost = premium * (employerShare / 100);
-  const employeeLiability = premium * (employeeSharePct / 100);
+  const employerCost = (premium || 0) * (employerShare / 100);
+  const employeeLiability = (premium || 0) * (employeeSharePct / 100);
   const deduction = cutoffs > 0 ? employeeLiability / cutoffs : 0;
+
+  const getRenewalPeriod = () => {
+    if (!cycleStartDate) return "Not Set";
+    const start = new Date(cycleStartDate);
+    const end = new Date(start);
+    const months = cutoffs / 2;
+    end.setMonth(start.getMonth() + (months || 12));
+    end.setDate(end.getDate() - 1);
+    
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    return `${start.toLocaleDateString('en-PH', options)} TO ${start.toLocaleDateString('en-PH', options) === end.toLocaleDateString('en-PH', options) ? '...' : end.toLocaleDateString('en-PH', options)}`.toUpperCase();
+  };
 
   // Formatting helper
   const formatMoney = (val) => {
@@ -34,10 +41,9 @@ const HmoCalculatorModal = ({
   };
 
   const handleReset = () => {
-    setPremium(defaultPremium);
-    setCutoffs(defaultCutoffs);
-    setEmployerShare(defaultEmployerShare);
-    // Note: Start date reset can be added if a default is desired
+    setPremium(0);
+    setCutoffs(24);
+    setEmployerShare(50);
   };
 
   return (
@@ -104,6 +110,16 @@ const HmoCalculatorModal = ({
           <div className="space-y-4 p-5 bg-[#2A174E]/5 rounded-xl border border-[#2A174E]/10">
             <h3 className="text-xs font-bold text-[#2A174E] uppercase tracking-widest">Policy Schedule</h3>
             
+            <div className="space-y-1 bg-white p-3 rounded-lg border border-[#2A174E]/10 shadow-sm">
+               <div className="flex justify-between items-center mb-1">
+                 <span className="text-[10px] font-bold text-[#2A174E] uppercase block">Calculated Period</span>
+                 <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">PREVIEW</span>
+               </div>
+               <span className="text-xs font-black text-slate-800 tracking-tighter">
+                 {getRenewalPeriod()}
+               </span>
+            </div>
+
             <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-600">Cycle Start Date</label>
               <Input 
@@ -136,10 +152,16 @@ const HmoCalculatorModal = ({
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Annual Premium (₱)</label>
             <Input 
-              type="number" 
-              value={premium}
-              onChange={(e) => setPremium(Number(e.target.value))}
+              type="text" 
+              value={premium?.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+              onChange={(e) => {
+                const val = e.target.value.replace(/,/g, '');
+                if (!isNaN(val) || val === '') {
+                  setPremium(val === '' ? 0 : parseFloat(val));
+                }
+              }}
               className="bg-white border-slate-300 text-slate-900 focus-visible:ring-[#2A174E] font-bold text-lg"
+              placeholder="0.00"
             />
           </div>
 
@@ -173,7 +195,7 @@ const HmoCalculatorModal = ({
 
       </div>
 
-      <style dangerouslySetContent={{__html: `
+      <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }

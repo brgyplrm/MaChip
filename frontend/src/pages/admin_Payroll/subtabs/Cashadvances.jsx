@@ -250,7 +250,8 @@ const Cashadvances = () => {
   };
 
   const downloadTemplate = () => {
-    const headers = ["month/year", ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
+    const templateId = "CASH_ADVANCE_TEMPLATE";
+    const headers = [templateId, ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
     const headerLine = headers.join(",");
 
     const rows = expectedDates.map(date => {
@@ -258,7 +259,7 @@ const Cashadvances = () => {
       return `${date},${emptyValues}`;
     });
 
-    const csvContent = [headerLine, ...rows].join("\n");
+    const csvContent = "\uFEFF" + [headerLine, ...rows].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -282,11 +283,23 @@ const Cashadvances = () => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const text = e.target.result;
+        const rawText = e.target.result;
+        const text = rawText.replace(/^\uFEFF/, '');
         const lines = text.split("\n").filter(line => line.trim() !== "");
         if (lines.length < 2) throw new Error("File is empty or missing data.");
 
         const headers = lines[0].split(",");
+        const templateId = headers[0]?.trim();
+
+        if (templateId !== "CASH_ADVANCE_TEMPLATE") {
+          setToast({ 
+            message: `Invalid template. You are trying to upload a file for "${templateId.replace(/_/g, ' ')}" into the Cash Advance section. Please download the latest template.`, 
+            type: "error" 
+          });
+          setLoading(false);
+          return;
+        }
+
         const empMappings = []; 
 
         for (let i = 1; i < headers.length; i++) {
@@ -513,7 +526,7 @@ const Cashadvances = () => {
                 <SelectValue placeholder="Select Year" />
               </SelectTrigger>
               <SelectContent>
-                {Array.from({ length: 11 }, (_, i) => new Date().getFullYear() - 4 + i).map(year => (
+                {Array.from({ length: 21 }, (_, i) => 2020 + i).map(year => (
                   <SelectItem key={year} value={year.toString()}>Fiscal Year {year}</SelectItem>
                 ))}
               </SelectContent>
@@ -770,7 +783,7 @@ const Cashadvances = () => {
       </div>
 
       {/* Global styling for custom scrollbars */}
-      <style dangerouslySetContent={{__html: `
+      <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar {
           height: 10px;
           width: 10px;

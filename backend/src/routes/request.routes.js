@@ -12,7 +12,8 @@ const {
   DeleteRequest,
   getLeaveSummary,
 } = require("../controllers/userRequest.controlller");
-const { requireOps, requireStaff } = require("../middleware/roleCheck.js");
+const { requireOps, requireStaff, requireRole } = require("../middleware/roleCheck.js");
+const authMiddleware = require("../middleware/auth.js");
 const upload = require("../middleware/upload");
 
 router.post("/", upload.single("proofFile"), UserCreateRequest);
@@ -22,10 +23,16 @@ router.post(
   UserCreateRequest,
 );
 router.get("/all", requireStaff, GetAllRequests);
-router.get("/calendar-report", requireStaff, getCalendarReport);
+router.get("/calendar-report", authMiddleware, getCalendarReport);
+router.get("/report/calendar", authMiddleware, getCalendarReport);
 router.get("/pending-count", requireStaff, GetPendingCount);
 router.get("/summary/:year", requireStaff, getLeaveSummary);
-router.get("/balance/:userId", requireStaff, GetLeaveBalance);
+router.get("/balance/:userId", (req, res, next) => {
+  if (req.user.user_Id == req.params.userId) {
+    return next();
+  }
+  requireStaff(req, res, next);
+}, GetLeaveBalance);
 router.get("/details/:requestId", requireStaff, GetRequestDetails);
 router.get("/:userId", GetUserRequests);
 router.put("/update-status", requireOps, UpdateStatusRequest);

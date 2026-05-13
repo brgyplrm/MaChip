@@ -79,14 +79,16 @@ const New = ({ inputs = [], title }) => {
     user_LastName: "",
     user_MiddleName: "",
     user_EmploymentStatus: "Regular",
+    user_EmploymentStatusId: 1,
     user_Role: "Employee",
+    user_RoleId: 3,
     user_Email: "",
     user_Password: "",
     user_MachipId: "",
     user_FingerprintId: "",
     user_FingerprintTemplate: "",
     account_Number: "",
-    bank_Company: "",
+    bank_Company: "UnionBank of the Philippines",
     bank_AccountName: "",
     user_RoleId: 3,
   });
@@ -178,6 +180,11 @@ const New = ({ inputs = [], title }) => {
   const handleInput = (e) => {
     const { id, value } = e.target;
     
+    // Only allow digits for account_Number
+    if (id === "account_Number" && value !== "" && !/^\d+$/.test(value)) {
+      return; 
+    }
+
     setFormData((prev) => {
       const updated = { ...prev, [id]: value };
       
@@ -249,7 +256,11 @@ const New = ({ inputs = [], title }) => {
       if (!formData.user_EmploymentStatus) newErrors.user_EmploymentStatus = "Required";
       if (!formData.bank_Company) newErrors.bank_Company = "Required";
       if (!formData.bank_AccountName?.trim()) newErrors.bank_AccountName = "Required";
-      if (!formData.account_Number?.trim()) newErrors.account_Number = "Required";
+      if (!formData.account_Number?.trim()) {
+        newErrors.account_Number = "Required";
+      } else if (![12, 15].includes(formData.account_Number.length)) {
+        newErrors.account_Number = "Account number must be 12 or 15 digits.";
+      }
     } else if (step === 3) {
       if (!formData.user_Password || formData.user_Password.length < 6) {
         newErrors.user_Password = "Min 6 characters required.";
@@ -323,9 +334,10 @@ const New = ({ inputs = [], title }) => {
 
   // --- BATCH PROCESSING LOGIC ---
   const downloadCsvTemplate = () => {
-    const headers = "user_FirstName,user_LastName,user_MiddleName,user_Email,user_Password,user_Role,user_EmploymentStatus,bank_Company,bank_AccountName,account_Number\n";
-    const sample = "Juan,Cruz,Dela,juan.cruz@example.com,password123,Employee,Regular,BDO Unibank (BDO),Juan Dela Cruz,1234567890\n";
-    const blob = new Blob([headers + sample], { type: 'text/csv;charset=utf-8;' });
+    const headers = "user_FirstName,user_LastName,user_MiddleName,user_Email,user_Password,user_Role,user_EmploymentStatus,bank_Company,bank_AccountName,account_Number,department,position,hireDate,taxStatus\n";
+    const sample = "Juan,Cruz,Dela,juan.cruz@example.com,password123,Employee,Regular,BDO Unibank (BDO),Juan Dela Cruz,1234567890,IT,Developer,2026-01-01,S\n";
+    const csvContent = "\uFEFF" + headers + sample;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
