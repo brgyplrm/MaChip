@@ -54,7 +54,7 @@ const Maxicare = () => {
   const [cycleConfigs, setCycleConfigs] = useState({}); // Map of year -> { totalGross, monthsToPay }
 
   const [batchForm, setBatchForm] = useState({
-    date: "",
+    dates: [],
     amount: "",
     selectedEmployees: []
   });
@@ -69,6 +69,69 @@ const Maxicare = () => {
   const [editingCell, setEditingCell] = useState(null); 
   const [editValue, setEditValue] = useState("");
   const [syncingCell, setSyncingCell] = useState(null); 
+
+  const emptyColumn = async (empKey) => {
+    const emp = employeeList.find(e => e.key === empKey);
+    if (!emp) return;
+
+    const updates = displayDates.map(dateStr => ({
+      date: dateStr,
+      user_Id: emp.user_Id,
+      amount: 0
+    }));
+
+    setData(prevData => {
+      let newData = [...prevData];
+      displayDates.forEach(dateStr => {
+        let recordIndex = newData.findIndex(d => isInSamePeriod(d.date, dateStr));
+        if (recordIndex !== -1) {
+          newData[recordIndex] = {
+            ...newData[recordIndex],
+            values: {
+              ...newData[recordIndex].values,
+              [empKey]: { amount: 0, status: 'removed' }
+            }
+          };
+        }
+      });
+      return newData.sort((a, b) => a.date.localeCompare(b.date));
+    });
+
+    try {
+      await fetchWithAuth("/api/payroll/maxicare/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates })
+      });
+      setToast({ message: `All deductions for ${emp.name} have been cleared.`, type: "success" });
+    } catch (err) {
+      setToast({ message: "Failed to sync cleared column", type: "error" });
+      fetchData();
+    }
+  };
+
+  const deleteColumn = async (empKey) => {
+    const emp = employeeList.find(e => e.key === empKey);
+    if (!emp) return;
+
+    if (!window.confirm(`Are you sure you want to remove ${emp.name} from the Maxicare list? This will clear their history and set their expected deduction to 0.`)) return;
+
+    await emptyColumn(empKey);
+
+    try {
+      await fetchWithAuth("/api/users/bulk-maxicare", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: [{ user_Id: emp.user_Id, healthCard_Amnt: 0 }]
+        })
+      });
+      setEmployeeList(prev => prev.filter(e => e.key !== empKey));
+      setToast({ message: `${emp.name} has been removed from Maxicare.`, type: "success" });
+    } catch (err) {
+      setToast({ message: "Error updating user status", type: "error" });
+    }
+  };
 
   // Helper to check if a date's period has any contribution data within a specific cycle
   const hasContributionInCycle = (dateStr, cycleRange) => {
@@ -405,11 +468,16 @@ const Maxicare = () => {
     setEditValue(currentVal > 0 ? currentVal.toString() : "");
   };
 
-  const handleCellSave = async (date, empKey) => {
-    if (!editingCell) return;
+  const handleCellSave = async (date, empKey, manualVal = null) => {
+    if (!editingCell && manualVal === null) return;
     
-    const sanitizedValue = editValue.replace(/,/g, "").trim();
-    const val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
+    let val;
+    if (manualVal !== null) {
+      val = manualVal;
+    } else {
+      const sanitizedValue = editValue.replace(/,/g, "").trim();
+      val = sanitizedValue === "" ? 0 : parseFloat(sanitizedValue);
+    }
     
     setEditingCell(null);
 
@@ -428,7 +496,8 @@ const Maxicare = () => {
       const targetDateIndex = expectedDates.indexOf(date);
       const currentCutoffIndex = currentCutoffDate ? expectedDates.indexOf(currentCutoffDate) : expectedDates.length;
 
-      const shouldFill = val >= (deductionCutoff - 0.01); 
+      // Only auto-fill forward if it's NOT a manual "clear" action (val > 0)
+      const shouldFill = val > 0 && val >= (deductionCutoff - 0.01); 
 
       const datesToProcess = shouldFill 
         ? expectedDates.slice(targetDateIndex, currentCutoffIndex)
@@ -447,6 +516,7 @@ const Maxicare = () => {
           const currentRecord = newData[recordIndex].values[empKey];
           const currentVal = currentRecord ? currentRecord.amount : 0;
 
+          // If filling forward, only overwrite 0s. If it's the target date, always overwrite.
           if (currentVal === 0 || dStr === date) {
             newData[recordIndex] = {
               ...newData[recordIndex],
@@ -462,9 +532,11 @@ const Maxicare = () => {
         }
       });
 
-      setEmployeeList(prev => prev.map(e => 
-        e.key === empKey ? { ...e, expectedDeduction: val } : e
-      ));
+      if (val > 0) {
+        setEmployeeList(prev => prev.map(e => 
+          e.key === empKey ? { ...e, expectedDeduction: val } : e
+        ));
+      }
 
       return newData.sort((a, b) => a.date.localeCompare(b.date));
     });
@@ -480,7 +552,7 @@ const Maxicare = () => {
         if (res.ok) {
           setToast({ 
             message: updates.length > 1 
-              ? "Employee history auto-filled and saved!" 
+              ? "Employee history updated!" 
               : "Cell updated successfully!", 
             type: "success" 
           });
@@ -822,8 +894,8 @@ const Maxicare = () => {
   };
 
   const handleBatchSave = async () => {
-    if (!batchForm.date || !batchForm.amount || batchForm.selectedEmployees.length === 0) {
-      setToast({ message: "Please fill all fields and select at least one employee", type: "error" });
+    if (batchForm.dates.length === 0 || !batchForm.amount || batchForm.selectedEmployees.length === 0) {
+      setToast({ message: "Please select at least one period, one employee, and an amount", type: "error" });
       return;
     }
 
@@ -837,30 +909,43 @@ const Maxicare = () => {
     const todayStr = systemToday ? formatDateLocal(systemToday) : "";
     const updates = [];
 
+    // Populate updates array for each date and each employee
+    batchForm.dates.forEach(dStr => {
+      batchForm.selectedEmployees.forEach(empId => {
+        const emp = employeeList.find(e => e.user_Id === empId);
+        if (emp) {
+          updates.push({ date: dStr, user_Id: emp.user_Id, amount: amount });
+        }
+      });
+    });
+
+    if (updates.length === 0) {
+      setToast({ message: "No valid employees selected", type: "error" });
+      setLoading(false);
+      return;
+    }
+
     setData(prevData => {
       let newData = [...prevData];
       
-      batchForm.selectedEmployees.forEach(empId => {
-        const emp = employeeList.find(e => e.user_Id === empId);
-        if (!emp) return;
-
-        let recordIndex = newData.findIndex(d => isInSamePeriod(d.date, batchForm.date));
+      updates.forEach(update => {
+        const emp = employeeList.find(e => e.user_Id === update.user_Id);
+        let recordIndex = newData.findIndex(d => isInSamePeriod(d.date, update.date));
         
         if (recordIndex === -1) {
           newData.push({
-            date: batchForm.date,
-            values: { [emp.key]: { amount: amount, status: batchForm.date < todayStr ? 'paid' : 'estimated' } }
+            date: update.date,
+            values: { [emp.key]: { amount: amount, status: update.date < todayStr ? 'paid' : 'estimated' } }
           });
         } else {
           newData[recordIndex] = {
             ...newData[recordIndex],
             values: {
               ...newData[recordIndex].values,
-              [emp.key]: { amount: amount, status: batchForm.date < todayStr ? 'paid' : 'estimated' }
+              [emp.key]: { amount: amount, status: update.date < todayStr ? 'paid' : 'estimated' }
             }
           };
         }
-        updates.push({ date: batchForm.date, user_Id: emp.user_Id, amount: amount });
       });
 
       return newData.sort((a, b) => a.date.localeCompare(b.date));
@@ -874,8 +959,9 @@ const Maxicare = () => {
       });
 
       if (res.ok) {
-        setToast({ message: "Batch update successful!", type: "success" });
+        setToast({ message: `Successfully updated ${updates.length} records!`, type: "success" });
         setShowBatchModal(false);
+        setBatchForm({ dates: [], amount: "", selectedEmployees: [] });
         fetchData();
       } else {
         const errData = await res.json();
@@ -902,6 +988,18 @@ const Maxicare = () => {
     });
   };
 
+  const toggleDateSelection = (dateStr) => {
+    setBatchForm(prev => {
+      const isSelected = prev.dates.includes(dateStr);
+      return {
+        ...prev,
+        dates: isSelected 
+          ? prev.dates.filter(d => d !== dateStr)
+          : [...prev.dates, dateStr]
+      };
+    });
+  };
+
   const selectAllEmployees = () => {
     setBatchForm(prev => ({
       ...prev,
@@ -913,6 +1011,20 @@ const Maxicare = () => {
     setBatchForm(prev => ({
       ...prev,
       selectedEmployees: []
+    }));
+  };
+
+  const selectAllDates = () => {
+    setBatchForm(prev => ({
+      ...prev,
+      dates: [...expectedDates]
+    }));
+  };
+
+  const deselectAllDates = () => {
+    setBatchForm(prev => ({
+      ...prev,
+      dates: []
     }));
   };
 
@@ -968,16 +1080,22 @@ const Maxicare = () => {
             <TabsContent value="form" className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Target Month / Period</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Target Month / Period</label>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="xs" onClick={selectAllDates} className="text-[10px] h-6 px-2 text-blue-600">All</Button>
+                      <Button variant="ghost" size="xs" onClick={deselectAllDates} className="text-[10px] h-6 px-2 text-slate-400">Clear</Button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto p-2 border border-slate-200 rounded-md bg-slate-50">
-                    {expectedDates.map( dStr => {
-                      const isSelected = batchForm.date === dStr;
+                    {expectedDates.length > 0 ? expectedDates.map( dStr => {
+                      const isSelected = batchForm.dates.includes(dStr);
                       const dObj = new Date(dStr);
                       return (
                         <button
                           key={dStr}
                           type="button"
-                          onClick={() => setBatchForm(prev => ({ ...prev, date: dStr }))}
+                          onClick={() => toggleDateSelection(dStr)}
                           className={`text-[11px] py-2 px-3 rounded-lg border transition-all text-left flex flex-col ${
                             isSelected 
                               ? "bg-[#2A174E] border-[#2A174E] text-white shadow-md font-bold" 
@@ -990,7 +1108,11 @@ const Maxicare = () => {
                           <span>{dObj.toLocaleDateString('en-PH', { day: 'numeric', month: 'short' })}</span>
                         </button>
                       );
-                    })}
+                    }) : (
+                      <div className="col-span-2 text-center py-4 text-slate-400 text-xs italic">
+                        No periods configured. Please set the cycle first.
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -1102,18 +1224,7 @@ const Maxicare = () => {
             <div className="flex justify-between items-start mb-6">
               <div className="w-full max-w-xs">
                 <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Total Gross Premium</p>
-                {isEditing ? (
-                  <Input 
-                    type="text" 
-                    name="totalGross" 
-                    value={config.totalGross?.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} 
-                    onChange={handleConfigChange}
-                    autoFocus
-                    className="text-3xl font-extrabold text-slate-900 tracking-tight w-full bg-slate-50 border border-slate-300 rounded p-1 mt-1 h-auto"
-                  />
-                ) : (
-                  <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(config.totalGross)}</p>
-                )}
+                <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(config.totalGross)}</p>
               </div>
               <div className={`text-right px-3 py-1.5 rounded-md border flex items-center gap-1 ${isUnconfigured ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
                 <SecurityIcon className={isUnconfigured ? 'text-amber-600 !text-sm' : 'text-blue-600 !text-sm'} />
@@ -1127,19 +1238,9 @@ const Maxicare = () => {
               <div className="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 w-fit">
                 <EventIcon className="text-slate-400 !text-base" />
                 <span>Cycle Start: 
-                  {isEditing ? (
-                    <input 
-                      type="date" 
-                      name="cycleStartDate" 
-                      value={config.cycleStartDate} 
-                      onChange={handleConfigChange}
-                      className="ml-2 bg-white border border-slate-300 rounded px-2 py-0.5 text-slate-900 outline-none"
-                    />
-                  ) : (
-                    <span className="text-slate-900 font-semibold ml-1">
-                      {config.cycleStartDate ? new Date(config.cycleStartDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not Set'}
-                    </span>
-                  )}
+                  <span className="text-slate-900 font-semibold ml-1">
+                    {config.cycleStartDate ? new Date(config.cycleStartDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not Set'}
+                  </span>
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 w-fit">
@@ -1171,17 +1272,7 @@ const Maxicare = () => {
               <div className="mt-6 pt-4 border-t border-slate-700/50">
                 <div className="text-sm text-slate-300 flex items-center gap-2">
                   Amortized over: 
-                  {isEditing ? (
-                    <input 
-                      type="number" 
-                      name="monthsToPay" 
-                      value={config.monthsToPay} 
-                      onChange={handleConfigChange}
-                      className="bg-slate-800 border border-slate-600 rounded px-2 py-0.5 text-white w-20 outline-none"
-                    />
-                  ) : (
-                    <span className="text-white font-semibold">{config.monthsToPay}</span>
-                  )}
+                  <span className="text-white font-semibold">{config.monthsToPay}</span>
                   Months
                 </div>
               </div>
@@ -1249,7 +1340,14 @@ const Maxicare = () => {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => setShowBatchModal(true)}
+                  onClick={() => {
+                    setBatchForm(prev => ({ 
+                      ...prev, 
+                      dates: [],
+                      amount: deductionCutoff > 0 ? deductionCutoff.toFixed(2) : "" 
+                    }));
+                    setShowBatchModal(true);
+                  }}
                   className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50"
                 >
                   <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
@@ -1262,7 +1360,6 @@ const Maxicare = () => {
                       saveSettings();
                     } else {
                       setIsEditingTable(true);
-                      setIsEditing(true);
                     }
                   }}
                   className={`${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
@@ -1308,9 +1405,28 @@ const Maxicare = () => {
                   </th>
                   {employeeList.map((emp) => (
                     <th key={emp.key} className="sticky top-0 z-[50] bg-[#2A174E] text-white border-x border-b-2 border-[#3d2270] min-w-[140px] p-3 text-center align-middle">
-                      <div className="flex flex-col leading-tight items-center">
+                      <div className="flex flex-col leading-tight items-center relative group">
                         <span className="text-[11px] font-bold uppercase">{emp.name.split(',')[0]}</span>
                         <span className="text-[9px] text-white/70 font-mono">{emp.id}</span>
+                        
+                        {isEditingTable && (
+                          <div className="flex gap-1 mt-2">
+                            <button 
+                              onClick={() => emptyColumn(emp.key)}
+                              className="bg-amber-500 hover:bg-amber-600 text-white p-1 rounded-sm transition-colors"
+                              title="Empty this column"
+                            >
+                              <FilterListIcon className="!text-[10px]" />
+                            </button>
+                            <button 
+                              onClick={() => deleteColumn(emp.key)}
+                              className="bg-rose-500 hover:bg-rose-600 text-white p-1 rounded-sm transition-colors"
+                              title="Delete this column"
+                            >
+                              <DeleteIcon className="!text-[10px]" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </th>
                   ))}
@@ -1403,7 +1519,7 @@ const Maxicare = () => {
                             const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
                             const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
 
-                            let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer ";
+                            let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer group ";
                             if (isEditing) cellClass += "bg-white p-0 ";
                             else if (isSyncing) cellClass += "bg-yellow-50 ";
                             else if (status === 'paid') cellClass += "text-green-800 font-bold ";
@@ -1436,6 +1552,18 @@ const Maxicare = () => {
                                   <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
                                 ) : (
                                   <>
+                                    {isEditingTable && amount > 0 && (
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCellSave(dateStr, emp.key, 0);
+                                        }}
+                                        className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-rose-700"
+                                        title="Clear this cell"
+                                      >
+                                        <DeleteIcon className="!text-[10px]" />
+                                      </button>
+                                    )}
                                     {amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                                     {isProjection && amount > 0 && <span className="absolute top-[2px] right-[2px] text-[8px] font-black bg-slate-200 text-slate-500 px-0.5 rounded leading-none not-italic">EST</span>}
                                   </>
