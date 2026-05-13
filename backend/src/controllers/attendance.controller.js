@@ -637,8 +637,17 @@ exports.viewUserLogs = async (req, res) => {
 
 // ── View All Attendance ───────────────────────────────────────────────────────
 exports.viewAllAttendance = async (req, res) => {
+  const { startDate, endDate } = req.query;
   try {
+    const whereClause = {};
+    if (startDate && endDate) {
+      whereClause.log_Date = {
+        [sequelize.Sequelize.Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    }
+
     const logs = await user_logging.findAll({
+      where: whereClause,
       include: [
         {
           model: User,

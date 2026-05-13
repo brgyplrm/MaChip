@@ -112,7 +112,7 @@ const Logs = () => {
   // Fetch all logs from the backend (raw)
   const fetchLogs = useCallback(async () => {
     try {
-      const response = await fetchWithAuth("/api/attendance/all");
+      const response = await fetchWithAuth(`/api/attendance/all?startDate=${period.startDate}&endDate=${period.endDate}`);
       if (response.ok) {
         const logs = await response.json();
         const mapped = logs.map((log) => {
@@ -142,7 +142,7 @@ const Logs = () => {
     } catch (err) {
       console.error("Error fetching logs:", err);
     }
-  }, []);
+  }, [period.startDate, period.endDate]);
 
   // Fetch day logs
   const fetchDayLogs = useCallback(async () => {
@@ -318,7 +318,7 @@ const Logs = () => {
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">User Logging Activity</h1>
               <span className="text-sm text-slate-500 mt-1 block">
-                {viewMode === "raw" ? "Track real-time biometric and manual clock events" : `Aggregated Day Logs (${period.startDate} to ${period.endDate})`}
+                {viewMode === "raw" ? "Real-time biometric and manual clock events" : "Aggregated Day Logs"} ({period.startDate} to {period.endDate})
               </span>
             </div>
             
