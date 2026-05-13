@@ -49,10 +49,36 @@ const Cashadvances = () => {
   // Batch Upload States
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchForm, setBatchForm] = useState({
-    date: "",
+    dates: [],
     amount: "",
     selectedEmployees: []
   });
+
+  const toggleDateSelection = (dateStr) => {
+    setBatchForm(prev => {
+      const isSelected = prev.dates.includes(dateStr);
+      return {
+        ...prev,
+        dates: isSelected 
+          ? prev.dates.filter(d => d !== dateStr)
+          : [...prev.dates, dateStr]
+      };
+    });
+  };
+
+  const selectAllDates = () => {
+    setBatchForm(prev => ({
+      ...prev,
+      dates: [...expectedDates]
+    }));
+  };
+
+  const deselectAllDates = () => {
+    setBatchForm(prev => ({
+      ...prev,
+      dates: []
+    }));
+  };
 
   const fetchCutoffDates = () => {
     const dates = [];
@@ -117,8 +143,8 @@ const Cashadvances = () => {
 
   // Batch Form Functions
   const handleBatchSave = async () => {
-    if (!batchForm.date || !batchForm.amount || batchForm.selectedEmployees.length === 0) {
-      setToast({ message: "Please fill all fields and select at least one employee", type: "error" });
+    if (batchForm.dates.length === 0 || !batchForm.amount || batchForm.selectedEmployees.length === 0) {
+      setToast({ message: "Please select at least one period, one employee, and an amount", type: "error" });
       return;
     }
 
@@ -131,8 +157,10 @@ const Cashadvances = () => {
     setLoading(true);
     const updates = [];
 
-    batchForm.selectedEmployees.forEach(empId => {
-      updates.push({ date: batchForm.date, user_Id: empId, amount: amount, type: "Cash Advance" });
+    batchForm.dates.forEach(dStr => {
+      batchForm.selectedEmployees.forEach(empId => {
+        updates.push({ date: dStr, user_Id: empId, amount: amount, type: "Cash Advance" });
+      });
     });
 
     try {
@@ -143,8 +171,9 @@ const Cashadvances = () => {
       });
 
       if (res.ok) {
-        setToast({ message: "Batch update successful!", type: "success" });
+        setToast({ message: `Successfully updated ${updates.length} records!`, type: "success" });
         setShowBatchModal(false);
+        setBatchForm({ dates: [], amount: "", selectedEmployees: [] });
         fetchData();
       } else {
         const errData = await res.json();
@@ -413,16 +442,22 @@ const Cashadvances = () => {
             <TabsContent value="form" className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Target Month / Period</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Target Month / Period</label>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="xs" onClick={selectAllDates} className="text-[10px] h-6 px-2 text-blue-600">All</Button>
+                      <Button variant="ghost" size="xs" onClick={deselectAllDates} className="text-[10px] h-6 px-2 text-slate-400">Clear</Button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto p-2 border border-slate-200 rounded-md bg-slate-50 custom-scrollbar">
                     {expectedDates.map(dStr => {
-                      const isSelected = batchForm.date === dStr;
+                      const isSelected = batchForm.dates.includes(dStr);
                       const dObj = new Date(dStr);
                       return (
                         <button
                           key={dStr}
                           type="button"
-                          onClick={() => setBatchForm(prev => ({ ...prev, date: dStr }))}
+                          onClick={() => toggleDateSelection(dStr)}
                           className={`text-[11px] py-2 px-3 rounded-lg border transition-all text-left flex flex-col ${
                             isSelected 
                               ? "bg-[#2A174E] border-[#2A174E] text-white shadow-md font-bold" 
@@ -594,7 +629,10 @@ const Cashadvances = () => {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => setShowBatchModal(true)}
+                  onClick={() => {
+                    setBatchForm(prev => ({ ...prev, dates: [], amount: "" }));
+                    setShowBatchModal(true);
+                  }}
                   className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
                 >
                   <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
