@@ -26,6 +26,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import ShieldIcon from '@mui/icons-material/Shield';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 const AdminReports = () => {
   const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0]);
@@ -46,6 +49,10 @@ const AdminReports = () => {
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const [showBatchZipModal, setShowBatchZipModal] = useState(false);
+  const [zipPassword, setZipPassword] = useState("");
+  const [zipLabel, setZipLabel] = useState("");
 
   const fetchPayrollPeriods = useCallback(async () => {
     try {
@@ -194,6 +201,8 @@ const AdminReports = () => {
     if (payrollData.length === 0) return;
     
     let label = "Payroll_Report";
+    let periodCode = "MAChipPayroll";
+    
     if (selectedPeriod !== "custom") {
       const period = payrollPeriods.find(p => p.periodId.toString() === selectedPeriod);
       if (period) {
@@ -201,12 +210,35 @@ const AdminReports = () => {
         const [endY, endM, endD] = period.endDate.split('-').map(Number);
         const month = new Date(startY, startM - 1, startD).toLocaleString('en-US', { month: 'long' });
         label = `${month}${startD}-${endD}`;
+        
+        // Generate password: {Year}_{Month}{Period}MAChipPayroll
+        // e.g. 2026_0501-15MAChipPayroll
+        const monthNum = String(startM).padStart(2, '0');
+        const pRange = `${String(startD).padStart(2, '0')}-${String(endD).padStart(2, '0')}`;
+        periodCode = `${startY}_${monthNum}${pRange}MAChipPayroll`;
       }
     } else {
       label = `Payroll_${startDate}_to_${endDate}`;
+      const [sY, sM, sD] = startDate.split('-').map(Number);
+      const [eY, eM, eD] = endDate.split('-').map(Number);
+      periodCode = `${sY}_${String(sM).padStart(2, '0')}${String(sD).padStart(2, '0')}-${String(eD).padStart(2, '0')}MAChipPayroll`;
     }
-    
-    exportBatchToZip(payrollData, label);
+
+    setZipPassword(periodCode);
+    setZipLabel(label);
+    setShowBatchZipModal(true);
+  };
+
+  const confirmBatchZip = async () => {
+    setShowBatchZipModal(false);
+    setLoading(true);
+    try {
+      await exportBatchToZip(payrollData, zipLabel, zipPassword);
+    } catch (error) {
+      console.error("Batch Zip Error:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // --- Statistics Calculation ---
@@ -666,6 +698,62 @@ const AdminReports = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Batch Zip Protection Modal */}
+        <Dialog open={showBatchZipModal} onOpenChange={setShowBatchZipModal}>
+          <DialogContent className="max-w-md bg-white p-0 overflow-hidden border-0 shadow-2xl">
+            <div className="bg-[#2A174E] p-6 text-white flex flex-col items-center text-center">
+              <div className="bg-white/10 p-4 rounded-full mb-4">
+                <ShieldIcon className="h-10 w-10 text-green-400" />
+              </div>
+              <DialogTitle className="text-xl font-bold mb-2">Protected Batch Export</DialogTitle>
+              <DialogDescription className="text-blue-100 text-sm">
+                For security, this ZIP file will be encrypted. Please save the password below to access the documents.
+              </DialogDescription>
+            </div>
+
+            <div className="p-8">
+              <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-6 mb-6">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">File Encryption Password</p>
+                <div className="flex items-center justify-between gap-4 bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                  <code className="text-lg font-black text-[#2A174E] tracking-tight">{zipPassword}</code>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-9 w-9 text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5"
+                    onClick={() => {
+                      navigator.clipboard.writeText(zipPassword);
+                    }}
+                  >
+                    <ContentCopyIcon className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 text-xs text-slate-500 bg-amber-50 p-4 rounded-lg border border-amber-100">
+                  <div className="mt-0.5">⚠️</div>
+                  <p>This password is required by anyone opening the ZIP. Make sure to share it with authorized personnel only.</p>
+                </div>
+
+                <Button 
+                  onClick={confirmBatchZip} 
+                  className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold py-6 text-base shadow-lg shadow-[#2A174E]/20"
+                >
+                  Download Protected ZIP
+                </Button>
+                
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setShowBatchZipModal(false)}
+                  className="w-full text-slate-400 hover:text-slate-600 font-medium"
+                >
+                  Cancel Export
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Global styling for custom scrollbars */}
         <style dangerouslySetInnerHTML={{__html: `

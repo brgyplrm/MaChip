@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../../../components/Sidebar";
 import { fetchWithAuth } from "../../../utils/api";
 import { formatUserId } from "../../../utils/formatUserId";
+import { exportLeaveSummaryPDF } from "../../../utils/leaveSummaryExport";
 import DownloadIcon from '@mui/icons-material/Download';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 
@@ -153,7 +154,11 @@ const LeaveSummary = () => {
                 })}
               </SelectContent>
             </Select>
-            <Button className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold">
+            <Button 
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold"
+              onClick={() => exportLeaveSummaryPDF(data, months, year, activeTab, rates)}
+              disabled={loading || data.length === 0}
+            >
               <DownloadIcon className="mr-2 h-4 w-4" /> Export PDF
             </Button>
           </div>

@@ -16,6 +16,7 @@
     "@mui/icons-material": "^7.3.8",
     "@mui/material": "^7.3.8",
     "@mui/x-data-grid": "^8.27.1",
+    "@zip.js/zip.js": "^2.8.26",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "file-saver": "^2.0.5",
