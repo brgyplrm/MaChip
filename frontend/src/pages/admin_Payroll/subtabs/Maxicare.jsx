@@ -82,7 +82,8 @@ const Maxicare = () => {
     const updates = displayDates.map(dateStr => ({
       date: dateStr,
       user_Id: emp.user_Id,
-      amount: 0
+      amount: 0,
+      status: 'removed'
     }));
 
     setData(prevData => {
@@ -375,9 +376,13 @@ const Maxicare = () => {
 
       let historyMap = {}; 
       let rawHistory = [];
+      let employees = [];
       const historyRes = await fetchWithAuth("/api/payroll/maxicare/history");
       if (historyRes.ok) {
-        rawHistory = await historyRes.json();
+        const json = await historyRes.json();
+        rawHistory = json.history || [];
+        employees = json.employees || [];
+
         if (Array.isArray(rawHistory)) {
           rawHistory.forEach(item => {
             const uid = item.user_Id.toString();
@@ -392,12 +397,9 @@ const Maxicare = () => {
         }
       }
 
-      let empRes = await fetchWithAuth("/api/users/all");
-      let employees = [];
-      if (empRes.ok) employees = await empRes.json();
       if (!Array.isArray(employees)) throw new Error("Could not retrieve employee list.");
 
-      const activeParticipants = employees.filter(emp => emp.dailyRate > 0);
+      const activeParticipants = employees;
 
       const activeEmps = activeParticipants.map(emp => {
         const hist = historyMap[emp.user_Id.toString()];
@@ -1432,6 +1434,7 @@ const Maxicare = () => {
                     setShowBatchModal(true);
                   }}
                   className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50"
+                  disabled={loading || displayDates.length === 0}
                 >
                   <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
                 </Button>

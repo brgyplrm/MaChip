@@ -236,14 +236,26 @@ const Settings = () => {
                   {mockEnabled && (
                     <div className="space-y-3 pt-4 border-t border-amber-200/50 animate-in fade-in slide-in-from-top-2">
                       <Label htmlFor="mock-time" className="text-xs font-bold text-amber-700 uppercase tracking-wider">Set Simulated Date & Time</Label>
-                      <Input 
-                        id="mock-time"
-                        type="datetime-local" 
-                        value={mockTime}
-                        onChange={(e) => setMockTime(e.target.value)}
-                        disabled={!isAdmin}
-                        className="bg-white border-amber-200 focus-visible:ring-amber-500 max-w-md"
-                      />
+                      <div className="flex flex-col sm:flex-row gap-3 items-end">
+                        <Input 
+                          id="mock-time"
+                          type="datetime-local" 
+                          value={mockTime}
+                          onChange={(e) => setMockTime(e.target.value)}
+                          disabled={!isAdmin}
+                          className="bg-white border-amber-200 focus-visible:ring-amber-500 max-w-md"
+                        />
+                        {isAdmin && (
+                          <Button 
+                            onClick={handleSaveSettings}
+                            disabled={saving}
+                            className="bg-amber-600 hover:bg-amber-700 text-white whitespace-nowrap shadow-sm h-10 px-4"
+                          >
+                            <SaveIcon className="mr-2 h-4 w-4" />
+                            {saving ? "Saving..." : "Apply Mock Time"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

@@ -12,6 +12,15 @@ const peso = (val) => {
   });
 };
 
+const thousandths = (val) => {
+  const v = parseFloat(val);
+  if (isNaN(v)) return "0.000";
+  return v.toLocaleString("en-PH", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  });
+};
+
 const sum = (rows, key) =>
   rows.reduce((acc, r) => acc + parseFloat(r[key] || 0), 0);
 
@@ -46,20 +55,52 @@ const getPastMonth = (rows) => {
 };
 
 // ── HTML Builder ──────────────────────────────────────────────────────────────
-const build8PageReportHTML = (payrollRows, periodLabel) => {
+const build8PageReportHTML = (rawRows, periodLabel) => {
+  // ── Pre-process rows to ensure "Worked Days" model consistency ─────────────
+  const payrollRows = rawRows.map(r => {
+    const dailyRate = parseFloat(r.dailyRate || 0);
+    const workedDays = parseFloat(r.NoDays_Worked || 0);
+    const scheduledDays = parseFloat(r.totalScheduledDays || 0);
+    const absenceHrs = parseFloat(r.absence_Hrs || 0);
+    const tardinessMins = parseFloat(r.tardiness_Mins || 0);
+
+    // Worked-based basic pay (Page 2)
+    const computedBasic = workedDays * dailyRate;
+    
+    // Formula: amount = Rate per Hour / 60 * Minutes
+    // Minutes = (Absence Hours * 60) + Tardiness Minutes
+    const ratePerMin = (dailyRate / 8) / 60;
+    const totalMins = (absenceHrs * 60) + tardinessMins;
+    const absTard_Amnt = totalMins * ratePerMin;
+    
+    const holPay = parseFloat(r.legalHol_Amnt || 0) + parseFloat(r.specialHol_Amnt || 0);
+
+    return {
+      ...r,
+      basicPay: computedBasic,
+      absence_Amnt: 0, // Set to 0 because absences are consolidated into tardiness_Amnt for deduction
+      tardiness_Amnt: absTard_Amnt,
+      absTardDisplay: absTard_Amnt,  // For Page 3 display
+      totalMins,       // For Page 3 display
+      holPay
+    };
+  });
+
   const totals = {
     basicPay: sum(payrollRows, "basicPay"),
     OT_Amnt: sum(payrollRows, "OT_Amnt"),
     absence_Amnt: sum(payrollRows, "absence_Amnt"),
     tardiness_Amnt: sum(payrollRows, "tardiness_Amnt"),
-    totalAbsenceTardiness: sum(payrollRows, "absence_Amnt") + sum(payrollRows, "tardiness_Amnt"),
-    totalAdditionalPay: sum(payrollRows, "OT_Amnt") + sum(payrollRows, "incentives") + sum(payrollRows, "leaveCredits"),
-    totalGrossPay: sum(payrollRows, "basicPay") + (sum(payrollRows, "OT_Amnt") + sum(payrollRows, "incentives") + sum(payrollRows, "leaveCredits")) - (sum(payrollRows, "absence_Amnt") + sum(payrollRows, "tardiness_Amnt")),
+    totalAbsTardDisplay: sum(payrollRows, "absTardDisplay"),
+    totalAbsenceTardiness: sum(payrollRows, "tardiness_Amnt"),
+    totalAdditionalPay: sum(payrollRows, "OT_Amnt") + sum(payrollRows, "incentives") + sum(payrollRows, "leaveCredits") + sum(payrollRows, "legalHol_Amnt") + sum(payrollRows, "specialHol_Amnt"),
+    totalGrossPay: sum(payrollRows, "basicPay") - sum(payrollRows, "tardiness_Amnt") + (sum(payrollRows, "OT_Amnt") + sum(payrollRows, "incentives") + sum(payrollRows, "leaveCredits") + sum(payrollRows, "legalHol_Amnt") + sum(payrollRows, "specialHol_Amnt")),
     totalGovtDed: sum(payrollRows, "SSS_Ded") + sum(payrollRows, "Philhealth_Ded") + sum(payrollRows, "HDMF_Ded"),
-    totalTaxableIncome: (sum(payrollRows, "basicPay") + (sum(payrollRows, "OT_Amnt") + sum(payrollRows, "incentives") + sum(payrollRows, "leaveCredits")) - (sum(payrollRows, "absence_Amnt") + sum(payrollRows, "tardiness_Amnt"))) - (sum(payrollRows, "SSS_Ded") + sum(payrollRows, "Philhealth_Ded") + sum(payrollRows, "HDMF_Ded")),
-    totalOtherDed: sum(payrollRows, "Tax_Ded") + sum(payrollRows, "healthCard_Amnt") + sum(payrollRows, "SSS_Loan") + sum(payrollRows, "HDMF_Loan") + sum(payrollRows, "multiPurposeSavings") + sum(payrollRows, "advances_Amnt") + sum(payrollRows, "globe_Deduction"),
+    totalIncome: (sum(payrollRows, "basicPay") - sum(payrollRows, "tardiness_Amnt") + (sum(payrollRows, "OT_Amnt") + sum(payrollRows, "incentives") + sum(payrollRows, "leaveCredits") + sum(payrollRows, "legalHol_Amnt") + sum(payrollRows, "specialHol_Amnt"))) - (sum(payrollRows, "SSS_Ded") + sum(payrollRows, "Philhealth_Ded") + sum(payrollRows, "HDMF_Ded")),
+    totalOtherDed: sum(payrollRows, "Tax_Ded") + sum(payrollRows, "healthCard_Amnt") + sum(payrollRows, "SSS_Loan") + sum(payrollRows, "HDMF_Loan") + sum(payrollRows, "multiPurposeSavings") + sum(payrollRows, "advances_Amnt"),
+    totalNetPay: ((sum(payrollRows, "basicPay") - sum(payrollRows, "tardiness_Amnt") + (sum(payrollRows, "OT_Amnt") + sum(payrollRows, "incentives") + sum(payrollRows, "leaveCredits") + sum(payrollRows, "legalHol_Amnt") + sum(payrollRows, "specialHol_Amnt"))) - (sum(payrollRows, "SSS_Ded") + sum(payrollRows, "Philhealth_Ded") + sum(payrollRows, "HDMF_Ded"))) - (sum(payrollRows, "Tax_Ded") + sum(payrollRows, "healthCard_Amnt") + sum(payrollRows, "SSS_Loan") + sum(payrollRows, "HDMF_Loan") + sum(payrollRows, "multiPurposeSavings") + sum(payrollRows, "advances_Amnt")) + sum(payrollRows, "allowance"),
     totalAllDeductions: sum(payrollRows, "totalDeductions"),
-    totalEarnings: sum(payrollRows, "totalEarnings"),
+    totalEarnings: sum(payrollRows, "totalEarnings") + sum(payrollRows, "allowance"),
     SSS_Ded: sum(payrollRows, "SSS_Ded"),
     Philhealth_Ded: sum(payrollRows, "Philhealth_Ded"),
     HDMF_Ded: sum(payrollRows, "HDMF_Ded"),
@@ -77,6 +118,7 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
     advances: sum(payrollRows, "advances_Amnt"),
     globe: sum(payrollRows, "globe_Deduction"),
     mpSavings: sum(payrollRows, "multiPurposeSavings"),
+    eastwest: sum(payrollRows, "eastwest_Loan"),
     healthCardCount: payrollRows.filter(r => parseFloat(r.healthCard_Amnt) > 0).length,
     // Extra Earnings
     nightDiff: sum(payrollRows, "nightDiff_Amnt"),
@@ -91,6 +133,9 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
     totalRemittance: (sum(payrollRows, "SSS_Ded") + sum(payrollRows, "SSS_Ded_ER")) + (sum(payrollRows, "Philhealth_Ded") + sum(payrollRows, "Philhealth_Ded_ER")) + (sum(payrollRows, "HDMF_Ded") + sum(payrollRows, "HDMF_Ded_ER")),
     totalMonthlyRate: sum(payrollRows, "dailyRate") * 26
   };
+
+  // Final BDO Deposit = Received by (Net Pay subtotal) - EastWest
+  totals.totalForDeposit = totals.totalNetPay - totals.eastwest;
 
   const commonHeader = `
     <div class="company-header">
@@ -122,7 +167,7 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
         <tbody>
           ${payrollRows.map(r => `
             <tr>
-              <td>Above Minimum</td><td>${formatEmpId(r.user_Id)}</td><td>${formatFullName(r.user_LastName, r.user_FirstName)}</td>
+              <td>${parseFloat(r.profileHealthCard || 0) > 0 ? "MAXICARE" : "Above Minimum"}</td><td>${formatEmpId(r.user_Id)}</td><td>${formatFullName(r.user_LastName, r.user_FirstName)}</td>
               <td class="center">${r.taxStatus || 'S'}</td><td>${formatDate(r.hireDate)}</td><td>${r.accountNo || ''}</td><td>${r.department || ''}</td>
             </tr>`).join('')}
         </tbody>
@@ -151,7 +196,7 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
               <td>${formatEmpId(r.user_Id)}</td><td>${formatShortName(r.user_LastName, r.user_FirstName)}</td>
               <td class="center">${r.taxStatus || 'S'}</td><td>${r.position || ''}</td>
               <td class="amt">${peso(r.previousDailyRate)}</td><td class="amt">${peso(r.dailyRate)}</td>
-              <td class="amt">${peso(r.ratePerHr)}</td><td class="center">${r.NoDays_Worked}</td>
+              <td class="amt">${thousandths(r.ratePerHr)}</td><td class="center">${r.NoDays_Worked}</td>
               <td class="center">${r.NoHrs_Worked}</td><td class="amt bold">${peso(r.basicPay)}</td>
             </tr>`).join('')}
           <tr class="totals-row"><td colspan="9">TOTAL</td><td class="amt">${peso(totals.basicPay)}</td></tr>
@@ -175,7 +220,9 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
             <th rowspan="3">NAME</th>
             <th rowspan="3">TAX</th>
             <th colspan="3">SCHEDULE 1 (Tardiness)</th>
-            <th colspan="6">ADDITIONAL PAY</th>
+            <th colspan="4">ADDITIONAL PAY</th>
+            <th rowspan="3">Total<br> Additional Pay</th>
+            <th rowspan="3">Total<br> Gross Pay</th>
           </tr>
           <tr class="group-header">
             <th rowspan="2">Minutes</th>
@@ -183,9 +230,7 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
             <th rowspan="2">Total Absences & <br/> Tardiness</th>
             <th colspan="2">SCHEDULE 2 (Overtime)</th>
             <th rowspan="2">INCENTIVES FTM OF<br/>(${pastMonth})</th>
-            <th rowspan="2">VL INCENTIVES</th>
-            <th rowspan="2">Total Additional Pay</th>
-            <th rowspan="2">Total Gross Pay</th>
+            <th rowspan="2">VL<br> INCENTIVES</th>
           </tr>
           <tr class="sub-header">
             <th>Hours</th>
@@ -194,30 +239,33 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
         </thead>
         <tbody>
           ${payrollRows.map(r => {
-            const addPay = parseFloat(r.OT_Amnt || 0) + parseFloat(r.incentives || 0) + parseFloat(r.leaveCredits || 0);
-            const absTard = parseFloat(r.absence_Amnt || 0) + parseFloat(r.tardiness_Amnt || 0);
-            const gross = parseFloat(r.basicPay || 0) + addPay - absTard;
+            const addPay = parseFloat(r.OT_Amnt || 0) + parseFloat(r.incentives || 0) + parseFloat(r.leaveCredits || 0) + parseFloat(r.holPay || 0);
+            // actualGross formula: Basic Pay - Tardiness + Additional Pay (including Holidays)
+            // Absence is already excluded from basicPay
+            const actualGross = parseFloat(r.basicPay || 0) - parseFloat(r.tardiness_Amnt || 0) + addPay;
             return `
             <tr>
               <td>${formatEmpId(r.user_Id)}</td><td>${formatShortName(r.user_LastName, r.user_FirstName)}</td>
               <td class="center">${r.taxStatus || 'S'}</td>
-              <td class="center">${r.tardiness_Mins || 0}</td><td class="amt">${peso(r.tardiness_Amnt)}</td>
-              <td class="amt bold">${peso(absTard)}</td>
+              <td class="center">${r.totalMins}</td><td class="amt">${peso(r.absTardDisplay)}</td>
+              <td class="amt bold">${peso(r.absTardDisplay)}</td>
               <td class="center">${r.OT_Hrs || 0}</td><td class="amt">${peso(r.OT_Amnt)}</td>
               <td class="amt">${peso(r.incentives)}</td>
               <td class="amt">${peso(r.leaveCredits)}</td>
               <td class="amt bold">${peso(addPay)}</td>
-              <td class="amt bold" style="color:#1e3a8a">${peso(gross)}</td>
+              <td class="amt bold" style="color:#1e3a8a">${peso(actualGross)}</td>
             </tr>`;
           }).join('')}
           <tr class="totals-row">
-            <td colspan="4">TOTAL</td><td class="amt">${peso(totals.tardiness_Amnt)}</td>
-            <td class="amt">${peso(totals.totalAbsenceTardiness)}</td>
-            <td></td><td class="amt">${peso(totals.OT_Amnt)}</td>
+            <td colspan="3">TOTAL</td>
+            <td class="center">${sum(payrollRows, "totalMins")}</td>
+            <td class="amt">${peso(totals.totalAbsTardDisplay)}</td>
+            <td class="amt">${peso(totals.totalAbsTardDisplay)}</td>
+            <td class="center">${sum(payrollRows, "OT_Hrs")}</td><td class="amt">${peso(totals.OT_Amnt)}</td>
             <td class="amt">${peso(totals.incentives)}</td>
             <td class="amt">${peso(sum(payrollRows, "leaveCredits"))}</td>
-            <td class="amt">${peso(totals.totalAdditionalPay)}</td>
-            <td class="amt">${peso(totals.totalGrossPay)}</td>
+            <td class="amt bold">${peso(totals.totalAdditionalPay)}</td>
+            <td class="amt bold" style="color:#1e3a8a">${peso(totals.totalGrossPay)}</td>
           </tr>
         </tbody>
       </table>
@@ -245,17 +293,16 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
           </tr>
           <tr class="sub-header">
             <th>SSS</th><th>PHILHEALTH</th><th>HDMF</th>
-            <th>TAX</th><th>MAXICARE</th><th>SSS LOAN</th><th>HDMF LOAN</th><th>MP SAVINGS</th><th>ADVANCES</th>
+            <th>TAX</th><th>MAXICARE</th><th>SSS LOAN</th><th>HDMF LOAN</th><th>MultiPurpose<br> SAVINGS</th><th>ADVANCES</th>
           </tr>
         </thead>
         <tbody>
           ${payrollRows.map(r => {
-            const addPay = parseFloat(r.OT_Amnt || 0) + parseFloat(r.incentives || 0) + parseFloat(r.leaveCredits || 0);
-            const absTard = parseFloat(r.absence_Amnt || 0) + parseFloat(r.tardiness_Amnt || 0);
-            const gross = parseFloat(r.basicPay || 0) + addPay - absTard;
+            const addPay = parseFloat(r.OT_Amnt || 0) + parseFloat(r.incentives || 0) + parseFloat(r.leaveCredits || 0) + parseFloat(r.holPay || 0);
+            const gross = parseFloat(r.basicPay || 0) - parseFloat(r.tardiness_Amnt || 0) + addPay;
             const govt = parseFloat(r.SSS_Ded || 0) + parseFloat(r.Philhealth_Ded || 0) + parseFloat(r.HDMF_Ded || 0);
-            const taxable = gross - govt;
-            const other = parseFloat(r.Tax_Ded || 0) + parseFloat(r.healthCard_Amnt || 0) + parseFloat(r.SSS_Loan || 0) + parseFloat(r.HDMF_Loan || 0) + parseFloat(r.multiPurposeSavings || 0) + parseFloat(r.advances_Amnt || 0) + parseFloat(r.eastwest_Loan || 0);
+            const totalIncome = gross - govt;
+            const other = parseFloat(r.Tax_Ded || 0) + parseFloat(r.healthCard_Amnt || 0) + parseFloat(r.SSS_Loan || 0) + parseFloat(r.HDMF_Loan || 0) + parseFloat(r.multiPurposeSavings || 0) + parseFloat(r.advances_Amnt || 0);
             return `
             <tr>
               <td>${formatEmpId(r.user_Id)}</td><td>${formatShortName(r.user_LastName, r.user_FirstName)}</td>
@@ -263,7 +310,7 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
               <td class="amt">${peso(r.SSS_Ded)}</td><td class="amt">${peso(r.Philhealth_Ded)}</td>
               <td class="amt">${peso(r.HDMF_Ded)}</td>
               <td class="amt bold">${peso(govt)}</td>
-              <td class="amt">${peso(taxable)}</td>
+              <td class="amt bold">${peso(totalIncome)}</td>
               <td class="amt">${peso(r.Tax_Ded)}</td><td class="amt">${peso(r.healthCard_Amnt)}</td>
               <td class="amt">${peso(r.SSS_Loan)}</td><td class="amt">${peso(r.HDMF_Loan)}</td>
               <td class="amt">${peso(r.multiPurposeSavings)}</td><td class="amt">${peso(r.advances_Amnt)}</td>
@@ -274,7 +321,7 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
             <td colspan="3">TOTAL</td>
             <td class="amt">${peso(totals.SSS_Ded)}</td><td class="amt">${peso(totals.Philhealth_Ded)}</td><td class="amt">${peso(totals.HDMF_Ded)}</td>
             <td class="amt">${peso(totals.totalGovtDed)}</td>
-            <td class="amt">${peso(totals.totalTaxableIncome)}</td>
+            <td class="amt bold">${peso(totals.totalIncome)}</td>
             <td class="amt">${peso(totals.Tax_Ded)}</td><td class="amt">${peso(totals.healthCard)}</td>
             <td class="amt">${peso(totals.SSS_Loan)}</td><td class="amt">${peso(totals.HDMF_Loan)}</td>
             <td class="amt">${peso(totals.mpSavings)}</td><td class="amt">${peso(totals.advances)}</td>
@@ -304,30 +351,49 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
             <th>FOR DEPOSIT</th>
             <th style="width:25px"></th>
             <th>INTERNAL</th>
+            <th>BASIC PAY</th>
           </tr>
         </thead>
         <tbody>
-          ${payrollRows.map(r => `
+          ${payrollRows.map(r => {
+            const addPay = parseFloat(r.OT_Amnt || 0) + parseFloat(r.incentives || 0) + parseFloat(r.leaveCredits || 0) + parseFloat(r.holPay || 0);
+            const gross = parseFloat(r.basicPay || 0) - parseFloat(r.tardiness_Amnt || 0) + addPay;
+            const govt = parseFloat(r.SSS_Ded || 0) + parseFloat(r.Philhealth_Ded || 0) + parseFloat(r.HDMF_Ded || 0);
+            const taxableIncome = gross - govt;
+            const other = parseFloat(r.Tax_Ded || 0) + parseFloat(r.healthCard_Amnt || 0) + parseFloat(r.SSS_Loan || 0) + parseFloat(r.HDMF_Loan || 0) + parseFloat(r.multiPurposeSavings || 0) + parseFloat(r.advances_Amnt || 0);
+            const formulaNetPay = taxableIncome - other + parseFloat(r.allowance || 0);
+            
+            // Received by: mirrors Net Pay column exactly as requested
+            const receivedBy = formulaNetPay;
+            // FOR DEPOSIT: Net Pay - EastWest
+            const forDeposit = receivedBy - parseFloat(r.eastwest_Loan || 0);
+
+            const basicMinusAbsTard = parseFloat(r.basicPay || 0) - parseFloat(r.tardiness_Amnt || 0);
+            const internalLabel = parseInt(r.user_Id) <= 24 ? "MAIN" : "";
+            
+            return `
             <tr>
               <td>${formatEmpId(r.user_Id)}</td><td>${formatShortName(r.user_LastName, r.user_FirstName)}</td>
               <td class="center">${r.taxStatus || 'S'}</td>
               <td class="amt">${peso(r.allowance)}</td>
-              <td class="amt bold">${peso(r.netPay)}</td>
-              <td class="amt">${peso(r.netPay)}</td>
+              <td class="amt bold">${peso(formulaNetPay)}</td>
+              <td class="amt">${peso(receivedBy)}</td>
               <td class="amt">${peso(r.eastwest_Loan)}</td>
-              <td class="amt bold" style="color:#166534">${peso(r.netPay)}</td>
+              <td class="amt bold" style="color:#166534">${peso(forDeposit)}</td>
               <td></td>
-              <td class="amt">${peso(r.basicPay)}</td>
-            </tr>`).join('')}
+              <td class="center">${internalLabel}</td>
+              <td class="amt">${peso(basicMinusAbsTard)}</td>
+            </tr>`}).join('')}
           <tr class="totals-row">
             <td colspan="3">TOTAL</td>
             <td class="amt">${peso(totals.allowance)}</td>
-            <td class="amt">${peso(totals.netPay)}</td>
-            <td class="amt">${peso(totals.netPay)}</td>
-            <td class="amt">${peso(sum(payrollRows, "eastwest_Loan"))}</td>
-            <td class="amt">${peso(totals.netPay)}</td>
+            <td class="amt">${peso(totals.totalNetPay)}</td>
+            <td class="amt">${peso(totals.totalNetPay)}</td>
+            <td class="amt">${peso(totals.eastwest)}</td>
+            <td class="amt">${peso(totals.totalNetPay - totals.eastwest)}</td>
             <td></td>
-            <td class="amt">${peso(totals.basicPay)}</td>
+            <td></td>
+            <td class="amt">${peso(totals.basicPay - totals.totalAbsenceTardiness)}</td>
           </tr>
         </tbody>
       </table>
@@ -454,8 +520,8 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
       <div class="journal-box">
         <table>
           <tr class="j-header"><th>Account Description</th><th class="amt">Debit</th><th class="amt">Credit</th></tr>
-          <tr><td>Salaries & allowances</td><td class="amt">${peso(totals.totalEarnings)}</td><td></td></tr>
-          <tr><td>SSS, Philhealth & HDMF contr (ER share)</td><td class="amt">${peso(totals.totalERShare)}</td><td></td></tr>
+          <tr><td>Salaries & allowances</td><td class="amt">${peso(totals.totalGrossPay + totals.allowance + totals.globe)}</td><td></td></tr>
+          <tr><td>SSS, Philhealth & HDMF contr</td><td class="amt">${peso(totals.totalERShare)}</td><td></td></tr>
           
           <tr><td>SSS contribution payable (EE+ER)</td><td></td><td class="amt">${peso(totals.remitSSS)}</td></tr>
           <tr><td>Philhealth contribution payable (EE+ER)</td><td></td><td class="amt">${peso(totals.remitPH)}</td></tr>
@@ -467,14 +533,13 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
           <tr><td>Healthcard-Maxicare</td><td></td><td class="amt">${peso(totals.healthCard)}</td></tr>
           <tr><td>Advances to employees</td><td></td><td class="amt">${peso(totals.advances)}</td></tr>
           <tr><td>Globe Deduction</td><td></td><td class="amt">${peso(totals.globe)}</td></tr>
-          <tr><td>Calamity Loan</td><td></td><td class="amt">${peso(totals.calamity)}</td></tr>
           
-          <tr class="total-line"><td><strong>Cash in bank-BDO</strong></td><td></td><td class="amt"><strong>${peso(totals.netPay)}</strong></td></tr>
+          <tr class="total-line"><td><strong>Cash in bank-BDO</strong></td><td></td><td class="amt"><strong>${peso(totals.totalNetPay)}</strong></td></tr>
           
           <tr class="final-row">
             <td><strong>TOTAL</strong></td>
-            <td class="amt"><strong>${peso(totals.totalEarnings + totals.totalERShare)}</strong></td>
-            <td class="amt"><strong>${peso(totals.remitSSS + totals.remitPH + totals.remitHDMF + totals.Tax_Ded + totals.mpSavings + totals.HDMF_Loan + totals.SSS_Loan + totals.healthCard + totals.advances + totals.globe + totals.calamity + totals.netPay)}</strong></td>
+            <td class="amt"><strong>${peso(totals.totalGrossPay + totals.allowance + totals.globe + totals.totalERShare)}</strong></td>
+            <td class="amt"><strong>${peso(totals.remitSSS + totals.remitPH + totals.remitHDMF + totals.Tax_Ded + totals.mpSavings + totals.HDMF_Loan + totals.SSS_Loan + totals.healthCard + totals.advances + totals.globe + totals.totalNetPay)}</strong></td>
           </tr>
         </table>
       </div>
@@ -522,13 +587,13 @@ const build8PageReportHTML = (payrollRows, periodLabel) => {
   .period-label { font-weight: bold; color: #166534; font-size: 13px; margin-top: 6px; }
   .doc-title { text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 20px; background: #f0f4ff; padding: 8px; border: 1px solid #1a3a6e; text-transform: uppercase; }
   
-  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; }
-  th, td { border: 1px solid #aaa; padding: 6px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  th { background: #1a3a6e; color: #fff; font-size: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: auto; }
+  th, td { border: 1px solid #aaa; padding: 4px 6px; font-size: 10px; word-wrap: break-word; }
+  th { background: #1a3a6e; color: #fff; text-transform: uppercase; }
   tr.group-header th { background: #0d2550; }
   tr.sub-header th { background: #dce6f1; color: #333; }
   
-  .amt { text-align: right; font-family: 'Courier New', monospace; font-size: 11.5px; }
+  .amt { text-align: right; font-family: 'Courier New', monospace; font-size: 10.5px; white-space: nowrap; }
   .center { text-align: center; }
   .bold { font-weight: bold; }
   

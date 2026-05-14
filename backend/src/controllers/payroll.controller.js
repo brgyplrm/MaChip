@@ -269,7 +269,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
 }
 
 // ── Internal Helper: Calculate Full Payroll Stats ─────────────────────────────
-async function calculatePayrollStats(user_Id, period_Start, period_End, customDailyRate = null) {
+async function calculatePayrollStats(user_Id, period_Start, period_End, customDailyRate = null, customAllowance = 0, customIncentives = 0) {
   const stats = await computePeriodStats(user_Id, period_Start, period_End);
   
   // Get user's current daily rate and gov't shares if not provided
@@ -279,7 +279,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   let hCard = 0, sLoan = 0, hLoan = 0, cLoan = 0, advAmnt = 0, gDed = 0, mpSave = 0, ewLoan = 0;
 
   const user = await sequelize.query(
-    `SELECT u."dailyRate", 
+    `SELECT u."dailyRate", u."previousDailyRate",
             d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
             d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
             d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings", d."eastwest_Loan"
@@ -290,6 +290,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   );
 
   if (dailyRate === null) dailyRate = user[0]?.dailyRate || 0;
+  const previousDailyRate = user[0]?.previousDailyRate || 0;
   
   // Calculate Employer Shares based on daily rate
   const govtShares = computeMonthlyShares(dailyRate);
@@ -339,7 +340,10 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   try {
     const maxicareRecord = await sequelize.query(
       `SELECT "amount" FROM "Payroll_maxicare" 
-       WHERE "user_Id" = :user_Id AND "max_Month" = :period_End LIMIT 1`,
+       WHERE "user_Id" = :user_Id 
+       AND EXTRACT(MONTH FROM "max_Month") = EXTRACT(MONTH FROM :period_End::date)
+       AND EXTRACT(YEAR FROM "max_Month") = EXTRACT(YEAR FROM :period_End::date)
+       LIMIT 1`,
       { replacements: { user_Id, period_End }, type: QueryTypes.SELECT }
     );
     if (maxicareRecord.length > 0) {
@@ -357,9 +361,17 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
           try { schedule = JSON.parse(schedule); } catch (e) { schedule = []; }
         }
 
+        // Handle both array and object format ( { dates: [], configs: {} } )
+        let dateArray = [];
         if (Array.isArray(schedule)) {
+          dateArray = schedule;
+        } else if (schedule && typeof schedule === 'object' && Array.isArray(schedule.dates)) {
+          dateArray = schedule.dates;
+        }
+
+        if (dateArray.length > 0) {
           const periodEndStr = typeof period_End === 'string' ? period_End : period_End.toISOString().split('T')[0];
-          const isScheduled = schedule.some(d => {
+          const isScheduled = dateArray.some(d => {
             try {
               const d1 = new Date(d).toISOString().split('T')[0];
               const d2 = new Date(periodEndStr).toISOString().split('T')[0];
@@ -368,7 +380,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
           });
           if (!isScheduled) hCard = 0;
         } else {
-          hCard = 0; // If it's not an array, treat as not scheduled
+          hCard = 0; // If it's not an array or has no dates, treat as not scheduled
         }
       }
     }
@@ -411,8 +423,10 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const ratePerHr = dailyRate / WORK_HRS_PER_DAY;
   const ratePerMin = ratePerHr / 60;
 
-  // 1. Basic Pay
-  const basicPay = stats.totalScheduledDays * dailyRate;
+  // 1. Basic Pay (Based on Worked Days + Paid Leaves)
+  // stats.NoDays_Worked already includes Regular Holidays not worked (Rule #2)
+  const totalPaidDays = stats.NoDays_Worked + stats.paidLeave_Days;
+  const basicPay = totalPaidDays * dailyRate;
 
   // 2. Holiday Premiums
   const legalHol_Amnt = (stats.legalHol_Days * dailyRate);
@@ -422,43 +436,59 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const OT_Amnt = stats.OT_Hrs * ratePerHr * 1.25;
   
   // 4. Attendance Deductions
-  const absence_Amnt = stats.absence_Days * dailyRate;
+  // Since we only pay for worked days, absence and unpaid leave amounts are 0
+  const absence_Amnt = 0; 
   const tardiness_Amnt = stats.tardiness_Mins * ratePerMin;
-  const unpaidLeave_Amnt = stats.unpaidLeave_Days * dailyRate;
-  const specialHol_Adj = stats.specialHol_NotWorked * dailyRate;
+  const unpaidLeave_Amnt = 0;
+  const specialHol_Adj = 0; // Naturally excluded from basicPay if not worked
+
+  const incentives = customIncentives; 
+  const allowance = customAllowance;
+
+  let totalEarnings = basicPay + legalHol_Amnt + specialHol_Amnt + OT_Amnt + incentives - specialHol_Adj;
+  if (totalEarnings < 0) totalEarnings = 0;
 
   // 5. Government Deductions (Standard Shares)
-  const govtTotal = parseFloat(sss_Share) + parseFloat(philhealth_Share) + parseFloat(hdmf_Share);
+  const govtTotal = totalEarnings > 0 ? (parseFloat(sss_Share) + parseFloat(philhealth_Share) + parseFloat(hdmf_Share)) : 0;
   
-  // 6. Other Deductions
-  const otherTotal = parseFloat(hCard) + parseFloat(sLoan) + parseFloat(hLoan) + parseFloat(cLoan) + parseFloat(advAmnt) + parseFloat(gDed) + parseFloat(mpSave) + parseFloat(ewLoan);
+  // 6. Other Deductions (Excluding EastWest Loan as it is deducted from Net Pay for deposit)
+  const otherTotal = totalEarnings > 0 ? (parseFloat(hCard) + parseFloat(sLoan) + parseFloat(hLoan) + parseFloat(cLoan) + parseFloat(advAmnt) + parseFloat(gDed) + parseFloat(mpSave)) : 0;
 
-  const totalEarnings = basicPay + legalHol_Amnt + specialHol_Amnt + OT_Amnt - specialHol_Adj;
   // Tax is now pulled from user template
-  const Tax_Ded = parseFloat(tax_Share) || 0; 
+  const Tax_Ded_Final = totalEarnings > 0 ? (parseFloat(tax_Share) || 0) : 0; 
 
-  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded;
-  const netPay = totalEarnings - totalDeductions;
+  // Net Pay = (Gross - Attendance Deds - Govt) - Other (including Tax) + Allowance
+  // Taxable Income = Gross - Attendance Deds - Govt
+  const taxableIncome = totalEarnings - (absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt) - govtTotal;
+  const netPay = taxableIncome - (otherTotal + Tax_Ded_Final) + allowance;
+
+  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded_Final + parseFloat(ewLoan);
 
   return {
     ...stats,
+    NoDays_Worked: totalPaidDays, 
+    absence_Hrs: stats.absence_Days * 8,
     dailyRate,
+    previousDailyRate,
     ratePerHr,
     basicPay,
     legalHol_Amnt,
     specialHol_Amnt,
     specialHol_Adj,
     OT_Amnt,
+    incentives,
+    allowance,
     absence_Amnt,
     tardiness_Amnt,
     unpaidLeave_Amnt,
     SSS_Ded: sss_Share,
     Philhealth_Ded: philhealth_Share,
     HDMF_Ded: hdmf_Share,
-    SSS_Ded_ER,
-    Philhealth_Ded_ER,
-    HDMF_Ded_ER,
+    SSS_Ded_ER: SSS_Ded_ER,
+    Philhealth_Ded_ER: Philhealth_Ded_ER,
+    HDMF_Ded_ER: HDMF_Ded_ER,
     healthCard_Amnt: hCard,
+    profileHealthCard: user[0]?.healthCard_Amnt || 0,
     SSS_Loan: sLoan,
     HDMF_Loan: hLoan,
     calamityLoan_Amnt: cLoan,
@@ -466,7 +496,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     globe_Deduction: gDed,
     eastwest_Loan: ewLoan,
     multiPurposeSavings: mpSave,
-    Tax_Ded,
+    Tax_Ded: tax_Share,
     totalEarnings,
     totalDeductions,
     netPay
@@ -512,7 +542,8 @@ exports.generateBatchPayroll = async (req, res) => {
        FROM "User" u
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
-       WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0`, 
+       WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
+       ORDER BY u."user_Id" ASC`, 
       { type: QueryTypes.SELECT }
     );
 
@@ -537,13 +568,13 @@ exports.generateBatchPayroll = async (req, res) => {
 
       const payrollResult = await sequelize.query(
         `INSERT INTO "Payroll"
-          ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
-           "dailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
+          ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked", "totalScheduledDays",
+           "dailyRate", "previousDailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
            "holidaysTotal", "holidaysRegularWorked", "holidaysSpecialWorked",
            "status", "createdAt", "updatedAt")
          VALUES
-          (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
-           :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
+          (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked, :totalScheduledDays,
+           :dailyRate, :previousDailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
            :holidaysTotal, :holidaysRegularWorked, :holidaysSpecialWorked,
            2, :now, :now)
          RETURNING "payrollId"`,
@@ -551,7 +582,9 @@ exports.generateBatchPayroll = async (req, res) => {
           replacements: {
             user_Id: emp.user_Id, periodId, period_Start, period_End,
             NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
-            dailyRate: fullStats.dailyRate, ratePerHr: fullStats.ratePerHr,
+            totalScheduledDays: fullStats.totalScheduledDays,
+            dailyRate: fullStats.dailyRate, previousDailyRate: fullStats.previousDailyRate,
+            ratePerHr: fullStats.ratePerHr,
             basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
             totalDed: fullStats.totalDeductions, netPay: fullStats.netPay,
             holidaysTotal: fullStats.holidaysTotal || 0,
@@ -716,7 +749,16 @@ async function recalculatePayrollInternal(payrollId) {
     if (!payroll[0]) return;
 
     const { user_Id, period_Start, period_End } = payroll[0];
-    const fullStats = await calculatePayrollStats(user_Id, period_Start, period_End);
+
+    // Fetch existing earnings to preserve incentives/allowances during auto-recalc
+    const earnings = await sequelize.query(
+      `SELECT "incentives", "allowance" FROM "Payroll_Earnings" WHERE "payrollId" = :payrollId`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+    const existingIncentives = earnings[0]?.incentives || 0;
+    const existingAllowance = earnings[0]?.allowance || 0;
+
+    const fullStats = await calculatePayrollStats(user_Id, period_Start, period_End, null, existingAllowance, existingIncentives);
 
     // Update Earning Adjustments
     await sequelize.query(
@@ -811,19 +853,21 @@ exports.generatePayroll = async (req, res) => {
     // 3. Insert into Payroll
     const payrollResult = await sequelize.query(
       `INSERT INTO "Payroll"
-        ("user_Id", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked",
-         "dailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
+        ("user_Id", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked", "totalScheduledDays",
+         "dailyRate", "previousDailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
          "status", "createdAt", "updatedAt")
        VALUES
-        (:user_Id, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked,
-         :dailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
+        (:user_Id, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked, :totalScheduledDays,
+         :dailyRate, :previousDailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
          2, :now, :now)
        RETURNING "payrollId"`,
       {
         replacements: {
           user_Id, period_Start, period_End,
           NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
-          dailyRate: fullStats.dailyRate, ratePerHr: fullStats.ratePerHr,
+          totalScheduledDays: fullStats.totalScheduledDays,
+          dailyRate: fullStats.dailyRate, previousDailyRate: fullStats.previousDailyRate,
+          ratePerHr: fullStats.ratePerHr,
           basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
           totalDed: fullStats.totalDeductions, netPay: fullStats.netPay,
           now: nowStr
@@ -1220,6 +1264,8 @@ exports.getPayrollReport = async (req, res) => {
       replacements.user_Id = user_Id;
     }
 
+    query += ` ORDER BY u."user_Id" ASC`;
+
     const payrolls = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
     res.status(200).json(payrolls);
   } catch (error) {
@@ -1277,7 +1323,7 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
       `SELECT p.*,
               u."user_FirstName", u."user_LastName", b."account_Number" AS "accountNo",
               h."user_MachipId", u."department", u."position", u."taxStatus", u."hireDate",
-              d."sss_Share", d."philhealth_Share", d."hdmf_Share", u."previousDailyRate",
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."healthCard_Amnt" AS "profileHealthCard", u."previousDailyRate",
               pe.*, pd.*
        FROM "Payroll" p
        LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
@@ -1287,7 +1333,7 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
        LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId"
        LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId"
        WHERE p."period_Start" = :period_Start AND p."period_End" = :period_End
-       ORDER BY u."user_LastName" ASC`,
+       ORDER BY u."user_Id" ASC`,
       { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
     );
 
@@ -1301,7 +1347,8 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
          LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
          LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
          LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
-         WHERE u."dailyRate" > 0 AND u."deletedAt" IS NULL`,
+         WHERE u."dailyRate" > 0 AND u."deletedAt" IS NULL
+         ORDER BY u."user_Id" ASC`,
         { type: QueryTypes.SELECT }
       );
 
@@ -1354,7 +1401,7 @@ exports.getPayrollSummaryPreview = async (req, res) => {
       `SELECT p.*, 
               u."user_FirstName", u."user_LastName", b."account_Number" AS "accountNo", 
               h."user_MachipId", u."department", u."position", u."taxStatus", u."hireDate",
-              d."sss_Share", d."philhealth_Share", d."hdmf_Share",
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."healthCard_Amnt" AS "profileHealthCard", u."previousDailyRate",
               pe.*, pd.*
        FROM "Payroll" p
        LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
@@ -1364,7 +1411,7 @@ exports.getPayrollSummaryPreview = async (req, res) => {
        LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId"
        LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId"
        WHERE p."period_Start" = :period_Start AND p."period_End" = :period_End
-       ORDER BY u."user_LastName" ASC`,
+       ORDER BY u."user_Id" ASC`,
       { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
     );
 
@@ -1373,12 +1420,13 @@ exports.getPayrollSummaryPreview = async (req, res) => {
       const employees = await sequelize.query(
         `SELECT u."user_Id", u."user_FirstName", u."user_LastName", h."user_MachipId", 
                 u."department", u."position", u."taxStatus", u."hireDate",
-                d."sss_Share", d."philhealth_Share", d."hdmf_Share", b."account_Number"
+                d."sss_Share", d."philhealth_Share", d."hdmf_Share", b."account_Number", u."previousDailyRate"
          FROM "User" u
          LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
          LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
          LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
-         WHERE u."dailyRate" > 0 AND u."deletedAt" IS NULL`,
+         WHERE u."dailyRate" > 0 AND u."deletedAt" IS NULL
+         ORDER BY u."user_Id" ASC`,
         { type: QueryTypes.SELECT }
       );
       
@@ -1399,6 +1447,7 @@ exports.getPayrollSummaryPreview = async (req, res) => {
           sss_Share: emp.sss_Share,
           philhealth_Share: emp.philhealth_Share,
           hdmf_Share: emp.hdmf_Share,
+          previousDailyRate: emp.previousDailyRate,
           accountNo: decrypt(emp.account_Number)
         });
       }
@@ -1439,20 +1488,22 @@ exports.updatePayrollFull = async (req, res) => {
     const oldPayroll = await sequelize.query(`SELECT p.*, pe.*, pd.* FROM "Payroll" p LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId" LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId" WHERE p."payrollId" = :payrollId LIMIT 1`, { replacements: { payrollId }, type: QueryTypes.SELECT });
     if (oldPayroll.length === 0) return res.status(404).json({ error: "Not found." });
 
-    const govtTotal  = (parseFloat(SSS_Ded || 0) + parseFloat(Philhealth_Ded || 0) + parseFloat(HDMF_Ded || 0) + parseFloat(Tax_Ded || 0));
+    const govtTotal  = (parseFloat(SSS_Ded || 0) + parseFloat(Philhealth_Ded || 0) + parseFloat(HDMF_Ded || 0));
+    const taxTotal   = parseFloat(Tax_Ded || 0);
     const otherTotal = (parseFloat(healthCard_Amnt || 0) + parseFloat(SSS_Loan || 0) + parseFloat(HDMF_Loan || 0) + parseFloat(calamityLoan_Amnt || 0) + parseFloat(multiPurposeSavings || 0) + parseFloat(advances_Amnt || 0) + parseFloat(globe_Deduction || 0));
     const attendanceDed = (parseFloat(absence_Amnt || 0) + parseFloat(tardiness_Amnt || 0) + parseFloat(unpaidLeave_Amnt || 0));
-    const computedTotalDed = govtTotal + otherTotal + attendanceDed;
     
-    // Note: totalEarnings passed from body should ALREADY include the specialHol_Adj subtraction if UI is doing the math,
-    // but here we ensure the netPay is correct.
-    const computedNet = parseFloat(totalEarnings || 0) - computedTotalDed;
+    // Net Pay = (Taxable Income) - (Other + Tax) + Allowance
+    const taxableIncome = parseFloat(totalEarnings || 0) - attendanceDed - govtTotal;
+    const computedNet = taxableIncome - (otherTotal + taxTotal) + parseFloat(allowance || 0);
+
+    const computedTotalDed = govtTotal + taxTotal + otherTotal + attendanceDed + parseFloat(req.body.eastwest_Loan || 0);
 
     await sequelize.query(`UPDATE "Payroll" SET "dailyRate"=:dailyRate, "ratePerHr"=:ratePerHr, "NoDays_Worked"=:NoDays_Worked, "NoHrs_Worked"=:NoHrs_Worked, "basicPay"=:basicPay, "totalEarnings"=:totalEarnings, "totalDeductions"=:totalDed, "netPay"=:netPay, "status"=:status, "updatedAt"=:now WHERE "payrollId" = :payrollId`, { replacements: { payrollId, dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDed: computedTotalDed, netPay: computedNet, status, now: nowStr }, type: QueryTypes.UPDATE });
     
     await sequelize.query(`UPDATE "Payroll_Earnings" SET "OT_Hrs"=:OT_Hrs, "OT_Amnt"=:OT_Amnt, "legalHol_Amnt"=:legalHol_Amnt, "specialHol_Amnt"=:specialHol_Amnt, "specialHol_Adj"=:specialHol_Adj, "incentives"=:incentives, "allowance"=:allowance WHERE "payrollId" = :payrollId`, { replacements: { payrollId, OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance }, type: QueryTypes.UPDATE });
     
-    await sequelize.query(`UPDATE "Payroll_Deductions" SET "absence_Hrs"=:absence_Hrs, "absence_Amnt"=:absence_Amnt, "tardiness_Mins"=:tardiness_Mins, "tardiness_Amnt"=:tardiness_Amnt, "unpaidLeave_Days"=:unpaidLeave_Days, "unpaidLeave_Amnt"=:unpaidLeave_Amnt, "paidLeave_Days"=:paidLeave_Days, "SSS_Ded"=:SSS_Ded, "Philhealth_Ded"=:Philhealth_Ded, "HDMF_Ded"=:HDMF_Ded, "Tax_Ded"=:Tax_Ded, "SSS_Ded_ER"=:SSS_Ded_ER, "Philhealth_Ded_ER"=:Philhealth_Ded_ER, "HDMF_Ded_ER"=:HDMF_Ded_ER, "healthCard_Amnt"=:healthCard_Amnt, "SSS_Loan"=:SSS_Loan, "HDMF_Loan"=:HDMF_Loan, "calamityLoan_Amnt"=:calamityLoan_Amnt, "multiPurposeSavings"=:multiPurposeSavings, "advances_Amnt"=:advances_Amnt, "globe_Deduction"=:globe_Deduction WHERE "payrollId" = :payrollId`, { replacements: { payrollId, absence_Hrs:(parseFloat(absence_Days||0)*8), absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days, SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded, SSS_Ded_ER, Philhealth_Ded_ER, HDMF_Ded_ER, healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction }, type: QueryTypes.UPDATE });
+    await sequelize.query(`UPDATE "Payroll_Deductions" SET "absence_Hrs"=:absence_Hrs, "absence_Amnt"=:absence_Amnt, "tardiness_Mins"=:tardiness_Mins, "tardiness_Amnt"=:tardiness_Amnt, "unpaidLeave_Days"=:unpaidLeave_Days, "unpaidLeave_Amnt"=:unpaidLeave_Amnt, "paidLeave_Days"=:paidLeave_Days, "SSS_Ded"=:SSS_Ded, "Philhealth_Ded"=:Philhealth_Ded, "HDMF_Ded"=:HDMF_Ded, "Tax_Ded"=:Tax_Ded, "SSS_Ded_ER"=:SSS_Ded_ER, "Philhealth_Ded_ER"=:Philhealth_Ded_ER, "HDMF_Ded_ER"=:HDMF_Ded_ER, "healthCard_Amnt"=:healthCard_Amnt, "SSS_Loan"=:SSS_Loan, "HDMF_Loan"=:HDMF_Loan, "calamityLoan_Amnt"=:calamityLoan_Amnt, "multiPurposeSavings"=:multiPurposeSavings, "advances_Amnt"=:advances_Amnt, "globe_Deduction"=:globe_Deduction, "eastwest_Loan"=:eastwest_Loan WHERE "payrollId" = :payrollId`, { replacements: { payrollId, absence_Hrs:(parseFloat(absence_Days||0)*8), absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days, SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded, SSS_Ded_ER, Philhealth_Ded_ER, HDMF_Ded_ER, healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction, eastwest_Loan: (req.body.eastwest_Loan || 0) }, type: QueryTypes.UPDATE });
 
     const newPayroll = await sequelize.query(`SELECT p.*, pe.*, pd.* FROM "Payroll" p LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId" LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId" WHERE p."payrollId" = :payrollId LIMIT 1`, { replacements: { payrollId }, type: QueryTypes.SELECT });
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
@@ -1474,10 +1525,10 @@ exports.syncMaxicareHistory = async (req, res) => {
     const nowStr = formatForSQL(now);
 
     for (const item of updates) {
-      const { date, user_Id, amount } = item;
+      const { date, user_Id, amount, status: explicitStatus } = item;
       try {
-        const isPast = date < nowStr.split(' ')[0];
-        const status = isPast ? 'paid' : 'estimated';
+        const isPast = date <= nowStr.split(' ')[0];
+        const status = explicitStatus || (isPast ? 'paid' : 'estimated');
         
         console.log(`[DEBUG_UPSERT] User: ${user_Id}, Date: ${date}, Status: ${status}, Amount: ${amount}`);
 
@@ -1489,28 +1540,29 @@ exports.syncMaxicareHistory = async (req, res) => {
           updatedAt: now
         });
 
-        // 1.5 Update User table if their current healthCard_Amnt is 0 or different
-        // This ensures the "Subscribed" status propagates to the User management module
-        await sequelize.query(
-          `UPDATE "User" 
-           SET "healthCard_Amnt" = :amount, "updatedAt" = :now 
-           WHERE "user_Id" = :user_Id 
-           AND ("healthCard_Amnt" = 0 OR "healthCard_Amnt" IS NULL)`,
-          { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
-        );
+        // 1.5 Update User_Deduction_Profile table only if amount > 0 and it was previously 0
+        // This ensures the "Subscribed" status propagates without accidentally clearing profiles on partial skips
+        if (amount > 0) {
+          await sequelize.query(
+            `UPDATE "User_Deduction_Profile"
+             SET "healthCard_Amnt" = :amount, "updatedAt" = :now
+             WHERE "user_Id" = :user_Id
+             AND ("healthCard_Amnt" = 0 OR "healthCard_Amnt" IS NULL)`,
+            { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
+          );
+        }
 
         // 2. If it's a past record, also update existing Payroll records
         if (isPast) {
           await sequelize.query(
-            `UPDATE "Payroll_Deductions" pd
+            `UPDATE "Payroll_Deductions"
              SET "healthCard_Amnt" = :amount
              FROM "Payroll" p
-             WHERE p."payrollId" = pd."payrollId"
+             WHERE p."payrollId" = "Payroll_Deductions"."payrollId"
              AND p."user_Id" = :user_Id
              AND p."period_End" = :date`,
             { replacements: { amount, user_Id, date }, type: QueryTypes.UPDATE }
           );
-
           await sequelize.query(
             `UPDATE "Payroll" p
              SET "totalDeductions" = (
@@ -1699,7 +1751,16 @@ exports.getMaxicareHistory = async (req, res) => {
        ORDER BY "max_Month" ASC`,
       { type: QueryTypes.SELECT }
     );
-    res.status(200).json(history);
+
+    const employees = await sequelize.query(
+      `SELECT u."user_Id", u."user_FirstName", u."user_LastName", d."healthCard_Amnt"
+       FROM "User" u
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       WHERE u."dailyRate" > 0 AND u."deletedAt" IS NULL`,
+      { type: QueryTypes.SELECT }
+    );
+
+    res.status(200).json({ history, employees });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

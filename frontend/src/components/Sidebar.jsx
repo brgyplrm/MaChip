@@ -16,6 +16,8 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DescriptionIcon from '@mui/icons-material/Description';
 import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
+import { useSystemTime } from "../context/SystemTimeContext";
+import { Badge } from "./ui/badge";
 
 import {
   Sidebar as ShadcnSidebar,
@@ -65,6 +67,7 @@ const Sidebar = ({ children }) => {
   );
   
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
+  const { isMockTime } = useSystemTime();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
@@ -182,7 +185,7 @@ const Sidebar = ({ children }) => {
   return (
     <SidebarProvider>
       <ShadcnSidebar className="bg-white border-r border-gray-200">
-        <SidebarHeader className="p-4 border-b border-gray-100">
+        <SidebarHeader className="p-4 border-b border-gray-100 relative">
           <Link to={homePath} className="flex no-underline items-center pl-5 md:pl-8">
             <img 
               src="/logo2.png" 
@@ -190,6 +193,13 @@ const Sidebar = ({ children }) => {
               className="w-[150px] md:w-[150px] object-contain"
             />
           </Link>
+          {isMockTime && (
+            <div className="absolute top-2 right-2">
+              <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] px-1.5 h-4 border-none shadow-sm animate-pulse">
+                MOCK
+              </Badge>
+            </div>
+          )}
         </SidebarHeader>
         <div className="h-1" />
         <SidebarContent className="no-scrollbar px-3">

@@ -406,9 +406,9 @@ const PayrollDetails = () => {
                     <span className="text-sm font-bold text-blue-800">Withholding Tax</span>
                     <span className="font-bold text-blue-700">₱{eeTax.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">Health Card (Maxicare)</span>
-                    <span className="font-semibold">₱{parseFloat(payroll.healthCard_Amnt || 0).toLocaleString()}</span>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-50 bg-indigo-50/50 p-2 rounded">
+                    <span className="text-sm font-bold text-[#2A174E]">Health Card (Maxicare)</span>
+                    <span className="font-bold text-[#2A174E]">₱{parseFloat(payroll.healthCard_Amnt || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center pb-2 border-b border-slate-50">
                     <span className="text-sm text-slate-600">SSS Loan</span>

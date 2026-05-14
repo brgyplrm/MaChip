@@ -55,18 +55,21 @@ const PayrollPeriod = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const isPeriodEndReached = useMemo(() => {
+  const isProcessingWindow = useMemo(() => {
     if (!selectedPeriod?.endDate || !systemToday) return false;
     
-    // Normalize both dates to midnight for an accurate day-to-day comparison
+    // Normalize dates to midnight for accurate day-to-day comparison
     const end = new Date(selectedPeriod.endDate);
     end.setHours(0, 0, 0, 0);
     
     const today = new Date(systemToday);
     today.setHours(0, 0, 0, 0);
 
-    // Button is enabled only if Today is on or after the Period End Date
-    return today >= end;
+    // Window starts on endDate and ends 2 days after
+    const windowEnd = new Date(end);
+    windowEnd.setDate(windowEnd.getDate() + 2);
+
+    return today >= end && today <= windowEnd;
   }, [selectedPeriod, systemToday]);
 
   const fetchData = async () => {
@@ -280,11 +283,18 @@ const PayrollPeriod = () => {
             {/* Updated Process Batch Button */}
             <Button 
               className={`w-full sm:w-auto bg-[#2A174E] text-white border border-[#b8daff] hover:bg-[#BA90E9] ${
-                (selectedPeriod?.status !== 'Draft' || !isPeriodEndReached) ? "opacity-50 cursor-not-allowed" : ""
+                (selectedPeriod?.status !== 'Draft' || !isProcessingWindow) ? "opacity-50 cursor-not-allowed" : ""
               }`}
               onClick={() => setIsConfirmOpen(true)}
-              disabled={selectedPeriod?.status !== 'Draft' || !isPeriodEndReached}
-              title={!isPeriodEndReached ? `Processing is available starting ${new Date(selectedPeriod?.endDate).toLocaleDateString()}` : ""}
+              disabled={selectedPeriod?.status !== 'Draft' || !isProcessingWindow}
+              title={
+                selectedPeriod?.status !== 'Draft' ? "Already Processed" :
+                !isProcessingWindow ? `Processing is available only from ${new Date(selectedPeriod?.endDate).toLocaleDateString()} to ${(() => {
+                  const d = new Date(selectedPeriod?.endDate);
+                  d.setDate(d.getDate() + 2);
+                  return d.toLocaleDateString();
+                })()}` : ""
+              }
             >
               <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> 
               {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}

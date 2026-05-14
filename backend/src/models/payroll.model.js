@@ -33,6 +33,7 @@ module.exports = (sequelize, DataTypes) => {
       period_End: { type: DataTypes.DATEONLY, allowNull: false },
       NoDays_Worked: { type: DataTypes.SMALLINT, allowNull: false },
       NoHrs_Worked: { type: DataTypes.FLOAT, allowNull: false },
+      totalScheduledDays: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 0 },
       dailyRate: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
       previousDailyRate: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
       ratePerHr: { type: DataTypes.FLOAT, allowNull: false },

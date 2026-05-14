@@ -141,35 +141,44 @@ const { getSystemTime } = require("./utils/systemTime");
 
 // ── Database Connection and Background Tasks ──────────────────────────────────
 connectDB().then(async () => {
-  // 1. Holiday Sync (Startup): Ensure holidays are up-to-date
-  console.log("[INIT] Synchronizing Philippine holidays...");
-  try {
-    await syncHolidaysService();
-  } catch (err) {
-    console.error("[INIT] Holiday sync failed:", err.message);
-  }
+  // 1. Start Server IMMEDIATELY to avoid frontend ECONNREFUSED errors
+  const PORT = process.env.PORT || 4000;
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server is running on port ${PORT} (Listening on 0.0.0.0).`);
+  });
 
-  // 2. Perform backfill for missing absences within the CURRENT PERIOD only
-  console.log("[INIT] Running period-restricted backfill for absences...");
-  try {
-    const now = await getSystemTime();
-    
-    // Logic to determine current period start
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const day = now.getDate();
-    let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
-
-    // Backfill from period start until today
-    let checkDate = new Date(periodStart);
-    while (checkDate <= now) {
-      await ensureAbsentsMarked(new Date(checkDate));
-      checkDate.setDate(checkDate.getDate() + 1);
+  // 2. Perform background initialization tasks
+  (async () => {
+    // 2.1 Holiday Sync (Startup): Ensure holidays are up-to-date
+    console.log("[INIT] Synchronizing Philippine holidays...");
+    try {
+      await syncHolidaysService();
+    } catch (err) {
+      console.error("[INIT] Holiday sync failed:", err.message);
     }
-    console.log("[INIT] Backfill complete.");
-  } catch (err) {
-    console.error("[INIT] Backfill failed:", err.message);
-  }
+
+    // 2.2 Perform backfill for missing absences within the CURRENT PERIOD only
+    console.log("[INIT] Running period-restricted backfill for absences...");
+    try {
+      const now = await getSystemTime();
+      
+      // Logic to determine current period start
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const day = now.getDate();
+      let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
+
+      // Backfill from period start until today
+      let checkDate = new Date(periodStart);
+      while (checkDate <= now) {
+        await ensureAbsentsMarked(new Date(checkDate));
+        checkDate.setDate(checkDate.getDate() + 1);
+      }
+      console.log("[INIT] Backfill complete.");
+    } catch (err) {
+      console.error("[INIT] Backfill failed:", err.message);
+    }
+  })();
 
   // 3. Start Scheduled Tasks
   let lastAbsentCheckDate = null;
@@ -219,10 +228,4 @@ connectDB().then(async () => {
       console.error("[SCHEDULED] Task error:", err.message);
     }
   }, 60 * 1000); 
-
-  // 4. Start Server
-  const PORT = process.env.PORT || 4000;
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server is running on port ${PORT} (Listening on 0.0.0.0).`);
-  });
 });

@@ -278,7 +278,11 @@ exports.viewAllUsers = async (req, res) => {
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
               d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
-              h."user_MachipId", h."user_FingerprintId"
+              h."user_MachipId", h."user_FingerprintId",
+              (SELECT COUNT(*) > 0 FROM "Payroll_maxicare" m 
+               WHERE m."user_Id" = u."user_Id" 
+               AND EXTRACT(MONTH FROM m."max_Month") = EXTRACT(MONTH FROM CURRENT_DATE)
+               AND EXTRACT(YEAR FROM m."max_Month") = EXTRACT(YEAR FROM CURRENT_DATE)) AS "isMaxicareSubscribed"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
@@ -314,7 +318,11 @@ exports.viewArchivedUsers = async (req, res) => {
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
               d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
-              h."user_MachipId", h."user_FingerprintId"
+              h."user_MachipId", h."user_FingerprintId",
+              (SELECT COUNT(*) > 0 FROM "Payroll_maxicare" m 
+               WHERE m."user_Id" = u."user_Id" 
+               AND EXTRACT(MONTH FROM m."max_Month") = EXTRACT(MONTH FROM CURRENT_DATE)
+               AND EXTRACT(YEAR FROM m."max_Month") = EXTRACT(YEAR FROM CURRENT_DATE)) AS "isMaxicareSubscribed"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
@@ -351,7 +359,11 @@ exports.viewUserById = async (req, res) => {
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
               d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
-              h."user_MachipId", h."user_FingerprintId"
+              h."user_MachipId", h."user_FingerprintId",
+              (SELECT COUNT(*) > 0 FROM "Payroll_maxicare" m 
+               WHERE m."user_Id" = u."user_Id" 
+               AND EXTRACT(MONTH FROM m."max_Month") = EXTRACT(MONTH FROM CURRENT_DATE)
+               AND EXTRACT(YEAR FROM m."max_Month") = EXTRACT(YEAR FROM CURRENT_DATE)) AS "isMaxicareSubscribed"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
@@ -1073,24 +1085,39 @@ exports.updateDailyRate = async (req, res) => {
     const transaction = await sequelize.transaction();
     try {
       // 1. Update User Table (Daily Rate)
-      await sequelize.query(
-        `UPDATE "User"
-         SET
-           "previousDailyRate"   = "dailyRate",
-           "dailyRate"           = :newDailyRate,
-           "rateUpdatedAt"       = :now,
-           "updatedAt"           = :now
-         WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
-        {
-          replacements: { 
-            newDailyRate: parsed, 
-            now: nowStr, 
-            user_Id 
+      // Only shift to previousDailyRate if there's an actual change in the value
+      if (rateChanged) {
+        await sequelize.query(
+          `UPDATE "User"
+           SET
+             "previousDailyRate"   = "dailyRate",
+             "dailyRate"           = :newDailyRate,
+             "rateUpdatedAt"       = :now,
+             "updatedAt"           = :now
+           WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
+          {
+            replacements: { 
+              newDailyRate: parsed, 
+              now: nowStr, 
+              user_Id 
+            },
+            type: QueryTypes.UPDATE,
+            transaction
           },
-          type: QueryTypes.UPDATE,
-          transaction
-        },
-      );
+        );
+      } else {
+        // Just update updatedAt if no rate change
+        await sequelize.query(
+          `UPDATE "User"
+           SET "updatedAt" = :now
+           WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
+          {
+            replacements: { now: nowStr, user_Id },
+            type: QueryTypes.UPDATE,
+            transaction
+          }
+        );
+      }
 
       // 2. Update/Insert Deductions Table
       await sequelize.query(

@@ -136,26 +136,20 @@ const PayrollEmployeeList = () => {
             e.user_Id === editingEmployee.user_Id
               ? {
                   ...e,
-                  previousDailyRate: editingEmployee.dailyRate,
-                  dailyRate: newRate,
-                  sss_Share: updatedData.SSS_Ded,
-                  philhealth_Share: updatedData.Philhealth_Ded,
-                  hdmf_Share: updatedData.HDMF_Ded,
-                  tax_Share: updatedData.Tax_Ded,
-                  healthCard_Amnt: updatedData.healthCard_Amnt,
-                  SSS_Loan: updatedData.SSS_Loan,
-                  HDMF_Loan: updatedData.HDMF_Loan,
-                  calamityLoan_Amnt: updatedData.calamityLoan_Amnt,
-                  advances_Amnt: updatedData.advances_Amnt,
-                  globe_Deduction: updatedData.globe_Deduction,
-                  eastwest_Loan: updatedData.eastwest_Loan,
-                  multiPurposeSavings: updatedData.multiPurposeSavings,
-                  rateUpdatedAt: new Date().toISOString(),
+                  ...result.data,
+                  // Preserve fields not returned by the specific patch response
+                  user_Role: e.user_Role,
+                  employmentStatus: e.employmentStatus,
+                  account_Number: e.account_Number,
+                  bank_Company: e.bank_Company,
+                  bank_AccountName: e.bank_AccountName,
+                  user_MachipId: e.user_MachipId,
+                  user_FingerprintId: e.user_FingerprintId
                 }
               : e
           )
         );
-        showToast(`Compensation template updated for ${editingEmployee.user_FirstName} ${editingEmployee.user_LastName}.`);
+        showToast(result.message || `Compensation template updated for ${editingEmployee.user_FirstName} ${editingEmployee.user_LastName}.`);
         handleCloseModal();
       } else {
         showToast(result.message || "Failed to update rate.", "error");

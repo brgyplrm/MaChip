@@ -152,10 +152,12 @@ exports.updateSystemSettings = async (req, res) => {
 
 exports.getSystemTime = async (req, res) => {
   try {
+    const settings = await SystemSettings.findOne();
     const now = await getSystemTime();
     res.status(200).json({ 
       systemTime: now,
-      unixTime: Math.floor(now.getTime() / 1000)
+      unixTime: Math.floor(now.getTime() / 1000),
+      isMock: settings ? settings.mockTimeEnabled : false
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
