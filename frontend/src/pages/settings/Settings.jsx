@@ -10,6 +10,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
+import FolderPicker from "../../components/FolderPicker";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -29,9 +30,11 @@ const Settings = () => {
   const [mockTime, setMockTime] = useState("");
   const [vlRate, setVlRate] = useState(1.0);
   const [slRate, setSlRate] = useState(1.0);
+  const [storageRootPath, setStorageRootPath] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showPicker, setShowPicker] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -51,6 +54,7 @@ const Settings = () => {
           setMockEnabled(data.mockTimeEnabled);
           setVlRate(data.vlRate ?? 1.0);
           setSlRate(data.slRate ?? 1.0);
+          setStorageRootPath(data.storageRootPath ?? "");
           if (data.mockTimeValue) {
             const date = new Date(data.mockTimeValue);
             const formatted = date.toISOString().slice(0, 16);
@@ -79,6 +83,7 @@ const Settings = () => {
           mockTimeValue: mockEnabled ? mockTime : null,
           vlRate: parseFloat(vlRate),
           slRate: parseFloat(slRate),
+          storageRootPath: storageRootPath,
         }),
       });
       if (response.ok) {
@@ -123,6 +128,39 @@ const Settings = () => {
         ) : (
           <div className="space-y-6">
             
+            {/* Archive & Storage Settings */}
+            <Card className="shadow-sm border-0 bg-white py-0">
+              <CardHeader className="border-b border-slate-100 pb-4 mb-4 bg-[#2A174E] rounded-t-xl py-4">
+                <CardTitle className="text-lg text-white flex items-center gap-2">
+                  <SaveIcon className="h-5 w-5 text-white" />
+                  Archive & Storage Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Storage Root Path (PC Drive)</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      type="text" 
+                      value={storageRootPath}
+                      readOnly
+                      className="border-slate-200 bg-slate-50 font-mono text-sm flex-1"
+                      placeholder="Select a folder..."
+                    />
+                    {isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowPicker(true)}
+                        className="border-[#2A174E] text-[#2A174E] hover:bg-slate-100 h-10 px-4 whitespace-nowrap"
+                      >
+                        Select Folder
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">Specify the absolute directory path on the PC's drive where all generated PDFs and reports will be archived automatically.</p>
+                </div>
+              </CardContent>
+            </Card>
             {/* Top Row: Conversion & Status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
@@ -270,11 +308,21 @@ const Settings = () => {
 
       {/* Floating Toast Notification */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg font-medium text-white ${toast.type === "success" ? "bg-green-600" : "bg-red-600"} animate-in slide-in-from-bottom-5`}>
+        <div className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg font-medium text-white ${toast.type === "success" ? "bg-green-600" : "bg-red-600"} animate-in slide-in-from-top-5`}>
           {toast.type === "success" ? <CheckIcon fontSize="small" /> : <CloseIcon fontSize="small" /> }
           {toast.message}
         </div>
       )}
+
+      <FolderPicker 
+        isOpen={showPicker}
+        onClose={() => setShowPicker(false)}
+        currentPath={storageRootPath}
+        onSelect={(path) => {
+          setStorageRootPath(path);
+          setShowPicker(false);
+        }}
+      />
       </Sidebar>
     </div>
   );

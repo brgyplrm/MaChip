@@ -1432,7 +1432,7 @@ exports.getLeaveSummary = async (req, res) => {
 
     // 5. Fetch Attendance Stats (Lates/Absences) from reports
     const attendanceStats = await sequelize.query(
-      `SELECT "user_id", "log_Date", "attendance_StatusId"
+      `SELECT "user_id", "log_Date", "attendance_StatusId", "time_Logged_inArr"
        FROM "employee_Logging_report"
        WHERE EXTRACT(YEAR FROM "log_Date") = :currentYear`,
       { replacements: { currentYear }, type: QueryTypes.SELECT }
@@ -1449,7 +1449,7 @@ exports.getLeaveSummary = async (req, res) => {
       
       const resData = {
         user_Id: user.user_Id,
-        machipId: user.user_MachipId,
+        machipId: report => report.user_MachipId, // Placeholder, will fix below
         name: `${user.user_LastName} ${user.user_FirstName.charAt(0)}.`,
         vl: Array(12).fill(0),
         sl: Array(12).fill(0),
@@ -1460,6 +1460,9 @@ exports.getLeaveSummary = async (req, res) => {
         slRemaining: userBalance.SL_balance,
         dailyRate: user.dailyRate || 0,
       };
+
+      // Fix machipId
+      resData.machipId = user.user_MachipId;
 
       // Process Leaves
       leaves.filter(l => l.user_Id === user.user_Id).forEach(l => {
@@ -1481,7 +1484,21 @@ exports.getLeaveSummary = async (req, res) => {
       // Process Attendance
       attendanceStats.filter(a => a.user_id === user.user_Id).forEach(a => {
         const month = new Date(a.log_Date).getMonth();
-        if (a.attendance_StatusId === 2) resData.lates[month] += 1;
+        if (a.attendance_StatusId === 2) {
+          try {
+            const inArr = JSON.parse(a.time_Logged_inArr || "[]");
+            if (inArr.length > 0) {
+              const [h, m] = inArr[0].split(":").map(Number);
+              const loginTime = h * 60 + m;
+              const gracePeriodEnd = 8 * 60 + 35; // 8:35 AM
+              if (loginTime > gracePeriodEnd) {
+                resData.lates[month] += (loginTime - gracePeriodEnd);
+              }
+            }
+          } catch (e) {
+            // fallback to 1 if parsing fails? No, keep 0.
+          }
+        }
         else if (a.attendance_StatusId === 3) resData.absences[month] += 1;
       });
 

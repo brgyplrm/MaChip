@@ -4,10 +4,21 @@ const path = require("path");
 /**
  * Generates an exact replica of the Frontend Payslip PDF using pdfkit.
  */
-exports.generatePayslipPDF = async (payroll) => {
+exports.generatePayslipPDF = async (payroll, password = null) => {
   return new Promise((resolve, reject) => {
     // Standard A4: 595.28 x 841.89 points
-    const doc = new PDFDocument({ margin: 40, size: "A4" });
+    const pdfOptions = { margin: 40, size: "A4" };
+    if (password) {
+      pdfOptions.userPassword = password;
+      pdfOptions.ownerPassword = "machip_admin"; // Admin override
+      pdfOptions.permissions = {
+        printing: "highResolution",
+        modifying: false,
+        copying: true
+      };
+    }
+
+    const doc = new PDFDocument(pdfOptions);
     let buffers = [];
     doc.on("data", buffers.push.bind(buffers));
     doc.on("end", () => resolve(Buffer.concat(buffers)));

@@ -13,6 +13,9 @@ router.put("/holidays/:holidayId", requireRole(1, 4, "Admin Manager", "Admin Acc
 router.delete("/holidays/:holidayId", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.deleteHoliday);
 router.post("/sync-holidays", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.syncHolidays);
 
+router.get("/browse", requireAdmin, systemController.browseDirectories);
+router.post("/create-folder", requireAdmin, systemController.createDirectory);
+
 router.get("/payroll-periods", systemController.getPayrollPeriods);
 router.post("/payroll-periods", requireAdmin, systemController.createPayrollPeriod);
 

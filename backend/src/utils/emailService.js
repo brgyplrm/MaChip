@@ -111,7 +111,12 @@ exports.sendPayrollEmail = async ({ email, name, period, netPay, attachments = [
         <div style="background: #eef9f1; padding: 20px; border-radius: 8px; border: 1px solid #c3e6cb; display: inline-block;">
           <span style="font-size: 24px; font-weight: bold; color: #28a745;">₱${parseFloat(netPay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
-        <p style="margin-top: 20px;">Attached is your official payslip PDF. You can also view your full records by logging into the MaChip portal.</p>
+        <p style="margin-top: 20px;">For your security, your attached payslip is <strong>password-protected</strong>. To open the file, please use the following password format:</p>
+        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; margin-bottom: 20px;">
+          <p style="margin: 5px 0; color: #856404;"><strong>Password Format:</strong> [PeriodDigits][Month][LastName][PaddedID]</p>
+          <p style="margin: 5px 0; color: #856404; font-size: 0.9em;">Example: If the period is May 1-15, name is <strong>Rodrigo</strong>, and ID is <strong>MACJ-001</strong>, your password is: <strong>0115MayRodrigo001</strong></p>
+        </div>
+        <p>Attached is your official payslip PDF. You can also view your full records by logging into the MaChip portal.</p>
         <br/>
         <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
       </div>

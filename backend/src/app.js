@@ -138,6 +138,8 @@ const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
 const { syncHolidaysService } = require("./utils/holidaySyncService");
 const { checkPendingRequests } = require("./utils/requestEscalation");
 const { getSystemTime } = require("./utils/systemTime");
+const { checkAndTriggerArchival } = require("./utils/archiveService");
+const { initializeStorageStructure } = require("./utils/fileStorage");
 
 // ── Database Connection and Background Tasks ──────────────────────────────────
 connectDB().then(async () => {
@@ -149,6 +151,9 @@ connectDB().then(async () => {
 
   // 2. Perform background initialization tasks
   (async () => {
+    // 2.0 Initialize Storage Folders
+    await initializeStorageStructure();
+
     // 2.1 Holiday Sync (Startup): Ensure holidays are up-to-date
     console.log("[INIT] Synchronizing Philippine holidays...");
     try {
@@ -157,7 +162,15 @@ connectDB().then(async () => {
       console.error("[INIT] Holiday sync failed:", err.message);
     }
 
-    // 2.2 Perform backfill for missing absences within the CURRENT PERIOD only
+    // 2.2 Check for any pending monthly archives
+    console.log("[INIT] Checking for pending log archives...");
+    try {
+      await checkAndTriggerArchival();
+    } catch (err) {
+      console.error("[INIT] Log archival check failed:", err.message);
+    }
+
+    // 2.3 Perform backfill for missing absences within the CURRENT PERIOD only
     console.log("[INIT] Running period-restricted backfill for absences...");
     try {
       const now = await getSystemTime();
@@ -221,6 +234,11 @@ connectDB().then(async () => {
       if (now.getMonth() === 0 && now.getDate() === 1 && hour === 0 && minute === 1) {
         console.log("[SCHEDULED] January 1st: Syncing holidays for the new year...");
         syncHolidaysService();
+      }
+
+      // 4. Monthly Archival Check (Run once an hour to be safe)
+      if (minute === 0) {
+        checkAndTriggerArchival();
       }
 
       checkPendingRequests();

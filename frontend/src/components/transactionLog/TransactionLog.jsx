@@ -12,6 +12,7 @@ import GppBadIcon from "@mui/icons-material/GppBad";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
+import { exportToPDF } from "../../utils/pdfExport";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,22 @@ const TransactionLog = () => {
     return desc; 
   };
 
+  const handleExportPDF = () => {
+    const headers = ["Timestamp", "Initiated By", "Event Category", "Description", "IP Address"];
+    const data = filteredData.map(t => [
+      new Date(t.createdAt).toLocaleString(),
+      t.emp_FirstName 
+        ? `${t.emp_FirstName} ${t.emp_LastName}` 
+        : t.event_Type === "UNAUTHORIZED_SCAN" 
+          ? `Unknown Device`
+          : "System",
+      t.event_Type.replace(/_/g, " "),
+      maskDescription(t.description, t.event_Type),
+      t.ip_Address || t.metadata?.deviceIp || "Local"
+    ]);
+    exportToPDF("System Transaction Logs", headers, data, `Transaction_Logs_${new Date().toISOString().split('T')[0]}.pdf`, { orientation: "l" });
+  };
+
   const handleExport = () => {
     const headers = ["Timestamp", "Initiated By", "Event Category", "Description", "IP Address"];
     const data = filteredData.map(t => [
@@ -161,7 +178,7 @@ const TransactionLog = () => {
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Transaction Log</h1>
             <span className="text-sm text-slate-500 mt-1 block">View and track all financial events, batch runs, and system anomalies.</span>
           </div>
-          <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={""}>
+          <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={handleExportPDF}>
             <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
           </Button>
         </div>

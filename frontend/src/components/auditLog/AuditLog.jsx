@@ -12,6 +12,7 @@ import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
+import { exportToPDF } from "../../utils/pdfExport";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,19 @@ const AuditLogs = () => {
     activeAdmins: new Set(logs.map(l => l.user_Id)).size,
   };
 
+  const handleExportPDF = () => {
+    const headers = ["Timestamp", "Module", "Administrator", "Action", "Target", "ID"];
+    const data = filteredLogs.map(log => [
+      new Date(log.createdAt).toLocaleString(),
+      log.module || "System",
+      `${log.user_FirstName} ${log.user_LastName}`,
+      log.action,
+      log.target_Table,
+      log.target_Id
+    ]);
+    exportToPDF("System Audit Logs", headers, data, `Audit_Logs_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   const handleExport = () => {
     const headers = ["Timestamp", "Module", "Administrator", "Action", "Target Table", "Target ID"];
     const data = filteredLogs.map(log => [
@@ -150,7 +164,7 @@ const AuditLogs = () => {
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">System Audit Logs</h1>
             <span className="text-sm text-slate-500 mt-1 block">Monitor administrative activities, changes, and system access.</span>
           </div>
-          <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={""}>
+          <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={handleExportPDF}>
             <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
           </Button>
         </div>

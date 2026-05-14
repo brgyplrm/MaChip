@@ -3,6 +3,55 @@ const { getSystemTime } = require("../utils/systemTime.js");
 const { QueryTypes } = require("sequelize");
 const { syncHolidaysService } = require('../utils/holidaySyncService');
 const { logAudit } = require("../utils/logger");
+const fs = require('fs');
+const path = require('path');
+
+exports.browseDirectories = async (req, res) => {
+  const { currentPath } = req.query;
+  // Default to root or a sensible starting point if currentPath is empty
+  let targetPath = currentPath || (process.platform === 'win32' ? 'C:\\' : '/');
+
+  try {
+    if (!fs.existsSync(targetPath)) {
+      // Fallback if the path is invalid
+      targetPath = (process.platform === 'win32' ? 'C:\\' : '/');
+    }
+
+    const files = fs.readdirSync(targetPath, { withFileTypes: true });
+    const directories = files
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name)
+      .sort();
+
+    const parentPath = path.dirname(targetPath);
+
+    res.status(200).json({
+      currentPath: path.resolve(targetPath),
+      parentPath: parentPath === targetPath ? null : parentPath,
+      directories,
+      separator: path.sep
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Access Denied: " + error.message });
+  }
+};
+
+exports.createDirectory = async (req, res) => {
+  const { parentPath, folderName } = req.body;
+  if (!parentPath || !folderName) return res.status(400).json({ error: "Path and Name required" });
+
+  try {
+    const newPath = path.join(parentPath, folderName);
+    if (!fs.existsSync(newPath)) {
+      fs.mkdirSync(newPath, { recursive: true });
+      res.status(201).json({ success: true, path: newPath });
+    } else {
+      res.status(400).json({ error: "Folder already exists" });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
 exports.syncHolidays = async (req, res) => {
     try {
@@ -112,7 +161,8 @@ exports.updateSystemSettings = async (req, res) => {
     maxicareCycleStartDate,
     maxicareDates,
     vlRate,
-    slRate
+    slRate,
+    storageRootPath
   } = req.body;
 
   // Debug log for Maxicare configuration tracking
@@ -131,7 +181,8 @@ exports.updateSystemSettings = async (req, res) => {
       maxicareCycleStartDate,
       maxicareDates,
       vlRate,
-      slRate
+      slRate,
+      storageRootPath
     };
 
     if (!settings) {

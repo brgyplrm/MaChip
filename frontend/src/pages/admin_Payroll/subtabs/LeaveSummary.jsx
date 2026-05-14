@@ -50,41 +50,37 @@ const TAB_CONFIG = {
     totalLabel: "Total", 
     rateLabel: "Remaining (7 Max)", 
     conversionLabel: "Total Conversion",
-    showRemaining: true, 
     showConversion: true 
   },
   sl: { 
     totalLabel: "Total", 
     rateLabel: "Remaining (7 Max)", 
     conversionLabel: "Total Conversion",
-    showRemaining: true, 
     showConversion: true 
   },
   ot: { 
-    totalLabel: "Total No. of Hrs Worked", 
-    rateLabel: "Daily Rate", 
-    conversionLabel: "Total Overtime Pay",
-    showRemaining: true, 
-    showConversion: true 
+    totalLabel: "Total Minutes", 
+    rateLabel: "Total Hours", 
+    conversionLabel: null,
+    showConversion: false 
   },
   lates: { 
-    totalLabel: "Total No. of Minutes Late", 
-    rateLabel: "Rate per Minute", 
-    conversionLabel: "Total Lates Deduction",
-    showRemaining: true, 
-    showConversion: true 
+    totalLabel: "Total Minutes", 
+    rateLabel: "Total Hours", 
+    conversionLabel: null,
+    showConversion: false 
   },
   absences: { 
-    totalLabel: "Total No. of Days Absent", 
-    rateLabel: "Rate per Hour", 
-    conversionLabel: "Total Absences Deduction",
-    showRemaining: true, 
-    showConversion: true 
+    totalLabel: "Total Minutes", 
+    rateLabel: "Total Hours", 
+    conversionLabel: null,
+    showConversion: false 
   }
 };
 
 const SummaryTable = ({ type }) => {
   const config = TAB_CONFIG[type];
+  const isTimeSummary = ["ot", "lates", "absences"].includes(type);
   
   // Pagination State for internal table
   const [currentPage, setCurrentPage] = useState(1);
@@ -92,7 +88,7 @@ const SummaryTable = ({ type }) => {
   
   const totalItems = data.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage; // <--- This was missing
+  const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentData = data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -113,17 +109,19 @@ const SummaryTable = ({ type }) => {
                   </TableHead>
                 ))}
                 
-                <TableHead className="sticky right-[260px] z-20 font-bold text-white h-auto py-4 text-center uppercase text-[10px] tracking-wider bg-[#1d0f36] min-w-[120px] shadow-[-2px_0_5px_rgba(0,0,0,0.2)]">
+                <TableHead className={`sticky z-20 font-bold text-white h-auto py-4 text-center uppercase text-[10px] tracking-wider bg-[#1d0f36] min-w-[120px] shadow-[-2px_0_5px_rgba(0,0,0,0.2)] ${isTimeSummary ? "right-[120px]" : "right-[260px]"}`}>
                   {config.totalLabel}
                 </TableHead>
 
-                <TableHead className="sticky right-[140px] z-20 font-semibold text-white h-auto py-4 text-center uppercase text-[10px] tracking-wider bg-[#1d0f36] min-w-[120px] border-l border-[#45297e]">
+                <TableHead className={`sticky z-20 font-semibold text-white h-auto py-4 text-center uppercase text-[10px] tracking-wider bg-[#1d0f36] min-w-[120px] border-l border-[#45297e] ${isTimeSummary ? "right-0" : "right-[140px]"}`}>
                   {config.rateLabel}
                 </TableHead>
 
-                <TableHead className="sticky right-0 z-20 font-semibold text-white h-auto py-4 text-right uppercase text-[10px] tracking-wider pr-6 bg-[#1d0f36] min-w-[140px] border-l border-[#45297e]">
-                  {config.conversionLabel}
-                </TableHead>
+                {config.conversionLabel && (
+                  <TableHead className="sticky right-0 z-20 font-semibold text-white h-auto py-4 text-right uppercase text-[10px] tracking-wider pr-6 bg-[#1d0f36] min-w-[140px] border-l border-[#45297e]">
+                    {config.conversionLabel}
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -131,22 +129,22 @@ const SummaryTable = ({ type }) => {
                 const monthlyValues = row[type] || [];
                 const total = monthlyValues.reduce((a, b) => a + b, 0);
                 
-                // Dynamic mapping for values based on type
-                let rateValue = 0;
+                let val1 = total > 0 ? total : "—";
+                let val2 = "—";
                 let finalAmount = 0;
 
                 if (type === "vl" || type === "sl") {
-                  rateValue = type === "vl" ? row.vlRemaining : row.slRemaining;
-                  finalAmount = rateValue * (type === "vl" ? rates.vlRate : rates.slRate);
+                  val2 = type === "vl" ? row.vlRemaining : row.slRemaining;
+                  finalAmount = val2 * row.dailyRate;
                 } else if (type === "ot") {
-                  rateValue = row.dailyRate || 0;
-                  finalAmount = (total / 8) * rateValue; // Assuming 8hr day for OT pay calc
+                  val1 = total * 60; // Minutes
+                  val2 = total.toFixed(2); // Hours
                 } else if (type === "lates") {
-                  rateValue = row.ratePerMin || 0;
-                  finalAmount = total * rateValue;
+                  val1 = total; // Minutes (from backend)
+                  val2 = (total / 60).toFixed(2); // Hours
                 } else if (type === "absences") {
-                  rateValue = row.ratePerHr || 0;
-                  finalAmount = (total * 8) * rateValue; // Days * 8hrs * rate
+                  val1 = total * 8 * 60; // Minutes
+                  val2 = (total * 8).toFixed(2); // Hours
                 }
 
                 return (
@@ -166,17 +164,19 @@ const SummaryTable = ({ type }) => {
                       </TableCell>
                     ))}
 
-                    <TableCell className="sticky right-[260px] z-10 bg-slate-50 font-bold text-slate-700 text-center shadow-[-2px_0_5px_rgba(0,0,0,0.02)]">
-                      {total > 0 ? total : "—"}
+                    <TableCell className={`sticky z-10 bg-slate-50 font-bold text-slate-700 text-center shadow-[-2px_0_5px_rgba(0,0,0,0.02)] ${isTimeSummary ? "right-[120px]" : "right-[260px]"}`}>
+                      {val1}
                     </TableCell>
 
-                    <TableCell className="sticky right-[140px] z-10 bg-blue-50/50 font-bold text-[#2A174E] text-center border-l border-slate-100">
-                      {type === "vl" || type === "sl" ? rateValue : `₱${rateValue.toFixed(2)}`}
+                    <TableCell className={`sticky z-10 bg-blue-50/50 font-bold text-[#2A174E] text-center border-l border-slate-100 ${isTimeSummary ? "right-0" : "right-[140px]"}`}>
+                      {val2}
                     </TableCell>
 
-                    <TableCell className={`sticky right-0 z-10 text-right py-4 pr-6 font-bold border-l border-slate-100 ${type === "ot" ? "text-green-600 bg-green-50/50" : "text-red-600 bg-red-50/50"}`}>
-                      ₱{finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
+                    {config.conversionLabel && (
+                      <TableCell className="sticky right-0 z-10 text-right py-4 pr-6 font-bold border-l border-slate-100 text-red-600 bg-red-50/50">
+                        ₱{finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}

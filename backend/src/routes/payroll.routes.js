@@ -14,6 +14,7 @@ const {
   getPayrollReport,
   getGovtDeductionsPreview,
   downloadPayrollSummaryPDF,
+  downloadBatchZip,
   getPayrollSummaryPreview,
   updatePayrollFull,
   getMaxicareHistory,
@@ -30,6 +31,7 @@ router.get("/eligible-count", requireAdmin, getEligibleEmployeesCount);
 router.get("/preview", requireAdmin, getPayrollPreview);
 router.get("/govt-deductions-preview", requireAdmin, getGovtDeductionsPreview);
 router.get("/summary-pdf", requireAdmin, downloadPayrollSummaryPDF);
+router.get("/batch-zip", requireAdmin, downloadBatchZip);
 router.get("/summary-preview", requireAdmin, getPayrollSummaryPreview);
 router.get("/maxicare/history", requireAdmin, getMaxicareHistory);
 router.post("/maxicare/sync", requireAdmin, syncMaxicareHistory);

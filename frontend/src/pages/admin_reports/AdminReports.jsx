@@ -17,6 +17,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import { exportBatchToZip } from "../../utils/payrollExport";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
+import { exportToPDF } from "../../utils/pdfExport";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -156,6 +157,47 @@ const AdminReports = () => {
     setCurrentPage(1);
   }, [activeReport, startDate, endDate, selectedEmployee, itemsPerPage]);
 
+  const handlePDFExport = () => {
+    let dataToExport = [];
+    let filename = `${activeReport}_report_${startDate}_to_${endDate}.pdf`;
+    let headers = [];
+    let title = `${activeReport.charAt(0).toUpperCase() + activeReport.slice(1)} Report`;
+    let orientation = "p";
+
+    if (activeReport === "attendance") {
+      headers = ["Emp ID", "Employee Name", "Date", "In", "Out", "Hrs", "Status"];
+      dataToExport = attendanceData.map(r => [
+        formatUserId(r.user_Id), 
+        r.userName, 
+        new Date(r.log_Date).toLocaleDateString(), 
+        r.time_In, 
+        r.time_Out, 
+        r.hoursWorked, 
+        r.status
+      ]);
+    } else if (activeReport === "payroll") {
+      orientation = "l";
+      headers = ["ID", "Name", "Worked", "Basic", "OT", "ND", "Hol", "Earn", "Deductions", "Net"];
+      dataToExport = payrollData.map(r => [
+        formatUserId(r.user_Id), 
+        `${r.user_FirstName} ${r.user_LastName}`, 
+        `${r.NoDays_Worked}d/${r.NoHrs_Worked}h`,
+        peso(r.basicPay),
+        peso((parseFloat(r.OT_Amnt) || 0) + (parseFloat(r.restDay_OT_Amnt) || 0)),
+        peso(r.nightDiff_Amnt),
+        peso(r.specialHol_Amnt),
+        peso(r.totalEarnings),
+        peso(r.totalDeductions),
+        peso(r.netPay)
+      ]);
+    } else if (activeReport === "calendar") {
+      headers = ["Type", "Date", "Name/Employee", "Details"];
+      dataToExport = calendarData.map(r => [r.type, r.date, r.name, r.details]);
+    }
+
+    exportToPDF(title, headers, dataToExport, filename, { orientation });
+  };
+
   const handleCSVExport = () => {
     let dataToExport = [];
     let filename = `${activeReport}_report_${startDate}_to_${endDate}.csv`;
@@ -281,7 +323,7 @@ const AdminReports = () => {
               {/* <Button onClick={handleCSVExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
                 <FileDownloadIcon className="mr-2 h-4 w-4" /> Export CSV
               </Button> */}
-              <Button onClick={""} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
+              <Button onClick={handlePDFExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
                 <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
               </Button>
               {activeReport === "payroll" && (

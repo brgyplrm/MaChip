@@ -3,13 +3,94 @@ const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { sendPayrollEmail } = require("../utils/emailService");
 const { generatePayslipPDF } = require("../utils/pdfGenerator");
+const { generatePayslipPassword } = require("../utils/payslipPassword");
 const { generateDTRPDF } = require("../utils/dtrGenerator");
 const { decrypt } = require("../utils/encryption");
+const { saveFileToArchive } = require("../utils/fileStorage");
 
 // ... (rest of imports remains similar)
 const { getAttendanceReportInternal } = require("./attendance.controller");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { computeMonthlyShares, computePeriodTax } = require("../utils/govtDeductions");
+const { generatePayrollSummaryPDF } = require("../utils/payrollSummaryGenerator");
+const archiver = require("archiver");
+archiver.registerFormat("zip-encryptable", require("archiver-zip-encryptable"));
+
+// ── Download Batch ZIP ────────────────────────────────────────────────────────
+/**
+ * Generates a password-protected ZIP containing password-protected PDFs.
+ * Double Protection: ZIP Password + Unique PDF Password per employee.
+ */
+exports.downloadBatchZip = async (req, res) => {
+  const { period_Start, period_End, zipPassword } = req.query;
+  if (!period_Start || !period_End) {
+    return res.status(400).json({ error: "period_Start and period_End are required." });
+  }
+
+  try {
+    const payrolls = await sequelize.query(
+      `SELECT p.*, u."user_FirstName", u."user_LastName", b."account_Number"
+       FROM "Payroll" p
+       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       WHERE p."period_Start" = :period_Start AND p."period_End" = :period_End
+       ORDER BY u."user_Id" ASC`,
+      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+
+    if (payrolls.length === 0) {
+      return res.status(404).json({ error: "No payroll records found for this period." });
+    }
+
+    // Set headers
+    const filename = `Batch_Payslips_${period_Start}_${period_End}.zip`;
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    const archive = archiver("zip-encryptable", {
+      zlib: { level: 9 },
+      forceZip64: false,
+      password: zipPassword || null // Protect the ZIP itself if password provided
+    });
+
+    archive.on("error", (err) => { throw err; });
+    archive.pipe(res);
+
+    for (const p of payrolls) {
+      const fullStats = { ...p, accountNo: decrypt(p.account_Number) || "—" };
+      const pdfPassword = generatePayslipPassword({
+        period_Start: p.period_Start,
+        period_End: p.period_End,
+        user_LastName: p.user_LastName,
+        user_Id: p.user_Id
+      });
+
+      const pdfBuffer = await generatePayslipPDF(fullStats, pdfPassword);
+      const pdfFilename = `Payslip_${p.user_LastName}_${p.user_Id}.pdf`;
+      archive.append(pdfBuffer, { name: pdfFilename });
+    }
+
+    await archive.finalize();
+  } catch (error) {
+    console.error("[BATCH ZIP ERROR]:", error);
+    if (!res.headersSent) res.status(500).json({ error: error.message });
+  }
+};
+
+/** Helper for consistent month folder naming (e.g., "05_May") */
+const formatMonthFolder = (date) => {
+  const d = new Date(date);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const name = d.toLocaleString('default', { month: 'long' });
+  return `${m}_${name}`;
+};
+
+/** Helper for short period folder naming (e.g., "01_15" or "16_31") */
+const getPeriodFolder = (start, end) => {
+  const s = new Date(start).getDate();
+  const e = new Date(end).getDate();
+  return `${String(s).padStart(2, '0')}_${String(e).padStart(2, '0')}`;
+};
 
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -694,6 +775,14 @@ exports.generateBatchPayroll = async (req, res) => {
             const { emp, fullStats } = item;
             const dtrData = await getAttendanceReportInternal(period_Start, period_End, emp.user_Id);
             
+            const payrollDataForPass = {
+              period_Start,
+              period_End,
+              user_LastName: emp.user_LastName,
+              user_Id: emp.user_Id
+            };
+            const pdfPassword = generatePayslipPassword(payrollDataForPass);
+
             const payslipBuffer = await generatePayslipPDF({
               ...fullStats,
               user_FirstName: emp.user_FirstName,
@@ -701,7 +790,7 @@ exports.generateBatchPayroll = async (req, res) => {
               period_Start,
               period_End,
               accountNo: decrypt(emp.account_Number) || "—"
-            });
+            }, pdfPassword);
 
             const dtrBuffer = await generateDTRPDF({
               employee: emp,
@@ -710,6 +799,18 @@ exports.generateBatchPayroll = async (req, res) => {
               period_End,
               netPay: fullStats.netPay
             });
+
+            // ── Archive to PC Drive ──────────────────────────────────────────
+            const dateObj = new Date(period_End);
+            const archiveOpts = {
+              year: dateObj.getFullYear(),
+              month: formatMonthFolder(dateObj),
+              subFolder: getPeriodFolder(period_Start, period_End)
+            };
+
+            await saveFileToArchive(payslipBuffer, `Payslip_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
+            await saveFileToArchive(dtrBuffer, `DTR_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
+            // ──────────────────────────────────────────────────────────────────
 
             await sendPayrollEmail({
               email: emp.user_Email,
@@ -726,6 +827,86 @@ exports.generateBatchPayroll = async (req, res) => {
           }
         }
         console.log(`[BATCH EMAIL] Background dispatch completed.`);
+
+        // ── Automatically Archive Summary Report ─────────────────────────────
+        try {
+          console.log(`[BATCH ARCHIVE] Generating period summary and secure ZIP archive...`);
+          
+          const dateObj = new Date(period_End);
+          const archiveOpts = {
+            year: dateObj.getFullYear(),
+            month: formatMonthFolder(dateObj),
+            subFolder: getPeriodFolder(period_Start, period_End)
+          };
+
+          // 1. Generate and Save Summary PDF
+          const payrollRows = newPayrollsForEmail.map(item => ({
+            ...item.fullStats,
+            user_FirstName: item.emp.user_FirstName,
+            user_LastName: item.emp.user_LastName,
+            sss_Share: item.emp.sss_Share,
+            philhealth_Share: item.emp.philhealth_Share,
+            hdmf_Share: item.emp.hdmf_Share,
+            previousDailyRate: item.emp.previousDailyRate,
+            accountNo: decrypt(item.emp.account_Number)
+          }));
+
+          const start = new Date(period_Start + "T00:00:00");
+          const end   = new Date(period_End   + "T00:00:00");
+          const month = start.toLocaleString("en-PH", { month: "long" });
+          const periodLabel = `${month} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`;
+          const summaryPDF = await generatePayrollSummaryPDF(payrollRows, periodLabel);
+          await saveFileToArchive(summaryPDF, `SummaryReport_${period_Start}_${period_End}.pdf`, archiveOpts);
+
+          // 2. Create and Save Password-Protected ZIP of all individual files
+          // ZIP Password format: MaChip_{PeriodDigits}{MonthName}{Year}
+          const periodDigits = `${String(start.getDate()).padStart(2, '0')}${String(end.getDate()).padStart(2, '0')}`;
+          const archiveZipPassword = `MaChip_${periodDigits}${month}${start.getFullYear()}`;
+          
+          const fs = require('fs');
+          const path = require('path');
+          const settings = await require('../config/sequelize').SystemSettings.findOne();
+          
+          if (settings && settings.storageRootPath) {
+            const zipFileName = `Batch_Archive_${period_Start}_${period_End}.zip`;
+            const zipPath = path.join(settings.storageRootPath, String(archiveOpts.year), archiveOpts.month, archiveOpts.subFolder, zipFileName);
+            
+            const output = fs.createWriteStream(zipPath);
+            const archive = archiver("zip-encryptable", {
+              zlib: { level: 9 },
+              password: archiveZipPassword
+            });
+
+            archive.pipe(output);
+
+            for (const item of newPayrollsForEmail) {
+              const { emp, fullStats } = item;
+              const pdfPassword = generatePayslipPassword({
+                period_Start,
+                period_End,
+                user_LastName: emp.user_LastName,
+                user_Id: emp.user_Id
+              });
+
+              const payslipBuffer = await generatePayslipPDF({
+                ...fullStats,
+                user_FirstName: emp.user_FirstName,
+                user_LastName: emp.user_LastName,
+                period_Start,
+                period_End,
+                accountNo: decrypt(emp.account_Number) || "—"
+              }, pdfPassword);
+
+              archive.append(payslipBuffer, { name: `Payslip_${emp.user_LastName}_${emp.user_Id}.pdf` });
+            }
+
+            await archive.finalize();
+            console.log(`[BATCH ARCHIVE] Secure ZIP archived successfully at: ${zipPath}`);
+          }
+        } catch (summaryErr) {
+          console.error(`[BATCH ARCHIVE ERROR] Archival failed:`, summaryErr.message);
+        }
+        // ──────────────────────────────────────────────────────────────────
       })();
     }
 
@@ -949,6 +1130,13 @@ exports.generatePayroll = async (req, res) => {
         const emp = empRow[0];
         const dtrData = await getAttendanceReportInternal(period_Start, period_End, user_Id);
         
+        const pdfPassword = generatePayslipPassword({
+          period_Start,
+          period_End,
+          user_LastName: emp.user_LastName,
+          user_Id
+        });
+
         const payslipBuffer = await generatePayslipPDF({
           ...fullStats,
           user_FirstName: emp.user_FirstName,
@@ -956,7 +1144,7 @@ exports.generatePayroll = async (req, res) => {
           period_Start,
           period_End,
           accountNo: decrypt(emp.account_Number) || "—"
-        });
+        }, pdfPassword);
 
         const dtrBuffer = await generateDTRPDF({
           employee: { user_Id, ...emp },
@@ -965,6 +1153,18 @@ exports.generatePayroll = async (req, res) => {
           period_End,
           netPay: fullStats.netPay
         });
+
+        // ── Archive to PC Drive ──────────────────────────────────────────
+        const dateObj = new Date(period_End);
+        const archiveOpts = {
+          year: dateObj.getFullYear(),
+          month: formatMonthFolder(dateObj),
+          subFolder: getPeriodFolder(period_Start, period_End)
+        };
+
+        await saveFileToArchive(payslipBuffer, `Payslip_${emp.user_LastName}_${user_Id}.pdf`, archiveOpts);
+        await saveFileToArchive(dtrBuffer, `DTR_${emp.user_LastName}_${user_Id}.pdf`, archiveOpts);
+        // ──────────────────────────────────────────────────────────────────
 
         await sendPayrollEmail({
           email: emp.user_Email,
@@ -1059,7 +1259,7 @@ exports.releasePayroll = async (req, res) => {
     );
     if (payroll.length > 0) {
       await sequelize.query(
-        `UPDATE "User" SET "advances_Amnt" = 0, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+        `UPDATE "User_Deduction_Profile" SET "advances_Amnt" = 0, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
         { replacements: { user_Id: payroll[0].user_Id, now: nowStr }, type: QueryTypes.UPDATE }
       );
     }
@@ -1109,13 +1309,20 @@ exports.resendPayrollEmail = async (req, res) => {
 
     const dtrData = await getAttendanceReportInternal(payroll.period_Start, payroll.period_End, payroll.user_Id);
     
+    const pdfPassword = generatePayslipPassword({
+      period_Start: payroll.period_Start,
+      period_End: payroll.period_End,
+      user_LastName: payroll.user_LastName,
+      user_Id: payroll.user_Id
+    });
+
     const [payslipBuffer, dtrBuffer] = await Promise.all([
       generatePayslipPDF({
         ...fullStats,
         user_FirstName: payroll.user_FirstName,
         user_LastName: payroll.user_LastName,
         accountNo: decrypt(payroll.account_Number) || "—"
-      }),
+      }, pdfPassword),
       generateDTRPDF({
         employee: payroll,
         dtrData,
@@ -1274,7 +1481,6 @@ exports.getPayrollReport = async (req, res) => {
 };
 
 // ── ADDITIONS FOR GOVT + OTHER DEDUCTIONS ───────────────────────────────────
-const { generatePayrollSummaryPDF } = require("../utils/payrollSummaryGenerator");
 
 // ── Get Government Deductions Preview ────────────────────────────────────────
 exports.getGovtDeductionsPreview = async (req, res) => {
@@ -1384,6 +1590,7 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
     const periodLabel = `${month} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`;
 
     const pdfBuffer = await generatePayrollSummaryPDF(payrollRows, periodLabel);
+
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="Summary_${period_Start}_${period_End}.pdf"`);
     res.end(pdfBuffer);
@@ -1674,7 +1881,7 @@ exports.syncLoanHistory = async (req, res) => {
           { replacements: { user_Id, date, amount, now: nowStr } }
         );
         await sequelize.query(
-          `UPDATE "User" SET "advances_Amnt" = :amount, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+          `UPDATE "User_Deduction_Profile" SET "advances_Amnt" = :amount, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
           { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
         );
         totalUpdated++;
@@ -1687,7 +1894,7 @@ exports.syncLoanHistory = async (req, res) => {
           { replacements: { user_Id, date, amount, now: nowStr } }
         );
         await sequelize.query(
-          `UPDATE "User" SET "eastwest_Loan" = :amount, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+          `UPDATE "User_Deduction_Profile" SET "eastwest_Loan" = :amount, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
           { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
         );
         totalUpdated++;
