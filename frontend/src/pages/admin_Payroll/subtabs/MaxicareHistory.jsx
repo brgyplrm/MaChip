@@ -1,44 +1,48 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Sidebar from "../../../components/Sidebar";
 import { fetchWithAuth } from "../../../utils/api";
-import { formatUserId } from "../../../utils/formatUserId";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from '@mui/icons-material/FilterList';
-import DownloadIcon from '@mui/icons-material/Download';
 import HistoryIcon from '@mui/icons-material/History';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GroupsIcon from '@mui/icons-material/Groups';
+import AddIcon from '@mui/icons-material/Add';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import Toast from "../../../components/toast/Toast";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import HmoCalculatorModal from "../../../components/HmoCalculatorModal";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
 const MaxicareHistory = () => {
   const { systemToday } = useSystemTime();
+  const navigate = useNavigate();
   const [history, setHistory] = useState([]);
   const [configs, setConfigs] = useState({});
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ message: "", type: "success" });
-
-  // Filter States
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCycle, setSelectedCycle] = useState("All Cycles");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [showCalculator, setShowCalculator] = useState(false);
+  
+  // New Config State
+  const [newConfig, setNewConfig] = useState({
+    totalGross: 0,
+    monthsToPay: 12,
+    cycleStartDate: "",
+    employerShare: 50
+  });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch both history and cycle settings to calculate percentages
       const [historyRes, settingsRes] = await Promise.all([
         fetchWithAuth("/api/payroll/maxicare/history"),
         fetchWithAuth("/api/system/settings")
@@ -61,195 +65,276 @@ const MaxicareHistory = () => {
     fetchData();
   }, [fetchData]);
 
-  // Derived Statistics
+  const getCycleRange = (year, cycleConfig) => {
+    const startDate = cycleConfig.cycleStartDate;
+    if (!startDate) return null;
+    
+    const baseStart = new Date(startDate);
+    const startMonth = baseStart.getUTCMonth();
+    const startDay = baseStart.getUTCDate();
+    
+    const start = new Date(year, startMonth, startDay, 0, 0, 0);
+    const end = new Date(start);
+    
+    const months = cycleConfig.monthsToPay || 12;
+    end.setMonth(start.getMonth() + parseInt(months));
+    
+    const deductionEnd = new Date(end);
+    deductionEnd.setMonth(deductionEnd.getMonth() + 1, 0); 
+    deductionEnd.setHours(23, 59, 59, 999);
+    
+    return { start, end, deductionEnd };
+  };
+
+  const currentCycleYear = useMemo(() => {
+    const today = new Date(systemToday);
+    for (const yearStr of Object.keys(configs)) {
+      const year = parseInt(yearStr);
+      const range = getCycleRange(year, configs[yearStr]);
+      if (range && today >= range.start && today <= range.deductionEnd) {
+        return year;
+      }
+    }
+    return null;
+  }, [configs, systemToday]);
+
+  const cycleSummaries = useMemo(() => {
+    return Object.keys(configs).sort((a, b) => b - a).map(yearStr => {
+      const year = parseInt(yearStr);
+      const config = configs[yearStr];
+      const range = getCycleRange(year, config);
+      
+      if (!range) return null;
+
+      // Filter history for this cycle
+      const cycleHistory = history.filter(item => {
+        const itemDate = new Date(item.date);
+        return itemDate >= range.start && itemDate <= range.deductionEnd && parseFloat(item.amount) > 0;
+      });
+
+      const uniqueSubscribers = new Set(cycleHistory.map(item => item.user_Id)).size;
+      const totalGrossPremium = config.totalGross || 0;
+      const annualPremiumBilled = totalGrossPremium * uniqueSubscribers;
+
+      return {
+        year,
+        label: `${year} - ${year + Math.ceil((config.monthsToPay || 12) / 12)}`,
+        totalGrossPremium,
+        annualPremiumBilled,
+        totalSubscribers: uniqueSubscribers,
+        config,
+        isOver: new Date(systemToday) > range.deductionEnd
+      };
+    }).filter(s => s && s.isOver);
+  }, [configs, history, systemToday]);
+
   const stats = useMemo(() => {
     const totalCollected = history.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
-    const uniqueEmployees = new Set(history.map(item => item.user_Id)).size;
-    const currentYear = systemToday.getFullYear();
-    const cyclePremium = configs[currentYear]?.totalGross || 0;
-
+    const totalBilled = cycleSummaries.reduce((sum, s) => sum + s.annualPremiumBilled, 0);
+    
     return {
       totalCollected,
-      activeSubscribers: uniqueEmployees,
-      avgDeduction: uniqueEmployees > 0 ? totalCollected / history.length : 0,
-      currentCyclePremium: cyclePremium
+      totalBilled,
+      totalCycles: cycleSummaries.length
     };
-  }, [history, configs, systemToday]);
-
-  // Filtering Logic
-  const filteredData = useMemo(() => {
-    return history.filter(item => {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch = 
-        item.userName?.toLowerCase().includes(query) || 
-        formatUserId(item.user_Id).toLowerCase().includes(query);
-      
-      const itemYear = new Date(item.date).getFullYear().toString();
-      const matchesCycle = selectedCycle === "All Cycles" || itemYear === selectedCycle;
-
-      return matchesSearch && matchesCycle;
-    });
-  }, [history, searchQuery, selectedCycle]);
-
-  // Pagination Logic
-  const totalItems = filteredData.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const currentData = filteredData.slice(startIndex, endIndex);
+  }, [history, cycleSummaries]);
 
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+
+  const handleSaveNewConfig = async () => {
+    try {
+      setLoading(true);
+      const year = new Date(newConfig.cycleStartDate).getFullYear();
+      if (isNaN(year)) {
+        setToast({ message: "Invalid start date", type: "error" });
+        return;
+      }
+
+      const updatedConfigs = {
+        ...configs,
+        [year]: {
+          totalGross: newConfig.totalGross,
+          monthsToPay: newConfig.monthsToPay,
+          cycleStartDate: newConfig.cycleStartDate
+        }
+      };
+
+      // We need to fetch the existing dates to keep them
+      const settingsRes = await fetchWithAuth("/api/system/settings");
+      const settingsData = await settingsRes.json();
+      const existingDates = settingsData.maxicareDates?.dates || [];
+
+      const saveRes = await fetchWithAuth("/api/system/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          maxicareDates: {
+            dates: existingDates,
+            configs: updatedConfigs
+          }
+        })
+      });
+
+      if (saveRes.ok) {
+        setToast({ message: `Configuration for Cycle ${year} saved!`, type: "success" });
+        setShowCalculator(false);
+        fetchData();
+      } else {
+        setToast({ message: "Failed to save configuration", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Error saving configuration", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Sidebar>
       <div className="flex flex-col w-full min-h-screen bg-slate-50 p-4 md:p-8">
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         
-        {/* Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-4">
-          <Link 
-               to="/maxicare" 
-               className="mr-4 flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
+        <Dialog open={showCalculator} onOpenChange={setShowCalculator}>
+          <DialogContent className="max-w-4xl! p-0 overflow-hidden border-none bg-transparent shadow-none">
+            <HmoCalculatorModal 
+              premium={newConfig.totalGross}
+              setPremium={(val) => setNewConfig(prev => ({ ...prev, totalGross: val }))}
+              cutoffs={newConfig.monthsToPay * 2}
+              setCutoffs={(val) => setNewConfig(prev => ({ ...prev, monthsToPay: val / 2 }))}
+              employerShare={newConfig.employerShare}
+              setEmployerShare={(val) => setNewConfig(prev => ({ ...prev, employerShare: val }))}
+              cycleStartDate={newConfig.cycleStartDate}
+              setCycleStartDate={(date) => setNewConfig(prev => ({ ...prev, cycleStartDate: date }))}
+            />
+            <div className="flex justify-center pb-6">
+              <Button 
+                onClick={handleSaveNewConfig}
+                className="bg-[#2A174E] text-white px-8 py-3 rounded-lg font-bold hover:bg-[#1a0e30] transition-colors shadow-lg"
               >
-            <ArrowBackIcon className="h-6 w-6" />
-          </Link>
-          <div className="flex justify-between gap-[330px]">
+                Save New Configuration
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Header */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-4">
+            <Link 
+              to="/maxicare" 
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-200 text-[#2A174E] transition-colors"
+            >
+              <ArrowBackIcon className="h-6 w-6" />
+            </Link>
             <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Maxicare HMO History</h1>
-            <span className="text-sm text-slate-500 mt-1 block">Audit and review all previous health insurance deduction periods.</span>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Maxicare Deduction History</h1>
+              <span className="text-sm text-slate-500 mt-1 block">Overview of all health insurance cycles and premiums.</span>
+            </div>
           </div>
-          <Button className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-sm">
-            <DownloadIcon className="mr-2 h-4 w-4" /> Export HMO Report (PDF)
+          <Button 
+            onClick={() => setShowCalculator(true)}
+            className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold"
+          >
+            <AddIcon className="mr-2 h-4 w-4" /> Add Config
           </Button>
-          </div>
-          
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className="border-t-4 border-[#2A174E] shadow-sm">
-            <CardContent className="flex justify-between items-start">
+            <CardContent className="flex justify-between items-center p-6">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Lifetime Collection</p>
-                <p className="text-3xl font-bold text-[#2A174E]">{peso(stats.totalCollected)}</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Cycles</p>
+                <p className="text-3xl font-bold text-[#2A174E]">{stats.totalCycles}</p>
               </div>
-              <div className="bg-[#2A174E]/10 p-2 rounded-lg text-[#2A174E]">
-                <TrendingUpIcon />
+              <div className="bg-[#2A174E]/10 p-3 rounded-xl text-[#2A174E]">
+                <HistoryIcon size={32} />
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-t-4 border-blue-500 shadow-sm">
-            <CardContent className="flex justify-between items-start">
+            <CardContent className="flex justify-between items-center p-6">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Subscribers</p>
-                <p className="text-3xl font-bold text-blue-700">{stats.activeSubscribers}</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Lifetime Subscribers</p>
+                <p className="text-3xl font-bold text-blue-700">{new Set(history.map(h => h.user_Id)).size}</p>
               </div>
-              <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
-                <GroupsIcon />
+              <div className="bg-blue-50 p-3 rounded-xl text-blue-600">
+                <GroupsIcon size={32} />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-amber-500 shadow-sm">
-            <CardContent className=" flex justify-between items-start">
+          <Card className="border-t-4 border-emerald-500 shadow-sm">
+            <CardContent className="flex justify-between items-center p-6">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Current Premium</p>
-                <p className="text-3xl font-bold text-amber-700">{peso(stats.currentCyclePremium)}</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Lifetime Billed</p>
+                <p className="text-3xl font-bold text-emerald-700">{peso(stats.totalBilled)}</p>
               </div>
-              <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
-                <AccountBalanceWalletIcon />
+              <div className="bg-emerald-50 p-3 rounded-xl text-emerald-600">
+                <AccountBalanceWalletIcon size={32} />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filters Card */}
-        <Card className="shadow-sm border-0 bg-white mb-4 py-0">
-          <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
-            <div className="relative w-full xl:max-w-md">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-              <Input
-                placeholder="Search employee or ID..."
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            
-            <div className="flex gap-3 w-full xl:w-auto">
-              <div className="flex items-center gap-2">
-                <FilterListIcon className="text-slate-400 h-5 w-5" />
-                <Select value={selectedCycle} onValueChange={setSelectedCycle}>
-                  <SelectTrigger className="w-[180px] bg-slate-50">
-                    <SelectValue placeholder="Filter Cycle" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All Cycles">All Cycles</SelectItem>
-                    {Object.keys(configs).sort((a,b) => b-a).map(year => (
-                      <SelectItem key={year} value={year}>Cycle {year}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Historical Table */}
-        <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
-          <CardContent className="p-0 flex flex-col">
+        {/* Cycle History Table */}
+        <Card className="shadow-sm border-0 bg-white overflow-hidden">
+          <CardContent className="p-0">
             <Table>
               <TableHeader className="bg-[#2A174E]">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-white font-bold py-4 px-6 uppercase text-[10px] tracking-wider">Date Deducted</TableHead>
-                  <TableHead className="text-white font-bold py-4 uppercase text-[10px] tracking-wider">Employee Name</TableHead>
-                  <TableHead className="text-white font-bold py-4 uppercase text-[10px] tracking-wider">Cycle</TableHead>
-                  <TableHead className="text-white font-bold py-4 uppercase text-[10px] tracking-wider text-right pr-6">Amount</TableHead>
+                  <TableHead className="text-white font-bold py-4 px-6 uppercase text-[11px] tracking-wider">Annual Cycle</TableHead>
+                  <TableHead className="text-white font-bold py-4 uppercase text-[11px] tracking-wider">Total Gross Premium</TableHead>
+                  <TableHead className="text-white font-bold py-4 uppercase text-[11px] tracking-wider">Annual Premium Billed</TableHead>
+                  <TableHead className="text-white font-bold py-4 uppercase text-[11px] tracking-wider">Total Subscriber</TableHead>
+                  <TableHead className="text-white font-bold py-4 uppercase text-[11px] tracking-wider text-right pr-6">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {currentData.length > 0 ? (
-                  currentData.map((item, idx) => (
-                    <TableRow key={idx} className="border-b-slate-100">
-                      <TableCell className="font-medium text-slate-600 px-6 py-4">
-                        {new Date(item.date).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-32 text-center text-slate-400 italic">Loading history...</TableCell>
+                  </TableRow>
+                ) : cycleSummaries.length > 0 ? (
+                  cycleSummaries.map((summary) => (
+                    <TableRow key={summary.year} className="hover:bg-slate-50 transition-colors">
+                      <TableCell className="font-bold text-[#2A174E] px-6 py-5">
+                        Cycle {summary.label}
+                        {summary.year === currentCycleYear && (
+                          <Badge className="ml-2 bg-yellow-400 text-[#2A174E] hover:bg-yellow-500 border-none font-black text-[10px]">
+                            CURRENT
+                          </Badge>
+                        )}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-[#2A174E] text-sm">{item.userName}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{formatUserId(item.user_Id)}</span>
-                        </div>
+                      <TableCell className="font-medium text-slate-700">
+                        {peso(summary.totalGrossPremium)}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="bg-slate-100 text-slate-600">
-                          Cycle {new Date(item.date).getFullYear()}
-                        </Badge>
+                      <TableCell className="font-bold text-slate-900">
+                        {peso(summary.annualPremiumBilled)}
                       </TableCell>
-                      <TableCell className="text-right pr-6 font-bold text-slate-900">
-                        {peso(item.amount)}
+                      <TableCell className="font-medium text-slate-600">
+                        {summary.totalSubscribers} Employees
+                      </TableCell>
+                      <TableCell className="text-right pr-6">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate(`/maxicare?year=${summary.year}`)}
+                          className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white"
+                        >
+                          <VisibilityIcon className="mr-2 h-4 w-4" /> View
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-32 text-center text-slate-400 italic">No historical records found matching your filters.</TableCell>
+                    <TableCell colSpan={5} className="h-32 text-center text-slate-400 italic">No historical cycles found.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
-
-            {/* Pagination */}
-            <div className="flex items-center justify-between p-4 bg-slate-50/50 border-t border-slate-100">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-tighter">
-                Showing {startIndex + 1} to {endIndex} of {totalItems} records
-              </span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1}>Previous</Button>
-                <div className="h-8 w-8 flex items-center justify-center bg-[#2A174E] text-white rounded text-xs font-bold">{currentPage}</div>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages}>Next</Button>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>

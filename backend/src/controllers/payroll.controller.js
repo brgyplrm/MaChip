@@ -895,7 +895,10 @@ exports.generatePayroll = async (req, res) => {
     // ── Send Email ──────────────────────────────────────────────────────────
     try {
       const empRow = await sequelize.query(
-        `SELECT "user_FirstName", "user_LastName", "user_Email", "account_Number" FROM "User" WHERE "user_Id" = :user_Id`,
+        `SELECT u."user_FirstName", u."user_LastName", u."user_Email", b."account_Number" 
+         FROM "User" u
+         LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+         WHERE u."user_Id" = :user_Id`,
         { replacements: { user_Id }, type: QueryTypes.SELECT }
       );
       if (empRow.length > 0) {
@@ -1029,19 +1032,20 @@ exports.releasePayroll = async (req, res) => {
 exports.resendPayrollEmail = async (req, res) => {
   const { payrollId } = req.params;
   try {
-    const payrollResult = await sequelize.query(
-      `SELECT p.*, u."user_FirstName", u."user_LastName", u."user_Email", u."account_Number"
+    const payrolls = await sequelize.query(
+      `SELECT p.*, u."user_FirstName", u."user_LastName", u."user_Email", b."account_Number"
        FROM "Payroll" p
-       JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
        WHERE p."payrollId" = :payrollId`,
       { replacements: { payrollId }, type: QueryTypes.SELECT }
     );
 
-    if (payrollResult.length === 0) {
+    if (payrolls.length === 0) {
       return res.status(404).json({ error: "Payroll record not found." });
     }
 
-    const payroll = payrollResult[0];
+    const payroll = payrolls[0];
 
     // Need to fetch full stats from Payroll_Earnings and Payroll_Deductions for the PDF
     const earnings = await sequelize.query(

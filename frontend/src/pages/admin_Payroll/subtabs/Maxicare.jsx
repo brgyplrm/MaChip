@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../../components/Sidebar";
 import Navbar from "../../../components/navbar/Navbar";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -23,7 +23,7 @@ import EventIcon from '@mui/icons-material/Event';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined';
 import HistoryIcon from "@mui/icons-material/History";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const Maxicare = () => {
   const { systemToday } = useSystemTime();
+  const [searchParams] = useSearchParams();
+  const queryYear = searchParams.get("year");
+  
   const userData = JSON.parse(localStorage.getItem("userData"));
   const isAdmin = userData?.user_RoleId === 4 || 1;
 
@@ -39,7 +42,7 @@ const Maxicare = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState(queryYear ? parseInt(queryYear) : new Date().getFullYear());
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -150,21 +153,37 @@ const Maxicare = () => {
   const generateExpectedDates = (startDateStr, months) => {
     if (!startDateStr || !months) return [];
     const dates = [];
-    let current = new Date(startDateStr);
-    if (isNaN(current.getTime())) return [];
+    const start = new Date(startDateStr);
+    if (isNaN(start.getTime())) return [];
     
-    for (let i = 0; i < months * 2; i++) {
+    // Calculate the logical end of the deduction cycle (end of the final calendar month of the term)
+    const end = new Date(start);
+    end.setMonth(start.getMonth() + (parseInt(months) || 12));
+    const deductionEnd = new Date(end);
+    deductionEnd.setMonth(deductionEnd.getMonth() + 1, 0); // Last day of the anniversary month
+    deductionEnd.setHours(23, 59, 59, 999);
+
+    // Snap to the first payroll cutoff on or after the start date (15th or Last Day)
+    let current = new Date(start);
+    if (current.getDate() <= 15) {
+      current.setDate(15);
+    } else {
+      current.setMonth(current.getMonth() + 1, 0); // Last day of month
+    }
+
+    while (current <= deductionEnd) {
       const year = current.getFullYear();
       const month = current.getMonth();
       const day = current.getDate();
       
-      const d = new Date(current);
-      dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+      const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      dates.push(dStr);
       
-      if (day <= 15) {
-        current = new Date(year, month + 1, 0);
+      // Move to next cutoff
+      if (day === 15) {
+        current = new Date(year, month + 1, 0); // Last day of current month
       } else {
-        current = new Date(year, month + 1, 15);
+        current = new Date(year, month + 1, 15); // 15th of next month
       }
     }
     return dates;
@@ -205,10 +224,22 @@ const Maxicare = () => {
   };
 
   const cycle = getCycleRange();
+  const isUnconfigured = !cycleConfigs[selectedYear];
+
+  const cycleData = data.filter(item => {
+    if (!cycle) return false;
+    const itemDate = new Date(item.date);
+    return itemDate >= cycle.start && itemDate <= cycle.deductionEnd;
+  });
+
+  const cycleHasAnyData = cycleData.some(item => Object.values(item.values).some(v => v.amount > 0));
 
   // Generate a virtual template for the currently selected year to help with historical initialization
   const virtualExpectedDates = () => {
-    if (!cycle) return [];
+    // ONLY generate virtual dates if the cycle is ALREADY configured 
+    // OR if the user is in an active setup/edit state.
+    if (!cycle || (isUnconfigured && !isEditing && !showCalculator)) return [];
+
     const startDate = cycleConfigs[selectedYear]?.cycleStartDate || config.cycleStartDate;
     const months = cycleConfigs[selectedYear]?.monthsToPay || config.monthsToPay || 12;
     
@@ -221,16 +252,6 @@ const Maxicare = () => {
   };
 
   const currentVirtualDates = virtualExpectedDates();
-
-  const cycleData = data.filter(item => {
-    if (!cycle) return false;
-    const itemDate = new Date(item.date);
-    return itemDate >= cycle.start && itemDate <= cycle.deductionEnd;
-  });
-
-  const cycleHasAnyData = cycleData.some(item => Object.values(item.values).some(v => v.amount > 0));
-  
-  const isUnconfigured = !cycleConfigs[selectedYear];
 
   const displayDates = [...new Set([
     ...expectedDates,
@@ -269,13 +290,19 @@ const Maxicare = () => {
     const isInExtraZone = dDate > cycle.end && dDate <= cycle.deductionEnd;
 
     if (isInStrictTerm) {
-      // In the main 12-month body, show everything (including empty slots)
+      // If unconfigured and NO historical data, only show if user is editing
+      if (isUnconfigured && !cycleHasAnyData && !isEditing && !isEditingTable) return false;
       return true;
     }
 
     if (isInExtraZone) {
-      // In the "Overtime" zone (e.g. Aug 15/31), only show if there's actually a contribution in THIS cycle
-      return hasContributionInCycle(d, cycle);
+      // In the "Overtime" zone (e.g. Aug 15/31):
+      // Show if: 
+      // 1. There is historical data
+      // 2. We are in Edit Mode (to allow manual entry)
+      // 3. It is part of the PROJECTED/EXPECTED dates for the cycle (to show the full plan)
+      const isProjected = currentVirtualDates.includes(d) || expectedDates.includes(d);
+      return isEditingTable || hasContributionInCycle(d, cycle) || isProjected;
     }
     
     return false;
@@ -327,13 +354,15 @@ const Maxicare = () => {
           cycleStartDate: currentYearConfig.cycleStartDate || settingsData.maxicareCycleStartDate || "",
         });
 
-        // Sync selectedYear with the loaded configuration's start year ONLY on first load
+        // Sync selectedYear with the loaded configuration's start year ONLY on first load and if NO query year is present
         const initialDate = currentYearConfig.cycleStartDate || settingsData.maxicareCycleStartDate;
-        if (!initialSyncDone && initialDate) {
+        if (!initialSyncDone && !queryYear && initialDate) {
           const startDate = new Date(initialDate);
           if (!isNaN(startDate.getFullYear())) {
             setSelectedYear(startDate.getFullYear());
           }
+          setInitialSyncDone(true);
+        } else if (!initialSyncDone && queryYear) {
           setInitialSyncDone(true);
         }
 
@@ -445,22 +474,33 @@ const Maxicare = () => {
       : (cycle ? formatDateLocal(cycle.start) : `${selectedYear}-01-01`);
     
     const next = new Date(lastDate);
-    // Simple logic: if last was 15th, go to end of month. If last was end, go to 15th of next.
-    if (next.getDate() <= 15) {
-      next.setMonth(next.getMonth() + 1, 0); // Last day of current month
+
+    if (displayDates.length === 0) {
+      if (next.getDate() <= 15) {
+        next.setDate(15);
+      } else {
+        next.setMonth(next.getMonth() + 1, 0);
+      }
     } else {
-      next.setMonth(next.getMonth() + 1, 15); // 15th of next month
+      if (next.getDate() <= 15) {
+        next.setMonth(next.getMonth() + 1, 0); 
+      } else {
+        next.setMonth(next.getMonth() + 1, 15);
+      }
     }
     
     const nextStr = formatDateLocal(next);
-    // Ensure we stay within cycle if one exists
-    if (cycle && new Date(nextStr) > cycle.end) {
-      setToast({ message: "Cannot add period outside of renewal cycle.", type: "error" });
+
+    if (cycle && new Date(nextStr) > cycle.deductionEnd) {
+      setToast({ message: "Cannot add period outside of renewal cycle month.", type: "error" });
       return;
     }
 
     if (!expectedDates.includes(nextStr)) {
       setExpectedDates(prev => [...prev, nextStr].sort());
+      setToast({ message: `Successfully added period: ${nextStr}`, type: "success" });
+    } else {
+      setToast({ message: `Period ${nextStr} already exists in configuration`, type: "info" });
     }
   };
 
@@ -609,8 +649,9 @@ const Maxicare = () => {
     try {
       setLoading(true);
 
-      // Merge existing expectedDates with virtual ones from current session, then remove excluded ones
-      const finalDates = [...new Set([...expectedDates, ...virtualExpectedDates()])]
+      // finalDates now simply uses expectedDates (which contains all years thanks to the corrected useEffect)
+      // minus any excluded dates from the current session.
+      const finalDates = expectedDates
         .filter(d => !excludedDates.includes(d))
         .sort();
 
@@ -628,9 +669,12 @@ const Maxicare = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          maxicareTotalGross: config.totalGross, // Update global as fallback
-          maxicareMonthsToPay: config.monthsToPay, // Update global as fallback
-          maxicareCycleStartDate: config.cycleStartDate, // Update global as fallback
+          // ONLY update global fallback if no configs exist yet (initial setup)
+          ...(Object.keys(cycleConfigs).length === 0 && {
+            maxicareTotalGross: config.totalGross, 
+            maxicareMonthsToPay: config.monthsToPay, 
+            maxicareCycleStartDate: config.cycleStartDate, 
+          }),
           maxicareDates: {
             dates: finalDates,
             configs: updatedConfigs
@@ -652,12 +696,15 @@ const Maxicare = () => {
       if (settingsRes.ok && userRes.ok) {
         setIsEditing(false);
         setIsEditingTable(false);
-        setExcludedDates([]); // Clear session exclusions after successful save
-        fetchData();
-        setToast({ message: "Maxicare configuration and employee deductions saved!", type: "success" });
+        setExcludedDates([]); 
+        await fetchData();
+        setToast({ message: "Maxicare configuration and employee deductions saved successfully!", type: "success" });
+      } else {
+        setToast({ message: "Failed to save some settings. Please check your connection.", type: "error" });
       }
     } catch (err) {
-      setToast({ message: "Error saving settings", type: "error" });
+      console.error("[MAXICARE SAVE ERROR]:", err);
+      setToast({ message: "Error saving settings: " + err.message, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -743,14 +790,22 @@ const Maxicare = () => {
 
   // ── Auto-generate expected dates when config changes ──────────────────────
   useEffect(() => {
-    if (config.cycleStartDate && config.monthsToPay && (isEditing || showCalculator)) {
+    if (config.cycleStartDate && config.monthsToPay) {
       const newDates = generateExpectedDates(config.cycleStartDate, config.monthsToPay);
-      // Only update if they actually changed to avoid unnecessary re-renders
-      if (JSON.stringify(newDates) !== JSON.stringify(expectedDates)) {
-        setExpectedDates(newDates);
-      }
+      
+      setExpectedDates(prev => {
+        // We want to merge the new template dates with whatever is already there.
+        // We don't want to strictly overwrite because the user might have added 
+        // manual periods (like Aug 15/31 at the end of a cycle).
+        const merged = [...new Set([...prev, ...newDates])].sort();
+        
+        if (JSON.stringify(merged) !== JSON.stringify(prev)) {
+          return merged;
+        }
+        return prev;
+      });
     }
-  }, [config.cycleStartDate, config.monthsToPay, isEditing, showCalculator]);
+  }, [config.cycleStartDate, config.monthsToPay]);
   // ──────────────────────────────────────────────────────────────────────────
 
   const handleConfigChange = (e) => {
@@ -793,7 +848,7 @@ const Maxicare = () => {
     const headers = [templateId, ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
     const headerLine = headers.join(",");
 
-    const rows = expectedDates.map(date => {
+    const rows = displayDates.map(date => {
       const emptyValues = employeeList.map(() => "").join(",");
       return `${date},${emptyValues}`;
     });
@@ -1030,6 +1085,18 @@ const Maxicare = () => {
     }));
   };
 
+  const currentCycleYear = useMemo(() => {
+    const today = systemToday ? new Date(systemToday) : new Date();
+    for (const yearStr of Object.keys(cycleConfigs)) {
+      const year = parseInt(yearStr);
+      const range = getCycleRange(year);
+      if (range && today >= range.start && today <= range.deductionEnd) {
+        return year;
+      }
+    }
+    return today.getFullYear();
+  }, [cycleConfigs, systemToday]);
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Dialog open={showCalculator} onOpenChange={setShowCalculator}>
@@ -1205,21 +1272,30 @@ const Maxicare = () => {
           </Button>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-tight">Policy Cycle</span>
-            <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
-              <SelectTrigger className="w-[200px] h-9 bg-white font-bold text-slate-700">
-                <SelectValue placeholder="Select Cycle" />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 21 }, (_, i) => 2020 + i).map(year => {
-                  const endYear = year + Math.max(1, Math.ceil((config.monthsToPay || 12) / 12));
-                  return (
-                    <SelectItem key={year} value={year.toString()}>
-                      Cycle {year} - {endYear}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            {queryYear && parseInt(queryYear) !== currentCycleYear ? (
+              <div className="flex items-center gap-2 bg-[#2A174E] text-white px-4 py-1.5 rounded-lg font-bold shadow-sm">
+                <HistoryIcon className="h-4 w-4 text-yellow-400" />
+                <span>Cycle {selectedYear} - {selectedYear + Math.max(1, Math.ceil((config.monthsToPay || 12) / 12))}</span>
+                <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded ml-1 uppercase">Historical View</span>
+              </div>
+            ) : (
+              <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
+                <SelectTrigger className="w-[200px] h-9 bg-white font-bold text-slate-700">
+                  <SelectValue placeholder="Select Cycle" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 5 }, (_, i) => Math.min(new Date().getFullYear(), currentCycleYear) + i).map(year => {
+                    const isCurrent = year === currentCycleYear;
+                    const endYear = year + Math.max(1, Math.ceil((config.monthsToPay || 12) / 12));
+                    return (
+                      <SelectItem key={year} value={year.toString()}>
+                        Cycle {year} - {endYear} {isCurrent ? "(Current)" : ""}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
 

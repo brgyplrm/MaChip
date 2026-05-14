@@ -546,15 +546,14 @@ exports.bulkUpdateMaxicare = async (req, res) => {
 
     for (const update of updates) {
       await sequelize.query(
-        `UPDATE "User" SET "healthCard_Amnt" = :amnt WHERE "user_Id" = :id`,
-        { 
-          replacements: { amnt: update.healthCard_Amnt, id: update.user_Id }, 
+        `UPDATE "User_Deduction_Profile" SET "healthCard_Amnt" = :amnt WHERE "user_Id" = :id`,
+        {
+          replacements: { amnt: update.healthCard_Amnt, id: update.user_Id },
           type: QueryTypes.UPDATE,
           transaction
         }
       );
     }
-
     await transaction.commit();
     res.status(200).json({ message: "Maxicare deductions updated successfully." });
   } catch (error) {
@@ -641,7 +640,17 @@ exports.updateUser = async (req, res) => {
     }
 
     const oldUserResult = await sequelize.query(
-      `SELECT * FROM "User" WHERE "user_Id" = :targetId`,
+      `SELECT u.*, 
+              b."account_Number", b."bank_Company", b."bank_AccountName",
+              d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
+              d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
+              d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              h."user_MachipId", h."user_FingerprintId"
+       FROM "User" u
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+       WHERE u."user_Id" = :targetId`,
       { replacements: { targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
     );
     const oldUser = oldUserResult[0];
@@ -996,7 +1005,10 @@ exports.updateDailyRate = async (req, res) => {
     let existing;
     try {
       existing = await sequelize.query(
-        `SELECT * FROM "User" WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
+        `SELECT u.*, d."sss_Share", d."philhealth_Share", d."hdmf_Share"
+         FROM "User" u
+         LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+         WHERE u."user_Id" = :user_Id AND u."deletedAt" IS NULL`,
         { replacements: { user_Id }, type: QueryTypes.SELECT },
       );
     } catch (err) {
