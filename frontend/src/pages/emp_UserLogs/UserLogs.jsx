@@ -128,7 +128,7 @@ const UserLogs = () => {
       if (response.ok) {
         const data = await response.json();
         const filtered = data.filter((log) => {
-          const logDate = log.log_Date.split("T")[0];
+          const logDate = String(log.log_Date).split("T")[0];
           return logDate >= dtrStartDate && logDate <= dtrEndDate;
         });
         setDailyLogs(filtered);

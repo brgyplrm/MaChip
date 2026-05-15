@@ -80,7 +80,8 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
   const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
   const isAdminOrAccountant = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
 
-  const period = useMemo(() => getCurrentPeriod(systemToday), [systemToday, getCurrentPeriod]);
+  const systemDateKey = systemToday?.toDateString() || "";
+  const period = useMemo(() => getCurrentPeriod(systemToday), [systemDateKey, getCurrentPeriod]);
 
   const [users, setUsers] = useState([]);
 
@@ -136,9 +137,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
             last_name: lastName || "—",
             fullName: fullName || "—",
             machip_id: log.user_MachipId || "—",
-            log_Date: log.log_Date
-              ? new Date(log.log_Date).toLocaleDateString()
-              : "—",
+            log_Date: log.log_Date ? String(log.log_Date).split('T')[0] : "—",
             time: formatTime12h(log.time_Logged),
             log_type: log.loggedStatusName ?? "—",
             action: log.attendanceStatusName ?? "—",
@@ -161,7 +160,11 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
       const response = await fetchWithAuth(url);
       if (response.ok) {
         const data = await response.json();
-        setDayLogsData(data);
+        const mapped = data.map(d => ({
+          ...d,
+          log_Date: String(d.log_Date).split('T')[0]
+        }));
+        setDayLogsData(mapped);
       }
     } catch (error) {
       console.error("Error fetching day logs:", error);
@@ -237,9 +240,8 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
 
   // 1. Filter Raw Data
   const filteredRawData = logData.filter((item) => {
-    // Date Filter
-    const itemDate = new Date(item.log_Date).toISOString().split('T')[0];
-    const matchesDate = !filterDate || itemDate === filterDate;
+    // Date Filter - Safely extract YYYY-MM-DD from the log_Date string
+    const matchesDate = !filterDate || item.log_Date === filterDate;
 
     // Time Range Filter Logic
     let matchesTime = true;
@@ -317,7 +319,7 @@ const sortedAndFilteredDayLogs = useMemo(() => {
 
     // 1. Specific Date Filter
     // Format the log_Date (ISO) to YYYY-MM-DD for comparison
-    const itemDate = item.log_Date.split('T')[0];
+    const itemDate = String(item.log_Date).split('T')[0];
     const matchesDate = !filterDate || itemDate === filterDate;
 
     // 2. Time Range Filter (Applied to 'Morning In')
@@ -360,7 +362,7 @@ const sortedAndFilteredDayLogs = useMemo(() => {
 
   // ------------------ STATISTICS CALCULATION ------------------
   const todayRawLogs = useMemo(() => {
-    const todayStr = systemToday.toLocaleDateString();
+    const todayStr = String(systemToday.toISOString()).split('T')[0];
     return logData.filter(l => l.log_Date === todayStr);
   }, [logData, systemToday]);
 

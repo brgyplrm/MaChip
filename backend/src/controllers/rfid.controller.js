@@ -30,6 +30,20 @@ let fpCaptureSession = {
   success: false
 };
 
+// Heartbeat state to track ESP32 connectivity
+let lastEsp32Heartbeat = null;
+
+exports.getHardwareStatus = (req, res) => {
+  const now = Date.now();
+  const isConnected = lastEsp32Heartbeat && (now - lastEsp32Heartbeat < 10000); // Connected if seen in last 10s
+  
+  res.status(200).json({
+    connected: isConnected,
+    lastSeen: lastEsp32Heartbeat ? new Date(lastEsp32Heartbeat).toISOString() : null,
+    msSinceLastSeen: lastEsp32Heartbeat ? (now - lastEsp32Heartbeat) : null
+  });
+};
+
 exports.clearFingerprintSession = (req, res) => {
   console.log("[FP] Manually clearing fingerprint session");
   fpCaptureSession.isCapturing = false;
@@ -46,6 +60,9 @@ exports.clearFingerprintSession = (req, res) => {
 
 exports.scanRFID = async (req, res) => {
   let { uid, action, terminalType } = req.body; 
+
+  // Update heartbeat
+  lastEsp32Heartbeat = Date.now();
 
   if (!uid) {
     return res.status(400).json({ success: false, message: "No UID provided" });
@@ -180,20 +197,10 @@ exports.scanRFID = async (req, res) => {
     // Since we used include, we can access hardware properties
     const hardware = user.hardware;
 
-    // ── 2FA FLOW TRIGGER ────────────────────────────────────────────────────
-    // If the user has a Fingerprint ID enrolled, but only RFID was scanned,
-    // we tell the device to proceed to biometric verification.
-    if (!is2FA && hardware?.user_FingerprintId && action !== "fingerprint_scan") {
-      console.log(`[2FA] User ${user.user_FirstName} requires biometric verification. Triggering ESP32...`);
-      return res.status(200).json({
-        success: true,
-        mode: "WAITING_FOR_FINGERPRINT_2FA",
-        uid: rfidUid,
-        name: user.user_FirstName
-      });
-    }
+    // ── 2FA FLOW TRIGGER REMOVED ──
+    // RFID no longer triggers biometric verification automatically.
 
-    // ── 2FA Verification ────────────────────────────────────────────────────
+    // ── 2FA Verification (if coming from ESP32 with | separator) ───────────
     if (is2FA) {
       console.log(`[2FA-DEBUG] User: ${user.user_FirstName}, DB FingerId: ${hardware?.user_FingerprintId} (${typeof hardware?.user_FingerprintId}), Scanned FingerId: ${scannedFingerId} (${typeof scannedFingerId})`);
       
@@ -235,6 +242,8 @@ exports.scanRFID = async (req, res) => {
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
     const isCurrentlyIn = lastStatus === 1 || lastStatus === 4 || lastStatus === 5;
 
+    console.log(`[ATTENDANCE-DEBUG] User: ${user.user_FirstName}, Action: ${action}, Terminal: ${terminalType}, LastStatus: ${lastStatus}, isCurrentlyIn: ${isCurrentlyIn}`);
+
     // ── 30-SECOND SAFETY (Duplicate Protection) ─────────────────────────────
     if (lastLogs[0]) {
       const lastLogTime = new Date(`${todayStr}T${lastLogs[0].time_Logged}`);
@@ -266,6 +275,21 @@ exports.scanRFID = async (req, res) => {
       }
     }
 
+    // ── 2FA Trigger (ONLY for Clock-In) ──────────────────────────────────────
+    const hasTemplate = hardware && hardware.user_FingerprintTemplate;
+    if (!is2FA && action !== "fingerprint_scan" && hasTemplate) {
+      // We only trigger 2FA if the intended action is a Clock-In (1, 4, or 5)
+      // and the user is not currently clocked in.
+      if (action === "clock_in" && !isCurrentlyIn) {
+        console.log(`[2FA] Triggering Biometric Verification for ${user.user_FirstName} (Clock-In)`);
+        return res.status(200).json({
+          success: true,
+          mode: "WAITING_FOR_FINGERPRINT_2FA",
+          uid: rfidUid
+        });
+      }
+    }
+
     if (action === "clock_in") {
       if (isCurrentlyIn) {
         return res.status(400).json({ success: false, message: "Already Clocked In", name: user.user_FirstName });
@@ -276,15 +300,38 @@ exports.scanRFID = async (req, res) => {
       }
     }
 
-    // Determine nextStatus based on action and current time (Lunch logic)
+    const fivePMThirty = new Date(now); fivePMThirty.setHours(17, 30, 0, 0);
+    const fiveAMThirty = new Date(now); fiveAMThirty.setHours(5, 30, 0, 0);
+
+    const approvedOTResult = await sequelize.query(
+      `SELECT ot.* FROM "Overtime_Request" ot JOIN "emp_Request" er ON ot."emp_reqId" = er."emp_reqId"
+       WHERE ot."user_Id" = :target_user_Id AND ot."OT_DateOf" = :todayStr AND er."emp_reqStatusId" = 2`,
+      { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT }
+    );
+    const approvedOT = approvedOTResult[0];
+    const hasApprovedOT = !!approvedOT;
+
+    // Helper for overnight OT comparison
+    const isWithinOTWindow = hasApprovedOT && (
+      approvedOT.HrFrom <= approvedOT.HrTo 
+        ? (timeStr >= approvedOT.HrFrom && timeStr <= approvedOT.HrTo)
+        : (timeStr >= approvedOT.HrFrom || timeStr <= approvedOT.HrTo)
+    );
+    const isPastOTWindow = hasApprovedOT && !isWithinOTWindow && (
+      approvedOT.HrFrom <= approvedOT.HrTo 
+        ? timeStr > approvedOT.HrTo 
+        : (timeStr > approvedOT.HrTo && timeStr < approvedOT.HrFrom)
+    );
+
+    // Determine nextStatus based on action and current time (Lunch logic + OT logic)
     let nextStatus;
     const totalMinutes = now.getHours() * 60 + now.getMinutes();
     const isLunchWindow = totalMinutes >= 720 && totalMinutes < 780;
 
     if (action === "clock_in") {
-      nextStatus = (isLunchWindow && lastStatus === 3) ? 4 : 1;
+      nextStatus = (isLunchWindow && lastStatus === 3) ? 4 : (hasApprovedOT && isWithinOTWindow ? 5 : 1);
     } else {
-      nextStatus = (isLunchWindow && lastStatus === 1) ? 3 : 2;
+      nextStatus = (isLunchWindow && [1, 4].includes(lastStatus)) ? 3 : (lastStatus === 5 ? 6 : 2);
     }
 
     // 4. Record Attendance
@@ -298,10 +345,28 @@ exports.scanRFID = async (req, res) => {
     );
     const hasPriorClockIn = !!firstLoginToday[0];
 
-    let attendanceVal = null;
-    if (nextStatus === 1 && !hasPriorClockIn) {
-      attendanceVal = now.getHours() < 9 ? 1 : 2; 
+    const isSuspiciousWindow = (now >= fivePMThirty || now < fiveAMThirty);
+    const isLateNightFirstIn = (nextStatus === 1 && isSuspiciousWindow && !hasPriorClockIn && !isWithinOTWindow);
+    const isUnauthorizedReEntry = (nextStatus === 1 && hasPriorClockIn && isSuspiciousWindow && !isWithinOTWindow);
+    const isPastOTEntry = (nextStatus === 1 && hasApprovedOT && isPastOTWindow);
+
+    if (isLateNightFirstIn || isUnauthorizedReEntry || isPastOTEntry) {
+      const admins = await User.findAll({ where: { user_RoleId: 1 }, attributes: ["user_Id"] });
+      const timeFmt = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      let msg = `[SYSTEM NOTICE] Suspicious activity: ${user.user_FirstName} ${user.user_LastName} `;
+      if (isPastOTEntry) msg += `clocked in at ${timeFmt}, past OT window (Ended ${approvedOT.HrTo}).`;
+      else if (isLateNightFirstIn) msg += `logged in at ${timeFmt} (Outside 5:30 AM - 5:30 PM) without prior record or approved OT.`;
+      else if (isUnauthorizedReEntry) msg += `clocked in again at ${timeFmt} (Suspicious Hours: 5:30 PM - 5:30 AM) after logging out, without approved OT.`;
+      for (const admin of admins) await Notification.create({ user_Id: admin.user_Id, title: "Suspicious Activity", message: msg, isRead: false });
     }
+
+    let attendanceVal = null;
+    if (nextStatus === 1) {
+      const h = now.getHours();
+      if (h >= 6 && h < 9) attendanceVal = 1; // On-Time
+      else if (h >= 9 && now < fivePMThirty) attendanceVal = 2; // Late
+    } 
+
 
     await sequelize.query(
       `INSERT INTO "user_logging"
@@ -363,7 +428,10 @@ exports.scanRFID = async (req, res) => {
          SET "time_Logged_inArr"  = :inArr,
              "time_Logged_outArr" = :outArr,
              "logged_StatusId" = :reportLoggedStatus,
-             "attendance_StatusId" = COALESCE("attendance_StatusId", :attendance_StatusId)
+             "attendance_StatusId" = CASE 
+                WHEN "attendance_StatusId" IS NULL OR "attendance_StatusId" = 3 THEN :attendance_StatusId 
+                ELSE "attendance_StatusId" 
+             END
          WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`,
         {
           replacements: { inArr: JSON.stringify(inArr), outArr: JSON.stringify(outArr), reportLoggedStatus, attendance_StatusId: attendanceVal, target_user_Id, todayStr },
@@ -378,14 +446,25 @@ exports.scanRFID = async (req, res) => {
 
     // 6. Log Transaction
     const method = action === "fingerprint_scan" ? "Fingerprint" : "RFID";
-    await logTransaction(target_user_Id, null, `${method.toUpperCase()}_SCAN`, `${statusLabels[nextStatus]} via ${method}`, { 
-      uid: action === "fingerprint_scan" ? `Slot ${uid}` : maskUid(uid, true),
-      status: statusLabels[nextStatus], 
-      time: timeStr,
-      role: "Employee",
-      result: attendanceResult,
-      deviceIp: esp32Ip
-    }, req);
+    const isSuspicious = isLateNightFirstIn || isUnauthorizedReEntry || isPastOTEntry;
+    
+    if (isSuspicious) {
+      await logTransaction(target_user_Id, null, "ATTENDANCE_LOG_SUSPICIOUS", `Suspicious ${statusLabels[nextStatus]} at ${timeStr}`, { 
+        status: statusLabels[nextStatus], 
+        time: timeStr, 
+        method: method,
+        deviceIp: esp32Ip
+      }, req);
+    } else {
+      await logTransaction(target_user_Id, null, `${method.toUpperCase()}_SCAN`, `${statusLabels[nextStatus]} via ${method}`, { 
+        uid: action === "fingerprint_scan" ? `Slot ${uid}` : maskUid(uid, true),
+        status: statusLabels[nextStatus], 
+        time: timeStr,
+        role: "Employee",
+        result: attendanceResult,
+        deviceIp: esp32Ip
+      }, req);
+    }
 
     // [SOCKET] Trigger real-time UI updates
     const io = getIO();
@@ -485,6 +564,13 @@ exports.generateFingerprint = async (req, res) => {
 
 // ESP32 Endpoints
 exports.getFingerprintSession = async (req, res) => {
+  // Update heartbeat
+  const now = Date.now();
+  if (!lastEsp32Heartbeat || (now - lastEsp32Heartbeat > 60000)) {
+    console.log(`[HARDWARE] ESP32 Heartbeat received at ${new Date(now).toLocaleTimeString()} from ${req.ip}`);
+  }
+  lastEsp32Heartbeat = now;
+
   // 1. Check in-memory session (Direct Scan via generateFingerprint)
   if (fpCaptureSession.isCapturing && Date.now() < fpCaptureSession.expiresAt) {
     return res.status(200).json({
@@ -551,6 +637,14 @@ exports.confirmFingerprintEnroll = async (req, res) => {
     fpCaptureSession.success = success;
     fpCaptureSession.isCapturing = false; // STOP the session so ESP32 doesn't loop
     
+    // Clear the database registration session as well
+    try {
+      await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
+      console.log("[FP-CONFIRM] Cleared REGISTRATION_SESSION from database");
+    } catch (err) {
+      console.error("[FP-CONFIRM] Failed to clear REGISTRATION_SESSION:", err);
+    }
+
     if (success && template) {
       // If userId is provided, we can link it immediately, otherwise it's handled by the registration flow
       let targetUserIdRaw = userId || sessionUserId;
@@ -601,7 +695,7 @@ exports.getFingerprintTemplate = async (req, res) => {
 
   try {
     const [user] = await sequelize.query(
-      `SELECT h."user_FingerprintTemplate" 
+      `SELECT u."user_Id", h."user_FingerprintTemplate" 
        FROM "User" u
        INNER JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
        WHERE h."user_MachipId" = :uid AND u."deletedAt" IS NULL LIMIT 1`,
@@ -611,6 +705,31 @@ exports.getFingerprintTemplate = async (req, res) => {
     if (!user) {
       console.log(`[FP DOWNLOAD] User not found for UID: ${uid}`);
       return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Check if user is currently clocked in. If so, we don't return a template
+    // because 2FA is only required for clocking in.
+    const now = await getSystemTime();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const lastLogs = await sequelize.query(
+      `SELECT "logged_StatusId" FROM "user_logging"
+       WHERE "user_id" = :target_user_Id
+       AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       ORDER BY "user_loggingId" DESC
+       LIMIT 1`,
+      { replacements: { target_user_Id: user.user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+    );
+
+    const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
+    const isCurrentlyIn = lastStatus === 1 || lastStatus === 4 || lastStatus === 5;
+
+    if (isCurrentlyIn) {
+      console.log(`[FP DOWNLOAD] User ${user.user_Id} already clocked in. Skipping 2FA template.`);
+      return res.status(200).json({ success: true, template: null });
     }
 
     console.log(`[FP DOWNLOAD] User found. Template length: ${user.user_FingerprintTemplate ? user.user_FingerprintTemplate.length : "EMPTY/NULL"}`);

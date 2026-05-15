@@ -1,0 +1,157 @@
+.editAttendance {
+  display: flex;
+  width: 100%;
+  background-color: #fdfaf5;
+
+  .editAttendanceContainer {
+    flex: 6;
+
+    .top {
+      padding: 10px;
+      margin: 20px;
+      display: flex;
+      flex-direction: column;
+      background-color: white;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+
+      h1 {
+        font-size: 28px;
+        color: #2a174e;
+        margin-left: 10px;
+      }
+
+      .dateSubtitle {
+        font-size: 16px;
+        color: #666;
+        margin-left: 10px;
+        margin-top: 5px;
+      }
+    }
+
+    .bottom {
+      padding: 20px;
+      margin: 20px;
+      display: flex;
+      gap: 40px;
+      background-color: white;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+
+      .leftInfo {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        padding: 20px;
+        border-right: 1px solid #f1f3f5;
+
+        .userInfo {
+          text-align: center;
+          h2 { color: #2a174e; margin-bottom: 5px; }
+          p { color: #888; font-size: 14px; }
+        }
+
+        .statusIcon {
+          padding: 10px 20px;
+          border-radius: 10px;
+          font-weight: 700;
+          font-size: 14px;
+          text-transform: uppercase;
+
+          &.status-1 { background-color: #def7ec; color: #03543f; } // On Time
+          &.status-2 { background-color: #fef3c7; color: #92400e; } // Late
+          &.status-3 { background-color: #fde8e8; color: #9b1c1c; } // Absent
+          &.status-4 { background-color: #e1effe; color: #1e429f; } // On Leave
+          &.status-5 { background-color: #f3e8ff; color: #6b21a8; } // On Field
+        }
+      }
+
+      .rightForm {
+        flex: 3;
+
+        form {
+          display: flex;
+          flex-direction: column;
+          gap: 30px;
+
+          .formSection {
+            h3 {
+              font-size: 18px;
+              color: #4a5568;
+              margin-bottom: 15px;
+              border-bottom: 2px solid #f1f3f5;
+              padding-bottom: 5px;
+            }
+
+            .inputGroup {
+              display: flex;
+              gap: 20px;
+              flex-wrap: wrap;
+            }
+
+            .formInput {
+              width: calc(50% - 10px);
+              display: flex;
+              flex-direction: column;
+              gap: 5px;
+
+              &.fullWidth { width: 100%; }
+
+              label {
+                font-size: 14px;
+                font-weight: 600;
+                color: #2a174e;
+              }
+
+              input, select {
+                padding: 10px;
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                outline: none;
+                font-size: 14px;
+
+                &:focus {
+                  border-color: #2a174e;
+                  box-shadow: 0 0 5px rgba(42, 23, 78, 0.2);
+                }
+              }
+            }
+          }
+
+          .formButtons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 20px;
+            margin-top: 10px;
+
+            button {
+              padding: 12px 30px;
+              border-radius: 8px;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.3s ease;
+
+              &.cancelBtn {
+                background-color: white;
+                color: #2a174e;
+                border: 1px solid #2a174e;
+                &:hover { background-color: #f8f9fa; }
+              }
+
+              &.submitBtn {
+                background-color: #2a174e;
+                color: white;
+                border: none;
+                &:hover { background-color: #502c92; }
+                &:disabled { background-color: #ccc; cursor: not-allowed; }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -85,11 +85,11 @@ const TransactionLog = () => {
     total: transactions.length,
     payrollReleases: transactions.filter(t => t.event_Type === "PAYROLL_RELEASE").length,
     batchRuns: transactions.filter(t => t.event_Type === "BATCH_PAYROLL_GEN").length,
-    unauthorizedScans: transactions.filter(t => t.event_Type === "UNAUTHORIZED_SCAN").length,
+    unauthorizedScans: transactions.filter(t => ["UNAUTHORIZED_SCAN", "2FA_FAILURE", "SUSPICIOUS_SCAN", "ATTENDANCE_LOG_SUSPICIOUS"].includes(t.event_Type)).length,
   };
 
   const maskDescription = (desc, type) => {
-    if (type !== "UNAUTHORIZED_SCAN") return desc;
+    if (["UNAUTHORIZED_SCAN", "2FA_FAILURE", "SUSPICIOUS_SCAN", "ATTENDANCE_LOG_SUSPICIOUS"].includes(type)) return desc;
     return desc; 
   };
 

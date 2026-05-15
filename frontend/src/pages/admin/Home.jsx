@@ -232,7 +232,7 @@ const Home = () => {
         </div>
 
         {/* Solid Color Widget Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full">
           <Link to="/logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
             <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full">
               <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
@@ -267,7 +267,20 @@ const Home = () => {
                 <p className="text-xs text-white/70 italic mt-4">Estimated net payout after deductions</p>
               </CardContent>
             </Card>
-          </Link>        </div>
+          </Link>
+
+          <Link to="/transaction-logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+            <Card className="shadow-sm border-0 bg-[#991b1b] py-0 h-full">
+              <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Anomalies</p>
+                  <p className="text-4xl font-bold text-white">{statsLoading ? "..." : stats.anomaliesCount || 0}</p>
+                </div>
+                <p className="text-xs text-white/70 italic mt-4">Unauthorized or failed scans</p>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
 
         <div className="h-4"></div>
 

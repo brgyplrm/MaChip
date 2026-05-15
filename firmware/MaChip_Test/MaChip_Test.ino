@@ -19,7 +19,8 @@ struct NetworkConfig {
 };
 
 const NetworkConfig networks[] = {
-  { String(WIFI_SSID_3), String(WIFI_PASS_3), String(SERVER_URL_3), String(FP_ENROLL_3) }
+  { String(WIFI_SSID_3), String(WIFI_PASS_3), String(SERVER_URL_3), String(FP_ENROLL_3) },
+  { String(WIFI_SSID_4), String(WIFI_PASS_4), String(SERVER_URL_4), String(FP_ENROLL_4)}
 };
 const int NETWORK_COUNT = sizeof(networks) / sizeof(networks[0]);
 
@@ -172,7 +173,43 @@ void sendEnrollmentConfirm(String userId, int slotId, bool success, String templ
   http.end();
 }
 
+bool isEnrolling = false;
+
+void checkRfidReaders() {
+  // Front Reader
+  if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
+    String uid = "";
+    for (byte i = 0; i < rfidIN.uid.size; i++) {
+      uid += (rfidIN.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidIN.uid.uidByte[i], HEX);
+    }
+    uid.toUpperCase();
+    Serial.println("\n[FRONT] RFID: " + uid);
+    sendScanRequest(uid, "auto_detect", "FRONT");
+    rfidIN.PICC_HaltA(); 
+    rfidIN.PCD_StopCrypto1();
+  }
+
+  // Back Reader
+  if (rfidOUT.PICC_IsNewCardPresent() && rfidOUT.PICC_ReadCardSerial()) {
+    String uid = "";
+    for (byte i = 0; i < rfidOUT.uid.size; i++) {
+      uid += (rfidOUT.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidOUT.uid.uidByte[i], HEX);
+    }
+    uid.toUpperCase();
+    Serial.println("\n[BACK] RFID: " + uid);
+    sendScanRequest(uid, "clock_out", "BACK");
+    rfidOUT.PICC_HaltA(); 
+    rfidOUT.PCD_StopCrypto1();
+  }
+}
+
 void enrollFingerprint(String userId, int slotId) {
+  if (isEnrolling) {
+    Serial.println("[SYSTEM] Enrollment already in progress. Ignoring request.");
+    return;
+  }
+  isEnrolling = true;
+
   Serial.println("\n-------------------------------------------");
   Serial.println("[MODE] >>> BIOMETRIC ENROLLMENT START <<<");
   Serial.println("[INFO] Target: " + userId);
@@ -194,6 +231,7 @@ void enrollFingerprint(String userId, int slotId) {
       Serial.println("[ERR] Enrollment Timeout.");
       sendEnrollmentConfirm(userId, slotId, false, "TIMEOUT");
       provideFeedback(ERROR_FAIL);
+      isEnrolling = false;
       return;
     }
 
@@ -208,6 +246,9 @@ void enrollFingerprint(String userId, int slotId) {
     if (p == FINGERPRINT_OK) {
        Serial.println("[REG] Image 1 OK.");
     }
+    
+    // Allow RFID scanning during enrollment
+    checkRfidReaders();
     yield(); 
   }
   digitalWrite(GREEN_LED, LOW);
@@ -217,6 +258,7 @@ void enrollFingerprint(String userId, int slotId) {
      finger.LEDcontrol(FINGERPRINT_LED_FLASHING, 25, FINGERPRINT_LED_RED, 3);
      sendEnrollmentConfirm(userId, slotId, false, "CONV_FAIL_1");
      provideFeedback(ERROR_FAIL);
+     isEnrolling = false;
      return;
   }
 
@@ -225,7 +267,11 @@ void enrollFingerprint(String userId, int slotId) {
   beep(100); 
   delay(2000);
   p = 0;
-  while (p != FINGERPRINT_NOFINGER) { p = finger.getImage(); }
+  while (p != FINGERPRINT_NOFINGER) { 
+    p = finger.getImage(); 
+    checkRfidReaders();
+    yield();
+  }
 
   // CAPTURE 2
   Serial.println("[REG] Place same finger again...");
@@ -237,6 +283,7 @@ void enrollFingerprint(String userId, int slotId) {
       Serial.println("[ERR] Enrollment Timeout Stage 2.");
       sendEnrollmentConfirm(userId, slotId, false, "TIMEOUT_2");
       provideFeedback(ERROR_FAIL);
+      isEnrolling = false;
       return;
     }
 
@@ -249,6 +296,8 @@ void enrollFingerprint(String userId, int slotId) {
     if (p == FINGERPRINT_OK) {
        Serial.println("[REG] Image 2 OK.");
     }
+    
+    checkRfidReaders();
     yield();
   }
   digitalWrite(GREEN_LED, LOW);
@@ -258,6 +307,7 @@ void enrollFingerprint(String userId, int slotId) {
      finger.LEDcontrol(FINGERPRINT_LED_FLASHING, 25, FINGERPRINT_LED_RED, 3);
      sendEnrollmentConfirm(userId, slotId, false, "CONV_FAIL_2");
      provideFeedback(ERROR_FAIL);
+     isEnrolling = false;
      return;
   }
 
@@ -266,6 +316,7 @@ void enrollFingerprint(String userId, int slotId) {
     finger.LEDcontrol(FINGERPRINT_LED_FLASHING, 25, FINGERPRINT_LED_RED, 3);
     sendEnrollmentConfirm(userId, slotId, false, "MISMATCH");
     provideFeedback(ERROR_FAIL);
+    isEnrolling = false;
     return;
   }
 
@@ -276,6 +327,7 @@ void enrollFingerprint(String userId, int slotId) {
     finger.LEDcontrol(FINGERPRINT_LED_FLASHING, 25, FINGERPRINT_LED_RED, 3);
     sendEnrollmentConfirm(userId, slotId, false, "STORE_FAIL");
     provideFeedback(ERROR_FAIL);
+    isEnrolling = false;
     return;
   }
 
@@ -287,10 +339,11 @@ void enrollFingerprint(String userId, int slotId) {
   provideFeedback(SUCCESS_OK);
   finger.LEDcontrol(FINGERPRINT_LED_OFF, 0, FINGERPRINT_LED_BLUE);
   Serial.println("[SYSTEM] Ready.");
+  isEnrolling = false;
 }
 
 void checkEnrollmentSession() {
-  if (WiFi.status() != WL_CONNECTED) return;
+  if (WiFi.status() != WL_CONNECTED || isEnrolling) return;
 
   HTTPClient http;
   String url = currentFpBaseUrl + "/session";
@@ -332,6 +385,7 @@ void identifyFingerprint(String rfidUid, String terminalType) {
     }
 
     p = finger.getImage();
+    checkRfidReaders();
     yield();
   }
 
@@ -460,30 +514,7 @@ void loop() {
     lastSessionCheck = millis();
   }
 
-  // Front Reader
-  if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
-    String uid = "";
-    for (byte i = 0; i < rfidIN.uid.size; i++) {
-      uid += (rfidIN.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidIN.uid.uidByte[i], HEX);
-    }
-    uid.toUpperCase();
-    Serial.println("\n[FRONT] RFID: " + uid);
-    sendScanRequest(uid, "auto_detect", "FRONT");
-    rfidIN.PICC_HaltA(); 
-    rfidIN.PCD_StopCrypto1();
-  }
-
-  // Back Reader
-  if (rfidOUT.PICC_IsNewCardPresent() && rfidOUT.PICC_ReadCardSerial()) {
-    String uid = "";
-    for (byte i = 0; i < rfidOUT.uid.size; i++) {
-      uid += (rfidOUT.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidOUT.uid.uidByte[i], HEX);
-    }
-    uid.toUpperCase();
-    Serial.println("\n[BACK] RFID: " + uid);
-    sendScanRequest(uid, "clock_out", "BACK");
-    rfidOUT.PCD_StopCrypto1();
-  }
+  checkRfidReaders();
   
   yield();
 }

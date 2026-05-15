@@ -1,0 +1,230 @@
+/* src/pages/adminReports/payslip.scss */
+$primary-purple: #2A174E;
+
+.payslipPage {
+  display: flex;
+  width: 100%;
+  overflow-x: hidden;
+
+  .homeContainer {
+    flex: 6;
+    min-width: 0; /* CRITICAL for mobile */
+  }
+
+  .payslipWrapper {
+    padding: 30px;
+    background-color: #fdfaf5;
+    min-height: 100vh;
+
+    @media (max-width: 768px) { padding: 15px; }
+
+    .headerActions {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;
+
+      @media (max-width: 600px) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+      }
+
+      .titleWithBack {
+        display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+        .backLink { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background-color: transparent; color: #2A174E; transition: all 0.2s ease; text-decoration: none; &:hover { background-color: #f0ebfa; transform: translateX(-3px); } .backIcon { font-size: 22px; } }
+        h1 { font-size: 24px; font-weight: 700; color: #2A174E; margin-bottom: 4px; @media (max-width: 480px){ font-size: 20px;} }
+      }
+
+      .downloadBtn {
+        display: flex; align-items: center; gap: 8px; background: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s;
+        @media (max-width: 600px) { width: 100%; justify-content: center; }
+        &:hover { opacity: 0.9; }
+      }
+    }
+
+    /* New Scroll Area applied in JSX */
+    .payslipScrollArea {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 20px; /* Breathing room for scrollbar */
+      border-radius: 8px;
+    }
+
+    .payslipCard {
+      background: white; padding: 40px; 
+      width: 800px; /* Locked physical size for html2canvas */
+      min-width: 800px;
+      margin: 0 auto; border: 2px solid #b91c1c; font-family: Arial, sans-serif;
+
+      .companyHeader { text-align: center; color: #1e3a8a; margin-bottom: 30px; h2 { font-size: 20px; font-weight: bold; border-bottom: 1px solid #ddd; padding-bottom: 10px; } }
+
+      .employeeInfo { margin-bottom: 25px; .row { display: grid; grid-template-columns: 150px 20px 1fr; margin-bottom: 8px; font-size: 14px; .label { font-weight: bold; } .val { text-transform: uppercase; } } }
+
+      .payslipTable { width: 100%; border-collapse: collapse; font-size: 13px; th, td { border: 1px solid #ddd; padding: 10px; text-align: left; } th { background: #f8fafc; font-weight: bold; } .subtotal td { border-top: 2px solid #333; } .netPayRow { td { border: none; font-size: 16px; } .underline { border-bottom: 3px double #333; } } }
+
+      .signatureSection { margin-top: 50px; font-size: 14px; .signatureLine { width: 250px; border-bottom: 1.5px solid #333; margin-top: 40px; } }
+    }
+  }
+  /* payslip.scss addition */
+
+.skeletonWrapper {
+  // Shimmer Animation
+  @keyframes shimmer {
+    0% { background-position: -468px 0; }
+    100% { background-position: 468px 0; }
+  }
+
+  .skeletonTitle, .skeletonButton, .skeletonCompanyHeader, 
+  .skeletonInfoRow, .skeletonTable, .skeletonSignature {
+    background: #f6f7f8;
+    background-image: linear-gradient(90deg, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+    background-repeat: no-repeat;
+    background-size: 800px 104px;
+    animation: shimmer 1.5s infinite linear;
+    border-radius: 4px;
+  }
+
+  .skeletonTitle { width: 250px; height: 35px; }
+  .skeletonButton { width: 150px; height: 40px; border-radius: 8px; }
+
+  .skeletonCard {
+    background: white;
+    padding: 40px;
+    border: 1px solid #eee;
+    
+    .skeletonCompanyHeader {
+      width: 60%;
+      height: 60px;
+      margin: 0 auto 30px;
+    }
+
+    .skeletonInfoRow {
+      width: 100%;
+      height: 20px;
+      margin-bottom: 15px;
+    }
+
+    .skeletonTable {
+      width: 100%;
+      height: 300px;
+      margin: 20px 0;
+    }
+
+    .skeletonSignature {
+      width: 200px;
+      height: 50px;
+      margin-top: 40px;
+    }
+  }
+}
+
+/* payslip.scss additions */
+
+.errorState {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh; // Centers the content vertically in the wrapper
+
+  .errorContent {
+    background: white;
+    padding: 50px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    text-align: center;
+    max-width: 500px;
+    width: 90%;
+
+    .iconCircle {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      background: #f1f5f9;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0 auto 25px;
+
+      .errorIcon {
+        font-size: 40px;
+        color: #94a3b8; // Muted gray
+      }
+
+      .errorOverlay {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        background: #ef4444; // Error red
+        color: white;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        font-weight: bold;
+        font-size: 14px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 3px solid white;
+      }
+    }
+
+    h2 {
+      color: #2A174E;
+      font-size: 24px;
+      margin-bottom: 15px;
+    }
+
+    p {
+      color: #64748b;
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 30px;
+
+      strong {
+        color: #334155;
+      }
+    }
+
+    .errorActions {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+
+      @media (max-width: 480px) {
+        flex-direction: column;
+      }
+
+      .backBtn, .reportBtn {
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+      }
+
+      .backBtn {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+
+        &:hover {
+          background: #e2e8f0;
+        }
+      }
+
+      .reportBtn {
+        background: #2A174E;
+        color: white;
+        border: none;
+
+        &:hover {
+          background: #3b216b;
+          transform: translateY(-2px);
+        }
+      }
+    }
+  }
+}
+}
