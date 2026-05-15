@@ -28,7 +28,19 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // 3. Security Headers
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Disable CSP for local development to avoid protocol upgrade issues
+  })
+);
+
+const fs = require('fs');
+const logFile = path.join(__dirname, '../request_debug.log');
+app.use((req, res, next) => {
+  const logEntry = `${new Date().toISOString()} - ${req.method} ${req.url} - Origin: ${req.headers.origin}\n`;
+  fs.appendFileSync(logFile, logEntry);
+  next();
+});
 
 // 4. CORS — must be before rate limiters so OPTIONS preflight isn't rate-limited
 const allowedOrigins = [

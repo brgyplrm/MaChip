@@ -1,4 +1,4 @@
-const { sequelize, SystemSettings, Holiday, PayrollPeriod, System_State } = require("../config/sequelize.js");
+const { sequelize, SystemSettings, Holiday, DueDate, PayrollPeriod, System_State } = require("../config/sequelize.js");
 const { getSystemTime } = require("../utils/systemTime.js");
 const { QueryTypes } = require("sequelize");
 const { syncHolidaysService } = require('../utils/holidaySyncService');
@@ -383,6 +383,185 @@ exports.clearRegistrationSession = async (req, res) => {
   try {
     await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
     res.status(200).json({ success: true, message: "Registration session cleared" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.batchCalendar = async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  try {
+    const rawContent = fs.readFileSync(req.file.path, 'utf8');
+    // Remove BOM if present
+    const fileContent = rawContent.replace(/^\uFEFF/, '');
+    const lines = fileContent.split(/\r?\n/).filter(line => line.trim() !== '');
+    
+    if (lines.length < 2) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'CSV file is empty or missing data rows.' });
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim());
+    console.log("[BATCH] Headers found:", headers);
+    
+    let successCount = 0;
+    let errors = [];
+
+    // Find indices for Field Work
+    const idxUserId = headers.findIndex(h => h.toLowerCase() === 'user_id' || h.toLowerCase() === 'empno');
+    const idxDate = headers.findIndex(h => h.toLowerCase() === 'date');
+    const idxLocation = headers.findIndex(h => h.toLowerCase() === 'location');
+    const idxHours = headers.findIndex(h => h.toLowerCase() === 'hours');
+    const idxPurpose = headers.findIndex(h => h.toLowerCase() === 'purpose');
+
+    if (idxUserId !== -1 && idxLocation !== -1) {
+      console.log("[BATCH] Processing Field Work...");
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        if (values.length < 2) continue;
+        
+        const empNo = values[idxUserId];
+        const date = values[idxDate];
+        const location = values[idxLocation];
+        const hours = values[idxHours] || 8;
+        const purpose = values[idxPurpose] || "Batch Field Work";
+
+        if(!empNo || !date || !location) {
+          errors.push(`Row ${i+1}: Missing required fields (User_id, date, or location)`);
+          continue;
+        }
+               
+        // Find user by ID, MachipId, or displayId (MACJ-XXX)
+        let cleanEmpNo = empNo;
+        if (empNo.startsWith('MACJ-')) {
+          cleanEmpNo = parseInt(empNo.replace('MACJ-', ''));
+        }
+
+        const userQuery = await sequelize.query(
+          `SELECT u."user_Id" FROM "User" u
+           LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+           WHERE u."user_Id"::text = :empNo 
+              OR u."user_Id"::text = :cleanEmpNo::text
+              OR h."user_MachipId" = :empNo
+           LIMIT 1`,
+          { replacements: { empNo, cleanEmpNo }, type: QueryTypes.SELECT }
+        );
+
+        if (userQuery.length > 0) {
+          const userId = userQuery[0].user_Id;
+          const nowStr = new Date().toISOString();
+          
+          // Create request
+          const reqResult = await sequelize.query(
+            `INSERT INTO "emp_Request" ("user_Id", "emp_reqTypeId", "emp_reqStatusId", "date_Filed", "remarks", "createdAt", "updatedAt")
+             VALUES (:userId, 2, 2, :today, :purpose, :now, :now) RETURNING "emp_reqId"`,
+            { replacements: { userId, today: new Date().toISOString().split('T')[0], purpose, now: nowStr }, type: QueryTypes.INSERT }
+          );
+          
+          const reqId = reqResult[0][0].emp_reqId;
+          
+          await sequelize.query(
+            `INSERT INTO "Onfield_Work" ("emp_reqId", "user_Id", "DateonField", "NoDays", "NoHrs", "destination", "reason")
+             VALUES (:reqId, :userId, :date, 1, :hours, :location, :purpose)`,
+            { replacements: { reqId, userId, date, hours: parseFloat(hours), location, purpose }, type: QueryTypes.INSERT }
+          );
+          successCount++;
+        } else {
+          errors.push(`Row ${i+1}: Employee not found (${empNo})`);
+        }
+      }
+    } else if (headers.includes('type') && headers.includes('name')) {
+      console.log("[BATCH] Processing Holidays/Due Dates...");
+      // Holiday or Due Date batch upload
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        if (values.length < 3) continue;
+        const type = values[0]?.trim();
+        const name = values[1]?.trim();
+        const date = values[2]?.trim();
+        const details = values[3]?.trim();
+
+        if(!type || !name || !date) {
+          errors.push(`Row ${i+1}: Missing required fields (type, name, or date)`);
+          continue;
+        }
+        
+        if (type === 'Due Date') {
+          await sequelize.query(
+            `INSERT INTO "DueDate" ("name", "date", "details")
+             VALUES (:name, :date, :details)`,
+            { replacements: { name, date, details }, type: QueryTypes.INSERT }
+          );
+        } else {
+          let finalType = details || 'Regular Holiday';
+          await sequelize.query(
+            `INSERT INTO "Holiday" ("name", "date", "type")
+             VALUES (:name, :date, :type)`,
+            { replacements: { name, date, type: finalType }, type: QueryTypes.INSERT }
+          );
+        }
+        successCount++;
+      }
+    } else {
+       console.log("[BATCH] Invalid headers:", headers);
+       if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+       return res.status(400).json({ error: "Invalid CSV format. Please use the provided template." });
+    }
+    
+    // cleanup
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    console.log(`[BATCH] Completed. Success: ${successCount}, Errors: ${errors.length}`);
+    res.status(200).json({ success: true, count: successCount, errors });
+
+  } catch (error) {
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    console.error("Batch upload error:", error);
+    res.status(500).json({ error: "Failed to process batch upload: " + error.message });
+  }
+};
+
+exports.createDueDate = async (req, res) => {
+  try {
+    const { name, date, details } = req.body;
+    if (!name || !date) {
+      return res.status(400).json({ error: "Name and date are required." });
+    }
+    const dueDate = await DueDate.create({ name, date, details });
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "System Settings", "CREATE_DUE_DATE", "DueDate", dueDate.dueDateId, null, dueDate.toJSON());
+
+    res.status(201).json(dueDate);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.deleteDueDate = async (req, res) => {
+  try {
+    const { dueDateId } = req.params;
+    
+    if (!dueDateId || dueDateId === "undefined") {
+      return res.status(400).json({ error: "Invalid Due Date ID provided." });
+    }
+
+    const dueDate = await DueDate.findOne({ where: { dueDateId: parseInt(dueDateId) } });
+
+    const deleted = await DueDate.destroy({ where: { dueDateId: parseInt(dueDateId) } });
+    
+    if (deleted) {
+      const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+      await logAudit(req, currentAdminId, "System Settings", "DELETE_DUE_DATE", "DueDate", parseInt(dueDateId), dueDate ? dueDate.toJSON() : null, null);
+      res.status(200).json({ message: "Due Date deleted successfully." });
+    } else {
+      res.status(404).json({ error: "Due Date not found." });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

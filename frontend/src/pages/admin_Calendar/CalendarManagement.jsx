@@ -17,6 +17,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import EmptyState from "@/components/EmptyState";
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownload';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import CheckIcon from '@mui/icons-material/Check';
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -55,20 +56,31 @@ const CalendarManagement = () => {
   const [selectedHolidayDetails, setSelectedHolidayDetails] = useState(null);
 
   // --- NEW: BATCH CSV LOGIC ---
-  const downloadBatchTemplate = () => {
+  const downloadHolidayTemplate = () => {
     const headers = "type,name,date,details\n";
-    const sample = "Holiday,Independence Day,2026-06-12,Regular Holiday\nDue Date,BIR Filing,2026-06-15,Form 1701Q Submission";
+    const sample = "Holiday,Independence Day,2026-06-12,Regular Holiday\nHoliday,Bonifacio Day,2026-11-30,Regular Holiday";
     const blob = new Blob([headers + sample], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = "calendar_batch_template.csv";
+    a.download = "holiday_batch_template.csv";
+    a.click();
+  };
+
+  const downloadDueDateTemplate = () => {
+    const headers = "type,name,date,details\n";
+    const sample = "Due Date,BIR Filing,2026-06-15,Form 1701Q Submission\nDue Date,Payroll Cutoff,2026-06-25,Admin Processing";
+    const blob = new Blob([headers + sample], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "due_date_batch_template.csv";
     a.click();
   };
 
   const downloadFieldWorkTemplate = () => {
-  const headers = "empNo,date,location,hours,purpose\n";
-  const sample = "EMP001,2026-05-20,Client Site A,8.0,System Installation\nEMP002,2026-05-20,Warehouse B,4.0,Inventory Audit";
+  const headers = "user_Id,date,location,hours,purpose\n";
+  const sample = "MACJ-001,2026-05-20,Client Site A,8.0,System Installation\nMACJ-002,2026-05-20,Warehouse B,4.0,Inventory Audit";
   const blob = new Blob([headers + sample], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -90,12 +102,27 @@ const CalendarManagement = () => {
         body: formData,
       });
 
+      const result = await response.json();
+
       if (response.ok) {
-        setToast({ message: "Events uploaded successfully!", type: "success" });
-        setModalType(null);
-        fetchCalendarEvents();
+        if (result.count > 0) {
+          let msg = `Successfully uploaded ${result.count} event(s).`;
+          if (result.errors && result.errors.length > 0) {
+            msg += ` ${result.errors.length} row(s) failed.`;
+            console.warn("[BATCH UPLOAD] Errors encountered:", result.errors);
+          }
+          setToast({ message: msg, type: result.errors?.length > 0 ? "warning" : "success" });
+          setModalType(null);
+          setBatchFile(null);
+          fetchCalendarEvents();
+        } else {
+          setToast({ 
+            message: result.errors?.[0] || "No records were uploaded. Please check your file format.", 
+            type: "error" 
+          });
+        }
       } else {
-        setToast({ message: "Upload failed.", type: "error" });
+        setToast({ message: result.error || "Upload failed.", type: "error" });
       }
     } catch (err) {
       setToast({ message: "Network error.", type: "error" });
@@ -1008,7 +1035,7 @@ const CalendarManagement = () => {
                         {/* Template Download */}
                         <Button 
                           variant="outline" 
-                          onClick={downloadBatchTemplate} 
+                          onClick={downloadHolidayTemplate} 
                           className="w-full h-11 text-red-700 border-red-200 hover:bg-red-50 font-semibold"
                         >
                           <FileDownloadOutlinedIcon className="mr-2 h-4 w-4" /> Download Holiday Template
@@ -1133,7 +1160,7 @@ const CalendarManagement = () => {
                         {/* Template Download */}
                         <Button 
                           variant="outline" 
-                          onClick={downloadBatchTemplate} 
+                          onClick={downloadDueDateTemplate} 
                           className="w-full h-11 text-teal-700 border-teal-200 hover:bg-teal-50 font-semibold"
                         >
                           <FileDownloadOutlinedIcon className="mr-2 h-4 w-4" /> Download Due Date Template

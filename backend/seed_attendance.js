@@ -19,8 +19,8 @@ async function seedAttendanceExtreme() {
     await sequelize.query(`TRUNCATE TABLE "user_logging" RESTART IDENTITY CASCADE`);
     await sequelize.query(`TRUNCATE TABLE "employee_Logging_report" RESTART IDENTITY CASCADE`);
 
-    const startDate = 16;
-    const endDate = 30;
+    const startDate = 1;
+    const endDate = 15;
 
     for (const user of users) {
       console.log(`Generating logs for ${user.user_FirstName}...`);
@@ -28,7 +28,7 @@ async function seedAttendanceExtreme() {
       const isOwner = user.user_Id === 1;
 
       for (let day = startDate; day <= endDate; day++) {
-        const dateStr = `2026-04-${String(day).padStart(2, '0')}`;
+        const dateStr = `2026-05-${String(day).padStart(2, '0')}`;
         const dateObj = new Date(dateStr);
         if (dateObj.getDay() === 0) continue; // Skip Sundays
 

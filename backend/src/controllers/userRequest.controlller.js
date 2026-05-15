@@ -24,6 +24,14 @@ exports.getCalendarReport = async (req, res) => {
       { replacements, type: QueryTypes.SELECT }
     );
 
+    // 1.5 Fetch Due Dates
+    const dueDates = await sequelize.query(
+      `SELECT "dueDateId" as "id", 'Due Date' as "type", "date", "name", "details", NULL as "endDate"
+       FROM "DueDate"
+       WHERE "date" BETWEEN :startDate AND :endDate`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
     // 2. Fetch Field Work
     const fieldWorks = await sequelize.query(
       `SELECT er."emp_reqId" as "id", 'Field Work' as "type", ow."DateonField" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", ow."destination" as "details", NULL as "endDate"
@@ -72,7 +80,7 @@ exports.getCalendarReport = async (req, res) => {
       { replacements, type: QueryTypes.SELECT }
     );
 
-    const allEvents = [...holidays, ...fieldWorks, ...vacationLeaves, ...sickLeaves, ...overtime].sort((a, b) => {
+    const allEvents = [...holidays, ...dueDates, ...fieldWorks, ...vacationLeaves, ...sickLeaves, ...overtime].sort((a, b) => {
       if (!a.date || !b.date) return 0;
       return new Date(a.date) - new Date(b.date);
     });

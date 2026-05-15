@@ -77,6 +77,33 @@ module.exports = (sequelize, DataTypes) => {
     },
   );
 
+  const DueDate = sequelize.define(
+    "DueDate",
+    {
+      dueDateId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      name: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      date: {
+        type: DataTypes.DATEONLY,
+        allowNull: false,
+      },
+      details: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
+    },
+    {
+      timestamps: false,
+      freezeTableName: true,
+    },
+  );
+
   const Audit_Log = sequelize.define(
     "Audit_Log",
     {
@@ -139,5 +166,5 @@ module.exports = (sequelize, DataTypes) => {
     },
   );
 
-  return { SystemSettings, Holiday, Audit_Log, Transaction_Log, System_State };
+  return { SystemSettings, Holiday, DueDate, Audit_Log, Transaction_Log, System_State };
 };

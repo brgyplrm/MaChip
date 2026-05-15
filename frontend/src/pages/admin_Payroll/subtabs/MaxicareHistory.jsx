@@ -51,7 +51,11 @@ const MaxicareHistory = () => {
       if (historyRes.ok && settingsRes.ok) {
         const historyData = await historyRes.json();
         const settingsData = await settingsRes.json();
-        setHistory(historyData);
+        
+        // Ensure history is always an array
+        const safeHistory = Array.isArray(historyData) ? historyData : (historyData.data || []);
+        setHistory(safeHistory);
+        
         setConfigs(settingsData.maxicareDates?.configs || {});
       }
     } catch (err) {

@@ -63,7 +63,7 @@ const { Notification } = require("../models/notification.models")(
   DataTypes,
 );
 
-const { SystemSettings, Holiday, Audit_Log, Transaction_Log, System_State } = require("../models/system.models")(
+const { SystemSettings, Holiday, DueDate, Audit_Log, Transaction_Log, System_State } = require("../models/system.models")(
   sequelize,
   DataTypes,
 );
@@ -199,6 +199,7 @@ module.exports = {
   Notification,
   SystemSettings,
   Holiday,
+  DueDate,
   PayrollPeriod,
   Audit_Log,
   Transaction_Log,
