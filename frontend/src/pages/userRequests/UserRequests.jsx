@@ -77,23 +77,11 @@ const UserRequests = () => {
 
   const payroll = useMemo(() => getPayrollDates(systemToday), [systemToday, getPayrollDates]);
   const [balance, setBalance] = useState(null);
-  const [minAllowedDate, setMinAllowedDate] = useState("");
 
   const fetchPayrollPeriods = async () => {
     try {
-      const response = await fetchWithAuth("/api/system/payroll-periods");
-      if (response.ok) {
-        const periods = await response.json();
-        const latestClosed = periods
-          .filter(p => ["Processing", "Released", "Closed"].includes(p.status))
-          .sort((a, b) => new Date(b.endDate) - new Date(a.endDate))[0];
-        
-        if (latestClosed) {
-          const nextDate = new Date(latestClosed.endDate);
-          nextDate.setDate(nextDate.getDate() + 1);
-          setMinAllowedDate(nextDate.toISOString().split('T')[0]);
-        }
-      }
+      await fetchWithAuth("/api/system/payroll-periods");
+      // We no longer restrict requests by payroll periods
     } catch (error) {
       console.error("Error fetching periods:", error);
     }
@@ -127,7 +115,7 @@ const UserRequests = () => {
     if (!userData?.user_Id) return;
     try {
       const { start: pStart, end: pEnd } = payroll;
-      const start = minAllowedDate && minAllowedDate < pStart ? minAllowedDate : pStart;
+      const start = pStart;
       const end = pEnd;
 
       const dates = [];
@@ -158,7 +146,7 @@ const UserRequests = () => {
     if (formData.emp_reqTypeId === "1" || formData.emp_reqTypeId === "5") {
       fetchCurrentPeriodLogs();
     }
-  }, [formData.emp_reqTypeId, minAllowedDate, payroll]);
+  }, [formData.emp_reqTypeId, payroll]);
 
   const suggestOTTimes = (selectedDate) => {
     if (!selectedDate || !currentPeriodLogs || currentPeriodLogs.length === 0) return;
@@ -630,7 +618,7 @@ const UserRequests = () => {
                   <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Filing Guidelines</h4>
                   <ul className="text-xs text-blue-700 space-y-2 list-disc pl-4 font-medium">
                     <li>Vacation Leaves must be filed at least 3 days in advance.</li>
-                    <li>Log corrections are for the current period only.</li>
+                    <li>Log corrections can be filed for any past date.</li>
                     <li>Attachments are strictly required for Sick Leaves exceeding 2 days.</li>
                     <li>Sundays cannot be filed for Log Corrections.</li>
                   </ul>
@@ -738,7 +726,7 @@ const UserRequests = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100 border-dashed">
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-700">Half-Day Date</label>
-                        <Input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        <Input type="date" name="leaveStartDate" value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-700">Period</label>
@@ -759,7 +747,7 @@ const UserRequests = () => {
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-700">Emergency Leave Date</label>
-                        <Input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        <Input type="date" name="leaveStartDate" value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                       </div>
                     </div>
                   )}
@@ -820,7 +808,7 @@ const UserRequests = () => {
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-700">OT Date</label>
-                        <Input type="date" name="otDate" value={formData.otDate} min={minAllowedDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        <Input type="date" name="otDate" value={formData.otDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -843,7 +831,7 @@ const UserRequests = () => {
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-700">Onfield Date</label>
-                        <Input type="date" name="otDate" value={formData.otDate} min={minAllowedDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                        <Input type="date" name="otDate" value={formData.otDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-700">Expected Hours</label>
@@ -857,11 +845,11 @@ const UserRequests = () => {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-sm font-bold text-slate-700">Start Date</label>
-                          <Input type="date" name="leaveStartDate" min={minAllowedDate} value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          <Input type="date" name="leaveStartDate" value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-bold text-slate-700">End Date</label>
-                          <Input type="date" name="leaveEndDate" min={minAllowedDate} value={formData.leaveEndDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          <Input type="date" name="leaveEndDate" value={formData.leaveEndDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                         </div>
                       </div>
                       <div className="space-y-2">

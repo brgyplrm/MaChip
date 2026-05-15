@@ -137,39 +137,8 @@ exports.UserCreateRequest = async (req, res) => {
     const finalRemarks = remarks || reason || purpose || null;
     const finalReason = reason || purpose || remarks || "No reason provided";
 
-    // --- PAYROLL PERIOD BLOCK CHECK ---
-    let periodCheckSql = "";
-    let periodReplacements = {};
-
-    if (finalReqTypeId === 1 && finalOTDate) {
-      periodCheckSql = `SELECT label FROM "PayrollPeriod" WHERE :date BETWEEN "startDate" AND "endDate" AND "status" IN ('Processing', 'Released', 'Closed') LIMIT 1`;
-      periodReplacements = { date: finalOTDate };
-    } else if (finalReqTypeId === 2 && finalDateOnField) {
-      periodCheckSql = `SELECT label FROM "PayrollPeriod" WHERE :date BETWEEN "startDate" AND "endDate" AND "status" IN ('Processing', 'Released', 'Closed') LIMIT 1`;
-      periodReplacements = { date: finalDateOnField };
-    } else if ((finalReqTypeId === 3 || finalReqTypeId === 4) && StartDate && EndDate) {
-      periodCheckSql = `SELECT label FROM "PayrollPeriod" WHERE ("startDate" <= :EndDate AND "endDate" >= :StartDate) AND "status" IN ('Processing', 'Released', 'Closed') LIMIT 1`;
-      periodReplacements = { StartDate, EndDate };
-    } else if ((finalReqTypeId === 6 || finalReqTypeId === 7) && (req.body.DateOfLeave || req.body.DateOnField || req.body.logDate)) {
-      const dateVal = req.body.DateOfLeave || req.body.DateOnField || req.body.logDate;
-      periodCheckSql = `SELECT label FROM "PayrollPeriod" WHERE :date BETWEEN "startDate" AND "endDate" AND "status" IN ('Processing', 'Released', 'Closed') LIMIT 1`;
-      periodReplacements = { date: dateVal };
-    }
-
-    if (periodCheckSql) {
-      const closedPeriod = await sequelize.query(periodCheckSql, { 
-        replacements: periodReplacements, 
-        type: QueryTypes.SELECT,
-        transaction: t
-      });
-      if (closedPeriod.length > 0) {
-        await t.rollback();
-        return res.status(400).json({ 
-          error: `This is a past period (${closedPeriod[0].label}). Requests can no longer be filed for finalized or processing payrolls.` 
-        });
-      }
-    }
     // ----------------------------------
+
 
     // --- HOLIDAY ADJACENCY RULE (SANDWICH) ---
     if ([3, 4, 6, 7].includes(finalReqTypeId)) {
