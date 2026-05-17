@@ -12,6 +12,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import WorkIcon from '@mui/icons-material/Work';
 import { fetchWithAuth } from "../../utils/api";
+import { Link } from "react-router-dom";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -485,7 +486,7 @@ const New = ({ inputs = [], title }) => {
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />  
-      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0 max-w-7xl mx-auto">
+      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
   
       <Tabs defaultValue="single" className="w-full">
         {/* Combined Header & Tabs Row */}

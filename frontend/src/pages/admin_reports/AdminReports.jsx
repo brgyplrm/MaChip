@@ -311,7 +311,7 @@ const AdminReports = () => {
 
   return (
     <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0 bg-slate-50 min-h-screen">
+      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
           
           {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">

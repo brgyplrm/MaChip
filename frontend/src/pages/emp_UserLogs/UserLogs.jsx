@@ -351,7 +351,7 @@ const UserLogs = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto overflow-x-hidden min-w-0">
+      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: "", type: "success" })} />
 

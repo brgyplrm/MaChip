@@ -381,7 +381,7 @@ const sortedAndFilteredDayLogs = useMemo(() => {
       <div className="flex flex-col w-full min-h-screen bg-slate-50">
         <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
         
-        <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
           
           {/* Header section with Actions & Tabs */}
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-6">

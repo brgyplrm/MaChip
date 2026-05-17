@@ -110,7 +110,7 @@ const EmployeeCalendar = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-2 md:p-4 overflow-x-hidden w-full max-w-[1400px] mx-auto min-w-0">
+      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 mt-2">

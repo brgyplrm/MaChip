@@ -10,6 +10,8 @@ import ArchiveIcon from '@mui/icons-material/Archive';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
+import { CreditCardIcon } from "lucide-react";
+import { FingerprintIcon } from "lucide-react";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -175,7 +177,21 @@ const Datatable = () => {
           )}
         </div>
       </div>
-
+      {/* Add this section at the top or bottom of your New.jsx registration view component */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <div className="flex-1">
+            <p className="text-sm font-bold text-slate-800">Biometric Infrastructure Links</p>
+            <p className="text-xs text-slate-500">Ensure module address spaces and cards are clean before pairing.</p>
+          </div>
+          <div className="flex gap-3 shrink-0 items-center">
+            <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E] bg-white">
+              <Link to="/users/rfid"><CreditCardIcon className="mr-2 h-4 w-4"/> Monitor Cards</Link>
+            </Button>
+            <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E] bg-white">
+              <Link to="/users/fingerprint"><FingerprintIcon className="mr-2 h-4 w-4"/> Monitor Slots</Link>
+            </Button>
+          </div>
+        </div>
       <div className="h-2"></div>
 
       {/* Statistics Cards */}

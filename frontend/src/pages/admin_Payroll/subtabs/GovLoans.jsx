@@ -641,7 +641,7 @@ const GovLoans = () => {
       </Dialog>
 
       <Sidebar>
-      <div className="flex-1 p-4 md:p-8 w-full max-w-[1400px] mx-auto overflow-x-hidden min-w-0">
+      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
         

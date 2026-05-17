@@ -5,6 +5,8 @@ import Login from "./pages/login/Login";
 import List from "./pages/list/List";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
+import FingerprintManagement from "./pages/new/FingerprintManagement";
+import RfidManagement from "./pages/new/RfidManagement";
 import Edit from "./pages/editUser/Edit";
 import EditAttendance from "./pages/editAttendance/EditAttendance";
 import Logs from "./pages/logs-management/Logs";
@@ -315,6 +317,22 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={[1, 2, 4]}>
                 <New inputs={userInputs} title="Add New User" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="fingerprint"
+            element={
+              <ProtectedRoute allowedRoles={[1, 2, 4]}>
+                <FingerprintManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="rfid"
+            element={
+              <ProtectedRoute allowedRoles={[1, 2, 4]}>
+                <RfidManagement />
               </ProtectedRoute>
             }
           />

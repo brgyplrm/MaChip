@@ -7,7 +7,7 @@ const List = () => {
 
     <div className="flex min-h-screen overflow-x-hidden w-full">
       <Sidebar>
-      <div className="flex-1 min-w-0">
+      <div className="p-2 md:p-0 overflow-x-hidden w-full max-w-6xl mx-auto">
         <Datatable/>
       </div>
       </Sidebar>

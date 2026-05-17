@@ -208,7 +208,7 @@ const Home = () => {
         onClose={() => setToast({ ...toast, message: "" })} 
         duration={5000}
       />
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-[1400px] mx-auto">
+      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         <div className="h-2"></div>
 
         {/* Greeting Banner */}

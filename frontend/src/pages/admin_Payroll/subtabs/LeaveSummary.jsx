@@ -202,7 +202,7 @@ const SummaryTable = ({ type }) => {
 
   return (
     <Sidebar>
-      <div className="flex flex-col w-full min-h-screen bg-slate-50 p-4 md:p-6">
+      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         {/* Header - Consistent with Logs styling */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6 mb-8">
           <div>

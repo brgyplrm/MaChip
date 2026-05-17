@@ -251,7 +251,7 @@ const PayrollPeriod = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="flex-1 p-4 md:px-4 py-6 w-full overflow-x-hidden min-w-0">
+      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header section with back button */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
