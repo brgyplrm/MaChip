@@ -49,6 +49,7 @@ const Settings = () => {
   const [showPicker, setShowPicker] = useState(false);
 
   // --- Dynamic States: Payroll Formulas & Variables ---
+  const [payrollRates, setPayrollRates] = useState(null);
   const [sssRate, setSssRate] = useState(14);
   const [philhealthRate, setPhilhealthRate] = useState(5);
   const [pagibigEmployee, setPagibigEmployee] = useState(100);
@@ -74,11 +75,19 @@ const Settings = () => {
       const response = await fetchWithAuth("/api/system/settings");
       if (response.ok) {
         const data = await response.json();
-        setUseMockTime(data.useMockTime ?? false);
-        setMockDate(data.mockDate ?? "");
-        setMockTime(data.mockTime ?? "");
+        
+        // Map from Database Model names to Frontend State names
+        setUseMockTime(data.mockTimeEnabled ?? false);
+        
+        if (data.mockTimeValue) {
+          const dt = new Date(data.mockTimeValue);
+          setMockDate(dt.toISOString().split('T')[0]);
+          setMockTime(dt.toTimeString().split(' ')[0].substring(0, 5));
+        }
+
         setStorageRootPath(data.storageRootPath ?? "");
         setHardwareBufferWindow(data.hardwareBufferWindow ?? 5);
+        setPayrollRates(data.payrollRates ?? null);
         
         // Dynamically pull payroll constants if present in response records
         if (data.payroll) {
@@ -101,35 +110,45 @@ const Settings = () => {
   const handleSaveSettings = async () => {
     if (!isAdmin) return;
     setSaving(true);
+    
+    const payload = {
+      useMockTime,
+      mockDate,
+      mockTime,
+      storageRootPath,
+      hardwareBufferWindow,
+      payrollRates,
+      payroll: {
+        sssRate,
+        philhealthRate,
+        pagibigEmployee,
+        pagibigEmployer,
+        thirteenthMonthBasis,
+        overtimeMultiplier,
+        nightDiffMultiplier
+      }
+    };
+
+    console.log("[DEBUG] Sending global configuration update:", payload);
+
     try {
       const response = await fetchWithAuth("/api/system/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          useMockTime,
-          mockDate,
-          mockTime,
-          storageRootPath,
-          hardwareBufferWindow,
-          payroll: {
-            sssRate,
-            philhealthRate,
-            pagibigEmployee,
-            pagibigEmployer,
-            thirteenthMonthBasis,
-            overtimeMultiplier,
-            nightDiffMultiplier
-          }
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
+        console.log("[DEBUG] Configuration update SUCCESSful.");
         showNotification("Global configurations updated successfully!");
         refreshSystemTime();
       } else {
-        showNotification("Failed to apply updated variables.", "error");
+        const errorData = await response.json();
+        console.error("[DEBUG] Configuration update FAILED:", errorData);
+        showNotification(`Failed to apply updated variables: ${errorData.error || "Unknown Error"}`, "error");
       }
     } catch (err) {
+      console.error("[DEBUG] Network failure during configuration update:", err);
       showNotification("Network connection failure.", "error");
     } finally {
       setSaving(false);
@@ -150,21 +169,40 @@ const Settings = () => {
 
           {/* Integrated Tabbed Navigation controls */}
           <Tabs value={activeSettingsTab} onValueChange={setActiveSettingsTab} className="w-full">
-            <div className="flex justify-between">
-            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 max-w-3xl h-[55px]! bg-slate-200/60 p-1 rounded-lg mb-6">
-              <TabsTrigger value="simulation" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
-                <SettingsSuggestIcon className="mr-2 h-4 w-4" /> System Variables
-              </TabsTrigger>
-              <TabsTrigger value="payroll" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
-                <CurrencyExchangeIcon className="mr-2 h-4 w-4" /> Payroll Formulas
-              </TabsTrigger>
-              <TabsTrigger value="attendance" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
-                  <AccessTimeIcon className="mr-2 h-4 w-4" /> Attendance
-              </TabsTrigger>
-              <TabsTrigger value="notification" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
-                  <AccessTimeIcon className="mr-2 h-4 w-4" /> Notification
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <TabsList className="grid grid-cols-2 lg:grid-cols-4 w-full sm:w-auto h-[55px]! bg-slate-200/60 p-1 rounded-lg">
+                <TabsTrigger value="simulation" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
+                  <SettingsSuggestIcon className="mr-2 h-4 w-4" /> System Variables
+                </TabsTrigger>
+                <TabsTrigger value="payroll" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
+                  <CurrencyExchangeIcon className="mr-2 h-4 w-4" /> Payroll Formulas
+                </TabsTrigger>
+                <TabsTrigger value="attendance" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
+                    <AccessTimeIcon className="mr-2 h-4 w-4" /> Attendance
+                </TabsTrigger>
+                <TabsTrigger value="notification" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
+                    <AccessTimeIcon className="mr-2 h-4 w-4" /> Notification
+                </TabsTrigger>
+              </TabsList>
+
+              {isAdmin && (
+                <Button 
+                  onClick={handleSaveSettings} 
+                  disabled={saving}
+                  className="bg-[#2A174E] hover:bg-[#3d2270] text-white font-bold px-6 h-[45px] shadow-md transition-all flex items-center gap-2"
+                >
+                  {saving ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Saving...
+                    </span>
+                  ) : (
+                    <>
+                      <SaveIcon className="h-4 w-4" /> Save Global Changes
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
 
             
@@ -288,7 +326,54 @@ const Settings = () => {
                 {/* Tab 2: Payroll Formulas Layout Configuration */}
                 <TabsContent value="payroll" className=" mt-0 animate-in fade-in-50 duration-200">
                   <div className="gap-2">
-                    <PayrollConfiguration/>
+                    <PayrollConfiguration 
+                      data={payrollRates} 
+                      onUpdate={async (newRates) => {
+                        setPayrollRates(newRates);
+                        
+                        // Create the exact payload expected by handleSaveSettings
+                        const payload = {
+                          useMockTime,
+                          mockDate,
+                          mockTime,
+                          storageRootPath,
+                          hardwareBufferWindow,
+                          payrollRates: newRates, // Use the new rates immediately
+                          payroll: {
+                            sssRate,
+                            philhealthRate,
+                            pagibigEmployee,
+                            pagibigEmployer,
+                            thirteenthMonthBasis,
+                            overtimeMultiplier,
+                            nightDiffMultiplier
+                          }
+                        };
+                    
+                        console.log("[DEBUG] Auto-saving global configuration update:", payload);
+                    
+                        try {
+                          const response = await fetchWithAuth("/api/system/settings", {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(payload),
+                          });
+                    
+                          if (response.ok) {
+                            console.log("[DEBUG] Configuration update SUCCESSful.");
+                            showNotification("Payroll Formulas updated successfully!");
+                            refreshSystemTime();
+                          } else {
+                            const errorData = await response.json();
+                            console.error("[DEBUG] Configuration update FAILED:", errorData);
+                            showNotification(`Failed to apply updated variables: ${errorData.error || "Unknown Error"}`, "error");
+                          }
+                        } catch (err) {
+                          console.error("[DEBUG] Network failure during configuration update:", err);
+                          showNotification("Network connection failure.", "error");
+                        }
+                      }} 
+                    />
                   </div>
                 </TabsContent>
 

@@ -43,6 +43,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      payrollRates: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+      },
     },
     {
       timestamps: true,

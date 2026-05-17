@@ -154,49 +154,71 @@ exports.getSystemSettings = async (req, res) => {
 
 exports.updateSystemSettings = async (req, res) => {
   const { 
+    useMockTime, 
+    mockDate,
+    mockTime,
     mockTimeEnabled, 
-    mockTimeValue, 
+    mockTimeValue,
     maxicareTotalGross, 
     maxicareMonthsToPay, 
     maxicareCycleStartDate,
     maxicareDates,
     vlRate,
     slRate,
-    storageRootPath
+    storageRootPath,
+    payrollRates,
+    payroll // Standing for statutory rates like SSS, Philhealth, etc.
   } = req.body;
 
-  // Debug log for Maxicare configuration tracking
-  console.log("[DEBUG] UPDATE_SYSTEM_SETTINGS Received Payload:", JSON.stringify(req.body, null, 2));
+  console.log("[DEBUG] Controller 'updateSystemSettings' triggered.");
 
   try {
     const settings = await SystemSettings.findOne();
     let oldSettings = null;
     let newSettings;
 
+    const finalMockEnabled = useMockTime !== undefined ? useMockTime : mockTimeEnabled;
+    let finalMockValue = mockTimeValue;
+
+    if (mockDate && mockTime) {
+      finalMockValue = new Date(`${mockDate}T${mockTime}`);
+    }
+
+    // Merge statutory payroll data into payrollRates JSON for permanent storage
+    const consolidatedPayrollRates = {
+      ...(payrollRates || {}),
+      statutoryConstants: payroll || {}
+    };
+
     const updateData = { 
-      mockTimeEnabled, 
-      mockTimeValue, 
+      mockTimeEnabled: finalMockEnabled, 
+      mockTimeValue: finalMockValue, 
       maxicareTotalGross, 
       maxicareMonthsToPay, 
       maxicareCycleStartDate,
       maxicareDates,
       vlRate,
       slRate,
-      storageRootPath
+      storageRootPath,
+      payrollRates: consolidatedPayrollRates
     };
 
     if (!settings) {
+      console.log("[DEBUG] No settings row found. Creating NEW record.");
       newSettings = await SystemSettings.create(updateData);
     } else {
       oldSettings = settings.toJSON();
+      console.log("[DEBUG] Existing settings found. Updating ID:", settings.settingId);
       newSettings = await settings.update(updateData);
     }
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logAudit(req, currentAdminId, "System Settings", "UPDATE_SETTINGS", "SystemSettings", newSettings.settingId, oldSettings, newSettings.toJSON());
 
-    res.status(200).json({ message: "System settings updated successfully" });
+    console.log("[DEBUG] System Settings UPDATE SUCCESSFUL. New Data Saved.");
+    res.status(200).json({ message: "System settings updated successfully", data: newSettings });
   } catch (error) {
+    console.error("[ERROR] updateSystemSettings FAILED:", error);
     res.status(500).json({ error: error.message });
   }
 };

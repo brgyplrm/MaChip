@@ -6,7 +6,7 @@ const authMiddleware = require("../middleware/auth.js");
 const upload = require("../middleware/upload.js");
 
 router.get("/settings", requireAdmin, systemController.getSystemSettings);
-router.post("/settings", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateSystemSettings);
+router.put("/settings", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateSystemSettings);
 router.get("/time", systemController.getSystemTime);
 router.get("/holidays", authMiddleware, systemController.getHolidays);
 router.post("/holidays", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.createHoliday);
