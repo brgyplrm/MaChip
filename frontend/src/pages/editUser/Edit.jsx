@@ -192,14 +192,20 @@ const Edit = () => {
     setShowRfidModal(true);
     setRfidError("");
     setLocalScannedId("");
-    
+
+    // Clear any previous conflicting session on the ESP32 first
+    await fetchWithAuth("/api/esp/fingerprint/session/clear", { method: "POST" })
+      .catch(err => console.warn("Could not clear previous session:", err));
+
+    // Wait briefly to allow the hardware to acknowledge the clear command
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     // Start session
     fetchWithAuth("/api/system/reg-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, type: 'RFID' })
     }).catch(err => console.error("Failed to start RFID session:", err));
-
     try {
       const scanResponse = await fetchWithAuth("/api/users/generateRfid");
       const scanData = await scanResponse.json();
@@ -231,6 +237,13 @@ const Edit = () => {
     setShowFingerprintModal(true);
     setFingerprintError("");
     setLocalFingerprintId("");
+
+    // Clear any previous conflicting session on the ESP32 first
+    await fetchWithAuth("/api/esp/fingerprint/session/clear", { method: "POST" })
+      .catch(err => console.warn("Could not clear previous session:", err));
+
+    // Wait briefly to allow the hardware to acknowledge the clear command
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Start session
     fetchWithAuth("/api/system/reg-session", {

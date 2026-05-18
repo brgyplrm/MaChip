@@ -572,9 +572,15 @@ const New = ({ inputs = [], title }) => {
                           <p className="text-sm font-medium text-slate-500 my-2">
                             {formData.user_Role || "Select Role"}
                           </p>
-                          <Badge variant="secondary" className={`font-bold uppercase tracking-wider ${getStatusBadgeStyle(formData.user_EmploymentStatus)}`}>
-                            {formData.user_EmploymentStatus || "Regular"}
-                          </Badge>
+                          <div className="flex flex-col items-center gap-2">
+                            <Badge variant="secondary" className={`font-bold uppercase tracking-wider ${getStatusBadgeStyle(formData.user_EmploymentStatus)}`}>
+                              {formData.user_EmploymentStatus || "Regular"}
+                            </Badge>
+                            <div className="mt-2 py-1.5 px-4 bg-slate-100 rounded-full border border-slate-200">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none mb-1">System ID</span>
+                              <span className="text-sm font-mono font-bold text-[#2A174E]">{displayId || "MACJ-XXX"}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
 
@@ -705,9 +711,6 @@ const New = ({ inputs = [], title }) => {
                                     </Select>
                                     {errors.taxStatus && <span className="text-xs text-red-500 block">{errors.taxStatus}</span>}
                                   </div>
-
-                                  {/* Employee ID (MACJ ID) */}
-                                  {inputs.filter(i => i.id === "user_Id").map(renderDynamicInput)}
                                 </div>
                               </div>
 

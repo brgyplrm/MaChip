@@ -109,8 +109,8 @@ exports.markAttendance = async (req, res) => {
     }
 
     const currentStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
-    if (forcedStatus === 1 && [1, 4, 5].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clocked in.` });
-    if (forcedStatus === 2 && currentStatus === 2) return res.status(400).json({ error: `User ${user.user_FirstName} is already clocked out.` });
+    if (forcedStatus === 1 && [1, 4, 5].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-in` });
+    if (forcedStatus === 2 && currentStatus === 2) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-out` });
 
     const firstLoginToday = await sequelize.query(`SELECT * FROM "user_logging" WHERE "user_id" = :target_user_Id AND "logged_StatusId" = 1 AND "log_Date" BETWEEN :todayStart AND :todayEnd LIMIT 1`, { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT });
     const hasPriorClockIn = !!firstLoginToday[0];
