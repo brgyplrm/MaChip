@@ -8,7 +8,7 @@
 #include "arduino_secrets.h"
 
 // ── HARDWARE LAYER PIN DEFINITIONS ──────────────────────────────
-#define SOLENOID_PIN       14    // Active-Low Relay control signal
+#define SOLENOID_PIN       14    // Relay control - LOW = UNLOCK, HIGH = LOCK
 #define BUZZER             27    // PWM Audio Feedback Pin
 #define FP_RX              16    // ESP32 UART2 RX <- R307S TX
 #define FP_TX              17    // ESP32 UART2 TX -> R307S RX
@@ -22,20 +22,23 @@
 #define RST_PIN_OUT        25    // Back Door Reset Pin
 
 // ── TIMERS & FREQUENCY PROFILES ──────────────────────────────────
-#define BUZZER_FREQ        2500  // Clean 2.5kHz resonant square wave
-#define BUZZER_RES         8     // Bit-depth configuration
-#define SOLENOID_DURATION  3000  // 3-Second passenger clearance window
+#define BUZZER_FREQ        2500
+#define BUZZER_RES         8
+#define SOLENOID_DURATION  3000
+#define TIMEOUT_2FA        15000
 
-// ── MEMORY STORAGE STRUCTURE TYPES ───────────────────────────────
+// ── RELAY LOGIC ──────────────────────────────────────────────────
+// GPIO 14 = LOW  → UNLOCK
+// GPIO 14 = HIGH → LOCK
+
 enum LedMode { LED_OFF, LED_SLOW_BLINK, LED_FAST_BLINK, LED_STEADY_GREEN, LED_STEADY_RED };
 
-// Structural Positioning Fix: Enumeration declared prior to use in prototypes
 enum FeedbackType {
-  SUCCESS_OK,    // Access Granted: Double beep, steady Green light
-  ERROR_FAIL,    // Access Denied: Long tone, steady Red light
-  WAITING_SCAN,  // System Armed: Rapid Green blinking, biometric collection window open
-  RFID_TAP,      // Intercept Signal: Single swift confirmation chirp
-  SYSTEM_READY   // Microcontroller Up: Triple greeting beeps
+  SUCCESS_OK,
+  ERROR_FAIL,
+  WAITING_SCAN,
+  RFID_TAP,
+  SYSTEM_READY
 };
 
 struct NetworkConfig {
@@ -45,24 +48,22 @@ struct NetworkConfig {
   String fpEnrollUrl;
 };
 
-// Array assignments parsed directly from localized secret headers
 const NetworkConfig networks[] = {
   { String(WIFI_SSID_1), String(WIFI_PASS_1), String(SERVER_URL_1), String(FP_ENROLL_1) },
   { String(WIFI_SSID_2), String(WIFI_PASS_2), String(SERVER_URL_2), String(FP_ENROLL_2) }
 };
 const int NETWORK_COUNT = sizeof(networks) / sizeof(networks[0]);
 
-// Global environmental strings
 String currentServerUrl = "";
 String currentFpUrl = "";
 
-// ── HARDWARE CONTROLLER SUBSYSTEMS ───────────────────────────────
+// ── HARDWARE CONTROLLERS ───────────────────────────────────────
 MFRC522 rfidIN(SS_PIN_IN, RST_PIN_IN);
 MFRC522 rfidOUT(SS_PIN_OUT, RST_PIN_OUT);
 HardwareSerial fpSerial(2);
 Adafruit_Fingerprint finger(&fpSerial);
 
-// Operational Volatiles
+// LED State
 LedMode greenMode = LED_SLOW_BLINK;
 LedMode redMode = LED_OFF;
 unsigned long lastGreenToggle = 0;
@@ -70,11 +71,31 @@ unsigned long lastRedToggle = 0;
 bool greenState = false;
 bool redState = false;
 
+// Solenoid State
+bool solenoidActive = false;
+unsigned long solenoidStartTime = 0;
+
+// ── ENROLLMENT MODE (BLOCKS ACCESS) ──────────────────────────────
+bool enrollmentMode = false;
+String enrollmentUserId = "";
+int enrollmentSlotId = 0;
+String enrollmentType = "";
+
+// ── ACCESS MODE: 2FA Pipeline ────────────────────────────────────
 String pendingUID = "";
 unsigned long pendingStart = 0;
-const unsigned long TIMEOUT_2FA = 15000;
 
-// ── AUDIO & SIGNAL GENERATOR FUNCTIONS ───────────────────────────
+// Backend Queue
+struct BackendQueue {
+  String uid;
+  String action;
+  String terminalType;
+  bool pending;
+};
+
+BackendQueue queuedTransaction = {"", "", "", false};
+
+// ── AUDIO FUNCTIONS ──────────────────────────────────────────────
 void beep(int duration) {
   ledcWriteTone(BUZZER, BUZZER_FREQ);
   delay(duration);
@@ -142,11 +163,35 @@ void updateLEDs() {
   }
 }
 
-// ── CONNECTION SECURITY LAYER ────────────────────────────────────
+// ── SOLENOID CONTROL ──────────────────────────────────────────────
+void solenoidUnlock() {
+  if (!solenoidActive) {
+    digitalWrite(SOLENOID_PIN, LOW);
+    solenoidActive = true;
+    solenoidStartTime = millis();
+    Serial.println(F("[SOLENOID] UNLOCKED"));
+  }
+}
+
+void solenoidLock() {
+  if (solenoidActive) {
+    digitalWrite(SOLENOID_PIN, HIGH);
+    solenoidActive = false;
+    Serial.println(F("[SOLENOID] LOCKED"));
+  }
+}
+
+void updateSolenoid() {
+  if (solenoidActive && (millis() - solenoidStartTime >= SOLENOID_DURATION)) {
+    solenoidLock();
+  }
+}
+
+// ── WIFI ──────────────────────────────────────────────────────────
 bool autoConnectWiFi() {
   if (WiFi.status() == WL_CONNECTED) return true;
 
-  Serial.println(F("\n[WIFI] Initializing Clean Connection Sequence..."));
+  Serial.println(F("\n[WIFI] Connecting..."));
   for (int i = 0; i < NETWORK_COUNT; i++) {
     if (networks[i].ssid == "") continue;
 
@@ -156,7 +201,7 @@ bool autoConnectWiFi() {
     WiFi.mode(WIFI_STA);
     delay(300);
 
-    Serial.print(F("[WIFI] Target SSID Found: ")); Serial.println(networks[i].ssid);
+    Serial.print(F("[WIFI] SSID: ")); Serial.println(networks[i].ssid);
     WiFi.begin(networks[i].ssid.c_str(), networks[i].pass.c_str());
 
     int tries = 0;
@@ -170,16 +215,54 @@ bool autoConnectWiFi() {
     if (WiFi.status() == WL_CONNECTED) {
       currentServerUrl = networks[i].serverUrl;
       currentFpUrl = networks[i].fpEnrollUrl;
-      Serial.println(F("\n[WIFI] Link Connected successfully."));
-      Serial.print(F("[WIFI] IP Address: ")); Serial.println(WiFi.localIP());
+      Serial.println(F("\n[WIFI] Connected!"));
+      Serial.print(F("[WIFI] IP: ")); Serial.println(WiFi.localIP());
       return true;
     }
   }
-  Serial.println(F("\n[WIFI] Critical: Networks out of reach. Standing by in local state."));
+  Serial.println(F("\n[WIFI] Failed"));
   return false;
 }
 
-// ── REGISTRATION OVERRIDE ENGINES ─────────────────────────────────
+// ── ASYNC BACKEND ──────────────────────────────────────────────────
+void queueTransaction(String uid, String action, String terminalType) {
+  queuedTransaction.uid = uid;
+  queuedTransaction.action = action;
+  queuedTransaction.terminalType = terminalType;
+  queuedTransaction.pending = true;
+}
+
+void processQueuedTransaction() {
+  if (!queuedTransaction.pending || WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  http.begin(currentServerUrl);
+  http.setTimeout(5000);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("x-esp32-key", String(ESP32_API_KEY));
+
+  JsonDocument doc;
+  doc["uid"] = queuedTransaction.uid;
+  doc["action"] = queuedTransaction.action;
+  doc["terminalType"] = queuedTransaction.terminalType;
+
+  String payload;
+  serializeJson(doc, payload);
+
+  Serial.print("[HTTP] "); Serial.println(queuedTransaction.action);
+
+  int httpCode = http.POST(payload);
+  Serial.print("[HTTP] Code: "); Serial.println(httpCode);
+
+  if (httpCode == 200) {
+    queuedTransaction.pending = false;
+    Serial.println("[OK] Posted");
+  }
+
+  http.end();
+}
+
+// ── FINGERPRINT TEMPLATE ──────────────────────────────────────────
 String downloadTemplate() {
   while(fpSerial.available()) fpSerial.read();
   uint8_t bufId = 0x01;
@@ -250,6 +333,7 @@ void uploadEnrollment(int slotId, bool success, String userId, String templateHe
   HTTPClient http;
   http.begin(currentFpUrl + "/enroll-confirm");
   http.addHeader("Content-Type", "application/json");
+  http.addHeader("x-esp32-key", String(ESP32_API_KEY));
   
   JsonDocument doc;
   doc["userId"] = userId;
@@ -263,51 +347,50 @@ void uploadEnrollment(int slotId, bool success, String userId, String templateHe
   http.end();
 }
 
-// ── MAIN INITIALIZATION METHOD ───────────────────────────────────
+// ── SETUP ──────────────────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println(F("[SYSTEM] Booting MAChip Node Terminal Hardware..."));
+  Serial.println(F("\n\n[SYSTEM] MAChip v2.3 Starting"));
   
   pinMode(GREEN_LED, OUTPUT); 
   pinMode(RED_LED, OUTPUT);
   pinMode(SOLENOID_PIN, OUTPUT);
   
-  // FIX: Relay configuration set HIGH immediately to maintain COM-NO disconnection on boot
   digitalWrite(SOLENOID_PIN, HIGH);
-  Serial.println(F("[SOLENOID] Setup state initialized: HIGH (Circuit Broken / Door Securely Locked)"));
+  solenoidActive = false;
+  Serial.println(F("[SOLENOID] LOCKED"));
   
-  // Audio binding channel mapping
   ledcAttach(BUZZER, BUZZER_FREQ, BUZZER_RES);
   provideFeedback(SYSTEM_READY);
 
-  // Biometric UART Channel Mapping
   fpSerial.begin(57600, SERIAL_8N1, FP_RX, FP_TX);
   if (finger.verifyPassword()) {
-    Serial.println(F("[FP] R307S Biometric Communication: STABLE"));
+    Serial.println(F("[FP] Online"));
   } else {
-    Serial.println(F("[FP] Critical Error: Internal biometric mapping path unreachable."));
+    Serial.println(F("[FP] Error"));
   }
 
-  // SPI Bus Allocation
   SPI.begin();
   rfidIN.PCD_Init();
   rfidOUT.PCD_Init();
   rfidIN.PCD_SetAntennaGain(rfidIN.RxGain_max);
   rfidOUT.PCD_SetAntennaGain(rfidOUT.RxGain_max);
+  Serial.println(F("[RFID] Ready"));
   
   WiFi.mode(WIFI_STA);
   autoConnectWiFi();
   
   setLED(LED_SLOW_BLINK, LED_OFF);
-  Serial.println(F("[SYSTEM] Pipeline ready for transaction tracking arrays.\n"));
+  Serial.println(F("[SYSTEM] Ready\n"));
 }
 
-// ── CORE RUNTIME LOGIC ───────────────────────────────────────────
+// ── LOOP ──────────────────────────────────────────────────────────
 void loop() {
   updateLEDs();
+  updateSolenoid();
 
-  // Dynamic Loss Prevention Loop
+  // WiFi
   if (WiFi.status() != WL_CONNECTED) {
     static unsigned long lastWiFiCheck = 0;
     if (millis() - lastWiFiCheck > 20000) {
@@ -316,13 +399,18 @@ void loop() {
     }
   }
 
-  // A. INTERCEPT ACTIVE REGISTRATION SESSIONS FROM ADMIN UI MODALS
+  // Post queued transactions
+  processQueuedTransaction();
+
+  // ════════════════════════════════════════════════════════════════
+  // ENROLLMENT MODE - Only process enrollment, block access
+  // ════════════════════════════════════════════════════════════════
   static unsigned long lastModalPoll = 0;
-  if (WiFi.status() == WL_CONNECTED && millis() - lastModalPoll > 2000) {
+  if (!enrollmentMode && WiFi.status() == WL_CONNECTED && millis() - lastModalPoll > 1000) {
     lastModalPoll = millis();
     HTTPClient http;
     http.begin(currentFpUrl + "/session");
-    http.addHeader("x-esp32-key", String(ESP32_API_KEY)); // Added from old logic
+    http.addHeader("x-esp32-key", String(ESP32_API_KEY));
     int code = http.GET();
     
     if (code == 200) {
@@ -330,201 +418,270 @@ void loop() {
       deserializeJson(doc, http.getString());
       
       if (doc["active"] | false) {
-        String userId = doc["userId"].as<String>();
-        int slotId = doc["slotId"] | 1;
-        String modeType = doc["type"] | "FP"; 
+        // ENTER ENROLLMENT MODE
+        enrollmentMode = true;
+        enrollmentUserId = doc["userId"].as<String>();
+        enrollmentSlotId = doc["slotId"] | 1;
+        enrollmentType = doc["type"] | "FP";
         
-        Serial.println("\n[MODAL] Active Registration Overrides Armed for User: " + userId);
+        Serial.println("\n[ENROLL] >>> SESSION ACTIVE <<<");
+        Serial.print("[ENROLL] User: "); Serial.println(enrollmentUserId);
+        Serial.print("[ENROLL] Type: "); Serial.println(enrollmentType);
+        Serial.print("[ENROLL] Slot: "); Serial.println(enrollmentSlotId);
+        
         provideFeedback(WAITING_SCAN);
-
-        if (modeType == "RFID") {
-          Serial.println(F("[MODAL] Armed: Capture card trace from Front Door..."));
-          unsigned long startScan = millis();
-          bool ok = false;
-          String cardUid = "";
-          
-          while (millis() - startScan < 20000) {
-            updateLEDs();
-            if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
-              for (byte i = 0; i < rfidIN.uid.size; i++) {
-                cardUid += (rfidIN.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidIN.uid.uidByte[i], HEX);
-              }
-              cardUid.toUpperCase();
-              rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
-              ok = true; break;
-            }
-            delay(50);
-          }
-          
-          if (ok) {
-            Serial.println("[MODAL] RFID Registered Trace Capture: " + cardUid);
-            HTTPClient postHttp;
-            postHttp.begin(currentFpUrl + "/enroll-confirm");
-            postHttp.addHeader("Content-Type", "application/json");
-            postHttp.addHeader("x-esp32-key", String(ESP32_API_KEY)); // Added from old logic
-            JsonDocument confirmDoc;
-            confirmDoc["userId"] = userId;
-            confirmDoc["rfidUid"] = cardUid;
-            confirmDoc["success"] = true;
-            confirmDoc["type"] = "RFID";
-            String body; serializeJson(confirmDoc, body);
-            postHttp.POST(body); postHttp.end();
-            provideFeedback(SUCCESS_OK);
+        
+        if (enrollmentType == "FP") {
+          Serial.println("[ENROLL] Initializing Fingerprint Sensor...");
+          if (finger.verifyPassword()) {
+            Serial.println("[ENROLL] Sensor OK. Starting capture.");
           } else {
-            Serial.println(F("[MODAL] RFID Modal Capture Timeout. Override aborted."));
-            provideFeedback(ERROR_FAIL);
+            Serial.println("[ENROLL] SENSOR ERROR - Check wiring!");
+            uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
+            enrollmentMode = false;
           }
-          setLED(LED_SLOW_BLINK, LED_OFF);
-        } 
-        else if (modeType == "FP") {
-          Serial.println(F("[MODAL] Armed: Capture dual biometric verification passes..."));
-          bool ok = false;
-          String templateHex = "";
-          
-          unsigned long startScan = millis();
-          while (millis() - startScan < 15000) {
-            updateLEDs();
-            if (finger.getImage() == FINGERPRINT_OK && finger.image2Tz(1) == FINGERPRINT_OK) {
-              Serial.println(F("[FP] Pass 1 footprint captured. Lift finger..."));
-              beep(100); delay(1000); break;
-            }
-            delay(100);
-          }
-          
-          if (millis() - startScan < 15000) {
-            startScan = millis();
-            while (millis() - startScan < 15000) {
-              updateLEDs();
-              if (finger.getImage() == FINGERPRINT_OK && finger.image2Tz(2) == FINGERPRINT_OK) {
-                Serial.println(F("[FP] Pass 2 footprint captured. Synchronizing model..."));
-                ok = true; break;
-              }
-              delay(100);
-            }
-          }
-
-          if (ok) {
-            if (finger.createModel() == FINGERPRINT_OK) {
-              templateHex = downloadTemplate();
-              if (templateHex == "") ok = false;
-            } else {
-              Serial.println(F("[FP] Model creation signature tracking matrix failed (mismatch)."));
-              ok = false;
-            }
-          }
-
-          uploadEnrollment(slotId, ok, userId, templateHex);
-          if (ok) {
-            Serial.println(F("[FP] Custom matrix profile linked successfully."));
-            provideFeedback(SUCCESS_OK);
-          } else {
-            Serial.println(F("[FP] Structural enrollment profile dropped."));
-            provideFeedback(ERROR_FAIL);
-          }
-          setLED(LED_SLOW_BLINK, LED_OFF);
         }
       }
     }
     http.end();
   }
 
-  // B. UNIFIED FRONT DOOR CLOCK-IN PIPELINE
-  if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
-    provideFeedback(RFID_TAP);
-    pendingUID = "";
-    for (byte i = 0; i < rfidIN.uid.size; i++) {
-      pendingUID += (rfidIN.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidIN.uid.uidByte[i], HEX);
+  // ── ENROLLMENT: RFID CAPTURE ──────────────────────────────────────
+  if (enrollmentMode && enrollmentType == "RFID") {
+    if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
+      String cardUid = "";
+      for (byte i = 0; i < rfidIN.uid.size; i++) {
+        cardUid += (rfidIN.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidIN.uid.uidByte[i], HEX);
+      }
+      cardUid.toUpperCase();
+      rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
+      
+      Serial.println("[ENROLL] RFID Captured: " + cardUid);
+      uploadEnrollment(enrollmentSlotId, true, enrollmentUserId, cardUid);
+      provideFeedback(SUCCESS_OK);
+      
+      enrollmentMode = false;
+      delay(500);
+      HTTPClient clearHttp;
+      clearHttp.begin(currentFpUrl + "/session/clear");
+      clearHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+      clearHttp.GET();
+      clearHttp.end();
+      setLED(LED_SLOW_BLINK, LED_OFF);
     }
-    pendingUID.toUpperCase();
-    
-    Serial.println("\n[IN] Token identified: " + pendingUID);
-    provideFeedback(WAITING_SCAN);
-    pendingStart = millis();
-    
-    rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
   }
 
-  // 2FA Evaluation Routine
-  if (pendingUID != "" && millis() - pendingStart < TIMEOUT_2FA) {
-    if (finger.getImage() == FINGERPRINT_OK && finger.image2Tz(1) == FINGERPRINT_OK) {
-      if (finger.fingerFastSearch() == FINGERPRINT_OK) {
-        Serial.println("[IN] Multi-factor authentication successful. Identity structural match validated.");
-        provideFeedback(SUCCESS_OK);
-        
-        // FIX: Active-Low relay execution loop. Setting LOW completes the COM-NO path to lock
-        digitalWrite(SOLENOID_PIN, LOW);
-        Serial.println(F("[SOLENOID] Relay Energized: LOW (Circuit Closed / 12V Open-Lock Engaged)"));
-        
-        delay(SOLENOID_DURATION);
-        
-        // Return to normal structural safe baseline state
-        digitalWrite(SOLENOID_PIN, HIGH);
-        Serial.println(F("[SOLENOID] Relay Released: HIGH (Circuit Broken / Door Securely Locked)"));
-        
-        if (WiFi.status() == WL_CONNECTED) {
-          HTTPClient http;
-          http.begin(currentServerUrl);
-          http.addHeader("Content-Type", "application/json");
-          http.addHeader("x-esp32-key", String(ESP32_API_KEY)); // Added from old logic
-          JsonDocument txn;
-          txn["uid"] = pendingUID;
-          txn["action"] = "clock_in";
-          txn["terminalType"] = "FRONT"; // Added from old logic
-          String txnBody; serializeJson(txn, txnBody);
-          int httpCode = http.POST(txnBody); 
-          Serial.print(F("[HTTP IN] Result: ")); Serial.println(httpCode);
-          http.end();
+  // ── ENROLLMENT: FINGERPRINT CAPTURE ───────────────────────────────
+  else if (enrollmentMode && enrollmentType == "FP") {
+    static unsigned long fpEnrollStart = 0;
+    static int fpEnrollStage = 0;
+    
+    if (fpEnrollStage == 0) {
+      Serial.println("[ENROLL] Stage 1: Waiting for finger...");
+      fpEnrollStart = millis();
+      fpEnrollStage = 1;
+    }
+    
+    if (fpEnrollStage == 1) {
+      int p = finger.getImage();
+      if (p == FINGERPRINT_OK) {
+        Serial.println("[ENROLL] Image taken. Converting...");
+        p = finger.image2Tz(1);
+        if (p == FINGERPRINT_OK) {
+          Serial.println("[ENROLL] Pass 1 OK - Remove finger");
+          beep(100);
+          fpEnrollStart = millis();
+          fpEnrollStage = 2;
+        } else {
+          Serial.print("[ENROLL] Conversion error: "); Serial.println(p);
         }
-        
-        pendingUID = "";
-        setLED(LED_SLOW_BLINK, LED_OFF);
-      } else {
-        Serial.println(F("[IN] Access Aborted: Biometric matrix signature verification structural reject."));
+      } else if (p != FINGERPRINT_NOFINGER) {
+        // Serial.print("[ENROLL] Error: "); Serial.println(p);
+      }
+      
+      if (millis() - fpEnrollStart > 30000) { // Increased to 30s
+        Serial.println("[ENROLL] Pass 1 timeout");
+        uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
         provideFeedback(ERROR_FAIL);
+        enrollmentMode = false;
+        fpEnrollStage = 0;
+        setLED(LED_SLOW_BLINK, LED_OFF);
+      }
+    }
+    
+    else if (fpEnrollStage == 2) {
+      if (millis() - fpEnrollStart > 2000) {
+        Serial.println("[ENROLL] Stage 2: Place same finger again...");
+        fpEnrollStart = millis();
+        fpEnrollStage = 3;
+      }
+    }
+    
+    else if (fpEnrollStage == 3) {
+      int p = finger.getImage();
+      if (p == FINGERPRINT_OK) {
+        Serial.println("[ENROLL] Image 2 taken. Converting...");
+        p = finger.image2Tz(2);
+        if (p == FINGERPRINT_OK) {
+          Serial.println("[ENROLL] Pass 2 OK. Creating model...");
+          if (finger.createModel() == FINGERPRINT_OK) {
+            Serial.print("[ENROLL] Storing model in slot "); Serial.println(enrollmentSlotId);
+            if (finger.storeModel(enrollmentSlotId) == FINGERPRINT_OK) {
+              String templateHex = downloadTemplate();
+              Serial.println("[ENROLL] Success! Uploading template...");
+              uploadEnrollment(enrollmentSlotId, true, enrollmentUserId, templateHex);
+              provideFeedback(SUCCESS_OK);
+            } else {
+              Serial.println("[ENROLL] Failed to store model in flash");
+              uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
+              provideFeedback(ERROR_FAIL);
+            }
+          } else {
+            Serial.println("[ENROLL] Model mismatch/error");
+            uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
+            provideFeedback(ERROR_FAIL);
+          }
+          enrollmentMode = false;
+          fpEnrollStage = 0;
+          setLED(LED_SLOW_BLINK, LED_OFF);
+        }
+      }
+      
+      if (millis() - fpEnrollStart > 30000) {
+        Serial.println("[ENROLL] Pass 2 timeout");
+        uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
+        provideFeedback(ERROR_FAIL);
+        enrollmentMode = false;
+        fpEnrollStage = 0;
+        setLED(LED_SLOW_BLINK, LED_OFF);
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // ACCESS MODE - Only process when NOT in enrollment
+  // ════════════════════════════════════════════════════════════════
+
+  if (!enrollmentMode) {
+    // ── FRONT DOOR: RFID + 2FA ──────────────────────────────────────
+    if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
+      provideFeedback(RFID_TAP);
+      String currentUID = "";
+      for (byte i = 0; i < rfidIN.uid.size; i++) {
+        currentUID += (rfidIN.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidIN.uid.uidByte[i], HEX);
+      }
+      currentUID.toUpperCase();
+      rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
+      
+      Serial.println("\n[ACCESS] Front RFID: " + currentUID);
+
+      // Check enrollment before proceeding to 2FA
+      if (WiFi.status() == WL_CONNECTED) {
+        HTTPClient http;
+        http.begin(currentServerUrl);
+        http.setTimeout(5000);
+        http.addHeader("Content-Type", "application/json");
+        http.addHeader("x-esp32-key", String(ESP32_API_KEY));
+        
+        JsonDocument doc;
+        doc["uid"] = currentUID;
+        doc["action"] = "clock_in";
+        doc["terminalType"] = "FRONT";
+        
+        String payload;
+        serializeJson(doc, payload);
+        int httpCode = http.POST(payload);
+        
+        if (httpCode == 200) {
+          JsonDocument resDoc;
+          deserializeJson(resDoc, http.getString());
+          if (resDoc["success"] | false) {
+            if (resDoc["mode"] == "WAITING_FOR_FINGERPRINT_2FA") {
+              Serial.println("[2FA] Card verified. Waiting for fingerprint...");
+              provideFeedback(WAITING_SCAN);
+              pendingUID = currentUID;
+              pendingStart = millis();
+            } else {
+              Serial.println("[OK] Access Granted (No 2FA required)");
+              provideFeedback(SUCCESS_OK);
+              solenoidUnlock();
+            }
+          } else {
+            String errMsg = resDoc["error"] | resDoc["message"] | "Denied";
+            Serial.print("[DENIED] "); Serial.println(errMsg);
+            provideFeedback(ERROR_FAIL);
+          }
+        } else {
+          Serial.print("[HTTP] Error: "); Serial.println(httpCode);
+          provideFeedback(ERROR_FAIL);
+        }
+        http.end();
+      } else {
+        Serial.println("[WIFI] Offline - Cannot verify card");
+        provideFeedback(ERROR_FAIL);
+      }
+    }
+
+    // ── 2FA EVALUATION ──────────────────────────────────────────────
+    if (pendingUID != "") {
+      if (millis() - pendingStart < TIMEOUT_2FA) {
+        int p = finger.getImage();
+        if (p == FINGERPRINT_OK) {
+          if (finger.image2Tz(1) == FINGERPRINT_OK) {
+            if (finger.fingerFastSearch() == FINGERPRINT_OK) {
+              Serial.println("[2FA] ✓ Match (ID: " + String(finger.fingerID) + ")");
+              Serial.println("[ACCESS] Granting access");
+              provideFeedback(SUCCESS_OK);
+              
+              solenoidUnlock();
+              // Send UID|FingerID to confirm 2FA
+              queueTransaction(pendingUID + "|" + String(finger.fingerID), "clock_in", "FRONT");
+              
+              pendingUID = "";
+              setLED(LED_SLOW_BLINK, LED_OFF);
+            } else {
+              Serial.println("[2FA] ✗ No match");
+              provideFeedback(ERROR_FAIL);
+              
+              queueTransaction(pendingUID, "suspicious_biometric_fail", "FRONT");
+              
+              pendingUID = "";
+              setLED(LED_SLOW_BLINK, LED_OFF);
+            }
+          } else {
+            Serial.println("[2FA] Image conversion failed - keep finger still");
+          }
+        }
+      } else {
+        Serial.println("[2FA] Timeout");
+        provideFeedback(ERROR_FAIL);
+        
+        queueTransaction(pendingUID, "unenrolled_card_attempt", "FRONT");
+        
         pendingUID = "";
         setLED(LED_SLOW_BLINK, LED_OFF);
       }
     }
-  } else if (pendingUID != "") {
-    Serial.println(F("[IN] Verification threshold limit expired. Resetting hardware registers to idle baseline."));
-    provideFeedback(ERROR_FAIL);
-    pendingUID = "";
-    setLED(LED_SLOW_BLINK, LED_OFF);
+
+    // ── BACK DOOR: RFID ONLY (Clock Out) ────────────────────────────
+    if (rfidOUT.PICC_IsNewCardPresent() && rfidOUT.PICC_ReadCardSerial()) {
+      String outUID = "";
+      for (byte i = 0; i < rfidOUT.uid.size; i++) {
+        outUID += (rfidOUT.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidOUT.uid.uidByte[i], HEX);
+      }
+      outUID.toUpperCase();
+      Serial.println("\n[ACCESS] Back RFID: " + outUID);
+      Serial.println("[ACCESS] Clock-out granted");
+      provideFeedback(SUCCESS_OK);
+      
+      solenoidUnlock();
+      queueTransaction(outUID, "clock_out", "BACK");
+      
+      rfidOUT.PICC_HaltA(); rfidOUT.PCD_StopCrypto1();
+      setLED(LED_SLOW_BLINK, LED_OFF);
+    }
   }
 
-  // C. UNIFIED BACK DOOR CLOCK-OUT PIPELINE (Token Only, Token Bypass 2FA Mode)
-  if (rfidOUT.PICC_IsNewCardPresent() && rfidOUT.PICC_ReadCardSerial()) {
-    String outUID = "";
-    for (byte i = 0; i < rfidOUT.uid.size; i++) {
-      outUID += (rfidOUT.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidOUT.uid.uidByte[i], HEX);
-    }
-    outUID.toUpperCase();
-    Serial.println("\n[OUT] Token identified: " + outUID);
-    provideFeedback(SUCCESS_OK);
-    
-    // Pulse lock open path circuit loop
-    digitalWrite(SOLENOID_PIN, LOW);
-    Serial.println(F("[SOLENOID] Relay Energized: LOW (Circuit Closed / 12V Open-Lock Engaged)"));
-    
-    delay(SOLENOID_DURATION);
-    
-    digitalWrite(SOLENOID_PIN, HIGH);
-    Serial.println(F("[SOLENOID] Relay Released: HIGH (Circuit Broken / Door Securely Locked)"));
-
-    if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient http;
-      http.begin(currentServerUrl);
-      http.addHeader("Content-Type", "application/json");
-      http.addHeader("x-esp32-key", String(ESP32_API_KEY)); // Added from old logic
-      JsonDocument txn;
-      txn["uid"] = outUID;
-      txn["action"] = "clock_out";
-      txn["terminalType"] = "BACK"; // Added from old logic
-      String txnBody; serializeJson(txn, txnBody);
-      int httpCode = http.POST(txnBody);
-      Serial.print(F("[HTTP OUT] Result: ")); Serial.println(httpCode);
-      http.end();
-    }
-    setLED(LED_SLOW_BLINK, LED_OFF);
-  }
+  delay(50);
+  yield();
 }

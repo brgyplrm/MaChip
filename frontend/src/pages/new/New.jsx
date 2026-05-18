@@ -118,39 +118,66 @@ const New = ({ inputs = [], title }) => {
   const [fingerprintError, setFingerprintError] = useState("");
   const [localFingerprintId, setLocalFingerprintId] = useState("");
 
+  // Auto-fetch next ID on mount
   useEffect(() => {
-    if (showRfidModal) {
-      setLocalScannedId("");
-      setRfidError("");
-      handleScanRFID();
-      fetchWithAuth("/api/system/reg-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: formData.user_Id || "temp", type: 'RFID' })
-      }).catch(err => console.error("Failed to start RFID session:", err));
-    } else {
-      fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
-        .catch(err => console.error("Failed to clear RFID session:", err));
-    }
-  }, [showRfidModal, formData.user_Id]);
+    fetchWithAuth("/api/users/nextId")
+      .then(res => res.json())
+      .then(data => {
+        if (data.nextId) {
+          // Use the displayId from backend (which is MACJ-0XX)
+          const formatted = data.displayId || `MACJ-${String(data.nextId).padStart(3, "0")}`;
+          setDisplayId(formatted);
+          setFormData(prev => ({ ...prev, user_Id: data.nextId }));
+        }
+      })
+      .catch(err => console.error("Error fetching next ID:", err));
+  }, []);
 
-  useEffect(() => {
-    if (showFingerprintModal) {
-      setLocalFingerprintId("");
-      setFingerprintError("");
-      handleScanFingerprint();
-      fetchWithAuth("/api/system/reg-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: formData.user_Id || "temp", type: 'FP' })
-      }).catch(err => console.error("Failed to start FP session:", err));
-    } else {
-      fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
-        .catch(err => console.error("Failed to clear FP session:", err));
-      fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" })
-        .catch(err => console.error("Failed to clear in-memory FP session:", err));
+  const handleInput = (e) => {
+    const { id, value } = e.target;
+
+    if (id === "user_Id") {
+      setDisplayId(value);
+      // Try to extract numeric part for formData
+      const numericPart = value.replace(/[^0-9]/g, '');
+      if (numericPart) {
+        setFormData(prev => ({ ...prev, user_Id: parseInt(numericPart) }));
+      }
+      return;
     }
-  }, [showFingerprintModal, formData.user_Id]);
+
+    setFormData((prev) => {
+      const updated = { ...prev, [id]: value };
+
+      // Map role name to ID
+      if (id === "user_Role") {
+        updated.user_RoleId = roleMap[value] || 3;
+      }
+
+      // Map employment status name to ID
+      if (id === "user_EmploymentStatus") {
+        const statusMap = { "Regular": 1, "Part-time": 2, "Intern / OJT": 3 };
+        updated.user_EmploymentStatusId = statusMap[value] || 1;
+      }
+
+      return updated;
+    });
+
+    if (errors[id]) {
+      setErrors((prev) => ({ ...prev, [id]: "" }));
+    }
+  };
+
+  const handleIdBlur = () => {
+    if (displayId) {
+      const numericPart = displayId.replace(/[^0-9]/g, '');
+      if (numericPart) {
+        const formatted = `MACJ-${numericPart.padStart(3, "0")}`;
+        setDisplayId(formatted);
+        setFormData(prev => ({ ...prev, user_Id: parseInt(numericPart) }));
+      }
+    }
+  };
 
   const handleScanFingerprint = async () => {
     setShowFingerprintModal(true);
@@ -158,6 +185,13 @@ const New = ({ inputs = [], title }) => {
     setFingerprintError("");
 
     try {
+      // Start session FIRST and await it to ensure backend is ready
+      await fetchWithAuth("/api/system/reg-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: formData.user_Id || "temp", type: 'FP' })
+      });
+
       const response = await fetchWithAuth(`/api/users/generateFingerprint?userId=${formData.user_Id}`);
       const data = await response.json();
 
@@ -167,61 +201,12 @@ const New = ({ inputs = [], title }) => {
            setFormData(prev => ({ ...prev, user_FingerprintTemplate: data.template }));
         }
       } else {
+        // Only set error if we are still in the modal
         setFingerprintError(data.error || "Failed to scan fingerprint.");
       }
     } catch (err) {
+      console.error("FP Scan Error:", err);
       setFingerprintError("An error occurred during scanning.");
-    }
-  };
-
-  useEffect(() => {
-    const fetchNextId = async () => {
-      try {
-        const response = await fetchWithAuth("/api/users/nextId");
-        if (response.ok) {
-          const data = await response.json();
-          setFormData((prev) => ({ ...prev, user_Id: data.nextId }));
-          setDisplayId(data.displayId);
-        }
-      } catch (err) { console.error(err); }
-    };
-    fetchNextId();
-  }, []);
-
-  const handleInput = (e) => {
-    const { id, value } = e.target;
-    
-    // Only allow digits for account_Number
-    if (id === "account_Number" && value !== "" && !/^\d+$/.test(value)) {
-      return; 
-    }
-
-    setFormData((prev) => {
-      const updated = { ...prev, [id]: value };
-      
-      if (id === "user_Id") {
-        const numericMatch = value.match(/\d+/);
-        const numericId = numericMatch ? parseInt(numericMatch[0], 10) : "";
-        updated.user_Id = numericId;
-        setDisplayId(value);
-      }
-      
-      if (id === "user_Role") {
-        updated.user_RoleId = roleMap[value] || 3;
-      }
-      if (id === "user_EmploymentStatus") {
-        updated.user_EmploymentStatusId = value === "Regular" ? 1 : value === "Part-time" ? 2 : 3;
-      }
-      
-      return updated;
-    });
-
-    setErrors((prev) => ({ ...prev, [id]: "" }));
-  };
-
-  const handleIdBlur = () => {
-    if (formData.user_Id) {
-      setDisplayId(`MACJ-${String(formData.user_Id).padStart(3, "0")}`);
     }
   };
 
@@ -231,6 +216,13 @@ const New = ({ inputs = [], title }) => {
     setRfidError("");
 
     try {
+      // Start session FIRST and await it
+      await fetchWithAuth("/api/system/reg-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: formData.user_Id || "temp", type: 'RFID' })
+      });
+
       const response = await fetchWithAuth("/api/users/generateRfid");
       const data = await response.json();
 
@@ -250,8 +242,23 @@ const New = ({ inputs = [], title }) => {
         if (data.rfid) setLocalScannedId(data.rfid);
       }
     } catch (err) {
+      console.error("RFID Scan Error:", err);
       setRfidError("An error occurred while scanning.");
     }
+  };
+
+  const closeRfidModal = () => {
+    setShowRfidModal(false);
+    fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
+      .catch(err => console.error("Failed to clear RFID session:", err));
+  };
+
+  const closeFingerprintModal = () => {
+    setShowFingerprintModal(false);
+    fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
+      .catch(err => console.error("Failed to clear FP session:", err));
+    fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" })
+      .catch(err => console.error("Failed to clear in-memory FP session:", err));
   };
 
   // Stepper Validation Logic
@@ -861,24 +868,29 @@ const New = ({ inputs = [], title }) => {
         {/* Modals */}
         <RfidScanModal 
           isOpen={showRfidModal} 
-          onClose={() => setShowRfidModal(false)}
+          onClose={closeRfidModal}
           onRescan={handleScanRFID}
           onConfirm={() => {
             setFormData(prev => ({ ...prev, user_MachipId: localScannedId }));
             setShowRfidModal(false);
             setToast({ message: `MaChip linked: ${localScannedId}`, type: "success" });
+            // Clear session on confirm
+            fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
           }}
           scannedId={localScannedId} 
           error={rfidError}
         />
         <RfidScanModal 
           isOpen={showFingerprintModal} 
-          onClose={() => setShowFingerprintModal(false)}
+          onClose={closeFingerprintModal}
           onRescan={handleScanFingerprint}
           onConfirm={() => {
             setFormData(prev => ({ ...prev, user_FingerprintId: localFingerprintId }));
             setShowFingerprintModal(false);
             setToast({ message: `Fingerprint slot ${localFingerprintId} assigned`, type: "success" });
+            // Clear sessions on confirm
+            fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
+            fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
           }}
           scannedId={localFingerprintId} 
           error={fingerprintError}

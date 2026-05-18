@@ -11,6 +11,7 @@ router.get("/status", rfidController.getHardwareStatus);
 
 // Called by ESP32 to confirm enrollment success/fail and upload template
 router.post("/fingerprint/confirm", espValidator, rfidController.confirmFingerprintEnroll);
+router.post("/fingerprint/enroll-confirm", espValidator, rfidController.confirmFingerprintEnroll);
 
 // Called by ESP32 to download a template for 2FA verification
 router.get("/fingerprint/download/:uid", espValidator, rfidController.getFingerprintTemplate);
