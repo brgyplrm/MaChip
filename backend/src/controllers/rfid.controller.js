@@ -27,11 +27,17 @@ let fpCaptureSession = {
   scannedSlot: null,
   userId: null,
   expiresAt: null,
-  success: false
+  success: false,
+  template: null,
+  type: "FP"
 };
 
 // Heartbeat state to track ESP32 connectivity
 let lastEsp32Heartbeat = null;
+
+// Global anti-rapid tap cache (UID -> timestamp)
+const recentTaps = new Map();
+const RAPID_TAP_COOLDOWN = 10000; // 10 seconds
 
 exports.getHardwareStatus = (req, res) => {
   const now = Date.now();
@@ -44,18 +50,54 @@ exports.getHardwareStatus = (req, res) => {
   });
 };
 
-exports.clearFingerprintSession = (req, res) => {
-  console.log("[FP] Manually clearing fingerprint session");
+exports.clearFingerprintSession = async (req, res) => {
+  console.log("[ENROLL] Clearing all enrollment sessions (RFID/FP)");
+
+  // Clear in-memory FP session
   fpCaptureSession.isCapturing = false;
   fpCaptureSession.scannedSlot = null;
   fpCaptureSession.userId = null;
   fpCaptureSession.expiresAt = null;
   fpCaptureSession.success = false;
   fpCaptureSession.template = null;
-  
-  if (res) {
-    return res.status(200).json({ success: true, message: "Fingerprint session cleared" });
+  fpCaptureSession.type = null;
+
+  // Clear in-memory RFID session
+  captureSession.isCapturing = false;
+  captureSession.scannedUid = null;
+  captureSession.expiresAt = null;
+
+  // Clear database registration session
+  try {
+    const { System_State } = require("../config/sequelize.js");
+    await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
+  } catch (err) {
+    console.error("[ENROLL CLEAR ERROR]", err);
   }
+
+  if (res) {
+    return res.status(200).json({ 
+      success: true, 
+      message: "Enrollment session cleared",
+      enrollmentMode: false,
+      cleared: true
+    });
+  }
+};
+exports.getSessionStatus = async (req, res) => {
+  const deviceId = req.headers["x-esp32-id"] || "esp32-01";
+  
+  res.json({
+    success: true,
+    deviceId,
+    hasActiveSession: fpCaptureSession.isCapturing || captureSession.isCapturing,
+    session: {
+      fpActive: fpCaptureSession.isCapturing,
+      fpUserId: fpCaptureSession.userId,
+      fpType: fpCaptureSession.type,
+      rfidActive: captureSession.isCapturing
+    }
+  });
 };
 
 exports.scanRFID = async (req, res) => {
@@ -68,56 +110,114 @@ exports.scanRFID = async (req, res) => {
     return res.status(400).json({ success: false, message: "No UID provided" });
   }
 
-  // ── REGISTRATION SESSION CHECK ───────────────────────────────────────────
+  // ── ANTI-RAPID TAP PROTECTION ───────────────────────────────────────────
+  const nowTime = Date.now();
+  const tapKey = `${uid}_${action || terminalType}`;
+  const lastTapTime = recentTaps.get(tapKey);
+  if (lastTapTime && (nowTime - lastTapTime < RAPID_TAP_COOLDOWN)) {
+    const waitTime = Math.ceil((RAPID_TAP_COOLDOWN - (nowTime - lastTapTime)) / 1000);
+    console.log(`[RAPID-TAP] Blocked UID: ${uid} for ${action || terminalType}. Wait ${waitTime}s.`);
+    return res.status(200).json({ 
+      success: false, 
+      message: `Too fast! Wait ${waitTime}s`,
+      mode: "RAPID_TAP"
+    });
+  }
+  recentTaps.set(tapKey, nowTime);
+
+  // Periodically cleanup Map to prevent memory leaks
+  if (recentTaps.size > 2000) {
+    for (const [key, time] of recentTaps.entries()) {
+      if (nowTime - time > RAPID_TAP_COOLDOWN) recentTaps.delete(key);
+    }
+  }
+
+  // ── SECURITY ACTION CHECK (from ESP32) ───────────────────────────────────
+  if (action === "unenrolled_card_attempt" || action === "suspicious_biometric_fail") {
+    const type = action === "unenrolled_card_attempt" ? "Unenrolled Card" : "Biometric Failure";
+    console.log(`[SECURITY-LOG] ${type} for UID: ${uid} on ${terminalType || "FRONT"}`);
+    
+    const masked = maskUid(uid, false);
+    const deviceIp = req.ip || req.socket.remoteAddress || "Unknown ESP32";
+
+    await logTransaction(null, null, "SUSPICIOUS_SCAN", `${type} detected on device ${deviceIp}`, { 
+      uid: masked,
+      deviceIp,
+      result: "Security Alert",
+      action: action,
+      terminalType
+    }, req);
+
+    return res.status(200).json({ success: true, message: "Security alert recorded" });
+  }
+
+  // ── ENROLLMENT ACTION CHECK ─────────────────────────────────────────────
+  if (action === "enroll") {
+    return res.status(200).json({ 
+      success: true,
+      mode: "WAITING_FOR_FINGERPRINT",
+      message: "Ready for fingerprint enrollment"
+    });
+  }
+
+  // ── REGISTRATION SESSION CHECK (Prioritize Enrollment over Access) ───────
   try {
     const regSession = await System_State.findOne({ where: { key: 'REGISTRATION_SESSION' } });
     
     if (regSession && (terminalType === 'FRONT' || !terminalType)) {
       const sessionData = JSON.parse(regSession.value);
-      const targetUserId = sessionData.userId;
 
-      // TYPE A: REGISTERING RFID
-      if (sessionData.type === 'RFID') {
-        // We no longer auto-save to DB here to allow frontend "Confirm" button to work.
-        // We just populate captureSession for the polling frontend to see.
-        captureSession.scannedUid = uid;
-        captureSession.isCapturing = false;
+      // Check if this card is already enrolled to someone else
+      const enrolled = await sequelize.query(
+        `SELECT h."user_Id" FROM "User_Hardware" h 
+         JOIN "User" u ON h."user_Id" = u."user_Id" 
+         WHERE LOWER(h."user_MachipId") = LOWER(:uid) AND u."deletedAt" IS NULL LIMIT 1`,
+        { replacements: { uid }, type: QueryTypes.SELECT }
+      );
 
-        return res.status(200).json({
-          success: true,
-          isCapture: true, 
-          mode: 'RFID_REG_SUCCESS', // Keep the mode so ESP32 knows it was accepted
-          rfid: uid
-        });
+      // Intercept only if card is unknown OR explicitly for the user being registered
+      if (enrolled.length === 0 || enrolled[0].user_Id === parseInt(sessionData.userId)) {
+        if (sessionData.type === 'RFID') {
+          console.log(`[RFID] Captured UID for registration session: ${uid}`);
+          captureSession.scannedUid = uid;
+          captureSession.isCapturing = false;
+          return res.status(200).json({
+            success: false, // Prevents solenoid
+            isCapture: true, 
+            mode: 'RFID_REG_SUCCESS',
+            rfid: uid
+          });
+        }
       }
-
-      // TYPE B: REGISTERING FINGERPRINT
-      // We no longer trigger WAITING_FOR_FINGERPRINT from here. 
-      // Fingerprint enrollment is handled by the dedicated polling endpoint (/api/esp/fingerprint/session).
-      // This allows unrelated RFID taps to be processed normally (e.g. denied if unauthorized) 
-      // even while the Fingerprint modal is open.
-      
     }
   } catch (err) {
     console.error("[REG SESSION CHECK ERROR]:", err);
   }
 
   // ── CAPTURE MODE CHECK (Legacy/Compatibility) ────────────────────────────
-  // Captured regardless of action if session is active, BUT we prioritize Clock-In
   if (captureSession.isCapturing && Date.now() < captureSession.expiresAt && action !== "clock_out") {
-    console.log(`[RFID] Captured UID for registration: ${uid}`);
-    captureSession.scannedUid = uid;
-    captureSession.isCapturing = false;
-    return res.status(200).json({ 
-      success: true, 
-      message: "UID Captured!",
-      isCapture: true 
-    });
+    const enrolled = await sequelize.query(
+      `SELECT h."user_Id" FROM "User_Hardware" h 
+       JOIN "User" u ON h."user_Id" = u."user_Id" 
+       WHERE LOWER(h."user_MachipId") = LOWER(:uid) AND u."deletedAt" IS NULL LIMIT 1`,
+      { replacements: { uid }, type: QueryTypes.SELECT }
+    );
+
+    if (enrolled.length === 0) {
+      console.log(`[RFID] Captured UID for legacy capture session: ${uid}`);
+      captureSession.scannedUid = uid;
+      captureSession.isCapturing = false;
+      return res.status(200).json({ 
+        success: false, 
+        message: "UID Captured!",
+        isCapture: true 
+      });
+    }
   }
 
-  // If action is auto_detect but not capturing, it's a normal clock_in
+  // If action is auto_detect but not capturing, it's a normal clock_in/out
   if (action === "auto_detect") {
-    action = "clock_in";
+    action = terminalType === "BACK" ? "clock_out" : "clock_in";
   }
 
   try {
@@ -164,7 +264,7 @@ exports.scanRFID = async (req, res) => {
 
     if (!user) {
       const type = action === "fingerprint_scan" ? "Fingerprint" : "MaChip";
-      console.log(`[${type}] Unknown ${type} scanned: ${uid} from ${req.ip}`);
+      console.log(`[SECURITY] Unenrolled ${type} attempt: ${uid}`);
       const masked = action === "fingerprint_scan" ? `Slot ${uid}` : maskUid(uid, false);
       const deviceIp = req.ip || req.socket.remoteAddress || "Unknown ESP32";
 
@@ -191,115 +291,91 @@ exports.scanRFID = async (req, res) => {
         console.error(`[${type}] Failed to create notifications:`, notifErr);
       }
 
-      return res.status(404).json({ success: false, message: "Access Denied" });
+      // Return 200 to stop ESP32 retries, but with success: false
+      return res.status(200).json({ 
+        success: false, 
+        error: "Card not enrolled",
+        mode: "CARD_NOT_ENROLLED" 
+      });
     }
 
-    // Since we used include, we can access hardware properties
     const hardware = user.hardware;
-
-    // ── 2FA FLOW TRIGGER REMOVED ──
-    // RFID no longer triggers biometric verification automatically.
-
-    // ── 2FA Verification (if coming from ESP32 with | separator) ───────────
-    if (is2FA) {
-      console.log(`[2FA-DEBUG] User: ${user.user_FirstName}, DB FingerId: ${hardware?.user_FingerprintId} (${typeof hardware?.user_FingerprintId}), Scanned FingerId: ${scannedFingerId} (${typeof scannedFingerId})`);
-      
-      const dbFingerId = parseInt(hardware?.user_FingerprintId);
-      const inputFingerId = parseInt(scannedFingerId);
-
-      if (isNaN(dbFingerId) || dbFingerId !== inputFingerId) {
-        console.log(`[2FA] Mismatch for ${user.user_FirstName}: Scanned card matches, but Fingerprint Slot ${inputFingerId} does not belong to this user (DB has ${dbFingerId}).`);
-        
-        await logTransaction(user.user_Id, null, "2FA_FAILURE", `2FA Mismatch: RFID matched but Fingerprint slot ${scannedFingerId} is incorrect.`, {
-          uid: maskUid(rfidUid, true),
-          fingerprintSlot: scannedFingerId,
-          result: "Denied",
-          status: "Suspicious"
-        }, req);
-
-        return res.status(401).json({ success: false, message: "2FA Verification Failed" });
-      }
-      console.log(`[2FA] Success for ${user.user_FirstName} (RFID + Fingerprint Slot ${scannedFingerId})`);
-    }
-
     const target_user_Id = user.user_Id;
 
-    // 2. Check last transaction/status for this user today
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(now);
-    todayEnd.setHours(23, 59, 59, 999);
+    // ── 2. DETERMINE FINAL ACTION ────────────────────────────────────────────
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
 
+    // Fetch granular daily status directly from user_logging for highest reliability
     const lastLogs = await sequelize.query(
-      `SELECT * FROM "user_logging"
-       WHERE "user_id" = :target_user_Id
-       AND "log_Date" BETWEEN :todayStart AND :todayEnd
-       ORDER BY "user_loggingId" DESC
-       LIMIT 1`,
-      { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+      `SELECT "logged_StatusId" FROM "user_logging"
+       WHERE "user_id" = :target_user_Id AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       ORDER BY "user_loggingId" DESC LIMIT 1`,
+      { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT }
     );
-
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
-    const isCurrentlyIn = lastStatus === 1 || lastStatus === 4 || lastStatus === 5;
+    
+    // Statuses indicating the user is physically inside: 1 (Clock In), 4 (In From Lunch), 5 (Overtime In)
+    const isCurrentlyIn = [1, 4, 5].includes(lastStatus);
 
-    console.log(`[ATTENDANCE-DEBUG] User: ${user.user_FirstName}, Action: ${action}, Terminal: ${terminalType}, LastStatus: ${lastStatus}, isCurrentlyIn: ${isCurrentlyIn}`);
+    console.log(`[DEBUG-POLICY] User: ${user.user_FirstName}, LastStatus: ${lastStatus || "NONE"}, isCurrentlyIn: ${isCurrentlyIn}`);
 
-    // ── 30-SECOND SAFETY (Duplicate Protection) ─────────────────────────────
-    if (lastLogs[0]) {
-      const lastLogTime = new Date(`${todayStr}T${lastLogs[0].time_Logged}`);
-      const diffMs = now - lastLogTime;
-      const diffSecs = Math.floor(diffMs / 1000);
-
-      if (diffSecs < 30) {
-        console.log(`[SAFETY] ${user.user_FirstName} tapped too rapidly. Wait ${30 - diffSecs}s.`);
-        return res.status(400).json({ 
-          success: false, 
-          message: "Too fast! Wait 30s", 
-          name: user.user_FirstName 
-        });
-      }
-    }
-
-    // 3. Validation based on explicit action from ESP32
-    // If fingerprint_scan or 2fa_verify, we determine the final action
-    if (action === "fingerprint_scan") {
-      action = isCurrentlyIn ? "clock_out" : "clock_in";
-    } else if (action === "2fa_verify") {
+    // Normalize action
+    if (action === "auto_detect" || action === "fingerprint_scan" || action === "2fa_verify") {
       if (terminalType === "BACK") {
         action = "clock_out";
       } else if (terminalType === "FRONT") {
         action = "clock_in";
       } else {
-        // Fallback to toggle if terminalType is unknown
+        // Safe fallback if terminalType is missing (e.g. legacy firmware)
         action = isCurrentlyIn ? "clock_out" : "clock_in";
       }
     }
 
-    // ── 2FA Trigger (ONLY for Clock-In) ──────────────────────────────────────
-    const hasTemplate = hardware && hardware.user_FingerprintTemplate;
-    if (!is2FA && action !== "fingerprint_scan" && hasTemplate) {
-      // We only trigger 2FA if the intended action is a Clock-In (1, 4, or 5)
-      // and the user is not currently clocked in.
-      if (action === "clock_in" && !isCurrentlyIn) {
-        console.log(`[2FA] Triggering Biometric Verification for ${user.user_FirstName} (Clock-In)`);
-        return res.status(200).json({
-          success: true,
-          mode: "WAITING_FOR_FINGERPRINT_2FA",
-          uid: rfidUid
-        });
-      }
-    }
+    console.log(`[ATTENDANCE-DEBUG] User: ${user.user_FirstName}, Requested Action: ${action}, IsIn: ${isCurrentlyIn}, Terminal: ${terminalType}`);
 
+    // ── 3. STRICT POLICY VALIDATION ──────────────────────────────────────────
     if (action === "clock_in") {
       if (isCurrentlyIn) {
-        return res.status(400).json({ success: false, message: "Already Clocked In", name: user.user_FirstName });
+        console.log(`[POLICY] Denied: ${user.user_FirstName} is already clocked in.`);
+        return res.status(200).json({ success: false, message: "already clock-in", name: user.user_FirstName });
       }
     } else if (action === "clock_out") {
       if (!isCurrentlyIn) {
-        return res.status(400).json({ success: false, message: "Not Clocked In", name: user.user_FirstName });
+        console.log(`[POLICY] Denied: ${user.user_FirstName} is already clocked out.`);
+        return res.status(200).json({ success: false, message: "already clock-out", name: user.user_FirstName });
       }
     }
 
+    // ── 4. 2FA FLOW TRIGGER ──────────────────────────────────────────────────
+    const hasTemplate = hardware && hardware.user_FingerprintTemplate;
+    // Only trigger 2FA for RFID 'clock_in' on FRONT readers if user has a template
+    if (!is2FA && action === "clock_in" && (terminalType === "FRONT" || !terminalType) && hasTemplate) {
+      console.log(`[2FA] Requesting Biometric Verification for ${user.user_FirstName}`);
+      return res.status(200).json({
+        success: true,
+        mode: "WAITING_FOR_FINGERPRINT_2FA",
+        uid: rfidUid,
+        userId: user.user_Id,
+        userName: user.user_FirstName,
+        expectedFingerId: parseInt(hardware.user_FingerprintId)
+      });
+    }
+
+    // ── 5. 2FA Verification (FingerID Check) ─────────────────────────────────
+    if (is2FA) {
+      const dbFingerId = parseInt(hardware?.user_FingerprintId);
+      const inputFingerId = parseInt(scannedFingerId);
+
+      if (isNaN(dbFingerId) || dbFingerId !== inputFingerId) {
+        console.log(`[2FA] Mismatch for ${user.user_FirstName}`);
+        await logTransaction(user.user_Id, null, "2FA_FAILURE", `2FA Mismatch.`, { uid: maskUid(rfidUid, true), scannedFingerId }, req);
+        return res.status(200).json({ success: false, message: "2FA Verification Failed" });
+      }
+      console.log(`[2FA] Success for ${user.user_FirstName}`);
+    }
+
+    // ── 6. PROCESS ATTENDANCE RECORDING ──────────────────────────────────────
     const fivePMThirty = new Date(now); fivePMThirty.setHours(17, 30, 0, 0);
     const fiveAMThirty = new Date(now); fiveAMThirty.setHours(5, 30, 0, 0);
 
@@ -515,49 +591,69 @@ exports.generateRfid = async (req, res) => {
 
 exports.generateFingerprint = async (req, res) => {
   const { userId } = req.query;
-  console.log(`[FP-ADMIN] Starting enrollment session for User: ${userId || "temp_registration"}`);
+  const targetUserId = userId || "temp_registration";
+  console.log(`[FP-ADMIN] >>> STARTING enrollment session for User: ${targetUserId}`);
   
   try {
     const result = await sequelize.query(
       `SELECT MAX("user_FingerprintId") AS "maxSlot" FROM "User_Hardware"`,
       { type: QueryTypes.SELECT }
     );
-    const nextSlot = (result[0].maxSlot ? parseInt(result[0].maxSlot) : 0) + 1;
+    const maxSlotValue = result[0].maxSlot;
+    const nextSlot = (maxSlotValue && !isNaN(parseInt(maxSlotValue))) ? parseInt(maxSlotValue) + 1 : 1;
     
     // Explicitly reset the session to ensure no stale data
     fpCaptureSession = { 
       isCapturing: true, 
       scannedSlot: nextSlot, 
-      userId: userId || "temp_registration",
-      expiresAt: Date.now() + 55000, 
+      userId: targetUserId,
+      expiresAt: Date.now() + 60000, // 60s timeout
       success: false,
-      template: null
+      template: null,
+      type: "FP"
     };
 
+    console.log(`[FP-ADMIN] Session initialized. Slot: ${nextSlot}, Expires: ${new Date(fpCaptureSession.expiresAt).toLocaleTimeString()}`);
+
+    const targetSlot = nextSlot;
     const startTime = Date.now();
+    
+    // We use a longer initial wait to ensure the ESP32 has time to pick up the session
+    // and the sensor can initialize.
+    let attempts = 0;
     const checkInterval = setInterval(() => {
+      attempts++;
+      
+      // If session is no longer capturing, it means it was completed by confirmFingerprintEnroll OR manually cleared
       if (!fpCaptureSession.isCapturing) {
         clearInterval(checkInterval);
+        console.log(`[FP-ADMIN] Session ended. Success: ${fpCaptureSession.success}, Attempts: ${attempts}`);
+        
         if (fpCaptureSession.success) {
-          console.log(`[FP-ADMIN] Enrollment SUCCESS for Slot ${fpCaptureSession.scannedSlot}`);
           return res.status(200).json({ 
             fingerprintId: fpCaptureSession.scannedSlot,
             template: fpCaptureSession.template 
           });
         } else {
-          console.log(`[FP-ADMIN] Enrollment FAILED on device for Slot ${fpCaptureSession.scannedSlot}`);
-          return res.status(400).json({ error: "Enrollment failed. Ensure finger is placed correctly." });
+          return res.status(400).json({ error: "Enrollment failed or was cancelled. Ensure the sensor is connected and finger is placed correctly." });
         }
       }
 
-      if (Date.now() - startTime > 55000) {
+      // Check for timeout
+      if (Date.now() > fpCaptureSession.expiresAt) {
         clearInterval(checkInterval);
         fpCaptureSession.isCapturing = false;
-        console.log(`[FP-ADMIN] Enrollment TIMEOUT`);
-        return res.status(408).json({ error: "Scan timeout. Please try again." });
+        console.log(`[FP-ADMIN] Session TIMEOUT after ${Math.floor((Date.now() - startTime)/1000)}s`);
+        return res.status(408).json({ error: "Scan timeout. Please ensure the ESP32 is online and try again." });
+      }
+
+      // Log progress occasionally
+      if (attempts % 5 === 0) {
+        console.log(`[FP-ADMIN] Waiting for ESP32... (${Math.floor((Date.now() - startTime)/1000)}s elapsed)`);
       }
     }, 1000);
   } catch (error) {
+    console.error("[FP-GENERATE ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -576,7 +672,18 @@ exports.getFingerprintSession = async (req, res) => {
     return res.status(200).json({
       active: true,
       slotId: fpCaptureSession.scannedSlot,
-      userId: fpCaptureSession.userId || "temp_registration"
+      userId: fpCaptureSession.userId || "temp_registration",
+      type: fpCaptureSession.type
+    });
+  }
+
+  // 1.5 Check RFID Capture mode (Direct Scan via generateRfid)
+  if (captureSession.isCapturing && Date.now() < captureSession.expiresAt) {
+     return res.status(200).json({
+      active: true,
+      slotId: 1,
+      userId: "temp_registration",
+      type: "RFID"
     });
   }
 
@@ -585,7 +692,7 @@ exports.getFingerprintSession = async (req, res) => {
     const regSession = await System_State.findOne({ where: { key: 'REGISTRATION_SESSION' } });
     if (regSession) {
       const sessionData = JSON.parse(regSession.value);
-      if (sessionData.type === 'FP') {
+      if (sessionData.type === 'FP' || sessionData.type === 'RFID') {
         // ONLY promote if there isn't ALREADY an active session being tracked
         if (!fpCaptureSession.isCapturing || Date.now() > fpCaptureSession.expiresAt) {
           const result = await sequelize.query(
@@ -596,18 +703,20 @@ exports.getFingerprintSession = async (req, res) => {
 
           fpCaptureSession = { 
             isCapturing: true, 
-            scannedSlot: nextSlot, 
+            scannedSlot: sessionData.type === 'FP' ? nextSlot : 1, 
             userId: sessionData.userId,
             expiresAt: Date.now() + 60000, 
             success: false,
-            template: null
+            template: null,
+            type: sessionData.type
           };
         }
 
         return res.status(200).json({
           active: true,
           slotId: fpCaptureSession.scannedSlot,
-          userId: sessionData.userId
+          userId: sessionData.userId,
+          type: sessionData.type // Always return current session type from DB
         });
       }
     }
@@ -629,11 +738,19 @@ exports.confirmFingerprintEnroll = async (req, res) => {
      console.log(`[FP-RECEIVE] NO TEMPLATE DATA IN PACKET`);
    }
 
-  // Check if session is active. We allow slotId 0 if it comes from the device as a wildcard
-  const isCorrectSlot = (parseInt(slotId) === fpCaptureSession.scannedSlot) || (parseInt(slotId) === 0);
+  // Handle captureSession for RFID New User Wizard
+  if (captureSession.isCapturing && template) {
+      console.log(`[FP-RECEIVE] Handled via captureSession (RFID Wizard): ${template}`);
+      captureSession.scannedUid = template;
+      captureSession.isCapturing = false;
+      return res.status(200).json({ success: true });
+  }
 
-  if (fpCaptureSession.isCapturing && isCorrectSlot) {
-    const finalSlotId = fpCaptureSession.scannedSlot; // Use the server-assigned slot ID
+  // Check if session is active. We allow any slotId during an active session to support hardware-side deduplication
+  if (fpCaptureSession.isCapturing) {
+    // Priority: 1. Body slotId (if > 0), 2. Session assigned slot
+    const finalSlotId = (slotId && parseInt(slotId) > 0) ? parseInt(slotId) : fpCaptureSession.scannedSlot;
+    
     fpCaptureSession.success = success;
     fpCaptureSession.isCapturing = false; // STOP the session so ESP32 doesn't loop
     
@@ -646,9 +763,19 @@ exports.confirmFingerprintEnroll = async (req, res) => {
     }
 
     if (success && template) {
+      // ALWAYS store the template and slot in the session so the frontend polling endpoint can pick it up
+      fpCaptureSession.template = template;
+      fpCaptureSession.scannedSlot = finalSlotId;
+      
+      // Also update captureSession for frontend polling compatibility if it's RFID
+      if (fpCaptureSession.type === 'RFID') {
+          captureSession.scannedUid = template;
+          captureSession.isCapturing = false;
+      }
+
       // If userId is provided, we can link it immediately, otherwise it's handled by the registration flow
       let targetUserIdRaw = userId || sessionUserId;
-      console.log(`[FP-LINK] Attempting to link to User: ${targetUserIdRaw}`);
+      console.log(`[FP-LINK] Attempting to link to User: ${targetUserIdRaw} (Type: ${fpCaptureSession.type}) - Using Slot: ${finalSlotId}`);
 
       const targetUserId = parseInt(targetUserIdRaw);
       if (targetUserIdRaw && targetUserIdRaw !== "temp_registration" && !isNaN(targetUserId)) {
@@ -656,30 +783,40 @@ exports.confirmFingerprintEnroll = async (req, res) => {
           const now = await getSystemTime();
           const nowStr = now.toISOString();
 
-          await sequelize.query(
-            `INSERT INTO "User_Hardware" ("user_Id", "user_FingerprintTemplate", "user_FingerprintId", "createdAt", "updatedAt")
-             VALUES (:targetUserId, :template, :slotId, :now, :now)
-             ON CONFLICT ("user_Id") DO UPDATE SET
-              "user_FingerprintTemplate" = EXCLUDED."user_FingerprintTemplate",
-              "user_FingerprintId" = EXCLUDED."user_FingerprintId",
-              "updatedAt" = EXCLUDED."updatedAt"`,
-            { replacements: { template, slotId: finalSlotId, targetUserId, now: nowStr }, type: QueryTypes.INSERT }
-          );
-          console.log(`[FP-LINK] Success! Slot ${finalSlotId} saved for user ${targetUserId}`);
+          if (fpCaptureSession.type === 'RFID') {
+            await sequelize.query(
+              `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "createdAt", "updatedAt")
+               VALUES (:targetUserId, :template, :now, :now)
+               ON CONFLICT ("user_Id") DO UPDATE SET
+                "user_MachipId" = EXCLUDED."user_MachipId",
+                "updatedAt" = EXCLUDED."updatedAt"`,
+              { replacements: { template, targetUserId, now: nowStr }, type: QueryTypes.INSERT }
+            );
+            console.log(`[FP-LINK] Success! RFID ${template} saved for user ${targetUserId}`);
+          } else {
+            await sequelize.query(
+              `INSERT INTO "User_Hardware" ("user_Id", "user_FingerprintTemplate", "user_FingerprintId", "createdAt", "updatedAt")
+               VALUES (:targetUserId, :template, :slotId, :now, :now)
+               ON CONFLICT ("user_Id") DO UPDATE SET
+                "user_FingerprintTemplate" = EXCLUDED."user_FingerprintTemplate",
+                "user_FingerprintId" = EXCLUDED."user_FingerprintId",
+                "updatedAt" = EXCLUDED."updatedAt"`,
+              { replacements: { template, slotId: finalSlotId, targetUserId, now: nowStr }, type: QueryTypes.INSERT }
+            );
+            console.log(`[FP-LINK] Success! FP Slot ${finalSlotId} saved for user ${targetUserId}`);
+          }
         } catch (err) {
           console.error(`[FP-LINK] FAILED to save to DB: ${err.message}`);
         }
       } else {
-        console.log(`[FP-LINK] Skipping DB update (Target: ${targetUserIdRaw}). Template stored in session.`);
-        // Store template in session for the frontend to pick up during new user registration
-        fpCaptureSession.template = template;
+        console.log(`[FP-LINK] Skipping DB update (Target: ${targetUserIdRaw}).`);
       }
     }
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, slotId: finalSlotId });
   }
-  console.log(`[FP-RECEIVE] Rejected: Session active? ${fpCaptureSession.isCapturing}, Slot matches? ${isCorrectSlot}`);
-  return res.status(400).json({ success: false, message: "No active session for this slot." });
+  console.log(`[FP-RECEIVE] Rejected: Session active? ${fpCaptureSession.isCapturing}`);
+  return res.status(400).json({ success: false, message: "No active session." });
 };
 
 exports.getFingerprintTemplate = async (req, res) => {

@@ -11,7 +11,7 @@ import { fetchWithAuth } from "../utils/api";
 
 // Mocked components and utilities to resolve missing local files in preview environment
 const Toast = ({ message, type, onClose }) => message ? <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-[100] text-white ${type === 'error' ? 'bg-red-500' : 'bg-green-500'} cursor-pointer`} onClick={onClose}>{message}</div> : null;
-const formatUserId = (id) => String(id).padStart(4, '0');
+const formatUserId = (id) => `MACJ-${String(id).padStart(3, '0')}`;
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";

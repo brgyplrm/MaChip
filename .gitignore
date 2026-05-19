@@ -22,3 +22,5 @@ test_all_attendance.js
 test_query.js
 check_config.js
 check_db.js
+request_debug.log
+backend/request_debug.log

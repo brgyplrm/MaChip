@@ -188,39 +188,112 @@ const Edit = () => {
   const [fingerprintError, setFingerprintError] = useState("");
   const [localFingerprintId, setLocalFingerprintId] = useState("");
 
-  useEffect(() => {
-    if (showRfidModal) {
-      setLocalScannedId("");
-      setRfidError("");
-      handleScanRFID();
-      fetchWithAuth("/api/system/reg-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, type: 'RFID' })
-      }).catch(err => console.error("Failed to start RFID session:", err));
-    } else {
-      fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
-        .catch(err => console.error("Failed to clear RFID session:", err));
-    }
-  }, [showRfidModal, userId]);
+  const handleScanRFID = async () => {
+    setShowRfidModal(true);
+    setRfidError("");
+    setLocalScannedId("");
 
-  useEffect(() => {
-    if (showFingerprintModal) {
-      setLocalFingerprintId("");
-      setFingerprintError("");
-      handleScanFingerprint();
-      fetchWithAuth("/api/system/reg-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, type: 'FP' })
-      }).catch(err => console.error("Failed to start FP session:", err));
-    } else {
-      fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
-        .catch(err => console.error("Failed to clear FP session:", err));
-      fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" })
-        .catch(err => console.error("Failed to clear in-memory FP session:", err));
+    // Clear any previous conflicting session on the ESP32 first
+    await fetchWithAuth("/api/esp/fingerprint/session/clear", { method: "POST" })
+      .catch(err => console.warn("Could not clear previous session:", err));
+
+    // Wait briefly to allow the hardware to acknowledge the clear command
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Start session
+    fetchWithAuth("/api/system/reg-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, type: 'RFID' })
+    }).catch(err => console.error("Failed to start RFID session:", err));
+    try {
+      const scanResponse = await fetchWithAuth("/api/users/generateRfid");
+      const scanData = await scanResponse.json();
+  
+      if (scanResponse.ok && scanData.rfid) {
+        if (scanData.rfid === originalMachipId) {
+          setLocalScannedId(scanData.rfid);
+          return;
+        }
+  
+        const checkResponse = await fetchWithAuth(`/api/users/check-machip/${scanData.rfid}`);
+        const checkData = await checkResponse.json();
+  
+        if (checkResponse.ok && checkData.exists && checkData.user_Id !== parseInt(userId)) {
+          setRfidError("This MaChip ID is already assigned to another user.");
+          setLocalScannedId(scanData.rfid);
+        } else {
+          setLocalScannedId(scanData.rfid);
+        }
+      } else {
+        setRfidError(scanData.error || "Failed to scan RFID. Please try again.");
+      }
+    } catch (err) {
+      setRfidError("Connection error during RFID scan.");
     }
-  }, [showFingerprintModal, userId]);
+  };
+  
+  const handleScanFingerprint = async () => {
+    setShowFingerprintModal(true);
+    setFingerprintError("");
+    setLocalFingerprintId("");
+
+    // Clear any previous conflicting session on the ESP32 first
+    await fetchWithAuth("/api/esp/fingerprint/session/clear", { method: "POST" })
+      .catch(err => console.warn("Could not clear previous session:", err));
+
+    // Wait briefly to allow the hardware to acknowledge the clear command
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Start session
+    fetchWithAuth("/api/system/reg-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, type: 'FP' })
+    }).catch(err => console.error("Failed to start FP session:", err));
+
+    try {
+      const scanResponse = await fetchWithAuth(`/api/users/generateFingerprint?userId=${userId}`);
+      const scanData = await scanResponse.json();
+  
+      if (scanResponse.ok && scanData.fingerprintId !== undefined) {
+        const fpIdStr = scanData.fingerprintId.toString();
+
+        if (fpIdStr === originalFingerprintId) {
+          setLocalFingerprintId(fpIdStr);
+          return;
+        }
+
+        const checkResponse = await fetchWithAuth(`/api/users/check-fingerprint/${fpIdStr}`);
+        const checkData = await checkResponse.json();
+  
+        if (checkResponse.ok && checkData.exists && checkData.user_Id !== parseInt(userId)) {
+          setFingerprintError("This Fingerprint ID is already assigned to another user.");
+          setLocalFingerprintId(fpIdStr);
+        } else {
+          setLocalFingerprintId(fpIdStr);
+        }
+      } else {
+        setFingerprintError(scanData.error || "Failed to enroll fingerprint. Please try again.");
+      }
+    } catch (err) {
+      setFingerprintError("Connection error during fingerprint scan.");
+    }
+  };
+
+  const closeRfidModal = () => {
+    setShowRfidModal(false);
+    fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
+      .catch(err => console.error("Failed to clear RFID session:", err));
+  };
+
+  const closeFingerprintModal = () => {
+    setShowFingerprintModal(false);
+    fetchWithAuth("/api/system/reg-session", { method: "DELETE" })
+      .catch(err => console.error("Failed to clear FP session:", err));
+    fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" })
+      .catch(err => console.error("Failed to clear in-memory FP session:", err));
+  };
 
   const dismissToast = useCallback(() => {
     setToast({ message: "", type: "success" });
@@ -331,70 +404,6 @@ const Edit = () => {
     }
     setFormData((prev) => ({ ...prev, user_Password: password }));
     if (errors.user_Password) setErrors((prev) => ({ ...prev, user_Password: "" }));
-  };
-
-  const handleScanRFID = async () => {
-    setShowRfidModal(true);
-    setRfidError("");
-    setLocalScannedId("");
-    try {
-      const scanResponse = await fetchWithAuth("/api/users/generateRfid");
-      const scanData = await scanResponse.json();
-  
-      if (scanResponse.ok && scanData.rfid) {
-        if (scanData.rfid === originalMachipId) {
-          setLocalScannedId(scanData.rfid);
-          return;
-        }
-  
-        const checkResponse = await fetchWithAuth(`/api/users/check-machip/${scanData.rfid}`);
-        const checkData = await checkResponse.json();
-  
-        if (checkResponse.ok && checkData.exists && checkData.user_Id !== parseInt(userId)) {
-          setRfidError("This MaChip ID is already assigned to another user.");
-          setLocalScannedId(scanData.rfid);
-        } else {
-          setLocalScannedId(scanData.rfid);
-        }
-      } else {
-        setRfidError(scanData.error || "Failed to scan RFID. Please try again.");
-      }
-    } catch (err) {
-      setRfidError("Connection error during RFID scan.");
-    }
-  };
-  
-  const handleScanFingerprint = async () => {
-    setShowFingerprintModal(true);
-    setFingerprintError("");
-    setLocalFingerprintId("");
-    try {
-      const scanResponse = await fetchWithAuth(`/api/users/generateFingerprint?userId=${userId}`);
-      const scanData = await scanResponse.json();
-  
-      if (scanResponse.ok && scanData.fingerprintId !== undefined) {
-        const fpIdStr = scanData.fingerprintId.toString();
-
-        if (fpIdStr === originalFingerprintId) {
-          setLocalFingerprintId(fpIdStr);
-          return;
-        }
-
-        const checkResponse = await fetchWithAuth(`/api/users/check-fingerprint/${fpIdStr}`);
-        const checkData = await checkResponse.json();
-  
-        if (checkResponse.ok && checkData.exists && checkData.user_Id !== parseInt(userId)) {
-          setFingerprintError("This Fingerprint ID is already assigned to another user.");
-          setLocalFingerprintId(fpIdStr);
-        } else {
-          setLocalFingerprintId(fpIdStr);
-        }
-      } else {
-        setFingerprintError(scanData.error || "Failed to enroll fingerprint. Please try again.");
-      }
-    } catch (err) {
-      setFingerprintError("Connection error during fingerprint scan.");
-    }
   };
 
   // ── Auto-Compute Govt Deductions ───────────────────────────────────────────
@@ -846,7 +855,7 @@ const Edit = () => {
                         </p>
                       </div>
                     </div>
-                    <Button onClick={() => setShowRfidModal(true)} className="w-full bg-[#2A174E] text-white hover:bg-[#1a0e30]">
+                    <Button onClick={handleScanRFID} className="w-full bg-[#2A174E] text-white hover:bg-[#1a0e30]">
                       Scan / Assign MaChip
                     </Button>
                   </div>
@@ -860,7 +869,7 @@ const Edit = () => {
                         </p>
                       </div>
                     </div>
-                    <Button onClick={() => setShowFingerprintModal(true)} className="w-full bg-[#2A174E] text-white hover:bg-[#1a0e30]">
+                    <Button onClick={handleScanFingerprint} className="w-full bg-[#2A174E] text-white hover:bg-[#1a0e30]">
                       Enroll Fingerprint
                     </Button>
                   </div>
@@ -914,11 +923,13 @@ const Edit = () => {
       {/* Modals for Scanning */}
       <RfidScanModal 
         isOpen={showRfidModal} 
-        onClose={() => setShowRfidModal(false)}
+        onClose={closeRfidModal}
         onRescan={handleScanRFID}
         onConfirm={() => {
           setFormData(prev => ({ ...prev, user_MachipId: localScannedId }));
           setShowRfidModal(false);
+          // Also clear session on confirm
+          fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
         }}
         scannedId={localScannedId} 
         error={rfidError}
@@ -926,11 +937,14 @@ const Edit = () => {
       />
       <RfidScanModal 
         isOpen={showFingerprintModal} 
-        onClose={() => setShowFingerprintModal(false)}
+        onClose={closeFingerprintModal}
         onRescan={handleScanFingerprint}
         onConfirm={() => {
           setFormData(prev => ({ ...prev, user_FingerprintId: localFingerprintId }));
           setShowFingerprintModal(false);
+          // Also clear sessions on confirm
+          fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
+          fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
         }}
         scannedId={localFingerprintId} 
         error={fingerprintError}
