@@ -200,6 +200,24 @@ exports.updateSystemSettings = async (req, res) => {
       vlRate,
       slRate,
       storageRootPath,
+      // Shift Configurations
+      morningShiftStart: req.body.morningShiftStart,
+      morningShiftEnd: req.body.morningShiftEnd,
+      eveningShiftStart: req.body.eveningShiftStart,
+      eveningShiftEnd: req.body.eveningShiftEnd,
+      // Labor Multipliers
+      ordinaryDayRate: req.body.ordinaryDayRate,
+      specialDayRate: req.body.specialDayRate,
+      restDayRate: req.body.restDayRate,
+      regularHolidayRate: req.body.regularHolidayRate,
+      nightDiffRate: req.body.nightDiffRate,
+      overtimeRate: req.body.overtimeRate,
+      doubleRegularHolidayRate: req.body.doubleRegularHolidayRate,
+      specialDayRestDayRate: req.body.specialDayRestDayRate,
+      doubleSpecialDayRate: req.body.doubleSpecialDayRate,
+      doubleSpecialDayRestDayRate: req.body.doubleSpecialDayRestDayRate,
+      regularHolidayRestDayRate: req.body.regularHolidayRestDayRate,
+      doubleRegularHolidayRestDayRate: req.body.doubleRegularHolidayRestDayRate,
       payrollRates: consolidatedPayrollRates
     };
 

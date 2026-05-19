@@ -92,6 +92,7 @@ const New = ({ inputs = [], title }) => {
     user_Address: "",
     user_DOB: "",
     user_Gender: "",
+    user_ShiftId: 1,
     user_EmploymentStatus: "Regular",
     user_EmploymentStatusId: 1,
     user_Role: "Employee",
@@ -749,6 +750,23 @@ const New = ({ inputs = [], title }) => {
                                       </SelectContent>
                                     </Select>
                                     {errors.taxStatus && <span className="text-xs text-red-500 block">{errors.taxStatus}</span>}
+                                  </div>
+
+                                  {/* Shift Schedule Selection */}
+                                  <div className="space-y-2">
+                                    <Label className="text-slate-600 font-semibold">Shift Schedule <span className="text-red-500">*</span></Label>
+                                    <Select 
+                                      value={formData.user_ShiftId?.toString()} 
+                                      onValueChange={(val) => handleInput({ target: { id: "user_ShiftId", value: parseInt(val) } })}
+                                    >
+                                      <SelectTrigger className="bg-white w-full">
+                                        <SelectValue placeholder="Select Shift" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="1">Morning Shift (8:30 AM - 5:30 PM)</SelectItem>
+                                        <SelectItem value="2">Evening Shift (8:30 PM - 5:30 AM)</SelectItem>
+                                      </SelectContent>
+                                    </Select>
                                   </div>
 
                                   {/* Daily Rate Input */}

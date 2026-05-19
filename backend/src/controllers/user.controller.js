@@ -136,14 +136,14 @@ exports.registerUser = async (req, res) => {
           "user_MiddleName", "user_Email", "user_Password", 
           "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", 
           "department", "position", "hireDate", "taxStatus", 
-          "user_Phone", "user_Address", "user_DOB", "user_Gender",
+          "user_Phone", "user_Address", "user_DOB", "user_Gender", "user_ShiftId",
           "dailyRate", "createdAt", "updatedAt"
         ) VALUES (
           :user_Id, :user_FirstName, :user_LastName,
           :user_MiddleName, :user_Email, :user_Password, 
           :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, 
           :department, :position, :hireDate, :taxStatus,
-          :user_Phone, :user_Address, :user_DOB, :user_Gender,
+          :user_Phone, :user_Address, :user_DOB, :user_Gender, :user_ShiftId,
           :dailyRate, :now, :now
         )`,
         {
@@ -165,6 +165,7 @@ exports.registerUser = async (req, res) => {
             user_Address: req.body.user_Address || null,
             user_DOB: req.body.user_DOB || null,
             user_Gender: req.body.user_Gender || null,
+            user_ShiftId: parseInt(req.body.user_ShiftId) || 1,
             dailyRate,
             now: nowStr,
           },
@@ -285,6 +286,7 @@ exports.viewAllUsers = async (req, res) => {
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
               d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
               h."user_MachipId", h."user_FingerprintId",
+              u."user_ShiftId",
               (SELECT COUNT(*) > 0 FROM "Payroll_maxicare" m 
                WHERE m."user_Id" = u."user_Id" 
                AND EXTRACT(MONTH FROM m."max_Month") = EXTRACT(MONTH FROM CURRENT_DATE)
@@ -325,6 +327,7 @@ exports.viewArchivedUsers = async (req, res) => {
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
               d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
               h."user_MachipId", h."user_FingerprintId",
+              u."user_ShiftId",
               (SELECT COUNT(*) > 0 FROM "Payroll_maxicare" m 
                WHERE m."user_Id" = u."user_Id" 
                AND EXTRACT(MONTH FROM m."max_Month") = EXTRACT(MONTH FROM CURRENT_DATE)
@@ -366,6 +369,7 @@ exports.viewUserById = async (req, res) => {
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
               d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
               h."user_MachipId", h."user_FingerprintId",
+              u."user_ShiftId",
               (SELECT COUNT(*) > 0 FROM "Payroll_maxicare" m 
                WHERE m."user_Id" = u."user_Id" 
                AND EXTRACT(MONTH FROM m."max_Month") = EXTRACT(MONTH FROM CURRENT_DATE)
@@ -715,6 +719,7 @@ exports.updateUser = async (req, res) => {
         address: req.body.user_Address || null,
         dob: req.body.user_DOB || null,
         gender: req.body.user_Gender || null,
+        shiftId: parseInt(req.body.user_ShiftId) || 1,
         accountNumber: encrypt(account_Number) || null,
         bankCompany: bank_Company || null,
         bankAccountName: bank_AccountName || null,
@@ -758,6 +763,7 @@ exports.updateUser = async (req, res) => {
           "user_Address"   = :address,
           "user_DOB"       = :dob,
           "user_Gender"    = :gender,
+          "user_ShiftId"   = :shiftId,
           "department"     = :department,
           "position"       = :position,
           "hireDate"       = :hireDate,

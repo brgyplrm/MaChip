@@ -1,7 +1,140 @@
-const { sequelize } = require("../config/sequelize.js");
+const { sequelize, SystemSettings, Holiday } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatDateLocal } = require("./systemTime.js");
 const { logTransaction } = require("./logger");
+
+/**
+ * Advanced Time-Slicing Algorithm
+ * Slices a shift into minutes and assigns them to payable buckets based on DOLE rules.
+ */
+async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId, settings = null, holidays = null) {
+  const result = {
+    totalRawMinutes: 0,
+    payableMinutes: 0,
+    totalPayableHours: 0,
+    buckets: {} // will store minutes per rate type
+  };
+
+  if (!firstIn || !lastOut) return result;
+
+  // 1. Setup Settings and Holidays
+  if (!settings) settings = await SystemSettings.findOne();
+  if (!holidays) holidays = await Holiday.findAll();
+
+  const holidayMap = {}; // date -> { types: [], count: 0 }
+  holidays.forEach(h => { 
+    if (!holidayMap[h.date]) holidayMap[h.date] = { types: [], count: 0 };
+    holidayMap[h.date].types.push(h.type);
+    holidayMap[h.date].count++;
+  });
+
+  // 2. Parse times and handle cross-midnight
+  // logDate is YYYY-MM-DD
+  const [inH, inM] = firstIn.split(":").map(Number);
+  const [outH, outM] = lastOut.split(":").map(Number);
+
+  const startCursor = new Date(`${logDate}T${firstIn}`);
+  let endCursor = new Date(`${logDate}T${lastOut}`);
+
+  if (endCursor < startCursor) {
+    // Crosses midnight
+    endCursor.setDate(endCursor.getDate() + 1);
+  }
+
+  const totalMinutes = Math.floor((endCursor - startCursor) / 60000);
+  result.totalRawMinutes = totalMinutes;
+
+  if (totalMinutes <= 0) return result;
+
+  // 3. Time-Slicing (Minute by Minute)
+  const buckets = {}; // key: rateKey, value: minutes
+
+  for (let i = 0; i < totalMinutes; i++) {
+    const currentMinute = new Date(startCursor.getTime() + i * 60000);
+    const dateStr = formatDateLocal(currentMinute);
+    const hour = currentMinute.getHours();
+
+    // Determine Day properties
+    const holidayData = holidayMap[dateStr] || { types: [], count: 0 };
+    const isRegularHoliday = holidayData.types.includes("Regular Holiday");
+    const isSpecialHoliday = holidayData.types.includes("Special Holiday");
+    const isDoubleRegular = holidayData.count >= 2 && isRegularHoliday && !isSpecialHoliday;
+    const isDoubleSpecial = holidayData.count >= 2 && isSpecialHoliday && !isRegularHoliday;
+
+    const isSunday = currentMinute.getDay() === 0;
+    const isNightDiff = (hour >= 22 || hour < 6);
+
+    // Determine Rate Key
+    let rateKey = "ordinaryDayRate";
+    
+    if (isDoubleRegular) {
+      rateKey = isSunday ? "doubleRegularHolidayRestDayRate" : "doubleRegularHolidayRate";
+    } else if (isRegularHoliday) {
+      rateKey = isSunday ? "regularHolidayRestDayRate" : "regularHolidayRate";
+    } else if (isDoubleSpecial) {
+      rateKey = isSunday ? "doubleSpecialDayRestDayRate" : "doubleSpecialDayRate";
+    } else if (isSpecialHoliday) {
+      rateKey = isSunday ? "specialDayRestDayRate" : "specialDayRate";
+    } else if (isSunday) {
+      rateKey = "restDayRate";
+    }
+
+    // Apply Night Diff stacking
+    if (isNightDiff) {
+      // ND is usually baseRate * multiplier. We will track ND minutes separately to apply 10% premium later
+      const ndKey = rateKey + "_ND";
+      buckets[ndKey] = (buckets[ndKey] || 0) + 1;
+    } else {
+      buckets[rateKey] = (buckets[rateKey] || 0) + 1;
+    }
+  }
+
+  // 4. Flexible Break Deduction (1 hour = 60 mins)
+  // Deduct from ordinary minutes first
+  let breakRemaining = totalMinutes > 300 ? 60 : 0;
+  
+  // Deduct break from buckets (prioritize non-ND, ordinary buckets)
+  const bucketPriority = ["ordinaryDayRate", "restDayRate", "specialDayRate", "regularHolidayRate"];
+  for (const key of bucketPriority) {
+    if (breakRemaining <= 0) break;
+    if (buckets[key]) {
+      const deduct = Math.min(buckets[key], breakRemaining);
+      buckets[key] -= deduct;
+      breakRemaining -= deduct;
+    }
+  }
+  // If still remaining, deduct from ND buckets
+  if (breakRemaining > 0) {
+    for (const key in buckets) {
+      const deduct = Math.min(buckets[key], breakRemaining);
+      buckets[key] -= deduct;
+      breakRemaining -= deduct;
+      if (breakRemaining <= 0) break;
+    }
+  }
+
+  // 5. Convert Minutes to Payable Hours using Settings Multipliers
+  let totalPayableMinutes = 0;
+  for (const key in buckets) {
+    const isND = key.endsWith("_ND");
+    const baseKey = isND ? key.replace("_ND", "") : key;
+    
+    const multiplier = settings[baseKey] || 1.0;
+    const ndPremium = isND ? (settings.nightDiffRate || 1.1) : 1.0;
+    
+    // Logic: Multiplier stacks (e.g. 2.0 Regular Holiday * 1.1 ND = 2.2 total factor)
+    const effectiveMultiplier = multiplier * (isND ? (ndPremium - 1 + 1) : 1.0);
+    // Actually simpler: effective = multiplier * (isND ? 1.1 : 1.0)
+    
+    totalPayableMinutes += buckets[key] * (multiplier * (isND ? (settings.nightDiffRate || 1.1) : 1.0));
+  }
+
+  result.payableMinutes = totalPayableMinutes;
+  result.buckets = buckets;
+  result.totalPayableHours = totalPayableMinutes / 60;
+
+  return result;
+}
 
 /**
  * Optimized version of markAbsents that processes multiple users in bulk
@@ -187,4 +320,4 @@ async function ensureAbsentsMarked(dateOverride = null) {
   }
 }
 
-module.exports = { ensureAbsentsMarked };
+module.exports = { ensureAbsentsMarked, calculateMultiBucketHours };

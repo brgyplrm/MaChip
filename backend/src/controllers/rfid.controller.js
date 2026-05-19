@@ -222,11 +222,18 @@ exports.scanRFID = async (req, res) => {
 
   try {
     const now = await getSystemTime();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    const todayStr = `${year}-${month}-${day}`;
+    const todayStr = formatDateLocal(now);
     const timeStr = now.toTimeString().split(" ")[0];
+
+    // --- LOGICAL WORK DAY (LWD) LOGIC ---
+    let workDate = todayStr;
+    const hour = now.getHours();
+    // If user is Evening Shift (2) and it is early morning (before 10 AM)
+    // we attribute this log to the PREVIOUS day (the shift start date).
+    // Note: We'll check the user shift below after finding them.
+    // So for now, we'll keep workDate = todayStr and adjust it later if needed.
+    // Actually, it's better to find the user FIRST.
+    // ------------------------------------
 
     // ── 2FA Parsing (UID|FingerID) ──────────────────────────────────────────
     let rfidUid = uid;
@@ -302,10 +309,17 @@ exports.scanRFID = async (req, res) => {
     const hardware = user.hardware;
     const target_user_Id = user.user_Id;
 
-    // ── 2. DETERMINE FINAL ACTION ────────────────────────────────────────────
-    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
+    // --- APPLY LWD AFTER FINDING USER ---
+    if (user.user_ShiftId === 2 && hour < 10) {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      workDate = formatDateLocal(yesterday);
+    }
+    const todayStart = new Date(workDate + "T00:00:00");
+    const todayEnd   = new Date(workDate + "T23:59:59");
+    // ------------------------------------
 
+    // ── 2. DETERMINE FINAL ACTION ────────────────────────────────────────────
     // Fetch granular daily status directly from user_logging for highest reliability
     const lastLogs = await sequelize.query(
       `SELECT "logged_StatusId" FROM "user_logging"
@@ -381,8 +395,8 @@ exports.scanRFID = async (req, res) => {
 
     const approvedOTResult = await sequelize.query(
       `SELECT ot.* FROM "Overtime_Request" ot JOIN "emp_Request" er ON ot."emp_reqId" = er."emp_reqId"
-       WHERE ot."user_Id" = :target_user_Id AND ot."OT_DateOf" = :todayStr AND er."emp_reqStatusId" = 2`,
-      { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT }
+       WHERE ot."user_Id" = :target_user_Id AND ot."OT_DateOf" = :workDate AND er."emp_reqStatusId" = 2`,
+      { replacements: { target_user_Id, workDate }, type: QueryTypes.SELECT }
     );
     const approvedOT = approvedOTResult[0];
     const hasApprovedOT = !!approvedOT;
@@ -471,9 +485,9 @@ exports.scanRFID = async (req, res) => {
 
     const existingReport = await sequelize.query(
       `SELECT * FROM "employee_Logging_report"
-       WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr
+       WHERE "user_id" = :target_user_Id AND "log_Date" = :workDate
        LIMIT 1`,
-      { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT },
+      { replacements: { target_user_Id, workDate }, type: QueryTypes.SELECT },
     );
 
     if (!existingReport[0]) {
@@ -482,11 +496,11 @@ exports.scanRFID = async (req, res) => {
           ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr",
            "attendance_StatusId", "logged_StatusId")
          VALUES
-          (:target_user_Id, :todayStr, :inArr, :outArr, :attendance_StatusId, :reportLoggedStatus)`,
+          (:target_user_Id, :workDate, :inArr, :outArr, :attendance_StatusId, :reportLoggedStatus)`,
         {
           replacements: {
             target_user_Id,
-            todayStr,
+            workDate,
             inArr: isEntry ? JSON.stringify([timeStr]) : JSON.stringify([]),
             outArr: !isEntry ? JSON.stringify([timeStr]) : JSON.stringify([]),
             attendance_StatusId: attendanceVal,
@@ -510,9 +524,9 @@ exports.scanRFID = async (req, res) => {
                 WHEN "attendance_StatusId" IS NULL OR "attendance_StatusId" = 3 THEN :attendance_StatusId 
                 ELSE "attendance_StatusId" 
              END
-         WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`,
+         WHERE "user_id" = :target_user_Id AND "log_Date" = :workDate`,
         {
-          replacements: { inArr: JSON.stringify(inArr), outArr: JSON.stringify(outArr), reportLoggedStatus, attendance_StatusId: attendanceVal, target_user_Id, todayStr },
+          replacements: { inArr: JSON.stringify(inArr), outArr: JSON.stringify(outArr), reportLoggedStatus, attendance_StatusId: attendanceVal, target_user_Id, workDate },
           type: QueryTypes.UPDATE,
         },
       );

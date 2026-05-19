@@ -7,10 +7,16 @@ import ConfigurationPreviewModal from './ConfigurationPreviewModal';
 
 const DEFAULT_RATES = {
   metadata: {
-    schemaVersion: "2026.1.0",
-    effectiveDate: "2026-01-01",
+    schemaVersion: "2026.1.1",
+    effectiveDate: "2026-05-20",
     status: "LIVE",
     cutoffScheme: "semi-monthly"
+  },
+  shiftConfig: {
+    morningShiftStart: "08:30",
+    morningShiftEnd: "17:30",
+    eveningShiftStart: "20:30",
+    eveningShiftEnd: "05:30"
   },
   laborRates: {
     ordinary: 1.0,
@@ -46,7 +52,25 @@ export default function PayrollConfiguration({ data, onUpdate }) {
   }, [data]);
 
   const handleSave = () => {
-    onUpdate(localData);
+    // Map localData back to backend structure
+    const backendData = {
+      ...localData.metadata,
+      ...localData.shiftConfig,
+      ordinaryDayRate: localData.laborRates.ordinary,
+      specialDayRate: localData.laborRates.specialDay,
+      restDayRate: localData.laborRates.restDay,
+      regularHolidayRate: localData.laborRates.regularHoliday,
+      doubleRegularHolidayRate: localData.laborRates.doubleHoliday,
+      doubleSpecialDayRate: localData.laborRates.doubleSpecialDay,
+      specialDayRestDayRate: localData.laborRates.specialDayRestDay,
+      regularHolidayRestDayRate: localData.laborRates.regularHolidayRestDay,
+      doubleRegularHolidayRestDayRate: localData.laborRates.doubleHolidayRestDay,
+      doubleSpecialDayRestDayRate: localData.laborRates.doubleSpecialDayRestDay,
+      nightDiffRate: 1 + (localData.otNightRates.nsdRate / 100),
+      overtimeRate: 1 + (localData.otNightRates.ordinaryOT / 100),
+      payrollRates: localData
+    };
+    onUpdate(backendData);
     setIsEditing(false);
   };
 
@@ -209,7 +233,8 @@ export default function PayrollConfiguration({ data, onUpdate }) {
           <div className="flex bg-white border border-slate-100 rounded-xl p-1.5 shadow-sm overflow-x-auto">
             {[
               { id: 'labor-rates', label: 'Labor Rates', icon: DollarSign },
-              { id: 'ot-night', label: 'OT & Night Shift', icon: Clock },
+              { id: 'shift-config', label: 'Shift Config', icon: Clock },
+              { id: 'ot-night', label: 'OT & Night Shift', icon: Shield },
               { id: 'eemr', label: 'EEMR Factors', icon: Briefcase },
               { id: 'leave-caps', label: 'Leave Caps', icon: FileText },
               { id: 'gov-taxes', label: 'Government Taxes', icon: Landmark },
@@ -240,6 +265,13 @@ export default function PayrollConfiguration({ data, onUpdate }) {
                 data={localData.laborRates} 
                 isEditing={isEditing} 
                 onChange={(f, v) => updateField('laborRates', f, v)} 
+              />
+            )}
+            {activeTab === 'shift-config' && (
+              <ShiftConfigView 
+                data={localData.shiftConfig} 
+                isEditing={isEditing} 
+                onChange={(f, v) => updateField('shiftConfig', f, v)} 
               />
             )}
             {activeTab === 'ot-night' && (
@@ -868,6 +900,72 @@ function GovernmentTaxesView() {
           <FormInput label="EE Rate (> ₱1,500) (%)" value="2" />
           <FormInput label="Employer Rate (%)" value="2" subtext="Fixed uniform rate" />
           <FormInput label="Maximum Fund Salary (₱)" value="10000" subtext="Caps computational basis" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+{/* =========================================================================
+    TAB PANEL: SHIFT CONFIGURATION
+========================================================================= */}
+function ShiftConfigView({ data, isEditing, onChange }) {
+  return (
+    <div className="space-y-8">
+      <div>
+        <h3 className="text-lg font-bold text-slate-900 mb-4">Shift Boundary Configuration</h3>
+        <p className="text-sm text-slate-500 mb-6">Define the standard operating windows for different shifts.</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Morning Shift */}
+          <div className="border border-amber-100 rounded-xl p-5 space-y-4 bg-amber-50/10">
+            <h4 className="text-sm font-bold text-amber-800 border-b border-amber-50 pb-2 flex items-center gap-2">
+              <Clock className="w-4 h-4" /> Morning Shift (Standard)
+            </h4>
+            <div className="grid grid-cols-2 gap-4">
+              <FormInput 
+                label="Shift Start" 
+                type="text"
+                value={data.morningShiftStart} 
+                onChange={(e) => onChange('morningShiftStart', e.target.value)}
+                disabled={!isEditing}
+                subtext="e.g. 08:30" 
+              />
+              <FormInput 
+                label="Shift End" 
+                type="text"
+                value={data.morningShiftEnd} 
+                onChange={(e) => onChange('morningShiftEnd', e.target.value)}
+                disabled={!isEditing}
+                subtext="e.g. 17:30" 
+              />
+            </div>
+          </div>
+
+          {/* Evening Shift */}
+          <div className="border border-indigo-100 rounded-xl p-5 space-y-4 bg-indigo-50/10">
+            <h4 className="text-sm font-bold text-indigo-800 border-b border-indigo-50 pb-2 flex items-center gap-2">
+              <Clock className="w-4 h-4" /> Evening Shift (Night)
+            </h4>
+            <div className="grid grid-cols-2 gap-4">
+              <FormInput 
+                label="Shift Start" 
+                type="text"
+                value={data.eveningShiftStart} 
+                onChange={(e) => onChange('eveningShiftStart', e.target.value)}
+                disabled={!isEditing}
+                subtext="e.g. 20:30" 
+              />
+              <FormInput 
+                label="Shift End" 
+                type="text"
+                value={data.eveningShiftEnd} 
+                onChange={(e) => onChange('eveningShiftEnd', e.target.value)}
+                disabled={!isEditing}
+                subtext="e.g. 05:30" 
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

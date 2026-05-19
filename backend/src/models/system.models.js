@@ -43,6 +43,26 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      // Shift Configurations
+      morningShiftStart: { type: DataTypes.TIME, defaultValue: "08:30:00" },
+      morningShiftEnd: { type: DataTypes.TIME, defaultValue: "17:30:00" },
+      eveningShiftStart: { type: DataTypes.TIME, defaultValue: "20:30:00" },
+      eveningShiftEnd: { type: DataTypes.TIME, defaultValue: "05:30:00" },
+
+      // Labor Multipliers
+      ordinaryDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.0 },
+      specialDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.3 },
+      restDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.3 },
+      regularHolidayRate: { type: DataTypes.DOUBLE, defaultValue: 2.0 },
+      nightDiffRate: { type: DataTypes.DOUBLE, defaultValue: 1.1 },
+      overtimeRate: { type: DataTypes.DOUBLE, defaultValue: 1.25 },
+      doubleRegularHolidayRate: { type: DataTypes.DOUBLE, defaultValue: 3.0 },
+      specialDayRestDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.5 },
+      doubleSpecialDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.5 },
+      doubleSpecialDayRestDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.95 },
+      regularHolidayRestDayRate: { type: DataTypes.DOUBLE, defaultValue: 2.6 },
+      doubleRegularHolidayRestDayRate: { type: DataTypes.DOUBLE, defaultValue: 3.9 },
+
       payrollRates: {
         type: DataTypes.JSONB,
         allowNull: true,

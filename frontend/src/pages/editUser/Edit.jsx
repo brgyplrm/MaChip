@@ -326,6 +326,7 @@ const Edit = () => {
             user_Password: "", // Do not show hash, leave empty for optional update
             user_MachipId: userData.user_MachipId || "",
             user_FingerprintId: userData.user_FingerprintId || "",
+            user_ShiftId: userData.user_ShiftId || 1,
             user_DOB: userData.user_DOB ? userData.user_DOB.split('T')[0] : "",
             user_Gender: userData.user_Gender || "",
             shift_Schedule: userData.shift_Schedule || "",
@@ -671,14 +672,14 @@ const Edit = () => {
                     {renderError("user_EmploymentStatus")}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Shift Schedule</Label>
-                    <Select value={formData.shift_Schedule} onValueChange={(val) => handleSelectChange("shift_Schedule", val)}>
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Shift Schedule <span className="text-red-500">*</span></Label>
+                    <Select value={formData.user_ShiftId?.toString()} onValueChange={(val) => handleSelectChange("user_ShiftId", parseInt(val))}>
                       <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
-                        <SelectValue placeholder="Select Schedule" />
+                        <SelectValue placeholder="Select Shift" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Morning Shift (8 AM - 5 PM)">Morning Shift (8 AM - 5 PM)</SelectItem>
-                        <SelectItem value="Night Shift (8 PM - 5 AM)">Night Shift (8 PM - 5 AM)</SelectItem>
+                        <SelectItem value="1">Morning Shift (8:30 AM - 5:30 PM)</SelectItem>
+                        <SelectItem value="2">Evening Shift (8:30 PM - 5:30 AM)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

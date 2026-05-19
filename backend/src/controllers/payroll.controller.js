@@ -1,4 +1,4 @@
-const { sequelize } = require("../config/sequelize.js");
+const { sequelize, SystemSettings } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { sendPayrollEmail } = require("../utils/emailService");
@@ -866,8 +866,7 @@ exports.generateBatchPayroll = async (req, res) => {
           
           const fs = require('fs');
           const path = require('path');
-          const settings = await require('../config/sequelize').SystemSettings.findOne();
-          
+          const settings = await SystemSettings.findOne();          
           if (settings && settings.storageRootPath) {
             const zipFileName = `Batch_Archive_${period_Start}_${period_End}.zip`;
             const zipPath = path.join(settings.storageRootPath, String(archiveOpts.year), archiveOpts.month, archiveOpts.subFolder, zipFileName);
