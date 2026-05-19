@@ -1388,7 +1388,8 @@ exports.getPayrollByUser = async (req, res) => {
          (COALESCE(d."healthCard_Amnt",0) +
           COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
           COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
-          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",         u."user_FirstName", u."user_LastName",
+          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
+         u."user_FirstName", u."user_LastName", u."position" AS "user_Position", u."dailyRate",
          ps."PaystatusName"
        FROM "Payroll" p
        LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
@@ -1421,7 +1422,8 @@ exports.getPayrollById = async (req, res) => {
          (COALESCE(d."healthCard_Amnt",0) +
           COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
           COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
-          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",         u."user_FirstName", u."user_LastName",
+          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
+         u."user_FirstName", u."user_LastName", u."position" AS "user_Position", u."dailyRate",
          ps."PaystatusName"
        FROM "Payroll" p
        LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
@@ -1433,7 +1435,43 @@ exports.getPayrollById = async (req, res) => {
       { replacements: { payrollId }, type: QueryTypes.SELECT },
     );
     if (payroll.length === 0) return res.status(404).json({ error: "Not found" });
-    res.status(200).json(payroll[0]);
+
+    // Calculate YTD (Year-To-Date)
+    const currentPayroll = payroll[0];
+    const year = new Date(currentPayroll.period_Start).getFullYear();
+    
+    const ytdData = await sequelize.query(
+      `SELECT 
+         SUM(p."totalEarnings") as "ytdGross",
+         SUM(e."allowance") as "ytdNonTaxable",
+         SUM(p."totalDeductions" - COALESCE(d."Tax_Ded", 0)) as "ytdDeductions",
+         SUM(d."Tax_Ded") as "ytdBIR"
+       FROM "Payroll" p
+       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
+       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+       WHERE p."user_Id" = :user_Id 
+       AND p."status" = 'Released'
+       AND EXTRACT(YEAR FROM p."period_Start") = :year
+       AND p."period_End" <= :period_End`,
+      { 
+        replacements: { 
+          user_Id: currentPayroll.user_Id, 
+          year, 
+          period_End: currentPayroll.period_End 
+        }, 
+        type: QueryTypes.SELECT 
+      }
+    );
+
+    const result = {
+      ...currentPayroll,
+      ytdGross: ytdData[0]?.ytdGross || 0,
+      ytdNonTaxable: ytdData[0]?.ytdNonTaxable || 0,
+      ytdDeductions: ytdData[0]?.ytdDeductions || 0,
+      ytdBIR: ytdData[0]?.ytdBIR || 0
+    };
+
+    res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

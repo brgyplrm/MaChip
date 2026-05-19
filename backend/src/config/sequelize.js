@@ -28,10 +28,14 @@ const sequelize = new Sequelize(
 );
 
 // ── Models ────────────────────────────────────────────────────────────────────
-const { User, user_Role, employementStatus, User_Banking, User_Deduction_Profile, User_Hardware } = require("../models/user.models")(
-  sequelize,
-  DataTypes,
-);
+const {
+  User,
+  user_Role,
+  employementStatus,
+  User_Banking,
+  User_Deduction_Profile,
+  User_Hardware,
+} = require("../models/user.models")(sequelize, DataTypes);
 
 const {
   user_logging,
@@ -55,23 +59,34 @@ const {
   Leave_Balance,
 } = require("../models/request.model")(sequelize, DataTypes);
 
-const { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances, Payroll_Eastwest, Payroll_GovernmentLoans } =
-  require("../models/payroll.model")(sequelize, DataTypes);
+const {
+  Payroll,
+  Payroll_Earnings,
+  Payroll_Deductions,
+  Payroll_status,
+  PayrollPeriod,
+  Payroll_maxicare,
+  Payroll_Cash_Advances,
+  Payroll_Eastwest,
+  Payroll_GovernmentLoans,
+} = require("../models/payroll.model")(sequelize, DataTypes);
 
 const { Notification } = require("../models/notification.models")(
   sequelize,
   DataTypes,
 );
 
-const { SystemSettings, Holiday, DueDate, Audit_Log, Transaction_Log, System_State } = require("../models/system.models")(
-  sequelize,
-  DataTypes,
-);
+const {
+  SystemSettings,
+  Holiday,
+  DueDate,
+  Audit_Log,
+  Transaction_Log,
+  System_State,
+} = require("../models/system.models")(sequelize, DataTypes);
 
-const { Loan_Deductions, Loan_Deduction_History, Loan_Deduction_Schedules } = require("../models/loanDeductions.model")(
-  sequelize,
-  DataTypes,
-);
+const { Loan_Deductions, Loan_Deduction_History, Loan_Deduction_Schedules } =
+  require("../models/loanDeductions.model")(sequelize, DataTypes);
 
 // ── Associations ──────────────────────────────────────────────────────────────
 
@@ -96,57 +111,125 @@ employee_Logging_report.belongsTo(User, {
 
 // User ↔ Payroll
 User.hasMany(Payroll, { foreignKey: "user_Id", sourceKey: "user_Id" });
-Payroll.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+Payroll.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 // User ↔ Maxicare
 User.hasMany(Payroll_maxicare, { foreignKey: "user_Id", sourceKey: "user_Id" });
-Payroll_maxicare.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+Payroll_maxicare.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 // User ↔ Payroll_Cash_Advances
-User.hasMany(Payroll_Cash_Advances, { foreignKey: "user_Id", sourceKey: "user_Id" });
-Payroll_Cash_Advances.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+User.hasMany(Payroll_Cash_Advances, {
+  foreignKey: "user_Id",
+  sourceKey: "user_Id",
+});
+Payroll_Cash_Advances.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 // User ↔ Payroll_Eastwest
 User.hasMany(Payroll_Eastwest, { foreignKey: "user_Id", sourceKey: "user_Id" });
-Payroll_Eastwest.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+Payroll_Eastwest.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 // User ↔ Payroll_GovernmentLoans
-User.hasMany(Payroll_GovernmentLoans, { foreignKey: "user_Id", sourceKey: "user_Id" });
-Payroll_GovernmentLoans.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+User.hasMany(Payroll_GovernmentLoans, {
+  foreignKey: "user_Id",
+  sourceKey: "user_Id",
+});
+Payroll_GovernmentLoans.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 // User ↔ Notification
 User.hasMany(Notification, { foreignKey: "user_Id", sourceKey: "user_Id" });
-Notification.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+Notification.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 // User ↔ User Request
 User.hasMany(emp_Request, { foreignKey: "user_Id", sourceKey: "user_Id" });
-emp_Request.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+emp_Request.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 // User ↔ Leave Balance
 User.hasMany(Leave_Balance, { foreignKey: "user_Id", sourceKey: "user_Id" });
-Leave_Balance.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+Leave_Balance.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 User.hasMany(Transaction_Log, { foreignKey: "user_Id", sourceKey: "user_Id" });
-Transaction_Log.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+Transaction_Log.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 User.hasMany(Audit_Log, { foreignKey: "user_Id", sourceKey: "user_Id" });
-Audit_Log.belongsTo(User, { foreignKey: "user_Id", targetKey: "user_Id", as: "user" });
+Audit_Log.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 // User ↔ Loan_Deductions
 User.hasMany(Loan_Deductions, { foreignKey: "userId", sourceKey: "user_Id" });
-Loan_Deductions.belongsTo(User, { foreignKey: "userId", targetKey: "user_Id", as: "user" });
+Loan_Deductions.belongsTo(User, {
+  foreignKey: "userId",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 // User ↔ Loan_Deduction_Schedules
-User.hasMany(Loan_Deduction_Schedules, { foreignKey: "userId", sourceKey: "user_Id" });
-Loan_Deduction_Schedules.belongsTo(User, { foreignKey: "userId", targetKey: "user_Id", as: "user" });
+User.hasMany(Loan_Deduction_Schedules, {
+  foreignKey: "userId",
+  sourceKey: "user_Id",
+});
+Loan_Deduction_Schedules.belongsTo(User, {
+  foreignKey: "userId",
+  targetKey: "user_Id",
+  as: "user",
+});
 
 // Audit associations for Loan_Deductions
-Loan_Deductions.belongsTo(User, { foreignKey: "createdBy", targetKey: "user_Id", as: "creator" });
-Loan_Deductions.belongsTo(User, { foreignKey: "updatedBy", targetKey: "user_Id", as: "updater" });
+Loan_Deductions.belongsTo(User, {
+  foreignKey: "createdBy",
+  targetKey: "user_Id",
+  as: "creator",
+});
+Loan_Deductions.belongsTo(User, {
+  foreignKey: "updatedBy",
+  targetKey: "user_Id",
+  as: "updater",
+});
 
 // Payroll ↔ Loan_Deduction_History
 Payroll.hasMany(Loan_Deduction_History, { foreignKey: "payrollId" });
-Loan_Deduction_History.belongsTo(Payroll, { foreignKey: "payrollId", as: "payroll" });
+Loan_Deduction_History.belongsTo(Payroll, {
+  foreignKey: "payrollId",
+  as: "payroll",
+});
 
 // ── connectDB ─────────────────────────────────────────────────────────────────
 const connectDB = async () => {
@@ -158,9 +241,8 @@ const connectDB = async () => {
 
     // Create any missing tables or update existing ones
     // In production, you'd use migrations, but for this dev setup sync is used.
-    await sequelize.sync({ alter: false }); // Set to true if you want Sequelize to automatically alter tables to match models
-    console.log("All models were synchronized successfully.");
-
+    // await sequelize.sync({ alter: true }); // Set to true if you want Sequelize to automatically alter tables to match models
+    console.log("Models sync skipped (temporarily disabled to fix user_logging error).");
   } catch (error) {
     console.error("Unable to connect to the database:", error);
   }

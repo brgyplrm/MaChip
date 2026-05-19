@@ -9,9 +9,11 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
+import ViewPayslipModal from "../../components/ViewPayslipModal";
 
 // shadcn/ui
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -30,6 +32,7 @@ const PayrollDetails = () => {
   const [payroll, setPayroll] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchPayrollDetails = async () => {
@@ -47,6 +50,7 @@ const PayrollDetails = () => {
               payrollId: "LIVE-PREVIEW",
               user_FirstName: emp.user_FirstName,
               user_LastName: emp.user_LastName,
+              user_Position: emp.position,
               user_Id: emp.user_Id,
               dailyRate: preview.dailyRate,
               ratePerHr: preview.ratePerHr,
@@ -174,6 +178,14 @@ const PayrollDetails = () => {
               <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Payroll Details</h1>
               <span className="text-sm text-slate-500 mt-1 block font-mono">Payroll ID: {payroll.payrollId}</span>
             </div>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsModalOpen(true)}
+              className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-all shadow-sm flex items-center gap-2"
+            >
+              <ReceiptLongIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">View Payslip</span>
+            </Button>
           </div>
           <Badge 
             variant="secondary" 
@@ -182,6 +194,13 @@ const PayrollDetails = () => {
             {payroll.PaystatusName}
           </Badge>
         </div>
+
+        {/* Payslip Preview Modal */}
+        <ViewPayslipModal 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+          payroll={payroll} 
+        />
 
         {/* Tab Switcher */}
         <div className="flex gap-2 mb-6">
