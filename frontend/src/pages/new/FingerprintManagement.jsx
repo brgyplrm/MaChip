@@ -12,6 +12,9 @@ import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import EmptyState from "../../components/EmptyState";
 import { Link } from "react-router-dom";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ScanLine } from "lucide-react";
+import RfidScanModal from "../../components/rfidScanModal/RfidScanModal"; // Core Scan Session Capture Modal
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -20,17 +23,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 const FingerprintManagement = () => {
   const [biometricList, setBiometricList] = useState([]);
+  const [unassignedEmployees, setUnassignedEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   
+  // Multi-step Registration Workflow States
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [scannedSlotId, setScannedSlotId] = useState("");
+  const [scannedTemplate, setScannedTemplate] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [fingerprintError, setFingerprintError] = useState("");
+
+  // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [sensorFilter, setSensorFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // Fetch biometric records registry
   const fetchBiometricData = useCallback(async () => {
     setLoading(true);
     try {
@@ -46,9 +63,113 @@ const FingerprintManagement = () => {
     }
   }, []);
 
+  // Fetch employees without assigned fingerprint IDs
+  const fetchUnassignedEmployees = useCallback(async () => {
+    try {
+      const response = await fetchWithAuth("/api/users/unassigned-hardware?type=fingerprint");
+      if (response.ok) {
+        const data = await response.json();
+        setUnassignedEmployees(data);
+      }
+    } catch (err) {
+      console.error("Error loading unassigned users:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchBiometricData();
-  }, [fetchBiometricData]);
+    fetchUnassignedEmployees();
+  }, [fetchBiometricData, fetchUnassignedEmployees]);
+
+  // Step 1: Open Scanner Module & Initialize Registration Session
+  const handleStartFingerprintScan = async () => {
+    setShowScanModal(true);
+    setScannedSlotId("");
+    setFingerprintError("");
+    
+    try {
+      await fetchWithAuth("/api/system/reg-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "temp_reg", type: 'FP' })
+      });
+    } catch (err) {
+      console.error("Failed to establish biometric handshake session:", err);
+    }
+  };
+
+  // Step 2: Triggered on successful capture from the AS608 peripheral sensor module
+  const handleFingerprintScanned = async (data) => {
+    // If the scanner passes an object containing index variables
+    const slotId = data?.fingerprintId || data;
+    const templateData = data?.template || "";
+
+    if (!slotId) {
+      setFingerprintError("Invalid slot response received from terminal.");
+      return;
+    }
+
+    // Clean active tracking hardware hook sessions
+    await fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
+    await fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
+
+    setShowScanModal(false);
+
+    // Verify template isn't already assigned in local memory index structures
+    const existingTemplate = biometricList.find(b => String(b.fingerprintIndex) === String(slotId));
+
+    if (existingTemplate) {
+      setToast({ message: `Slot Address #${slotId} is already held by ${existingTemplate.userName}.`, type: "error" });
+      setSearchQuery(`Slot #${slotId}`);
+    } else {
+      // Transition to assignment overlay modal form matching reference card
+      setScannedSlotId(slotId);
+      setScannedTemplate(templateData);
+      setSelectedUserId("");
+      setShowAssignModal(true);
+    }
+  };
+
+  // Close scanner and cleanup backend session hooks
+  const closeFingerprintModal = () => {
+    setShowScanModal(false);
+    fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
+    fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
+  };
+
+  // Step 3: Link captured flash matrix slot coordinates to selected workspace profile
+  const handleAssignBiometricSubmit = async () => {
+    if (!selectedUserId) {
+      setToast({ message: "Please choose a workspace target identity.", type: "error" });
+      return;
+    }
+    setAssigning(true);
+    try {
+      const response = await fetchWithAuth("/api/hardware/biometric/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          user_Id: selectedUserId, 
+          fingerprintIndex: parseInt(scannedSlotId),
+          fingerprintTemplate: scannedTemplate
+        })
+      });
+
+      if (response.ok) {
+        setToast({ message: `Biometric Profile assigned to index position #${scannedSlotId}!`, type: "success" });
+        setShowAssignModal(false);
+        fetchBiometricData();
+        fetchUnassignedEmployees();
+      } else {
+        const errData = await response.json();
+        setToast({ message: errData.error || "Failed to commit flash memory map.", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Module boundary communication timed out.", type: "error" });
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   const handleClearTemplate = async (userId, slotId) => {
     if (!window.confirm(`Clear scanner slot matrix index #${slotId} for this user?`)) return;
@@ -57,6 +178,7 @@ const FingerprintManagement = () => {
       if (response.ok) {
         setToast({ message: "Biometric node deleted from flash cache slot.", type: "success" });
         fetchBiometricData();
+        fetchUnassignedEmployees();
       }
     } catch (err) {
       setToast({ message: "Could not access peripheral module controllers.", type: "error" });
@@ -93,21 +215,33 @@ const FingerprintManagement = () => {
 
   return (
     <Sidebar>
-      <div className="flex flex-col w-full min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         
-        {/* Header */}
+        {/* Header Section */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Biometric Fingerprint Registry</h1>
-            <span className="text-sm text-slate-500 mt-1 block">Audit device memory allocations, flash signatures, and biometric slot maps.</span>
+          <div className="flex items-center gap-4">
+            <Link 
+              to="/users" 
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-200 text-[#2A174E] transition-colors"
+            >
+              <ArrowBackIcon className="h-6 w-6" />
+            </Link>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Biometric Fingerprint Registry</h1>
+              <span className="text-sm text-slate-500 mt-1 block">Audit device memory allocations, flash signatures, and biometric slot maps.</span>
+            </div>
           </div>
-          <Button asChild className="bg-[#2A174E] hover:bg-[#1a0e30] font-bold shadow-sm">
-            <Link to="/users/new">Enroll Fingerprint</Link>
+          <Button 
+            onClick={handleStartFingerprintScan} 
+            className="bg-[#2A174E] hover:bg-[#1a0e30] font-bold shadow-sm gap-2"
+          >
+            <ScanLine className="h-4 w-4 text-white" />
+            <span>Enroll Fingerprint</span>
           </Button>
         </div>
 
-        {/* Statistics */}
+        {/* Statistics Widgets */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <Card className="border-t-5 border-[#2A174E] bg-white py-0">
             <CardContent className="px-5 py-5 flex justify-between items-center">
@@ -130,7 +264,7 @@ const FingerprintManagement = () => {
           </Card>
         </div>
 
-        {/* Filters */}
+        {/* Workspace Filters */}
         <Card className="shadow-sm border-0 bg-white mb-6 py-0">
           <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
             <div className="relative w-full xl:max-w-md">
@@ -145,9 +279,9 @@ const FingerprintManagement = () => {
           </CardContent>
         </Card>
 
-        {/* Table */}
+        {/* Master Registry Table */}
         <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
-          <CardContent className="p-0 flex flex-col">
+          <CardContent className="p-0  flex flex-col">
             <Table>
               <TableHeader className="bg-[#2A174E]">
                 <TableRow className="hover:bg-transparent">
@@ -182,7 +316,7 @@ const FingerprintManagement = () => {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="p-0 border-0">
+                    <TableCell colSpan={4} className="p-6 border-0">
                       <EmptyState icon={<FingerprintIcon className="h-8 w-8 text-slate-300" />} title="No biometric maps active" description="No registered fingerprint nodes currently reside within hardware configuration filters." />
                     </TableCell>
                   </TableRow>
@@ -190,7 +324,7 @@ const FingerprintManagement = () => {
               </TableBody>
             </Table>
 
-            {/* Pagination Controls */}
+            {/* Pagination */}
             <div className="flex items-center justify-between p-4 bg-slate-50/30 border-t border-slate-100">
               <span className="text-xs font-medium text-slate-500">Showing {startIndex + 1} to {endIndex} of {totalItems} profiles</span>
               <div className="flex gap-2">
@@ -202,6 +336,79 @@ const FingerprintManagement = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* STEP 1: Biometric Hardware Scanning Polling Interceptor Modal */}
+      <RfidScanModal 
+        isOpen={showScanModal} 
+        onClose={closeFingerprintModal} 
+        onScanSuccess={handleFingerprintScanned}
+        error={fingerprintError}
+        title="Fingerprint Scanner"
+      />
+
+      {/* STEP 2: Assign Scanned Biometric Template ID Modal Form */}
+      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+        <DialogContent className="sm:max-w-[460px] p-0 border-0 overflow-hidden bg-white rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
+          <DialogHeader className="bg-[#2A174E] text-white p-6 relative">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <FingerprintIcon className="h-5 w-5 text-purple-300" /> Link Biometric Template
+            </DialogTitle>
+            <DialogDescription className="text-purple-200 text-xs mt-1">
+              Reassign captured optical characteristic signatures into a secure profile index slot.
+            </DialogDescription>
+            <button onClick={() => setShowAssignModal(false)} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors focus:outline-none">
+              <CloseIcon className="h-5 w-5" />
+            </button>
+          </DialogHeader>
+
+          <div className="p-6 space-y-6">
+            {/* Captured Device Parameters */}
+            <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Allocated Flash Registry Memory Index</Label>
+              <div className="font-mono text-sm font-black text-[#2A174E] bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
+                Slot Pool Location #{scannedSlotId}
+              </div>
+            </div>
+
+            {/* Target Variable Selection Dropdown */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Assign Target Employee Profile</Label>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-[#2A174E]">
+                  <SelectValue placeholder="Select an unassigned employee..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[220px]">
+                  {unassignedEmployees.length > 0 ? (
+                    unassignedEmployees.map((emp) => (
+                      <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
+                        {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-xs text-slate-400 italic">
+                      All employees currently contain assigned biometric references.
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Modal Navigation Links */}
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1 h-11 border-slate-200 text-slate-500 rounded-lg font-bold" onClick={() => setShowAssignModal(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleAssignBiometricSubmit}
+                disabled={assigning || !selectedUserId}
+                className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white rounded-lg font-bold shadow-md tracking-wide"
+              >
+                {assigning ? "Allocating Flash..." : "Link Biometric Profile"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Sidebar>
   );
 };

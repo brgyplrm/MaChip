@@ -4,15 +4,29 @@ import { fetchWithAuth } from "../../../utils/api";
 import { formatUserId } from "../../../utils/formatUserId";
 import { exportLeaveSummaryPDF } from "../../../utils/leaveSummaryExport";
 import DownloadIcon from '@mui/icons-material/Download';
-import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { 
+  Sheet, 
+  SheetContent, 
+  SheetDescription, 
+  SheetHeader, 
+  SheetTitle, 
+  SheetTrigger 
+} from "@/components/ui/sheet";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const LeaveSummary = () => {
   const [year, setYear] = useState(new Date().getFullYear());
@@ -20,7 +34,10 @@ const LeaveSummary = () => {
   const [months, setMonths] = useState([]);
   const [rates, setRates] = useState({ vlRate: 1.0, slRate: 1.0 });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("vl");
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  // Track active tab for the PDF export requirement
+  const [activeTab, setActiveTab] = useState("all");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -42,179 +59,34 @@ const LeaveSummary = () => {
     fetchData();
   }, [year]);
 
-  // LeaveSummary.jsx
-
-// Mapping for dynamic column labels and rates
-const TAB_CONFIG = {
-  vl: { 
-    totalLabel: "Total", 
-    rateLabel: "Remaining (7 Max)", 
-    conversionLabel: "Total Conversion",
-    showConversion: true 
-  },
-  sl: { 
-    totalLabel: "Total", 
-    rateLabel: "Remaining (7 Max)", 
-    conversionLabel: "Total Conversion",
-    showConversion: true 
-  },
-  ot: { 
-    totalLabel: "Total Minutes", 
-    rateLabel: "Total Hours", 
-    conversionLabel: null,
-    showConversion: false 
-  },
-  lates: { 
-    totalLabel: "Total Minutes", 
-    rateLabel: "Total Hours", 
-    conversionLabel: null,
-    showConversion: false 
-  },
-  absences: { 
-    totalLabel: "Total Minutes", 
-    rateLabel: "Total Hours", 
-    conversionLabel: null,
-    showConversion: false 
-  }
-};
-
-const SummaryTable = ({ type }) => {
-  const config = TAB_CONFIG[type];
-  const isTimeSummary = ["ot", "lates", "absences"].includes(type);
-  
-  // Pagination State for internal table
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  
-  const totalItems = data.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const currentData = data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  return (
-    <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
-      <CardContent className="p-0 flex flex-col">
-        <div className="overflow-x-auto custom-scrollbar relative">
-          <Table className="min-w-max border-separate border-spacing-0">
-            <TableHeader className="bg-[#2B174F]">
-              <TableRow className="hover:bg-transparent border-b-0">
-                <TableHead className="sticky left-0 z-30 bg-[#2B174F] font-semibold text-white h-auto py-4 px-6 uppercase text-[10px] tracking-wider border-r border-[#45297e] min-w-[200px] shadow-[2px_0_5px_rgba(0,0,0,0.2)]">
-                  Employee Name
-                </TableHead>
-                
-                {months.map(m => (
-                  <TableHead key={m} className="font-semibold text-white h-auto py-4 text-center uppercase text-[10px] tracking-wider min-w-[70px]">
-                    {m}
-                  </TableHead>
-                ))}
-                
-                <TableHead className={`sticky z-20 font-bold text-white h-auto py-4 text-center uppercase text-[10px] tracking-wider bg-[#1d0f36] min-w-[120px] shadow-[-2px_0_5px_rgba(0,0,0,0.2)] ${isTimeSummary ? "right-[120px]" : "right-[260px]"}`}>
-                  {config.totalLabel}
-                </TableHead>
-
-                <TableHead className={`sticky z-20 font-semibold text-white h-auto py-4 text-center uppercase text-[10px] tracking-wider bg-[#1d0f36] min-w-[120px] border-l border-[#45297e] ${isTimeSummary ? "right-0" : "right-[140px]"}`}>
-                  {config.rateLabel}
-                </TableHead>
-
-                {config.conversionLabel && (
-                  <TableHead className="sticky right-0 z-20 font-semibold text-white h-auto py-4 text-right uppercase text-[10px] tracking-wider pr-6 bg-[#1d0f36] min-w-[140px] border-l border-[#45297e]">
-                    {config.conversionLabel}
-                  </TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {currentData.map(row => {
-                const monthlyValues = row[type] || [];
-                const total = monthlyValues.reduce((a, b) => a + b, 0);
-                
-                let val1 = total > 0 ? total : "—";
-                let val2 = "—";
-                let finalAmount = 0;
-
-                if (type === "vl" || type === "sl") {
-                  val2 = type === "vl" ? row.vlRemaining : row.slRemaining;
-                  finalAmount = val2 * row.dailyRate;
-                } else if (type === "ot") {
-                  val1 = total * 60; // Minutes
-                  val2 = total.toFixed(2); // Hours
-                } else if (type === "lates") {
-                  val1 = total; // Minutes (from backend)
-                  val2 = (total / 60).toFixed(2); // Hours
-                } else if (type === "absences") {
-                  val1 = total * 8 * 60; // Minutes
-                  val2 = (total * 8).toFixed(2); // Hours
-                }
-
-                return (
-                  <TableRow key={row.user_Id} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors group">
-                    <TableCell className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 py-4 px-6 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-[#2A174E] text-sm">{row.name}</span>
-                        <span className="text-xs text-slate-400 font-mono mt-0.5">{formatUserId(row.user_Id)}</span>
-                      </div>
-                    </TableCell>
-
-                    {monthlyValues.map((val, idx) => (
-                      <TableCell key={idx} className="text-center py-4">
-                        <span className={val > 0 ? "font-bold text-[#2A174E]" : "text-slate-300 font-medium"}>
-                          {val > 0 ? val : "—"}
-                        </span>
-                      </TableCell>
-                    ))}
-
-                    <TableCell className={`sticky z-10 bg-slate-50 font-bold text-slate-700 text-center shadow-[-2px_0_5px_rgba(0,0,0,0.02)] ${isTimeSummary ? "right-[120px]" : "right-[260px]"}`}>
-                      {val1}
-                    </TableCell>
-
-                    <TableCell className={`sticky z-10 bg-blue-50/50 font-bold text-[#2A174E] text-center border-l border-slate-100 ${isTimeSummary ? "right-0" : "right-[140px]"}`}>
-                      {val2}
-                    </TableCell>
-
-                    {config.conversionLabel && (
-                      <TableCell className="sticky right-0 z-10 text-right py-4 pr-6 font-bold border-l border-slate-100 text-red-600 bg-red-50/50">
-                        ₱{finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* --- Standard Pagination Footer --- */}
-        <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
-          <div className="text-sm text-slate-500 font-medium">
-            Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
-            <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">{currentPage}</div>
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+  // Client-side search matching employee names or IDs
+  const filteredData = data.filter(employee =>
+    employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    employee.user_Id.toString().includes(searchTerm)
   );
-};
 
   return (
     <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
-        {/* Header - Consistent with Logs styling */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6 mb-8">
+      <div className="p-4 md:p-6 w-full max-w-7xl mx-auto space-y-6">
+        
+        {/* Header Section */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 pb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Leave & Attendance Summary</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] tracking-tight">Leave & Attendance Hub</h1>
             <span className="text-sm text-slate-500 mt-1 block">
               Manage and track comprehensive employee records and conversions.
             </span>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto items-center">
+            <Input
+              placeholder="Search employee..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-[250px] bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E]"
+            />
             <Select value={year.toString()} onValueChange={(val) => setYear(Number(val))}>
-              <SelectTrigger className="w-full sm:w-[140px] bg-white border-slate-200 font-semibold text-[#2A174E]">
+              <SelectTrigger className="w-full sm:w-[120px] bg-white border-slate-200 font-semibold text-[#2A174E]">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
@@ -225,7 +97,7 @@ const SummaryTable = ({ type }) => {
               </SelectContent>
             </Select>
             <Button 
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold"
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors"
               onClick={() => exportLeaveSummaryPDF(data, months, year, activeTab, rates)}
               disabled={loading || data.length === 0}
             >
@@ -234,55 +106,195 @@ const SummaryTable = ({ type }) => {
           </div>
         </div>
 
-        {/* Tabs - Styled exactly like Logs management */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex flex-wrap h-auto bg-slate-200/60 p-1 rounded-lg mb-6 w-full lg:w-max">
-            <TabsTrigger value="vl" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] font-semibold text-slate-500 transition-all rounded-md px-6 py-2">
-              Vacation Leaves
-            </TabsTrigger>
-            <TabsTrigger value="sl" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] font-semibold text-slate-500 transition-all rounded-md px-6 py-2">
-              Sick Leaves
-            </TabsTrigger>
-            <TabsTrigger value="ot" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] font-semibold text-slate-500 transition-all rounded-md px-6 py-2">
-              Overtime
-            </TabsTrigger>
-            <TabsTrigger value="lates" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] font-semibold text-slate-500 transition-all rounded-md px-6 py-2">
-              Lates
-            </TabsTrigger>
-            <TabsTrigger value="absences" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] font-semibold text-slate-500 transition-all rounded-md px-6 py-2">
-              Absences
-            </TabsTrigger>
-          </TabsList>
+        {/* Dynamic View States */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} className="h-[340px] w-full rounded-xl" />
+            ))}
+          </div>
+        ) : filteredData.length === 0 ? (
+          <div className="text-center py-12 text-slate-400 font-medium border border-dashed rounded-xl bg-slate-50/50">
+            No employee records found matching your search criteria.
+          </div>
+        ) : (
+          /* Cards Grid Framework */
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filteredData.map((row) => {
+              // Exact mathematical transformations from your old component logic
+              const monthlyVl = row.vl || [];
+              const monthlySl = row.sl || [];
+              const monthlyOt = row.ot || [];
+              const monthlyLates = row.lates || [];
+              const monthlyAbsences = row.absences || [];
 
-          {loading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-[400px] w-full" />
-            </div>
-          ) : (
-            <>
-              <TabsContent value="vl" className="mt-0">
-                <SummaryTable type="vl" showRemaining={true} showConversion={true} />
-              </TabsContent>
-              <TabsContent value="sl" className="mt-0">
-                <SummaryTable type="sl" showRemaining={true} showConversion={true} />
-              </TabsContent>
-              <TabsContent value="ot" className="mt-0">
-                <SummaryTable type="ot" />
-              </TabsContent>
-              <TabsContent value="lates" className="mt-0">
-                <SummaryTable type="lates" />
-              </TabsContent>
-              <TabsContent value="absences" className="mt-0">
-                <SummaryTable type="absences" />
-              </TabsContent>
-            </>
-          )}
-        </Tabs>
+              const totalVl = monthlyVl.reduce((a, b) => a + b, 0);
+              const totalSl = monthlySl.reduce((a, b) => a + b, 0);
+              const totalOt = monthlyOt.reduce((a, b) => a + b, 0);
+              const totalLates = monthlyLates.reduce((a, b) => a + b, 0);
+              const totalAbsences = monthlyAbsences.reduce((a, b) => a + b, 0);
+
+              // Preserved original final calculation states
+              const vlFinalAmount = row.vlRemaining * row.dailyRate;
+              const slFinalAmount = row.slRemaining * row.dailyRate;
+              const totalCombinedConversion = vlFinalAmount + slFinalAmount;
+
+              return (
+                <Card key={row.user_Id} className="border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
+                  
+                  {/* Card Profile Section */}
+                  <CardHeader className="bg-slate-50/60 pb-4 border-b border-slate-100 flex flex-row items-center justify-between space-y-0">
+                    <div className="flex items-center gap-3 truncate mr-2">
+                      <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
+                        <AccountCircleIcon />
+                      </div>
+                      <div className="truncate">
+                        <CardTitle className="text-sm md:text-base font-bold text-[#2A174E] truncate">{row.name}</CardTitle>
+                        <span className="text-xs font-mono text-slate-400 block mt-0.5">{formatUserId(row.user_Id)}</span>
+                      </div>
+                    </div>
+
+                    {/* --- SHEET DRAWER FOR DETAILED BREAKDOWN MATRIX --- */}
+                    <Sheet>
+                      <SheetTrigger asChild>
+                        <Button variant="ghost" size="icon" className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0">
+                          <OpenInNewIcon fontSize="small" />
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent className="w-full sm:max-w-2xl bg-white overflow-y-auto custom-scrollbar p-6">
+                        <SheetHeader className="pb-4 border-b border-slate-100">
+                          <SheetTitle className="text-xl font-bold text-[#2A174E]">{row.name}'s History</SheetTitle>
+                          <SheetDescription className="text-xs text-slate-400 font-mono">
+                            ID: {formatUserId(row.user_Id)} | Target Calendar Year: {year}
+                          </SheetDescription>
+                        </SheetHeader>
+
+                        {/* Summary Metrics List inside Drawer */}
+                        <div className="grid grid-cols-2 gap-4 my-6">
+                          <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide block">VL Encashment</span>
+                            <span className="text-base font-bold text-slate-800">₱{vlFinalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            <span className="text-xs text-slate-500 block mt-0.5">({row.vlRemaining} days remaining)</span>
+                          </div>
+                          <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide block">SL Encashment</span>
+                            <span className="text-base font-bold text-slate-800">₱{slFinalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            <span className="text-xs text-slate-500 block mt-0.5">({row.slRemaining} days remaining)</span>
+                          </div>
+                        </div>
+
+                        {/* Month-by-Month Matrix Table */}
+                        <div className="space-y-4">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">12-Month Distributed Log Matrix</h3>
+                          <div className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
+                            <Table>
+                              <TableHeader className="bg-[#2B174F]">
+                                <TableRow className="hover:bg-transparent border-b-0">
+                                  <TableHead className="font-semibold text-white uppercase text-[10px] tracking-wider py-3 px-4">Month</TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">VL</TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">SL</TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">OT (h)</TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">Late (m)</TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">Abs (d)</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {months.map((month, idx) => (
+                                  <TableRow key={month} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
+                                    <td className="font-bold text-[#2A174E] text-xs py-2.5 px-4">{month}</td>
+                                    <td className="text-center text-xs font-semibold text-slate-600">{monthlyVl[idx] > 0 ? monthlyVl[idx] : "—"}</td>
+                                    <td className="text-center text-xs font-semibold text-slate-600">{monthlySl[idx] > 0 ? monthlySl[idx] : "—"}</td>
+                                    <td className="text-center text-xs font-semibold text-slate-600">{monthlyOt[idx] > 0 ? monthlyOt[idx].toFixed(1) : "—"}</td>
+                                    <td className="text-center text-xs font-semibold text-slate-600">{monthlyLates[idx] > 0 ? monthlyLates[idx] : "—"}</td>
+                                    <td className="text-center text-xs font-semibold text-slate-600">{monthlyAbsences[idx] > 0 ? monthlyAbsences[idx] : "—"}</td>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+                  </CardHeader>
+
+                  <CardContent className="p-5 space-y-4 flex-1">
+                    
+                    {/* Progress Trackers for All Leaves (Assuming Max 7 parameters from your template headers) */}
+                    <div className="space-y-2.5">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs font-medium">
+                          <span className="text-slate-500">Vacation Leaves Used</span>
+                          <span className="text-slate-800 font-bold">{totalVl > 0 ? `${totalVl} Days` : "—"} <span className="text-slate-400 font-normal">({row.vlRemaining} Left)</span></span>
+                        </div>
+                        <Progress value={(totalVl / 7) * 100} className="h-1.5 bg-slate-100" />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs font-medium">
+                          <span className="text-slate-500">Sick Leaves Used</span>
+                          <span className="text-slate-800 font-bold">{totalSl > 0 ? `${totalSl} Days` : "—"} <span className="text-slate-400 font-normal">({row.slRemaining} Left)</span></span>
+                        </div>
+                        <Progress value={(totalSl / 7) * 100} className="h-1.5 bg-slate-100" />
+                      </div>
+                    </div>
+
+                    {/* Attendance Metric Grids (Matches your original variable conversion formulas) */}
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between min-w-0">
+                        <div className="flex items-center gap-1 text-amber-600 mb-1">
+                          <AccessTimeIcon className="text-xs shrink-0" fontSize="inherit" />
+                          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Overtime</span>
+                        </div>
+                        <div className="truncate">
+                          <span className="text-xs font-bold text-slate-800 block truncate">{totalOt ? `${(totalOt * 60)} m` : "—"}</span>
+                          <span className="text-[10px] text-slate-400 font-medium block truncate">{totalOt ? `${totalOt.toFixed(2)} hrs` : ""}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between min-w-0">
+                        <div className="flex items-center gap-1 text-rose-500 mb-1">
+                          <CalendarTodayIcon className="text-xs shrink-0" fontSize="inherit" />
+                          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Lates</span>
+                        </div>
+                        <div className="truncate">
+                          <span className="text-xs font-bold text-slate-800 block truncate">{totalLates ? `${totalLates} m` : "—"}</span>
+                          <span className="text-[10px] text-slate-400 font-medium block truncate">{totalLates ? `${(totalLates / 60).toFixed(2)} hrs` : ""}</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between min-w-0">
+                        <div className="flex items-center gap-1 text-slate-500 mb-1">
+                          <RemoveCircleOutlineIcon className="text-xs shrink-0" fontSize="inherit" />
+                          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Absences</span>
+                        </div>
+                        <div className="truncate">
+                          <span className="text-xs font-bold text-slate-800 block truncate">{totalAbsences ? `${(totalAbsences * 8 * 60)} m` : "—"}</span>
+                          <span className="text-[10px] text-slate-400 font-medium block truncate">{totalAbsences ? `${(totalAbsences * 8).toFixed(2)} hrs` : ""}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Integrated Financial Calculations Banner */}
+                    <div className="bg-emerald-50/40 border border-emerald-100 rounded-lg p-2.5 flex items-center justify-between mt-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <AccountBalanceWalletIcon className="text-emerald-600 shrink-0" fontSize="small" />
+                        <span className="text-[11px] font-semibold text-emerald-800 truncate">Total Leave Conversion</span>
+                      </div>
+                      <span className="text-sm font-extrabold text-emerald-700 shrink-0">
+                        ₱{totalCombinedConversion.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }

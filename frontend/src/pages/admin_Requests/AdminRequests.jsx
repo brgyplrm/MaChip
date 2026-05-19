@@ -255,14 +255,15 @@ const AdminRequests = () => {
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
 
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">User Requests</h1>
-          <span className="text-sm text-slate-500 mt-1 block">
-              Monitor and process employee requests, leave filings, and log correction tickets.
-          </span>
-
-          {/* NEW: Redirect to Request Summary Button */}
-          <Button 
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-6">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">User Requests</h1>
+              <span className="text-sm text-slate-500 mt-1 block">
+                Monitor and process employee requests, leave filings, and log correction tickets.
+              </span>
+            </div>
+            {/* NEW: Redirect to Reports Button */}
+            <Button 
             variant="outline" 
             asChild
             className="w-full md:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#f0ebfa] font-semibold shadow-sm transition-all"
@@ -271,6 +272,7 @@ const AdminRequests = () => {
               <AssessmentIcon className="mr-2 h-4 w-4" /> View Request Summary
             </Link>
           </Button>
+          
         </div>
 
          {/* Statistics Cards */}

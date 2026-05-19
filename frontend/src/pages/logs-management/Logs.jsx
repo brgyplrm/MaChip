@@ -376,6 +376,16 @@ const sortedAndFilteredDayLogs = useMemo(() => {
       : dayLogsData.filter(l => l.status && l.status !== "On Time").length,
   };
 
+  // State tracking visibility masking state mapped to log identifiers
+const [revealedMachipRows, setRevealedMachipRows] = useState({});
+
+const toggleMachipVisibility = (rowId) => {
+  setRevealedMachipRows((prev) => ({
+    ...prev,
+    [rowId]: !prev[rowId],
+  }));
+};
+
   return (
     <Sidebar>
       <div className="flex flex-col w-full min-h-screen bg-slate-50">
@@ -416,10 +426,10 @@ const sortedAndFilteredDayLogs = useMemo(() => {
                   </TabsList>
                 </Tabs>
             </div>
-          <div className="h-4"></div>
+          <div className="h-6"></div>
  
           {/* Statistics Cards */}
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-4 w-full">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
             {/* Card 1: Total Active Users */}
             <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
@@ -482,7 +492,7 @@ const sortedAndFilteredDayLogs = useMemo(() => {
           </div>
 
           {/* Filters Card */}
-          <Card className="shadow-sm border-0 bg-white mb-4 py-0">
+          <Card className="shadow-sm border-0 bg-white mb-6 py-0">
             <CardContent className="p-4 sm:p-6 space-y-4">
               
               {/* First Row: Search and Basic Filters */}
@@ -610,28 +620,68 @@ const sortedAndFilteredDayLogs = useMemo(() => {
                       </TableHeader>
                       <TableBody>
                         {currentData.length > 0 ? (
-                          currentData.map((row) => (
-                            <TableRow key={row.user_loggingId} className="border-b-slate-100 hover:bg-slate-50/50">
-                              <TableCell className="font-bold text-[#2A174E] py-4 px-6">{row.user_Id_formatted}</TableCell>
-                              <TableCell className="font-medium text-slate-800 py-4">{row.fullName}</TableCell>
-                              <TableCell className="py-4">
-                                <Badge 
-                                  variant="secondary" 
-                                  className={`font-semibold ${row.log_type.toLowerCase().includes("in") ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}`}
-                                >
-                                  {row.log_type}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-slate-500 py-4 hidden sm:table-cell font-mono text-xs">{row.machip_id}</TableCell>
-                              <TableCell className="text-slate-600 py-4">{row.log_Date}</TableCell>
-                              <TableCell className="text-slate-600 py-4">{row.time}</TableCell>
-                              <TableCell className="py-4 text-right pr-6">
-                                <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-                                  <Link to={`/users/${row.user_Id}`}>View</Link>
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))
+                          currentData.map((row) => {
+                            const isMachipRevealed = revealedMachipRows[row.user_loggingId];
+                            return (
+                              <TableRow key={row.user_loggingId} className="border-b-slate-100 hover:bg-slate-50/50">
+                                <TableCell className="font-bold text-[#2A174E] py-4 px-6">{row.user_Id_formatted}</TableCell>
+                                
+                                {/* Truncated Full Name (Raw View) */}
+                                <TableCell className="font-medium text-slate-800 py-4">
+                                  {row.fullName ? (
+                                    <span className="inline-block max-w-[150px] truncate align-bottom" title={row.fullName}>
+                                      {row.fullName}
+                                    </span>
+                                  ) : "—"}
+                                </TableCell>
+
+                                <TableCell className="py-4">
+                                  <Badge 
+                                    variant="secondary" 
+                                    className={`font-semibold ${row.log_type.toLowerCase().includes("in") ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}`}
+                                  >
+                                    {row.log_type}
+                                  </Badge>
+                                </TableCell>
+
+                                {/* Masked MaChip ID with Toggle (Raw View) */}
+                                <TableCell className="text-slate-500 py-4 hidden sm:table-cell font-mono text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="tracking-wider">
+                                      {row.machip_id ? (isMachipRevealed ? row.machip_id : "••••••••••••") : "—"}
+                                    </span>
+                                    {row.machip_id && (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleMachipVisibility(row.user_loggingId)}
+                                        className="text-slate-400 hover:text-[#2A174E] transition-colors p-0.5 rounded focus:outline-none"
+                                        title={isMachipRevealed ? "Hide MaChip ID" : "Show MaChip ID"}
+                                      >
+                                        {isMachipRevealed ? (
+                                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                                          </svg>
+                                        ) : (
+                                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                          </svg>
+                                        )}
+                                      </button>
+                                    )}
+                                  </div>
+                                </TableCell>
+
+                                <TableCell className="text-slate-600 py-4">{row.log_Date}</TableCell>
+                                <TableCell className="text-slate-600 py-4">{row.time}</TableCell>
+                                <TableCell className="py-4 text-right pr-6">
+                                  <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+                                    <Link to={`/users/${row.user_Id}`}>View</Link>
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
                         ) : (
                           <TableRow>
                             <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
@@ -680,7 +730,16 @@ const sortedAndFilteredDayLogs = useMemo(() => {
                             return (
                               <TableRow key={`${row.user_Id}-${row.log_Date}-${index}`} className="border-b-slate-100 hover:bg-slate-50/50">
                                 <TableCell className="font-bold text-[#2A174E] py-4 px-6">{formatUserId(row.user_Id)}</TableCell>
-                                <TableCell className="font-medium text-slate-800 py-4">{row.userName}</TableCell>
+                                
+                                {/* Truncated Name (Structured View) */}
+                                <TableCell className="font-medium text-slate-800 py-4">
+                                  {row.userName ? (
+                                    <span className="inline-block max-w-[150px] truncate align-bottom" title={row.userName}>
+                                      {row.userName}
+                                    </span>
+                                  ) : "—"}
+                                </TableCell>
+
                                 <TableCell className="text-slate-600 py-4">{formatDateStr(row.log_Date)}</TableCell>
                                 <TableCell className="text-slate-600 py-4 font-mono text-[13px]">{row.morning_In || "—"}</TableCell>
                                 <TableCell className="text-slate-600 py-4 font-mono text-[13px]">{row.morning_Out || "—"}</TableCell>
@@ -727,7 +786,6 @@ const sortedAndFilteredDayLogs = useMemo(() => {
               {/* Pagination Controls */}
               {totalItems > 0 && (
                 <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
-                  
                   <div className="flex items-center gap-4 text-sm text-slate-500">
                     <div className="flex items-center gap-2">
                       <span className="hidden sm:inline">Rows per page:</span>
@@ -777,7 +835,6 @@ const sortedAndFilteredDayLogs = useMemo(() => {
                       Next
                     </Button>
                   </div>
-
                 </div>
               )}
             </CardContent>

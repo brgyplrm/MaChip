@@ -44,6 +44,10 @@ import ArchivedUsers from "./pages/archivedUsers/ArchivedUsers";
 import AdminRequestsOversight from "./pages/AdminRequestsOversight";
 import RequestsHistory from "./pages/RequestsHistory";
 import FAQ from "./components/FAQ";
+import LoanManagement from "./pages/admin_Payroll/subtabs/LoanManagement";
+import LoanManagementHub from "./pages/admin_Payroll/subtabs/LoanManagementHub";
+import LM2 from "./pages/admin_Payroll/subtabs/LM2";
+import LoanDetailsPage from "./components/LoanDetailsPage";
 
 function App() {
 
@@ -128,6 +132,30 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 4]}>
               <Payroll />
+            </ProtectedRoute>
+          }
+        />
+        <Route 
+          path="/loanMan2" 
+          element={<ProtectedRoute allowedRoles={[1, 4]}><LM2 /></ProtectedRoute>} />
+        <Route 
+          path="/loanMan2/:id" 
+          element={<ProtectedRoute allowedRoles={[1, 4]}><LoanDetailsPage /></ProtectedRoute>} />
+
+        <Route
+          path="/loanManagementHub"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <LoanManagementHub />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/loanManagement"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <LoanManagement />
             </ProtectedRoute>
           }
         />
