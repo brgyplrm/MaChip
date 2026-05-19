@@ -170,13 +170,12 @@ const ArchivedUsers = () => {
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header section */}
-        <div className="flex items-start md:items-center gap-4 mb-4">
+        <div className="flex items-start md:items-center gap-4 mb-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Archived Users</h1>
             <span className="text-sm text-slate-500 mt-1 block">Manage archived user records - restore or permanently delete</span>
           </div>
         </div>
-        <div className="h-4"></div>
 
         {/* Statistics Cards */}
               <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">

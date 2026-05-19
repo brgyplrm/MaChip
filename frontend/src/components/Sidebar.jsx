@@ -34,7 +34,8 @@ import {
   SidebarGroupContent,
   SidebarInset,
   SidebarProvider,
-  SidebarFooter
+  SidebarFooter,
+  SidebarGroupLabel
 } from "./ui/sidebar";
 
 import {
@@ -202,8 +203,9 @@ const Sidebar = ({ children }) => {
           )}
         </SidebarHeader>
         <div className="h-1" />
-        <SidebarContent className="no-scrollbar px-3">
-          <SidebarGroup>
+        <SidebarContent className="no-scrollbar px-3 flex flex-col">
+          <SidebarGroup><SidebarGroupLabel>MAIN</SidebarGroupLabel>
+
             <SidebarGroupContent>
               <SidebarMenu>
                 {/* Dashboard */}
@@ -370,11 +372,32 @@ const Sidebar = ({ children }) => {
                               Payroll Details
                             </Link>
                           </SidebarMenuSubButton>
-                        </SidebarMenuSubItem> */}
+                        </SidebarMenuSubItem> */}   
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll/leave-summary")}>
                             <Link to="/payroll/leave-summary" className={isActive("/payroll/leave-summary") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Leave Summary
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/loanMan2")}>
+                            <Link to="/loanMan2" className={isActive("/loanMan2") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Loan Man 2
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/loanManagementHub")}>
+                            <Link to="/loanManagementHub" className={isActive("/loanManagementHub") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Loan Man Hub
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/loanManagement")}>
+                            <Link to="/loanManagement" className={isActive("/loanManagement") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Loan Management
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -427,73 +450,58 @@ const Sidebar = ({ children }) => {
                   </SidebarMenuItem>
                 )}
 
-                {/* Audit - Master Only */}
-                {isMaster && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isActive("/auditLogs")}
-                      className={isActive("/auditLogs") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
-                    >
-                      <Link to="/auditLogs">
-                        <ListAltIcon className="!text-[22px]" />
-                        <span className="ms-3 text-[14px]">Audit</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-
-                {/* Transaction - Management Only */}
-                {isMaster && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isActive("/transactionLog")}
-                      className={isActive("/transactionLog") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
-                    >
-                      <Link to="/transactionLog">
-                        <ReceiptLongIcon className="!text-[22px]" />
-                        <span className="ms-3 text-[14px]">Transaction</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-
-                {/* Settings - Admin Only */}
-                {isManagement && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isActive("/settings")}
-                      className={isActive("/settings") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
-                    >
-                      <Link to="/settings">
-                        <SettingsIcon className="!text-[22px]" />
-                        <span className="ms-3 text-[14px]">Settings</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
+               
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          {/* Sidebar.jsx: Place this inside <SidebarFooter> */}
-          <SidebarFooter className="py-4 mt-[280px]">
-            <SidebarMenu>
+        </SidebarContent>
+          {/* --- BOTTOM SECTION (ANCHORED) --- */}
+        <SidebarFooter className="border-t border-gray-100 p-3 mt-auto">
+          <SidebarGroupLabel>SYSTEM</SidebarGroupLabel>
+          <SidebarMenu>
+            {isMaster && (
               <SidebarMenuItem>
-                <SidebarMenuButton 
-                  asChild 
-                  className="w-full justify-start hover:bg-[#f0ebfa] hover:text-[#2A174E] transition-colors"
-                >
-                  <Link to="/faq" className="flex items-center gap-3 px-2 py-1.5">
-                    <HelpOutlinedIcon className="!text-[20px]" />
-                    <span className="font-semibold text-sm">Help & Support</span>
+                <SidebarMenuButton asChild isActive={isActive("/auditLogs")} className={isActive("/auditLogs") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}>
+                  <Link to="/auditLogs">
+                    <ListAltIcon className="!text-[22px]" />
+                    <span className="ms-3 text-[14px]">Audit</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarFooter>
-        </SidebarContent>
+            )}
+
+            {isMaster && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/transactionLog")} className={isActive("/transactionLog") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}>
+                  <Link to="/transactionLog">
+                    <ReceiptLongIcon className="!text-[22px]" />
+                    <span className="ms-3 text-[14px]">Transaction</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+
+            {isManagement && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/settings")} className={isActive("/settings") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}>
+                  <Link to="/settings">
+                    <SettingsIcon className="!text-[22px]" />
+                    <span className="ms-3 text-[14px]">Settings</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild className="text-gray-500 hover:bg-[#f0ebfa] hover:text-[#2A174E]">
+                <Link to="/faq" className="flex items-center">
+                  <HelpOutlinedIcon className="!text-[20px]" />
+                  <span className="ms-3 text-[14px]">Help & Support</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
       </ShadcnSidebar>
 
       {children && (

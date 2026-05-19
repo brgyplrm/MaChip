@@ -231,52 +231,52 @@ const Home = () => {
           </div>
         </div>
 
-        {/* Solid Color Widget Cards */}
+        {/* Border Top Widget Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full">
           <Link to="/logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-            <Card className="shadow-sm border-0 bg-[#2A174E] py-0 h-full">
+            <Card className="shadow-sm border-t-5 border-[#2A174E] py-0 h-full">
               <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
                 <div>
-                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Office Occupancy</p>
-                  <p className="text-4xl font-bold text-white">{statsLoading ? "..." : stats.officeOccupancy}</p>
+                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Office Occupancy</p>
+                  <p className="text-4xl font-bold text-[#2A174E]">{statsLoading ? "..." : stats.officeOccupancy}</p>
                 </div>
-                <p className="text-xs text-white/70 italic mt-4">{statsLoading ? "Loading logs..." : `${stats.enteredCount || 0} entered, and ${stats.exitedCount || 0} exited`}</p>
+                <p className="text-xs text-[#2A174E]/70 italic mt-4">{statsLoading ? "Loading logs..." : `${stats.enteredCount || 0} entered, and ${stats.exitedCount || 0} exited`}</p>
               </CardContent>
             </Card>
           </Link>
 
           <Link to="/adminRequests" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-            <Card className="shadow-sm border-0 bg-[#3B4E17] py-0 h-full">
+            <Card className="shadow-sm border-t-5 border-[#3B4E17]  py-0 h-full">
               <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
                 <div>
-                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Pending Approvals</p>
-                  <p className="text-4xl font-bold text-white">{statsLoading ? "..." : stats.pendingCount}</p>
+                  <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Pending Approvals</p>
+                  <p className="text-4xl font-bold text-[#3B4E17]">{statsLoading ? "..." : stats.pendingCount}</p>
                 </div>
-                <p className="text-xs text-white/70 italic mt-4">Pending requests awaiting action</p>
+                <p className="text-xs text-[#3B4E17]/70 italic mt-4">Pending requests awaiting action</p>
               </CardContent>
             </Card>
           </Link>
 
           <Link to="/payroll" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-            <Card className="shadow-sm border-0 bg-[#ECC04B] py-0 h-full">
+            <Card className="shadow-sm border-t-5 border-[#ECC04B] py-0 h-full">
               <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
                 <div>
-                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Projected Monthly (Net)</p>
-                  <p className="text-4xl font-bold text-white">{statsLoading ? "..." : `₱${(stats.projectedPayroll || 0).toLocaleString()}`}</p>
+                  <p className="text-xs font-bold text-[#ECC04B] uppercase tracking-wider mb-2">Projected Monthly (Net)</p>
+                  <p className="text-4xl font-bold text-[#ECC04B]">{statsLoading ? "..." : `₱${(stats.projectedPayroll || 0).toLocaleString()}`}</p>
                 </div>
-                <p className="text-xs text-white/70 italic mt-4">Estimated net payout after deductions</p>
+                <p className="text-xs text-[#ECC04B]/70 italic mt-4">Estimated net payout after deductions</p>
               </CardContent>
             </Card>
           </Link>
 
           <Link to="/transaction-logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-            <Card className="shadow-sm border-0 bg-[#991b1b] py-0 h-full">
+            <Card className="shadow-sm border-t-5 border-[#991b1b]  py-0 h-full">
               <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
                 <div>
-                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Anomalies</p>
-                  <p className="text-4xl font-bold text-white">{statsLoading ? "..." : stats.anomaliesCount || 0}</p>
+                  <p className="text-xs font-bold text-[#991b1b] uppercase tracking-wider mb-2">Anomalies</p>
+                  <p className="text-4xl font-bold text-[#991b1b]">{statsLoading ? "..." : stats.anomaliesCount || 0}</p>
                 </div>
-                <p className="text-xs text-white/70 italic mt-4">Unauthorized or failed scans</p>
+                <p className="text-xs text-[#991b1b]/70 italic mt-4">Unauthorized or failed scans</p>
               </CardContent>
             </Card>
           </Link>
@@ -424,7 +424,7 @@ const Home = () => {
           </div>
         </div>
 
-        <div className="h-8"></div>
+        <div className="h-6"></div>
 
         {/* Multi-Tab Chart Section */}
         <Card className="shadow-sm border-gray-200">
@@ -491,6 +491,7 @@ const Home = () => {
             </CardContent>
           </Tabs>
         </Card>
+        <div className="h-4"></div>
 
         {/* Occupancy List Section */}
         <div className="w-full overflow-x-auto min-w-0 mt-3 shadow-sm rounded-xl">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -12,36 +12,60 @@ import AssignmentLateIcon from "@mui/icons-material/AssignmentLate";
 import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
 import KeyboardDoubleArrowDownIcon from '@mui/icons-material/KeyboardDoubleArrowDown';
 import EventNoteIcon from '@mui/icons-material/EventNote';
+import SearchIcon from "@mui/icons-material/Search";
+import CloseIcon from '@mui/icons-material/Close';
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import { Link, useLocation } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import { exportBatchToZip } from "../../utils/payrollExport";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
 import { exportToPDF } from "../../utils/pdfExport";
+import { FileInput } from "lucide-react";
+import EmptyState from "../../components/EmptyState";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import ShieldIcon from '@mui/icons-material/Shield';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 const AdminReports = () => {
-  const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedEmployee, setSelectedEmployee] = useState("All Employees");
-  const [selectedPeriod, setSelectedPeriod] = useState("custom");
+  // Constant Baseline Fallback Variable References
+  const defaultStartDate = useMemo(() => new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0], []);
+  const defaultEndDate = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const defaultEmployee = "All Employees";
+  const defaultPeriod = "custom";
+  const defaultEventType = "All Types";
+
+  // --- Attendance & Payroll Filters ---
+  const [startDate, setStartDate] = useState(defaultStartDate);
+  const [endDate, setEndDate] = useState(defaultEndDate);
+  const [selectedEmployee, setSelectedEmployee] = useState(defaultEmployee);
+  const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
   const [payrollPeriods, setPayrollPeriods] = useState([]);
   
+  // --- Calendar/Events Specific Filters ---
+  const [calendarStartDate, setCalendarStartDate] = useState(defaultStartDate);
+  const [calendarEndDate, setCalendarEndDate] = useState(defaultEndDate);
+  const [eventTypeFilter, setEventTypeFilter] = useState(defaultEventType);
+
+  // --- Requests Tab Specific Filters ---
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("All Types");
+  const [statusFilter, setStatusFilter] = useState("All Statuses");
+
   const [employees, setEmployees] = useState([]);
   const [attendanceData, setAttendanceData] = useState([]);
   const [payrollData, setPayrollData] = useState([]);
   const [calendarData, setCalendarData] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const location = useLocation();
@@ -54,6 +78,37 @@ const AdminReports = () => {
   const [showBatchZipModal, setShowBatchZipModal] = useState(false);
   const [zipPassword, setZipPassword] = useState("");
   const [zipLabel, setZipLabel] = useState("");
+
+  const userData = JSON.parse(localStorage.getItem("userData") || "null");
+  const roleId = userData?.user_RoleId;
+  const isAdminOrAccountant = roleId === 1 || roleId === 4;
+
+  // --- FIXED: Re-added Missing getStatusBadge helper function ---
+  const getStatusBadge = (statusId) => {
+    switch (statusId) {
+      case 1: case 4: return "bg-orange-100 text-orange-800 hover:bg-orange-100"; // Pending/Recommended
+      case 2: return "bg-green-100 text-green-800 hover:bg-green-100"; // Approved
+      case 3: return "bg-red-100 text-red-800 hover:bg-red-100"; // Rejected
+      default: return "bg-slate-100 text-slate-800";
+    }
+  };
+
+  const formatDateStr = (dateStr) => {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const fetchAllRequestsData = useCallback(async () => {
+    try {
+      const res = await fetchWithAuth("/api/request/all");
+      if (res.ok) {
+        const data = await res.json();
+        setRequests(data);
+      }
+    } catch (err) {
+      console.error("Failed to populate statistics summary rows:", err);
+    }
+  }, []);
 
   const fetchPayrollPeriods = useCallback(async () => {
     try {
@@ -123,7 +178,7 @@ const AdminReports = () => {
   const fetchCalendarReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/request/report/calendar?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      const response = await fetchWithAuth(`/api/request/report/calendar?startDate=${calendarStartDate}&endDate=${calendarEndDate}&user_Id=All Employees`);
       if (response.ok) {
         const data = await response.json();
         setCalendarData(data);
@@ -133,12 +188,13 @@ const AdminReports = () => {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, selectedEmployee]);
+  }, [calendarStartDate, calendarEndDate]);
 
   useEffect(() => {
     fetchEmployees();
     fetchPayrollPeriods();
-  }, [fetchEmployees, fetchPayrollPeriods]);
+    fetchAllRequestsData();
+  }, [fetchEmployees, fetchPayrollPeriods, fetchAllRequestsData]);
 
   useEffect(() => {
     if (activeReport === "attendance") fetchAttendanceReport();
@@ -152,123 +208,102 @@ const AdminReports = () => {
     }
   }, [location.state]);
 
-  // Reset pagination on filter or tab change
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeReport, startDate, endDate, selectedEmployee, itemsPerPage]);
+  }, [activeReport, startDate, endDate, selectedEmployee, calendarStartDate, calendarEndDate, eventTypeFilter, searchQuery, typeFilter, statusFilter, itemsPerPage]);
+
+  const handleClearFilters = () => {
+    if (activeReport === "attendance" || activeReport === "payroll") {
+      setSelectedEmployee(defaultEmployee);
+      setSelectedPeriod(defaultPeriod);
+      setStartDate(defaultStartDate);
+      setEndDate(defaultEndDate);
+    } else if (activeReport === "calendar") {
+      setCalendarStartDate(defaultStartDate);
+      setCalendarEndDate(defaultEndDate);
+      setEventTypeFilter(defaultEventType);
+    } else if (activeReport === "requests") {
+      setSearchQuery("");
+      setTypeFilter("All Types");
+      setStatusFilter("All Statuses");
+    }
+    setCurrentPage(1);
+  };
+
+  const isFiltering = useMemo(() => {
+    if (activeReport === "attendance" || activeReport === "payroll") {
+      return selectedEmployee !== defaultEmployee || selectedPeriod !== defaultPeriod || startDate !== defaultStartDate || endDate !== defaultEndDate;
+    }
+    if (activeReport === "calendar") {
+      return calendarStartDate !== defaultStartDate || calendarEndDate !== defaultEndDate || eventTypeFilter !== defaultEventType;
+    }
+    if (activeReport === "requests") {
+      return searchQuery !== "" || typeFilter !== "All Types" || statusFilter !== "All Statuses";
+    }
+    return false;
+  }, [activeReport, selectedEmployee, selectedPeriod, startDate, endDate, calendarStartDate, calendarEndDate, eventTypeFilter, searchQuery, typeFilter, statusFilter, defaultStartDate, defaultEndDate, defaultEmployee, defaultPeriod, defaultEventType]);
+
+  const handleCSVExport = () => {
+    let dataToExport = [];
+    let filename = `${activeReport}_report_${startDate}_to_${endDate}.csv`;
+
+    if (activeReport === "attendance") {
+      dataToExport = attendanceData.map(r => ({
+        "Employee ID": formatUserId(r.user_Id),
+        "Employee Name": r.userName,
+        "Log Date": new Date(r.log_Date).toLocaleDateString(),
+        "Time In": r.time_In || "—",
+        "Time Out": r.time_Out || "—",
+        "Hours Worked": r.hoursWorked,
+        "Status": r.status,
+        "Remarks": r.remarks || ""
+      }));
+    } else if (activeReport === "payroll") {
+      dataToExport = payrollData.map(r => ({
+        "Employee ID": formatUserId(r.user_Id),
+        "Employee Name": `${r.user_FirstName} ${r.user_LastName}`,
+        "Days Worked": r.NoDays_Worked,
+        "Hours Worked": r.NoHrs_Worked,
+        "Basic Pay": r.basicPay,
+        "Overtime Pay": (parseFloat(r.OT_Amnt) || 0) + (parseFloat(r.restDay_OT_Amnt) || 0),
+        "Night Diff Pay": r.nightDiff_Amnt,
+        "Holiday Pay": r.specialHol_Amnt,
+        "Gross Earnings": r.totalEarnings,
+        "Deductions": r.totalDeductions,
+        "Net Pay": r.netPay,
+        "Status": r.statusName
+      }));
+    } else if (activeReport === "calendar") {
+      dataToExport = filteredCalendarData.map(r => ({
+        "Event Type": r.type,
+        "Date": new Date(r.date).toLocaleDateString(),
+        "Event Subject": r.name,
+        "Details": r.details || ""
+      }));
+    }
+    exportToCSV(dataToExport, filename);
+  };
 
   const handlePDFExport = () => {
     let dataToExport = [];
-    let filename = `${activeReport}_report_${startDate}_to_${endDate}.pdf`;
+    let filename = `${activeReport}_report_${activeReport === "calendar" ? calendarStartDate : startDate}_to_${activeReport === "calendar" ? calendarEndDate : endDate}.pdf`;
     let headers = [];
     let title = `${activeReport.charAt(0).toUpperCase() + activeReport.slice(1)} Report`;
     let orientation = "p";
 
     if (activeReport === "attendance") {
       headers = ["Emp ID", "Employee Name", "Date", "In", "Out", "Hrs", "Status"];
-      dataToExport = attendanceData.map(r => [
-        formatUserId(r.user_Id), 
-        r.userName, 
-        new Date(r.log_Date).toLocaleDateString(), 
-        r.time_In, 
-        r.time_Out, 
-        r.hoursWorked, 
-        r.status
-      ]);
+      dataToExport = attendanceData.map(r => [formatUserId(r.user_Id), r.userName, new Date(r.log_Date).toLocaleDateString(), r.time_In, r.time_Out, r.hoursWorked, r.status]);
     } else if (activeReport === "payroll") {
       orientation = "l";
       headers = ["ID", "Name", "Worked", "Basic", "OT", "ND", "Hol", "Earn", "Deductions", "Net"];
-      dataToExport = payrollData.map(r => [
-        formatUserId(r.user_Id), 
-        `${r.user_FirstName} ${r.user_LastName}`, 
-        `${r.NoDays_Worked}d/${r.NoHrs_Worked}h`,
-        peso(r.basicPay),
-        peso((parseFloat(r.OT_Amnt) || 0) + (parseFloat(r.restDay_OT_Amnt) || 0)),
-        peso(r.nightDiff_Amnt),
-        peso(r.specialHol_Amnt),
-        peso(r.totalEarnings),
-        peso(r.totalDeductions),
-        peso(r.netPay)
-      ]);
+      dataToExport = payrollData.map(r => [formatUserId(r.user_Id), `${r.user_FirstName} ${r.user_LastName}`, `${r.NoDays_Worked}d/${r.NoHrs_Worked}h`, peso(r.basicPay), peso((parseFloat(r.OT_Amnt) || 0) + (parseFloat(r.restDay_OT_Amnt) || 0)), peso(r.nightDiff_Amnt), peso(r.specialHol_Amnt), peso(r.totalEarnings), peso(r.totalDeductions), peso(r.netPay)]);
     } else if (activeReport === "calendar") {
       headers = ["Type", "Date", "Name/Employee", "Details"];
-      dataToExport = calendarData.map(r => [r.type, r.date, r.name, r.details]);
+      dataToExport = filteredCalendarData.map(r => [r.type, r.date, r.name, r.details]);
     }
 
     exportToPDF(title, headers, dataToExport, filename, { orientation });
-  };
-
-  const handleCSVExport = () => {
-    let dataToExport = [];
-    let filename = `${activeReport}_report_${startDate}_to_${endDate}.csv`;
-    let headers = [];
-
-    if (activeReport === "attendance") {
-      headers = ["Employee ID", "Employee Name", "Date", "Time In", "Time Out", "Hours Worked", "Status", "Remarks"];
-      dataToExport = attendanceData.map(r => [
-        formatUserId(r.user_Id), 
-        r.userName, 
-        new Date(r.log_Date).toLocaleDateString(), 
-        r.time_In, 
-        r.time_Out, 
-        r.hoursWorked, 
-        r.status, 
-        r.remarks
-      ]);
-    } else if (activeReport === "payroll") {
-      headers = [
-        "Emp ID", "Employee Name", "Period Start", "Period End", "Days Worked", "Hours Worked", 
-        "Rate/Hr", "Basic Pay", "Overtime Pay", "Night Diff", "Holiday Pay", "Incentives", 
-        "Allowance", "Total Earnings", "Absences Ded", "Tardiness Ded", "SSS Ded", "Philhealth Ded", 
-        "HDMF Ded", "Tax Ded", "Loans/Others", "Total Deductions", "Net Pay", "Status"
-      ];
-      dataToExport = payrollData.map(r => [
-        formatUserId(r.user_Id), `${r.user_FirstName} ${r.user_LastName}`, r.period_Start, r.period_End, 
-        r.NoDays_Worked, r.NoHrs_Worked, r.ratePerHr, r.basicPay,
-        (parseFloat(r.OT_Amnt) || 0) + (parseFloat(r.restDay_OT_Amnt) || 0), r.nightDiff_Amnt, r.specialHol_Amnt, 
-        r.incentives, r.allowance, r.totalEarnings, r.absence_Amnt, r.tardiness_Amnt, r.SSS_Ded, 
-        r.Philhealth_Ded, r.HDMF_Ded, r.Tax_Ded,
-        (parseFloat(r.SSS_Loan) || 0) + (parseFloat(r.HDMF_Loan) || 0) + (parseFloat(r.Other_Deductions) || 0),
-        r.totalDeductions, r.netPay, r.statusName
-      ]);
-    } else if (activeReport === "calendar") {
-      headers = ["Type", "Date", "Name/Employee", "Details"];
-      dataToExport = calendarData.map(r => [r.type, r.date, r.name, r.details]);
-    }
-
-    exportToCSV(headers, dataToExport, filename);
-  };
-
-  const handleBatchExport = () => {
-    if (payrollData.length === 0) return;
-    
-    let label = "Payroll_Report";
-    let periodCode = "MAChipPayroll";
-    
-    if (selectedPeriod !== "custom") {
-      const period = payrollPeriods.find(p => p.periodId.toString() === selectedPeriod);
-      if (period) {
-        const [startY, startM, startD] = period.startDate.split('-').map(Number);
-        const [endY, endM, endD] = period.endDate.split('-').map(Number);
-        const month = new Date(startY, startM - 1, startD).toLocaleString('en-US', { month: 'long' });
-        label = `${month}${startD}-${endD}`;
-        
-        // Generate password: {Year}_{Month}{Period}MAChipPayroll
-        // e.g. 2026_0501-15MAChipPayroll
-        const monthNum = String(startM).padStart(2, '0');
-        const pRange = `${String(startD).padStart(2, '0')}-${String(endD).padStart(2, '0')}`;
-        periodCode = `${startY}_${monthNum}${pRange}MAChipPayroll`;
-      }
-    } else {
-      label = `Payroll_${startDate}_to_${endDate}`;
-      const [sY, sM, sD] = startDate.split('-').map(Number);
-      const [eY, eM, eD] = endDate.split('-').map(Number);
-      periodCode = `${sY}_${String(sM).padStart(2, '0')}${String(sD).padStart(2, '0')}-${String(eD).padStart(2, '0')}MAChipPayroll`;
-    }
-
-    setZipPassword(periodCode);
-    setZipLabel(label);
-    setShowBatchZipModal(true);
   };
 
   const confirmBatchZip = async () => {
@@ -283,7 +318,35 @@ const AdminReports = () => {
     }
   };
 
-  // --- Statistics Calculation ---
+  const handleBatchExport = () => {
+    if (payrollData.length === 0) return;
+    let label = "Payroll_Report";
+    let periodCode = "MAChipPayroll";
+    
+    // FIXED: Corrected syntax scoping error where 'val' was unreferenced
+    if (selectedPeriod !== "custom") {
+      const period = payrollPeriods.find(p => p.periodId.toString() === selectedPeriod);
+      if (period) {
+        const [startY, startM, startD] = period.startDate.split('-').map(Number);
+        const [endY, endM, endD] = period.endDate.split('-').map(Number);
+        const month = new Date(startY, startM - 1, startD).toLocaleString('en-US', { month: 'long' });
+        label = `${month}${startD}-${endD}`;
+        const monthNum = String(startM).padStart(2, '0');
+        const pRange = `${String(startD).padStart(2, '0')}-${String(endD).padStart(2, '0')}`;
+        periodCode = `${startY}_${monthNum}${pRange}MAChipPayroll`;
+      }
+    } else {
+      label = `Payroll_${startDate}_to_${endDate}`;
+      const [sY, sM, sD] = startDate.split('-').map(Number);
+      const [eY, eM, eD] = endDate.split('-').map(Number);
+      periodCode = `${sY}_${String(sM).padStart(2, '0')}${String(sD).padStart(2, '0')}-${String(eD).padStart(2, '0')}MAChipPayroll`;
+    }
+    setZipPassword(periodCode);
+    setZipLabel(label);
+    setShowBatchZipModal(true);
+  };
+
+  // --- Reducer Operational Loops ---
   const attStats = attendanceData.reduce((acc, curr) => {
     if (curr.status === "On-Time") acc.present++;
     else if (curr.status === "Late") { acc.present++; acc.late++; }
@@ -299,10 +362,35 @@ const AdminReports = () => {
     return acc;
   }, { net: 0, earn: 0, ded: 0 });
 
+  const filteredCalendarData = useMemo(() => {
+    return calendarData.filter(item => eventTypeFilter === "All Types" || item.type === eventTypeFilter);
+  }, [calendarData, eventTypeFilter]);
+
+  const filteredRequests = requests.filter(req => {
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = req.userName?.toLowerCase().includes(query) || req.emp_reqId?.toString().includes(query) || formatUserId(req.user_Id).toLowerCase().includes(query);
+    const matchesType = typeFilter === "All Types" || req.reqTypeName === typeFilter;
+    const matchesStatus = statusFilter === "All Statuses" || req.status === statusFilter;
+    return matchesSearch && matchesType && matchesStatus;
+  });
+
+  const requestStats = {
+    total: requests.length,
+    pending: requests.filter(r => r.emp_reqStatusId === 1 || r.emp_reqStatusId === 4).length,
+    approved: requests.filter(r => r.emp_reqStatusId === 2).length,
+    rejected: requests.filter(r => r.emp_reqStatusId === 3).length,
+  };
+
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  // --- Pagination Logic ---
-  const activeData = activeReport === "attendance" ? attendanceData : activeReport === "payroll" ? payrollData : calendarData;
+  const activeData = activeReport === "attendance" 
+    ? attendanceData 
+    : activeReport === "payroll" 
+      ? payrollData 
+      : activeReport === "calendar" 
+        ? filteredCalendarData 
+        : filteredRequests;
+
   const totalItems = activeData.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -320,18 +408,14 @@ const AdminReports = () => {
               <span className="text-sm text-slate-500 mt-1 block">Generate, analyze, and export system attendance and payroll data.</span>
             </div>
             <div className="flex items-center gap-3 w-full md:w-auto">
-              {/* <Button onClick={handleCSVExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
-                <FileDownloadIcon className="mr-2 h-4 w-4" /> Export CSV
+              {/* <Button onClick={handleCSVExport} variant="outline" className="w-full md:w-auto border-slate-200 text-slate-700 bg-white hover:bg-slate-50 shadow-sm">
+                <FileInput className="mr-2 h-4 w-4 text-slate-500" /> Export CSV
               </Button> */}
               <Button onClick={handlePDFExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
                 <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
               </Button>
               {activeReport === "payroll" && (
-                <Button 
-                  onClick={handleBatchExport}
-                  disabled={payrollData.length === 0 || loading}
-                  className="w-full md:w-auto bg-green-600 text-white hover:bg-green-700 shadow-sm"
-                >
+                <Button onClick={handleBatchExport} disabled={payrollData.length === 0 || loading} className="w-full md:w-auto bg-green-600 text-white hover:bg-green-700 shadow-sm">
                   <ReceiptLongIcon className="mr-2 h-4 w-4" /> Batch ZIP Payslips
                 </Button>
               )}
@@ -340,7 +424,7 @@ const AdminReports = () => {
 
           {/* Navigation Tabs */}
           <Tabs value={activeReport} onValueChange={(val) => setActiveReport(val)} className="w-full mb-6">
-            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0">
+            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-4 h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0">
               <TabsTrigger value="attendance" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
                 <AssessmentIcon className="mr-2 h-4 w-4" /> Attendance Report
               </TabsTrigger>
@@ -350,178 +434,79 @@ const AdminReports = () => {
               <TabsTrigger value="calendar" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
                 <CalendarMonthIcon className="mr-2 h-4 w-4" /> Calendar / Events
               </TabsTrigger>
+              <TabsTrigger value="requests" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
+                <FileInput className="mr-2 h-4 w-4" /> Requests
+              </TabsTrigger>
             </TabsList>
           </Tabs>
 
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 w-full animate-in fade-in zoom-in-95 duration-200">
+          {/* Statistics Display Grid Area */}
+          <div className="w-full animate-in fade-in zoom-in-95 duration-200">
             {activeReport === "attendance" && (
-              <>
-                {/* Statistics Cards */}
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-                  {/* Card 1: Total Present */}
-                  <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
-                    <CardContent className="px-5 py-5 flex justify-between h-full">
-                      <div className="flex flex-col justify-between">
-                      <div>
-                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Present</p>
-                        <p className="text-4xl font-bold text-[#2A174E]">{attStats.present}</p>
-                      </div>
-                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Total recorded present days</p>
-                    </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                      <CheckCircleOutlineIcon className="h-6 w-6" />
-                    </div>
-                    </CardContent>
-                  </Card>
-          
-                  {/* Card 2: Total Hours */}
-                  <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
-                    <CardContent className="px-5 py-5 flex justify-between h-full">
-                      <div className="flex flex-col justify-between">
-                      <div>
-                        <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Hours</p>
-                        <p className="text-4xl font-bold text-[#3B4E17]">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p>
-                      </div>
-                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Total clocked working hours</p>
-                    </div>
-                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                      <AccessTimeIcon className="h-6 w-6" />
-                    </div>
-                    </CardContent>
-                  </Card>
-          
-                  {/* Card 3: Lates/Absences */}
-                  <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
-                    <CardContent className="px-5 py-5 flex justify-between h-full">
-                      <div className="flex flex-col justify-between">
-                      <div>
-                        <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Lates / Absences</p>
-                        <p className="text-4xl font-bold text-[#BB8B26]">{attStats.late + attStats.absent}</p>
-                      </div>
-                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Recorded infractions in period</p>
-                    </div>
-                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                      <AssignmentLateIcon className="h-6 w-6" />
-                    </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Present</p><p className="text-4xl font-bold text-[#2A174E]">{attStats.present}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Total present records</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><CheckCircleOutlineIcon /></div></CardContent></Card>
+                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Hours</p><p className="text-4xl font-bold text-[#3B4E17]">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p></div><p className="text-xs text-[#3B4E17]/70 italic mt-4">Total working hours</p></div><div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AccessTimeIcon /></div></CardContent></Card>
+                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Lates / Absences</p><p className="text-4xl font-bold text-[#BB8B26]">{attStats.late + attStats.absent}</p></div><p className="text-xs text-[#BB8B26]/70 italic mt-4">Recorded schedule infractions</p></div><div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AssignmentLateIcon /></div></CardContent></Card>
+              </div>
             )}
 
             {activeReport === "payroll" && (
-              <>
-              <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
-                    <CardContent className="px-5 py-5 flex justify-between h-full">
-                      <div className="flex flex-col justify-between">
-                      <div>
-                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Net Pay</p>
-                        <p className="text-4xl font-bold text-[#2A174E]">{peso(payStats.net)}</p>
-                      </div>
-                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Calculated total distribution amount</p>
-                    </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                      <PaymentsIcon className="h-6 w-6" />
-                    </div>
-                    </CardContent>
-                  </Card>
-          
-                  {/* Card 2: Employees */}
-                  <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
-                    <CardContent className="px-5 py-5 flex justify-between h-full">
-                      <div className="flex flex-col justify-between">
-                      <div>
-                        <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Earnings</p>
-                        <p className="text-4xl font-bold text-[#3B4E17]">{peso(payStats.earn)}</p>
-                      </div>
-                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross pay including OT and allowances</p>
-                    </div>
-                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                      <KeyboardDoubleArrowUpIcon className="h-6 w-6" />
-                    </div>
-                    </CardContent>
-                  </Card>
-          
-                  {/* Card 3: Admins & Supervisors */}
-                  <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
-                    <CardContent className="px-5 py-5 flex justify-between h-full">
-                      <div className="flex flex-col justify-between">
-                      <div>
-                        <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Deductions</p>
-                        <p className="text-4xl font-bold text-[#BB8B26]">{peso(payStats.ded)}</p>
-                      </div>
-                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings including taxes and loans</p>
-                    </div>
-                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                      <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
-                    </div>
-                    </CardContent>
-                  </Card>
-              </> 
-              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Net Pay</p><p className="text-4xl font-bold text-[#2A174E]">{peso(payStats.net)}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Distribution payload volume</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><PaymentsIcon /></div></CardContent></Card>
+                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Earnings</p><p className="text-4xl font-bold text-[#3B4E17]">{peso(payStats.earn)}</p></div><p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross operational pay index</p></div><div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowUpIcon /></div></CardContent></Card>
+                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Deductions</p><p className="text-4xl font-bold text-[#BB8B26]">{peso(payStats.ded)}</p></div><p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings ledger volume</p></div><div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowDownIcon /></div></CardContent></Card>
+              </div> 
             )}
 
             {activeReport === "calendar" && (
-              <>
-              <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
-                    <CardContent className="px-5 py-5 flex justify-between h-full">
-                      <div className="flex flex-col justify-between">
-                      <div>
-                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Logged Events</p>
-                        <p className="text-4xl font-bold text-[#2A174E]">{calendarData.length}</p>
-                      </div>
-                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Holidays, leaves, and system events tracked in this period</p>
-                    </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                      <EventNoteIcon className="h-6 w-6" />
-                    </div>
-                    </CardContent>
-                  </Card>
-              </>
+              <div className="grid grid-cols-1 mb-6 w-full">
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Logged Events</p><p className="text-4xl font-bold text-[#2A174E]">{filteredCalendarData.length}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Holidays and leave logs active in window</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><EventNoteIcon /></div></CardContent></Card>
+              </div>
+            )}
+
+            {activeReport === "requests" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6 w-full">
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-1">Queue Total</p><p className="text-4xl font-extrabold text-[#2A174E]">{requestStats.pending}</p></div><p className="text-xs text-[#2A174E]/70 font-medium italic mt-2">Pending review entries</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0"><AccessTimeIcon /></div></CardContent></Card>
+                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-1">Approved History</p><p className="text-4xl font-extrabold text-[#3B4E17]">{requestStats.approved}</p></div><p className="text-xs text-[#3B4E17]/70 font-medium italic mt-2">Accepted historical logs</p></div><div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0"><CheckCircleOutlineIcon /></div></CardContent></Card>
+                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-1">Rejected Records</p><p className="text-4xl font-extrabold text-[#BB8B26]">{requestStats.rejected}</p></div><p className="text-xs text-[#BB8B26]/70 font-medium italic mt-2">Declined system entries</p></div><div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0"><AssignmentLateIcon /></div></CardContent></Card>
+                <Card className="border-t-5 border-[#475569] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1">Gross Logs Filed</p><p className="text-4xl font-extrabold text-slate-700">{requestStats.total}</p></div><p className="text-xs text-slate-400 font-medium italic mt-2">Operational ledger history volume</p></div><div className="bg-slate-100 text-slate-600 p-3 rounded-lg flex items-center justify-center shrink-0"><AssessmentIcon /></div></CardContent></Card>
+              </div>
             )}
           </div>
 
-          {/* Filters Card */}
+          {/* Tab-Isolated Filters */}
           <Card className="mb-6 mt-6 shadow-sm border-0 bg-white py-0">
             <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
               
               <div className="flex items-center gap-2 font-bold text-slate-700 w-full xl:w-auto">
-                <FilterListIcon className="h-5 w-5 text-slate-400" /> Filters
+                <FilterListIcon className="text-slate-400 h-5 w-5" /> Filters
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto flex-wrap">
-                
-                {(activeReport === "payroll" || activeReport === "attendance") && (
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
-                      <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors font-medium text-slate-700">
-                        <SelectValue placeholder="-- Select Period --" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="custom">Custom Date Range</SelectItem>
-                        {payrollPeriods.map(p => (
-                          <SelectItem key={p.periodId} value={p.periodId.toString()}>{p.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+              {/* FILTER VIEW 1: Attendance & Payroll (Includes Period and Employee) */}
+              {(activeReport === "attendance" || activeReport === "payroll") && (
+                <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto flex-wrap">
+                  <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
+                    <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 font-medium text-slate-700">
+                      <SelectValue placeholder="-- Select Period --" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">Custom Date Range</SelectItem>
+                      {payrollPeriods.map(p => (
+                        <SelectItem key={p.periodId} value={p.periodId.toString()}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                {(activeReport === "calendar" || selectedPeriod === "custom") && (
-                  <>
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full sm:w-[150px] border-slate-200 bg-slate-50 hover:bg-slate-100 font-medium text-slate-700" />
-                    </div>
-                    <span className="hidden sm:block text-slate-400 font-bold">to</span>
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full sm:w-[150px] border-slate-200 bg-slate-50 hover:bg-slate-100 font-medium text-slate-700" />
-                    </div>
-                  </>
-                )}
+                  {selectedPeriod === "custom" && (
+                    <>
+                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full sm:w-[150px] border-slate-200 bg-slate-50 font-medium text-slate-700" />
+                      <span className="hidden sm:block text-slate-400 font-bold">to</span>
+                      <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full sm:w-[150px] border-slate-200 bg-slate-50 font-medium text-slate-700" />
+                    </>
+                  )}
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                    <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors font-medium text-slate-700">
+                    <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="All Employees" />
                     </SelectTrigger>
                     <SelectContent>
@@ -533,21 +518,102 @@ const AdminReports = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
 
-              </div>
+                  {isFiltering && (
+                    <Button variant="ghost" size="sm" onClick={handleClearFilters} className="text-slate-500 hover:text-red-600 font-semibold h-9 gap-1 transition-colors">
+                      <CloseIcon className="h-4 w-4" /> Clear Filters
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* FILTER VIEW 2: Calendar/Events (Excludes Employee Dropdown) */}
+              {activeReport === "calendar" && (
+                <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto flex-wrap">
+                  <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 font-medium text-slate-700">
+                      <SelectValue placeholder="All Event Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All Types">All Event Types</SelectItem>
+                      <SelectItem value="Holiday">Holidays</SelectItem>
+                      <SelectItem value="Leave">Leaves</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Input type="date" value={calendarStartDate} onChange={(e) => setCalendarStartDate(e.target.value)} className="w-full sm:w-[150px] border-slate-200 bg-slate-50 font-medium text-slate-700" />
+                  <span className="hidden sm:block text-slate-400 font-bold">to</span>
+                  <Input type="date" value={calendarEndDate} onChange={(e) => setCalendarEndDate(e.target.value)} className="w-full sm:w-[150px] border-slate-200 bg-slate-50 font-medium text-slate-700" />
+
+                  {isFiltering && (
+                    <Button variant="ghost" size="sm" onClick={handleClearFilters} className="text-slate-500 hover:text-red-600 font-semibold h-9 gap-1 transition-colors">
+                      <CloseIcon className="h-4 w-4" /> Clear Filters
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* FILTER VIEW 3: Requests Panel */}
+              {activeReport === "requests" && (
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto flex-wrap">
+                  <div className="relative w-full sm:w-[240px]">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      type="text"
+                      placeholder="Search key criteria..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 h-9 border-slate-200 focus-visible:ring-[#2A174E] w-full bg-slate-50"
+                    />
+                  </div>
+
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-full sm:w-[160px] h-9 border-slate-200 bg-slate-50 text-slate-700">
+                      <SelectValue placeholder="All Request Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All Types">All Types</SelectItem>
+                      <SelectItem value="Vacation Leave">Vacation Leave</SelectItem>
+                      <SelectItem value="Sick Leave">Sick Leave</SelectItem>
+                      <SelectItem value="Overtime">Overtime</SelectItem>
+                      <SelectItem value="OnField Work">OnField Work</SelectItem>
+                      <SelectItem value="Log Correction">Log Correction</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[140px] h-9 border-slate-200 bg-slate-50 text-slate-700">
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All Statuses">All Statuses</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="Recommended">Recommended</SelectItem>
+                      <SelectItem value="Approved">Approved</SelectItem>
+                      <SelectItem value="Rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {isFiltering && (
+                    <Button variant="ghost" size="sm" onClick={handleClearFilters} className="text-slate-500 hover:text-red-600 font-semibold h-9 gap-1 transition-colors">
+                      <CloseIcon className="h-4 w-4" /> Clear Filters
+                    </Button>
+                  )}
+                </div>
+              )}
+
             </CardContent>
           </Card>
 
-          {/* Data/Table Card */}
-          <Card className="shadow-sm border-0 bg-white py-0">
+          {/* Master Operational Data Tables */}
+          <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
             <CardContent className="p-0 flex flex-col">
               {loading ? (
                 <div className="p-12 text-center text-muted-foreground animate-pulse">Loading report data...</div>
               ) : (
                 <div className="overflow-x-auto custom-scrollbar">
                   
-                  {/* Attendance Table */}
+                  {/* Attendance Report Table */}
                   {activeReport === "attendance" && (
                     <Table className="min-w-[1000px]">
                       <TableHeader className="bg-[#2B174F]">
@@ -586,14 +652,14 @@ const AdminReports = () => {
                         })}
                         {currentData.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic">No attendance records found.</TableCell>
+                            <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic p-6">No attendance records found.</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
                     </Table>
                   )}
 
-                  {/* Payroll Table */}
+                  {/* Payroll Report Table */}
                   {activeReport === "payroll" && (
                     <Table className="min-w-[1200px]">
                       <TableHeader className="bg-[#2B174F]">
@@ -643,14 +709,14 @@ const AdminReports = () => {
                         })}
                         {currentData.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={10} className="h-24 text-center text-muted-foreground italic">No payroll records found.</TableCell>
+                            <TableCell colSpan={10} className="h-24 text-center text-muted-foreground italic p-6">No payroll records found.</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
                     </Table>
                   )}
 
-                  {/* Calendar / Events Table */}
+                  {/* Calendar / Corporate Events Data Table Container */}
                   {activeReport === "calendar" && (
                     <Table className="min-w-[800px]">
                       <TableHeader className="bg-[#2B174F]">
@@ -669,7 +735,7 @@ const AdminReports = () => {
 
                           return (
                             <TableRow key={i} className="hover:bg-slate-50 transition-colors border-b-slate-100">
-                              <TableCell className="font-bold text-slate-700 px-6 py-4">{new Date(r.date).toLocaleDateString()}</TableCell>
+                              <TableCell className="font-bold text-slate-700 px-6 py-4">{formatDateStr(r.date)}</TableCell>
                               <TableCell className="py-4">
                                 <Badge variant="secondary" className={typeBadge}>{r.type}</Badge>
                               </TableCell>
@@ -680,7 +746,59 @@ const AdminReports = () => {
                         })}
                         {currentData.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={4} className="h-24 text-center text-muted-foreground italic">No calendar events found.</TableCell>
+                            <TableCell colSpan={4} className="h-24 text-center text-muted-foreground italic p-6">No calendar events found.</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  )}
+
+                  {/* Requests Audit Ledger Table Panel */}
+                  {activeReport === "requests" && (
+                    <Table className="min-w-[1000px] md:min-w-full">
+                      <TableHeader className="bg-[#2A174E]">
+                        <TableRow className="hover:bg-transparent border-b-slate-200">
+                          <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">REQ ID</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Employee</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Request Type</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Date Filed</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Status</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider text-right pr-6">Processed By</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {currentData.length > 0 ? (
+                          currentData.map((req) => (
+                            <TableRow key={req.emp_reqId} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
+                              <TableCell className="font-bold text-[#2A174E] py-4 px-6">REQ-{req.emp_reqId}</TableCell>
+                              <TableCell className="py-4">
+                                <p className="font-semibold text-slate-800">{req.userName}</p>
+                                <p className="text-[10px] text-slate-500 font-medium">{formatUserId(req.user_Id)}</p>
+                              </TableCell>
+                              <TableCell className="text-slate-600 py-4 font-medium">{req.reqTypeName}</TableCell>
+                              <TableCell className="text-slate-600 py-4 text-sm">{req.date_Filed}</TableCell>
+                              <TableCell className="py-4">
+                                <Badge variant="secondary" className={`font-semibold px-3 py-1 ${getStatusBadge(req.emp_reqStatusId)}`}>
+                                  {req.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="py-4 text-right pr-6 font-medium text-slate-700">
+                                {req.approverName || "—"}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={6} className="p-0 border-0">
+                              <EmptyState
+                                icon={<AssessmentOutlinedIcon className="h-8 w-8 text-slate-400" />}
+                                title={isFiltering ? "No matching requests" : "Request queue empty"}
+                                description={isFiltering ? "Try adjusting your filters to find specific records." : "No records currently exist in the database."}
+                                action={isFiltering && (
+                                  <Button variant="outline" onClick={handleClearFilters} className="text-slate-600 border-slate-200 mt-2">Clear Filters</Button>
+                                )}
+                              />
+                            </TableCell>
                           </TableRow>
                         )}
                       </TableBody>
@@ -689,16 +807,13 @@ const AdminReports = () => {
                 </div>
               )}
 
-              {/* Pagination Controls */}
+              {/* Centralized Pagination Area */}
               {totalItems > 0 && !loading && (
                 <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30 mt-auto">
                   <div className="flex items-center gap-4 text-sm text-slate-500">
                     <div className="flex items-center gap-2">
                       <span className="hidden sm:inline">Rows per page:</span>
-                      <Select 
-                        value={itemsPerPage.toString()} 
-                        onValueChange={(val) => setItemsPerPage(Number(val))}
-                      >
+                      <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(Number(val))}>
                         <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
                           <SelectValue placeholder="10" />
                         </SelectTrigger>
@@ -716,27 +831,9 @@ const AdminReports = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1}
-                      className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                    >
-                      Previous
-                    </Button>
-                    <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
-                      {currentPage}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages || totalPages === 0}
-                      className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                    >
-                      Next
-                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1}>Previous</Button>
+                    <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">{currentPage}</div>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0}>Next</Button>
                   </div>
                 </div>
               )}
@@ -744,7 +841,7 @@ const AdminReports = () => {
           </Card>
         </div>
 
-        {/* Batch Zip Protection Modal */}
+        {/* Batch ZIP Modal Overlay */}
         <Dialog open={showBatchZipModal} onOpenChange={setShowBatchZipModal}>
           <DialogContent className="max-w-md bg-white p-0 overflow-hidden border-0 shadow-2xl">
             <div className="bg-[#2A174E] p-6 text-white flex flex-col items-center text-center">
@@ -752,9 +849,7 @@ const AdminReports = () => {
                 <ShieldIcon className="h-10 w-10 text-green-400" />
               </div>
               <DialogTitle className="text-xl font-bold mb-2">Protected Batch Export</DialogTitle>
-              <DialogDescription className="text-blue-100 text-sm">
-                For security, this ZIP file will be encrypted. Please save the password below to access the documents.
-              </DialogDescription>
+              <DialogDescription className="text-blue-100 text-sm">For security, this ZIP file will be encrypted. Please save the password below to access the documents.</DialogDescription>
             </div>
 
             <div className="p-8">
@@ -762,14 +857,7 @@ const AdminReports = () => {
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">File Encryption Password</p>
                 <div className="flex items-center justify-between gap-4 bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
                   <code className="text-lg font-black text-[#2A174E] tracking-tight">{zipPassword}</code>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-9 w-9 text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5"
-                    onClick={() => {
-                      navigator.clipboard.writeText(zipPassword);
-                    }}
-                  >
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5" onClick={() => navigator.clipboard.writeText(zipPassword)}>
                     <ContentCopyIcon className="h-4 w-4" />
                   </Button>
                 </div>
@@ -780,27 +868,14 @@ const AdminReports = () => {
                   <div className="mt-0.5">⚠️</div>
                   <p>This password is required by anyone opening the ZIP. Make sure to share it with authorized personnel only.</p>
                 </div>
-
-                <Button 
-                  onClick={confirmBatchZip} 
-                  className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold py-6 text-base shadow-lg shadow-[#2A174E]/20"
-                >
-                  Download Protected ZIP
-                </Button>
-                
-                <Button 
-                  variant="ghost" 
-                  onClick={() => setShowBatchZipModal(false)}
-                  className="w-full text-slate-400 hover:text-slate-600 font-medium"
-                >
-                  Cancel Export
-                </Button>
+                <Button onClick={confirmBatchZip} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold py-6 text-base shadow-lg shadow-[#2A174E]/20">Download Protected ZIP</Button>
+                <Button variant="ghost" onClick={() => setShowBatchZipModal(false)} className="w-full text-slate-400 hover:text-slate-600 font-medium">Cancel Export</Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Global styling for custom scrollbars */}
+        {/* Table Scroll Bar Custom Styling */}
         <style dangerouslySetInnerHTML={{__html: `
           .custom-scrollbar::-webkit-scrollbar {
             height: 10px;

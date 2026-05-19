@@ -195,7 +195,7 @@ const MaxicareHistory = () => {
 
   return (
     <Sidebar>
-      <div className="flex flex-col w-full min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         
         <Dialog open={showCalculator} onOpenChange={setShowCalculator}>

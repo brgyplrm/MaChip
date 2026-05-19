@@ -17,6 +17,7 @@ import FolderPicker from "../../components/FolderPicker";
 import PayrollConfiguration from "@/components/PayrollConfiguration";
 import AttendanceConfiguration from "@/components/AttendanceConfiguration";
 import NotificationConfiguration from "@/components/NotificationConfiguration";
+import { Clock, Coffee, ShieldAlert, CheckCircle, Info, Edit3, Save } from 'lucide-react';
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -157,7 +158,7 @@ const Settings = () => {
 
   return (
     <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+      <div className="p-2 md:p-0 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         <div className="flex-1 md:p-4 w-full overflow-x-hidden min-w-0">
           
@@ -215,6 +216,29 @@ const Settings = () => {
               <div className="max-w-6xl w-full mx-auto space-y-6">
                 {/* Tab 1: Mock Time Simulation (Your Entire Original Layout) */}
                 <TabsContent value="simulation" className="space-y-6 mt-0 animate-in fade-in-50 duration-200">
+                  <div className="bg-[#2A1B4E] text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div className="flex items-start space-x-4">
+                      <div className="p-3 bg-white/10 rounded-lg border border-white/10">
+                        <Clock className="w-6 h-6 text-purple-200" />
+                      </div>
+                      <div>
+                        <h1 className="text-xl font-bold tracking-tight">System Configuration</h1>
+                        <p className="text-sm text-purple-200/80 mt-0.5">Manage time, backup, and biometric synchronization</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3">
+                      <button className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition"
+                              onClick={() => {
+                      // Implement your save logic here, e.g.:
+                      // saveConfiguration({ mockDate, mockTime, storageRootPath, hardwareBufferWindow });
+                              console.log("Saving configuration...");
+                            }}
+                            disabled={!isAdmin}>
+                        <Save className="w-4 h-4" /> <span>Save Configuration</span>
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full">
                     <Card className="xl:col-span-2 sm:col-span-3 border-slate-200/80 shadow-sm bg-white pt-4 pb-0">
                       <CardHeader className="border-b border-slate-100 pb-4">
