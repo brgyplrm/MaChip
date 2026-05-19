@@ -20,6 +20,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
+import { Switch } from "@/components/ui/switch";
+
 // ── Validation helpers ────────────────────────────────────────────────────────
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[a-zA-Z\s]+$/;
@@ -103,7 +105,7 @@ const Edit = () => {
     user_FirstName: "",
     user_LastName: "",
     user_Email: "",
-    user_PhoneNumber: "",
+    user_Phone: "",
     user_Address: "",
     user_Role: "",
     user_RoleId: "",
@@ -116,6 +118,7 @@ const Edit = () => {
     user_Gender: "",
     shift_Schedule: "",
     dailyRate: "",
+    is_attendance_exempt: false,
     healthCard_Amnt: "",
     SSS_Ded: "",
     Philhealth_Ded: "",
@@ -314,7 +317,7 @@ const Edit = () => {
             user_FirstName: userData.user_FirstName || "",
             user_LastName: userData.user_LastName || "",
             user_Email: userData.user_Email || "",
-            user_PhoneNumber: userData.user_PhoneNumber || "",
+            user_Phone: userData.user_Phone || "",
             user_Address: userData.user_Address || "",
             user_Role: userData.user_Role || "",
             user_RoleId: userData.user_RoleId || 3,
@@ -327,6 +330,7 @@ const Edit = () => {
             user_Gender: userData.user_Gender || "",
             shift_Schedule: userData.shift_Schedule || "",
             dailyRate: userData.dailyRate || "",
+            is_attendance_exempt: userData.is_attendance_exempt || false,
             healthCard_Amnt: userData.healthCard_Amnt || "",
             SSS_Ded: userData.sss_Share || "",
             Philhealth_Ded: userData.philhealth_Share || "",
@@ -597,8 +601,8 @@ const Edit = () => {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number <span className="text-red-500">*</span></Label>
-                      <Input name="user_PhoneNumber" value={formData.user_PhoneNumber} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                      {renderError("user_PhoneNumber")}
+                      <Input name="user_Phone" value={formData.user_Phone} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                      {renderError("user_Phone")}
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500">*</span></Label>
@@ -692,59 +696,6 @@ const Edit = () => {
                   <div className="space-y-2 sm:col-span-2 md:col-span-4 bg-slate-50 p-4 rounded-xl border border-slate-100 mb-2">
                     <Label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Base Daily Rate (₱)</Label>
                     <Input name="dailyRate" type="number" step="0.01" value={formData.dailyRate} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E] font-mono text-lg bg-white"/>
-                  </div>
-
-                  {/* Standard Deductions */}
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">SSS Deduction</Label>
-                    <Input name="SSS_Ded" type="number" step="0.01" value={formData.SSS_Ded} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Philhealth Ded</Label>
-                    <Input name="Philhealth_Ded" type="number" step="0.01" value={formData.Philhealth_Ded} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">HDMF/Pag-IBIG Ded</Label>
-                    <Input name="HDMF_Ded" type="number" step="0.01" value={formData.HDMF_Ded} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tax Deduction</Label>
-                    <Input name="Tax_Ded" type="number" step="0.01" value={formData.Tax_Ded} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-
-                  {/* Loans & Others */}
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">SSS Loan</Label>
-                    <Input name="SSS_Loan" type="number" step="0.01" value={formData.SSS_Loan} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">HDMF Loan</Label>
-                    <Input name="HDMF_Loan" type="number" step="0.01" value={formData.HDMF_Loan} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Calamity Loan</Label>
-                    <Input name="calamityLoan_Amnt" type="number" step="0.01" value={formData.calamityLoan_Amnt} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Eastwest Loan</Label>
-                    <Input name="eastwest_Loan" type="number" step="0.01" value={formData.eastwest_Loan} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Maxicare / Health</Label>
-                    <Input name="healthCard_Amnt" type="number" step="0.01" value={formData.healthCard_Amnt} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Globe Deduction</Label>
-                    <Input name="globe_Deduction" type="number" step="0.01" value={formData.globe_Deduction} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">MP Savings</Label>
-                    <Input name="multiPurposeSavings" type="number" step="0.01" value={formData.multiPurposeSavings} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cash Advances</Label>
-                    <Input name="advances_Amnt" type="number" step="0.01" value={formData.advances_Amnt} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
                   </div>
 
                 </CardContent>

@@ -370,10 +370,10 @@ const sortedAndFilteredDayLogs = useMemo(() => {
     total: viewMode === "raw" ? todayRawLogs.length : dayLogsData.length,
     metric1: viewMode === "raw" 
       ? todayRawLogs.filter(l => l.log_type?.toLowerCase().includes("in")).length 
-      : dayLogsData.filter(l => l.status === "On Time").length,
+      : dayLogsData.filter(l => l.status === "On Time" || l.status === "On-Field").length,
     metric2: viewMode === "raw"
       ? todayRawLogs.filter(l => l.log_type?.toLowerCase().includes("out")).length
-      : dayLogsData.filter(l => l.status && l.status !== "On Time").length,
+      : dayLogsData.filter(l => l.status && l.status !== "On Time" && l.status !== "On-Field").length,
   };
 
   // State tracking visibility masking state mapped to log identifiers
@@ -532,7 +532,12 @@ const toggleMachipVisibility = (rowId) => {
                       {viewMode === "raw" ? (
                         <><SelectItem value="in">Clock In</SelectItem><SelectItem value="out">Clock Out</SelectItem></>
                       ) : (
-                        <><SelectItem value="On Time">On Time</SelectItem><SelectItem value="Late">Late</SelectItem><SelectItem value="Absent">Absent</SelectItem></>
+                        <>
+                          <SelectItem value="On Time">On Time</SelectItem>
+                          <SelectItem value="Late">Late</SelectItem>
+                          <SelectItem value="Absent">Absent</SelectItem>
+                          <SelectItem value="On-Field">On-Field</SelectItem>
+                        </>
                       )}
                     </SelectContent>
                   </Select>
@@ -725,6 +730,7 @@ const toggleMachipVisibility = (rowId) => {
                           currentData.map((row, index) => {
                             let badgeStyle = "bg-slate-100 text-slate-800 hover:bg-slate-100";
                             if (row.status === "On Time") badgeStyle = "bg-green-100 text-green-800 hover:bg-green-100";
+                            else if (row.status === "On-Field") badgeStyle = "bg-blue-100 text-blue-800 hover:bg-blue-100";
                             else if (row.status?.toLowerCase().includes("absent") || row.status?.toLowerCase().includes("late")) badgeStyle = "bg-red-100 text-red-800 hover:bg-red-100";
 
                             return (

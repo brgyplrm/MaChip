@@ -437,7 +437,9 @@ exports.scanRFID = async (req, res) => {
     }
 
     let attendanceVal = null;
-    if (nextStatus === 1) {
+    if (user.user_RoleId === 1) {
+      attendanceVal = 6; // Exempt
+    } else if (nextStatus === 1) {
       const h = now.getHours();
       if (h >= 6 && h < 9) attendanceVal = 1; // On-Time
       else if (h >= 9 && now < fivePMThirty) attendanceVal = 2; // Late

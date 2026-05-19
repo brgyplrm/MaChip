@@ -242,6 +242,14 @@ const connectDB = async () => {
     // Create any missing tables or update existing ones
     // In production, you'd use migrations, but for this dev setup sync is used.
     // await sequelize.sync({ alter: true }); // Set to true if you want Sequelize to automatically alter tables to match models
+    
+    // Ensure Exempt status exists
+    await sequelize.query(`
+      INSERT INTO "attendance_status" ("statusId", "statusName")
+      VALUES (6, 'Exempt')
+      ON CONFLICT ("statusId") DO NOTHING;
+    `);
+
     console.log("Models sync skipped (temporarily disabled to fix user_logging error).");
   } catch (error) {
     console.error("Unable to connect to the database:", error);

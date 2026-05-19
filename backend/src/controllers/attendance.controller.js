@@ -8,7 +8,7 @@ const {
   attendance_status 
 } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
-const { getSystemTime } = require("../utils/systemTime.js");
+const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
 
@@ -148,7 +148,9 @@ exports.markAttendance = async (req, res) => {
     }
 
     let attendanceVal = null;
-    if (nextStatus === 1) {
+    if (user.user_RoleId === 1) {
+      attendanceVal = 6; // Exempt
+    } else if (nextStatus === 1) {
       const h = now.getHours();
       if (h >= 6 && h < 9) attendanceVal = 1; // On-Time
       else if (h >= 9 && now < fivePMThirty) attendanceVal = 2; // Late
@@ -270,8 +272,8 @@ exports.viewUserLogs = async (req, res) => {
       } catch (e) { return []; }
     };
 
-    const calculateHours = (inArr, outArr, approvedOT, morningIn, afternoonIn, isOnField, ot_In, ot_Out) => {
-      if (isOnField) return 8.0;
+    const calculateHours = (inArr, outArr, approvedOT, morningIn, afternoonIn, isOnField, ot_In, ot_Out, isExempt) => {
+      if (isOnField || isExempt) return 8.0;
       if (inArr.length === 0) return 0;
 
       let totalHrs = 0;
@@ -383,7 +385,12 @@ exports.viewUserLogs = async (req, res) => {
         if (overtimeOuts.length > 0) ot_Out = overtimeOuts[overtimeOuts.length - 1];
       }
 
-      const hoursWorked = calculateHours(inArr, outArr, dayOT, morning_In, afternoon_In, isOnField, ot_In, ot_Out);
+      const isExempt = parseInt(report.attendance_StatusId) === 6;
+      if (isExempt) {
+        morning_Out = "12:00:00";
+        afternoon_In = "13:00:00";
+      }
+      const hoursWorked = calculateHours(inArr, outArr, dayOT, morning_In, afternoon_In, isOnField, ot_In, ot_Out, isExempt);
 
       const time_In = morning_In;
       const lastOut = ot_Out !== "—" ? ot_Out : afternoon_Out;
@@ -404,7 +411,7 @@ exports.viewUserLogs = async (req, res) => {
         outArr,
         hoursWorked: hoursWorked.toFixed(2),
         logStatus: report.loggedStatusName,
-        attendanceStatus: report.attendanceStatusName || "—",
+        attendanceStatus: report.attendanceStatusName === "Exempt" ? "On Time" : (report.attendanceStatusName || "—"),
       };
     });
 
@@ -460,11 +467,12 @@ exports.viewAllAttendance = async (req, res) => {
       const plain = log.get({ plain: true });
       return {
         ...plain,
+        log_Date: formatDateLocal(plain.log_Date),
         user_FirstName: plain.user?.user_FirstName,
         user_LastName: plain.user?.user_LastName,
         user_MachipId: plain.user?.hardware?.user_MachipId,
         loggedStatusName: plain.loggedStatus?.statusName,
-        attendanceStatusName: plain.attendanceStatus?.statusName
+        attendanceStatusName: plain.attendanceStatus?.statusName === "Exempt" ? "On Time" : plain.attendanceStatus?.statusName
       };
     });
 
@@ -863,13 +871,13 @@ exports.getEmployeeDashboardStats = async (req, res) => {
 exports.getDashboardStats = async (req, res) => {
   try {
     const now = await getSystemTime();
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = formatDateLocal(now);
     const roleId = req.user?.user_RoleId;
     const currentUserId = req.user?.user_Id;
     
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    const yesterdayStr = formatDateLocal(yesterday);
 
     const userCountResult = await sequelize.query(
       `SELECT COUNT(*) as total FROM "User" WHERE "deletedAt" IS NULL`,
@@ -880,11 +888,12 @@ exports.getDashboardStats = async (req, res) => {
     const stats = await sequelize.query(
       `SELECT
          COUNT(*) FILTER (WHERE "logged_StatusId" = 1) AS "officeOccupancy",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 1) AS "onTimeCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5, 6)) AS "onTimeCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "absentCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 4) AS "onLeaveCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 5) AS "onFieldCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 6) AS "onExemptCount",
          COUNT(*) FILTER (WHERE "time_Logged_inArr" <> '[]') AS "enteredCount",
          COUNT(*) FILTER (WHERE "time_Logged_outArr" <> '[]') AS "exitedCount"
        FROM "employee_Logging_report"
@@ -894,7 +903,7 @@ exports.getDashboardStats = async (req, res) => {
 
     const yesterdayStats = await sequelize.query(
       `SELECT
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 1) AS "onTimeCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5, 6)) AS "onTimeCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount"
        FROM "employee_Logging_report"
        WHERE "log_Date" = :yesterdayStr`,
@@ -984,6 +993,7 @@ exports.getDashboardStats = async (req, res) => {
       absentCount: parseInt(stats[0].absentCount || 0),
       onLeaveCount: parseInt(stats[0].onLeaveCount || 0),
       onFieldCount: parseInt(stats[0].onFieldCount || 0),
+      onExemptCount: parseInt(stats[0].onExemptCount || 0),
       enteredCount: parseInt(stats[0].enteredCount || 0),
       exitedCount: parseInt(stats[0].exitedCount || 0),
       onTimeChange,
@@ -1001,7 +1011,7 @@ exports.getDashboardStats = async (req, res) => {
 exports.getOfficeOccupancy = async (req, res) => {
   try {
     const now = await getSystemTime();
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = formatDateLocal(now);
 
     const reports = await sequelize.query(
       `SELECT
@@ -1071,8 +1081,8 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
     type: QueryTypes.SELECT,
   });
 
-  const calculateHours = (inArr, outArr, approvedOT, morningIn, afternoonIn, isOnField) => {
-    if (isOnField) return 8.0;
+  const calculateHours = (inArr, outArr, approvedOT, morningIn, afternoonIn, isOnField, isExempt) => {
+    if (isOnField || isExempt) return 8.0;
     if (inArr.length === 0) return 0;
 
     let totalHrs = 0;
@@ -1221,7 +1231,12 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
           ot_Out = lastOut > ot_In ? lastOut : "—";
         }
 
-        hoursWorked = calculateHours(inArr, outArr, { Total_Hrs: r.ot_Total_Hrs }, morning_In, afternoon_In, isOnField);
+        const isExempt = parseInt(r.attendance_StatusId) === 6;
+        if (isExempt) {
+          morning_Out = "12:00";
+          afternoon_In = "13:00";
+        }
+        hoursWorked = calculateHours(inArr, outArr, { Total_Hrs: r.ot_Total_Hrs }, morning_In, afternoon_In, isOnField, isExempt);
       }
 
       // Determine absolute first in and last out for standard report table
@@ -1260,7 +1275,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         inArr,
         outArr,
         hoursWorked: parseFloat(hoursWorked).toFixed(2),
-        status: r.attendanceStatusName ?? "—",
+        status: r.attendanceStatusName === "Exempt" ? "On Time" : (r.attendanceStatusName ?? "—"),
         remarks: "",
       };
     });

@@ -23,6 +23,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+import { Switch } from "@/components/ui/switch";
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const roleMap = { "Employee": 3, "Supervisor": 2, "Admin Manager": 1, "Admin Accountant": 4 };
@@ -86,6 +88,10 @@ const New = ({ inputs = [], title }) => {
     user_FirstName: "",
     user_LastName: "",
     user_MiddleName: "",
+    user_Phone: "",
+    user_Address: "",
+    user_DOB: "",
+    user_Gender: "",
     user_EmploymentStatus: "Regular",
     user_EmploymentStatusId: 1,
     user_Role: "Employee",
@@ -94,6 +100,8 @@ const New = ({ inputs = [], title }) => {
     department: "",
     position: "",
     taxStatus: "S",
+    dailyRate: "",
+    is_attendance_exempt: false,
     user_Password: "",
     user_MachipId: "",
     user_FingerprintId: "",
@@ -269,6 +277,8 @@ const New = ({ inputs = [], title }) => {
       if (!formData.user_LastName.trim()) newErrors.user_LastName = "Required";
       if (!formData.user_Email?.trim()) newErrors.user_Email = "Required";
       else if (!EMAIL_REGEX.test(formData.user_Email.trim())) newErrors.user_Email = "Invalid email format";
+      if (!formData.user_Phone?.trim()) newErrors.user_Phone = "Phone is required";
+      if (!formData.user_Address?.trim()) newErrors.user_Address = "Address is required";
     } else if (step === 2) {
       if (!formData.user_Role) newErrors.user_Role = "Required";
       if (!formData.department?.trim()) newErrors.department = "Department is required";
@@ -278,6 +288,7 @@ const New = ({ inputs = [], title }) => {
       if (!formData.user_EmploymentStatus) newErrors.user_EmploymentStatus = "Required";
       if (!formData.bank_Company) newErrors.bank_Company = "Required";
       if (!formData.bank_AccountName?.trim()) newErrors.bank_AccountName = "Required";
+      if (!formData.dailyRate || parseFloat(formData.dailyRate) <= 0) newErrors.dailyRate = "Valid Daily Rate is required";
       if (!formData.account_Number?.trim()) {
         newErrors.account_Number = "Required";
       } else if (![12, 15].includes(formData.account_Number.length)) {
@@ -629,6 +640,34 @@ const New = ({ inputs = [], title }) => {
                                     {errors.user_LastName && <span className="text-xs text-red-500">{errors.user_LastName}</span>}
                                   </div>
                                 </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-4">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-slate-500">Phone Number <span className="text-red-500">*</span></Label>
+                                    <Input id="user_Phone" placeholder="09123456789" value={formData.user_Phone} onChange={handleInput} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-slate-500">Gender</Label>
+                                    <Select value={formData.user_Gender} onValueChange={(val) => handleInput({ target: { id: "user_Gender", value: val } })}>
+                                      <SelectTrigger className="bg-white">
+                                        <SelectValue placeholder="Select Gender" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Male">Male</SelectItem>
+                                        <SelectItem value="Female">Female</SelectItem>
+                                        <SelectItem value="Other">Other</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1 sm:col-span-2">
+                                    <Label className="text-xs text-slate-500">Home Address <span className="text-red-500">*</span></Label>
+                                    <Input id="user_Address" placeholder="123 Main St, Manila" value={formData.user_Address} onChange={handleInput} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-slate-500">Date of Birth</Label>
+                                    <Input id="user_DOB" type="date" value={formData.user_DOB} onChange={handleInput} />
+                                  </div>
+                                </div>
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -710,6 +749,21 @@ const New = ({ inputs = [], title }) => {
                                       </SelectContent>
                                     </Select>
                                     {errors.taxStatus && <span className="text-xs text-red-500 block">{errors.taxStatus}</span>}
+                                  </div>
+
+                                  {/* Daily Rate Input */}
+                                  <div className="space-y-2">
+                                    <Label className="text-slate-600 font-semibold">Base Daily Rate (₱) <span className="text-red-500">*</span></Label>
+                                    <Input 
+                                      id="dailyRate" 
+                                      type="number" 
+                                      step="0.01" 
+                                      placeholder="0.00" 
+                                      value={formData.dailyRate} 
+                                      onChange={handleInput} 
+                                      className={`bg-white ${errors.dailyRate ? "border-red-500" : ""}`}
+                                    />
+                                    {errors.dailyRate && <span className="text-xs text-red-500 block">{errors.dailyRate}</span>}
                                   </div>
                                 </div>
                               </div>

@@ -1,6 +1,6 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
-const { getSystemTime, formatForSQL } = require("../utils/systemTime");
+const { getSystemTime, formatForSQL, formatDateLocal } = require("../utils/systemTime");
 const { sendOnfieldEmail, sendRequestNotificationEmail } = require("../utils/emailService");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
@@ -139,8 +139,9 @@ exports.UserCreateRequest = async (req, res) => {
   const t = await sequelize.transaction();
 
   try {
-  const now = await getSystemTime();    const nowStr = formatForSQL(now);
-    const todayStr = now.toISOString().split("T")[0];
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+    const todayStr = formatDateLocal(now);
 
     const finalRemarks = remarks || reason || purpose || null;
     const finalReason = reason || purpose || remarks || "No reason provided";

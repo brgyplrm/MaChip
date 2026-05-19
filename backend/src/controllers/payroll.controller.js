@@ -215,6 +215,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
         dailyHrs = 8.0;
       } else if (log) {
         const inArr = JSON.parse(log.time_Logged_inArr || "[]");
+        const isExempt = parseInt(log.att_status) === 6;
         
         // Time-based slotting (same as report logic)
         const SLOT_MIDPOINT = "12:30";
@@ -228,7 +229,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
           const loginMinutes = lh * 60 + lm;
           const graceMinutes = 8 * 60 + 35; // 8:35 AM
 
-          if (loginMinutes > graceMinutes) {
+          if (loginMinutes > graceMinutes && !isExempt) {
             const minsLate = Math.max(0, loginMinutes - graceMinutes);
             tardiness_Mins += minsLate;
             dailyHrs = Math.max(0, dailyHrs - (minsLate / 60));

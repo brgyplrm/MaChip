@@ -31,4 +31,16 @@ function formatForSQL(date) {
   return `${YYYY}-${MM}-${DD} ${HH}:${mm}:${ss}`;
 }
 
-module.exports = { getSystemTime, formatForSQL };
+/**
+ * Formats a Date object to 'YYYY-MM-DD' for PostgreSQL/comparisons.
+ * Uses local time because TZ=Asia/Manila is set in app.js.
+ */
+function formatDateLocal(date) {
+  const pad = (n) => n.toString().padStart(2, "0");
+  const YYYY = date.getFullYear();
+  const MM = pad(date.getMonth() + 1);
+  const DD = pad(date.getDate());
+  return `${YYYY}-${MM}-${DD}`;
+}
+
+module.exports = { getSystemTime, formatForSQL, formatDateLocal };
