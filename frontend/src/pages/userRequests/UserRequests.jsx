@@ -16,7 +16,7 @@ import { useSystemTime } from "../../context/SystemTimeContext";
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -294,7 +294,7 @@ const UserRequests = () => {
   }, [activeTab]);
 
   useEffect(() => {
-    if (formData.leaveStartDate && formData.leaveEndDate) {
+    if (["3", "4", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && formData.leaveStartDate && formData.leaveEndDate) {
       const start = new Date(formData.leaveStartDate);
       const end = new Date(formData.leaveEndDate);
       let count = 0;
@@ -305,7 +305,7 @@ const UserRequests = () => {
       }
       setFormData((prev) => ({ ...prev, noDays: count }));
     }
-  }, [formData.leaveStartDate, formData.leaveEndDate]);
+  }, [formData.leaveStartDate, formData.leaveEndDate, formData.emp_reqTypeId]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked, files } = e.target;
@@ -340,12 +340,20 @@ const UserRequests = () => {
     if (balance) {
       const vlBal = parseFloat(balance.VL_balance);
       const slBal = parseFloat(balance.SL_balance);
+      const spBal = parseFloat(balance.SoloParent_balance || 0);
       const requestedDays = parseFloat(formData.noDays);
 
       if (formData.emp_reqTypeId === "3" && requestedDays > vlBal) isInsufficient = true;
       else if (formData.emp_reqTypeId === "4" && requestedDays > slBal) isInsufficient = true;
+      else if (formData.emp_reqTypeId === "10" && requestedDays > spBal) isInsufficient = true;
       else if (formData.emp_reqTypeId === "6" && requestedDays > (vlBal + slBal)) isInsufficient = true;
       else if (formData.emp_reqTypeId === "7" && 0.5 > vlBal) isInsufficient = true;
+    }
+
+    // Attachment validation for specific statutory leaves
+    if (["8", "11", "12"].includes(formData.emp_reqTypeId) && !formData.proofFile) {
+      setToast({ message: "Supporting documentation is mandatory for this request.", type: "error" });
+      return;
     }
 
     let isLateFiling = false;
@@ -391,6 +399,11 @@ const UserRequests = () => {
       formDataToSubmit.append("DateOfLeave", formData.leaveStartDate);
       formDataToSubmit.append("period", formData.period);
       formDataToSubmit.append("NoDays", 0.5);
+    } else if (["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) {
+      formDataToSubmit.append("StartDate", formData.leaveStartDate);
+      formDataToSubmit.append("EndDate", formData.leaveEndDate);
+      formDataToSubmit.append("NoDays", formData.noDays);
+      formDataToSubmit.append("reason", formData.remarks);
     } else {
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
       formDataToSubmit.append("EndDate", formData.leaveEndDate);
@@ -472,15 +485,17 @@ const UserRequests = () => {
       ? `${new Date(req.VL_StartDate).toLocaleDateString()} — ${new Date(req.VL_EndDate).toLocaleDateString()}`
       : req.SL_StartDate
         ? `${new Date(req.SL_StartDate).toLocaleDateString()} — ${new Date(req.SL_EndDate).toLocaleDateString()}`
-        : req.OT_DateOf
-          ? `${new Date(req.OT_DateOf).toLocaleDateString()} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
-          : req.LC_logDate
-            ? new Date(req.LC_logDate).toLocaleDateString()
-            : req.EL_DateOfLeave
-              ? new Date(req.EL_DateOfLeave).toLocaleDateString()
-              : req.HD_DateOfLeave
-                ? new Date(req.HD_DateOfLeave).toLocaleDateString()
-                : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : "";
+        : req.ST_StartDate
+          ? `${new Date(req.ST_StartDate).toLocaleDateString()} — ${new Date(req.ST_EndDate).toLocaleDateString()}`
+          : req.OT_DateOf
+            ? `${new Date(req.OT_DateOf).toLocaleDateString()} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
+            : req.LC_logDate
+              ? new Date(req.LC_logDate).toLocaleDateString()
+              : req.EL_DateOfLeave
+                ? new Date(req.EL_DateOfLeave).toLocaleDateString()
+                : req.HD_DateOfLeave
+                  ? new Date(req.HD_DateOfLeave).toLocaleDateString()
+                  : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : "";
   };
 
   const getShortType = (typeName) => {
@@ -493,6 +508,11 @@ const UserRequests = () => {
     if (name.includes("correction")) return "LC";
     if (name.includes("emergency")) return "EL";
     if (name.includes("half-day") || name.includes("half")) return "HD";
+    if (name.includes("maternity")) return "MAT";
+    if (name.includes("paternity")) return "PAT";
+    if (name.includes("solo parent")) return "SP";
+    if (name.includes("vawc")) return "VAW";
+    if (name.includes("special leave") || name.includes("special")) return "SPC";
     return "REQ";
   };
 
@@ -510,6 +530,11 @@ const UserRequests = () => {
       case "OW": return "bg-orange-100 text-orange-800 border-transparent";
       case "OT": return "bg-blue-100 text-blue-800 border-transparent";
       case "LC": return "bg-emerald-100 text-emerald-800 border-transparent";
+      case "MAT": return "bg-fuchsia-100 text-fuchsia-800 border-transparent";
+      case "PAT": return "bg-cyan-100 text-cyan-800 border-transparent";
+      case "SP": return "bg-amber-100 text-amber-800 border-transparent";
+      case "VAW": return "bg-red-100 text-red-800 border-transparent";
+      case "SPC": return "bg-violet-100 text-violet-800 border-transparent";
       default: return "bg-slate-100 text-slate-800 border-transparent";
     }
   };
@@ -608,10 +633,16 @@ const UserRequests = () => {
                      <span className="text-sm font-semibold text-slate-700">Vacation Leave (VL)</span>
                      <Badge className="bg-indigo-100 text-indigo-800">{balance ? balance.VL_balance : "..."} days</Badge>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center mb-2">
                      <span className="text-sm font-semibold text-slate-700">Sick Leave (SL)</span>
                      <Badge className="bg-rose-100 text-rose-800">{balance ? balance.SL_balance : "..."} days</Badge>
                   </div>
+                  {userData?.is_solo_parent && (
+                    <div className="flex justify-between items-center">
+                       <span className="text-sm font-semibold text-slate-700">Solo Parent Leave</span>
+                       <Badge className="bg-amber-100 text-amber-800">{balance ? balance.SoloParent_balance : "..."} days</Badge>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
@@ -710,13 +741,35 @@ const UserRequests = () => {
                         <SelectValue placeholder="Select request type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">Overtime (OT)</SelectItem>
-                        <SelectItem value="2">Onfield Work</SelectItem>
-                        <SelectItem value="3">Vacation Leave (VL)</SelectItem>
-                        <SelectItem value="4">Sick Leave (SL)</SelectItem>
-                        <SelectItem value="5">Log Correction</SelectItem>
-                        <SelectItem value="6">Emergency Leave (EL)</SelectItem>
-                        <SelectItem value="7">Half-Day</SelectItem>
+                        <SelectGroup>
+                          <SelectLabel>Standard Requests</SelectLabel>
+                          <SelectItem value="1">Overtime (OT)</SelectItem>
+                          <SelectItem value="2">Onfield Work</SelectItem>
+                          <SelectItem value="3">Vacation Leave (VL)</SelectItem>
+                          <SelectItem value="4">Sick Leave (SL)</SelectItem>
+                          <SelectItem value="5">Log Correction</SelectItem>
+                          <SelectItem value="6">Emergency Leave (EL)</SelectItem>
+                          <SelectItem value="7">Half-Day</SelectItem>
+                        </SelectGroup>
+                        
+                        <SelectGroup>
+                          <SelectLabel>Statutory Benefits</SelectLabel>
+                          {userData?.user_Gender === "Female" && (
+                            <SelectItem value="8">Maternity Leave</SelectItem>
+                          )}
+                          {userData?.user_Gender === "Male" && userData?.civil_status === "Married" && (
+                            <SelectItem value="9">Paternity Leave</SelectItem>
+                          )}
+                          {userData?.is_solo_parent && (
+                            <SelectItem value="10">Solo Parent Leave</SelectItem>
+                          )}
+                          {userData?.user_Gender === "Female" && (
+                            <>
+                              <SelectItem value="11">VAWC Leave</SelectItem>
+                              <SelectItem value="12">Special Leave for Women</SelectItem>
+                            </>
+                          )}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                   </div>
@@ -840,7 +893,7 @@ const UserRequests = () => {
                     </div>
                   )}
 
-                  {(formData.emp_reqTypeId === "3" || formData.emp_reqTypeId === "4") && (
+                  {(["3", "4", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) && (
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -865,9 +918,13 @@ const UserRequests = () => {
                   </div>
                   
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Attachment (Optional)</label>
+                    <label className="text-sm font-bold text-slate-700">Attachment {["8", "11", "12"].includes(formData.emp_reqTypeId) ? <span className="text-red-500">*</span> : "(Optional)"}</label>
                     <Input type="file" name="proofFile" onChange={handleInputChange} accept="image/png, image/jpeg, image/jpg" className="bg-slate-50/50 cursor-pointer" />
-                    <p className="text-xs text-slate-400">Required for Sick Leaves spanning more than 2 days.</p>
+                    <p className="text-xs text-slate-400">
+                      {["8", "11", "12"].includes(formData.emp_reqTypeId) 
+                        ? "Mandatory for legal compliance (Medical Cert/Barangay Cert)." 
+                        : "Required for Sick Leaves spanning more than 2 days."}
+                    </p>
                   </div>
 
                   <div className="pt-4 border-t border-slate-100 flex justify-end">
@@ -910,7 +967,9 @@ const UserRequests = () => {
                                   ? `${currentReq.EL_NoDays || 0} Day(s)`
                                   : currentReq.emp_reqTypeId === 7 
                                     ? `Half-day (${currentReq.HD_period})`
-                                    : `${currentReq.VL_NoDays || currentReq.SL_NoDays || 0} Day(s)`}
+                                    : [8, 9, 10, 11, 12].includes(currentReq.emp_reqTypeId)
+                                      ? `${currentReq.ST_NoDays || 0} Day(s)`
+                                      : `${currentReq.VL_NoDays || currentReq.SL_NoDays || 0} Day(s)`}
                         </p>
                       </div>
 
@@ -957,7 +1016,7 @@ const UserRequests = () => {
                           <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Status</label>
                             <p className="font-semibold text-slate-800 mt-1">
-                                {currentReq.VL_withPayName || currentReq.SL_withPayName || (currentReq.emp_reqStatusId === 1 ? "Pending" : "N/A")}
+                                {currentReq.VL_withPayName || currentReq.SL_withPayName || currentReq.ST_withPayName || (currentReq.emp_reqStatusId === 1 ? "Pending" : "N/A")}
                             </p>
                           </div>
                           <div className="space-y-1">
@@ -969,6 +1028,8 @@ const UserRequests = () => {
                                 ? (currentReq.emp_reqStatusId === 1 ? `${currentReq.VL_balance || 0} VL Remaining` : `${currentReq.VL_NoDays || 0} Day(s) Used`)
                                 : currentReq.emp_reqTypeId === 4 
                                 ? (currentReq.emp_reqStatusId === 1 ? `${currentReq.SL_balance || 0} SL Remaining` : `${currentReq.SL_NoDays || 0} Day(s) Used`)
+                                : currentReq.emp_reqTypeId === 10
+                                ? (currentReq.emp_reqStatusId === 1 ? `${currentReq.SoloParent_balance || 0} SP Remaining` : `${currentReq.ST_NoDays || 0} Day(s) Used`)
                                 : "N/A"}
                             </p>
                           </div>
@@ -1000,12 +1061,12 @@ const UserRequests = () => {
                         </>
                       )}
 
-                      {(currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File) && (
+                      {(currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File) && (
                         <div className="space-y-1 col-span-1 sm:col-span-2 xl:col-span-3">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachment</label>
                           <div>
                             <a 
-                              href={`/api/uploads/${currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File}`} 
+                              href={`/api/uploads/${currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File}`} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="inline-flex items-center text-[#2A174E] font-semibold hover:underline mt-1"

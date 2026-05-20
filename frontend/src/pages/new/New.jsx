@@ -85,6 +85,8 @@ const New = ({ inputs = [], title }) => {
     user_Address: "",
     user_DOB: "",
     user_Gender: "",
+    civil_status: "Single",
+    is_solo_parent: false,
     user_ShiftId: 1,
     user_EmploymentStatus: "Regular",
     user_EmploymentStatusId: 1,
@@ -367,8 +369,8 @@ const New = ({ inputs = [], title }) => {
 
   // --- BATCH PROCESSING LOGIC ---
   const downloadCsvTemplate = () => {
-    const headers = "user_FirstName,user_LastName,user_MiddleName,user_Email,user_Password,user_Role,user_EmploymentStatus,bank_Company,bank_AccountName,account_Number,department,position,hireDate,taxStatus\n";
-    const sample = "Juan,Cruz,Dela,juan.cruz@example.com,password123,Employee,Regular,BDO Unibank (BDO),Juan Dela Cruz,1234567890,IT,Developer,2026-01-01,S\n";
+    const headers = "user_FirstName,user_LastName,user_MiddleName,user_Email,user_Password,user_Role,user_EmploymentStatus,bank_Company,bank_AccountName,account_Number,department,position,hireDate,taxStatus,user_Gender,civil_status,is_solo_parent\n";
+    const sample = "Juan,Cruz,Dela,juan.cruz@example.com,password123,Employee,Regular,BDO Unibank (BDO),Juan Dela Cruz,1234567890,IT,Developer,2026-01-01,S,Male,Single,false\n";
     const csvContent = "\uFEFF" + headers + sample;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -659,7 +661,31 @@ const New = ({ inputs = [], title }) => {
                                       </SelectContent>
                                     </Select>
                                   </div>
-                                  <div className="space-y-1 sm:col-span-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-slate-500">Civil Status</Label>
+                                    <Select value={formData.civil_status} onValueChange={(val) => handleInput({ target: { id: "civil_status", value: val } })}>
+                                      <SelectTrigger className="bg-white">
+                                        <SelectValue placeholder="Select Status" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Single">Single</SelectItem>
+                                        <SelectItem value="Married">Married</SelectItem>
+                                        <SelectItem value="Widowed">Widowed</SelectItem>
+                                        <SelectItem value="Separated">Separated</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1 flex items-center gap-3 pt-6">
+                                    <input 
+                                      type="checkbox" 
+                                      id="is_solo_parent" 
+                                      checked={formData.is_solo_parent} 
+                                      onChange={(e) => handleInput({ target: { id: "is_solo_parent", value: e.target.checked } })}
+                                      className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded"
+                                    />
+                                    <Label htmlFor="is_solo_parent" className="text-xs text-slate-500 cursor-pointer">Solo Parent?</Label>
+                                  </div>
+                                  <div className="space-y-1 sm:col-span-3">
                                     <Label className="text-xs text-slate-500">Home Address <span className="text-red-500">*</span></Label>
                                     <Input id="user_Address" placeholder="123 Main St, Manila" value={formData.user_Address} onChange={handleInput} />
                                   </div>

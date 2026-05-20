@@ -201,6 +201,27 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: false, freezeTableName: true },
   );
 
+  // ── Statutory Leave (Maternity, Paternity, Solo Parent, VAWC, Special) ───
+  const Statutory_Leave = sequelize.define(
+    "Statutory_Leave",
+    {
+      statL_Id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      emp_reqId: { type: DataTypes.INTEGER, allowNull: false }, // FK → emp_Request
+      user_Id: { type: DataTypes.SMALLINT, allowNull: false },
+      StartDate: { type: DataTypes.DATEONLY, allowNull: false },
+      EndDate: { type: DataTypes.DATEONLY, allowNull: false },
+      NoDays: { type: DataTypes.FLOAT, allowNull: false },
+      proof_File: { type: DataTypes.STRING, allowNull: true },
+      reason: { type: DataTypes.TEXT, allowNull: false },
+      WithPayID: { type: DataTypes.SMALLINT, allowNull: false },
+    },
+    { timestamps: false, freezeTableName: true },
+  );
+
   // ── Leave Balance ──────────────────────────────────────────────────────────
   const Leave_Balance = sequelize.define(
     "Leave_Balance",
@@ -214,8 +235,10 @@ module.exports = (sequelize, DataTypes) => {
       year: { type: DataTypes.INTEGER, allowNull: false },
       VL_balance: { type: DataTypes.FLOAT, defaultValue: 7 },
       SL_balance: { type: DataTypes.FLOAT, defaultValue: 7 },
+      SoloParent_balance: { type: DataTypes.FLOAT, defaultValue: 0 },
       VL_used: { type: DataTypes.FLOAT, defaultValue: 0 },
       SL_used: { type: DataTypes.FLOAT, defaultValue: 0 },
+      SoloParent_used: { type: DataTypes.FLOAT, defaultValue: 0 },
     },
     { timestamps: true, freezeTableName: true },
   );
@@ -275,12 +298,26 @@ module.exports = (sequelize, DataTypes) => {
     as: "request",
   });
 
+  emp_Request.hasOne(Statutory_Leave, {
+    foreignKey: "emp_reqId",
+    sourceKey: "emp_reqId",
+  });
+  Statutory_Leave.belongsTo(emp_Request, {
+    foreignKey: "emp_reqId",
+    as: "request",
+  });
+
   Vacation_Leave.belongsTo(withPay, {
     foreignKey: "WithPayID",
     targetKey: "withPayId",
     as: "withPayType",
   });
   Sick_Leave.belongsTo(withPay, {
+    foreignKey: "WithPayID",
+    targetKey: "withPayId",
+    as: "withPayType",
+  });
+  Statutory_Leave.belongsTo(withPay, {
     foreignKey: "WithPayID",
     targetKey: "withPayId",
     as: "withPayType",
@@ -298,6 +335,7 @@ module.exports = (sequelize, DataTypes) => {
     HalfDay_Leave,
     Onfield_Work,
     LogCorrection_Request,
+    Statutory_Leave,
     Leave_Balance,
   };
 };

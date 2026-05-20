@@ -116,6 +116,8 @@ const Edit = () => {
     user_FingerprintId: "",
     user_DOB: "",
     user_Gender: "",
+    civil_status: "Single",
+    is_solo_parent: false,
     shift_Schedule: "",
     dailyRate: "",
     is_attendance_exempt: false,
@@ -340,6 +342,8 @@ const Edit = () => {
             user_ShiftId: userData.user_ShiftId || 1,
             user_DOB: userData.user_DOB ? userData.user_DOB.split('T')[0] : "",
             user_Gender: userData.user_Gender || "",
+            civil_status: userData.civil_status || "Single",
+            is_solo_parent: userData.is_solo_parent || false,
             shift_Schedule: userData.shift_Schedule || "",
             dailyRate: userData.dailyRate || "",
             is_attendance_exempt: userData.is_attendance_exempt || false,
@@ -637,6 +641,30 @@ const Edit = () => {
                           <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Civil Status</Label>
+                      <Select value={formData.civil_status} onValueChange={(val) => handleSelectChange("civil_status", val)}>
+                        <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                          <SelectValue placeholder="Select Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Single">Single</SelectItem>
+                          <SelectItem value="Married">Married</SelectItem>
+                          <SelectItem value="Widowed">Widowed</SelectItem>
+                          <SelectItem value="Separated">Separated</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 flex items-center gap-3 pt-6">
+                      <input 
+                        type="checkbox" 
+                        id="is_solo_parent" 
+                        checked={formData.is_solo_parent} 
+                        onChange={(e) => handleSelectChange("is_solo_parent", e.target.checked)}
+                        className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded"
+                      />
+                      <Label htmlFor="is_solo_parent" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer">Solo Parent?</Label>
                     </div>
                   </div>
                 </div>

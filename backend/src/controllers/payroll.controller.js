@@ -158,7 +158,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     logMap[dateStr] = l; 
   });
 
-  // 4. Get approved leaves (Vacation, Sick, Emergency, Half-Day)
+  // 4. Get approved leaves (Vacation, Sick, Emergency, Half-Day, Statutory)
   const approvedLeaveDaysMap = new Map(); 
   const leaveRecords = await sequelize.query(
     `SELECT "StartDate", "EndDate", "WithPayID", 1.0 as "amount" FROM "Vacation_Leave" 
@@ -171,6 +171,9 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
      WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)
      UNION
      SELECT "DateOfLeave" as "StartDate", "DateOfLeave" as "EndDate", "WithPayID", 0.5 as "amount" FROM "HalfDay_Leave" 
+     WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)
+     UNION
+     SELECT "StartDate", "EndDate", "WithPayID", "NoDays" as "amount" FROM "Statutory_Leave"
      WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)`,
     { replacements: { user_Id }, type: QueryTypes.SELECT }
   );

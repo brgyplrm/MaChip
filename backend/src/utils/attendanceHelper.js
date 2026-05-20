@@ -45,25 +45,28 @@ async function resolveLeaveConflict(userId, logDate) {
     console.log(`[LEAVE-RESOLVE] User ${userId} worked ${totalHours.toFixed(2)} hours on ${logDate}`);
 
     // 2. Check for Approved Leaves
-    // We check Vacation, Sick, Emergency, and HalfDay leaves.
+    // We check Vacation, Sick, Emergency, HalfDay, and Statutory leaves.
     const approvedLeave = await sequelize.query(
       `SELECT er."emp_reqId", er."emp_reqTypeId", 
               vl."vacL_Id", vl."WithPayID" as "vlPay",
               sl."SickL_Id", sl."WithPayID" as "slPay",
               el."EL_Id", el."WithPayID" as "elPay",
-              hd."HD_Id", hd."WithPayID" as "hdPay"
+              hd."HD_Id", hd."WithPayID" as "hdPay",
+              st."statL_Id", st."WithPayID" as "stPay"
        FROM "emp_Request" er
        LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
        LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
        LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
        LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+       LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId"
        WHERE er."user_Id" = :userId 
          AND er."emp_reqStatusId" = 2 -- Approved
          AND (
            (:logDate BETWEEN vl."StartDate" AND vl."EndDate") OR
            (:logDate BETWEEN sl."StartDate" AND sl."EndDate") OR
            (el."DateOfLeave" = :logDate) OR
-           (hd."DateOfLeave" = :logDate)
+           (hd."DateOfLeave" = :logDate) OR
+           (:logDate BETWEEN st."StartDate" AND st."EndDate")
          )
        LIMIT 1`,
       { replacements: { userId, logDate }, type: QueryTypes.SELECT }
@@ -148,6 +151,15 @@ async function resolveLeaveConflict(userId, logDate) {
            WHERE "user_Id" = :userId AND "year" = :year`,
           { replacements: { refundAmount, userId, year }, type: QueryTypes.UPDATE, transaction: t }
         );
+      } else if (leave.statL_Id && leave.stPay === 1) {
+        // Only Solo Parent (Type 10) has a balance that needs refunding
+        if (Number(leave.emp_reqTypeId) === 10) {
+          await sequelize.query(
+            `UPDATE "Leave_Balance" SET "SoloParent_used" = "SoloParent_used" - :refundAmount 
+             WHERE "user_Id" = :userId AND "year" = :year`,
+            { replacements: { refundAmount, userId, year }, type: QueryTypes.UPDATE, transaction: t }
+          );
+        }
       }
 
       // Update Leave Records (Reduce NoDays)
@@ -165,6 +177,11 @@ async function resolveLeaveConflict(userId, logDate) {
         await sequelize.query(
           `UPDATE "Emergency_Leave" SET "NoDays" = "NoDays" - :refundAmount WHERE "EL_Id" = :EL_Id`,
           { replacements: { refundAmount, EL_Id: leave.EL_Id }, type: QueryTypes.UPDATE, transaction: t }
+        );
+      } else if (leave.statL_Id) {
+        await sequelize.query(
+          `UPDATE "Statutory_Leave" SET "NoDays" = "NoDays" - :refundAmount WHERE "statL_Id" = :statL_Id`,
+          { replacements: { refundAmount, statL_Id: leave.statL_Id }, type: QueryTypes.UPDATE, transaction: t }
         );
       }
 
@@ -564,6 +581,7 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
          LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
          LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
          LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+         LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId"
          LEFT JOIN "employee_Logging_report" elr ON u."user_Id" = elr."user_id" AND elr."log_Date" = :todayStr
          WHERE u."deletedAt" IS NULL 
            AND er."emp_reqStatusId" = 2
@@ -572,7 +590,8 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
              :todayStr BETWEEN vl."StartDate" AND vl."EndDate" OR 
              :todayStr BETWEEN sl."StartDate" AND sl."EndDate" OR
              el."DateOfLeave" = :todayStr OR
-             hd."DateOfLeave" = :todayStr
+             hd."DateOfLeave" = :todayStr OR
+             :todayStr BETWEEN st."StartDate" AND st."EndDate"
            )`,
         { replacements: { todayStr }, type: QueryTypes.SELECT }
       );

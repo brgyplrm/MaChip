@@ -137,14 +137,14 @@ exports.registerUser = async (req, res) => {
           "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", 
           "department", "position", "position_id", "hireDate", "taxStatus", 
           "user_Phone", "user_Address", "user_DOB", "user_Gender", "user_ShiftId",
-          "dailyRate", "createdAt", "updatedAt"
+          "dailyRate", "civil_status", "is_solo_parent", "createdAt", "updatedAt"
         ) VALUES (
           :user_Id, :user_FirstName, :user_LastName,
           :user_MiddleName, :user_Email, :user_Password, 
           :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, 
           :department, :position, :position_id, :hireDate, :taxStatus,
           :user_Phone, :user_Address, :user_DOB, :user_Gender, :user_ShiftId,
-          :dailyRate, :now, :now
+          :dailyRate, :civil_status, :is_solo_parent, :now, :now
         )`,
         {
           replacements: {
@@ -168,6 +168,8 @@ exports.registerUser = async (req, res) => {
             user_Gender: req.body.user_Gender || null,
             user_ShiftId: parseInt(req.body.user_ShiftId) || 1,
             dailyRate,
+            civil_status: req.body.civil_status || "Single",
+            is_solo_parent: req.body.is_solo_parent === "true" || req.body.is_solo_parent === true,
             now: nowStr,
           },
           type: QueryTypes.INSERT,
@@ -736,6 +738,8 @@ exports.updateUser = async (req, res) => {
         position_id: position_id || null,
         hireDate: hireDate || null,
         taxStatus: taxStatus || "S",
+        civil_status: req.body.civil_status || oldUser.civil_status || "Single",
+        is_solo_parent: req.body.is_solo_parent === "true" || req.body.is_solo_parent === true,
         dailyRate: parsedDailyRate,
         sss: finalSSS,
         ph: finalPH,
@@ -778,6 +782,8 @@ exports.updateUser = async (req, res) => {
           "position_id"    = :position_id,
           "hireDate"       = :hireDate,
           "taxStatus"      = :taxStatus,
+          "civil_status"   = :civil_status,
+          "is_solo_parent" = :is_solo_parent,
           "dailyRate"      = :dailyRate,
           "updatedAt"      = :updatedAt
           ${rateUpdateSql}
@@ -1385,12 +1391,14 @@ exports.batchRegisterUsers = async (req, res) => {
             `INSERT INTO "User" (
               "user_Id", "user_FirstName", "user_LastName", "user_MiddleName",
               "user_Email", "user_Password", "user_RoleId", "user_EmploymentStatusId",
-              "department", "position", "hireDate", "taxStatus",
+              "department", "position", "hireDate", "taxStatus", "user_Gender",
+              "civil_status", "is_solo_parent",
               "createdAt", "updatedAt"
             ) VALUES (
               :user_Id, :user_FirstName, :user_LastName, :user_MiddleName,
               :user_Email, :user_Password, :roleId, :statusId,
-              :department, :position, :hireDate, :taxStatus,
+              :department, :position, :hireDate, :taxStatus, :user_Gender,
+              :civil_status, :is_solo_parent,
               :now, :now
             )`,
             {
@@ -1407,6 +1415,9 @@ exports.batchRegisterUsers = async (req, res) => {
                 position: userData.position || null,
                 hireDate: userData.hireDate || null,
                 taxStatus: userData.taxStatus || "S",
+                user_Gender: userData.user_Gender || null,
+                civil_status: userData.civil_status || "Single",
+                is_solo_parent: userData.is_solo_parent === "true" || userData.is_solo_parent === true,
                 now: nowStr
               },
               type: QueryTypes.INSERT,

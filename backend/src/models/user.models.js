@@ -49,6 +49,8 @@ module.exports = (sequelize, DataTypes) => {
       user_Address: { type: DataTypes.TEXT, allowNull: true },
       user_DOB: { type: DataTypes.DATEONLY, allowNull: true },
       user_Gender: { type: DataTypes.STRING(20), allowNull: true },
+      civil_status: { type: DataTypes.STRING(20), defaultValue: "Single" },
+      is_solo_parent: { type: DataTypes.BOOLEAN, defaultValue: false },
       user_ShiftId: { type: DataTypes.SMALLINT, defaultValue: 1 }, // 1 = Morning, 2 = Evening
       taxStatus: { type: DataTypes.STRING(5), defaultValue: "S" },
       dailyRate: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
