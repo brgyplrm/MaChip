@@ -342,8 +342,8 @@ exports.getPayrollPeriods = async (req, res) => {
         await ensureCurrentPeriodExists();
 
         // Check if user is staff/admin (matching roleCheck.js logic)
-        const userRole = req.user.user_Role;
-        const userRoleId = parseInt(req.user.user_RoleId);
+        const userRole = req.user?.user_Role;
+        const userRoleId = parseInt(req.user?.user_RoleId || 0);
         const isStaff = [1, 2, 4].includes(userRoleId) || 
                         ["Admin Manager", "Supervisor", "Admin Accountant", "Admin"].includes(userRole);
 

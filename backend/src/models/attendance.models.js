@@ -115,6 +115,27 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 1,
       },
+      // Payable Units (Calculated per shift)
+      reg_hrs: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+      },
+      nd_hrs: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+      },
+      ot_hrs: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+      },
+      holiday_hrs: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+      },
+      total_payable_hrs: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+      },
     },
     {
       timestamps: false,

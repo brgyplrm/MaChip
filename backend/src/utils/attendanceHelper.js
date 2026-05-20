@@ -214,13 +214,17 @@ async function resolveLeaveConflict(userId, logDate) {
 /**
  * Advanced Time-Slicing Algorithm
  * Slices a shift into minutes and assigns them to payable buckets based on DOLE rules.
+ * Handles: Fixed 1-hr break after 4 hrs, OT after 8 hrs, Night Diff (22:00-06:00), 
+ * and Holiday stacking multipliers.
  */
 async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId, settings = null, holidays = null) {
   const result = {
     totalRawMinutes: 0,
-    payableMinutes: 0,
-    totalPayableHours: 0,
-    buckets: {} // will store minutes per rate type
+    reg_hrs: 0,
+    nd_hrs: 0,
+    ot_hrs: 0,
+    holiday_hrs: 0,
+    totalPayableHours: 0
   };
 
   if (!firstIn || !lastOut) return result;
@@ -229,23 +233,19 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
   if (!settings) settings = await SystemSettings.findOne();
   if (!holidays) holidays = await Holiday.findAll();
 
-  const holidayMap = {}; // date -> { types: [], count: 0 }
+  const holidayMap = {}; 
   holidays.forEach(h => { 
-    if (!holidayMap[h.date]) holidayMap[h.date] = { types: [], count: 0 };
-    holidayMap[h.date].types.push(h.type);
-    holidayMap[h.date].count++;
+    const dStr = typeof h.date === 'string' ? h.date : h.date.toISOString().split('T')[0];
+    if (!holidayMap[dStr]) holidayMap[dStr] = { types: [], count: 0 };
+    holidayMap[dStr].types.push(h.type);
+    holidayMap[dStr].count++;
   });
 
   // 2. Parse times and handle cross-midnight
-  // logDate is YYYY-MM-DD
-  const [inH, inM] = firstIn.split(":").map(Number);
-  const [outH, outM] = lastOut.split(":").map(Number);
-
   const startCursor = new Date(`${logDate}T${firstIn}`);
   let endCursor = new Date(`${logDate}T${lastOut}`);
 
   if (endCursor < startCursor) {
-    // Crosses midnight
     endCursor.setDate(endCursor.getDate() + 1);
   }
 
@@ -255,9 +255,20 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
   if (totalMinutes <= 0) return result;
 
   // 3. Time-Slicing (Minute by Minute)
-  const buckets = {}; // key: rateKey, value: minutes
+  let workMinutesCount = 0;
+  let totalUnits = 0;
+  let regUnits = 0;
+  let otUnits = 0;
+  let ndUnits = 0;
+  let holUnits = 0;
 
   for (let i = 0; i < totalMinutes; i++) {
+    // Fixed Break Deduction: Skip 1 hour (60 mins) after 4 hours (240 mins) of work
+    if (workMinutesCount === 240) {
+      i += 60; 
+      if (i >= totalMinutes) break;
+    }
+
     const currentMinute = new Date(startCursor.getTime() + i * 60000);
     const dateStr = formatDateLocal(currentMinute);
     const hour = currentMinute.getHours();
@@ -266,88 +277,111 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
     const holidayData = holidayMap[dateStr] || { types: [], count: 0 };
     const isRegularHoliday = holidayData.types.includes("Regular Holiday");
     const isSpecialHoliday = holidayData.types.includes("Special Holiday");
-    const isDoubleRegular = holidayData.count >= 2 && isRegularHoliday && !isSpecialHoliday;
-    const isDoubleSpecial = holidayData.count >= 2 && isSpecialHoliday && !isRegularHoliday;
+    const isDoubleRegular = holidayData.count >= 2 && isRegularHoliday;
+    const isDoubleSpecial = holidayData.count >= 2 && isSpecialHoliday;
 
     const isSunday = currentMinute.getDay() === 0;
     const isNightDiff = (hour >= 22 || hour < 6);
 
     // Determine Rate Key
     let rateKey = "ordinaryDayRate";
-    
-    if (isDoubleRegular) {
-      rateKey = isSunday ? "doubleRegularHolidayRestDayRate" : "doubleRegularHolidayRate";
-    } else if (isRegularHoliday) {
-      rateKey = isSunday ? "regularHolidayRestDayRate" : "regularHolidayRate";
-    } else if (isDoubleSpecial) {
-      rateKey = isSunday ? "doubleSpecialDayRestDayRate" : "doubleSpecialDayRate";
-    } else if (isSpecialHoliday) {
-      rateKey = isSunday ? "specialDayRestDayRate" : "specialDayRate";
-    } else if (isSunday) {
-      rateKey = "restDayRate";
-    }
+    if (isDoubleRegular) rateKey = isSunday ? "doubleRegularHolidayRestDayRate" : "doubleRegularHolidayRate";
+    else if (isRegularHoliday) rateKey = isSunday ? "regularHolidayRestDayRate" : "regularHolidayRate";
+    else if (isDoubleSpecial) rateKey = isSunday ? "doubleSpecialDayRestDayRate" : "doubleSpecialDayRate";
+    else if (isSpecialHoliday) rateKey = isSunday ? "specialDayRestDayRate" : "specialDayRate";
+    else if (isSunday) rateKey = "restDayRate";
 
-    // Apply Night Diff stacking
-    if (isNightDiff) {
-      // ND is usually baseRate * multiplier. We will track ND minutes separately to apply 10% premium later
-      const ndKey = rateKey + "_ND";
-      buckets[ndKey] = (buckets[ndKey] || 0) + 1;
-    } else {
-      buckets[rateKey] = (buckets[rateKey] || 0) + 1;
-    }
+    workMinutesCount++;
+    const isOT = workMinutesCount > 480;
+
+    // Multipliers
+    const baseMult = settings[rateKey] || 1.0;
+    const otMult = isOT ? (settings.overtimeRate || 1.25) : 1.0;
+    const ndMult = isNightDiff ? (settings.nightDiffRate || 1.1) : 1.0;
+
+    // Premium Stacking Logic
+    // Total = Base * OT * ND
+    const currentTotalFactor = baseMult * otMult * ndMult;
+    totalUnits += currentTotalFactor;
+
+    // Deconstruct into buckets (in minute-units, convert to hrs at end)
+    regUnits += 1; // Physical work minute
+    if (baseMult > 1.0) holUnits += (baseMult - 1);
+    
+    // OT Premium = (Base * OT) - Base
+    if (isOT) otUnits += (baseMult * (otMult - 1));
+    
+    // ND Premium = (Base * OT * ND) - (Base * OT)
+    if (isNightDiff) ndUnits += (baseMult * otMult * (ndMult - 1));
   }
 
-  // 4. Flexible Break Deduction (1 hour = 60 mins)
-  // Deduct from ordinary minutes first
-  let breakRemaining = totalMinutes > 300 ? 60 : 0;
-  
-  // Deduct break from buckets (prioritize non-ND, ordinary buckets)
-  const bucketPriority = ["ordinaryDayRate", "restDayRate", "specialDayRate", "regularHolidayRate"];
-  for (const key of bucketPriority) {
-    if (breakRemaining <= 0) break;
-    if (buckets[key]) {
-      const deduct = Math.min(buckets[key], breakRemaining);
-      buckets[key] -= deduct;
-      breakRemaining -= deduct;
-    }
-  }
-  // If still remaining, deduct from ND buckets
-  if (breakRemaining > 0) {
-    for (const key in buckets) {
-      const deduct = Math.min(buckets[key], breakRemaining);
-      buckets[key] -= deduct;
-      breakRemaining -= deduct;
-      if (breakRemaining <= 0) break;
-    }
-  }
-
-  // 5. Convert Minutes to Payable Hours using Settings Multipliers
-  let totalPayableMinutes = 0;
-  for (const key in buckets) {
-    const isND = key.endsWith("_ND");
-    const baseKey = isND ? key.replace("_ND", "") : key;
-    
-    const multiplier = settings[baseKey] || 1.0;
-    const ndPremium = isND ? (settings.nightDiffRate || 1.1) : 1.0;
-    
-    // Logic: Multiplier stacks (e.g. 2.0 Regular Holiday * 1.1 ND = 2.2 total factor)
-    const effectiveMultiplier = multiplier * (isND ? (ndPremium - 1 + 1) : 1.0);
-    // Actually simpler: effective = multiplier * (isND ? 1.1 : 1.0)
-    
-    totalPayableMinutes += buckets[key] * (multiplier * (isND ? (settings.nightDiffRate || 1.1) : 1.0));
-  }
-
-  result.payableMinutes = totalPayableMinutes;
-  result.buckets = buckets;
-  result.totalPayableHours = totalPayableMinutes / 60;
+  // 4. Final Conversion (Minutes to Hours)
+  result.reg_hrs = Math.round((regUnits / 60) * 100) / 100;
+  result.hol_hrs = Math.round((holUnits / 60) * 100) / 100;
+  result.ot_hrs = Math.round((otUnits / 60) * 100) / 100;
+  result.nd_hrs = Math.round((ndUnits / 60) * 100) / 100;
+  result.totalPayableHours = Math.round((totalUnits / 60) * 100) / 100;
 
   return result;
-}
+  }
 
-/**
- * Optimized version of markAbsents that processes multiple users in bulk
- */
-async function ensureAbsentsMarked(dateOverride = null) {
+  /**
+  * Orchestrates calculation and storage of attendance units for a specific report.
+  */
+  async function calculateAndStoreAttendanceUnits(userId, logDate) {
+  try {
+    const { employee_Logging_report, SystemSettings, Holiday, User } = require("../config/sequelize.js");
+
+    // 1. Fetch the report
+    const report = await employee_Logging_report.findOne({
+      where: { user_id: userId, log_Date: logDate }
+    });
+
+    if (!report) return { success: false, message: "No report found." };
+
+    const inArr = JSON.parse(report.time_Logged_inArr || "[]");
+    const outArr = JSON.parse(report.time_Logged_outArr || "[]");
+
+    if (inArr.length === 0 || outArr.length === 0) {
+      return { success: false, message: "Incomplete logs. Units not calculated." };
+    }
+
+    // 2. Fetch User Shift and settings
+    const user = await User.findByPk(userId);
+    const settings = await SystemSettings.findOne();
+    const holidays = await Holiday.findAll();
+
+    // 3. Calculate
+    const stats = await calculateMultiBucketHours(
+      inArr[0], 
+      outArr[outArr.length - 1], 
+      logDate, 
+      user?.user_ShiftId, 
+      settings, 
+      holidays
+    );
+
+    // 4. Update the report
+    await report.update({
+      reg_hrs: stats.reg_hrs,
+      nd_hrs: stats.nd_hrs,
+      ot_hrs: stats.ot_hrs,
+      holiday_hrs: stats.hol_hrs,
+      total_payable_hrs: stats.totalPayableHours
+    });
+
+    console.log(`[ATTENDANCE-CALC] Updated units for User ${userId} on ${logDate}: ${stats.totalPayableHours} total units.`);
+    return { success: true, stats };
+  } catch (error) {
+    console.error("[ATTENDANCE-CALC] Error:", error);
+    return { success: false, error: error.message };
+  }
+  }
+
+  /**
+  * Optimized version of markAbsents that processes multiple users in bulk
+  */
+  async function ensureAbsentsMarked(dateOverride = null) {
   try {
     const now = await getSystemTime();
     
@@ -564,4 +598,4 @@ async function ensureAbsentsMarked(dateOverride = null) {
   }
 }
 
-module.exports = { ensureAbsentsMarked, calculateMultiBucketHours, resolveLeaveConflict };
+module.exports = { ensureAbsentsMarked, calculateMultiBucketHours, resolveLeaveConflict, calculateAndStoreAttendanceUnits };

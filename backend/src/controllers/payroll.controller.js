@@ -135,13 +135,18 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     holidayMap[dStr] = h; 
   });
 
-  // 3. Get attendance logs from the reporting table (which stores AM/PM breakdown)
+  // 3. Get attendance logs from the reporting table (which stores units)
   const logs = await sequelize.query(
     `SELECT
        "log_Date"::text AS log_date,
        "time_Logged_inArr",
        "time_Logged_outArr",
-       "attendance_StatusId" as att_status
+       "attendance_StatusId" as att_status,
+       COALESCE("reg_hrs", 0) as reg_hrs,
+       COALESCE("nd_hrs", 0) as nd_hrs,
+       COALESCE("ot_hrs", 0) as ot_hrs,
+       COALESCE("holiday_hrs", 0) as holiday_hrs,
+       COALESCE("total_payable_hrs", 0) as total_units
      FROM "employee_Logging_report"
      WHERE "user_id" = :user_Id
      AND "log_Date" BETWEEN :period_Start AND :period_End`,
@@ -195,12 +200,18 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
   let tardiness_Mins = 0;
   let paidLeave_Days = 0;
   let unpaidLeave_Days = 0;
-  let legalHol_Days = 0;     // Regular Holiday Worked
-  let specialHol_Days = 0;   // Special Holiday Worked
-  let legalHol_NotWorked = 0; // Regular Holiday Not Worked (Paid 100%)
-  let specialHol_NotWorked = 0; // Special Holiday Not Worked (Unpaid)
-  let actual_Worked_Days = 0; // Days with logs or on-field
+  let legalHol_Days = 0;     
+  let specialHol_Days = 0;   
+  let legalHol_NotWorked = 0; 
+  let specialHol_NotWorked = 0; 
+  let actual_Worked_Days = 0; 
   let actual_Worked_Hrs = 0;
+  
+  // Precise Units
+  let total_nd_units = 0;
+  let total_ot_units = 0;
+  let total_hol_units = 0;
+  let total_payable_units = 0;
 
   for (let i = 0; i < allDays.length; i++) {
     const dateStr = allDays[i];
@@ -211,54 +222,55 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     const log = logMap[dateStr];
     const isOnField = onfieldMap.has(dateStr);
     
-    // Status 3 = Absent, Status 7 = Accidental Tap (Voided)
     const isExcludedStatus = log && (log.att_status === 3 || log.att_status === 7);
     const worked = (!!log && !isExcludedStatus) || isOnField;
     const isLeave = approvedLeaveDaysMap.has(dateStr);
 
-    // ── Handle Worked Days (Normal or Holiday) ──────────────────────────
     if (worked) {
       let dailyHrs = 0;
+      let dailyUnits = 0;
 
       if (isOnField) {
         dailyHrs = 8.0;
+        dailyUnits = 8.0;
       } else if (log) {
-        const inArr = JSON.parse(log.time_Logged_inArr || "[]");
-        const isExempt = parseInt(log.att_status) === 6;
-        
-        // Time-based slotting (same as report logic)
-        const SLOT_MIDPOINT = "12:30";
-        const morningIn = inArr.find(t => t.substring(0, 5) < SLOT_MIDPOINT);
-        const afternoonIn = inArr.find(t => t.substring(0, 5) >= "12:00" && t.substring(0, 5) < "17:30");
+        // Use stored values if available, else fallback to session logic
+        if (log.total_units > 0) {
+          dailyHrs = log.reg_hrs;
+          dailyUnits = log.total_units;
+          total_nd_units += log.nd_hrs;
+          total_ot_units += log.ot_hrs;
+          total_hol_units += log.holiday_hrs;
+        } else {
+          const inArr = JSON.parse(log.time_Logged_inArr || "[]");
+          const isExempt = parseInt(log.att_status) === 6;
+          const SLOT_MIDPOINT = "12:30";
+          const morningIn = inArr.find(t => t.substring(0, 5) < SLOT_MIDPOINT);
+          const afternoonIn = inArr.find(t => t.substring(0, 5) >= "12:00" && t.substring(0, 5) < "17:30");
 
-        // Morning Session (Fixed 4.0 - tardiness)
-        if (morningIn && morningIn !== "—") {
-          dailyHrs += 4.0;
-          const [lh, lm] = morningIn.split(":").map(Number);
-          const loginMinutes = lh * 60 + lm;
-          const graceMinutes = 8 * 60 + 35; // 8:35 AM
-
-          if (loginMinutes > graceMinutes && !isExempt) {
-            const minsLate = Math.max(0, loginMinutes - graceMinutes);
-            tardiness_Mins += minsLate;
-            dailyHrs = Math.max(0, dailyHrs - (minsLate / 60));
+          if (morningIn && morningIn !== "—") {
+            dailyHrs += 4.0;
+            const [lh, lm] = morningIn.split(":").map(Number);
+            const loginMinutes = lh * 60 + lm;
+            const graceMinutes = 8 * 60 + 35;
+            if (loginMinutes > graceMinutes && !isExempt) {
+              const minsLate = Math.max(0, loginMinutes - graceMinutes);
+              tardiness_Mins += minsLate;
+              dailyHrs = Math.max(0, dailyHrs - (minsLate / 60));
+            }
           }
-        }
-
-        // Afternoon Session (Fixed 4.0)
-        if (afternoonIn && afternoonIn !== "—") {
-          dailyHrs += 4.0;
+          if (afternoonIn && afternoonIn !== "—") dailyHrs += 4.0;
+          dailyUnits = dailyHrs; // Fallback units
         }
       }
       
       const dayPortion = dailyHrs >= 7 ? 1.0 : (dailyHrs >= 1 ? 0.5 : 0.0);
       actual_Worked_Days += dayPortion;
       actual_Worked_Hrs += dailyHrs;
+      total_payable_units += dailyUnits;
 
-      // Conflict Resolution: If worked 1-5 hrs and it was a leave day, 
-      // the remaining 0.5 is counted as paid leave (already refunded by resolveLeaveConflict)
       if (dayPortion === 0.5 && isLeave) {
-        if (approvedLeaveDaysMap.get(dateStr)) paidLeave_Days += 0.5;
+        if (approvedLeaveDaysMap.get(dateStr).withPay) paidLeave_Days += 0.5;
         else unpaidLeave_Days += 0.5;
       }
 
@@ -269,52 +281,46 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
       continue; 
     }
 
-    // ── Handle Holidays Not Worked ──────────────────────────────────────
     if (holiday) {
       if (!isFuture) {
         if (holiday.type === "Regular Holiday") {
-          // Rule #2: Absent on Regular Holiday = No Deduction + Count as Worked Day
           actual_Worked_Days++;
           actual_Worked_Hrs += WORK_HRS_PER_DAY;
+          total_payable_units += WORK_HRS_PER_DAY;
           legalHol_NotWorked++;
         } else {
-          // Rule #3: Absent on Special Holiday = Deduction
           specialHol_NotWorked++;
         }
       }
       continue;
     }
 
-    // Handle Non-Holiday Scheduled Days
     const [y, m, d] = dateStr.split("-").map(Number);
     const dateObj = new Date(Date.UTC(y, m - 1, d));
-    const isSunday = dateObj.getUTCDay() === 0;
-    if (isSunday) continue;
+    if (dateObj.getUTCDay() === 0) continue;
 
     if (isLeave) {
       const leaveData = approvedLeaveDaysMap.get(dateStr);
-      if (leaveData.withPay) paidLeave_Days += leaveData.amount;
-      else unpaidLeave_Days += leaveData.amount;
+      if (leaveData.withPay) {
+        paidLeave_Days += leaveData.amount;
+        total_payable_units += leaveData.amount * 8; // Convert day to hours
+      } else {
+        unpaidLeave_Days += leaveData.amount;
+      }
       continue;
     }
 
-    // Rule #1: Absence logic for normal days
     if (!isFuture) {
-      // If already explicitly marked as Absent in logs, count it regardless of time
-      if (isAbsentStatus) {
-        absence_Days++;
-      } 
-      // If no logs at all, count as absent only if it's a past day OR if today is past the shift cutoff
-      else if (!log) {
+      if (!log) {
         const isAfterCutoff = now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 30);
-        if (!isToday || isAfterCutoff) {
-          absence_Days++;
-        }
+        if (!isToday || isAfterCutoff) absence_Days++;
+      } else if (log.att_status === 3) {
+        absence_Days++;
       }
     }
   }
 
-  // 6. Get approved OT and verify presence
+  // 6. Manual OT Check (Legacy/Backup)
   const overtimeRequests = await sequelize.query(
     `SELECT ot.* FROM "Overtime_Request" ot
      JOIN "emp_Request" er ON er."emp_reqId" = ot."emp_reqId"
@@ -327,33 +333,28 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
   let verified_OT_Hrs = 0;
   for (const req of overtimeRequests) {
     const dateStr = typeof req.OT_DateOf === 'string' ? req.OT_DateOf : req.OT_DateOf.toISOString().split('T')[0];
-    
-    // Find any log that proves they were working after the OT start time
-    const presenceLog = await sequelize.query(
-      `SELECT "time_Logged" FROM "user_logging"
-       WHERE "user_id" = :user_Id AND "log_Date"::date = :dateStr::date
-       AND "logged_StatusId" IN (2, 6)
-       AND "time_Logged" > :otStart
-       ORDER BY "time_Logged" DESC
-       LIMIT 1`,
-      { 
-        replacements: { 
-          user_Id, 
-          dateStr, 
-          otStart: req.HrFrom 
-        }, 
-        type: QueryTypes.SELECT 
-      }
-    );
-
-    if (presenceLog.length > 0) {
-      verified_OT_Hrs += parseFloat(req.Total_Hrs);
+    const log = logMap[dateStr];
+    // Only add if not already captured by the precise calculation
+    if (!log || log.ot_hrs === 0) {
+      const presenceLog = await sequelize.query(
+        `SELECT "time_Logged" FROM "user_logging"
+         WHERE "user_id" = :user_Id AND "log_Date"::date = :dateStr::date
+         AND "logged_StatusId" IN (2, 6)
+         AND "time_Logged" > :otStart
+         ORDER BY "time_Logged" DESC LIMIT 1`,
+        { replacements: { user_Id, dateStr, otStart: req.HrFrom }, type: QueryTypes.SELECT }
+      );
+      if (presenceLog.length > 0) verified_OT_Hrs += parseFloat(req.Total_Hrs);
     }
   }
 
   return {
     NoDays_Worked: actual_Worked_Days,
     NoHrs_Worked: Math.round(actual_Worked_Hrs * 100) / 100,
+    Total_Payable_Units: Math.round(total_payable_units * 100) / 100,
+    ND_Units: Math.round(total_nd_units * 100) / 100,
+    OT_Units: Math.round(total_ot_units * 100) / 100,
+    Hol_Units: Math.round(total_hol_units * 100) / 100,
     totalScheduledDays,
     absence_Days,
     paidLeave_Days,
@@ -364,7 +365,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     legalHol_NotWorked,
     specialHol_NotWorked,
     holidaysTotal: holidays.length,
-    OT_Hrs: verified_OT_Hrs,
+    OT_Hrs_Manual: verified_OT_Hrs,
     workedHolidays: { regular: legalHol_Days, special: specialHol_Days },
   };
 }
@@ -524,42 +525,40 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const ratePerHr = dailyRate / WORK_HRS_PER_DAY;
   const ratePerMin = ratePerHr / 60;
 
-  // 1. Basic Pay (Based on Worked Days + Paid Leaves)
-  // stats.NoDays_Worked already includes Regular Holidays not worked (Rule #2)
-  const totalPaidDays = stats.NoDays_Worked + stats.paidLeave_Days;
-  const basicPay = totalPaidDays * dailyRate;
+  // 1. Basic Pay (Based on Worked Physical Hours + Paid Leaves)
+  // stats.NoHrs_Worked already includes Regular Holidays not worked at 8.0 hrs
+  const totalPaidHrs = stats.NoHrs_Worked + (stats.paidLeave_Days * 8);
+  const basicPay = (totalPaidHrs / 8) * dailyRate;
 
-  // 2. Holiday Premiums
-  const legalHol_Amnt = (stats.legalHol_Days * dailyRate);
-  const specialHol_Amnt = (stats.specialHol_Days * dailyRate * 0.25);
+  // 2. Holiday Premiums (Using Precise Units)
+  // Hol_Units stores the premium part (e.g., 8.0 hrs extra for a 200% day)
+  const legalHol_Amnt = stats.Hol_Units * ratePerHr;
+  const specialHol_Amnt = 0; // Integrated into legalHol_Amnt for simplicity in this precise mode
 
-  // 3. OT
-  const OT_Amnt = stats.OT_Hrs * ratePerHr * 1.25;
+  // 3. OT & Night Diff
+  const OT_Amnt = (stats.OT_Units + stats.OT_Hrs_Manual) * ratePerHr;
+  const nightDiff_Amnt = stats.ND_Units * ratePerHr;
   
   // 4. Attendance Deductions
-  // Since we only pay for worked days, absence and unpaid leave amounts are 0
   const absence_Amnt = 0; 
   const tardiness_Amnt = stats.tardiness_Mins * ratePerMin;
   const unpaidLeave_Amnt = 0;
-  const specialHol_Adj = 0; // Naturally excluded from basicPay if not worked
+  const specialHol_Adj = 0;
 
   const incentives = customIncentives; 
   const allowance = customAllowance;
 
-  let totalEarnings = basicPay + legalHol_Amnt + specialHol_Amnt + OT_Amnt + incentives - specialHol_Adj;
+  let totalEarnings = basicPay + legalHol_Amnt + nightDiff_Amnt + OT_Amnt + incentives - specialHol_Adj;
   if (totalEarnings < 0) totalEarnings = 0;
 
-  // 5. Government Deductions (Standard Shares)
+  // 5. Government Deductions
   const govtTotal = totalEarnings > 0 ? (parseFloat(sss_Share) + parseFloat(philhealth_Share) + parseFloat(hdmf_Share)) : 0;
   
-  // 6. Other Deductions (Excluding EastWest Loan as it is deducted from Net Pay for deposit)
+  // 6. Other Deductions
   const otherTotal = totalEarnings > 0 ? (parseFloat(hCard) + parseFloat(sLoan) + parseFloat(hLoan) + parseFloat(cLoan) + parseFloat(advAmnt) + parseFloat(gDed) + parseFloat(mpSave)) : 0;
 
-  // Tax is now pulled from user template
   const Tax_Ded_Final = totalEarnings > 0 ? (parseFloat(tax_Share) || 0) : 0; 
 
-  // Net Pay = (Gross - Attendance Deds - Govt) - Other (including Tax) + Allowance
-  // Taxable Income = Gross - Attendance Deds - Govt
   const taxableIncome = totalEarnings - (absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt) - govtTotal;
   const netPay = taxableIncome - (otherTotal + Tax_Ded_Final) + allowance;
 
@@ -567,7 +566,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
 
   return {
     ...stats,
-    NoDays_Worked: totalPaidDays, 
+    NoDays_Worked: (totalPaidHrs / 8), 
     absence_Hrs: stats.absence_Days * 8,
     dailyRate,
     previousDailyRate,
@@ -577,6 +576,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     specialHol_Amnt,
     specialHol_Adj,
     OT_Amnt,
+    nightDiff_Amnt,
     incentives,
     allowance,
     absence_Amnt,

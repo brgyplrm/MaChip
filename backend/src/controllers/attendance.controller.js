@@ -13,7 +13,9 @@ const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
-const { calculateMultiBucketHours, resolveLeaveConflict } = require("../utils/attendanceHelper");
+const { calculateMultiBucketHours, resolveLeaveConflict, calculateAndStoreAttendanceUnits } = require("../utils/attendanceHelper");
+
+// ... (rest of imports)
 
 // ── Mark Attendance ───────────────────────────────────────────────────────────
 exports.markAttendance = async (req, res) => {
@@ -60,6 +62,9 @@ exports.markAttendance = async (req, res) => {
           `UPDATE "employee_Logging_report" SET "time_Logged_outArr" = :outArr, "logged_StatusId" = 2 WHERE "user_id" = :targetId AND "log_Date" = :todayStr`,
           { replacements: { outArr: JSON.stringify(outArr), targetId, todayStr }, type: QueryTypes.UPDATE }
         );
+
+        // Trigger calculation
+        calculateAndStoreAttendanceUnits(targetId, todayStr).catch(err => console.error(`[BULK-CALC-ERR] User ${targetId}:`, err));
       }
       return res.status(200).json({ message: `Successfully clocked out ${activeReports.length} employee(s).` });
     }
@@ -189,10 +194,13 @@ exports.markAttendance = async (req, res) => {
     if (!isEntry) {
       // Triggered on Clock Out, Lunch Out, or OT Out
       resolveLeaveConflict(target_user_Id, todayStr)
-        .then(res => {
+        .then(async res => {
           if (res.refundAmount > 0) console.log(`[LEAVE-AUTO] ${res.message} for user ${target_user_Id}`);
+          
+          // Trigger Calculation and Storage of Payable Units
+          await calculateAndStoreAttendanceUnits(target_user_Id, todayStr);
         })
-        .catch(err => console.error("[LEAVE-AUTO] Error resolving leave conflict:", err));
+        .catch(err => console.error("[ATTENDANCE-AUTO] Error in post-clockout tasks:", err));
     }
 
     const labels = { 1: "Clock In", 2: "Clock Out", 3: "Out For Lunch", 4: "In From Lunch", 5: "Overtime-In", 6: "Overtime-Out" };
@@ -320,11 +328,30 @@ exports.viewUserLogs = async (req, res) => {
           }
         }
 
-        // ── TIME-SLICING CALCULATION ──
-        const hoursObj = await calculateMultiBucketHours(inArr[0], outArr[outArr.length - 1], dateStr, report.user_ShiftId, settings, holidays);
+        // ── TIME-SLICING CALCULATION (Prefer Stored Values) ──
+        let stats = {
+          reg_hrs: parseFloat(report.reg_hrs || 0),
+          nd_hrs: parseFloat(report.nd_hrs || 0),
+          ot_hrs: parseFloat(report.ot_hrs || 0),
+          holiday_hrs: parseFloat(report.holiday_hrs || 0),
+          totalPayableHours: parseFloat(report.total_payable_hrs || 0)
+        };
+
+        // Fallback for older records or if recalculation is needed
+        if (stats.totalPayableHours === 0 && inArr.length > 0 && outArr.length > 0) {
+          const hoursObj = await calculateMultiBucketHours(inArr[0], outArr[outArr.length - 1], dateStr, report.user_ShiftId, settings, holidays);
+          stats = {
+            reg_hrs: hoursObj.reg_hrs,
+            nd_hrs: hoursObj.nd_hrs,
+            ot_hrs: hoursObj.ot_hrs,
+            holiday_hrs: hoursObj.hol_hrs,
+            totalPayableHours: hoursObj.totalPayableHours
+          };
+        }
         
-        if (dayOT && dayOT.Total_Hrs) {
-          hoursObj.totalPayableHours += parseFloat(dayOT.Total_Hrs) * (settings.overtimeRate || 1.25);
+        // Handle manual Overtime Request additions if any (Legacy Support)
+        if (dayOT && dayOT.Total_Hrs && stats.ot_hrs === 0) {
+          stats.totalPayableHours += parseFloat(dayOT.Total_Hrs) * (settings.overtimeRate || 1.25);
         }
 
         return {
@@ -340,7 +367,13 @@ exports.viewUserLogs = async (req, res) => {
           time_Out: ot_Out !== "—" ? ot_Out : afternoon_Out,
           inArr,
           outArr,
-          hoursWorked: (hoursObj.totalPayableHours || 0).toFixed(2),
+          hoursWorked: (stats.totalPayableHours || 0).toFixed(2),
+          breakdown: {
+            reg: stats.reg_hrs.toFixed(2),
+            ot: stats.ot_hrs.toFixed(2),
+            nd: stats.nd_hrs.toFixed(2),
+            holiday: stats.holiday_hrs.toFixed(2)
+          },
           logStatus: report.loggedStatusName,
           attendanceStatus: report.attendanceStatusName === "Exempt" ? "On Time" : (report.attendanceStatusName || "—"),
         };
