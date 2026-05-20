@@ -742,8 +742,11 @@ exports.updateUser = async (req, res) => {
         is_solo_parent: req.body.is_solo_parent === "true" || req.body.is_solo_parent === true,
         dailyRate: parsedDailyRate,
         sss: finalSSS,
+        sss_is_manual: req.body.sss_is_manual === true || req.body.sss_is_manual === "true",
         ph: finalPH,
+        ph_is_manual: req.body.ph_is_manual === true || req.body.ph_is_manual === "true",
         hd: finalHD,
+        hdmf_is_manual: req.body.hdmf_is_manual === true || req.body.hdmf_is_manual === "true",
         tax: parseFloat(Tax_Ded) || oldUser.tax_Share || 0,
         hc: parseFloat(healthCard_Amnt) || oldUser.healthCard_Amnt || 0,
         sl: parseFloat(SSS_Loan) || oldUser.SSS_Loan || 0,
@@ -824,15 +827,18 @@ exports.updateUser = async (req, res) => {
       // 3. Update/Insert Deductions
       await sequelize.query(
         `INSERT INTO "User_Deduction_Profile" (
-          "user_Id", "sss_Share", "philhealth_Share", "hdmf_Share", "tax_Share", "healthCard_Amnt",
+          "user_Id", "sss_Share", "sss_is_manual", "philhealth_Share", "ph_is_manual", "hdmf_Share", "hdmf_is_manual", "tax_Share", "healthCard_Amnt",
           "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", "eastwest_Loan", "globe_Deduction",
           "multiPurposeSavings", "advances_Amnt", "createdAt", "updatedAt"
         ) VALUES (
-          :targetId, :sss, :ph, :hd, :tax, :hc, :sl, :hl, :cl, :el, :gd, :ms, :aa, :updatedAt, :updatedAt
+          :targetId, :sss, :sss_is_manual, :ph, :ph_is_manual, :hd, :hdmf_is_manual, :tax, :hc, :sl, :hl, :cl, :el, :gd, :ms, :aa, :updatedAt, :updatedAt
         ) ON CONFLICT ("user_Id") DO UPDATE SET
           "sss_Share" = EXCLUDED."sss_Share",
+          "sss_is_manual" = EXCLUDED."sss_is_manual",
           "philhealth_Share" = EXCLUDED."philhealth_Share",
+          "ph_is_manual" = EXCLUDED."ph_is_manual",
           "hdmf_Share" = EXCLUDED."hdmf_Share",
+          "hdmf_is_manual" = EXCLUDED."hdmf_is_manual",
           "tax_Share" = EXCLUDED."tax_Share",
           "healthCard_Amnt" = EXCLUDED."healthCard_Amnt",
           "SSS_Loan" = EXCLUDED."SSS_Loan",

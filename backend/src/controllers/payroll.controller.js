@@ -385,7 +385,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
 
   const user = await sequelize.query(
     `SELECT u."dailyRate", u."previousDailyRate",
-            d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
+            d."sss_Share", d."sss_is_manual", d."philhealth_Share", d."ph_is_manual", d."hdmf_Share", d."hdmf_is_manual", d."tax_Share",
             d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
             d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings", d."eastwest_Loan"
      FROM "User" u
@@ -397,17 +397,40 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   if (dailyRate === null) dailyRate = user[0]?.dailyRate || 0;
   const previousDailyRate = user[0]?.previousDailyRate || 0;
   
-  // Calculate Employer Shares based on daily rate
-  const govtShares = computeMonthlyShares(dailyRate);
-  SSS_Ded_ER = govtShares.employer_sss;
-  Philhealth_Ded_ER = govtShares.employer_ph;
-  HDMF_Ded_ER = govtShares.employer_hdmf;
+  // ── "Both Relation" Matrix Synchronization Logic ────────────────────────────
+  const { computeMonthlySharesAsync } = require("../utils/govtDeductions");
+  const dynamicShares = await computeMonthlySharesAsync(dailyRate);
 
-  sss_Share = user[0]?.sss_Share || 0;
-  philhealth_Share = user[0]?.philhealth_Share || 0;
-  hdmf_Share = user[0]?.hdmf_Share || 0;
+  // SSS Selection
+  if (user[0]?.sss_is_manual) {
+    sss_Share = user[0]?.sss_Share || 0;
+    // For Employer share, we still use the matrix as a baseline unless we add er_is_manual
+    SSS_Ded_ER = dynamicShares.employer_sss; 
+  } else {
+    sss_Share = dynamicShares.sss_Share;
+    SSS_Ded_ER = dynamicShares.employer_sss;
+  }
+
+  // PhilHealth Selection
+  if (user[0]?.ph_is_manual) {
+    philhealth_Share = user[0]?.philhealth_Share || 0;
+    Philhealth_Ded_ER = dynamicShares.employer_ph;
+  } else {
+    philhealth_Share = dynamicShares.philhealth_Share;
+    Philhealth_Ded_ER = dynamicShares.employer_ph;
+  }
+
+  // HDMF Selection
+  if (user[0]?.hdmf_is_manual) {
+    hdmf_Share = user[0]?.hdmf_Share || 0;
+    HDMF_Ded_ER = dynamicShares.employer_hdmf;
+  } else {
+    hdmf_Share = dynamicShares.hdmf_Share;
+    HDMF_Ded_ER = dynamicShares.employer_hdmf;
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   tax_Share = user[0]?.tax_Share || 0;
-
   hCard = user[0]?.healthCard_Amnt || 0;
 
   // ── Cash Advance Override Check ─────────────────────────────────────────────

@@ -185,8 +185,14 @@ const PositionManagement = ({ mandatedMinimumWage: initialWage, mandatedWageEffe
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-purple-300">₱</span>
                       <Input 
                         type="text"
-                        value={mandatedWage}
-                        onChange={(e) => setMandatedWage(e.target.value)}
+                        inputMode="decimal"
+                        value={(mandatedWage || "").toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/,/g, '');
+                          if (raw === '' || raw === '.' || !isNaN(raw)) {
+                            setMandatedWage(raw);
+                          }
+                        }}
                         className="bg-white/10 border-white/20 text-white pl-6 w-32 font-bold text-xl h-10"
                         autoFocus
                       />
@@ -266,7 +272,8 @@ const PositionManagement = ({ mandatedMinimumWage: initialWage, mandatedWageEffe
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">₱</span>
                 <Input 
                   name="baseDailyRate"
-                  type="text"
+                  type="number"
+                  step="any"
                   placeholder="0.00"
                   value={formData.baseDailyRate}
                   onChange={handleInputChange}

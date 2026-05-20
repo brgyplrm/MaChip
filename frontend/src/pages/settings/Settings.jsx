@@ -93,17 +93,39 @@ const Settings = () => {
         setMandatedMinimumWage(data.mandatedMinimumWage ?? 610.0);
         setMandatedWageEffectiveDate(data.mandatedWageEffectiveDate ?? "2025-07-18");
         setHardwareBufferWindow(data.hardwareBufferWindow ?? 5);
-        setPayrollRates(data.payrollRates ?? null);
+        
+        const rates = data.payrollRates ?? null;
+        setPayrollRates(rates);
         
         // Dynamically pull payroll constants if present in response records
-        if (data.payroll) {
-          setSssRate(data.payroll.sssRate ?? 14);
-          setPhilhealthRate(data.payroll.philhealthRate ?? 5);
-          setPagibigEmployee(data.payroll.pagibigEmployee ?? 100);
-          setPagibigEmployer(data.payroll.pagibigEmployer ?? 100);
-          setThirteenthMonthBasis(data.payroll.thirteenthMonthBasis ?? "basic");
-          setOvertimeMultiplier(data.payroll.overtimeMultiplier ?? 1.25);
-          setNightDiffMultiplier(data.payroll.nightDiffMultiplier ?? 1.10);
+        // Priority: 1. data.payroll (flat), 2. data.payrollRates.statutoryConstants (nested)
+        const statData = data.payroll || rates?.statutoryConstants;
+        if (statData) {
+          // Handle both flat and nested structures
+          if (statData.sss) {
+            setSssRate((statData.sss.employee_rate * 100) || 14);
+          } else if (statData.sssRate !== undefined) {
+            setSssRate(statData.sssRate);
+          }
+
+          if (statData.philhealth) {
+            setPhilhealthRate((statData.philhealth.rate * 100) || 5);
+          } else if (statData.philhealthRate !== undefined) {
+            setPhilhealthRate(statData.philhealthRate);
+          }
+
+          if (statData.hdmf) {
+            // Simplified reverse mapping for the flat display
+            setPagibigEmployee((statData.hdmf.ee_rate_high * 5000) || 100);
+            setPagibigEmployer((statData.hdmf.er_rate * 5000) || 100);
+          } else {
+            if (statData.pagibigEmployee !== undefined) setPagibigEmployee(statData.pagibigEmployee);
+            if (statData.pagibigEmployer !== undefined) setPagibigEmployer(statData.pagibigEmployer);
+          }
+
+          setThirteenthMonthBasis(statData.thirteenthMonthBasis ?? "basic");
+          setOvertimeMultiplier(statData.overtimeMultiplier ?? 1.25);
+          setNightDiffMultiplier(statData.nightDiffMultiplier ?? 1.10);
         }
       }
     } catch (error) {
@@ -117,6 +139,25 @@ const Settings = () => {
     if (!isAdmin) return;
     setSaving(true);
     
+    // Merge flat states into the nested structure to preserve extra fields (floor, ceiling, etc.)
+    const consolidatedStatutory = payrollRates?.statutoryConstants ? {
+      ...payrollRates.statutoryConstants,
+      sss: { ...payrollRates.statutoryConstants.sss, employee_rate: sssRate / 100 },
+      philhealth: { ...payrollRates.statutoryConstants.philhealth, rate: philhealthRate / 100 },
+      hdmf: { ...payrollRates.statutoryConstants.hdmf, ee_rate_high: pagibigEmployee / 5000, er_rate: pagibigEmployer / 5000 },
+      thirteenthMonthBasis,
+      overtimeMultiplier,
+      nightDiffMultiplier
+    } : {
+      sssRate,
+      philhealthRate,
+      pagibigEmployee,
+      pagibigEmployer,
+      thirteenthMonthBasis,
+      overtimeMultiplier,
+      nightDiffMultiplier
+    };
+
     const payload = {
       useMockTime,
       mockDate,
@@ -125,16 +166,11 @@ const Settings = () => {
       mandatedMinimumWage,
       mandatedWageEffectiveDate,
       hardwareBufferWindow,
-      payrollRates,
-      payroll: {
-        sssRate,
-        philhealthRate,
-        pagibigEmployee,
-        pagibigEmployer,
-        thirteenthMonthBasis,
-        overtimeMultiplier,
-        nightDiffMultiplier
-      }
+      payrollRates: {
+        ...payrollRates,
+        statutoryConstants: consolidatedStatutory
+      },
+      payroll: consolidatedStatutory
     };
 
     console.log("[DEBUG] Sending global configuration update:", payload);
@@ -327,9 +363,15 @@ const Settings = () => {
                             Biometric Attendance Sync Buffer (Min)
                           </Label>
                           <Input 
-                            type="number" 
-                            value={hardwareBufferWindow}
-                            onChange={(e) => setHardwareBufferWindow(parseInt(e.target.value))}
+                            type="text"
+                            inputMode="decimal"
+                            value={(hardwareBufferWindow || "").toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/,/g, '');
+                              if (raw === '' || !isNaN(raw)) {
+                                setHardwareBufferWindow(parseFloat(raw) || 0);
+                              }
+                            }}
                             disabled={!isAdmin}
                             className="bg-white border-slate-200 w-full font-mono"
                           />
@@ -365,25 +407,27 @@ const Settings = () => {
                     <PayrollConfiguration 
                       data={payrollRates} 
                       onUpdate={async (newRates) => {
+                        // 1. Update the local payrollRates state
                         setPayrollRates(newRates);
                         
-                        // Create the exact payload expected by handleSaveSettings
+                        // 2. Sync flat states from the nested statutoryConstants if they changed
+                        if (newRates.payroll) {
+                          const stat = newRates.payroll;
+                          if (stat.sss?.employee_rate !== undefined) setSssRate(stat.sss.employee_rate * 100);
+                          if (stat.philhealth?.rate !== undefined) setPhilhealthRate(stat.philhealth.rate * 100);
+                          if (stat.hdmf?.ee_rate_high !== undefined) setPagibigEmployee(stat.hdmf.ee_rate_high * 5000);
+                          if (stat.hdmf?.er_rate !== undefined) setPagibigEmployer(stat.hdmf.er_rate * 5000);
+                        }
+
+                        // 3. Create the exact payload expected by backend
                         const payload = {
                           useMockTime,
                           mockDate,
                           mockTime,
                           storageRootPath,
                           hardwareBufferWindow,
-                          payrollRates: newRates, // Use the new rates immediately
-                          payroll: {
-                            sssRate,
-                            philhealthRate,
-                            pagibigEmployee,
-                            pagibigEmployer,
-                            thirteenthMonthBasis,
-                            overtimeMultiplier,
-                            nightDiffMultiplier
-                          }
+                          payrollRates: newRates.payrollRates || newRates, 
+                          payroll: newRates.payroll // Use the new nested object directly
                         };
                     
                         console.log("[DEBUG] Auto-saving global configuration update:", payload);

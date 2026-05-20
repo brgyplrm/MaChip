@@ -36,18 +36,90 @@ const DEFAULT_RATES = {
     shiftEnd: "06:00 am",
     ordinaryOT: 25,
     premiumOT: 30
+  },
+  statutoryConstants: {
+    sss: {
+      employer_rate: 0.10,
+      employee_rate: 0.05,
+      msc_floor: 5000,
+      msc_ceiling: 35000,
+      ec_threshold: 15000,
+      ec_low: 10,
+      ec_high: 30
+    },
+    philhealth: {
+      rate: 0.05,
+      floor: 10000,
+      ceiling: 100000,
+      share_ratio: 0.50
+    },
+    hdmf: {
+      ee_rate_low: 0.01,
+      ee_rate_high: 0.02,
+      er_rate: 0.02,
+      ceiling: 10000,
+      threshold: 1500
+    }
   }
+};
+
+/**
+ * Normalizes statutory constants from various possible backend formats 
+ * (nested, flat legacy, or empty) into the canonical nested structure.
+ */
+const normalizeStatutory = (input) => {
+  if (!input) return DEFAULT_RATES.statutoryConstants;
+  
+  // If it's already properly nested, return it (merged with defaults)
+  if (input.sss && input.philhealth && input.hdmf) {
+    return {
+      sss: { ...DEFAULT_RATES.statutoryConstants.sss, ...input.sss },
+      philhealth: { ...DEFAULT_RATES.statutoryConstants.philhealth, ...input.philhealth },
+      hdmf: { ...DEFAULT_RATES.statutoryConstants.hdmf, ...input.hdmf }
+    };
+  }
+
+  // Handle flat legacy structure if present
+  const result = JSON.parse(JSON.stringify(DEFAULT_RATES.statutoryConstants));
+  if (input.sssRate !== undefined) result.sss.employee_rate = input.sssRate / 100;
+  if (input.philhealthRate !== undefined) result.philhealth.rate = input.philhealthRate / 100;
+  if (input.pagibigEmployee !== undefined) result.hdmf.ee_rate_high = input.pagibigEmployee / 5000; // Simplified conversion
+  
+  return result;
 };
 
 export default function PayrollConfiguration({ data, onUpdate }) {
   const [activeTab, setActiveTab] = useState('labor-rates');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [localData, setLocalData] = useState(data || DEFAULT_RATES);
+  
+  // Robust initialization that ensures nested objects exist
+  const [localData, setLocalData] = useState(() => {
+    const base = (data && Object.keys(data).length > 0) ? data : DEFAULT_RATES;
+    const rawStatutory = base.statutoryConstants || base.payrollRates?.statutoryConstants || base.payroll;
+    
+    return {
+      ...DEFAULT_RATES,
+      ...base,
+      laborRates: { ...DEFAULT_RATES.laborRates, ...(base.laborRates || {}) },
+      shiftConfig: { ...DEFAULT_RATES.shiftConfig, ...(base.shiftConfig || {}) },
+      otNightRates: { ...DEFAULT_RATES.otNightRates, ...(base.otNightRates || {}) },
+      statutoryConstants: normalizeStatutory(rawStatutory)
+    };
+  });
 
   useEffect(() => {
-    if (data) {
-      setLocalData(data);
+    if (data && Object.keys(data).length > 0) {
+      const rawStatutory = data.statutoryConstants || data.payrollRates?.statutoryConstants || data.payroll;
+      setLocalData(prev => ({
+        ...DEFAULT_RATES,
+        ...prev, // Keep current local changes
+        ...data,
+        laborRates: { ...DEFAULT_RATES.laborRates, ...(data.laborRates || prev.laborRates) },
+        shiftConfig: { ...DEFAULT_RATES.shiftConfig, ...(data.shiftConfig || prev.shiftConfig) },
+        otNightRates: { ...DEFAULT_RATES.otNightRates, ...(data.otNightRates || prev.otNightRates) },
+        statutoryConstants: normalizeStatutory(rawStatutory)
+      }));
     }
   }, [data]);
 
@@ -68,7 +140,8 @@ export default function PayrollConfiguration({ data, onUpdate }) {
       doubleSpecialDayRestDayRate: localData.laborRates.doubleSpecialDayRestDay,
       nightDiffRate: 1 + (localData.otNightRates.nsdRate / 100),
       overtimeRate: 1 + (localData.otNightRates.ordinaryOT / 100),
-      payrollRates: localData
+      payrollRates: localData,
+      payroll: localData.statutoryConstants // Explicitly passed for backend's statutoryConstants logic
     };
     onUpdate(backendData);
     setIsEditing(false);
@@ -88,12 +161,9 @@ export default function PayrollConfiguration({ data, onUpdate }) {
           [field]: value
         }
       };
-
-      // --- SMART AUTO-CALCULATION FOR LABOR RATES ---
-      // If we are editing a "Base" rate, automatically update "Compound" rates
+      // ... (rest of updateField logic)
       if (category === 'laborRates') {
         const { ordinary, restDay, regularHoliday, doubleHoliday, doubleSpecialDay } = updated.laborRates;
-        
         if (['ordinary', 'restDay', 'regularHoliday', 'doubleHoliday', 'doubleSpecialDay'].includes(field)) {
           updated.laborRates.specialDayRestDay = parseFloat((ordinary + 0.5).toFixed(2));
           updated.laborRates.regularHolidayRestDay = parseFloat((regularHoliday * restDay).toFixed(2));
@@ -101,10 +171,23 @@ export default function PayrollConfiguration({ data, onUpdate }) {
           updated.laborRates.doubleSpecialDayRestDay = parseFloat((doubleSpecialDay * restDay).toFixed(2));
         }
       }
-
       return updated;
     });
   };
+
+  const updateStatutory = (section, field, value) => {
+    setLocalData(prev => ({
+      ...prev,
+      statutoryConstants: {
+        ...prev.statutoryConstants,
+        [section]: {
+          ...prev.statutoryConstants[section],
+          [field]: value
+        }
+      }
+    }));
+  };
+
 
   return (
     <div className="min-h-screen text-slate-800 font-sans w-max-6xl">
@@ -284,7 +367,13 @@ export default function PayrollConfiguration({ data, onUpdate }) {
             )}
             {activeTab === 'eemr' && <EEMRFactorsView />}
             {activeTab === 'leave-caps' && <LeaveCapsView />}
-            {activeTab === 'gov-taxes' && <GovernmentTaxesView />}
+            {activeTab === 'gov-taxes' && (
+              <GovernmentTaxesView 
+                data={localData.statutoryConstants} 
+                isEditing={isEditing} 
+                onChange={updateStatutory} 
+              />
+            )}
           </div>
         </div>
 
@@ -303,11 +392,13 @@ export default function PayrollConfiguration({ data, onUpdate }) {
 function LaborRatesView({ data, isEditing, onChange }) {
   const [viewFormat, setViewFormat] = useState('card');
 
+  if (!data) return <div className="p-8 text-center text-slate-400">Loading labor rates...</div>;
+
   const compoundLaborData = [
-    { type: "Special Day Combo", day: "Special Day on Rest Day", formula: `Base ${data.ordinary.toFixed(1)} + 30% + 20% rest shift`, coefficient: data.specialDayRestDay, percentage: `${(data.specialDayRestDay * 100).toFixed(1)}%` },
-    { type: "Holiday Combo", day: "Regular Holiday on Rest Day", formula: `Base ${data.regularHoliday.toFixed(1)} × ${data.restDay.toFixed(2)} rest index`, coefficient: data.regularHolidayRestDay, percentage: `${(data.regularHolidayRestDay * 100).toFixed(1)}%` },
-    { type: "Holiday Combo", day: "Double Holiday on Rest Day", formula: `Base ${data.doubleHoliday.toFixed(1)} × ${data.restDay.toFixed(2)} rest index`, coefficient: data.doubleHolidayRestDay, percentage: `${(data.doubleHolidayRestDay * 100).toFixed(1)}%` },
-    { type: "Special Day Combo", day: "Double Special Day on Rest Day", formula: `Base ${data.doubleSpecialDay.toFixed(1)} × ${data.restDay.toFixed(2)} rest index`, coefficient: data.doubleSpecialDayRestDay, percentage: `${(data.doubleSpecialDayRestDay * 100).toFixed(1)}%` }
+    { type: "Special Day Combo", day: "Special Day on Rest Day", formula: `Base ${(data.ordinary || 0).toFixed(1)} + 30% + 20% rest shift`, coefficient: data.specialDayRestDay, percentage: `${((data.specialDayRestDay || 0) * 100).toFixed(1)}%` },
+    { type: "Holiday Combo", day: "Regular Holiday on Rest Day", formula: `Base ${(data.regularHoliday || 0).toFixed(1)} × ${(data.restDay || 0).toFixed(2)} rest index`, coefficient: data.regularHolidayRestDay, percentage: `${((data.regularHolidayRestDay || 0) * 100).toFixed(1)}%` },
+    { type: "Holiday Combo", day: "Double Holiday on Rest Day", formula: `Base ${(data.doubleHoliday || 0).toFixed(1)} × ${(data.restDay || 0).toFixed(2)} rest index`, coefficient: data.doubleHolidayRestDay, percentage: `${((data.doubleHolidayRestDay || 0) * 100).toFixed(1)}%` },
+    { type: "Special Day Combo", day: "Double Special Day on Rest Day", formula: `Base ${(data.doubleSpecialDay || 0).toFixed(1)} × ${(data.restDay || 0).toFixed(2)} rest index`, coefficient: data.doubleSpecialDayRestDay, percentage: `${((data.doubleSpecialDayRestDay || 0) * 100).toFixed(1)}%` }
   ];
 
   return (
@@ -515,46 +606,48 @@ function LaborRatesView({ data, isEditing, onChange }) {
 function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
   const [viewFormat, setViewFormat] = useState('table');
 
-  const nsd = data.nsdRate / 100 + 1; // e.g. 1.1
-  const otOrd = data.ordinaryOT / 100 + 1; // e.g. 1.25
-  const otPrem = data.premiumOT / 100 + 1; // e.g. 1.3
+  if (!data || !laborRates) return <div className="p-8 text-center text-slate-400">Loading OT & Night Shift rates...</div>;
+
+  const nsd = (data.nsdRate || 0) / 100 + 1; // e.g. 1.1
+  const otOrd = (data.ordinaryOT || 0) / 100 + 1; // e.g. 1.25
+  const otPrem = (data.premiumOT || 0) / 100 + 1; // e.g. 1.3
 
   const matrixData = [
     // --- NIGHT SHIFT ONLY (Base × 1.1) ---
-    { type: "Night Shift", day: "Ordinary Day", formula: `${laborRates.ordinary.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (laborRates.ordinary * nsd).toFixed(4), percentage: `${(laborRates.ordinary * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Rest Day", formula: `${laborRates.restDay.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (laborRates.restDay * nsd).toFixed(4), percentage: `${(laborRates.restDay * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Special (Non-Working) Day", formula: `${laborRates.specialDay.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (laborRates.specialDay * nsd).toFixed(4), percentage: `${(laborRates.specialDay * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Special (Non-Working) Day on Rest Day", formula: `${laborRates.specialDayRestDay.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (laborRates.specialDayRestDay * nsd).toFixed(4), percentage: `${(laborRates.specialDayRestDay * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Double Special (Non-Working) Day", formula: `${laborRates.doubleSpecialDay.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (laborRates.doubleSpecialDay * nsd).toFixed(4), percentage: `${(laborRates.doubleSpecialDay * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Double Special Day on Rest Day", formula: `${laborRates.doubleSpecialDayRestDay.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (laborRates.doubleSpecialDayRestDay * nsd).toFixed(4), percentage: `${(laborRates.doubleSpecialDayRestDay * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Regular Holiday", formula: `${laborRates.regularHoliday.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (laborRates.regularHoliday * nsd).toFixed(4), percentage: `${(laborRates.regularHoliday * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Regular Holiday on Rest Day", formula: `${laborRates.regularHolidayRestDay.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (laborRates.regularHolidayRestDay * nsd).toFixed(4), percentage: `${(laborRates.regularHolidayRestDay * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Double Regular Holiday", formula: `${laborRates.doubleHoliday.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (laborRates.doubleHoliday * nsd).toFixed(4), percentage: `${(laborRates.doubleHoliday * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Double Regular Holiday on Rest Day", formula: `${laborRates.doubleHolidayRestDay.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (laborRates.doubleHolidayRestDay * nsd).toFixed(4), percentage: `${(laborRates.doubleHolidayRestDay * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Ordinary Day", formula: `${(laborRates.ordinary || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.ordinary || 0) * nsd).toFixed(4), percentage: `${((laborRates.ordinary || 0) * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Rest Day", formula: `${(laborRates.restDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.restDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.restDay || 0) * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Special (Non-Working) Day", formula: `${(laborRates.specialDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.specialDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.specialDay || 0) * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Special (Non-Working) Day on Rest Day", formula: `${(laborRates.specialDayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.specialDayRestDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.specialDayRestDay || 0) * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Double Special (Non-Working) Day", formula: `${(laborRates.doubleSpecialDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.doubleSpecialDay || 0) * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Double Special Day on Rest Day", formula: `${(laborRates.doubleSpecialDayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDayRestDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.doubleSpecialDayRestDay || 0) * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Regular Holiday", formula: `${(laborRates.regularHoliday || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.regularHoliday || 0) * nsd).toFixed(4), percentage: `${((laborRates.regularHoliday || 0) * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Regular Holiday on Rest Day", formula: `${(laborRates.regularHolidayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.regularHolidayRestDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.regularHolidayRestDay || 0) * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Double Regular Holiday", formula: `${(laborRates.doubleHoliday || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.doubleHoliday || 0) * nsd).toFixed(4), percentage: `${((laborRates.doubleHoliday || 0) * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Double Regular Holiday on Rest Day", formula: `${(laborRates.doubleHolidayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.doubleHolidayRestDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.doubleHolidayRestDay || 0) * nsd * 100).toFixed(1)}%` },
 
     // --- OVERTIME ONLY (Base × 1.25 for Ordinary, Base × 1.3 for Premiums) ---
-    { type: "Overtime (OT)", day: "Ordinary Day", formula: `${laborRates.ordinary.toFixed(2)} × ${otOrd.toFixed(2)}`, coefficient: (laborRates.ordinary * otOrd).toFixed(4), percentage: `${(laborRates.ordinary * otOrd * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Rest Day", formula: `${laborRates.restDay.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.restDay * otPrem).toFixed(4), percentage: `${(laborRates.restDay * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Special (Non-Working) Day", formula: `${laborRates.specialDay.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.specialDay * otPrem).toFixed(4), percentage: `${(laborRates.specialDay * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Special (Non-Working) Day on Rest Day", formula: `${laborRates.specialDayRestDay.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.specialDayRestDay * otPrem).toFixed(4), percentage: `${(laborRates.specialDayRestDay * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Double Special (Non-Working) Day", formula: `${laborRates.doubleSpecialDay.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.doubleSpecialDay * otPrem).toFixed(4), percentage: `${(laborRates.doubleSpecialDay * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Double Special Day on Rest Day", formula: `${laborRates.doubleSpecialDayRestDay.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.doubleSpecialDayRestDay * otPrem).toFixed(4), percentage: `${(laborRates.doubleSpecialDayRestDay * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Regular Holiday", formula: `${laborRates.regularHoliday.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.regularHoliday * otPrem).toFixed(4), percentage: `${(laborRates.regularHoliday * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Regular Holiday on Rest Day", formula: `${laborRates.regularHolidayRestDay.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.regularHolidayRestDay * otPrem).toFixed(4), percentage: `${(laborRates.regularHolidayRestDay * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Double Regular Holiday", formula: `${laborRates.doubleHoliday.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.doubleHoliday * otPrem).toFixed(4), percentage: `${(laborRates.doubleHoliday * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Double Regular Holiday on Rest Day", formula: `${laborRates.doubleHolidayRestDay.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.doubleHolidayRestDay * otPrem).toFixed(4), percentage: `${(laborRates.doubleHolidayRestDay * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Ordinary Day", formula: `${(laborRates.ordinary || 0).toFixed(2)} × ${otOrd.toFixed(2)}`, coefficient: ((laborRates.ordinary || 0) * otOrd).toFixed(4), percentage: `${((laborRates.ordinary || 0) * otOrd * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Rest Day", formula: `${(laborRates.restDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.restDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.restDay || 0) * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Special (Non-Working) Day", formula: `${(laborRates.specialDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.specialDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.specialDay || 0) * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Special (Non-Working) Day on Rest Day", formula: `${(laborRates.specialDayRestDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.specialDayRestDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.specialDayRestDay || 0) * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Double Special (Non-Working) Day", formula: `${(laborRates.doubleSpecialDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.doubleSpecialDay || 0) * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Double Special Day on Rest Day", formula: `${(laborRates.doubleSpecialDayRestDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDayRestDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.doubleSpecialDayRestDay || 0) * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Regular Holiday", formula: `${(laborRates.regularHoliday || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.regularHoliday || 0) * otPrem).toFixed(4), percentage: `${((laborRates.regularHoliday || 0) * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Regular Holiday on Rest Day", formula: `${(laborRates.regularHolidayRestDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.regularHolidayRestDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.regularHolidayRestDay || 0) * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Double Regular Holiday", formula: `${(laborRates.doubleHoliday || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleHoliday || 0) * otPrem).toFixed(4), percentage: `${((laborRates.doubleHoliday || 0) * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Double Regular Holiday on Rest Day", formula: `${(laborRates.doubleHolidayRestDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleHolidayRestDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.doubleHolidayRestDay || 0) * otPrem * 100).toFixed(1)}%` },
 
     // --- COMPOUND NIGHT SHIFT OVERTIME (Base × 1.1 × OT) ---
-    { type: "Night Shift OT", day: "Ordinary Day", formula: `${laborRates.ordinary.toFixed(2)} × ${nsd.toFixed(2)} × ${otOrd.toFixed(2)}`, coefficient: (laborRates.ordinary * nsd * otOrd).toFixed(4), percentage: `${(laborRates.ordinary * nsd * otOrd * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Rest Day", formula: `${laborRates.restDay.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.restDay * nsd * otPrem).toFixed(4), percentage: `${(laborRates.restDay * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Special (Non-Working) Day", formula: `${laborRates.specialDay.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.specialDay * nsd * otPrem).toFixed(4), percentage: `${(laborRates.specialDay * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Special (Non-Working) Day on Rest Day", formula: `${laborRates.specialDayRestDay.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.specialDayRestDay * nsd * otPrem).toFixed(4), percentage: `${(laborRates.specialDayRestDay * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Double Special (Non-Working) Day", formula: `${laborRates.doubleSpecialDay.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.doubleSpecialDay * nsd * otPrem).toFixed(4), percentage: `${(laborRates.doubleSpecialDay * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Double Special Day on Rest Day", formula: `${laborRates.doubleSpecialDayRestDay.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.doubleSpecialDayRestDay * nsd * otPrem).toFixed(4), percentage: `${(laborRates.doubleSpecialDayRestDay * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Regular Holiday", formula: `${laborRates.regularHoliday.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.regularHoliday * nsd * otPrem).toFixed(4), percentage: `${(laborRates.regularHoliday * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Regular Holiday on Rest Day", formula: `${laborRates.regularHolidayRestDay.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.regularHolidayRestDay * nsd * otPrem).toFixed(4), percentage: `${(laborRates.regularHolidayRestDay * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Double Regular Holiday", formula: `${laborRates.doubleHoliday.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.doubleHoliday * nsd * otPrem).toFixed(4), percentage: `${(laborRates.doubleHoliday * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Double Regular Holiday on Rest Day", formula: `${laborRates.doubleHolidayRestDay.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (laborRates.doubleHolidayRestDay * nsd * otPrem).toFixed(4), percentage: `${(laborRates.doubleHolidayRestDay * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Ordinary Day", formula: `${(laborRates.ordinary || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otOrd.toFixed(2)}`, coefficient: ((laborRates.ordinary || 0) * nsd * otOrd).toFixed(4), percentage: `${((laborRates.ordinary || 0) * nsd * otOrd * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Rest Day", formula: `${(laborRates.restDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.restDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.restDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Special (Non-Working) Day", formula: `${(laborRates.specialDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.specialDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.specialDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Special (Non-Working) Day on Rest Day", formula: `${(laborRates.specialDayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.specialDayRestDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.specialDayRestDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Double Special (Non-Working) Day", formula: `${(laborRates.doubleSpecialDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.doubleSpecialDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Double Special Day on Rest Day", formula: `${(laborRates.doubleSpecialDayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDayRestDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.doubleSpecialDayRestDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Regular Holiday", formula: `${(laborRates.regularHoliday || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.regularHoliday || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.regularHoliday || 0) * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Regular Holiday on Rest Day", formula: `${(laborRates.regularHolidayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.regularHolidayRestDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.regularHolidayRestDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Double Regular Holiday", formula: `${(laborRates.doubleHoliday || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleHoliday || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.doubleHoliday || 0) * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Double Regular Holiday on Rest Day", formula: `${(laborRates.doubleHolidayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleHolidayRestDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.doubleHolidayRestDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
   ];
 
   return (
@@ -571,6 +664,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FormInput 
               label="Night Shift Premium Rate (%)" 
+              type="number"
               value={data.nsdRate} 
               onChange={(e) => onChange('nsdRate', parseFloat(e.target.value))}
               disabled={!isEditing}
@@ -603,6 +697,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormInput 
             label="Standard Ordinary Day OT Rate (%)" 
+            type="number"
             value={data.ordinaryOT} 
             onChange={(e) => onChange('ordinaryOT', parseFloat(e.target.value))}
             disabled={!isEditing}
@@ -610,6 +705,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
           />
           <FormInput 
             label="Premium Day Overtime Rate (%)" 
+            type="number"
             value={data.premiumOT} 
             onChange={(e) => onChange('premiumOT', parseFloat(e.target.value))}
             disabled={!isEditing}
@@ -789,7 +885,7 @@ function LeaveCapsView() {
             type="number" 
             disabled={false} 
             value={vlCredits} 
-            onChange={(e) => setVlCredits(e.target.value)}
+            onChange={(e) => setVlCredits(parseFloat(e.target.value))}
             subtext="VL days given per employee annually" 
           />
           <FormInput 
@@ -797,7 +893,7 @@ function LeaveCapsView() {
             type="number" 
             disabled={false} 
             value={slCredits} 
-            onChange={(e) => setSlCredits(e.target.value)}
+            onChange={(e) => setSlCredits(parseFloat(e.target.value))}
             subtext="SL days given per employee annually" 
           />
           <FormInput 
@@ -805,7 +901,7 @@ function LeaveCapsView() {
             type="number" 
             disabled={false} 
             value={lateFilingDays} 
-            onChange={(e) => setLateFilingDays(e.target.value)}
+            onChange={(e) => setLateFilingDays(parseFloat(e.target.value))}
             subtext="Minimum days advance notice required before VL start date" 
           />
         </div>
@@ -854,52 +950,139 @@ function LeaveCapsView() {
 {/* =========================================================================
     TAB PANEL 5: GOVERNMENT TAXES
 ========================================================================= */}
-function GovernmentTaxesView() {
+function GovernmentTaxesView({ data, isEditing, onChange }) {
+  if (!data || !data.philhealth || !data.sss || !data.hdmf) return <div className="p-10 text-center text-slate-400">Loading statutory matrix...</div>;
+
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-bold text-slate-900 mb-4">Government Taxes & Deduction Matrices</h3>
 
+      {/* PhilHealth */}
       <div className="border border-emerald-100 rounded-xl p-5 space-y-4">
         <h4 className="text-sm font-bold text-emerald-800 border-b border-emerald-50/80 pb-2">
           PhilHealth Direct Contributors Premium (RA 11223)
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormInput label="Premium Contribution Rate (%)" value="5" subtext="Of Monthly Basic Salary" />
-          <FormInput label="Employee Share Ratio (%)" value="50" subtext="Employer matches remaining" />
-          <FormInput label="Minimum Salary Floor (₱)" value="10000" />
-          <FormInput label="Maximum Salary Cap (₱)" value="100000" />
+          <FormInput 
+            label="Premium Contribution Rate (%)" 
+            type="number"
+            value={(data.philhealth.rate || 0) * 100} 
+            onChange={(e) => onChange('philhealth', 'rate', parseFloat(e.target.value) / 100)}
+            disabled={!isEditing}
+            subtext="Of Monthly Basic Salary" 
+          />
+          <FormInput 
+            label="Employee Share Ratio (%)" 
+            type="number"
+            value={(data.philhealth.share_ratio || 0) * 100} 
+            onChange={(e) => onChange('philhealth', 'share_ratio', parseFloat(e.target.value) / 100)}
+            disabled={!isEditing}
+            subtext="Employer matches remaining" 
+          />
+          <FormInput 
+            label="Minimum Salary Floor (₱)" 
+            type="number"
+            value={data.philhealth.floor || 0} 
+            onChange={(e) => onChange('philhealth', 'floor', parseFloat(e.target.value))}
+            disabled={!isEditing}
+          />
+          <FormInput 
+            label="Maximum Salary Cap (₱)" 
+            type="number"
+            value={data.philhealth.ceiling || 0} 
+            onChange={(e) => onChange('philhealth', 'ceiling', parseFloat(e.target.value))}
+            disabled={!isEditing}
+          />
         </div>
       </div>
 
+      {/* SSS */}
       <div className="border border-blue-100 rounded-xl p-5 space-y-4">
         <h4 className="text-sm font-bold text-blue-800 border-b border-blue-50/80 pb-2">
           SSS Social Security Matrix (RA 11199)
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <FormInput label="Combined Total Rate (%)" value="15" />
-          <FormInput label="Employer Share (%)" value="10" />
-          <FormInput label="Employee Share (%)" value="5" />
-          <FormInput label="Lower MSC Bound (₱)" value="5000" />
-          <FormInput label="Upper MSC Bound (₱)" value="35000" />
-          <FormInput label="MPF Threshold (₱)" value="20000" />
-          <div className="md:col-span-1">
-            <FormInput label="EC Contribution (Below ₱15K)" value="10" />
-          </div>
-          <div className="md:col-span-2">
-            <FormInput label="EC Contribution (≥ ₱15K)" value="30" />
-          </div>
+          <FormInput 
+            label="Employer Share (%)" 
+            type="number"
+            value={(data.sss.employer_rate || 0) * 100} 
+            onChange={(e) => onChange('sss', 'employer_rate', parseFloat(e.target.value) / 100)}
+            disabled={!isEditing}
+          />
+          <FormInput 
+            label="Employee Share (%)" 
+            type="number"
+            value={(data.sss.employee_rate || 0) * 100} 
+            onChange={(e) => onChange('sss', 'employee_rate', parseFloat(e.target.value) / 100)}
+            disabled={!isEditing}
+          />
+          <FormInput 
+            label="Lower MSC Bound (₱)" 
+            type="number"
+            value={data.sss.msc_floor || 0} 
+            onChange={(e) => onChange('sss', 'msc_floor', parseFloat(e.target.value))}
+            disabled={!isEditing}
+          />
+          <FormInput 
+            label="Upper MSC Bound (₱)" 
+            type="number"
+            value={data.sss.msc_ceiling || 0} 
+            onChange={(e) => onChange('sss', 'msc_ceiling', parseFloat(e.target.value))}
+            disabled={!isEditing}
+          />
+          <FormInput 
+            label="EC Contribution (Below ₱15K)" 
+            type="number"
+            value={data.sss.ec_low || 0} 
+            onChange={(e) => onChange('sss', 'ec_low', parseFloat(e.target.value))}
+            disabled={!isEditing}
+          />
+          <FormInput 
+            label="EC Contribution (≥ ₱15K)" 
+            type="number"
+            value={data.sss.ec_high || 0} 
+            onChange={(e) => onChange('sss', 'ec_high', parseFloat(e.target.value))}
+            disabled={!isEditing}
+          />
         </div>
       </div>
 
+      {/* Pag-IBIG */}
       <div className="border border-orange-100 rounded-xl p-5 space-y-4">
         <h4 className="text-sm font-bold text-orange-800 border-b border-orange-50/80 pb-2">
           Pag-IBIG (HDMF) Savings Contributions
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormInput label="EE Rate (≤ ₱1,500) (%)" value="1" />
-          <FormInput label="EE Rate (> ₱1,500) (%)" value="2" />
-          <FormInput label="Employer Rate (%)" value="2" subtext="Fixed uniform rate" />
-          <FormInput label="Maximum Fund Salary (₱)" value="10000" subtext="Caps computational basis" />
+          <FormInput 
+            label="EE Rate (≤ ₱1,500) (%)" 
+            type="number"
+            value={(data.hdmf.ee_rate_low || 0) * 100} 
+            onChange={(e) => onChange('hdmf', 'ee_rate_low', parseFloat(e.target.value) / 100)}
+            disabled={!isEditing}
+          />
+          <FormInput 
+            label="EE Rate (> ₱1,500) (%)" 
+            type="number"
+            value={(data.hdmf.ee_rate_high || 0) * 100} 
+            onChange={(e) => onChange('hdmf', 'ee_rate_high', parseFloat(e.target.value) / 100)}
+            disabled={!isEditing}
+          />
+          <FormInput 
+            label="Employer Rate (%)" 
+            type="number"
+            value={(data.hdmf.er_rate || 0) * 100} 
+            onChange={(e) => onChange('hdmf', 'er_rate', parseFloat(e.target.value) / 100)}
+            disabled={!isEditing}
+            subtext="Fixed uniform rate" 
+          />
+          <FormInput 
+            label="Maximum Fund Salary (₱)" 
+            type="number"
+            value={data.hdmf.ceiling || 0} 
+            onChange={(e) => onChange('hdmf', 'ceiling', parseFloat(e.target.value))}
+            disabled={!isEditing}
+            subtext="Caps computational basis" 
+          />
         </div>
       </div>
     </div>
@@ -910,6 +1093,7 @@ function GovernmentTaxesView() {
     TAB PANEL: SHIFT CONFIGURATION
 ========================================================================= */}
 function ShiftConfigView({ data, isEditing, onChange }) {
+  if (!data) return <div className="p-8 text-center text-slate-400">Loading shift configuration...</div>;
   return (
     <div className="space-y-8">
       <div>
@@ -923,50 +1107,49 @@ function ShiftConfigView({ data, isEditing, onChange }) {
               <Clock className="w-4 h-4" /> Morning Shift (Standard)
             </h4>
             <div className="grid grid-cols-2 gap-4">
-              <FormInput 
-                label="Shift Start" 
+              <FormInput
+                label="Shift Start"
                 type="text"
-                value={data.morningShiftStart} 
+                value={data.morningShiftStart || ""}
                 onChange={(e) => onChange('morningShiftStart', e.target.value)}
                 disabled={!isEditing}
-                subtext="e.g. 08:30" 
+                subtext="e.g. 08:30"
               />
-              <FormInput 
-                label="Shift End" 
+              <FormInput
+                label="Shift End"
                 type="text"
-                value={data.morningShiftEnd} 
+                value={data.morningShiftEnd || ""}
                 onChange={(e) => onChange('morningShiftEnd', e.target.value)}
                 disabled={!isEditing}
-                subtext="e.g. 17:30" 
+                subtext="e.g. 17:30"
               />
             </div>
-          </div>
+            </div>
 
-          {/* Evening Shift */}
-          <div className="border border-indigo-100 rounded-xl p-5 space-y-4 bg-indigo-50/10">
+            {/* Evening Shift */}
+            <div className="border border-indigo-100 rounded-xl p-5 space-y-4 bg-indigo-50/10">
             <h4 className="text-sm font-bold text-indigo-800 border-b border-indigo-50 pb-2 flex items-center gap-2">
               <Clock className="w-4 h-4" /> Evening Shift (Night)
             </h4>
             <div className="grid grid-cols-2 gap-4">
-              <FormInput 
-                label="Shift Start" 
+              <FormInput
+                label="Shift Start"
                 type="text"
-                value={data.eveningShiftStart} 
+                value={data.eveningShiftStart || ""}
                 onChange={(e) => onChange('eveningShiftStart', e.target.value)}
                 disabled={!isEditing}
-                subtext="e.g. 20:30" 
+                subtext="e.g. 20:30"
               />
-              <FormInput 
-                label="Shift End" 
+              <FormInput
+                label="Shift End"
                 type="text"
-                value={data.eveningShiftEnd} 
+                value={data.eveningShiftEnd || ""}
                 onChange={(e) => onChange('eveningShiftEnd', e.target.value)}
                 disabled={!isEditing}
-                subtext="e.g. 05:30" 
+                subtext="e.g. 05:30"
               />
             </div>
-          </div>
-        </div>
+            </div>        </div>
       </div>
     </div>
   );
@@ -976,20 +1159,45 @@ function ShiftConfigView({ data, isEditing, onChange }) {
     REUSABLE ATOMIC UI PATTERNS
 ========================================================================= */}
 function FormInput({ label, value, subtext, isText = false, type = "text", step = "any", disabled = true, onChange }) {
+  const isNumeric = type === "number";
+  
+  // Helper to format number with commas
+  const formatNumber = (val) => {
+    if (val === null || val === undefined || val === '') return '';
+    const str = val.toString();
+    const parts = str.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return parts.join('.');
+  };
+
+  const displayValue = isNumeric ? formatNumber(value) : (value || "");
+
+  const handleChange = (e) => {
+    if (isNumeric) {
+      const rawValue = e.target.value.replace(/,/g, '');
+      // Allow empty, partial decimals, or valid numbers
+      if (rawValue === '' || rawValue === '-' || rawValue === '.' || !isNaN(rawValue)) {
+        onChange({ target: { value: rawValue } });
+      }
+    } else {
+      onChange(e);
+    }
+  };
+
   return (
     <div className="space-y-1.5 flex-1 w-full text-left">
       <label className="block text-xs font-medium text-slate-500 tracking-wide">
         {label}
       </label>
       <input
-        type={type}
-        step={type === "number" ? step : undefined}
+        type="text"
+        inputMode={isNumeric ? "decimal" : undefined}
         disabled={disabled}
-        value={value}
-        onChange={onChange}
+        value={displayValue}
+        onChange={handleChange}
         className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 font-medium transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:opacity-100 ${
           disabled ? 'bg-slate-50/80' : 'bg-white shadow-xs'
-        } ${!isText && type !== "number" ? 'font-mono' : ''}`}
+        } ${isNumeric || type === "mono" ? 'font-mono' : ''}`}
       />
       {subtext && <p className="text-[11px] text-slate-400 font-normal leading-relaxed">{subtext}</p>}
     </div>
