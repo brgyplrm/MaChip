@@ -56,6 +56,7 @@ module.exports = (sequelize, DataTypes) => {
       dailyRate: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
       previousDailyRate: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
       rateUpdatedAt: { type: DataTypes.DATE, allowNull: true },
+      hasAvailedRetirementTax: { type: DataTypes.BOOLEAN, defaultValue: false },
     },
     {
       timestamps: true,

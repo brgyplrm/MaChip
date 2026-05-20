@@ -249,6 +249,63 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: true, freezeTableName: true },
   );
 
+  const Payroll_Separation = sequelize.define(
+    "Payroll_Separation",
+    {
+      separationId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      user_Id: { type: DataTypes.SMALLINT, allowNull: false },
+      hireDate: { type: DataTypes.DATEONLY, allowNull: false },
+      separationDate: { type: DataTypes.DATEONLY, allowNull: false },
+      yearsOfService: { type: DataTypes.FLOAT, allowNull: false },
+      baseSalary: { type: DataTypes.FLOAT, allowNull: false }, // Latest Monthly Basic + Regular Allowance
+      multiplier: { type: DataTypes.FLOAT, allowNull: false }, // 0.5 or 1.0
+      totalAmount: { type: DataTypes.FLOAT, allowNull: false },
+      reason: { type: DataTypes.STRING, allowNull: false },
+      causeType: { 
+        type: DataTypes.ENUM("Retrenchment/Closure/Disease (1/2 Month)", "Redundancy/Installation of Devices (1 Month)"),
+        allowNull: false 
+      },
+      isTaxExempt: { type: DataTypes.BOOLEAN, defaultValue: true },
+      status: { 
+        type: DataTypes.ENUM("Draft", "Released"),
+        defaultValue: "Draft"
+      },
+      releasedAt: { type: DataTypes.DATE, allowNull: true },
+    },
+    { timestamps: true, freezeTableName: true },
+  );
+
+  const Payroll_Retirement = sequelize.define(
+    "Payroll_Retirement",
+    {
+      retirementId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      user_Id: { type: DataTypes.SMALLINT, allowNull: false },
+      hireDate: { type: DataTypes.DATEONLY, allowNull: false },
+      retirementDate: { type: DataTypes.DATEONLY, allowNull: false },
+      yearsOfService: { type: DataTypes.FLOAT, allowNull: false },
+      dailyRate: { type: DataTypes.FLOAT, allowNull: false },
+      totalAmount: { type: DataTypes.FLOAT, allowNull: false },
+      component_salary_15days: { type: DataTypes.FLOAT, allowNull: false },
+      component_sil_5days: { type: DataTypes.FLOAT, allowNull: false },
+      component_13thmonth_2_5days: { type: DataTypes.FLOAT, allowNull: false },
+      isTaxExempt: { type: DataTypes.BOOLEAN, defaultValue: false },
+      status: { 
+        type: DataTypes.ENUM("Draft", "Released"),
+        defaultValue: "Draft"
+      },
+      releasedAt: { type: DataTypes.DATE, allowNull: true },
+    },
+    { timestamps: true, freezeTableName: true },
+  );
+
   // Relationships
   Payroll.belongsTo(PayrollPeriod, { foreignKey: "periodId" });
   PayrollPeriod.hasMany(Payroll, { foreignKey: "periodId" });
@@ -271,5 +328,5 @@ module.exports = (sequelize, DataTypes) => {
   Payroll.hasMany(Payroll_GovernmentLoans, { foreignKey: "payrollId" });
   Payroll_GovernmentLoans.belongsTo(Payroll, { foreignKey: "payrollId" });
 
-  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances, Payroll_Eastwest, Payroll_GovernmentLoans, Payroll_ThirteenthMonth };
+  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances, Payroll_Eastwest, Payroll_GovernmentLoans, Payroll_ThirteenthMonth, Payroll_Separation, Payroll_Retirement };
 };

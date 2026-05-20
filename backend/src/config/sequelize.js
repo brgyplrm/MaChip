@@ -70,6 +70,8 @@ const {
   Payroll_Eastwest,
   Payroll_GovernmentLoans,
   Payroll_ThirteenthMonth,
+  Payroll_Separation,
+  Payroll_Retirement,
 } = require("../models/payroll.model")(sequelize, DataTypes);
 
 const { Notification } = require("../models/notification.models")(
@@ -164,6 +166,28 @@ User.hasMany(Payroll_ThirteenthMonth, {
   sourceKey: "user_Id",
 });
 Payroll_ThirteenthMonth.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
+
+// User ↔ Payroll_Separation
+User.hasMany(Payroll_Separation, {
+  foreignKey: "user_Id",
+  sourceKey: "user_Id",
+});
+Payroll_Separation.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
+
+// User ↔ Payroll_Retirement
+User.hasMany(Payroll_Retirement, {
+  foreignKey: "user_Id",
+  sourceKey: "user_Id",
+});
+Payroll_Retirement.belongsTo(User, {
   foreignKey: "user_Id",
   targetKey: "user_Id",
   as: "user",
@@ -268,6 +292,12 @@ const connectDB = async () => {
     // Create the 13th Month table if it doesn't exist
     await Payroll_ThirteenthMonth.sync({ alter: true });
 
+    // Create the Separation Pay table if it doesn't exist
+    await Payroll_Separation.sync({ alter: true });
+
+    // Create the Retirement Pay table if it doesn't exist
+    await Payroll_Retirement.sync({ alter: true });
+
     // Ensure Exempt status exists
     await sequelize.query(`
       INSERT INTO "attendance_status" ("statusId", "statusName")
@@ -328,4 +358,6 @@ module.exports = {
   Payroll_Eastwest,
   Payroll_GovernmentLoans,
   Payroll_ThirteenthMonth,
+  Payroll_Separation,
+  Payroll_Retirement,
 };

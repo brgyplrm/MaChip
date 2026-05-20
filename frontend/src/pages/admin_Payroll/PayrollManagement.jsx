@@ -281,6 +281,16 @@ const Payroll = () => {
               </Link>
             </Button>
             <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+              <Link to="/separation-pay">
+                <AccountBalanceWalletIcon className="mr-2 h-4 w-4" /> Separation Pay
+              </Link>
+            </Button>
+            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+              <Link to="/retirement-pay">
+                <AssignmentTurnedInIcon className="mr-2 h-4 w-4" /> Retirement Pay
+              </Link>
+            </Button>
+            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
               <Link to="/payroll/employeeList">
                 <PeopleAltIcon className="mr-2 h-4 w-4" /> Employee List
               </Link>

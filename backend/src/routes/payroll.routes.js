@@ -25,7 +25,15 @@ const {
   getThirteenthMonthPreview,
   generateThirteenthMonth,
   releaseThirteenthMonth,
-  getThirteenthMonthHistory
+  getThirteenthMonthHistory,
+  getSeparationPayPreview,
+  generateSeparationPay,
+  releaseSeparationPay,
+  getSeparationPayHistory,
+  getRetirementPayPreview,
+  generateRetirementPay,
+  releaseRetirementPay,
+  getRetirementPayHistory
 } = require("../controllers/payroll.controller");
 const { requireAdmin, requireStaff } = require("../middleware/roleCheck.js");
 
@@ -45,6 +53,14 @@ router.get("/thirteenth-month/preview", requireAdmin, getThirteenthMonthPreview)
 router.post("/thirteenth-month/generate", requireAdmin, generateThirteenthMonth);
 router.post("/thirteenth-month/release", requireAdmin, releaseThirteenthMonth);
 router.get("/thirteenth-month/history", requireAdmin, getThirteenthMonthHistory);
+router.get("/separation/preview", requireAdmin, getSeparationPayPreview);
+router.post("/separation/generate", requireAdmin, generateSeparationPay);
+router.put("/separation/release/:separationId", requireAdmin, releaseSeparationPay);
+router.get("/separation/history", requireAdmin, getSeparationPayHistory);
+router.get("/retirement/preview", requireAdmin, getRetirementPayPreview);
+router.post("/retirement/generate", requireAdmin, generateRetirementPay);
+router.put("/retirement/release/:retirementId", requireAdmin, releaseRetirementPay);
+router.get("/retirement/history", requireAdmin, getRetirementPayHistory);
 router.get("/all", requireStaff, getAllPayrolls);
 router.get("/report", requireAdmin, getPayrollReport);
 router.get("/user/:user_Id", requireStaff, getPayrollByUser);

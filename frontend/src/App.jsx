@@ -49,6 +49,8 @@ import LoanManagementHub from "./pages/admin_Payroll/subtabs/LoanManagementHub";
 import LM2 from "./pages/admin_Payroll/subtabs/LM2";
 import LoanDetailsPage from "./components/LoanDetailsPage";
 import ThirteenthMonth from "./pages/admin_Payroll/subtabs/ThirteenthMonth";
+import SeparationPay from "./pages/admin_Payroll/subtabs/SeparationPay";
+import RetirementPay from "./pages/admin_Payroll/subtabs/RetirementPay";
 
 function App() {
 
@@ -247,6 +249,24 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 4]}>
               <ThirteenthMonth />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/separation-pay"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <SeparationPay />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/retirement-pay"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <RetirementPay />
             </ProtectedRoute>
           }
         />

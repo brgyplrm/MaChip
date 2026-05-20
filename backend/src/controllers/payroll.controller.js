@@ -2166,3 +2166,374 @@ exports.getThirteenthMonthHistory = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// ── Separation Pay Logic ───────────────────────────────────────────────────
+
+/**
+ * Previews Separation Pay for an employee.
+ */
+exports.getSeparationPayPreview = async (req, res) => {
+  const { user_Id, separationDate } = req.query;
+  if (!user_Id || !separationDate) {
+    return res.status(400).json({ error: "user_Id and separationDate are required." });
+  }
+
+  try {
+    const userResult = await sequelize.query(
+      `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."hireDate", u."dailyRate",
+              d."allowance" as "monthlyAllowance"
+       FROM "User" u
+       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+       WHERE u."user_Id" = :user_Id LIMIT 1`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+
+    if (userResult.length === 0) return res.status(404).json({ error: "User not found." });
+    const user = userResult[0];
+
+    if (!user.hireDate) return res.status(400).json({ error: "User hireDate is missing. Cannot calculate tenure." });
+
+    const start = new Date(user.hireDate);
+    const end = new Date(separationDate);
+
+    // Calculate tenure in months
+    let diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    if (end.getDate() < start.getDate()) diffMonths--;
+
+    // Apply "6 months considered as 1 whole year" rule
+    let yearsOfService = Math.floor(diffMonths / 12);
+    const remainingMonths = diffMonths % 12;
+    if (remainingMonths >= 6) yearsOfService++;
+    
+    // Minimum 1 year for computation if they reached at least 6 months total
+    if (yearsOfService === 0 && diffMonths >= 6) yearsOfService = 1;
+
+    const monthlyBasic = (user.dailyRate || 0) * 26;
+    const baseSalary = monthlyBasic + (parseFloat(user.monthlyAllowance) || 0);
+
+    res.status(200).json({
+      user_Id: user.user_Id,
+      name: `${user.user_LastName}, ${user.user_FirstName}`,
+      hireDate: user.hireDate,
+      separationDate,
+      diffMonths,
+      yearsOfService,
+      monthlyBasic,
+      monthlyAllowance: user.monthlyAllowance || 0,
+      baseSalary,
+      preview: [
+        { 
+          type: "1/2 Month", 
+          multiplier: 0.5, 
+          amount: Math.max(baseSalary, baseSalary * 0.5 * yearsOfService), 
+          desc: "Retrenchment, Closure (not due to loss), Disease" 
+        },
+        { 
+          type: "1 Month", 
+          multiplier: 1.0, 
+          amount: baseSalary * 1.0 * yearsOfService, 
+          desc: "Redundancy, Labor-saving devices, Impossible Reinstatement" 
+        }
+      ]
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Generates/Drafts Separation Pay record.
+ */
+exports.generateSeparationPay = async (req, res) => {
+  const { user_Id, separationDate, causeType, reason } = req.body;
+  if (!user_Id || !separationDate || !causeType) {
+    return res.status(400).json({ error: "user_Id, separationDate, and causeType are required." });
+  }
+
+  try {
+    const previewRes = await exports.getSeparationPayPreview({ query: { user_Id, separationDate } }, { 
+      status: () => ({ json: (d) => d }),
+      json: (d) => d
+    });
+
+    if (previewRes.error) return res.status(400).json({ error: previewRes.error });
+
+    const multiplier = causeType.includes("1/2 Month") ? 0.5 : 1.0;
+    const selectedPreview = previewRes.preview.find(p => p.multiplier === multiplier);
+    
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    const result = await sequelize.query(
+      `INSERT INTO "Payroll_Separation" 
+        ("user_Id", "hireDate", "separationDate", "yearsOfService", "baseSalary", "multiplier", "totalAmount", "reason", "causeType", "status", "createdAt", "updatedAt")
+       VALUES 
+        (:user_Id, :hireDate, :separationDate, :yearsOfService, :baseSalary, :multiplier, :totalAmount, :reason, :causeType, 'Draft', :now, :now)
+       RETURNING "separationId"`,
+      {
+        replacements: {
+          user_Id,
+          hireDate: previewRes.hireDate,
+          separationDate,
+          yearsOfService: previewRes.yearsOfService,
+          baseSalary: previewRes.baseSalary,
+          multiplier,
+          totalAmount: selectedPreview.amount,
+          reason: reason || causeType,
+          causeType,
+          now: nowStr
+        },
+        type: QueryTypes.INSERT
+      }
+    );
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "SEPARATION_GEN", `Generated separation pay draft for user ${user_Id}`, { separationId: result[0][0].separationId }, req);
+
+    res.status(201).json({ message: "Separation pay draft generated.", separationId: result[0][0].separationId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Releases Separation Pay.
+ */
+exports.releaseSeparationPay = async (req, res) => {
+  const { separationId } = req.params;
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    const [updated] = await sequelize.query(
+      `UPDATE "Payroll_Separation" SET "status" = 'Released', "releasedAt" = :now, "updatedAt" = :now WHERE "separationId" = :separationId AND "status" = 'Draft'`,
+      { replacements: { separationId, now: nowStr }, type: QueryTypes.UPDATE }
+    );
+
+    if (updated === 0) return res.status(404).json({ error: "Draft separation pay not found." });
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "SEPARATION_RELEASE", `Released separation pay ID ${separationId}`, { separationId }, req);
+
+    res.status(200).json({ message: "Separation pay released successfully." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets Separation Pay history.
+ */
+exports.getSeparationPayHistory = async (req, res) => {
+  try {
+    const history = await sequelize.query(
+      `SELECT s.*, u."user_FirstName", u."user_LastName"
+       FROM "Payroll_Separation" s
+       JOIN "User" u ON s."user_Id" = u."user_Id"
+       ORDER BY s."separationDate" DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets Retirement Pay Preview.
+ * Logic: Daily Rate * 22.5 days * Years of Service.
+ * Components of 22.5: 15 (Salary) + 5 (SIL) + 2.5 (1/12 of 13th month).
+ */
+exports.getRetirementPayPreview = async (req, res) => {
+  const { user_Id, retirementDate } = req.query;
+  if (!user_Id || !retirementDate) {
+    return res.status(400).json({ error: "user_Id and retirementDate are required." });
+  }
+
+  try {
+    const userResult = await sequelize.query(
+      `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."hireDate", u."user_DOB", u."dailyRate", u."hasAvailedRetirementTax"
+       FROM "User" u
+       WHERE u."user_Id" = :user_Id LIMIT 1`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+
+    if (userResult.length === 0) return res.status(404).json({ error: "User not found." });
+    const user = userResult[0];
+
+    if (!user.hireDate) return res.status(400).json({ error: "User hireDate is missing." });
+    if (!user.user_DOB) return res.status(400).json({ error: "User date of birth is missing." });
+
+    const hireDate = new Date(user.hireDate);
+    const birthDate = new Date(user.user_DOB);
+    const targetDate = new Date(retirementDate);
+
+    // Age Calculation
+    let age = targetDate.getFullYear() - birthDate.getFullYear();
+    const m = targetDate.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && targetDate.getDate() < birthDate.getDate())) age--;
+
+    // Tenure Calculation (6 months considered as 1 whole year)
+    let diffMonths = (targetDate.getFullYear() - hireDate.getFullYear()) * 12 + (targetDate.getMonth() - hireDate.getMonth());
+    if (targetDate.getDate() < hireDate.getDate()) diffMonths--;
+    
+    let yearsOfService = Math.floor(diffMonths / 12);
+    if ((diffMonths % 12) >= 6) yearsOfService++;
+
+    // Eligibility Check
+    const isEligible = age >= 60 && yearsOfService >= 5;
+    const isCompulsory = age >= 65;
+
+    // Components
+    const dailyRate = user.dailyRate || 0;
+    const salary15Days = dailyRate * 15;
+    const sil5Days = dailyRate * 5;
+    const thirteenthMonth2_5Days = dailyRate * 2.5;
+    const oneHalfMonthSalary = dailyRate * 22.5;
+    const totalAmount = oneHalfMonthSalary * yearsOfService;
+
+    // Tax Exemption Check (Age 50+ AND 10+ years tenure AND one-time only)
+    const isTaxExempt = age >= 50 && yearsOfService >= 10 && !user.hasAvailedRetirementTax;
+
+    res.status(200).json({
+      user_Id: user.user_Id,
+      name: `${user.user_LastName}, ${user.user_FirstName}`,
+      age,
+      yearsOfService,
+      dailyRate,
+      isEligible,
+      isCompulsory,
+      isTaxExempt,
+      components: {
+        salary15Days,
+        sil5Days,
+        thirteenthMonth2_5Days,
+        oneHalfMonthSalary
+      },
+      totalAmount,
+      hireDate: user.hireDate,
+      retirementDate
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Generates/Drafts Retirement Pay record.
+ */
+exports.generateRetirementPay = async (req, res) => {
+  const { user_Id, retirementDate } = req.body;
+  if (!user_Id || !retirementDate) {
+    return res.status(400).json({ error: "user_Id and retirementDate are required." });
+  }
+
+  try {
+    const previewRes = await exports.getRetirementPayPreview({ query: { user_Id, retirementDate } }, { 
+      status: () => ({ json: (d) => d }),
+      json: (d) => d
+    });
+
+    if (previewRes.error) return res.status(400).json({ error: previewRes.error });
+
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    const result = await sequelize.query(
+      `INSERT INTO "Payroll_Retirement" 
+        ("user_Id", "hireDate", "retirementDate", "yearsOfService", "dailyRate", "totalAmount", 
+         "component_salary_15days", "component_sil_5days", "component_13thmonth_2_5days", 
+         "isTaxExempt", "status", "createdAt", "updatedAt")
+       VALUES 
+        (:user_Id, :hireDate, :retirementDate, :yearsOfService, :dailyRate, :totalAmount, 
+         :salary15Days, :sil5Days, :thirteenthMonth2_5Days, 
+         :isTaxExempt, 'Draft', :now, :now)
+       RETURNING "retirementId"`,
+      {
+        replacements: {
+          user_Id,
+          hireDate: previewRes.hireDate,
+          retirementDate,
+          yearsOfService: previewRes.yearsOfService,
+          dailyRate: previewRes.dailyRate,
+          totalAmount: previewRes.totalAmount,
+          salary15Days: previewRes.components.salary15Days,
+          sil5Days: previewRes.components.sil5Days,
+          thirteenthMonth2_5Days: previewRes.components.thirteenthMonth2_5Days,
+          isTaxExempt: previewRes.isTaxExempt,
+          now: nowStr
+        },
+        type: QueryTypes.INSERT
+      }
+    );
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "RETIREMENT_GEN", `Generated retirement pay draft for user ${user_Id}`, { retirementId: result[0][0].retirementId }, req);
+
+    res.status(201).json({ message: "Retirement pay draft generated.", retirementId: result[0][0].retirementId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Releases Retirement Pay.
+ */
+exports.releaseRetirementPay = async (req, res) => {
+  const { retirementId } = req.params;
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    // Get the retirement record first to update user tax status later
+    const retirement = await sequelize.query(
+      `SELECT * FROM "Payroll_Retirement" WHERE "retirementId" = :retirementId LIMIT 1`,
+      { replacements: { retirementId }, type: QueryTypes.SELECT }
+    );
+
+    if (retirement.length === 0) return res.status(404).json({ error: "Retirement record not found." });
+    if (retirement[0].status === 'Released') return res.status(400).json({ error: "Retirement pay already released." });
+
+    await sequelize.transaction(async (t) => {
+      // 1. Update Retirement Status
+      await sequelize.query(
+        `UPDATE "Payroll_Retirement" SET "status" = 'Released', "releasedAt" = :now, "updatedAt" = :now WHERE "retirementId" = :retirementId`,
+        { replacements: { retirementId, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+      );
+
+      // 2. If it was tax exempt, mark user as having availed it
+      if (retirement[0].isTaxExempt) {
+        await sequelize.query(
+          `UPDATE "User" SET "hasAvailedRetirementTax" = true WHERE "user_Id" = :user_Id`,
+          { replacements: { user_Id: retirement[0].user_Id }, type: QueryTypes.UPDATE, transaction: t }
+        );
+      }
+
+      // 3. Log Transaction
+      const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+      await logTransaction(null, currentAdminId, "RETIREMENT_RELEASE", `Released retirement pay ID ${retirementId}`, { retirementId }, req);
+    });
+
+    res.status(200).json({ message: "Retirement pay released successfully." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets Retirement Pay history.
+ */
+exports.getRetirementPayHistory = async (req, res) => {
+  try {
+    const history = await sequelize.query(
+      `SELECT r.*, u."user_FirstName", u."user_LastName"
+       FROM "Payroll_Retirement" r
+       JOIN "User" u ON r."user_Id" = u."user_Id"
+       ORDER BY r."retirementDate" DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
