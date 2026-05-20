@@ -74,5 +74,12 @@
       color: #6a1b9a;
       background-color: rgba(106, 27, 154, 0.12);
     }
+
+    // Accidental Tap (Voided)
+    &.accidentaltapvoided {
+      color: #7f8c8d;
+      background-color: rgba(127, 140, 141, 0.12);
+      font-style: italic;
+    }
   }
 }

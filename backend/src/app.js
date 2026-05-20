@@ -44,25 +44,7 @@ app.use((req, res, next) => {
 
 // 4. CORS — must be before rate limiters so OPTIONS preflight isn't rate-limited
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://192.168.1.19:5173",
-  "http://192.168.254.106:5173",
-  "http://192.168.254.100:5173",
-  "http://192.168.254.101:5173",
-  "http://192.168.254.102:5173",
-  "http://192.168.1.100:5173",
-  "http://192.168.1.106:5173",
-  "http://192.168.254.108:5173",
-  "http://192.168.254.112:5173",
-  "http://10.27.99.95:5173",
-  "http://10.153.146.95:5173",
-  "http://192.168.254.112:4000",
-  "http://10.228.201.95:5173",
-  "http://10.45.217.95:4000",
-  "http://10.45.217.95:5173",
-  "http://10.24.87.95:5173",
-  "http://192.168.1.18:5173"
+  "http://192.168.254.120:5173"
 
 ];
 
@@ -130,6 +112,7 @@ const requestRoutes = require("./routes/request.routes.js");
 const payrollRoutes = require("./routes/payroll.routes.js");
 const notificationRoutes = require("./routes/notification.routes.js");
 const systemRoutes = require("./routes/system.routes.js");
+const positionRoutes = require("./routes/position.routes.js");
 
 app.use("/api/users", userRoutes);
 app.use("/api/attendance", attendanceRoutes);
@@ -137,6 +120,7 @@ app.use("/api/request", requestRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/system", systemRoutes);
+app.use("/api/positions", positionRoutes);
 
 // New route for testing database queries (now protected)
 app.get("/test-query", async (req, res) => {

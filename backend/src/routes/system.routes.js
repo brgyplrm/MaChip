@@ -7,6 +7,7 @@ const upload = require("../middleware/upload.js");
 
 router.get("/settings", requireAdmin, systemController.getSystemSettings);
 router.put("/settings", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateSystemSettings);
+router.patch("/mandated-wage", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateMandatedWage);
 router.get("/time", systemController.getSystemTime);
 router.get("/holidays", authMiddleware, systemController.getHolidays);
 router.post("/holidays", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.createHoliday);

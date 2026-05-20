@@ -17,6 +17,7 @@ import FolderPicker from "../../components/FolderPicker";
 import PayrollConfiguration from "@/components/PayrollConfiguration";
 import AttendanceConfiguration from "@/components/AttendanceConfiguration";
 import NotificationConfiguration from "@/components/NotificationConfiguration";
+import PositionManagement from "@/components/PositionManagement";
 import { Clock, Coffee, ShieldAlert, CheckCircle, Info, Edit3, Save } from 'lucide-react';
 
 // shadcn/ui components
@@ -43,6 +44,8 @@ const Settings = () => {
   const [mockDate, setMockDate] = useState("");
   const [mockTime, setMockTime] = useState("");
   const [storageRootPath, setStorageRootPath] = useState("");
+  const [mandatedMinimumWage, setMandatedMinimumWage] = useState(610.0);
+  const [mandatedWageEffectiveDate, setMandatedWageEffectiveDate] = useState("2025-07-18");
   const [hardwareBufferWindow, setHardwareBufferWindow] = useState(5);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -87,6 +90,8 @@ const Settings = () => {
         }
 
         setStorageRootPath(data.storageRootPath ?? "");
+        setMandatedMinimumWage(data.mandatedMinimumWage ?? 610.0);
+        setMandatedWageEffectiveDate(data.mandatedWageEffectiveDate ?? "2025-07-18");
         setHardwareBufferWindow(data.hardwareBufferWindow ?? 5);
         setPayrollRates(data.payrollRates ?? null);
         
@@ -117,6 +122,8 @@ const Settings = () => {
       mockDate,
       mockTime,
       storageRootPath,
+      mandatedMinimumWage,
+      mandatedWageEffectiveDate,
       hardwareBufferWindow,
       payrollRates,
       payroll: {
@@ -183,6 +190,9 @@ const Settings = () => {
                 </TabsTrigger>
                 <TabsTrigger value="notification" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
                     <AccessTimeIcon className="mr-2 h-4 w-4" /> Notification
+                </TabsTrigger>
+                <TabsTrigger value="positions" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
+                    <AssuredWorkloadIcon className="mr-2 h-4 w-4" /> Salary Grades
                 </TabsTrigger>
               </TabsList>
 
@@ -307,11 +317,26 @@ const Settings = () => {
                     <Card className="sm:grid-cols-1 col-span-3 border-slate-200/80 shadow-sm bg-white pt-4 pb-0">
                     <CardHeader className="border-b border-slate-100 pb-4">
                       <CardTitle className="text-lg text-[#2A174E] flex items-center gap-2 font-bold">
-                        <MemoryIcon className="text-[#2A174E]" /> Core Infrastructure Backups
+                        <LocalAtmIcon className="text-[#2A174E]" /> Regulatory & Infrastructure
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                            Biometric Attendance Sync Buffer (Min)
+                          </Label>
+                          <Input 
+                            type="number" 
+                            value={hardwareBufferWindow}
+                            onChange={(e) => setHardwareBufferWindow(parseInt(e.target.value))}
+                            disabled={!isAdmin}
+                            className="bg-white border-slate-200 w-full font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pt-4 border-t border-slate-100">
                         <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Root Backup Storage Directory Path</Label>
                         <div className="flex gap-2">
                           <Input 
@@ -328,19 +353,6 @@ const Settings = () => {
                             </Button>
                           )}
                         </div>
-                      </div>
-
-                      <div className="space-y-2 pt-2 border-t border-slate-100">
-                        <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
-                          Biometric Attendance Synchronization Window Buffer (Minutes)
-                        </Label>
-                        <Input 
-                          type="number" 
-                          value={hardwareBufferWindow}
-                          onChange={(e) => setHardwareBufferWindow(parseInt(e.target.value))}
-                          disabled={!isAdmin}
-                          className="bg-white border-slate-200 w-full sm:w-[120px] font-mono"
-                        />
                       </div>
                     </CardContent>
                   </Card>
@@ -406,9 +418,17 @@ const Settings = () => {
                   <AttendanceConfiguration/>
                 </TabsContent>
 
-                {/* Tab 4: Notification Configuration Layout (Your Retained Storage Paths) */}
+                {/* Tab 4: Notification Configuration Layout */}
                 <TabsContent value="notification" className=" mt-0 animate-in fade-in-50 duration-200">
                   <NotificationConfiguration/>
+                </TabsContent>
+
+                {/* Tab 5: Position Management (Salary Grades) */}
+                <TabsContent value="positions" className=" mt-0 animate-in fade-in-50 duration-200">
+                  <PositionManagement 
+                    mandatedMinimumWage={mandatedMinimumWage} 
+                    mandatedWageEffectiveDate={mandatedWageEffectiveDate}
+                  />
                 </TabsContent>
                 </div>
               </>

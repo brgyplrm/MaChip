@@ -1,8 +1,9 @@
 const { sequelize, User, Notification, System_State } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
-const { getSystemTime } = require("../utils/systemTime.js");
+const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
 const { logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
+const { resolveLeaveConflict } = require("../utils/attendanceHelper.js");
 
 const maskUid = (uid, isAuthorized) => {
   if (isAuthorized) return "[REDACTED]";
@@ -530,6 +531,16 @@ exports.scanRFID = async (req, res) => {
           type: QueryTypes.UPDATE,
         },
       );
+    }
+
+    // ── 7. RESOLVE LEAVE CONFLICTS (VOID LOGIC) ──────────────────────────────
+    if (!isEntry) {
+      // Triggered on Clock Out, Lunch Out, or OT Out
+      resolveLeaveConflict(target_user_Id, workDate)
+        .then(res => {
+          if (res.refundAmount > 0) console.log(`[LEAVE-AUTO] ${res.message} for user ${target_user_Id}`);
+        })
+        .catch(err => console.error("[LEAVE-AUTO] Error resolving leave conflict:", err));
     }
 
     const statusLabels = { 1: "Clock In", 2: "Clock Out", 3: "Out For Lunch", 4: "In From Lunch", 5: "Overtime-In", 6: "Overtime-Out" };

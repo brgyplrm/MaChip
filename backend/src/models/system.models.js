@@ -67,6 +67,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.JSONB,
         allowNull: true,
       },
+      mandatedMinimumWage: {
+        type: DataTypes.DOUBLE,
+        defaultValue: 610.0,
+      },
+      mandatedWageEffectiveDate: {
+        type: DataTypes.DATEONLY,
+        defaultValue: '2025-07-18',
+      },
     },
     {
       timestamps: true,

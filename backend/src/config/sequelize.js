@@ -76,6 +76,8 @@ const { Notification } = require("../models/notification.models")(
   DataTypes,
 );
 
+const { Position } = require("../models/position.models")(sequelize, DataTypes);
+
 const {
   SystemSettings,
   Holiday,
@@ -212,6 +214,14 @@ Loan_Deduction_Schedules.belongsTo(User, {
   as: "user",
 });
 
+// User ↔ Position
+Position.hasMany(User, { foreignKey: "position_id", sourceKey: "positionId" });
+User.belongsTo(Position, {
+  foreignKey: "position_id",
+  targetKey: "positionId",
+  as: "jobPosition",
+});
+
 // Audit associations for Loan_Deductions
 Loan_Deductions.belongsTo(User, {
   foreignKey: "createdBy",
@@ -286,6 +296,7 @@ module.exports = {
   Payroll_Earnings,
   Payroll_Deductions,
   Payroll,
+  Position,
   Notification,
   SystemSettings,
   Holiday,

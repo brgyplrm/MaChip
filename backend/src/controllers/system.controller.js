@@ -152,6 +152,26 @@ exports.getSystemSettings = async (req, res) => {
   }
 };
 
+exports.updateMandatedWage = async (req, res) => {
+  const { mandatedMinimumWage, mandatedWageEffectiveDate } = req.body;
+  try {
+    const settings = await SystemSettings.findOne();
+    if (!settings) {
+      const newSettings = await SystemSettings.create({ mandatedMinimumWage, mandatedWageEffectiveDate });
+      return res.status(200).json(newSettings);
+    }
+    const oldData = settings.toJSON();
+    await settings.update({ mandatedMinimumWage, mandatedWageEffectiveDate });
+    
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "System Settings", "UPDATE_MANDATED_WAGE", "SystemSettings", settings.settingId, oldData, settings.toJSON());
+    
+    res.status(200).json(settings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.updateSystemSettings = async (req, res) => {
   const { 
     useMockTime, 
@@ -218,6 +238,7 @@ exports.updateSystemSettings = async (req, res) => {
       doubleSpecialDayRestDayRate: req.body.doubleSpecialDayRestDayRate,
       regularHolidayRestDayRate: req.body.regularHolidayRestDayRate,
       doubleRegularHolidayRestDayRate: req.body.doubleRegularHolidayRestDayRate,
+      mandatedMinimumWage: req.body.mandatedMinimumWage,
       payrollRates: consolidatedPayrollRates
     };
 

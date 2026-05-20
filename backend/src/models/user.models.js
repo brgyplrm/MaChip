@@ -43,6 +43,7 @@ module.exports = (sequelize, DataTypes) => {
       recommendedBy: { type: DataTypes.SMALLINT, allowNull: true },
       department: { type: DataTypes.STRING(100), allowNull: true },
       position: { type: DataTypes.STRING(100), allowNull: true },
+      position_id: { type: DataTypes.INTEGER, allowNull: true },
       hireDate: { type: DataTypes.DATEONLY, allowNull: true },
       user_Phone: { type: DataTypes.STRING(20), allowNull: true },
       user_Address: { type: DataTypes.TEXT, allowNull: true },

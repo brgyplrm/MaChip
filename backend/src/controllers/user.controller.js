@@ -135,14 +135,14 @@ exports.registerUser = async (req, res) => {
           "user_Id", "user_FirstName", "user_LastName",
           "user_MiddleName", "user_Email", "user_Password", 
           "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", 
-          "department", "position", "hireDate", "taxStatus", 
+          "department", "position", "position_id", "hireDate", "taxStatus", 
           "user_Phone", "user_Address", "user_DOB", "user_Gender", "user_ShiftId",
           "dailyRate", "createdAt", "updatedAt"
         ) VALUES (
           :user_Id, :user_FirstName, :user_LastName,
           :user_MiddleName, :user_Email, :user_Password, 
           :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, 
-          :department, :position, :hireDate, :taxStatus,
+          :department, :position, :position_id, :hireDate, :taxStatus,
           :user_Phone, :user_Address, :user_DOB, :user_Gender, :user_ShiftId,
           :dailyRate, :now, :now
         )`,
@@ -159,6 +159,7 @@ exports.registerUser = async (req, res) => {
             user_ProfilePic: req.file ? req.file.filename : null,
             department: req.body.department || null,
             position: req.body.position || null,
+            position_id: req.body.position_id || null,
             hireDate: req.body.hireDate || null,
             taxStatus: req.body.taxStatus || "S",
             user_Phone: req.body.user_Phone || null,
@@ -281,6 +282,7 @@ exports.viewAllUsers = async (req, res) => {
       `SELECT u.*, 
               r."roleName" AS "user_Role", 
               s."statusName" AS "user_EmploymentStatus",
+              p."title" AS "positionTitle", p."department" AS "positionDepartment",
               b."account_Number", b."bank_Company", b."bank_AccountName",
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
@@ -294,6 +296,7 @@ exports.viewAllUsers = async (req, res) => {
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
+       LEFT JOIN "Position" p ON u."position_id" = p."positionId"
        LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
@@ -322,6 +325,7 @@ exports.viewArchivedUsers = async (req, res) => {
       `SELECT u.*, 
               r."roleName" AS "user_Role", 
               s."statusName" AS "user_EmploymentStatus",
+              p."title" AS "positionTitle", p."department" AS "positionDepartment",
               b."account_Number", b."bank_Company", b."bank_AccountName",
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
@@ -335,6 +339,7 @@ exports.viewArchivedUsers = async (req, res) => {
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
+       LEFT JOIN "Position" p ON u."position_id" = p."positionId"
        LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
@@ -364,6 +369,7 @@ exports.viewUserById = async (req, res) => {
       `SELECT u.*, 
               r."roleName" AS "user_Role", 
               s."statusName" AS "user_EmploymentStatus",
+              p."title" AS "positionTitle", p."department" AS "positionDepartment",
               b."account_Number", b."bank_Company", b."bank_AccountName",
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
@@ -377,6 +383,7 @@ exports.viewUserById = async (req, res) => {
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        LEFT JOIN "employementStatus" s ON u."user_EmploymentStatusId" = s."statusId"
+       LEFT JOIN "Position" p ON u."position_id" = p."positionId"
        LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
@@ -604,6 +611,7 @@ exports.updateUser = async (req, res) => {
     bank_AccountName,
     department,
     position,
+    position_id,
     hireDate,
     taxStatus,
     dailyRate,
@@ -725,6 +733,7 @@ exports.updateUser = async (req, res) => {
         bankAccountName: bank_AccountName || null,
         department: department || null,
         position: position || null,
+        position_id: position_id || null,
         hireDate: hireDate || null,
         taxStatus: taxStatus || "S",
         dailyRate: parsedDailyRate,
@@ -766,6 +775,7 @@ exports.updateUser = async (req, res) => {
           "user_ShiftId"   = :shiftId,
           "department"     = :department,
           "position"       = :position,
+          "position_id"    = :position_id,
           "hireDate"       = :hireDate,
           "taxStatus"      = :taxStatus,
           "dailyRate"      = :dailyRate,
@@ -977,6 +987,8 @@ exports.getMasterlist = async (req, res) => {
          u."hireDate",
          u."createdAt",
          u."updatedAt",
+         p."title"             AS "positionTitle",
+         p."department"        AS "positionDepartment",
          b."account_Number", b."bank_Company", b."bank_AccountName",
          d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
          d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
@@ -987,6 +999,7 @@ exports.getMasterlist = async (req, res) => {
        FROM "User" u
        LEFT JOIN "user_Role"        r  ON u."user_RoleId"             = r."roleId"
        LEFT JOIN "employementStatus" es ON u."user_EmploymentStatusId" = es."statusId"
+       LEFT JOIN "Position"         p  ON u."position_id"             = p."positionId"
        LEFT JOIN "User_Banking"     b  ON u."user_Id"                 = b."user_Id"
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id"            = d."user_Id"
        LEFT JOIN "User_Hardware"    h  ON u."user_Id"                 = h."user_Id"

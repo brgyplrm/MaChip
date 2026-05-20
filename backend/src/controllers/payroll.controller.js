@@ -153,13 +153,19 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     logMap[dateStr] = l; 
   });
 
-  // 4. Get approved leaves
+  // 4. Get approved leaves (Vacation, Sick, Emergency, Half-Day)
   const approvedLeaveDaysMap = new Map(); 
   const leaveRecords = await sequelize.query(
-    `SELECT "StartDate", "EndDate", "WithPayID" FROM "Vacation_Leave" 
+    `SELECT "StartDate", "EndDate", "WithPayID", 1.0 as "amount" FROM "Vacation_Leave" 
      WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)
      UNION
-     SELECT "StartDate", "EndDate", "WithPayID" FROM "Sick_Leave" 
+     SELECT "StartDate", "EndDate", "WithPayID", 1.0 as "amount" FROM "Sick_Leave" 
+     WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)
+     UNION
+     SELECT "DateOfLeave" as "StartDate", "DateOfLeave" as "EndDate", "WithPayID", 1.0 as "amount" FROM "Emergency_Leave" 
+     WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)
+     UNION
+     SELECT "DateOfLeave" as "StartDate", "DateOfLeave" as "EndDate", "WithPayID", 0.5 as "amount" FROM "HalfDay_Leave" 
      WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)`,
     { replacements: { user_Id }, type: QueryTypes.SELECT }
   );
@@ -167,7 +173,10 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     let curr = new Date(lr.StartDate);
     let end = new Date(lr.EndDate);
     while(curr <= end) {
-      approvedLeaveDaysMap.set(curr.toISOString().split('T')[0], lr.WithPayID === 1);
+      approvedLeaveDaysMap.set(curr.toISOString().split('T')[0], { 
+        withPay: lr.WithPayID === 1,
+        amount: parseFloat(lr.amount)
+      });
       curr.setDate(curr.getDate() + 1);
     }
   });
@@ -202,13 +211,13 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     const log = logMap[dateStr];
     const isOnField = onfieldMap.has(dateStr);
     
-    const isAbsentStatus = log && log.att_status === 3;
-    const worked = (!!log && !isAbsentStatus) || isOnField;
+    // Status 3 = Absent, Status 7 = Accidental Tap (Voided)
+    const isExcludedStatus = log && (log.att_status === 3 || log.att_status === 7);
+    const worked = (!!log && !isExcludedStatus) || isOnField;
     const isLeave = approvedLeaveDaysMap.has(dateStr);
 
     // ── Handle Worked Days (Normal or Holiday) ──────────────────────────
     if (worked) {
-      actual_Worked_Days++;
       let dailyHrs = 0;
 
       if (isOnField) {
@@ -242,7 +251,16 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
         }
       }
       
+      const dayPortion = dailyHrs >= 7 ? 1.0 : (dailyHrs >= 1 ? 0.5 : 0.0);
+      actual_Worked_Days += dayPortion;
       actual_Worked_Hrs += dailyHrs;
+
+      // Conflict Resolution: If worked 1-5 hrs and it was a leave day, 
+      // the remaining 0.5 is counted as paid leave (already refunded by resolveLeaveConflict)
+      if (dayPortion === 0.5 && isLeave) {
+        if (approvedLeaveDaysMap.get(dateStr)) paidLeave_Days += 0.5;
+        else unpaidLeave_Days += 0.5;
+      }
 
       if (holiday) {
         if (holiday.type === "Regular Holiday") legalHol_Days++;
@@ -274,8 +292,9 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     if (isSunday) continue;
 
     if (isLeave) {
-      if (approvedLeaveDaysMap.get(dateStr)) paidLeave_Days++;
-      else unpaidLeave_Days++;
+      const leaveData = approvedLeaveDaysMap.get(dateStr);
+      if (leaveData.withPay) paidLeave_Days += leaveData.amount;
+      else unpaidLeave_Days += leaveData.amount;
       continue;
     }
 

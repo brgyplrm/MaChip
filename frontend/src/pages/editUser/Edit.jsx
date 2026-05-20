@@ -138,6 +138,7 @@ const Edit = () => {
 
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [positions, setPositions] = useState([]);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loadingGovt, setLoadingGovt] = useState(false);
   const [userData, setUserData] = useState(null);
@@ -298,6 +299,13 @@ const Edit = () => {
       .catch(err => console.error("Failed to clear in-memory FP session:", err));
   };
 
+  useEffect(() => {
+    fetchWithAuth("/api/positions")
+      .then(res => res.json())
+      .then(data => setPositions(data))
+      .catch(err => console.error("Error fetching positions:", err));
+  }, []);
+
   const dismissToast = useCallback(() => {
     setToast({ message: "", type: "success" });
   }, []);
@@ -321,6 +329,9 @@ const Edit = () => {
             user_Address: userData.user_Address || "",
             user_Role: userData.user_Role || "",
             user_RoleId: userData.user_RoleId || 3,
+            department: userData.department || "",
+            position: userData.position || "",
+            position_id: userData.position_id || "",
             user_EmploymentStatus: userData.user_EmploymentStatus || "",
             user_EmploymentStatusId: userData.user_EmploymentStatusId || 1,
             user_Password: "", // Do not show hash, leave empty for optional update
@@ -680,6 +691,57 @@ const Edit = () => {
                       <SelectContent>
                         <SelectItem value="1">Morning Shift (8:30 AM - 5:30 PM)</SelectItem>
                         <SelectItem value="2">Evening Shift (8:30 PM - 5:30 AM)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* New Department & Position Section */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Department <span className="text-red-500">*</span></Label>
+                    <Select 
+                      value={formData.department} 
+                      onValueChange={(val) => {
+                        setFormData(prev => ({ ...prev, department: val, position: "", position_id: "" }));
+                      }}
+                    >
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectValue placeholder="Select Department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[...new Set(positions.map(p => p.department))].map((dept) => (
+                          <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position <span className="text-red-500">*</span></Label>
+                    <Select 
+                      value={formData.position_id?.toString()} 
+                      onValueChange={(val) => {
+                        const selectedPos = positions.find(p => p.positionId.toString() === val);
+                        if (selectedPos) {
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            position_id: selectedPos.positionId,
+                            position: selectedPos.title,
+                            dailyRate: selectedPos.baseDailyRate
+                          }));
+                        }
+                      }}
+                      disabled={!formData.department}
+                    >
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectValue placeholder={formData.department ? "Select Position" : "Select Dept First"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formData.department && positions
+                          .filter(p => p.department === formData.department)
+                          .map((pos) => (
+                            <SelectItem key={pos.positionId} value={pos.positionId.toString()}>{pos.title}</SelectItem>
+                          ))
+                        }
                       </SelectContent>
                     </Select>
                   </div>

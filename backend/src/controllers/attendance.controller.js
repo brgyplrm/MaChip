@@ -13,7 +13,7 @@ const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
-const { calculateMultiBucketHours } = require("../utils/attendanceHelper");
+const { calculateMultiBucketHours, resolveLeaveConflict } = require("../utils/attendanceHelper");
 
 // ── Mark Attendance ───────────────────────────────────────────────────────────
 exports.markAttendance = async (req, res) => {
@@ -162,19 +162,6 @@ exports.markAttendance = async (req, res) => {
     const newLogResult = await sequelize.query(`INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId") VALUES (:target_user_Id, :log_Date, :time_Logged, :logged_StatusId, :attendance_StatusId) RETURNING *`, { replacements: { target_user_Id, log_Date: todayStart, time_Logged: timeStr, logged_StatusId: nextStatus, attendance_StatusId: attendanceVal }, type: QueryTypes.INSERT });
     const newLog = newLogResult[0][0];
 
-    if (nextStatus === 1 || nextStatus === 4) {
-      const activeLeaves = await sequelize.query(`SELECT er."emp_reqId", er."emp_reqStatusId", er."emp_reqTypeId", vl."NoDays" as "vlDays", sl."NoDays" as "slDays", el."NoDays" as "elDays", hd."NoDays" as "hdDays" FROM "emp_Request" er LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId" LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId" LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId" LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId" WHERE er."user_Id" = :target_user_Id AND er."emp_reqStatusId" IN (1, 2) AND er."emp_reqTypeId" IN (3, 4, 6, 7) AND ((vl."StartDate" <= :todayStr AND vl."EndDate" >= :todayStr) OR (sl."StartDate" <= :todayStr AND sl."EndDate" >= :todayStr) OR (el."DateOfLeave" = :todayStr) OR (hd."DateOfLeave" = :todayStr))`, { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT });
-      for (const leave of activeLeaves) {
-        await sequelize.query(`UPDATE "emp_Request" SET "emp_reqStatusId" = 4, "system_remarks" = COALESCE("system_remarks" || ' | ', '') || 'Auto-canceled due to clock-in' WHERE "emp_reqId" = :emp_reqId`, { replacements: { emp_reqId: leave.emp_reqId }, type: QueryTypes.UPDATE });
-        const noDays = leave.vlDays || leave.slDays || leave.elDays || leave.hdDays || 0;
-        if (noDays > 0 && leave.emp_reqStatusId === 2) {
-          const field = (leave.emp_reqTypeId === 3 || leave.emp_reqTypeId === 7) ? "VL" : "SL";
-          await sequelize.query(`UPDATE "Leave_Balance" SET "${field}_balance" = "${field}_balance" + :noDays, "${field}_used" = GREATEST(0, "${field}_used" - :noDays) WHERE "user_Id" = :target_user_Id AND "year" = :year`, { replacements: { noDays, target_user_Id, year: now.getFullYear() }, type: QueryTypes.UPDATE });
-        }
-        await Notification.create({ user_Id: target_user_Id, title: "Leave Auto-Canceled", message: `Your leave request (#${leave.emp_reqId}) has been auto-canceled because you clocked in.`, isRead: false });
-      }
-    }
-
     const isEntry = [1, 4, 5].includes(nextStatus);
     let repStat = nextStatus; if (nextStatus === 4 || nextStatus === 5) repStat = 1; if (nextStatus === 3 || nextStatus === 6) repStat = 2;
     const existing = await sequelize.query(`SELECT * FROM "employee_Logging_report" WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`, { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT });
@@ -196,6 +183,16 @@ exports.markAttendance = async (req, res) => {
          WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`, 
         { replacements: { inArr: JSON.stringify(inArr), outArr: JSON.stringify(outArr), repStat, attendance_StatusId: attendanceVal, target_user_Id, todayStr }, type: QueryTypes.UPDATE }
       );
+    }
+
+    // ── 7. RESOLVE LEAVE CONFLICTS (VOID LOGIC) ──────────────────────────────
+    if (!isEntry) {
+      // Triggered on Clock Out, Lunch Out, or OT Out
+      resolveLeaveConflict(target_user_Id, todayStr)
+        .then(res => {
+          if (res.refundAmount > 0) console.log(`[LEAVE-AUTO] ${res.message} for user ${target_user_Id}`);
+        })
+        .catch(err => console.error("[LEAVE-AUTO] Error resolving leave conflict:", err));
     }
 
     const labels = { 1: "Clock In", 2: "Clock Out", 3: "Out For Lunch", 4: "In From Lunch", 5: "Overtime-In", 6: "Overtime-Out" };
@@ -1294,6 +1291,15 @@ exports.updateAttendanceRecord = async (req, res) => {
         type: QueryTypes.UPDATE
       }
     );
+
+    // ── 7. RESOLVE LEAVE CONFLICTS (VOID LOGIC) ──────────────────────────────
+    if (reportLoggedStatus === 2) {
+      resolveLeaveConflict(user_Id, date)
+        .then(res => {
+          if (res.refundAmount > 0) console.log(`[LEAVE-AUTO] ${res.message} for user ${user_Id}`);
+        })
+        .catch(err => console.error("[LEAVE-AUTO] Error resolving leave conflict:", err));
+    }
 
     // 4. Log Changes
     const changes = [];

@@ -404,7 +404,14 @@ const PayrollEmployeeList = () => {
                               </div>
                             </TableCell>
 
-                            <TableCell className="text-slate-600 text-sm py-4">{emp.user_Role || "—"}</TableCell>
+                            <TableCell className="text-slate-600 text-sm py-4">
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-slate-700">{emp.positionTitle || "—"}</span>
+                                {emp.positionDepartment && (
+                                  <span className="text-[10px] text-slate-400 uppercase font-bold">{emp.positionDepartment}</span>
+                                )}
+                              </div>
+                            </TableCell>
 
                             <TableCell className="py-4">
                               {hasChanged ? (

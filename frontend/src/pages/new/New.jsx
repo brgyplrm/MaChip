@@ -70,13 +70,6 @@ const New = ({ inputs = [], title }) => {
     { id: 3, title: "Security" }
   ];
 
-  const DEPARTMENT_POSITIONS = {
-  "Admin": ["LCB/MANAGER"],
-  "Finance": ["ACCOUNTING STAFF"],
-  "Operations": ["DECLARANT", "MESSENGER"],
-  "Forwarding": ["SUPERVISOR"]
-};
-
   // Group fields logically (Removed account_number as it's explicitly rendered now)
   const step1Fields = ["user_Email"];
   const step2Fields = ["user_Role", "user_EmploymentStatus", "user_Id", "department", "position", "taxStatus"];
@@ -100,6 +93,7 @@ const New = ({ inputs = [], title }) => {
     user_Email: "",
     department: "",
     position: "",
+    position_id: "",
     taxStatus: "S",
     dailyRate: "",
     is_attendance_exempt: false,
@@ -119,6 +113,7 @@ const New = ({ inputs = [], title }) => {
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [positions, setPositions] = useState([]);
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   const dismissToast = useCallback(() => setToast({ message: "", type: "success" }), []);
@@ -127,19 +122,23 @@ const New = ({ inputs = [], title }) => {
   const [fingerprintError, setFingerprintError] = useState("");
   const [localFingerprintId, setLocalFingerprintId] = useState("");
 
-  // Auto-fetch next ID on mount
+  // Auto-fetch next ID and Positions on mount
   useEffect(() => {
     fetchWithAuth("/api/users/nextId")
       .then(res => res.json())
       .then(data => {
         if (data.nextId) {
-          // Use the displayId from backend (which is MACJ-0XX)
           const formatted = data.displayId || `MACJ-${String(data.nextId).padStart(3, "0")}`;
           setDisplayId(formatted);
           setFormData(prev => ({ ...prev, user_Id: data.nextId }));
         }
       })
       .catch(err => console.error("Error fetching next ID:", err));
+
+    fetchWithAuth("/api/positions")
+      .then(res => res.json())
+      .then(data => setPositions(data))
+      .catch(err => console.error("Error fetching positions:", err));
   }, []);
 
   const handleInput = (e) => {
@@ -698,17 +697,18 @@ const New = ({ inputs = [], title }) => {
                                         value={formData.department} 
                                         onValueChange={(val) => {
                                           handleInput({ target: { id: "department", value: val } });
-                                          // Reset position when department changes to prevent invalid combinations
-                                          setFormData(prev => ({ ...prev, position: "" }));
+                                          // Reset position when department changes
+                                          setFormData(prev => ({ ...prev, position: "", position_id: "" }));
                                         }}
                                       >
                                         <SelectTrigger className={`bg-white w-full ${errors.department ? "border-red-500" : ""}`}>
                                           <SelectValue placeholder="Select Department" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {Object.keys(DEPARTMENT_POSITIONS).map((dept) => (
+                                          {[...new Set(positions.map(p => p.department))].map((dept) => (
                                             <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                                           ))}
+                                          {positions.length === 0 && <SelectItem disabled value="none">No departments found</SelectItem>}
                                         </SelectContent>
                                       </Select>
                                       {errors.department && <span className="text-xs text-red-500 block">{errors.department}</span>}
@@ -718,17 +718,30 @@ const New = ({ inputs = [], title }) => {
                                     <div className="space-y-2">
                                       <Label className="text-slate-600 font-semibold">Position <span className="text-red-500">*</span></Label>
                                       <Select 
-                                        value={formData.position} 
-                                        onValueChange={(val) => handleInput({ target: { id: "position", value: val } })}
-                                        disabled={!formData.department} // Disable if no department is selected
+                                        value={formData.position_id?.toString()} 
+                                        onValueChange={(val) => {
+                                          const selectedPos = positions.find(p => p.positionId.toString() === val);
+                                          if (selectedPos) {
+                                            setFormData(prev => ({ 
+                                              ...prev, 
+                                              position_id: selectedPos.positionId,
+                                              position: selectedPos.title,
+                                              dailyRate: selectedPos.baseDailyRate
+                                            }));
+                                          }
+                                        }}
+                                        disabled={!formData.department} 
                                       >
                                         <SelectTrigger className={`bg-white w-full ${errors.position ? "border-red-500" : ""}`}>
                                           <SelectValue placeholder={formData.department ? "Select Position" : "Select Department first"} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {formData.department && DEPARTMENT_POSITIONS[formData.department].map((pos) => (
-                                            <SelectItem key={pos} value={pos}>{pos}</SelectItem>
-                                          ))}
+                                          {formData.department && positions
+                                            .filter(p => p.department === formData.department)
+                                            .map((pos) => (
+                                              <SelectItem key={pos.positionId} value={pos.positionId.toString()}>{pos.title}</SelectItem>
+                                            ))
+                                          }
                                         </SelectContent>
                                       </Select>
                                       {errors.position && <span className="text-xs text-red-500 block">{errors.position}</span>}
