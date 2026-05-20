@@ -219,6 +219,36 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: true, freezeTableName: true },
   );
 
+  const Payroll_ThirteenthMonth = sequelize.define(
+    "Payroll_ThirteenthMonth",
+    {
+      thirteenthId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      user_Id: { 
+        type: DataTypes.SMALLINT, 
+        allowNull: false,
+        unique: 'user_thirteenth_year_unique'
+      },
+      year: { 
+        type: DataTypes.INTEGER, 
+        allowNull: false,
+        unique: 'user_thirteenth_year_unique'
+      },
+      totalBasicEarned: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+      amount: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+      taxable_Excess: { type: DataTypes.FLOAT, defaultValue: 0 },
+      status: { 
+        type: DataTypes.ENUM("Draft", "Released"),
+        defaultValue: "Draft"
+      },
+      releasedAt: { type: DataTypes.DATE, allowNull: true },
+    },
+    { timestamps: true, freezeTableName: true },
+  );
+
   // Relationships
   Payroll.belongsTo(PayrollPeriod, { foreignKey: "periodId" });
   PayrollPeriod.hasMany(Payroll, { foreignKey: "periodId" });
@@ -241,5 +271,5 @@ module.exports = (sequelize, DataTypes) => {
   Payroll.hasMany(Payroll_GovernmentLoans, { foreignKey: "payrollId" });
   Payroll_GovernmentLoans.belongsTo(Payroll, { foreignKey: "payrollId" });
 
-  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances, Payroll_Eastwest, Payroll_GovernmentLoans };
+  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances, Payroll_Eastwest, Payroll_GovernmentLoans, Payroll_ThirteenthMonth };
 };

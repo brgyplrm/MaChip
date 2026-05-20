@@ -21,7 +21,11 @@ const {
   syncMaxicareHistory,
   getLoanHistory,
   syncLoanHistory,
-  resendPayrollEmail
+  resendPayrollEmail,
+  getThirteenthMonthPreview,
+  generateThirteenthMonth,
+  releaseThirteenthMonth,
+  getThirteenthMonthHistory
 } = require("../controllers/payroll.controller");
 const { requireAdmin, requireStaff } = require("../middleware/roleCheck.js");
 
@@ -37,6 +41,10 @@ router.get("/maxicare/history", requireAdmin, getMaxicareHistory);
 router.post("/maxicare/sync", requireAdmin, syncMaxicareHistory);
 router.get("/loans/history", requireAdmin, getLoanHistory);
 router.post("/loans/sync", requireAdmin, syncLoanHistory);
+router.get("/thirteenth-month/preview", requireAdmin, getThirteenthMonthPreview);
+router.post("/thirteenth-month/generate", requireAdmin, generateThirteenthMonth);
+router.post("/thirteenth-month/release", requireAdmin, releaseThirteenthMonth);
+router.get("/thirteenth-month/history", requireAdmin, getThirteenthMonthHistory);
 router.get("/all", requireStaff, getAllPayrolls);
 router.get("/report", requireAdmin, getPayrollReport);
 router.get("/user/:user_Id", requireStaff, getPayrollByUser);

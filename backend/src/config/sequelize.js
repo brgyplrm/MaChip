@@ -69,6 +69,7 @@ const {
   Payroll_Cash_Advances,
   Payroll_Eastwest,
   Payroll_GovernmentLoans,
+  Payroll_ThirteenthMonth,
 } = require("../models/payroll.model")(sequelize, DataTypes);
 
 const { Notification } = require("../models/notification.models")(
@@ -152,6 +153,17 @@ User.hasMany(Payroll_GovernmentLoans, {
   sourceKey: "user_Id",
 });
 Payroll_GovernmentLoans.belongsTo(User, {
+  foreignKey: "user_Id",
+  targetKey: "user_Id",
+  as: "user",
+});
+
+// User ↔ Payroll_ThirteenthMonth
+User.hasMany(Payroll_ThirteenthMonth, {
+  foreignKey: "user_Id",
+  sourceKey: "user_Id",
+});
+Payroll_ThirteenthMonth.belongsTo(User, {
   foreignKey: "user_Id",
   targetKey: "user_Id",
   as: "user",
@@ -253,6 +265,9 @@ const connectDB = async () => {
     // In production, you'd use migrations, but for this dev setup sync is used.
     // await sequelize.sync({ alter: true }); // Set to true if you want Sequelize to automatically alter tables to match models
     
+    // Create the 13th Month table if it doesn't exist
+    await Payroll_ThirteenthMonth.sync({ alter: true });
+
     // Ensure Exempt status exists
     await sequelize.query(`
       INSERT INTO "attendance_status" ("statusId", "statusName")
@@ -312,4 +327,5 @@ module.exports = {
   Payroll_Cash_Advances,
   Payroll_Eastwest,
   Payroll_GovernmentLoans,
+  Payroll_ThirteenthMonth,
 };

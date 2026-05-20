@@ -48,6 +48,7 @@ import LoanManagement from "./pages/admin_Payroll/subtabs/LoanManagement";
 import LoanManagementHub from "./pages/admin_Payroll/subtabs/LoanManagementHub";
 import LM2 from "./pages/admin_Payroll/subtabs/LM2";
 import LoanDetailsPage from "./components/LoanDetailsPage";
+import ThirteenthMonth from "./pages/admin_Payroll/subtabs/ThirteenthMonth";
 
 function App() {
 
@@ -237,6 +238,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 4]}>
               <LeaveSummary />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/thirteenth-month"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <ThirteenthMonth />
             </ProtectedRoute>
           }
         />

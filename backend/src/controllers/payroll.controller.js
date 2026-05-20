@@ -2032,3 +2032,137 @@ exports.getMaxicareHistory = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// ── 13th Month Pay Logic ───────────────────────────────────────────────────
+
+/**
+ * Previews 13th Month Pay for all employees for a given year.
+ */
+exports.getThirteenthMonthPreview = async (req, res) => {
+  const { year } = req.query;
+  if (!year) return res.status(400).json({ error: "Year is required." });
+
+  try {
+    const preview = await sequelize.query(
+      `SELECT 
+         u."user_Id", u."user_FirstName", u."user_LastName",
+         COALESCE(SUM(p."basicPay"), 0) as "totalBasicEarned",
+         (COALESCE(SUM(p."basicPay"), 0) / 12) as "computedAmount",
+         GREATEST(0, (COALESCE(SUM(p."basicPay"), 0) / 12) - 90000) as "taxableExcess",
+         tm."status" as "existingStatus",
+         tm."amount" as "savedAmount"
+       FROM "User" u
+       LEFT JOIN "Payroll" p ON u."user_Id" = p."user_Id" 
+         AND EXTRACT(YEAR FROM p."period_Start") = :year 
+         AND p."status" = 3
+       LEFT JOIN "Payroll_ThirteenthMonth" tm ON u."user_Id" = tm."user_Id" AND tm."year" = :year
+       WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
+       GROUP BY u."user_Id", tm."status", tm."amount", u."user_LastName"
+       ORDER BY u."user_LastName" ASC`,
+      { replacements: { year }, type: QueryTypes.SELECT }
+    );
+
+    res.status(200).json(preview);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Generates/Drafts 13th Month Pay records.
+ */
+exports.generateThirteenthMonth = async (req, res) => {
+  const { year, records } = req.body; 
+  if (!year || !records || !Array.isArray(records)) {
+    return res.status(400).json({ error: "Year and records array are required." });
+  }
+
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    for (const rec of records) {
+      await sequelize.query(
+        `INSERT INTO "Payroll_ThirteenthMonth" 
+          ("user_Id", "year", "totalBasicEarned", "amount", "taxable_Excess", "status", "createdAt", "updatedAt")
+         VALUES 
+          (:user_Id, :year, :totalBasicEarned, :amount, :taxable_Excess, 'Draft', :now, :now)
+         ON CONFLICT ("user_Id", "year") DO UPDATE SET
+          "totalBasicEarned" = EXCLUDED."totalBasicEarned",
+          "amount" = EXCLUDED."amount",
+          "taxable_Excess" = EXCLUDED."taxable_Excess",
+          "updatedAt" = EXCLUDED."updatedAt"
+         WHERE "Payroll_ThirteenthMonth"."status" = 'Draft'`,
+        { 
+          replacements: { 
+            user_Id: rec.user_Id, 
+            year, 
+            totalBasicEarned: rec.totalBasicEarned, 
+            amount: rec.amount, 
+            taxable_Excess: rec.taxable_Excess,
+            now: nowStr
+          } 
+        }
+      );
+    }
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "13TH_MONTH_GEN", `Generated draft 13th month records for year ${year}`, { year, count: records.length }, req);
+
+    res.status(201).json({ message: "13th month drafts generated successfully." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Releases 13th Month Pay records for a specific year.
+ */
+exports.releaseThirteenthMonth = async (req, res) => {
+  const { year } = req.body;
+  if (!year) return res.status(400).json({ error: "Year is required." });
+
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    const [updatedCount] = await sequelize.query(
+      `UPDATE "Payroll_ThirteenthMonth" 
+       SET "status" = 'Released', "releasedAt" = :now, "updatedAt" = :now
+       WHERE "year" = :year AND "status" = 'Draft'`,
+      { replacements: { year, now: nowStr }, type: QueryTypes.UPDATE }
+    );
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "13TH_MONTH_RELEASE", `Released 13th month records for year ${year}`, { year, updatedCount }, req);
+
+    res.status(200).json({ message: `Successfully released 13th month records for ${year}.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets 13th Month history.
+ */
+exports.getThirteenthMonthHistory = async (req, res) => {
+  const { year } = req.query;
+  try {
+    let query = `
+      SELECT tm.*, u."user_FirstName", u."user_LastName"
+      FROM "Payroll_ThirteenthMonth" tm
+      JOIN "User" u ON tm."user_Id" = u."user_Id"
+    `;
+    const replacements = {};
+    if (year) {
+      query += ` WHERE tm."year" = :year`;
+      replacements.year = year;
+    }
+    query += ` ORDER BY tm."year" DESC, u."user_LastName" ASC`;
+
+    const history = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
+    res.status(200).json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

@@ -276,6 +276,11 @@ const Payroll = () => {
           
           <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
             <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+              <Link to="/thirteenth-month">
+                <AssignmentTurnedInIcon className="mr-2 h-4 w-4" /> 13th Month Pay
+              </Link>
+            </Button>
+            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
               <Link to="/payroll/employeeList">
                 <PeopleAltIcon className="mr-2 h-4 w-4" /> Employee List
               </Link>
