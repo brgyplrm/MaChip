@@ -351,11 +351,39 @@ module.exports = {
 
     // ── 6. Update SystemSettings Table ──────────────────────────────────────────
     const sysTable = await queryInterface.describeTable('SystemSettings');
-    if (!sysTable.mandatedMinimumWage) {
-      await queryInterface.addColumn('SystemSettings', 'mandatedMinimumWage', { type: Sequelize.DOUBLE, defaultValue: 610.0 });
-    }
-    if (!sysTable.mandatedWageEffectiveDate) {
-      await queryInterface.addColumn('SystemSettings', 'mandatedWageEffectiveDate', { type: Sequelize.DATEONLY, defaultValue: '2025-07-18' });
+    const sysColumns = [
+      { name: 'morningShiftStart', type: Sequelize.TIME, defaultValue: "08:30:00" },
+      { name: 'morningShiftEnd', type: Sequelize.TIME, defaultValue: "17:30:00" },
+      { name: 'eveningShiftStart', type: Sequelize.TIME, defaultValue: "20:30:00" },
+      { name: 'eveningShiftEnd', type: Sequelize.TIME, defaultValue: "05:30:00" },
+      { name: 'ordinaryDayRate', type: Sequelize.DOUBLE, defaultValue: 1.0 },
+      { name: 'specialDayRate', type: Sequelize.DOUBLE, defaultValue: 1.3 },
+      { name: 'restDayRate', type: Sequelize.DOUBLE, defaultValue: 1.3 },
+      { name: 'regularHolidayRate', type: Sequelize.DOUBLE, defaultValue: 2.0 },
+      { name: 'nightDiffRate', type: Sequelize.DOUBLE, defaultValue: 1.1 },
+      { name: 'overtimeRate', type: Sequelize.DOUBLE, defaultValue: 1.25 },
+      { name: 'doubleRegularHolidayRate', type: Sequelize.DOUBLE, defaultValue: 3.0 },
+      { name: 'specialDayRestDayRate', type: Sequelize.DOUBLE, defaultValue: 1.5 },
+      { name: 'doubleSpecialDayRate', type: Sequelize.DOUBLE, defaultValue: 1.5 },
+      { name: 'doubleSpecialDayRestDayRate', type: Sequelize.DOUBLE, defaultValue: 1.95 },
+      { name: 'regularHolidayRestDayRate', type: Sequelize.DOUBLE, defaultValue: 2.6 },
+      { name: 'doubleRegularHolidayRestDayRate', type: Sequelize.DOUBLE, defaultValue: 3.9 },
+      { name: 'payrollRates', type: Sequelize.JSONB, allowNull: true },
+      { name: 'mandatedMinimumWage', type: Sequelize.DOUBLE, defaultValue: 610.0 },
+      { name: 'mandatedWageEffectiveDate', type: Sequelize.DATEONLY, defaultValue: '2025-07-18' },
+      { name: 'storageRootPath', type: Sequelize.STRING, allowNull: true },
+      { name: 'maxicareCycleStartDate', type: Sequelize.DATEONLY, allowNull: true },
+      { name: 'maxicareDates', type: Sequelize.JSONB, allowNull: true },
+    ];
+
+    for (const col of sysColumns) {
+      if (!sysTable[col.name]) {
+        await queryInterface.addColumn('SystemSettings', col.name, { 
+          type: col.type, 
+          allowNull: col.allowNull ?? true, 
+          defaultValue: col.defaultValue 
+        });
+      }
     }
 
     // ── 7. Update Request & Leave Tables ────────────────────────────────────────
