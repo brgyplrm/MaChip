@@ -68,22 +68,29 @@ const DEFAULT_RATES = {
  * (nested, flat legacy, or empty) into the canonical nested structure.
  */
 const normalizeStatutory = (input) => {
-  if (!input) return DEFAULT_RATES.statutoryConstants;
-  
-  // If it's already properly nested, return it (merged with defaults)
-  if (input.sss && input.philhealth && input.hdmf) {
+  const base = DEFAULT_RATES.statutoryConstants;
+  if (!input) {
+    // Convert base defaults to percentages
     return {
-      sss: { ...DEFAULT_RATES.statutoryConstants.sss, ...input.sss },
-      philhealth: { ...DEFAULT_RATES.statutoryConstants.philhealth, ...input.philhealth },
-      hdmf: { ...DEFAULT_RATES.statutoryConstants.hdmf, ...input.hdmf }
+      sss: { ...base.sss, employer_rate: base.sss.employer_rate * 100, employee_rate: base.sss.employee_rate * 100 },
+      philhealth: { ...base.philhealth, rate: base.philhealth.rate * 100, share_ratio: base.philhealth.share_ratio * 100 },
+      hdmf: { ...base.hdmf, ee_rate_low: base.hdmf.ee_rate_low * 100, ee_rate_high: base.hdmf.ee_rate_high * 100, er_rate: base.hdmf.er_rate * 100 }
     };
   }
-
-  // Handle flat legacy structure if present
-  const result = JSON.parse(JSON.stringify(DEFAULT_RATES.statutoryConstants));
-  if (input.sssRate !== undefined) result.sss.employee_rate = input.sssRate / 100;
-  if (input.philhealthRate !== undefined) result.philhealth.rate = input.philhealthRate / 100;
-  if (input.pagibigEmployee !== undefined) result.hdmf.ee_rate_high = input.pagibigEmployee / 5000; // Simplified conversion
+  
+  const result = JSON.parse(JSON.stringify(base));
+  
+  if (input.sss && input.philhealth && input.hdmf) {
+    // Nested structure present
+    result.sss = { ...base.sss, ...input.sss, employer_rate: (input.sss.employer_rate <= 1 ? input.sss.employer_rate * 100 : input.sss.employer_rate), employee_rate: (input.sss.employee_rate <= 1 ? input.sss.employee_rate * 100 : input.sss.employee_rate) };
+    result.philhealth = { ...base.philhealth, ...input.philhealth, rate: (input.philhealth.rate <= 1 ? input.philhealth.rate * 100 : input.philhealth.rate), share_ratio: (input.philhealth.share_ratio <= 1 ? input.philhealth.share_ratio * 100 : input.philhealth.share_ratio) };
+    result.hdmf = { ...base.hdmf, ...input.hdmf, ee_rate_low: (input.hdmf.ee_rate_low <= 1 ? input.hdmf.ee_rate_low * 100 : input.hdmf.ee_rate_low), ee_rate_high: (input.hdmf.ee_rate_high <= 1 ? input.hdmf.ee_rate_high * 100 : input.hdmf.ee_rate_high), er_rate: (input.hdmf.er_rate <= 1 ? input.hdmf.er_rate * 100 : input.hdmf.er_rate) };
+  } else {
+    // Flat legacy structure
+    if (input.sssRate !== undefined) result.sss.employee_rate = input.sssRate;
+    if (input.philhealthRate !== undefined) result.philhealth.rate = input.philhealthRate;
+    if (input.pagibigEmployee !== undefined) result.hdmf.ee_rate_high = (input.pagibigEmployee / 5000) * 100;
+  }
   
   return result;
 };
@@ -124,24 +131,61 @@ export default function PayrollConfiguration({ data, onUpdate }) {
   }, [data]);
 
   const handleSave = () => {
-    // Map localData back to backend structure
+    const sanitize = (val) => {
+      if (typeof val === 'string') return parseFloat(val.replace(/,/g, '')) || 0;
+      return parseFloat(val) || 0;
+    };
+
+    const s = localData.statutoryConstants;
+    const sanitizedStatutory = {
+      ...s,
+      philhealth: {
+        ...s.philhealth,
+        rate: sanitize(s.philhealth.rate) / 100,
+        share_ratio: sanitize(s.philhealth.share_ratio) / 100,
+        floor: sanitize(s.philhealth.floor),
+        ceiling: sanitize(s.philhealth.ceiling)
+      },
+      sss: {
+        ...s.sss,
+        employer_rate: sanitize(s.sss.employer_rate) / 100,
+        employee_rate: sanitize(s.sss.employee_rate) / 100,
+        msc_floor: sanitize(s.sss.msc_floor),
+        msc_ceiling: sanitize(s.sss.msc_ceiling),
+        ec_low: sanitize(s.sss.ec_low),
+        ec_high: sanitize(s.sss.ec_high)
+      },
+      hdmf: {
+        ...s.hdmf,
+        ee_rate_low: sanitize(s.hdmf.ee_rate_low) / 100,
+        ee_rate_high: sanitize(s.hdmf.ee_rate_high) / 100,
+        er_rate: sanitize(s.hdmf.er_rate) / 100,
+        ceiling: sanitize(s.hdmf.ceiling)
+      }
+    };
+
     const backendData = {
       ...localData.metadata,
       ...localData.shiftConfig,
-      ordinaryDayRate: localData.laborRates.ordinary,
-      specialDayRate: localData.laborRates.specialDay,
-      restDayRate: localData.laborRates.restDay,
-      regularHolidayRate: localData.laborRates.regularHoliday,
-      doubleRegularHolidayRate: localData.laborRates.doubleHoliday,
-      doubleSpecialDayRate: localData.laborRates.doubleSpecialDay,
-      specialDayRestDayRate: localData.laborRates.specialDayRestDay,
-      regularHolidayRestDayRate: localData.laborRates.regularHolidayRestDay,
-      doubleRegularHolidayRestDayRate: localData.laborRates.doubleHolidayRestDay,
-      doubleSpecialDayRestDayRate: localData.laborRates.doubleSpecialDayRestDay,
-      nightDiffRate: 1 + (localData.otNightRates.nsdRate / 100),
-      overtimeRate: 1 + (localData.otNightRates.ordinaryOT / 100),
-      payrollRates: localData,
-      payroll: localData.statutoryConstants // Explicitly passed for backend's statutoryConstants logic
+      ordinaryDayRate: sanitize(localData.laborRates.ordinary),
+      specialDayRate: sanitize(localData.laborRates.specialDay),
+      restDayRate: sanitize(localData.laborRates.restDay),
+      regularHolidayRate: sanitize(localData.laborRates.regularHoliday),
+      doubleRegularHolidayRate: sanitize(localData.laborRates.doubleHoliday),
+      doubleSpecialDayRate: sanitize(localData.laborRates.doubleSpecialDay),
+      specialDayRestDayRate: sanitize(localData.laborRates.specialDayRestDay),
+      regularHolidayRestDayRate: sanitize(localData.laborRates.regularHolidayRestDay),
+      doubleRegularHolidayRestDayRate: sanitize(localData.laborRates.doubleHolidayRestDay),
+      doubleSpecialDayRestDayRate: sanitize(localData.laborRates.doubleSpecialDayRestDay),
+      nightDiffRate: 1 + (sanitize(localData.otNightRates.nsdRate) / 100),
+      overtimeRate: 1 + (sanitize(localData.otNightRates.ordinaryOT) / 100),
+      payrollRates: {
+        ...localData,
+        laborRates: Object.fromEntries(Object.entries(localData.laborRates).map(([k, v]) => [k, sanitize(v)])),
+        otNightRates: Object.fromEntries(Object.entries(localData.otNightRates).map(([k, v]) => [k, sanitize(v)])),
+        statutoryConstants: sanitizedStatutory
+      },
+      payroll: sanitizedStatutory 
     };
     onUpdate(backendData);
     setIsEditing(false);
@@ -161,9 +205,19 @@ export default function PayrollConfiguration({ data, onUpdate }) {
           [field]: value
         }
       };
-      // ... (rest of updateField logic)
+      
+      const sanitize = (val) => {
+        if (typeof val === 'string') return parseFloat(val.replace(/,/g, '')) || 0;
+        return parseFloat(val) || 0;
+      };
+
       if (category === 'laborRates') {
-        const { ordinary, restDay, regularHoliday, doubleHoliday, doubleSpecialDay } = updated.laborRates;
+        const ordinary = sanitize(updated.laborRates.ordinary);
+        const restDay = sanitize(updated.laborRates.restDay);
+        const regularHoliday = sanitize(updated.laborRates.regularHoliday);
+        const doubleHoliday = sanitize(updated.laborRates.doubleHoliday);
+        const doubleSpecialDay = sanitize(updated.laborRates.doubleSpecialDay);
+
         if (['ordinary', 'restDay', 'regularHoliday', 'doubleHoliday', 'doubleSpecialDay'].includes(field)) {
           updated.laborRates.specialDayRestDay = parseFloat((ordinary + 0.5).toFixed(2));
           updated.laborRates.regularHolidayRestDay = parseFloat((regularHoliday * restDay).toFixed(2));
@@ -316,7 +370,6 @@ export default function PayrollConfiguration({ data, onUpdate }) {
           <div className="flex bg-white border border-slate-100 rounded-xl p-1.5 shadow-sm overflow-x-auto">
             {[
               { id: 'labor-rates', label: 'Labor Rates', icon: DollarSign },
-              { id: 'shift-config', label: 'Shift Config', icon: Clock },
               { id: 'ot-night', label: 'OT & Night Shift', icon: Shield },
               { id: 'eemr', label: 'EEMR Factors', icon: Briefcase },
               { id: 'leave-caps', label: 'Leave Caps', icon: FileText },
@@ -348,13 +401,6 @@ export default function PayrollConfiguration({ data, onUpdate }) {
                 data={localData.laborRates} 
                 isEditing={isEditing} 
                 onChange={(f, v) => updateField('laborRates', f, v)} 
-              />
-            )}
-            {activeTab === 'shift-config' && (
-              <ShiftConfigView 
-                data={localData.shiftConfig} 
-                isEditing={isEditing} 
-                onChange={(f, v) => updateField('shiftConfig', f, v)} 
               />
             )}
             {activeTab === 'ot-night' && (
@@ -417,7 +463,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
               label="Ordinary Workday Multiplier" 
               type="number"
               value={data.ordinary} 
-              onChange={(e) => onChange('ordinary', parseFloat(e.target.value))}
+              onChange={(e) => onChange('ordinary', e.target.value)}
               disabled={!isEditing}
               subtext="Default Baseline Value" 
             />
@@ -425,7 +471,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
               label="Rest Day Premium Rate" 
               type="number"
               value={data.restDay} 
-              onChange={(e) => onChange('restDay', parseFloat(e.target.value))}
+              onChange={(e) => onChange('restDay', e.target.value)}
               disabled={!isEditing}
               subtext="+30% statutory premium" 
             />
@@ -433,7 +479,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
               label="Special Non-Working Day Premium" 
               type="number"
               value={data.specialDay} 
-              onChange={(e) => onChange('specialDay', parseFloat(e.target.value))}
+              onChange={(e) => onChange('specialDay', e.target.value)}
               disabled={!isEditing}
               subtext="+30% statutory premium" 
             />
@@ -452,7 +498,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             label="Regular Holiday Multiplier" 
             type="number"
             value={data.regularHoliday} 
-            onChange={(e) => onChange('regularHoliday', parseFloat(e.target.value))}
+            onChange={(e) => onChange('regularHoliday', e.target.value)}
             disabled={!isEditing}
             subtext="200% unworked/worked base" 
           />
@@ -460,7 +506,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             label="Double Regular Holiday Multiplier" 
             type="number"
             value={data.doubleHoliday} 
-            onChange={(e) => onChange('doubleHoliday', parseFloat(e.target.value))}
+            onChange={(e) => onChange('doubleHoliday', e.target.value)}
             disabled={!isEditing}
             subtext="300% worked base" 
           />
@@ -468,7 +514,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             label="Double Special Non-Working Day" 
             type="number"
             value={data.doubleSpecialDay} 
-            onChange={(e) => onChange('doubleSpecialDay', parseFloat(e.target.value))}
+            onChange={(e) => onChange('doubleSpecialDay', e.target.value)}
             disabled={!isEditing}
             subtext="150% worked base" 
           />
@@ -486,7 +532,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             label="Special Day on Rest Day" 
             type="number"
             value={data.specialDayRestDay} 
-            onChange={(e) => onChange('specialDayRestDay', parseFloat(e.target.value))}
+            onChange={(e) => onChange('specialDayRestDay', e.target.value)}
             disabled={!isEditing}
             subtext="150% worked base" 
           />
@@ -494,7 +540,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             label="Regular Holiday on Rest Day" 
             type="number"
             value={data.regularHolidayRestDay} 
-            onChange={(e) => onChange('regularHolidayRestDay', parseFloat(e.target.value))}
+            onChange={(e) => onChange('regularHolidayRestDay', e.target.value)}
             disabled={!isEditing}
             subtext="260% worked base" 
           />
@@ -502,7 +548,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             label="Double Holiday on Rest Day" 
             type="number"
             value={data.doubleHolidayRestDay} 
-            onChange={(e) => onChange('doubleHolidayRestDay', parseFloat(e.target.value))}
+            onChange={(e) => onChange('doubleHolidayRestDay', e.target.value)}
             disabled={!isEditing}
             subtext="390% worked base" 
           />
@@ -510,7 +556,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             label="Double Special on Rest Day" 
             type="number"
             value={data.doubleSpecialDayRestDay} 
-            onChange={(e) => onChange('doubleSpecialDayRestDay', parseFloat(e.target.value))}
+            onChange={(e) => onChange('doubleSpecialDayRestDay', e.target.value)}
             disabled={!isEditing}
             subtext="195% worked base" 
           />
@@ -666,7 +712,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
               label="Night Shift Premium Rate (%)" 
               type="number"
               value={data.nsdRate} 
-              onChange={(e) => onChange('nsdRate', parseFloat(e.target.value))}
+              onChange={(e) => onChange('nsdRate', e.target.value)}
               disabled={!isEditing}
               subtext="Statutory premium to base" 
             />
@@ -699,7 +745,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
             label="Standard Ordinary Day OT Rate (%)" 
             type="number"
             value={data.ordinaryOT} 
-            onChange={(e) => onChange('ordinaryOT', parseFloat(e.target.value))}
+            onChange={(e) => onChange('ordinaryOT', e.target.value)}
             disabled={!isEditing}
             subtext="Yields total multiplier: 1.25" 
           />
@@ -707,7 +753,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
             label="Premium Day Overtime Rate (%)" 
             type="number"
             value={data.premiumOT} 
-            onChange={(e) => onChange('premiumOT', parseFloat(e.target.value))}
+            onChange={(e) => onChange('premiumOT', e.target.value)}
             disabled={!isEditing}
             subtext="Applies to Holiday, Rest, Special Days" 
           />
@@ -885,7 +931,7 @@ function LeaveCapsView() {
             type="number" 
             disabled={false} 
             value={vlCredits} 
-            onChange={(e) => setVlCredits(parseFloat(e.target.value))}
+            onChange={(e) => setVlCredits(e.target.value)}
             subtext="VL days given per employee annually" 
           />
           <FormInput 
@@ -893,7 +939,7 @@ function LeaveCapsView() {
             type="number" 
             disabled={false} 
             value={slCredits} 
-            onChange={(e) => setSlCredits(parseFloat(e.target.value))}
+            onChange={(e) => setSlCredits(e.target.value)}
             subtext="SL days given per employee annually" 
           />
           <FormInput 
@@ -901,7 +947,7 @@ function LeaveCapsView() {
             type="number" 
             disabled={false} 
             value={lateFilingDays} 
-            onChange={(e) => setLateFilingDays(parseFloat(e.target.value))}
+            onChange={(e) => setLateFilingDays(e.target.value)}
             subtext="Minimum days advance notice required before VL start date" 
           />
         </div>
@@ -966,31 +1012,31 @@ function GovernmentTaxesView({ data, isEditing, onChange }) {
           <FormInput 
             label="Premium Contribution Rate (%)" 
             type="number"
-            value={(data.philhealth.rate || 0) * 100} 
-            onChange={(e) => onChange('philhealth', 'rate', parseFloat(e.target.value) / 100)}
+            value={data.philhealth.rate} 
+            onChange={(e) => onChange('philhealth', 'rate', e.target.value)}
             disabled={!isEditing}
             subtext="Of Monthly Basic Salary" 
           />
           <FormInput 
             label="Employee Share Ratio (%)" 
             type="number"
-            value={(data.philhealth.share_ratio || 0) * 100} 
-            onChange={(e) => onChange('philhealth', 'share_ratio', parseFloat(e.target.value) / 100)}
+            value={data.philhealth.share_ratio} 
+            onChange={(e) => onChange('philhealth', 'share_ratio', e.target.value)}
             disabled={!isEditing}
             subtext="Employer matches remaining" 
           />
           <FormInput 
             label="Minimum Salary Floor (₱)" 
             type="number"
-            value={data.philhealth.floor || 0} 
-            onChange={(e) => onChange('philhealth', 'floor', parseFloat(e.target.value))}
+            value={data.philhealth.floor} 
+            onChange={(e) => onChange('philhealth', 'floor', e.target.value)}
             disabled={!isEditing}
           />
           <FormInput 
             label="Maximum Salary Cap (₱)" 
             type="number"
-            value={data.philhealth.ceiling || 0} 
-            onChange={(e) => onChange('philhealth', 'ceiling', parseFloat(e.target.value))}
+            value={data.philhealth.ceiling} 
+            onChange={(e) => onChange('philhealth', 'ceiling', e.target.value)}
             disabled={!isEditing}
           />
         </div>
@@ -1005,43 +1051,43 @@ function GovernmentTaxesView({ data, isEditing, onChange }) {
           <FormInput 
             label="Employer Share (%)" 
             type="number"
-            value={(data.sss.employer_rate || 0) * 100} 
-            onChange={(e) => onChange('sss', 'employer_rate', parseFloat(e.target.value) / 100)}
+            value={data.sss.employer_rate} 
+            onChange={(e) => onChange('sss', 'employer_rate', e.target.value)}
             disabled={!isEditing}
           />
           <FormInput 
             label="Employee Share (%)" 
             type="number"
-            value={(data.sss.employee_rate || 0) * 100} 
-            onChange={(e) => onChange('sss', 'employee_rate', parseFloat(e.target.value) / 100)}
+            value={data.sss.employee_rate} 
+            onChange={(e) => onChange('sss', 'employee_rate', e.target.value)}
             disabled={!isEditing}
           />
           <FormInput 
             label="Lower MSC Bound (₱)" 
             type="number"
-            value={data.sss.msc_floor || 0} 
-            onChange={(e) => onChange('sss', 'msc_floor', parseFloat(e.target.value))}
+            value={data.sss.msc_floor} 
+            onChange={(e) => onChange('sss', 'msc_floor', e.target.value)}
             disabled={!isEditing}
           />
           <FormInput 
             label="Upper MSC Bound (₱)" 
             type="number"
-            value={data.sss.msc_ceiling || 0} 
-            onChange={(e) => onChange('sss', 'msc_ceiling', parseFloat(e.target.value))}
+            value={data.sss.msc_ceiling} 
+            onChange={(e) => onChange('sss', 'msc_ceiling', e.target.value)}
             disabled={!isEditing}
           />
           <FormInput 
             label="EC Contribution (Below ₱15K)" 
             type="number"
-            value={data.sss.ec_low || 0} 
-            onChange={(e) => onChange('sss', 'ec_low', parseFloat(e.target.value))}
+            value={data.sss.ec_low} 
+            onChange={(e) => onChange('sss', 'ec_low', e.target.value)}
             disabled={!isEditing}
           />
           <FormInput 
             label="EC Contribution (≥ ₱15K)" 
             type="number"
-            value={data.sss.ec_high || 0} 
-            onChange={(e) => onChange('sss', 'ec_high', parseFloat(e.target.value))}
+            value={data.sss.ec_high} 
+            onChange={(e) => onChange('sss', 'ec_high', e.target.value)}
             disabled={!isEditing}
           />
         </div>
@@ -1056,100 +1102,34 @@ function GovernmentTaxesView({ data, isEditing, onChange }) {
           <FormInput 
             label="EE Rate (≤ ₱1,500) (%)" 
             type="number"
-            value={(data.hdmf.ee_rate_low || 0) * 100} 
-            onChange={(e) => onChange('hdmf', 'ee_rate_low', parseFloat(e.target.value) / 100)}
+            value={data.hdmf.ee_rate_low} 
+            onChange={(e) => onChange('hdmf', 'ee_rate_low', e.target.value)}
             disabled={!isEditing}
           />
           <FormInput 
             label="EE Rate (> ₱1,500) (%)" 
             type="number"
-            value={(data.hdmf.ee_rate_high || 0) * 100} 
-            onChange={(e) => onChange('hdmf', 'ee_rate_high', parseFloat(e.target.value) / 100)}
+            value={data.hdmf.ee_rate_high} 
+            onChange={(e) => onChange('hdmf', 'ee_rate_high', e.target.value)}
             disabled={!isEditing}
           />
           <FormInput 
             label="Employer Rate (%)" 
             type="number"
-            value={(data.hdmf.er_rate || 0) * 100} 
-            onChange={(e) => onChange('hdmf', 'er_rate', parseFloat(e.target.value) / 100)}
+            value={data.hdmf.er_rate} 
+            onChange={(e) => onChange('hdmf', 'er_rate', e.target.value)}
             disabled={!isEditing}
             subtext="Fixed uniform rate" 
           />
           <FormInput 
             label="Maximum Fund Salary (₱)" 
             type="number"
-            value={data.hdmf.ceiling || 0} 
-            onChange={(e) => onChange('hdmf', 'ceiling', parseFloat(e.target.value))}
+            value={data.hdmf.ceiling} 
+            onChange={(e) => onChange('hdmf', 'ceiling', e.target.value)}
             disabled={!isEditing}
             subtext="Caps computational basis" 
           />
         </div>
-      </div>
-    </div>
-  );
-}
-
-{/* =========================================================================
-    TAB PANEL: SHIFT CONFIGURATION
-========================================================================= */}
-function ShiftConfigView({ data, isEditing, onChange }) {
-  if (!data) return <div className="p-8 text-center text-slate-400">Loading shift configuration...</div>;
-  return (
-    <div className="space-y-8">
-      <div>
-        <h3 className="text-lg font-bold text-slate-900 mb-4">Shift Boundary Configuration</h3>
-        <p className="text-sm text-slate-500 mb-6">Define the standard operating windows for different shifts.</p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Morning Shift */}
-          <div className="border border-amber-100 rounded-xl p-5 space-y-4 bg-amber-50/10">
-            <h4 className="text-sm font-bold text-amber-800 border-b border-amber-50 pb-2 flex items-center gap-2">
-              <Clock className="w-4 h-4" /> Morning Shift (Standard)
-            </h4>
-            <div className="grid grid-cols-2 gap-4">
-              <FormInput
-                label="Shift Start"
-                type="text"
-                value={data.morningShiftStart || ""}
-                onChange={(e) => onChange('morningShiftStart', e.target.value)}
-                disabled={!isEditing}
-                subtext="e.g. 08:30"
-              />
-              <FormInput
-                label="Shift End"
-                type="text"
-                value={data.morningShiftEnd || ""}
-                onChange={(e) => onChange('morningShiftEnd', e.target.value)}
-                disabled={!isEditing}
-                subtext="e.g. 17:30"
-              />
-            </div>
-            </div>
-
-            {/* Evening Shift */}
-            <div className="border border-indigo-100 rounded-xl p-5 space-y-4 bg-indigo-50/10">
-            <h4 className="text-sm font-bold text-indigo-800 border-b border-indigo-50 pb-2 flex items-center gap-2">
-              <Clock className="w-4 h-4" /> Evening Shift (Night)
-            </h4>
-            <div className="grid grid-cols-2 gap-4">
-              <FormInput
-                label="Shift Start"
-                type="text"
-                value={data.eveningShiftStart || ""}
-                onChange={(e) => onChange('eveningShiftStart', e.target.value)}
-                disabled={!isEditing}
-                subtext="e.g. 20:30"
-              />
-              <FormInput
-                label="Shift End"
-                type="text"
-                value={data.eveningShiftEnd || ""}
-                onChange={(e) => onChange('eveningShiftEnd', e.target.value)}
-                disabled={!isEditing}
-                subtext="e.g. 05:30"
-              />
-            </div>
-            </div>        </div>
       </div>
     </div>
   );

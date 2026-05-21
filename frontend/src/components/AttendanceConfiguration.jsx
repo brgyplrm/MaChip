@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
-import { Clock, Coffee, ShieldAlert, CheckCircle, Info, Edit3, Save } from 'lucide-react';
+import React from 'react';
+import { Clock, Coffee, ShieldAlert, Save, Info } from 'lucide-react';
 
-export default function AttendanceConfiguration() {
-  // Operational state management for configuration settings
-  const [workStart, setWorkStart] = useState("08:00");
-  const [gracePeriod, setGracePeriod] = useState("08:35");
-  const [lunchStart, setLunchStart] = useState("11:30");
-  const [lunchEnd, setLunchEnd] = useState("13:30");
-  const [workEnd, setWorkEnd] = useState("17:30");
-
+export default function AttendanceConfiguration({
+  workStart, setWorkStart,
+  workEnd, setWorkEnd,
+  gracePeriod, setGracePeriod,
+  lunchStart, setLunchStart,
+  lunchEnd, setLunchEnd,
+  lunchDuration, setLunchDuration,
+  flexibleThreshold, setFlexibleThreshold,
+  onSave,
+  saving,
+  isAdmin
+}) {
   return (
     <div className="min-h-screen text-slate-800 font-sans max-w-6xl mx-auto space-y-6">
       
@@ -20,15 +24,21 @@ export default function AttendanceConfiguration() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight">Attendance Configuration</h1>
-            <p className="text-sm text-purple-200/80 mt-0.5">Manage shifts, lunch windows, and gatekeeper rules</p>
+            <p className="text-sm text-purple-200/80 mt-0.5">Manage shifts, flexible lunch thresholds, and gatekeeper rules</p>
           </div>
         </div>
         
-        <div className="flex items-center space-x-3">
-          <button className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition">
-            <Save className="w-4 h-4" /> <span>Save Ruleset</span>
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex items-center space-x-3">
+            <button 
+              onClick={() => onSave()}
+              disabled={saving}
+              className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" /> <span>{saving ? "Saving..." : "Save Ruleset"}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* --- CORE CONFIGURATION FORM GRID --- */}
@@ -47,12 +57,14 @@ export default function AttendanceConfiguration() {
               value={workStart}
               onChange={(e) => setWorkStart(e.target.value)}
               subtext="Official expected time-in punch threshold"
+              disabled={!isAdmin}
             />
             <FormTimePicker 
               label="Work End Time"
               value={workEnd}
               onChange={(e) => setWorkEnd(e.target.value)}
               subtext="Official expected clock-out time marker"
+              disabled={!isAdmin}
             />
           </div>
         </div>
@@ -70,46 +82,88 @@ export default function AttendanceConfiguration() {
               value={gracePeriod}
               onChange={(e) => setGracePeriod(e.target.value)}
               subtext="The last minute allowed before an employee's time card is flagged as tardy"
+              disabled={!isAdmin}
             />
             
-            {/* Display-Only Overtime Entry */}
             <div className="space-y-1.5 text-left">
               <label className="block text-xs font-medium text-slate-500 tracking-wide">
-                Overtime Start Time
+                Overtime Calculation Threshold
               </label>
               <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500 font-mono flex items-center justify-between">
-                <span>{workEnd} PM</span>
+                <span>{workEnd}</span>
                 <span className="text-[10px] uppercase font-bold bg-slate-200/80 text-slate-600 px-2 py-0.5 rounded border border-slate-300/40">
-                  Linked to Approved Requests
+                  System Linked
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
-                Time OT calculations officially kick off. Directly tied to corresponding system approvals.
+                OT begins immediately after {workEnd}. Total payable units depend on approved requests.
               </p>
             </div>
           </div>
         </div>
 
-        {/* SECTION 3: Mid-Day Intermission Breaks */}
+        {/* SECTION 3: Flexible Lunch Configuration */}
         <div className="space-y-4">
           <div className="flex items-center space-x-2 pb-2 border-b border-slate-100">
             <Coffee className="w-4 h-4 text-emerald-600" />
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Lunch Intermission Windows</h3>
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Flexible Lunch Intermission</h3>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <FormTimePicker 
-              label="Lunch Break Start"
+              label="Lunch Window Start (Earliest)"
               value={lunchStart}
               onChange={(e) => setLunchStart(e.target.value)}
-              subtext="Opening of the official 'lunch out' checking window"
+              subtext="Punches after this are tagged as Lunch Out"
+              disabled={!isAdmin}
             />
             <FormTimePicker 
-              label="Lunch Break End"
+              label="Lunch Window End (Latest)"
               value={lunchEnd}
               onChange={(e) => setLunchEnd(e.target.value)}
-              subtext="Closing of the official 'lunch in' validation window"
+              subtext="Punches before this are tagged as Lunch In"
+              disabled={!isAdmin}
             />
+            <div className="space-y-1.5 text-left w-full">
+              <label className="block text-xs font-medium text-slate-500 tracking-wide">
+                Lunch Duration (Minutes)
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={(lunchDuration || "").toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/,/g, '');
+                  if (raw === '' || raw === '.' || !isNaN(raw)) setLunchDuration(raw);
+                }}
+                onBlur={() => setLunchDuration(parseFloat(lunchDuration) || 0)}
+                disabled={!isAdmin}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs"
+              />
+              <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
+                Fixed time deducted from total hours
+              </p>
+            </div>
+            <div className="space-y-1.5 text-left w-full">
+              <label className="block text-xs font-medium text-slate-500 tracking-wide">
+                Min. Work for Deduction (Mins)
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={(flexibleThreshold || "").toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/,/g, '');
+                  if (raw === '' || raw === '.' || !isNaN(raw)) setFlexibleThreshold(raw);
+                }}
+                onBlur={() => setFlexibleThreshold(parseFloat(flexibleThreshold) || 0)}
+                disabled={!isAdmin}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs"
+              />
+              <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
+                Break is only deducted if total shift exceeds this (e.g. 300 for 5 hrs)
+              </p>
+            </div>
           </div>
         </div>
 
@@ -119,10 +173,11 @@ export default function AttendanceConfiguration() {
       <div className="border border-blue-100 bg-blue-50/40 rounded-xl p-4 flex items-start space-x-3 text-left">
         <Info className="w-4 h-4 text-blue-700 mt-0.5 flex-shrink-0" />
         <div className="space-y-1">
-          <h4 className="text-xs font-bold text-blue-900">Deterministic Schedule Logic Activated</h4>
+          <h4 className="text-xs font-bold text-blue-900">Dynamic Attendance Rules Active</h4>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            Attendance engine parses raw biometric log arrays relative to these settings. Late flags trigger automatic prorated 
-            deductions matching the configured **"No Work, No Pay"** system rules.
+            The system now uses a flexible lunch window. Any "Out" punch between <b>{lunchStart}</b> and <b>{lunchEnd}</b> is automatically 
+            categorized as a break. A fixed <b>{lunchDuration} minutes</b> will be used for hour calculations, but only if the total work duration 
+            exceeds <b>{flexibleThreshold} minutes</b>.
           </p>
         </div>
       </div>
@@ -132,7 +187,7 @@ export default function AttendanceConfiguration() {
 }
 
 {/* --- LOCAL TIME PICKER FORM ELEMENT ATOM --- */}
-function FormTimePicker({ label, value, onChange, subtext }) {
+function FormTimePicker({ label, value, onChange, subtext, disabled }) {
   return (
     <div className="space-y-1.5 text-left w-full">
       <label className="block text-xs font-medium text-slate-500 tracking-wide">
@@ -142,7 +197,8 @@ function FormTimePicker({ label, value, onChange, subtext }) {
         type="time"
         value={value}
         onChange={onChange}
-        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs cursor-pointer"
+        disabled={disabled}
+        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs cursor-pointer disabled:bg-slate-50 disabled:cursor-not-allowed"
       />
       {subtext && <p className="text-[11px] text-slate-400 font-normal leading-relaxed">{subtext}</p>}
     </div>

@@ -44,10 +44,16 @@ exports.markAttendance = async (req, res) => {
 
       if (activeReports.length === 0) return res.status(200).json({ message: "No employees are currently clocked in." });
 
+      const settings = await SystemSettings.findOne();
+      const lStartStr = settings?.lunchStartThreshold || "11:30:00";
+      const lEndStr   = settings?.lunchEndThreshold   || "13:30:00";
+      const lStart = parseInt(lStartStr.split(":")[0]) * 60 + parseInt(lStartStr.split(":")[1]);
+      const lEnd   = parseInt(lEndStr.split(":")[0])   * 60 + parseInt(lEndStr.split(":")[1]);
+
       for (const report of activeReports) {
         const targetId = report.user_id;
         const totalMinutes = now.getHours() * 60 + now.getMinutes();
-        const nextStatus = (totalMinutes >= 690 && totalMinutes < 810) ? 3 : 2;
+        const nextStatus = (totalMinutes >= lStart && totalMinutes < lEnd) ? 3 : 2;
 
         await sequelize.query(
           `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId") VALUES (:targetId, :todayStr, :timeStr, :nextStatus)`,
@@ -123,6 +129,14 @@ exports.markAttendance = async (req, res) => {
     const firstLoginToday = await sequelize.query(`SELECT * FROM "user_logging" WHERE "user_id" = :target_user_Id AND "logged_StatusId" = 1 AND "log_Date" BETWEEN :todayStart AND :todayEnd LIMIT 1`, { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT });
     const hasPriorClockIn = !!firstLoginToday[0];
 
+    const settings = await SystemSettings.findOne();
+    const lStartStr = settings?.lunchStartThreshold || "11:30:00";
+    const lEndStr   = settings?.lunchEndThreshold   || "13:30:00";
+    const lStart = parseInt(lStartStr.split(":")[0]) * 60 + parseInt(lStartStr.split(":")[1]);
+    const lEnd   = parseInt(lEndStr.split(":")[0])   * 60 + parseInt(lEndStr.split(":")[1]);
+    const totalMinutes = now.getHours() * 60 + now.getMinutes();
+    const isLunchWindow = totalMinutes >= lStart && totalMinutes < lEnd;
+
     // Helper for overnight OT comparison
     const isWithinOTWindow = hasApprovedOT && (
       approvedOT.HrFrom <= approvedOT.HrTo 
@@ -137,8 +151,8 @@ exports.markAttendance = async (req, res) => {
 
     let nextStatus;
     if (forcedStatus === 1) nextStatus = (lastStatus === 3) ? 4 : (hasApprovedOT && isWithinOTWindow ? 5 : 1);
-    else if (forcedStatus === 2) nextStatus = (now.getHours() * 60 + now.getMinutes() >= 690 && now.getHours() * 60 + now.getMinutes() < 810 && [1, 4].includes(lastStatus)) ? 3 : (lastStatus === 5 ? 6 : 2);
-    else nextStatus = (!lastStatus || [2, 3, 6].includes(lastStatus)) ? (hasApprovedOT && isWithinOTWindow ? 5 : 1) : ((now.getHours() * 60 + now.getMinutes() >= 690 && now.getHours() * 60 + now.getMinutes() < 810 && [1, 4].includes(lastStatus)) ? 3 : (lastStatus === 5 ? 6 : 2));
+    else if (forcedStatus === 2) nextStatus = (isLunchWindow && [1, 4].includes(lastStatus)) ? 3 : (lastStatus === 5 ? 6 : 2);
+    else nextStatus = (!lastStatus || [2, 3, 6].includes(lastStatus)) ? (hasApprovedOT && isWithinOTWindow ? 5 : 1) : ((isLunchWindow && [1, 4].includes(lastStatus)) ? 3 : (lastStatus === 5 ? 6 : 2));
 
     const isSuspiciousWindow = (now >= fivePMThirty || now < fiveAMThirty);
     const isLateNightFirstIn = (nextStatus === 1 && isSuspiciousWindow && !hasPriorClockIn && !isWithinOTWindow);
@@ -159,9 +173,10 @@ exports.markAttendance = async (req, res) => {
     if (user.user_RoleId === 1) {
       attendanceVal = 6; // Exempt
     } else if (nextStatus === 1) {
-      const h = now.getHours();
-      if (h >= 6 && h < 9) attendanceVal = 1; // On-Time
-      else if (h >= 9 && now < fivePMThirty) attendanceVal = 2; // Late
+      const graceTimeStr = settings?.gracePeriod || "08:35:00";
+      const graceTime = new Date(`${todayStr}T${graceTimeStr}`);
+      if (now <= graceTime) attendanceVal = 1; // On-Time
+      else if (now > graceTime && now < fivePMThirty) attendanceVal = 2; // Late
     }
 
     const newLogResult = await sequelize.query(`INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId") VALUES (:target_user_Id, :log_Date, :time_Logged, :logged_StatusId, :attendance_StatusId) RETURNING *`, { replacements: { target_user_Id, log_Date: todayStart, time_Logged: timeStr, logged_StatusId: nextStatus, attendance_StatusId: attendanceVal }, type: QueryTypes.INSERT });
@@ -314,8 +329,13 @@ exports.viewUserLogs = async (req, res) => {
         let morning_In = inArr[0] || "—";
         let morning_Out = "—", afternoon_In = "—", afternoon_Out = "—", ot_In = "—", ot_Out = "—";
 
+        const mStart = settings?.morningShiftStart || "08:30:00";
+        const mEnd   = settings?.morningShiftEnd   || "17:30:00";
+        const lStart = settings?.lunchStartThreshold || "12:00:00";
+        const lEnd   = settings?.lunchEndThreshold   || "13:00:00";
+
         if (isOnField) {
-          morning_In = "08:30:00"; morning_Out = "12:00:00"; afternoon_In = "13:00:00"; afternoon_Out = "17:30:00";
+          morning_In = mStart; morning_Out = lStart; afternoon_In = lEnd; afternoon_Out = mEnd;
         } else if (inArr.length > 0 || outArr.length > 0) {
           const firstIn = inArr[0];
           const lastOut = outArr[outArr.length - 1];
@@ -323,8 +343,8 @@ exports.viewUserLogs = async (req, res) => {
           if (lastOut) afternoon_Out = lastOut.substring(0, 5);
 
           if (Number(report.user_RoleId) === 1) {
-            morning_Out = "12:00:00";
-            afternoon_In = "13:00:00";
+            morning_Out = lStart;
+            afternoon_In = lEnd;
           }
         }
 
@@ -1121,10 +1141,15 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       const isOnField = userReqs.some(req => Number(req.emp_reqTypeId) === 2 && formatDateOnly(req.DateonField) === dateStr);
       const dayOT = userReqs.find(req => Number(req.emp_reqTypeId) === 1 && formatDateOnly(req.OT_DateOf) === dateStr);
 
+      const mStart = settings?.morningShiftStart?.substring(0, 5) || "08:30";
+      const mEnd   = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
+      const lStart = settings?.lunchStartThreshold?.substring(0, 5) || "12:00";
+      const lEnd   = settings?.lunchEndThreshold?.substring(0, 5) || "13:00";
+
       let morning_In = "—", morning_Out = "—", afternoon_In = "—", afternoon_Out = "—", ot_In = "—", ot_Out = "—";
 
       if (isOnField) {
-        morning_In = "08:30"; morning_Out = "12:00"; afternoon_In = "13:00"; afternoon_Out = "17:30";
+        morning_In = mStart; morning_Out = lStart; afternoon_In = lEnd; afternoon_Out = mEnd;
       } else if (inArr.length > 0 || outArr.length > 0) {
         const firstIn = inArr[0];
         const lastOut = outArr[outArr.length - 1];
@@ -1132,8 +1157,8 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         if (lastOut) afternoon_Out = lastOut.substring(0, 5);
 
         if (Number(r.user_RoleId) === 1) {
-          morning_Out = "12:00";
-          afternoon_In = "13:00";
+          morning_Out = lStart;
+          afternoon_In = lEnd;
         }
       }
 
@@ -1215,11 +1240,15 @@ exports.getSingleAttendanceRecord = async (req, res) => {
     const hasApprovedOT = r.emp_reqStatusId === 2;
     const otStart = hasApprovedOT ? r.ot_HrFrom : "23:59:59";
 
+    const settings = await SystemSettings.findOne();
+    const lStart = settings?.lunchStartThreshold?.substring(0, 5) || "11:30";
+    const lEnd   = settings?.lunchEndThreshold?.substring(0, 5) || "13:30";
+
     const morning_In = inArr.find(t => t.substring(0, 5) < "12:00")?.substring(0, 5) || "";
-    const morning_Out = outArr.find(t => t.substring(0, 5) >= "11:30" && t.substring(0, 5) < "13:30")?.substring(0, 5) || "";
+    const morning_Out = outArr.find(t => t.substring(0, 5) >= lStart && t.substring(0, 5) < lEnd)?.substring(0, 5) || "";
     
     const afternoon_In = inArr.find(t => t.substring(0, 5) >= "12:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || "";
-    const afternoon_Out = outArr.find(t => t.substring(0, 5) >= "13:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || (hasApprovedOT && afternoon_In ? otStart.substring(0, 5) : "");
+    const afternoon_Out = outArr.find(t => t.substring(0, 5) >= lEnd && t.substring(0, 5) < otStart)?.substring(0, 5) || (hasApprovedOT && afternoon_In ? otStart.substring(0, 5) : "");
     
     // OT In defaults to the approved HrFrom if no specific log exists at that time
     const ot_In = hasApprovedOT ? (inArr.find(t => t.substring(0, 5) >= otStart)?.substring(0, 5) || otStart.substring(0, 5)) : "";

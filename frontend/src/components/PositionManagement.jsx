@@ -12,7 +12,12 @@ import {
   Plus, Edit, Trash2, Save, X, AlertTriangle, Briefcase 
 } from "lucide-react";
 
-const PositionManagement = ({ mandatedMinimumWage: initialWage, mandatedWageEffectiveDate: initialDate }) => {
+const PositionManagement = ({ 
+  mandatedMinimumWage: initialWage, 
+  setMandatedMinimumWage,
+  mandatedWageEffectiveDate: initialDate,
+  setMandatedWageEffectiveDate
+}) => {
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -39,16 +44,20 @@ const PositionManagement = ({ mandatedMinimumWage: initialWage, mandatedWageEffe
   const handleSaveWage = async () => {
     setSavingWage(true);
     try {
+      const sanitizedWage = sanitizeNumber(mandatedWage);
       const response = await fetchWithAuth("/api/system/mandated-wage", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          mandatedMinimumWage: sanitizeNumber(mandatedWage),
+          mandatedMinimumWage: sanitizedWage,
           mandatedWageEffectiveDate: effectiveDate
         })
       });
       if (response.ok) {
         setIsEditingWage(false);
+        // Sync with parent state
+        if (setMandatedMinimumWage) setMandatedMinimumWage(sanitizedWage);
+        if (setMandatedWageEffectiveDate) setMandatedWageEffectiveDate(effectiveDate);
       }
     } catch (error) {
       console.error("Error saving mandated wage:", error);
@@ -272,12 +281,22 @@ const PositionManagement = ({ mandatedMinimumWage: initialWage, mandatedWageEffe
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">₱</span>
                 <Input 
                   name="baseDailyRate"
-                  type="number"
-                  step="any"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="0.00"
-                  value={formData.baseDailyRate}
-                  onChange={handleInputChange}
-                  className="bg-white pl-7"
+                  value={(formData.baseDailyRate || "").toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                  onChange={(e) => {
+                    const { name, value } = e.target;
+                    const raw = value.replace(/,/g, '');
+                    if (raw === '' || raw === '.' || !isNaN(raw)) {
+                      handleInputChange({ target: { name, value: raw } });
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const { name, value } = e.target;
+                    handleInputChange({ target: { name, value: parseFloat(value.replace(/,/g, '')) || 0 } });
+                  }}
+                  className="bg-white pl-7 font-mono"
                 />
               </div>
             </div>

@@ -280,9 +280,13 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
   let holUnits = 0;
 
   for (let i = 0; i < totalMinutes; i++) {
-    // Fixed Break Deduction: Skip 1 hour (60 mins) after 4 hours (240 mins) of work
-    if (workMinutesCount === 240) {
-      i += 60; 
+    // Dynamic Break Deduction: Skip configured duration after 4 hours of work
+    // [FIX] Only deduct if total duration exceeds threshold (e.g., 5 hours / 300 mins)
+    const lunchDur = settings?.lunchDuration || 60;
+    const breakThreshold = settings?.flexibleBreakThreshold || 300;
+
+    if (workMinutesCount === 240 && totalMinutes >= breakThreshold) {
+      i += lunchDur; 
       if (i >= totalMinutes) break;
     }
 
@@ -400,8 +404,15 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
   */
   async function ensureAbsentsMarked(dateOverride = null) {
   try {
+    const { SystemSettings } = require("../config/sequelize.js");
+    const settings = await SystemSettings.findOne();
     const now = await getSystemTime();
     
+    const morningStart = settings?.morningShiftStart || "08:30:00";
+    const morningEnd   = settings?.morningShiftEnd   || "17:30:00";
+    const cutoffHour   = parseInt(morningEnd.split(':')[0]);
+    const cutoffMin    = parseInt(morningEnd.split(':')[1]);
+
     // Ensure todayStr is YYYY-MM-DD
     let todayStr;
     if (dateOverride) {
@@ -415,20 +426,17 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
     }
 
     const currentTodayStr = formatDateLocal(now);
-    // Use local getDay since todayStr is treated as UTC midnight by new Date(str)
-    // but we want the day of the week for that date.
-    // actually new Date("YYYY-MM-DD").getUTCDay() is safest for absolute day.
     const dayOfWeek = new Date(todayStr).getUTCDay(); // 0 = Sunday
 
     const hour = now.getHours();
     const minute = now.getMinutes();
     
     // logic: if it's a PAST day, it's ALWAYS past cutoff. 
-    // If it's TODAY, it's past cutoff only after 5:30 PM.
-    const isPastCutoff = (todayStr < currentTodayStr) || (hour > 17) || (hour === 17 && minute >= 30);
+    // If it's TODAY, it's past cutoff only after shift end.
+    const isPastCutoff = (todayStr < currentTodayStr) || (hour > cutoffHour) || (hour === cutoffHour && minute >= cutoffMin);
 
     // 1. Process On-Field Work (Bulk)
-    // Find all users who have an approved On-Field request today but no logs in report table
+    // ... (rest of the logic using morningStart/morningEnd)
     const onFieldUsers = await sequelize.query(
       `SELECT u."user_Id", u."user_FirstName", u."user_LastName"
        FROM "User" u
@@ -450,24 +458,24 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
         // Insert dummy log into user_logging (for audit)
         await sequelize.query(
           `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
-           VALUES (:userId, :todayStr, '17:30:00', 2, 5)
+           VALUES (:userId, :todayStr, :morningEnd, 2, 5)
            ON CONFLICT DO NOTHING`, 
-          { replacements: { userId, todayStr }, type: QueryTypes.INSERT }
+          { replacements: { userId, todayStr, morningEnd }, type: QueryTypes.INSERT }
         );
         
         // Insert entry into employee_Logging_report (for payroll/reporting)
         await sequelize.query(
           `INSERT INTO "employee_Logging_report" 
             ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr", "attendance_StatusId", "logged_StatusId")
-           VALUES (:userId, :todayStr, '["08:30:00"]', '["17:30:00"]', 5, 2)
+           VALUES (:userId, :todayStr, :inArr, :outArr, 5, 2)
            ON CONFLICT ("user_id", "log_Date") DO NOTHING`,
-          { replacements: { userId, todayStr }, type: QueryTypes.INSERT }
+          { replacements: { userId, todayStr, inArr: JSON.stringify([morningStart]), outArr: JSON.stringify([morningEnd]) }, type: QueryTypes.INSERT }
         );
         console.log(`[SYSTEM] Auto-credited On-Field: ${user.user_FirstName} ${user.user_LastName}`);
       }
     }
 
-    // 2. Process Absents and Exempt Users (Bulk) - Only past 5:30 PM (or for past days) and not Sunday
+    // 2. Process Absents and Exempt Users (Bulk) - Only past shift end (or for past days) and not Sunday
     if (isPastCutoff && dayOfWeek !== 0) {
       // Check if today is a holiday
       const isHoliday = await sequelize.query(
@@ -481,7 +489,6 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
       }
 
       // 1.5 Process Exempt Users (Bulk)
-      // Find all users where user_RoleId = 1 (Admin Manager) but no report exists yet
       const exemptUsers = await sequelize.query(
         `SELECT u."user_Id", u."user_FirstName", u."user_LastName"
          FROM "User" u
@@ -508,17 +515,17 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
           
           await sequelize.query(
             `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
-             VALUES (:userId, :todayStr, '08:30:00', 1, 6), (:userId, :todayStr, '17:30:00', 2, 6)
+             VALUES (:userId, :todayStr, :morningStart, 1, 6), (:userId, :todayStr, :morningEnd, 2, 6)
              ON CONFLICT DO NOTHING`, 
-          { replacements: { userId, todayStr }, type: QueryTypes.INSERT }
+          { replacements: { userId, todayStr, morningStart, morningEnd }, type: QueryTypes.INSERT }
           );
           
           await sequelize.query(
             `INSERT INTO "employee_Logging_report" 
               ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr", "attendance_StatusId", "logged_StatusId")
-             VALUES (:userId, :todayStr, '["08:30:00"]', '["17:30:00"]', 6, 2)
+             VALUES (:userId, :todayStr, :inArr, :outArr, 6, 2)
              ON CONFLICT ("user_id", "log_Date") DO NOTHING`,
-            { replacements: { userId, todayStr }, type: QueryTypes.INSERT }
+            { replacements: { userId, todayStr, inArr: JSON.stringify([morningStart]), outArr: JSON.stringify([morningEnd]) }, type: QueryTypes.INSERT }
           );
           console.log(`[SYSTEM] Auto-credited Exempt: ${user.user_FirstName} ${user.user_LastName}`);
         }
@@ -557,9 +564,9 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
           const userId = user.user_Id;
           await sequelize.query(
             `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
-             VALUES (:userId, :todayStr, '17:30:00', 2, 3)
+             VALUES (:userId, :todayStr, :morningEnd, 2, 3)
              ON CONFLICT DO NOTHING`,
-            { replacements: { userId, todayStr }, type: QueryTypes.INSERT }
+            { replacements: { userId, todayStr, morningEnd }, type: QueryTypes.INSERT }
           );
           await sequelize.query(
             `INSERT INTO "employee_Logging_report" 

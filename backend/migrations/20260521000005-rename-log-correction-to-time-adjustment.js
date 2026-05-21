@@ -9,8 +9,11 @@ module.exports = {
       { reqTypeId: 5 }
     );
 
-    // 2. Rename the table
-    await queryInterface.renameTable('LogCorrection_Request', 'TimeAdjustment_Request');
+    // 2. Rename the table if it hasn't been renamed already
+    const tables = await queryInterface.showAllTables();
+    if (tables.includes('LogCorrection_Request') && !tables.includes('TimeAdjustment_Request')) {
+      await queryInterface.renameTable('LogCorrection_Request', 'TimeAdjustment_Request');
+    }
   },
 
   async down(queryInterface, Sequelize) {

@@ -225,6 +225,12 @@ exports.updateSystemSettings = async (req, res) => {
       morningShiftEnd: req.body.morningShiftEnd,
       eveningShiftStart: req.body.eveningShiftStart,
       eveningShiftEnd: req.body.eveningShiftEnd,
+      // Attendance Thresholds
+      gracePeriod: req.body.gracePeriod,
+      lunchStartThreshold: req.body.lunchStartThreshold,
+      lunchEndThreshold: req.body.lunchEndThreshold,
+      lunchDuration: req.body.lunchDuration,
+      flexibleBreakThreshold: req.body.flexibleBreakThreshold,
       // Labor Multipliers
       ordinaryDayRate: req.body.ordinaryDayRate,
       specialDayRate: req.body.specialDayRate,

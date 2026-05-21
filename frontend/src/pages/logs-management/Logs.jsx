@@ -120,7 +120,9 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
   // Fetch all logs from the backend (raw)
   const fetchLogs = useCallback(async () => {
     try {
-      const response = await fetchWithAuth(`/api/attendance/all?startDate=${period.startDate}&endDate=${period.endDate}`);
+      const start = filterDate ? filterDate : period.startDate;
+      const end = filterDate ? filterDate : period.endDate;
+      const response = await fetchWithAuth(`/api/attendance/all?startDate=${start}&endDate=${end}`);
       if (response.ok) {
         const logs = await response.json();
         const mapped = logs.map((log) => {
@@ -148,12 +150,14 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
     } catch (err) {
       console.error("Error fetching logs:", err);
     }
-  }, [period.startDate, period.endDate]);
+  }, [period.startDate, period.endDate, filterDate]);
 
   // Fetch day logs
   const fetchDayLogs = useCallback(async () => {
     try {
-      let url = `/api/attendance/report?startDate=${period.startDate}&endDate=${period.endDate}`;
+      const start = filterDate ? filterDate : period.startDate;
+      const end = filterDate ? filterDate : period.endDate;
+      let url = `/api/attendance/report?startDate=${start}&endDate=${end}`;
       if (selectedUser !== "all") url += `&user_Id=${selectedUser}`;
       else url += `&user_Id=All Employees`;
 
@@ -169,7 +173,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
     } catch (error) {
       console.error("Error fetching day logs:", error);
     }
-  }, [period.startDate, period.endDate, selectedUser]);
+  }, [period.startDate, period.endDate, selectedUser, filterDate]);
 
   // Load logs on mount and start polling/listening
   useEffect(() => {
@@ -197,7 +201,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
         window.removeEventListener("dataRefresh", handleRefresh);
       };
     }
-  }, [fetchLogs, fetchUsers, fetchDayLogs, viewMode]);
+  }, [fetchLogs, fetchUsers, fetchDayLogs, viewMode, filterDate]);
 
   const handleGenerateLogs = async (forcedStatus) => {
     setLoading(true);
@@ -240,8 +244,13 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
 
   // 1. Filter Raw Data
   const filteredRawData = logData.filter((item) => {
-    // Date Filter - Safely extract YYYY-MM-DD from the log_Date string
-    const matchesDate = !filterDate || item.log_Date === filterDate;
+    // Date Filter - Ensure consistent string format for comparison (YYYY-MM-DD)
+    let matchesDate = true;
+    if (filterDate) {
+      // Assuming item.log_Date might be "2024-05-21" or "2024-05-21T00:00:00.000Z"
+      const itemDateStr = String(item.log_Date).split('T')[0];
+      matchesDate = itemDateStr === filterDate;
+    }
 
     // Time Range Filter Logic
     let matchesTime = true;
@@ -319,8 +328,11 @@ const sortedAndFilteredDayLogs = useMemo(() => {
 
     // 1. Specific Date Filter
     // Format the log_Date (ISO) to YYYY-MM-DD for comparison
-    const itemDate = String(item.log_Date).split('T')[0];
-    const matchesDate = !filterDate || itemDate === filterDate;
+    let matchesDate = true;
+    if (filterDate) {
+      const itemDateStr = String(item.log_Date).split('T')[0];
+      matchesDate = itemDateStr === filterDate;
+    }
 
     // 2. Time Range Filter (Applied to 'Morning In')
     let matchesTime = true;

@@ -250,6 +250,9 @@ exports.scanRFID = async (req, res) => {
 
     // 1. Find User by MachipId (Case-Insensitive) or FingerprintId via Hardware join
     let user;
+    const { SystemSettings } = require("../config/sequelize.js");
+    const settings = await SystemSettings.findOne();
+
     if (action === "fingerprint_scan") {
       user = await User.findOne({
         include: [{
@@ -417,13 +420,22 @@ exports.scanRFID = async (req, res) => {
     // Determine nextStatus based on action and current time (Lunch logic + OT logic)
     let nextStatus;
     const totalMinutes = now.getHours() * 60 + now.getMinutes();
-    const isLunchWindow = totalMinutes >= 720 && totalMinutes < 780;
+    
+    // Dynamic Lunch Window from Settings
+    const lStartStr = settings?.lunchStartThreshold || "11:30:00";
+    const lEndStr   = settings?.lunchEndThreshold   || "13:30:00";
+    const lStart = parseInt(lStartStr.split(":")[0]) * 60 + parseInt(lStartStr.split(":")[1]);
+    const lEnd   = parseInt(lEndStr.split(":")[0])   * 60 + parseInt(lEndStr.split(":")[1]);
+
+    const isLunchWindow = totalMinutes >= lStart && totalMinutes < lEnd;
 
     if (action === "clock_in") {
       nextStatus = (isLunchWindow && lastStatus === 3) ? 4 : (hasApprovedOT && isWithinOTWindow ? 5 : 1);
     } else {
       nextStatus = (isLunchWindow && [1, 4].includes(lastStatus)) ? 3 : (lastStatus === 5 ? 6 : 2);
     }
+
+    // ... (rest of the code remains until recording attendance)
 
     // 4. Record Attendance
     const firstLoginToday = await sequelize.query(
@@ -455,9 +467,12 @@ exports.scanRFID = async (req, res) => {
     if (user.user_RoleId === 1) {
       attendanceVal = 6; // Exempt
     } else if (nextStatus === 1) {
-      const h = now.getHours();
-      if (h >= 6 && h < 9) attendanceVal = 1; // On-Time
-      else if (h >= 9 && now < fivePMThirty) attendanceVal = 2; // Late
+      // Dynamic Grace Period from Settings
+      const graceTimeStr = settings?.gracePeriod || "08:35:00";
+      const graceTime = new Date(`${workDate}T${graceTimeStr}`);
+      
+      if (now <= graceTime) attendanceVal = 1; // On-Time
+      else if (now > graceTime && now < fivePMThirty) attendanceVal = 2; // Late
     } 
 
 

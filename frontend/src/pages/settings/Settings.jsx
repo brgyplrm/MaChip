@@ -52,6 +52,15 @@ const Settings = () => {
   const [toast, setToast] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
 
+  // --- Attendance Configuration States ---
+  const [morningShiftStart, setMorningShiftStart] = useState("08:30");
+  const [morningShiftEnd, setMorningShiftEnd] = useState("17:30");
+  const [gracePeriod, setGracePeriod] = useState("08:35");
+  const [lunchStartThreshold, setLunchStartThreshold] = useState("11:30");
+  const [lunchEndThreshold, setLunchEndThreshold] = useState("13:30");
+  const [lunchDuration, setLunchDuration] = useState(60);
+  const [flexibleBreakThreshold, setFlexibleBreakThreshold] = useState(300);
+
   // --- Dynamic States: Payroll Formulas & Variables ---
   const [payrollRates, setPayrollRates] = useState(null);
   const [sssRate, setSssRate] = useState(14);
@@ -93,6 +102,15 @@ const Settings = () => {
         setMandatedMinimumWage(data.mandatedMinimumWage ?? 610.0);
         setMandatedWageEffectiveDate(data.mandatedWageEffectiveDate ?? "2025-07-18");
         setHardwareBufferWindow(data.hardwareBufferWindow ?? 5);
+
+        // Load Attendance Settings
+        if (data.morningShiftStart) setMorningShiftStart(data.morningShiftStart.substring(0, 5));
+        if (data.morningShiftEnd) setMorningShiftEnd(data.morningShiftEnd.substring(0, 5));
+        if (data.gracePeriod) setGracePeriod(data.gracePeriod.substring(0, 5));
+        if (data.lunchStartThreshold) setLunchStartThreshold(data.lunchStartThreshold.substring(0, 5));
+        if (data.lunchEndThreshold) setLunchEndThreshold(data.lunchEndThreshold.substring(0, 5));
+        setLunchDuration(data.lunchDuration ?? 60);
+        setFlexibleBreakThreshold(data.flexibleBreakThreshold ?? 300);
         
         const rates = data.payrollRates ?? null;
         setPayrollRates(rates);
@@ -135,16 +153,23 @@ const Settings = () => {
     }
   };
 
-  const handleSaveSettings = async () => {
+  const handleSaveSettings = async (overrides = {}) => {
     if (!isAdmin) return;
+    
+    // [FIX] Prevent React SyntheticEvents from leaking into the payload
+    // If the first argument has a nativeEvent or preventDefault, it's an event handler call, not a data override.
+    const actualOverrides = (overrides && typeof overrides === 'object' && !overrides.nativeEvent && !overrides.preventDefault) 
+      ? overrides 
+      : {};
+
     setSaving(true);
     
     // Merge flat states into the nested structure to preserve extra fields (floor, ceiling, etc.)
-    const consolidatedStatutory = payrollRates?.statutoryConstants ? {
-      ...payrollRates.statutoryConstants,
-      sss: { ...payrollRates.statutoryConstants.sss, employee_rate: sssRate / 100 },
-      philhealth: { ...payrollRates.statutoryConstants.philhealth, rate: philhealthRate / 100 },
-      hdmf: { ...payrollRates.statutoryConstants.hdmf, ee_rate_high: pagibigEmployee / 5000, er_rate: pagibigEmployer / 5000 },
+    const consolidatedStatutory = (actualOverrides.payroll || payrollRates?.statutoryConstants) ? {
+      ...(actualOverrides.payroll || payrollRates?.statutoryConstants),
+      sss: { ...(actualOverrides.payroll || payrollRates?.statutoryConstants).sss, employee_rate: sssRate / 100 },
+      philhealth: { ...(actualOverrides.payroll || payrollRates?.statutoryConstants).philhealth, rate: philhealthRate / 100 },
+      hdmf: { ...(actualOverrides.payroll || payrollRates?.statutoryConstants).hdmf, ee_rate_high: pagibigEmployee / 5000, er_rate: pagibigEmployer / 5000 },
       thirteenthMonthBasis,
       overtimeMultiplier,
       nightDiffMultiplier
@@ -158,19 +183,33 @@ const Settings = () => {
       nightDiffMultiplier
     };
 
+    const sanitize = (val) => {
+      if (val === null || val === undefined || val === "") return 0;
+      const str = val.toString().replace(/,/g, "");
+      return parseFloat(str) || 0;
+    };
+
     const payload = {
       useMockTime,
       mockDate,
       mockTime,
       storageRootPath,
-      mandatedMinimumWage,
+      mandatedMinimumWage: sanitize(mandatedMinimumWage),
       mandatedWageEffectiveDate,
-      hardwareBufferWindow,
-      payrollRates: {
+      hardwareBufferWindow: sanitize(hardwareBufferWindow),
+      morningShiftStart,
+      morningShiftEnd,
+      gracePeriod,
+      lunchStartThreshold,
+      lunchEndThreshold,
+      lunchDuration: Math.floor(sanitize(lunchDuration)),
+      flexibleBreakThreshold: Math.floor(sanitize(flexibleBreakThreshold)),
+      payrollRates: actualOverrides.payrollRates || {
         ...payrollRates,
         statutoryConstants: consolidatedStatutory
       },
-      payroll: consolidatedStatutory
+      payroll: actualOverrides.payroll || consolidatedStatutory,
+      ...actualOverrides // Allow any other overrides
     };
 
     console.log("[DEBUG] Sending global configuration update:", payload);
@@ -274,14 +313,12 @@ const Settings = () => {
                     </div>
                     
                     <div className="flex items-center space-x-3">
-                      <button className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition"
-                              onClick={() => {
-                      // Implement your save logic here, e.g.:
-                      // saveConfiguration({ mockDate, mockTime, storageRootPath, hardwareBufferWindow });
-                              console.log("Saving configuration...");
-                            }}
-                            disabled={!isAdmin}>
-                        <Save className="w-4 h-4" /> <span>Save Configuration</span>
+                      <button 
+                        className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
+                        onClick={() => handleSaveSettings()}
+                        disabled={!isAdmin || saving}
+                      >
+                        <Save className="w-4 h-4" /> <span>{saving ? "Saving..." : "Save Configuration"}</span>
                       </button>
                     </div>
                   </div>
@@ -368,9 +405,15 @@ const Settings = () => {
                             value={(hardwareBufferWindow || "").toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
                             onChange={(e) => {
                               const raw = e.target.value.replace(/,/g, '');
-                              if (raw === '' || !isNaN(raw)) {
-                                setHardwareBufferWindow(parseFloat(raw) || 0);
+                              if (raw === '' || raw === '.' || !isNaN(raw)) {
+                                // Keep the raw string state for intermediate typing (like "1.")
+                                // But handle the numeric update
+                                setHardwareBufferWindow(raw);
                               }
+                            }}
+                            onBlur={() => {
+                              // Ensure it's a valid number on blur
+                              setHardwareBufferWindow(parseFloat(hardwareBufferWindow) || 0);
                             }}
                             disabled={!isAdmin}
                             className="bg-white border-slate-200 w-full font-mono"
@@ -419,39 +462,8 @@ const Settings = () => {
                           if (stat.hdmf?.er_rate !== undefined) setPagibigEmployer(stat.hdmf.er_rate * 5000);
                         }
 
-                        // 3. Create the exact payload expected by backend
-                        const payload = {
-                          useMockTime,
-                          mockDate,
-                          mockTime,
-                          storageRootPath,
-                          hardwareBufferWindow,
-                          payrollRates: newRates.payrollRates || newRates, 
-                          payroll: newRates.payroll // Use the new nested object directly
-                        };
-                    
-                        console.log("[DEBUG] Auto-saving global configuration update:", payload);
-                    
-                        try {
-                          const response = await fetchWithAuth("/api/system/settings", {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(payload),
-                          });
-                    
-                          if (response.ok) {
-                            console.log("[DEBUG] Configuration update SUCCESSful.");
-                            showNotification("Payroll Formulas updated successfully!");
-                            refreshSystemTime();
-                          } else {
-                            const errorData = await response.json();
-                            console.error("[DEBUG] Configuration update FAILED:", errorData);
-                            showNotification(`Failed to apply updated variables: ${errorData.error || "Unknown Error"}`, "error");
-                          }
-                        } catch (err) {
-                          console.error("[DEBUG] Network failure during configuration update:", err);
-                          showNotification("Network connection failure.", "error");
-                        }
+                        // 3. Call the centralized save function with all new rates
+                        await handleSaveSettings(newRates);
                       }} 
                     />
                   </div>
@@ -459,7 +471,18 @@ const Settings = () => {
 
                 {/* Tab 3: Attendance Configuration Layout (Your Retained Storage Paths) */}
                 <TabsContent value="attendance" className=" mt-0 animate-in fade-in-50 duration-200">
-                  <AttendanceConfiguration/>
+                  <AttendanceConfiguration 
+                    workStart={morningShiftStart} setWorkStart={setMorningShiftStart}
+                    workEnd={morningShiftEnd} setWorkEnd={setMorningShiftEnd}
+                    gracePeriod={gracePeriod} setGracePeriod={setGracePeriod}
+                    lunchStart={lunchStartThreshold} setLunchStart={setLunchStartThreshold}
+                    lunchEnd={lunchEndThreshold} setLunchEnd={setLunchEndThreshold}
+                    lunchDuration={lunchDuration} setLunchDuration={setLunchDuration}
+                    flexibleThreshold={flexibleBreakThreshold} setFlexibleThreshold={setFlexibleBreakThreshold}
+                    onSave={handleSaveSettings}
+                    saving={saving}
+                    isAdmin={isAdmin}
+                  />
                 </TabsContent>
 
                 {/* Tab 4: Notification Configuration Layout */}
@@ -471,7 +494,9 @@ const Settings = () => {
                 <TabsContent value="positions" className=" mt-0 animate-in fade-in-50 duration-200">
                   <PositionManagement 
                     mandatedMinimumWage={mandatedMinimumWage} 
+                    setMandatedMinimumWage={setMandatedMinimumWage}
                     mandatedWageEffectiveDate={mandatedWageEffectiveDate}
+                    setMandatedWageEffectiveDate={setMandatedWageEffectiveDate}
                   />
                 </TabsContent>
                 </div>
