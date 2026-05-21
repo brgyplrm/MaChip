@@ -642,7 +642,7 @@ const AdminReports = () => {
                               <TableCell className="text-slate-600 py-4">{new Date(r.log_Date).toLocaleDateString()}</TableCell>
                               <TableCell className="text-slate-600 font-mono text-[13px] py-4">{r.time_In}</TableCell>
                               <TableCell className="text-slate-600 font-mono text-[13px] py-4">{r.time_Out}</TableCell>
-                              <TableCell className="text-slate-700 font-bold py-4">{r.hoursWorked}</TableCell>
+                              <TableCell className="text-slate-700 font-bold py-4">{r.hoursWorkedFormatted || r.hoursWorked}</TableCell>
                               <TableCell className="py-4">
                                 <Badge variant="secondary" className={badgeStyle}>{r.status}</Badge>
                               </TableCell>

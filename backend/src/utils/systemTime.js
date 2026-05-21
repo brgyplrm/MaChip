@@ -43,4 +43,14 @@ function formatDateLocal(date) {
   return `${YYYY}-${MM}-${DD}`;
 }
 
-module.exports = { getSystemTime, formatForSQL, formatDateLocal };
+/**
+ * Formats decimal hours (e.g., 8.5) into 'Xh Ym' (e.g., 8h 30m).
+ */
+function formatDuration(decimalHours) {
+  const totalMinutes = Math.round(parseFloat(decimalHours || 0) * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h}h ${m}m`;
+}
+
+module.exports = { getSystemTime, formatForSQL, formatDateLocal, formatDuration };

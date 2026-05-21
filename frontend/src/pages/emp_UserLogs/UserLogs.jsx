@@ -539,7 +539,7 @@ const UserLogs = () => {
                                 <td className="border border-slate-400">{getCell(log?.afternoon_Out)}</td>
                                 <td className="border border-slate-400">{getCell(log?.ot_In)}</td>
                                 <td className="border border-slate-400">{getCell(log?.ot_Out)}</td>
-                                <td className="border border-slate-400 font-bold bg-slate-50">{!isSunday && log ? log.hoursWorked : ""}</td>
+                                <td className="border border-slate-400 font-bold bg-slate-50">{!isSunday && log ? (log.hoursWorkedFormatted || log.hoursWorked) : ""}</td>
                               </tr>
                             );
                           }

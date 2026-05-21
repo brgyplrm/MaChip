@@ -10,10 +10,15 @@ const {
   Holiday
 } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
-const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
+const { getSystemTime, formatDateLocal, formatDuration } = require("../utils/systemTime.js");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
-const { calculateMultiBucketHours, resolveLeaveConflict, calculateAndStoreAttendanceUnits } = require("../utils/attendanceHelper");
+const { 
+  calculateMultiBucketHours, 
+  resolveLeaveConflict, 
+  calculateAndStoreAttendanceUnits,
+  mapLogsToBuckets 
+} = require("../utils/attendanceHelper");
 
 // ... (rest of imports)
 
@@ -326,26 +331,19 @@ exports.viewUserLogs = async (req, res) => {
         const dayOT = approvedRequests.find(req => Number(req.emp_reqTypeId) === 1 && formatDateOnly(req.OT_DateOf) === dateStr);
         const isOnField = approvedRequests.some(req => Number(req.emp_reqTypeId) === 2 && formatDateOnly(req.DateonField) === dateStr);
       
-        let morning_In = inArr[0] || "—";
-        let morning_Out = "—", afternoon_In = "—", afternoon_Out = "—", ot_In = "—", ot_Out = "—";
+        let { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings);
+        let ot_In = "—", ot_Out = "—";
 
-        const mStart = settings?.morningShiftStart || "08:30:00";
-        const mEnd   = settings?.morningShiftEnd   || "17:30:00";
-        const lStart = settings?.lunchStartThreshold || "12:00:00";
-        const lEnd   = settings?.lunchEndThreshold   || "13:00:00";
+        const mStart = settings?.morningShiftStart?.substring(0, 5) || "08:30";
+        const mEnd   = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
+        const lStart = settings?.lunchStartThreshold?.substring(0, 5) || "12:00";
+        const lEnd   = settings?.lunchEndThreshold?.substring(0, 5) || "13:00";
 
         if (isOnField) {
-          morning_In = mStart; morning_Out = lStart; afternoon_In = lEnd; afternoon_Out = mEnd;
-        } else if (inArr.length > 0 || outArr.length > 0) {
-          const firstIn = inArr[0];
-          const lastOut = outArr[outArr.length - 1];
-          if (firstIn) morning_In = firstIn.substring(0, 5);
-          if (lastOut) afternoon_Out = lastOut.substring(0, 5);
-
-          if (Number(report.user_RoleId) === 1) {
-            morning_Out = lStart;
-            afternoon_In = lEnd;
-          }
+          morning_In = mStart;
+          morning_Out = lStart;
+          afternoon_In = lEnd;
+          afternoon_Out = mEnd;
         }
 
         // ── TIME-SLICING CALCULATION (Prefer Stored Values) ──
@@ -359,7 +357,21 @@ exports.viewUserLogs = async (req, res) => {
 
         // Fallback for older records or if recalculation is needed
         if (stats.totalPayableHours === 0 && inArr.length > 0 && outArr.length > 0) {
-          const hoursObj = await calculateMultiBucketHours(inArr[0], outArr[outArr.length - 1], dateStr, report.user_ShiftId, settings, holidays);
+          let firstIn = inArr[0];
+          let lastOut = outArr[outArr.length - 1];
+
+          const mStart = settings?.morningShiftStart || "08:30:00";
+          const mEnd   = settings?.morningShiftEnd   || "17:30:00";
+          const eStart = settings?.eveningShiftStart || "20:30:00";
+          const eEnd   = settings?.eveningShiftEnd   || "05:30:00";
+
+          const shiftStart = (report.user_ShiftId === 2) ? eStart : mStart;
+          const shiftEnd   = (report.user_ShiftId === 2) ? eEnd : mEnd;
+
+          if (firstIn && firstIn < shiftStart && report.user_ShiftId !== 2) firstIn = shiftStart;
+          if (!dayOT && lastOut && lastOut > shiftEnd && report.user_ShiftId !== 2) lastOut = shiftEnd;
+
+          const hoursObj = await calculateMultiBucketHours(firstIn, lastOut, dateStr, report.user_ShiftId, settings, holidays);
           stats = {
             reg_hrs: hoursObj.reg_hrs,
             nd_hrs: hoursObj.nd_hrs,
@@ -387,12 +399,17 @@ exports.viewUserLogs = async (req, res) => {
           time_Out: ot_Out !== "—" ? ot_Out : afternoon_Out,
           inArr,
           outArr,
-          hoursWorked: (stats.totalPayableHours || 0).toFixed(2),
+          hoursWorked: stats.totalPayableHours,
+          hoursWorkedFormatted: formatDuration(stats.totalPayableHours),
           breakdown: {
-            reg: stats.reg_hrs.toFixed(2),
-            ot: stats.ot_hrs.toFixed(2),
-            nd: stats.nd_hrs.toFixed(2),
-            holiday: stats.holiday_hrs.toFixed(2)
+            reg: stats.reg_hrs,
+            regFormatted: formatDuration(stats.reg_hrs),
+            ot: stats.ot_hrs,
+            otFormatted: formatDuration(stats.ot_hrs),
+            nd: stats.nd_hrs,
+            ndFormatted: formatDuration(stats.nd_hrs),
+            holiday: stats.holiday_hrs,
+            holidayFormatted: formatDuration(stats.holiday_hrs)
           },
           logStatus: report.loggedStatusName,
           attendanceStatus: report.attendanceStatusName === "Exempt" ? "On Time" : (report.attendanceStatusName || "—"),
@@ -1146,24 +1163,21 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       const lStart = settings?.lunchStartThreshold?.substring(0, 5) || "12:00";
       const lEnd   = settings?.lunchEndThreshold?.substring(0, 5) || "13:00";
 
-      let morning_In = "—", morning_Out = "—", afternoon_In = "—", afternoon_Out = "—", ot_In = "—", ot_Out = "—";
+      let { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings);
+      let ot_In = "—", ot_Out = "—";
 
       if (isOnField) {
         morning_In = mStart; morning_Out = lStart; afternoon_In = lEnd; afternoon_Out = mEnd;
-      } else if (inArr.length > 0 || outArr.length > 0) {
-        const firstIn = inArr[0];
-        const lastOut = outArr[outArr.length - 1];
-        if (firstIn) morning_In = firstIn.substring(0, 5);
-        if (lastOut) afternoon_Out = lastOut.substring(0, 5);
-
-        if (Number(r.user_RoleId) === 1) {
-          morning_Out = lStart;
-          afternoon_In = lEnd;
-        }
       }
 
       // ── TIME-SLICING CALCULATION ──
-      const hoursObj = await calculateMultiBucketHours(inArr[0], outArr[outArr.length - 1], dateStr, r.user_ShiftId, settings, holidays);
+      let firstIn = inArr[0];
+      let lastOut = outArr[outArr.length - 1];
+
+      if (firstIn && firstIn < mStart && r.user_ShiftId !== 2) firstIn = mStart;
+      if (!dayOT && lastOut && lastOut > mEnd && r.user_ShiftId !== 2) lastOut = mEnd;
+
+      const hoursObj = await calculateMultiBucketHours(firstIn, lastOut, dateStr, r.user_ShiftId, settings, holidays);
       
       // Add Overtime manually if approved (apply multiplier from settings)
       if (dayOT && dayOT.Total_Hrs) {
@@ -1186,7 +1200,8 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         time_Out: ot_Out !== "—" ? ot_Out : afternoon_Out,
         inArr,
         outArr,
-        hoursWorked: (hoursObj.totalPayableHours || 0).toFixed(2),
+        hoursWorked: hoursObj.totalPayableHours,
+        hoursWorkedFormatted: formatDuration(hoursObj.totalPayableHours),
         status: r.attendanceStatusName === "Exempt" ? "On Time" : (r.attendanceStatusName ?? "—"),
         shiftId: r.user_ShiftId,
         buckets: hoursObj.buckets
@@ -1244,11 +1259,7 @@ exports.getSingleAttendanceRecord = async (req, res) => {
     const lStart = settings?.lunchStartThreshold?.substring(0, 5) || "11:30";
     const lEnd   = settings?.lunchEndThreshold?.substring(0, 5) || "13:30";
 
-    const morning_In = inArr.find(t => t.substring(0, 5) < "12:00")?.substring(0, 5) || "";
-    const morning_Out = outArr.find(t => t.substring(0, 5) >= lStart && t.substring(0, 5) < lEnd)?.substring(0, 5) || "";
-    
-    const afternoon_In = inArr.find(t => t.substring(0, 5) >= "12:30" && t.substring(0, 5) < otStart)?.substring(0, 5) || "";
-    const afternoon_Out = outArr.find(t => t.substring(0, 5) >= lEnd && t.substring(0, 5) < otStart)?.substring(0, 5) || (hasApprovedOT && afternoon_In ? otStart.substring(0, 5) : "");
+    const { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings);
     
     // OT In defaults to the approved HrFrom if no specific log exists at that time
     const ot_In = hasApprovedOT ? (inArr.find(t => t.substring(0, 5) >= otStart)?.substring(0, 5) || otStart.substring(0, 5)) : "";

@@ -1,6 +1,7 @@
 // backend/src/utils/payrollSummaryGenerator.js
 // Generates an 8-page Payroll Summary PDF replicating the Mac-J Excel format.
 const puppeteer = require("puppeteer");
+const { formatDuration } = require("./systemTime.js");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const peso = (val) => {
@@ -78,6 +79,8 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
     return {
       ...r,
       basicPay: computedBasic,
+      NoHrs_Worked_Formatted: formatDuration(r.NoHrs_Worked),
+      OT_Hrs_Formatted: formatDuration(r.OT_Hrs),
       absence_Amnt: 0, // Set to 0 because absences are consolidated into tardiness_Amnt for deduction
       tardiness_Amnt: absTard_Amnt,
       absTardDisplay: absTard_Amnt,  // For Page 3 display
@@ -197,7 +200,7 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
               <td class="center">${r.taxStatus || 'S'}</td><td>${r.position || ''}</td>
               <td class="amt">${peso(r.previousDailyRate)}</td><td class="amt">${peso(r.dailyRate)}</td>
               <td class="amt">${thousandths(r.ratePerHr)}</td><td class="center">${r.NoDays_Worked}</td>
-              <td class="center">${r.NoHrs_Worked}</td><td class="amt bold">${peso(r.basicPay)}</td>
+              <td class="center">${r.NoHrs_Worked_Formatted}</td><td class="amt bold">${peso(r.basicPay)}</td>
             </tr>`).join('')}
           <tr class="totals-row"><td colspan="9">TOTAL</td><td class="amt">${peso(totals.basicPay)}</td></tr>
         </tbody>
@@ -249,7 +252,7 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
               <td class="center">${r.taxStatus || 'S'}</td>
               <td class="center">${r.totalMins}</td><td class="amt">${peso(r.absTardDisplay)}</td>
               <td class="amt bold">${peso(r.absTardDisplay)}</td>
-              <td class="center">${r.OT_Hrs || 0}</td><td class="amt">${peso(r.OT_Amnt)}</td>
+              <td class="center">${r.OT_Hrs_Formatted}</td><td class="amt">${peso(r.OT_Amnt)}</td>
               <td class="amt">${peso(r.incentives)}</td>
               <td class="amt">${peso(r.leaveCredits)}</td>
               <td class="amt bold">${peso(addPay)}</td>
@@ -261,7 +264,7 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
             <td class="center">${sum(payrollRows, "totalMins")}</td>
             <td class="amt">${peso(totals.totalAbsTardDisplay)}</td>
             <td class="amt">${peso(totals.totalAbsTardDisplay)}</td>
-            <td class="center">${sum(payrollRows, "OT_Hrs")}</td><td class="amt">${peso(totals.OT_Amnt)}</td>
+            <td class="center">${formatDuration(sum(payrollRows, "OT_Hrs"))}</td><td class="amt">${peso(totals.OT_Amnt)}</td>
             <td class="amt">${peso(totals.incentives)}</td>
             <td class="amt">${peso(sum(payrollRows, "leaveCredits"))}</td>
             <td class="amt bold">${peso(totals.totalAdditionalPay)}</td>

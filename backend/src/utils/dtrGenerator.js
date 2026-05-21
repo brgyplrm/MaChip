@@ -8,6 +8,7 @@
 //   const pdfBuffer = await generateDTRPDF({ employee, dtrData, period_Start, period_End, netPay });
 
 const puppeteer = require("puppeteer");
+const { formatDuration } = require("./systemTime.js");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -23,14 +24,24 @@ const formatPeriodLabel = (startStr, endStr) => {
 };
 
 /** Total hours across all DTR rows */
-const totalHours = (dtrData) =>
-  dtrData.reduce((sum, d) => sum + parseFloat(d.hoursWorked || 0), 0).toFixed(2);
+const totalHours = (dtrData) => {
+  const sum = dtrData.reduce((acc, d) => {
+    // Handle both numeric and formatted strings (if already formatted)
+    let val = d.hoursWorked;
+    if (typeof val === "string" && val.includes("h")) {
+      const parts = val.split(/[hm]/);
+      const h = parseInt(parts[0]) || 0;
+      const m = parseInt(parts[1]) || 0;
+      return acc + h + (m / 60);
+    }
+    return acc + parseFloat(val || 0);
+  }, 0);
+  return formatDuration(sum);
+};
 
 // ── HTML Builder ──────────────────────────────────────────────────────────────
 
 /**
- * Builds the complete DTR HTML string.
- *
  * @param {object}   employee    - { user_Id, user_FirstName, user_LastName }
  * @param {object[]} dtrData     - rows from getAttendanceReportInternal()
  * @param {string}   period_Start - "YYYY-MM-DD"
