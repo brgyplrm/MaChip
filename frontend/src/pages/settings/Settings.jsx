@@ -60,6 +60,7 @@ const Settings = () => {
   const [lunchEndThreshold, setLunchEndThreshold] = useState("13:30");
   const [lunchDuration, setLunchDuration] = useState(60);
   const [flexibleBreakThreshold, setFlexibleBreakThreshold] = useState(300);
+  const [workHourThreshold, setWorkHourThreshold] = useState(4.0);
 
   // --- Dynamic States: Payroll Formulas & Variables ---
   const [payrollRates, setPayrollRates] = useState(null);
@@ -111,6 +112,7 @@ const Settings = () => {
         if (data.lunchEndThreshold) setLunchEndThreshold(data.lunchEndThreshold.substring(0, 5));
         setLunchDuration(data.lunchDuration ?? 60);
         setFlexibleBreakThreshold(data.flexibleBreakThreshold ?? 300);
+        setWorkHourThreshold(data.workHourThreshold ?? 4.0);
         
         const rates = data.payrollRates ?? null;
         setPayrollRates(rates);
@@ -204,6 +206,7 @@ const Settings = () => {
       lunchEndThreshold,
       lunchDuration: Math.floor(sanitize(lunchDuration)),
       flexibleBreakThreshold: Math.floor(sanitize(flexibleBreakThreshold)),
+      workHourThreshold: sanitize(workHourThreshold),
       payrollRates: actualOverrides.payrollRates || {
         ...payrollRates,
         statutoryConstants: consolidatedStatutory
@@ -479,6 +482,7 @@ const Settings = () => {
                     lunchEnd={lunchEndThreshold} setLunchEnd={setLunchEndThreshold}
                     lunchDuration={lunchDuration} setLunchDuration={setLunchDuration}
                     flexibleThreshold={flexibleBreakThreshold} setFlexibleThreshold={setFlexibleBreakThreshold}
+                    workHourThreshold={workHourThreshold} setWorkHourThreshold={setWorkHourThreshold}
                     onSave={handleSaveSettings}
                     saving={saving}
                     isAdmin={isAdmin}

@@ -42,7 +42,6 @@ import TransactionLog from "./components/transactionLog/TransactionLog";
 import AuditLog from "./components/auditLog/AuditLog";
 import ArchivedUsers from "./pages/archivedUsers/ArchivedUsers";
 import AdminRequestsOversight from "./pages/AdminRequestsOversight";
-import RequestsHistory from "./pages/RequestsHistory";
 import FAQ from "./components/FAQ";
 import LoanManagement from "./pages/admin_Payroll/subtabs/LoanManagement";
 import LoanManagementHub from "./pages/admin_Payroll/subtabs/LoanManagementHub";
@@ -91,15 +90,6 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[4]}>
               <AdminRequestsOversight />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/requestsHistory"
-          element={
-            <ProtectedRoute allowedRoles={[4]}>
-              <RequestsHistory />
             </ProtectedRoute>
           }
         />

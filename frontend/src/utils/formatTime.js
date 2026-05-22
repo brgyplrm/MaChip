@@ -59,4 +59,51 @@ export const isInSamePeriod = (d1, d2) => {
   return isFirstPeriod(date1) === isFirstPeriod(date2);
 };
 
+/**
+ * Formats a Date object or string to a human-readable format.
+ * Example: "May 23, 2026 05:30 PM"
+ * @param {Date|string} dateVal - Date to format
+ * @returns {string} Formatted date and time
+ */
+export const formatDateTime = (dateVal) => {
+  if (!dateVal) return "—";
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return "—";
+
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+/**
+ * Calculates the number of days between two dates, excluding Sundays.
+ * @param {Date|string} start - Start date
+ * @param {Date|string} end - End date
+ * @returns {number} Count of days
+ */
+export const calculateDays = (start, end) => {
+  if (!start || !end) return 0;
+  const s = new Date(start);
+  const e = new Date(end);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return 0;
+
+  let count = 0;
+  let cur = new Date(s);
+  // Ensure we compare only dates by stripping time
+  cur.setHours(0, 0, 0, 0);
+  const finalEnd = new Date(e);
+  finalEnd.setHours(0, 0, 0, 0);
+
+  while (cur <= finalEnd) {
+    if (cur.getDay() !== 0) count++; // Skip Sundays
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+};
+
 

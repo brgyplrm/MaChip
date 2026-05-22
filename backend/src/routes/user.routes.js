@@ -4,7 +4,7 @@ const userController = require("../controllers/user.controller.js");
 const rfidController = require("../controllers/rfid.controller.js");
 const authController = require("../controllers/auth.controller.js");
 const upload = require("../middleware/upload.js");
-const { requireAdmin, requireStaff } = require("../middleware/roleCheck.js");
+const { requireAdmin, requireStaff, requireRole } = require("../middleware/roleCheck.js");
 
 // URL will be: http://localhost:4000/api/users/registerUser
 router.post("/registerUser", requireAdmin, upload.single("user_ProfilePic"), userController.registerUser);
@@ -44,7 +44,7 @@ router.patch("/restoreUser/:user_Id", requireAdmin, userController.restoreUser);
 router.delete("/forceDelete/:user_Id", requireAdmin, userController.forceDeleteUser);
 
 //UPDATE user by user_Id
-router.put("/updateUser/:user_Id", requireAdmin, upload.single("user_ProfilePic"), userController.updateUser);
+router.put("/updateUser/:user_Id", requireRole(1, 2, 3, 4), upload.single("user_ProfilePic"), userController.updateUser);
 
 // Check if MaChip exists
 router.get("/check-machip/:uid", requireAdmin, userController.checkMaChip);
@@ -53,6 +53,13 @@ router.get("/check-fingerprint/:slot", requireAdmin, userController.checkFingerp
 
 // GET employee masterlist with daily rate columns
 router.get("/employees/masterlist", requireAdmin, userController.getMasterlist);
+
+// GET employee summary (tenure, payroll trends)
+router.get("/summary/:userId", requireStaff, userController.getEmployeeSummary);
+
+// GET audit and transaction logs
+router.get("/logs/audit", requireAdmin, userController.getAuditLogs);
+router.get("/logs/transaction", requireAdmin, userController.getTransactionLogs);
 
 // PATCH employee daily rate
 router.patch("/employees/:user_Id/daily-rate", requireAdmin, userController.updateDailyRate);

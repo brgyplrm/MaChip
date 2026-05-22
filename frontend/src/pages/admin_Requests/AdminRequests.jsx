@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
+import ReplyIcon from "@mui/icons-material/Reply";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import AttachmentIcon from "@mui/icons-material/Attachment";
 import SearchIcon from "@mui/icons-material/Search";
@@ -11,9 +12,11 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
+import { formatDateTime, calculateDays } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
 import { useNavigate, Link } from "react-router-dom";
 import AssessmentIcon  from "@mui/icons-material/Assessment";
+import EditIcon from "@mui/icons-material/Edit";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -23,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import EditRequestModal from "../../components/EditRequestModal";
 
 const AdminRequests = () => {
   const navigate = useNavigate();
@@ -34,6 +38,10 @@ const AdminRequests = () => {
   const [adminNote, setAdminNote] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("2"); 
   const [toast, setToast] = useState({ message: "", type: "success" });
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedRequestToEdit, setSelectedRequestToEdit] = useState(null);
 
   // History Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -229,6 +237,7 @@ const AdminRequests = () => {
     if (statusId === 1 || statusId === 4) return "bg-orange-100 text-orange-800 hover:bg-orange-100";
     if (statusId === 2) return "bg-green-100 text-green-800 hover:bg-green-100";
     if (statusId === 3) return "bg-red-100 text-red-800 hover:bg-red-100";
+    if (statusId === 5) return "bg-orange-100 text-orange-800 hover:bg-orange-100";
     return "bg-slate-100 text-slate-800";
   };
 
@@ -247,6 +256,11 @@ const AdminRequests = () => {
     setSearchQuery("");
     setTypeFilter("All");
     setStatusFilter("All");
+  };
+
+  const handleEditClick = (req) => {
+    setSelectedRequestToEdit(req);
+    setIsEditModalOpen(true);
   };
 
   return (
@@ -379,6 +393,7 @@ const AdminRequests = () => {
                       <SelectItem value="All">All Statuses</SelectItem>
                       <SelectItem value="Approved">Approved</SelectItem>
                       <SelectItem value="Rejected">Rejected</SelectItem>
+                      <SelectItem value="Returned">Returned</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -505,6 +520,15 @@ const AdminRequests = () => {
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+                      {activeTab === "completed" && userData?.user_RoleId === 1 && (
+                        <Button 
+                          variant="outline" 
+                          className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 font-bold"
+                          onClick={() => handleEditClick(current)}
+                        >
+                          <EditIcon className="mr-2 h-4 w-4" /> Edit Record
+                        </Button>
+                      )}
                       {(current.emp_reqStatusId === 1 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
                         <>
                           {current.user_Id === userData?.user_Id ? (
@@ -512,12 +536,15 @@ const AdminRequests = () => {
                           ) : (userData?.user_RoleId === 4) ? (
                              <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-slate-100 text-slate-500 italic">View Only</Badge>
                           ) : (
-                            <div className="flex gap-2 w-full">
-                              <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
+                            <div className="flex gap-2 w-full flex-wrap">
+                              <Button className="flex-1 min-w-[120px] bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
                                 <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
                               </Button>
-                              <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
+                              <Button className="flex-1 min-w-[120px] bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
                                 <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
+                              </Button>
+                              <Button className="flex-1 min-w-[120px] bg-orange-500 hover:bg-orange-600 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 5)}>
+                                <ReplyIcon className="mr-2 h-4 w-4" /> Return
                               </Button>
                             </div>
                           )}
@@ -557,8 +584,16 @@ const AdminRequests = () => {
                             ? `${current.OW_NoDays || 0} Day(s) (${current.OW_NoHrs || 0} Hrs)`
                             : current.emp_reqTypeId === 5
                               ? `${current.LC_correctionCategory || "Correction"} for ${new Date(current.LC_logDate).toLocaleDateString()}`
-                              : current.emp_reqTypeId === 6 // Emergency
-                                ? `${current.EL_NoDays || 0} Day(s)`
+                              : [3, 4, 6, 8, 9, 10, 11, 12].includes(current.emp_reqTypeId)
+                                ? (() => {
+                                    const used = current.VL_NoDays || current.SL_NoDays || current.EL_NoDays || current.ST_NoDays || 0;
+                                    const start = current.VL_StartDate || current.SL_StartDate || current.EL_DateOfLeave || current.ST_StartDate;
+                                    const end = current.VL_EndDate || current.SL_EndDate || current.EL_DateOfLeave || current.ST_EndDate;
+                                    const original = calculateDays(start, end);
+                                    return used < original 
+                                      ? `${used} Day(s) Used (Original: ${original})` 
+                                      : `${used} Day(s)`;
+                                  })()
                                 : current.emp_reqTypeId === 7 // Half-day
                                   ? `Half-day (${current.HD_period})`
                                   : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
@@ -644,7 +679,7 @@ const AdminRequests = () => {
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
-                          <p className="font-semibold text-slate-800">{current.date_Processed || "Pending"}</p>
+                          <p className="font-semibold text-slate-800">{current.date_Processed ? formatDateTime(current.date_Processed) : "Pending"}</p>
                         </div>
                       </>
                     )}
@@ -661,7 +696,7 @@ const AdminRequests = () => {
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
-                          <p className="font-semibold text-slate-800">{current.date_Processed || "Pending"}</p>
+                          <p className="font-semibold text-slate-800">{current.date_Processed ? formatDateTime(current.date_Processed) : "Pending"}</p>
                         </div>
                       </>
                     )}
@@ -763,6 +798,13 @@ const AdminRequests = () => {
           background: #cbd5e1; 
         }
       `}} />
+
+      <EditRequestModal 
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        request={selectedRequestToEdit}
+        onUpdate={fetchRequests}
+      />
     </Sidebar>
   );
 };

@@ -97,6 +97,9 @@ const validateForm = (formData) => {
 const Edit = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const currentUser = JSON.parse(localStorage.getItem("userData"));
+  const isAdmin = currentUser?.user_RoleId === 1;
+  const isAccountant = currentUser?.user_RoleId === 4;
 
   const [file, setFile] = useState("");
   const [existingAvatar, setExistingAvatar] = useState("");
@@ -150,14 +153,16 @@ const Edit = () => {
 
   // ── Automatic Calculation ──────────────────────────────────────────────────
   useEffect(() => {
-    const rate = parseFloat(formData.dailyRate);
-    if (!isNaN(rate) && rate > 0 && !loadingGovt) {
-      const timer = setTimeout(() => {
-        handleCalculateGovt(rate);
-      }, 1000); // Debounce
-      return () => clearTimeout(timer);
+    if (isAdmin) {
+      const rate = parseFloat(formData.dailyRate);
+      if (!isNaN(rate) && rate > 0 && !loadingGovt) {
+        const timer = setTimeout(() => {
+          handleCalculateGovt(rate);
+        }, 1000); // Debounce
+        return () => clearTimeout(timer);
+      }
     }
-  }, [formData.dailyRate]);
+  }, [formData.dailyRate, isAdmin]);
 
   const handleCalculateGovt = async (rate) => {
     setLoadingGovt(true);
@@ -302,11 +307,19 @@ const Edit = () => {
   };
 
   useEffect(() => {
-    fetchWithAuth("/api/positions")
-      .then(res => res.json())
-      .then(data => setPositions(data))
-      .catch(err => console.error("Error fetching positions:", err));
-  }, []);
+    if (isAdmin) {
+      fetchWithAuth("/api/positions")
+        .then(res => {
+          if (res.status === 403) return [];
+          return res.json();
+        })
+        .then(data => setPositions(Array.isArray(data) ? data : []))
+        .catch(err => {
+          console.error("Error fetching positions:", err);
+          setPositions([]);
+        });
+    }
+  }, [isAdmin]);
 
   const dismissToast = useCallback(() => {
     setToast({ message: "", type: "success" });
@@ -548,129 +561,176 @@ const Edit = () => {
         </div>
 
         <Tabs defaultValue="personal" className="w-full">
-          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0 mb-6">
+          <TabsList className={`grid w-full ${isAdmin ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1"} h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0 mb-6`}>
             <TabsTrigger value="personal" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
               Personal Information
             </TabsTrigger>
-            <TabsTrigger value="employment" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-              Employment & Comp
-            </TabsTrigger>
-            <TabsTrigger value="security" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-              Security & Hardware
-            </TabsTrigger>
+            {isAdmin && (
+              <>
+                <TabsTrigger value="employment" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
+                  Employment & Comp
+                </TabsTrigger>
+                <TabsTrigger value="security" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
+                  Security & Hardware
+                </TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           {/* TAB 1: Personal Information */}
           <TabsContent value="personal">
-            <Card className="shadow-sm border-0 bg-white">
-              <CardHeader className="border-b border-slate-100 pb-4">
-                <CardTitle className="text-lg text-[#2A174E]">Personal Details</CardTitle>
-                <CardDescription>Basic contact and identity information.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6">
-                
-                <div className="flex flex-col md:flex-row gap-8 mb-6">
-                  {/* Avatar Upload */}
-                  <div className="flex flex-col items-center justify-center gap-3 w-full md:w-1/4">
-                    <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-slate-100 shadow-sm relative group bg-slate-50 flex items-center justify-center">
-                      <img
-                        src={
-                          file
-                            ? URL.createObjectURL(file)
-                            : existingAvatar
-                            ? `/api/uploads/${existingAvatar}`
-                            : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"
-                        }
-                        alt="Avatar"
-                        className="w-full h-full object-cover"
+            <div className="space-y-6">
+              <Card className="shadow-sm border-0 bg-white">
+                <CardHeader className="border-b border-slate-100 pb-4">
+                  <CardTitle className="text-lg text-[#2A174E]">Personal Details</CardTitle>
+                  <CardDescription>Basic contact and identity information.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  
+                  <div className="flex flex-col md:flex-row gap-8 mb-6">
+                    {/* Avatar Upload */}
+                    <div className="flex flex-col items-center justify-center gap-3 w-full md:w-1/4">
+                      <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-slate-100 shadow-sm relative group bg-slate-50 flex items-center justify-center">
+                        <img
+                          src={
+                            file
+                              ? URL.createObjectURL(file)
+                              : existingAvatar
+                              ? `/api/uploads/${existingAvatar}`
+                              : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"
+                          }
+                          alt="Avatar"
+                          className="w-full h-full object-cover"
+                        />
+                        <label htmlFor="file" className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white">
+                          <DriveFolderUploadOutlinedIcon />
+                        </label>
+                      </div>
+                      <input
+                        type="file"
+                        id="file"
+                        onChange={(e) => setFile(e.target.files[0])}
+                        style={{ display: "none" }}
+                        accept="image/*"
                       />
-                      <label htmlFor="file" className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white">
-                        <DriveFolderUploadOutlinedIcon />
-                      </label>
+                      <span className="text-xs font-semibold text-slate-500">Upload Photo</span>
                     </div>
-                    <input
-                      type="file"
-                      id="file"
-                      onChange={(e) => setFile(e.target.files[0])}
-                      style={{ display: "none" }}
-                      accept="image/*"
-                    />
-                    <span className="text-xs font-semibold text-slate-500">Upload Photo</span>
+
+                    {/* Basic Info Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full md:w-3/4">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">First Name <span className="text-red-500">*</span></Label>
+                        <Input name="user_FirstName" value={formData.user_FirstName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        {renderError("user_FirstName")}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Last Name <span className="text-red-500">*</span></Label>
+                        <Input name="user_LastName" value={formData.user_LastName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        {renderError("user_LastName")}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address <span className="text-red-500">*</span></Label>
+                        <Input name="user_Email" type="email" value={formData.user_Email} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        {renderError("user_Email")}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number <span className="text-red-500">*</span></Label>
+                        <Input name="user_Phone" value={formData.user_Phone} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        {renderError("user_Phone")}
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500">*</span></Label>
+                        <Input name="user_Address" value={formData.user_Address} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        {renderError("user_Address")}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date of Birth</Label>
+                        <Input name="user_DOB" type="date" value={formData.user_DOB} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Gender</Label>
+                        <Select value={formData.user_Gender} onValueChange={(val) => handleSelectChange("user_Gender", val)}>
+                          <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                            <SelectValue placeholder="Select Gender" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Civil Status</Label>
+                        <Select value={formData.civil_status} onValueChange={(val) => handleSelectChange("civil_status", val)}>
+                          <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                            <SelectValue placeholder="Select Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Single">Single</SelectItem>
+                            <SelectItem value="Married">Married</SelectItem>
+                            <SelectItem value="Widowed">Widowed</SelectItem>
+                            <SelectItem value="Separated">Separated</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2 flex items-center gap-3 pt-6">
+                        <input 
+                          type="checkbox" 
+                          id="is_solo_parent" 
+                          checked={formData.is_solo_parent} 
+                          onChange={(e) => handleSelectChange("is_solo_parent", e.target.checked)}
+                          className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded"
+                        />
+                        <Label htmlFor="is_solo_parent" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer">Solo Parent?</Label>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Basic Info Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full md:w-3/4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">First Name <span className="text-red-500">*</span></Label>
-                      <Input name="user_FirstName" value={formData.user_FirstName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                      {renderError("user_FirstName")}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Last Name <span className="text-red-500">*</span></Label>
-                      <Input name="user_LastName" value={formData.user_LastName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                      {renderError("user_LastName")}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address <span className="text-red-500">*</span></Label>
-                      <Input name="user_Email" type="email" value={formData.user_Email} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                      {renderError("user_Email")}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number <span className="text-red-500">*</span></Label>
-                      <Input name="user_Phone" value={formData.user_Phone} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                      {renderError("user_Phone")}
-                    </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500">*</span></Label>
-                      <Input name="user_Address" value={formData.user_Address} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                      {renderError("user_Address")}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date of Birth</Label>
-                      <Input name="user_DOB" type="date" value={formData.user_DOB} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Gender</Label>
-                      <Select value={formData.user_Gender} onValueChange={(val) => handleSelectChange("user_Gender", val)}>
-                        <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
-                          <SelectValue placeholder="Select Gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Male">Male</SelectItem>
-                          <SelectItem value="Female">Female</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Civil Status</Label>
-                      <Select value={formData.civil_status} onValueChange={(val) => handleSelectChange("civil_status", val)}>
-                        <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
-                          <SelectValue placeholder="Select Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Single">Single</SelectItem>
-                          <SelectItem value="Married">Married</SelectItem>
-                          <SelectItem value="Widowed">Widowed</SelectItem>
-                          <SelectItem value="Separated">Separated</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2 flex items-center gap-3 pt-6">
-                      <input 
-                        type="checkbox" 
-                        id="is_solo_parent" 
-                        checked={formData.is_solo_parent} 
-                        onChange={(e) => handleSelectChange("is_solo_parent", e.target.checked)}
-                        className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded"
-                      />
-                      <Label htmlFor="is_solo_parent" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer">Solo Parent?</Label>
-                    </div>
-                  </div>
-                </div>
+                </CardContent>
+              </Card>
 
-              </CardContent>
-            </Card>
+              {/* Bank Details (Visible to everyone in Personal Tab if non-admin, otherwise in Comp tab) */}
+              {!isAdmin && (
+                <Card className="shadow-sm border-0 bg-white">
+                  <CardHeader className="border-b border-slate-100 pb-4">
+                    <CardTitle className="text-lg text-[#2A174E]">Bank Details</CardTitle>
+                    <CardDescription>Payout information.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bank Company <span className="text-red-500">*</span></Label>
+                      <Select value={formData.bank_Company} onValueChange={(val) => handleSelectChange("bank_Company", val)}>
+                        <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                          <SelectValue placeholder="Select Bank" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PHILIPPINE_BANKS.map((bank, idx) => (
+                            <SelectItem key={idx} value={bank}>{bank}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {renderError("bank_Company")}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Name <span className="text-red-500">*</span></Label>
+                      <Input name="bank_AccountName" placeholder="Juan Dela Cruz" value={formData.bank_AccountName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]" />
+                      {renderError("bank_AccountName")}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Number <span className="text-red-500">*</span></Label>
+                      <div className="relative">
+                        <Input name="account_Number" type={showAccountNumber ? "text" : "password"} placeholder="e.g. 00123456789" value={formData.account_Number} onChange={handleChange} className="pr-10 border-slate-200 focus-visible:ring-[#2A174E] font-mono" />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600" onClick={() => setShowAccountNumber(!showAccountNumber)}>
+                          {showAccountNumber ? <VisibilityOffIcon fontSize="small"/> : <VisibilityIcon fontSize="small"/>}
+                        </div>
+                      </div>
+                      {renderError("account_Number")}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </TabsContent>
 
           {/* TAB 2: Employment & Compensation */}
@@ -736,43 +796,45 @@ const Edit = () => {
                         <SelectValue placeholder="Select Department" />
                       </SelectTrigger>
                       <SelectContent>
-                        {[...new Set(positions.map(p => p.department))].map((dept) => (
+                        {Array.isArray(positions) && [...new Set(positions.map(p => p.department))].map((dept) => (
                           <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                         ))}
                       </SelectContent>
+
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position <span className="text-red-500">*</span></Label>
-                    <Select 
-                      value={formData.position_id?.toString()} 
-                      onValueChange={(val) => {
-                        const selectedPos = positions.find(p => p.positionId.toString() === val);
-                        if (selectedPos) {
-                          setFormData(prev => ({ 
-                            ...prev, 
-                            position_id: selectedPos.positionId,
-                            position: selectedPos.title,
-                            dailyRate: selectedPos.baseDailyRate
-                          }));
-                        }
-                      }}
-                      disabled={!formData.department}
-                    >
-                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
-                        <SelectValue placeholder={formData.department ? "Select Position" : "Select Dept First"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {formData.department && positions
-                          .filter(p => p.department === formData.department)
-                          .map((pos) => (
-                            <SelectItem key={pos.positionId} value={pos.positionId.toString()}>{pos.title}</SelectItem>
-                          ))
-                        }
-                      </SelectContent>
-                    </Select>
+                   <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position <span className="text-red-500">*</span></Label>
+                   <Select
+                     value={formData.position_id?.toString()}
+                     onValueChange={(val) => {
+                       const selectedPos = Array.isArray(positions) ? positions.find(p => p.positionId.toString() === val) : null;
+                       if (selectedPos) {
+                         setFormData(prev => ({
+                           ...prev,
+                           position_id: selectedPos.positionId,
+                           position: selectedPos.title,
+                           dailyRate: selectedPos.baseDailyRate
+                         }));
+                       }
+                     }}
+                     disabled={!formData.department}
+                   >
+                     <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                       <SelectValue placeholder={formData.department ? "Select Position" : "Select Dept First"} />
+                     </SelectTrigger>
+                     <SelectContent>
+                       {formData.department && Array.isArray(positions) && positions
+                         .filter(p => p.department === formData.department)
+                         .map((pos) => (
+                           <SelectItem key={pos.positionId} value={pos.positionId.toString()}>{pos.title}</SelectItem>
+                         ))
+                       }
+                     </SelectContent>
+                   </Select>
                   </div>
+
                 </CardContent>
               </Card>
 

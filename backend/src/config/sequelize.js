@@ -38,6 +38,7 @@ const {
   HalfDay_Leave,
   Onfield_Work,
   LogCorrection_Request,
+  Statutory_Leave,
   Leave_Balance,
 } = require("../models/request.model")(sequelize, DataTypes);
 
@@ -318,6 +319,7 @@ module.exports = {
   HalfDay_Leave,
   Onfield_Work,
   LogCorrection_Request,
+  Statutory_Leave,
   Leave_Balance,
   Payroll_status,
   Payroll_Earnings,

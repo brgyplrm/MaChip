@@ -57,6 +57,7 @@ module.exports = {
       { name: 'payrollRates', type: Sequelize.JSONB, allowNull: true },
       { name: 'mandatedMinimumWage', type: Sequelize.DOUBLE, defaultValue: 610.0 },
       { name: 'mandatedWageEffectiveDate', type: Sequelize.DATEONLY, defaultValue: '2025-07-18' },
+      { name: 'workHourThreshold', type: Sequelize.FLOAT, defaultValue: 4.0 },
     ];
 
     for (const col of sysColumns) {
@@ -80,14 +81,14 @@ module.exports = {
           "nightDiffRate", "overtimeRate", "doubleRegularHolidayRate", "specialDayRestDayRate",
           "doubleSpecialDayRate", "doubleSpecialDayRestDayRate", "regularHolidayRestDayRate",
           "doubleRegularHolidayRestDayRate", "mandatedMinimumWage", "mandatedWageEffectiveDate",
-          "createdAt", "updatedAt"
+          "workHourThreshold", "createdAt", "updatedAt"
         ) VALUES (
           false, 23410.67, 12, 1.0, 1.0,
           '08:30:00', '17:30:00', '20:30:00', '05:30:00',
           1.0, 1.3, 1.3, 2.0,
           1.1, 1.25, 3.0, 1.5,
           1.5, 1.95, 2.6, 3.9, 610.0, '2025-07-18',
-          NOW(), NOW()
+          4.0, NOW(), NOW()
         );
       `);
     }

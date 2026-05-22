@@ -24,3 +24,4 @@ check_config.js
 check_db.js
 request_debug.log
 backend/request_debug.log
+backend/seed_scenario.js

@@ -58,7 +58,7 @@ async function getActiveConfig() {
  * Computes SSS shares based on Monthly Salary Credit (MSC).
  */
 exports.computeSSS = (dailyRate, matrix = null) => {
-  const conf = matrix?.sss || FALLBACK_CONFIG.sss;
+  const conf = { ...FALLBACK_CONFIG.sss, ...(matrix?.sss || {}) };
   
   const monthly = dailyRate * 26;
   const msc = Math.min(Math.max(Math.round(monthly / 500) * 500, conf.msc_floor), conf.msc_ceiling);
@@ -81,7 +81,7 @@ exports.computeSSS = (dailyRate, matrix = null) => {
  * Computes PhilHealth shares (typically 5% total split 50/50).
  */
 exports.computePhilHealth = (dailyRate, matrix = null) => {
-  const conf = matrix?.philhealth || FALLBACK_CONFIG.philhealth;
+  const conf = { ...FALLBACK_CONFIG.philhealth, ...(matrix?.philhealth || {}) };
 
   const monthly = dailyRate * 26;
   const clamped = Math.min(Math.max(monthly, conf.floor), conf.ceiling);
@@ -100,7 +100,7 @@ exports.computePhilHealth = (dailyRate, matrix = null) => {
  * Computes HDMF shares.
  */
 exports.computeHDMF = (dailyRate, matrix = null) => {
-  const conf = matrix?.hdmf || FALLBACK_CONFIG.hdmf;
+  const conf = { ...FALLBACK_CONFIG.hdmf, ...(matrix?.hdmf || {}) };
   const monthly = dailyRate ? dailyRate * 26 : (conf.ceiling + 1); 
   
   let eeRate = conf.ee_rate_high;

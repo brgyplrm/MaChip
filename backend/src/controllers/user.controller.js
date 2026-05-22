@@ -10,6 +10,86 @@ const { encrypt, decrypt } = require("../utils/encryption");
 const { computeMonthlyShares } = require("../utils/govtDeductions");
 
 // ── Get Next User ID ──────────────────────────────────────────────────────────
+exports.getAuditLogs = async (req, res) => {
+  try {
+    const logs = await sequelize.query(
+      `SELECT a.*, u."user_FirstName", u."user_LastName" 
+       FROM "Audit_Log" a
+       LEFT JOIN "User" u ON a."user_Id" = u."user_Id"
+       ORDER BY a."createdAt" DESC LIMIT 500`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getTransactionLogs = async (req, res) => {
+  try {
+    const logs = await sequelize.query(
+      `SELECT t.*, u."user_FirstName", u."user_LastName" 
+       FROM "Transaction_Log" t
+       LEFT JOIN "User" u ON t."user_Id" = u."user_Id"
+       ORDER BY t."createdAt" DESC LIMIT 500`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getEmployeeSummary = async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const user = await sequelize.query(
+      `SELECT "user_Id", "user_FirstName", "user_LastName", "hireDate", "position", "department"
+       FROM "User" WHERE "user_Id" = :userId`,
+      { replacements: { userId }, type: QueryTypes.SELECT }
+    );
+
+    if (user.length === 0) return res.status(404).json({ error: "User not found." });
+
+    const now = await getSystemTime();
+    const hireDate = new Date(user[0].hireDate);
+    const tenureDays = Math.floor((now - hireDate) / (1000 * 60 * 60 * 24));
+    const tenureYears = (tenureDays / 365.25).toFixed(1);
+
+    // Payroll History (Last 12 months)
+    const payrollHistory = await sequelize.query(
+      `SELECT p."period_End", p."netPay", p."totalEarnings", pe."OT_Amnt", pe."nightDiff_Amnt"
+       FROM "Payroll" p
+       LEFT JOIN "Payroll_Earnings" pe ON p."payrollId" = pe."payrollId"
+       WHERE p."user_Id" = :userId AND p."status" = 3
+       ORDER BY p."period_End" DESC LIMIT 24`,
+      { replacements: { userId }, type: QueryTypes.SELECT }
+    );
+
+    // Yearly Aggregates
+    const yearlyStats = await sequelize.query(
+      `SELECT EXTRACT(YEAR FROM "period_End") as "year", 
+              SUM("netPay") as "totalNet", 
+              SUM("totalEarnings") as "totalGross",
+              SUM(pe."OT_Hrs") as "totalOT"
+       FROM "Payroll" p
+       LEFT JOIN "Payroll_Earnings" pe ON p."payrollId" = pe."payrollId"
+       WHERE p."user_Id" = :userId AND p."status" = 3
+       GROUP BY "year" ORDER BY "year" DESC`,
+      { replacements: { userId }, type: QueryTypes.SELECT }
+    );
+
+    res.status(200).json({
+      profile: user[0],
+      tenure: { days: tenureDays, years: parseFloat(tenureYears) },
+      history: payrollHistory,
+      yearly: yearlyStats
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.getNextUserId = async (req, res) => {
   try {
     const result = await sequelize.query(
@@ -596,6 +676,15 @@ exports.bulkUpdateMaxicare = async (req, res) => {
 // ── Update User ───────────────────────────────────────────────────────────────
 exports.updateUser = async (req, res) => {
   const { user_Id } = req.params;
+  const operator = req.user;
+  const isAdmin = operator && parseInt(operator.user_RoleId) === 1;
+
+  // ── 1. AUTHORIZATION CHECK ──
+  // If not admin, you can ONLY update your own ID
+  if (!isAdmin && parseInt(operator?.user_Id) !== parseInt(user_Id)) {
+    return res.status(403).json({ error: "Access denied. You can only update your own profile." });
+  }
+
   console.log("[DEBUG] Received body in updateUser:", req.body);
     const {
     user_FirstName,
@@ -630,6 +719,8 @@ exports.updateUser = async (req, res) => {
     multiPurposeSavings,
     advances_Amnt
   } = req.body || {};
+
+  // ... (rest of validation)
 
   if (account_Number) {
     if (!/^\d+$/.test(account_Number)) {
@@ -674,7 +765,7 @@ exports.updateUser = async (req, res) => {
     const oldUserResult = await sequelize.query(
       `SELECT u.*, 
               b."account_Number", b."bank_Company", b."bank_AccountName",
-              d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
+              d."sss_Share", d."sss_is_manual", d."philhealth_Share", d."ph_is_manual", d."hdmf_Share", d."hdmf_is_manual", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
               d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
               h."user_MachipId", h."user_FingerprintId"
@@ -715,47 +806,48 @@ exports.updateUser = async (req, res) => {
       }
 
       // Build replacements object with explicit types
+      // SECURITY: If not admin, FORCE sensitive fields to stay at their OLD values
       const replacements = {
         targetId: parseInt(user_Id),
         firstName: user_FirstName || null,
         lastName: user_LastName || null,
         middleName: user_MiddleName || null,
-        machipId: user_MachipId || null,
-        fingerprintId: user_FingerprintId || null,
-        roleId: parseInt(user_RoleId) || 3,
-        statusId: parseInt(user_EmploymentStatusId) || 1,
+        machipId: isAdmin ? (user_MachipId || null) : oldUser.user_MachipId,
+        fingerprintId: isAdmin ? (user_FingerprintId || null) : oldUser.user_FingerprintId,
+        roleId: isAdmin ? (parseInt(user_RoleId) || 3) : oldUser.user_RoleId,
+        statusId: isAdmin ? (parseInt(user_EmploymentStatusId) || 1) : oldUser.user_EmploymentStatusId,
         email: user_Email || null,
         phone: req.body.user_Phone || null,
         address: req.body.user_Address || null,
         dob: req.body.user_DOB || null,
         gender: req.body.user_Gender || null,
-        shiftId: parseInt(req.body.user_ShiftId) || 1,
+        shiftId: isAdmin ? (parseInt(req.body.user_ShiftId) || 1) : oldUser.user_ShiftId,
         accountNumber: encrypt(account_Number) || null,
         bankCompany: bank_Company || null,
         bankAccountName: bank_AccountName || null,
-        department: department || null,
-        position: position || null,
-        position_id: position_id || null,
-        hireDate: hireDate || null,
-        taxStatus: taxStatus || "S",
+        department: isAdmin ? (department || null) : oldUser.department,
+        position: isAdmin ? (position || null) : oldUser.position,
+        position_id: isAdmin ? (position_id || null) : oldUser.position_id,
+        hireDate: isAdmin ? (hireDate || null) : oldUser.hireDate,
+        taxStatus: isAdmin ? (taxStatus || "S") : oldUser.taxStatus,
         civil_status: req.body.civil_status || oldUser.civil_status || "Single",
         is_solo_parent: req.body.is_solo_parent === "true" || req.body.is_solo_parent === true,
-        dailyRate: parsedDailyRate,
-        sss: finalSSS,
-        sss_is_manual: req.body.sss_is_manual === true || req.body.sss_is_manual === "true",
-        ph: finalPH,
-        ph_is_manual: req.body.ph_is_manual === true || req.body.ph_is_manual === "true",
-        hd: finalHD,
-        hdmf_is_manual: req.body.hdmf_is_manual === true || req.body.hdmf_is_manual === "true",
-        tax: parseFloat(Tax_Ded) || oldUser.tax_Share || 0,
-        hc: parseFloat(healthCard_Amnt) || oldUser.healthCard_Amnt || 0,
-        sl: parseFloat(SSS_Loan) || oldUser.SSS_Loan || 0,
-        hl: parseFloat(HDMF_Loan) || oldUser.HDMF_Loan || 0,
-        cl: parseFloat(calamityLoan_Amnt) || oldUser.calamityLoan_Amnt || 0,
-        el: parseFloat(eastwest_Loan) || oldUser.eastwest_Loan || 0,
-        gd: parseFloat(globe_Deduction) || oldUser.globe_Deduction || 0,
-        ms: parseFloat(multiPurposeSavings) || oldUser.multiPurposeSavings || 0,
-        aa: parseFloat(advances_Amnt) || oldUser.advances_Amnt || 0,
+        dailyRate: isAdmin ? parsedDailyRate : (oldUser.dailyRate || 0),
+        sss: isAdmin ? finalSSS : (oldUser.sss_Share || 0),
+        sss_is_manual: isAdmin ? (req.body.sss_is_manual === true || req.body.sss_is_manual === "true") : (oldUser.sss_is_manual || false),
+        ph: isAdmin ? finalPH : (oldUser.philhealth_Share || 0),
+        ph_is_manual: isAdmin ? (req.body.ph_is_manual === true || req.body.ph_is_manual === "true") : (oldUser.ph_is_manual || false),
+        hd: isAdmin ? finalHD : (oldUser.hdmf_Share || 0),
+        hdmf_is_manual: isAdmin ? (req.body.hdmf_is_manual === true || req.body.hdmf_is_manual === "true") : (oldUser.hdmf_is_manual || false),
+        tax: isAdmin ? (parseFloat(Tax_Ded) || 0) : (oldUser.tax_Share || 0),
+        hc: isAdmin ? (parseFloat(healthCard_Amnt) || 0) : (oldUser.healthCard_Amnt || 0),
+        sl: isAdmin ? (parseFloat(SSS_Loan) || 0) : (oldUser.SSS_Loan || 0),
+        hl: isAdmin ? (parseFloat(HDMF_Loan) || 0) : (oldUser.HDMF_Loan || 0),
+        cl: isAdmin ? (parseFloat(calamityLoan_Amnt) || 0) : (oldUser.calamityLoan_Amnt || 0),
+        el: isAdmin ? (parseFloat(eastwest_Loan) || 0) : (oldUser.eastwest_Loan || 0),
+        gd: isAdmin ? (parseFloat(globe_Deduction) || 0) : (oldUser.globe_Deduction || 0),
+        ms: isAdmin ? (parseFloat(multiPurposeSavings) || 0) : (oldUser.multiPurposeSavings || 0),
+        aa: isAdmin ? (parseFloat(advances_Amnt) || 0) : (oldUser.advances_Amnt || 0),
         updatedAt: nowStr
       };
 

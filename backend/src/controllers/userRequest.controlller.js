@@ -1,9 +1,162 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL, formatDateLocal } = require("../utils/systemTime");
-const { sendOnfieldEmail, sendRequestNotificationEmail } = require("../utils/emailService");
+const { 
+  sendOnfieldEmail, 
+  sendRequestNotificationEmail, 
+  sendRequestStatusEmail 
+} = require("../utils/emailService");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
+const { Notification, User } = require("../config/sequelize.js");
+
+// ── Notify Supervisor (Escalation) ───────────────────────────────────────────
+exports.notifySupervisor = async (req, res) => {
+  const { requestId } = req.params;
+  try {
+    const [request] = await sequelize.query(
+      `SELECT er.*, u."user_FirstName", u."user_LastName" 
+       FROM "emp_Request" er
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       WHERE er."emp_reqId" = :requestId`,
+      { replacements: { requestId }, type: QueryTypes.SELECT }
+    );
+
+    if (!request) return res.status(404).json({ error: "Request not found." });
+    if (request.emp_reqStatusId !== 1) return res.status(400).json({ error: "Only pending requests can be escalated." });
+
+    const now = await getSystemTime();
+    const filedAt = new Date(request.createdAt);
+    const diffHrs = (now - filedAt) / 3600000;
+
+    if (diffHrs < 4) {
+      return res.status(400).json({ error: `Please wait at least 4 hours before notifying supervisor (Current: ${diffHrs.toFixed(1)} hrs).` });
+    }
+
+    const admins = await sequelize.query(
+      `SELECT "user_Id", "user_Email" FROM "User" WHERE "user_RoleId" IN (1, 2) AND "deletedAt" IS NULL`,
+      { type: QueryTypes.SELECT }
+    );
+
+    const msg = `Urgent: Request #${requestId} from ${request.user_FirstName} ${request.user_LastName} has been pending for ${diffHrs.toFixed(1)} hours.`;
+    
+    for (const admin of admins) {
+      await Notification.create({
+        user_Id: admin.user_Id,
+        title: "Pending Request Escalation",
+        message: msg,
+        isRead: false
+      });
+    }
+
+    await sequelize.query(
+      `UPDATE "emp_Request" SET "last_escalated_at" = :now WHERE "emp_reqId" = :requestId`,
+      { replacements: { now: formatForSQL(now), requestId }, type: QueryTypes.UPDATE }
+    );
+
+    res.status(200).json({ message: "Supervisors have been notified." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ── Update User Request (Editing) ─────────────────────────────────────────────
+exports.UpdateUserRequest = async (req, res) => {
+  const { requestId } = req.params;
+  const {
+    emp_reqTypeId, OT_DateOf, HrFrom, HrTo, Total_Hrs, reason,
+    StartDate, EndDate, NoDays, WithPayID, DateonField, NoHrs,
+    destination, remarks, resend, modificationReason
+  } = req.body;
+
+  const t = await sequelize.transaction();
+  try {
+    const [request] = await sequelize.query(
+      `SELECT er.*, rt."reqTypeName" 
+       FROM "emp_Request" er 
+       JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+       WHERE er."emp_reqId" = :requestId`,
+      { replacements: { requestId }, type: QueryTypes.SELECT, transaction: t }
+    );
+
+    if (!request) {
+      await t.rollback();
+      return res.status(404).json({ error: "Request not found." });
+    }
+
+    if ([2, 3].includes(request.emp_reqStatusId) && req.user?.user_RoleId !== 1) {
+      await t.rollback();
+      return res.status(403).json({ error: "Finalized requests (Approved/Rejected) can only be edited by Admins." });
+    }
+
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+    const typeId = parseInt(emp_reqTypeId || request.emp_reqTypeId);
+
+    let statusId = request.emp_reqStatusId;
+    if (resend || request.emp_reqStatusId === 5) statusId = 1;
+
+    await sequelize.query(
+      `UPDATE "emp_Request" SET "remarks" = :remarks, "emp_reqStatusId" = :statusId, "updatedAt" = :now WHERE "emp_reqId" = :requestId`,
+      { replacements: { remarks: remarks || request.remarks, statusId, now: nowStr, requestId }, type: QueryTypes.UPDATE, transaction: t }
+    );
+
+    if (typeId === 1) {
+      await sequelize.query(`UPDATE "Overtime_Request" SET "OT_DateOf" = :OT_DateOf, "HrFrom" = :HrFrom, "HrTo" = :HrTo, "Total_Hrs" = :Total_Hrs, "reason" = :reason WHERE "emp_reqId" = :requestId`, { replacements: { OT_DateOf, HrFrom, HrTo, Total_Hrs, reason, requestId }, transaction: t });
+    } else if (typeId === 2) {
+      await sequelize.query(`UPDATE "Onfield_Work" SET "DateonField" = :DateonField, "NoHrs" = :NoHrs, "destination" = :destination, "reason" = :reason WHERE "emp_reqId" = :requestId`, { replacements: { DateonField, NoHrs, destination, reason, requestId }, transaction: t });
+    } else if (typeId === 3) {
+      await sequelize.query(`UPDATE "Vacation_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`, { replacements: { StartDate, EndDate, NoDays, reason, WithPayID, requestId }, transaction: t });
+    } else if (typeId === 4) {
+      await sequelize.query(`UPDATE "Sick_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`, { replacements: { StartDate, EndDate, NoDays, reason, WithPayID, requestId }, transaction: t });
+    } else if (typeId === 6) {
+      await sequelize.query(`UPDATE "Emergency_Leave" SET "DateOfLeave" = :StartDate, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`, { replacements: { StartDate, reason, WithPayID: WithPayID || 1, requestId }, transaction: t });
+    } else if (typeId === 7) {
+      await sequelize.query(`UPDATE "HalfDay_Leave" SET "DateOfLeave" = :StartDate, "reason" = :reason, "WithPayID" = :WithPayID, "period" = :period WHERE "emp_reqId" = :requestId`, { replacements: { StartDate, reason, WithPayID: WithPayID || 1, period: period || "Morning", requestId }, transaction: t });
+    } else if (typeId === 5) {
+      await sequelize.query(`UPDATE "Log_Correction" SET "logDate" = :logDate, "claimedIn" = :claimedIn, "claimedOut" = :claimedOut, "reason" = :reason WHERE "emp_reqId" = :requestId`, { replacements: { logDate, claimedIn, claimedOut, reason, requestId }, transaction: t });
+    }
+
+    // ── Notify Employee ──────────────────────────────────────────────────────
+    const notifyMsg = `Your ${request.reqTypeName} request (#${requestId}) has been modified by the admin.${modificationReason ? ` Reason: ${modificationReason}` : ""}`;
+    await Notification.create({
+      user_Id: request.user_Id,
+      title: "Request Modified",
+      message: notifyMsg,
+      isRead: false
+    }, { transaction: t });
+
+    // Send Email
+    if (request.user_Email) {
+      const dateStr = StartDate ? (EndDate ? `${StartDate} to ${EndDate}` : StartDate) : 
+                      OT_DateOf ? OT_DateOf : 
+                      logDate ? logDate : 
+                      DateonField || "N/A";
+      
+      const [wp] = await sequelize.query(`SELECT "withPayName" FROM "withPay" WHERE "withPayId" = :WithPayID`, { replacements: { WithPayID }, type: QueryTypes.SELECT, transaction: t });
+
+      sendRequestStatusEmail({
+        email: request.user_Email,
+        name: `${request.user_FirstName} ${request.user_LastName}`,
+        requestType: request.reqTypeName,
+        status: "Modified by Admin",
+        dateStr,
+        reason: modificationReason,
+        withPayName: wp?.withPayName
+      }).catch(err => console.error("[MOD STATUS EMAIL FAILED]:", err.message));
+    }
+
+    await t.commit();
+
+    const io = getIO();
+    io.to(`user_${request.user_Id}`).emit("NOTIFICATION_UPDATE");
+
+    res.status(200).json({ message: "Request updated successfully." });
+  } catch (err) {
+    if (t) await t.rollback();
+    res.status(500).json({ error: err.message });
+  }
+};
 
 exports.getCalendarReport = async (req, res) => {
   let { startDate, endDate, user_Id } = req.query;
@@ -146,9 +299,6 @@ exports.UserCreateRequest = async (req, res) => {
     const finalRemarks = remarks || reason || purpose || null;
     const finalReason = reason || purpose || remarks || "No reason provided";
 
-    // ----------------------------------
-
-
     // --- HOLIDAY ADJACENCY RULE (SANDWICH) ---
     if ([3, 4, 6, 7].includes(finalReqTypeId)) {
       const leaveDateStart = StartDate || req.body.DateOfLeave;
@@ -175,7 +325,6 @@ exports.UserCreateRequest = async (req, res) => {
       }
     }
     // ------------------------------------------
-
     const currentYear = now.getFullYear();
 
     let systemRemarks = [];
@@ -836,18 +985,22 @@ exports.GetAllRequests = async (req, res) => {
         vl."StartDate" as "VL_StartDate",
         vl."EndDate" as "VL_EndDate",
         vl."NoDays" as "VL_NoDays",
+        vl."WithPayID" as "VL_WithPayID",
         wpvl."withPayName" as "VL_withPayName",
         sl."StartDate" as "SL_StartDate",
         sl."EndDate" as "SL_EndDate",
         sl."NoDays" as "SL_NoDays",
+        sl."WithPayID" as "SL_WithPayID",
         sl."proof_File" as "SL_proof_File",
         wpsl."withPayName" as "SL_withPayName",
         el."DateOfLeave" as "EL_DateOfLeave",
         el."NoDays" as "EL_NoDays",
+        el."WithPayID" as "EL_WithPayID",
         wpel."withPayName" as "EL_withPayName",
         hd."DateOfLeave" as "HD_DateOfLeave",
         hd."period" as "HD_period",
         hd."timeRange" as "HD_timeRange",
+        hd."WithPayID" as "HD_WithPayID",
         wphd."withPayName" as "HD_withPayName",
         st."StartDate" as "ST_StartDate",
         st."EndDate" as "ST_EndDate",
@@ -1248,12 +1401,27 @@ exports.UpdateStatusRequest = async (req, res) => {
     // 3. Create notification for the user
     const [requestInfo] = await sequelize.query(
       `SELECT er."user_Id", rt."reqTypeName", er."emp_reqTypeId", u."user_Email", u."user_FirstName", u."user_LastName",
-              ow."DateonField", ow."destination", ow."NoHrs"
+              ow."DateonField", ow."destination", ow."NoHrs",
+              vl."StartDate" as "VL_S", vl."EndDate" as "VL_E", wpvl."withPayName" as "VL_W",
+              sl."StartDate" as "SL_S", sl."EndDate" as "SL_E", wpsl."withPayName" as "SL_W",
+              el."DateOfLeave" as "EL_D", wpel."withPayName" as "EL_W",
+              hd."DateOfLeave" as "HD_D", wphd."withPayName" as "HD_W",
+              ot."OT_DateOf" as "OT_D",
+              lc."logDate" as "LC_D"
        FROM "emp_Request" er
        LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
        LEFT JOIN "User" u ON er."user_Id" = u."user_Id"
        LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
-      LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
+       LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+       LEFT JOIN "withPay" wpvl ON vl."WithPayID" = wpvl."withPayId"
+       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+       LEFT JOIN "withPay" wpsl ON sl."WithPayID" = wpsl."withPayId"
+       LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+       LEFT JOIN "withPay" wpel ON el."WithPayID" = wpel."withPayId"
+       LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+       LEFT JOIN "withPay" wphd ON hd."WithPayID" = wphd."withPayId"
+       LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
+       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
        WHERE er."emp_reqId" = :emp_reqId`,
       { replacements: { emp_reqId }, type: QueryTypes.SELECT }
     );
@@ -1262,8 +1430,9 @@ exports.UpdateStatusRequest = async (req, res) => {
       let statusName = "Pending";
       if (finalStatusId === 2) statusName = "Approved";
       else if (finalStatusId === 3) statusName = "Rejected";
+      else if (finalStatusId === 5) statusName = "Returned for Correction";
 
-    // A. Notify Requester
+      // A. Notify Requester
       await sequelize.query(
         `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
          VALUES (:userId, :title, :message, false, :targetId, :now, :now)`,
@@ -1271,13 +1440,36 @@ exports.UpdateStatusRequest = async (req, res) => {
           replacements: {
             userId: requestInfo.user_Id,
             title: `Request ${statusName}`,
-            message: `Your ${requestInfo.reqTypeName} request has been ${statusName.toLowerCase()}.`,
+            message: `Your ${requestInfo.reqTypeName} request has been ${statusName.toLowerCase()}.${remarks ? ` Admin Note: ${remarks}` : ""}`,
             targetId: emp_reqId,
             now: nowStr,
           },
           type: QueryTypes.INSERT,
         }
       );
+
+      // B. Send Email Notification
+      const dateStr = requestInfo.VL_S ? `${requestInfo.VL_S} to ${requestInfo.VL_E}` :
+                      requestInfo.SL_S ? `${requestInfo.SL_S} to ${requestInfo.SL_E}` :
+                      requestInfo.EL_D ? requestInfo.EL_D :
+                      requestInfo.HD_D ? requestInfo.HD_D :
+                      requestInfo.OT_D ? requestInfo.OT_D :
+                      requestInfo.LC_D ? requestInfo.LC_D :
+                      requestInfo.DateonField || "N/A";
+
+      const withPayName = requestInfo.VL_W || requestInfo.SL_W || requestInfo.EL_W || requestInfo.HD_W || null;
+
+      if (requestInfo.user_Email) {
+        sendRequestStatusEmail({
+          email: requestInfo.user_Email,
+          name: `${requestInfo.user_FirstName} ${requestInfo.user_LastName}`,
+          requestType: requestInfo.reqTypeName,
+          status: statusName,
+          dateStr,
+          reason: remarks,
+          withPayName
+        }).catch(err => console.error("[STATUS EMAIL FAILED]:", err.message));
+      }
 
       // Email for Onfield Work Approval (Type 2)
       if (finalStatusId === 2 && requestInfo.emp_reqTypeId === 2 && requestInfo.user_Email) {
@@ -1406,18 +1598,22 @@ exports.GetRequestDetails = async (req, res) => {
         vl."StartDate" as "VL_StartDate",
         vl."EndDate" as "VL_EndDate",
         vl."NoDays" as "VL_NoDays",
+        vl."WithPayID" as "VL_WithPayID",
         wpvl."withPayName" as "VL_withPayName",
         sl."StartDate" as "SL_StartDate",
         sl."EndDate" as "SL_EndDate",
         sl."NoDays" as "SL_NoDays",
+        sl."WithPayID" as "SL_WithPayID",
         sl."proof_File" as "SL_proof_File",
         wpsl."withPayName" as "SL_withPayName",
         el."DateOfLeave" as "EL_DateOfLeave",
         el."NoDays" as "EL_NoDays",
+        el."WithPayID" as "EL_WithPayID",
         wpel."withPayName" as "EL_withPayName",
         hd."DateOfLeave" as "HD_DateOfLeave",
         hd."period" as "HD_period",
         hd."timeRange" as "HD_timeRange",
+        hd."WithPayID" as "HD_WithPayID",
         wphd."withPayName" as "HD_withPayName",
         ow."DateonField" as "DateonField",
         ow."NoDays" as "OW_NoDays",

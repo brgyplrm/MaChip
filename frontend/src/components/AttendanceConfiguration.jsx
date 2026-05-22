@@ -9,6 +9,7 @@ export default function AttendanceConfiguration({
   lunchEnd, setLunchEnd,
   lunchDuration, setLunchDuration,
   flexibleThreshold, setFlexibleThreshold,
+  workHourThreshold, setWorkHourThreshold,
   onSave,
   saving,
   isAdmin
@@ -162,6 +163,26 @@ export default function AttendanceConfiguration({
               />
               <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
                 Break is only deducted if total shift exceeds this (e.g. 300 for 5 hrs)
+              </p>
+            </div>
+            <div className="space-y-1.5 text-left w-full">
+              <label className="block text-xs font-medium text-slate-500 tracking-wide">
+                Absenteeism Threshold (Hrs)
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={(workHourThreshold || "").toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/,/g, '');
+                  if (raw === '' || raw === '.' || !isNaN(raw)) setWorkHourThreshold(raw);
+                }}
+                onBlur={() => setWorkHourThreshold(parseFloat(workHourThreshold) || 0)}
+                disabled={!isAdmin}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs"
+              />
+              <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
+                Min. worked hours to avoid being marked as Absent by system
               </p>
             </div>
           </div>

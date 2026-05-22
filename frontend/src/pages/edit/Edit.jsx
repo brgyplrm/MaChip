@@ -15,6 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const Edit = ({ inputs, title }) => {
   const navigate = useNavigate();
   const { userId } = useParams();
+  const currentUser = JSON.parse(localStorage.getItem("userData"));
+  const isAdmin = currentUser?.user_RoleId === 1;
 
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
@@ -177,7 +179,9 @@ const Edit = ({ inputs, title }) => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {inputs && inputs.map((input) => {
-                  const isReadOnly = input.label === "User ID" || input.label === "MaChip ID" || input.label === "Fingerprint ID";
+                  // Strict permission check: Non-admins can ONLY edit Email, Password, and ATM / Account Number
+                  const isAdminOnlyField = !["Email", "Password", "ATM / Account Number"].includes(input.label);
+                  const isReadOnly = (input.label === "User ID") || (!isAdmin && isAdminOnlyField) || (isAdmin && (input.label === "MaChip ID" || input.label === "Fingerprint ID"));
                   
                   return (
                     <div className="space-y-2" key={input.id}>
@@ -196,7 +200,7 @@ const Edit = ({ inputs, title }) => {
                           className={`flex-1 ${isReadOnly ? "bg-slate-100 text-slate-500 cursor-not-allowed focus-visible:ring-0" : "bg-white focus-visible:ring-[#2A174E]"}`}
                         />
                         
-                        {input.label === "MaChip ID" && (
+                        {input.label === "MaChip ID" && isAdmin && (
                           <Button 
                             type="button" 
                             variant="secondary"
@@ -207,7 +211,7 @@ const Edit = ({ inputs, title }) => {
                           </Button>
                         )}
 
-                        {input.label === "Fingerprint ID" && (
+                        {input.label === "Fingerprint ID" && isAdmin && (
                           <Button 
                             type="button" 
                             variant="secondary"

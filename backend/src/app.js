@@ -183,9 +183,12 @@ connectDB().then(async () => {
       const day = now.getDate();
       let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
 
-      // Backfill from period start until today
+      // Backfill from period start until YESTERDAY (today is handled by 5:30 PM task)
+      let yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+
       let checkDate = new Date(periodStart);
-      while (checkDate <= now) {
+      while (checkDate <= yesterday) {
         await ensureAbsentsMarked(new Date(checkDate));
         checkDate.setDate(checkDate.getDate() + 1);
       }
@@ -215,7 +218,7 @@ connectDB().then(async () => {
         }
       }
 
-      // 2. Start-of-Day Sync (Daily 4:00 AM): Backfill the entire CURRENT PERIOD
+      // 2. Start-of-Day Sync (Daily 4:00 AM): Backfill the entire CURRENT PERIOD up to yesterday
       if (hour === 4 && minute === 0 && lastBackfillDate !== dateStr) {
         console.log(`[SCHEDULED] 4:00 AM: Running period-restricted backfill...`);
         lastBackfillDate = dateStr;
@@ -225,8 +228,11 @@ connectDB().then(async () => {
         const day = now.getDate();
         let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
 
+        let yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+
         let checkDate = new Date(periodStart);
-        while (checkDate <= now) {
+        while (checkDate <= yesterday) {
           await ensureAbsentsMarked(new Date(checkDate));
           checkDate.setDate(checkDate.getDate() + 1);
         }

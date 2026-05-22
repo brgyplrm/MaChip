@@ -227,6 +227,58 @@ exports.sendPasswordUpdateEmail = async ({ email, newPassword, name }) => {
 };
 
 /**
+ * Sends a notification email when a request status is updated (Approved/Rejected/Returned).
+ */
+exports.sendRequestStatusEmail = async ({ email, name, requestType, status, dateStr, reason, withPayName }) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.error("[EMAIL CONFIG ERROR]: Missing credentials.");
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  });
+
+  let statusColor = "#333";
+  if (status.toLowerCase().includes("approve")) statusColor = "#28a745";
+  else if (status.toLowerCase().includes("reject")) statusColor = "#dc3545";
+  else if (status.toLowerCase().includes("return")) statusColor = "#fd7e14";
+
+  const mailOptions = {
+    from: `"MaChip System" <${EMAIL_USER}>`,
+    to: email,
+    subject: `Request Update: ${requestType} - ${status}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #2c3e50;">Request Status Updated</h2>
+        <p>Hello ${name},</p>
+        <p>Your request for <strong>${requestType}</strong> has been updated to:</p>
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eee; margin: 20px 0; border-left: 5px solid ${statusColor};">
+          <p style="margin: 5px 0;"><strong>Status:</strong> <span style="color: ${statusColor}; font-weight: bold; font-size: 1.1em;">${status}</span></p>
+          <p style="margin: 5px 0;"><strong>Date:</strong> ${dateStr}</p>
+          ${withPayName ? `<p style="margin: 5px 0;"><strong>Payment Status:</strong> ${withPayName}</p>` : ''}
+          ${reason ? `<div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc;"><strong>Admin Note:</strong><br/><em>"${reason}"</em></div>` : ''}
+        </div>
+        <p style="margin-top: 20px;">You can view the full details and history by logging into the MaChip portal.</p>
+        ${status.toLowerCase().includes("return") ? '<p style="color: #fd7e14; font-weight: bold;">Please update the request as requested and resubmit for review.</p>' : ''}
+        <br/>
+        <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[STATUS EMAIL SENT] to ${email} - ${status}`);
+  } catch (error) {
+    console.error(`[STATUS EMAIL ERROR] for ${email}:`, error.message);
+  }
+};
+
+/**
  * Sends a notification to an admin/supervisor about a new request.
  */
 exports.sendRequestNotificationEmail = async ({ toEmail, approverName, requesterName, requestType, dateStr, duration, isEscalation = false }) => {

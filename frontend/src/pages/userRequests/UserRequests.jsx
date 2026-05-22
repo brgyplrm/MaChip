@@ -6,10 +6,15 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import AttachmentIcon from '@mui/icons-material/Attachment';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import HistoryIcon from '@mui/icons-material/History';
+import AssessmentIcon  from "@mui/icons-material/Assessment";
+import EditIcon from "@mui/icons-material/Edit";
+import ReplyIcon from "@mui/icons-material/Reply";
+import EditRequestModal from "../../components/EditRequestModal";
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
+import { formatDateTime, calculateDays } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
 
@@ -25,10 +30,15 @@ const UserRequests = () => {
   const { systemToday } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const [activeTab, setActiveTab] = useState("submit"); // "submit" or "history"
+  const [historyTab, setHistoryTab] = useState("pending"); // "pending", "returned", "past"
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [historyRequests, setHistoryRequests] = useState([]);
-  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0 });
+  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0, returned: 0 });
   const [loading, setLoading] = useState(false);
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedRequestToEdit, setSelectedRequestToEdit] = useState(null);
 
   // Pagination & History States
   const [currentPage, setCurrentPage] = useState(1);
@@ -36,10 +46,11 @@ const UserRequests = () => {
   const [selectedReqId, setSelectedReqId] = useState(null);
 
   useEffect(() => {
-    const pending = historyRequests.filter(r => r.emp_reqStatusId === 1).length;
+    const pending = historyRequests.filter(r => r.emp_reqStatusId === 1 || r.emp_reqStatusId === 4).length;
     const approved = historyRequests.filter(r => r.emp_reqStatusId === 2).length;
     const rejected = historyRequests.filter(r => r.emp_reqStatusId === 3).length;
-    setStats({ pending, approved, rejected });
+    const returned = historyRequests.filter(r => r.emp_reqStatusId === 5).length;
+    setStats({ pending, approved, rejected, returned });
   }, [historyRequests]);
   
   const getPayrollDates = useCallback((baseDate) => {
@@ -278,6 +289,16 @@ const UserRequests = () => {
     }
   };
 
+  const handleEditReturned = (req) => {
+    setSelectedRequestToEdit(req);
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateSuccess = () => {
+    fetchHistory();
+    setToast({ message: "Request updated and resubmitted successfully!", type: "success" });
+  };
+
   useEffect(() => {
     fetchBalance();
     fetchPayrollPeriods();
@@ -456,19 +477,26 @@ const UserRequests = () => {
   };
 
   // --- Pagination & Formatting Logic for History ---
-  const totalItems = historyRequests.length;
+  const filteredHistory = historyRequests.filter(req => {
+    if (historyTab === "pending") return req.emp_reqStatusId === 1 || req.emp_reqStatusId === 4;
+    if (historyTab === "returned") return req.emp_reqStatusId === 5;
+    if (historyTab === "past") return req.emp_reqStatusId === 2 || req.emp_reqStatusId === 3;
+    return false;
+  });
+
+  const totalItems = filteredHistory.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const currentHistoryData = historyRequests.slice(startIndex, endIndex);
+  const currentHistoryData = filteredHistory.slice(startIndex, endIndex);
   
-  const currentReq = selectedReqId ? historyRequests.find(r => r.emp_reqId === selectedReqId) : historyRequests[0];
+  const currentReq = selectedReqId ? historyRequests.find(r => r.emp_reqId === selectedReqId) : filteredHistory[0];
 
   useEffect(() => {
-    if (activeTab === "history" && historyRequests.length > 0 && !selectedReqId) {
-      setSelectedReqId(historyRequests[0].emp_reqId);
+    if (activeTab === "history" && filteredHistory.length > 0 && !selectedReqId) {
+      setSelectedReqId(filteredHistory[0].emp_reqId);
     }
-  }, [activeTab, historyRequests, selectedReqId]);
+  }, [activeTab, historyTab, filteredHistory.length, selectedReqId]);
 
   const formatTime = (time) => {
     if (!time) return "";
@@ -554,16 +582,15 @@ const UserRequests = () => {
         </div>
         
         {/* Dashboard-Style Statistics Cards */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6 mb-6 w-full">
           {/* Card 1: Pending */}
           <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
+            <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Pending Requests</p>
+                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Pending</p>
                   <p className="text-4xl font-bold text-[#2A174E]">{stats.pending}</p>
                 </div>
-                <p className="text-xs text-[#2A174E]/70 italic mt-4">Awaiting admin approval</p>
               </div>
               <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <HourglassEmptyIcon className="h-6 w-6" />
@@ -571,15 +598,29 @@ const UserRequests = () => {
             </CardContent>
           </Card>
 
-          {/* Card 2: Approved */}
-          <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
+          {/* Card 4: Returned */}
+          <Card className="shadow-sm border-0 bg-blue-50 py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Approved Total</p>
+                  <p className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Returned</p>
+                  <p className="text-4xl font-bold text-blue-800">{stats.returned}</p>
+                </div>
+              </div>
+              <div className="bg-blue-100 text-blue-800 p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <ReplyIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Approved */}
+          <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full text-left">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Approved</p>
                   <p className="text-4xl font-bold text-[#3B4E17]">{stats.approved}</p>
                 </div>
-                <p className="text-xs text-[#3B4E17]/70 italic mt-4">Processed and approved requests</p>
               </div>
               <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CheckCircleOutlineIcon className="h-6 w-6" />
@@ -589,13 +630,12 @@ const UserRequests = () => {
 
           {/* Card 3: Rejected */}
           <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
+            <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Rejected Total</p>
+                  <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Rejected</p>
                   <p className="text-4xl font-bold text-[#BB8B26]">{stats.rejected}</p>
                 </div>
-                <p className="text-xs text-[#BB8B26]/70 italic mt-4">Declined and unapproved requests</p>
               </div>
               <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CancelOutlinedIcon className="h-6 w-6" />
@@ -657,44 +697,59 @@ const UserRequests = () => {
 
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 py-0 custom-scrollbar">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1 mt-4">
-                  Past Requests ({totalItems})
-                </h4>
-                
-                {loading ? (
-                  <div className="text-center py-8 text-slate-500 animate-pulse">Syncing history...</div>
-                ) : currentHistoryData.length > 0 ? (
-                  currentHistoryData.map((req) => {
-                    const isSelected = currentReq?.emp_reqId === req.emp_reqId;
-                    return (
-                      <div
-                        key={req.emp_reqId}
-                        onClick={() => setSelectedReqId(req.emp_reqId)}
-                        className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
-                      >
-                        <div className="flex justify-between items-center mb-2">
-                          <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
-                            {getShortType(req.reqTypeName)}
-                          </Badge>
-                          <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
+              <div className="flex-1 flex flex-col overflow-hidden py-0">
+                {/* Sub-tabs for History */}
+                <div className="flex bg-slate-100/50 p-1 m-2 rounded-lg gap-1">
+                   {["pending", "returned", "past"].map(t => (
+                     <button
+                       key={t}
+                       onClick={() => { setHistoryTab(t); setCurrentPage(1); setSelectedReqId(null); }}
+                       className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${historyTab === t ? "bg-white text-[#2A174E] shadow-sm" : "text-slate-500 hover:bg-white/50"}`}
+                     >
+                       {t}
+                     </button>
+                   ))}
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 pt-0 custom-scrollbar">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1 mt-2">
+                    {historyTab === "returned" ? "Editable Requests" : historyTab === "pending" ? "Awaiting Action" : "Finalized Records"} ({totalItems})
+                  </h4>
+                  
+                  {loading ? (
+                    <div className="text-center py-8 text-slate-500 animate-pulse">Syncing...</div>
+                  ) : currentHistoryData.length > 0 ? (
+                    currentHistoryData.map((req) => {
+                      const isSelected = currentReq?.emp_reqId === req.emp_reqId;
+                      return (
+                        <div
+                          key={req.emp_reqId}
+                          onClick={() => setSelectedReqId(req.emp_reqId)}
+                          className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
+                        >
+                          <div className="flex justify-between items-center mb-2">
+                            <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
+                              {getShortType(req.reqTypeName)}
+                            </Badge>
+                            <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
+                          </div>
+                          <p className="font-bold text-slate-800 text-sm mb-1">{req.reqTypeName}</p>
+                          <p className="text-xs text-slate-500">{getDates(req)}</p>
                         </div>
-                        <p className="font-bold text-slate-800 text-sm mb-1">{req.reqTypeName}</p>
-                        <p className="text-xs text-slate-500">{getDates(req)}</p>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl mt-2">
-                    <HourglassEmptyIcon className="h-8 w-8 text-slate-300 mb-2" />
-                    <h5 className="font-bold text-[#2A174E] text-sm mb-1">No Records Found</h5>
-                    <p className="text-xs text-slate-500">Your history is currently empty.</p>
-                  </div>
-                )}
+                      );
+                    })
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl mt-2">
+                      <HourglassEmptyIcon className="h-8 w-8 text-slate-300 mb-2" />
+                      <h5 className="font-bold text-[#2A174E] text-sm mb-1">Empty</h5>
+                      <p className="text-xs text-slate-500">No requests in this category.</p>
+                    </div>
+                  )}
+                </div>
 
                 {/* Queue Pagination Footer */}
                 {totalItems > itemsPerPage && (
-                  <div className="flex items-center justify-between py-4 shrink-0">
+                  <div className="flex items-center justify-between py-4 shrink-0 px-4 border-t border-slate-100">
                     <Button 
                       variant="outline" 
                       size="sm" 
@@ -942,9 +997,19 @@ const UserRequests = () => {
                         <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {currentReq.reqTypeName}</h3>
                         <p className="text-sm text-slate-500 mt-1">Submitted on {currentReq.date_Filed ? new Date(currentReq.date_Filed).toLocaleDateString() : ""}</p>
                       </div>
-                      <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(currentReq.emp_reqStatusId)}`}>
-                        {currentReq.status}
-                      </Badge>
+                      <div className="flex flex-col sm:flex-row items-end gap-3">
+                        {currentReq.emp_reqStatusId === 5 && (
+                          <Button 
+                            className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-md"
+                            onClick={() => handleEditReturned(currentReq)}
+                          >
+                            <EditIcon className="mr-2 h-4 w-4" /> Edit & Resubmit
+                          </Button>
+                        )}
+                        <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(currentReq.emp_reqStatusId)}`}>
+                          {currentReq.status}
+                        </Badge>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-xl border border-slate-100 mb-4">
@@ -963,13 +1028,19 @@ const UserRequests = () => {
                               ? `${currentReq.OW_NoDays || 0} Day(s) (${currentReq.OW_NoHrs || 0} Hrs)`
                               : currentReq.emp_reqTypeId === 5
                                 ? `${currentReq.LC_correctionCategory || "Correction"} for ${new Date(currentReq.LC_logDate).toLocaleDateString()}`
-                                : currentReq.emp_reqTypeId === 6 
-                                  ? `${currentReq.EL_NoDays || 0} Day(s)`
+                                : [3, 4, 6, 8, 9, 10, 11, 12].includes(currentReq.emp_reqTypeId)
+                                  ? (() => {
+                                      const used = currentReq.VL_NoDays || currentReq.SL_NoDays || currentReq.EL_NoDays || currentReq.ST_NoDays || 0;
+                                      const start = currentReq.VL_StartDate || currentReq.SL_StartDate || currentReq.EL_DateOfLeave || currentReq.ST_StartDate;
+                                      const end = currentReq.VL_EndDate || currentReq.SL_EndDate || currentReq.EL_DateOfLeave || currentReq.ST_EndDate;
+                                      const original = calculateDays(start, end);
+                                      return used < original 
+                                        ? `${used} Day(s) Used (Original: ${original})` 
+                                        : `${used} Day(s)`;
+                                    })()
                                   : currentReq.emp_reqTypeId === 7 
                                     ? `Half-day (${currentReq.HD_period})`
-                                    : [8, 9, 10, 11, 12].includes(currentReq.emp_reqTypeId)
-                                      ? `${currentReq.ST_NoDays || 0} Day(s)`
-                                      : `${currentReq.VL_NoDays || currentReq.SL_NoDays || 0} Day(s)`}
+                                    : `${currentReq.VL_NoDays || currentReq.SL_NoDays || 0} Day(s)`}
                         </p>
                       </div>
 
@@ -1039,26 +1110,25 @@ const UserRequests = () => {
                           </div>
                           <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
-                            <p className="font-semibold text-slate-800">{currentReq.date_Processed || "Pending"}</p>
-                          </div>
-                        </>
-                      )}
+                            <p className="font-semibold text-slate-800">{currentReq.date_Processed ? formatDateTime(currentReq.date_Processed) : "Pending"}</p>
+                            </div>
+                            </>
+                            )}
 
-                      {currentReq.emp_reqTypeId === 5 && (
-                        <>
-                          <div className="space-y-1">
+                            {currentReq.emp_reqTypeId === 5 && (
+                            <>
+                            <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Recommended By</label>
                             <p className="font-semibold text-slate-800">{currentReq.recommenderName ? `${currentReq.recommenderName} (${formatUserId(currentReq.recommendedBy)})` : "Pending Recommendation"}</p>
-                          </div>
-                          <div className="space-y-1">
+                            </div>
+                            <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Approved By</label>
                             <p className="font-semibold text-slate-800">{currentReq.approverName ? `${currentReq.approverName} (${formatUserId(currentReq.processedBy)})` : "Pending Approval"}</p>
-                          </div>
-                          <div className="space-y-1">
+                            </div>
+                            <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
-                            <p className="font-semibold text-slate-800">{currentReq.date_Processed || "Pending"}</p>
-                          </div>
-                        </>
+                            <p className="font-semibold text-slate-800">{currentReq.date_Processed ? formatDateTime(currentReq.date_Processed) : "Pending"}</p>
+                            </div>                        </>
                       )}
 
                       {(currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File) && (
@@ -1127,6 +1197,13 @@ const UserRequests = () => {
         `}} />
       </div>
       </Sidebar>
+
+      <EditRequestModal 
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        request={selectedRequestToEdit}
+        onUpdate={handleUpdateSuccess}
+      />
     </div>
   );
 };

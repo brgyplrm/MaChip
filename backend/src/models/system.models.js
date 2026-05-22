@@ -55,6 +55,7 @@ module.exports = (sequelize, DataTypes) => {
       lunchEndThreshold: { type: DataTypes.TIME, defaultValue: "13:30:00" },
       lunchDuration: { type: DataTypes.INTEGER, defaultValue: 60 },
       flexibleBreakThreshold: { type: DataTypes.INTEGER, defaultValue: 300 }, // in minutes (e.g., 5 hours)
+      workHourThreshold: { type: DataTypes.FLOAT, defaultValue: 4.0 }, // Hours needed to not be marked as absent
 
       // Labor Multipliers
       ordinaryDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.0 },

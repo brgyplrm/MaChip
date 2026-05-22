@@ -12,6 +12,7 @@ import AttachmentIcon from "@mui/icons-material/Attachment";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
 import { formatUserId } from "../../utils/formatUserId";
+import { formatDateTime, calculateDays } from "../../utils/formatTime";
 
 // shadcn/ui components
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -181,7 +182,15 @@ const RequestDetails = () => {
                 <p className="font-bold text-[#2A174E]">
                   {request.emp_reqTypeId === 1 && `${request.Total_Hrs} Hrs`}
                   {request.emp_reqTypeId === 2 && `${request.OW_NoHrs} Hrs (${request.OW_NoDays} Day)`}
-                  {(request.emp_reqTypeId === 3 || request.emp_reqTypeId === 4) && `${request.VL_NoDays || request.SL_NoDays} Day(s)`}
+                  {[3, 4, 6, 8, 9, 10, 11, 12].includes(request.emp_reqTypeId) && (() => {
+                    const used = request.VL_NoDays || request.SL_NoDays || request.EL_NoDays || request.ST_NoDays || 0;
+                    const start = request.VL_StartDate || request.SL_StartDate || request.EL_DateOfLeave || request.ST_StartDate;
+                    const end = request.VL_EndDate || request.SL_EndDate || request.EL_DateOfLeave || request.ST_EndDate;
+                    const original = calculateDays(start, end);
+                    return used < original 
+                      ? `${used} Day(s) Used (Original: ${original})` 
+                      : `${used} Day(s)`;
+                  })()}
                   {request.emp_reqTypeId === 5 && `Correction: ${request.LC_correctionCategory}`}
                 </p>
               </div>
@@ -258,7 +267,7 @@ const RequestDetails = () => {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Processed On</label>
-                    <p className="font-medium text-slate-600">{request.date_Processed || "N/A"}</p>
+                    <p className="font-medium text-slate-600">{request.date_Processed ? formatDateTime(request.date_Processed) : "N/A"}</p>
                   </div>
                 </div>
                 
@@ -304,7 +313,7 @@ const RequestDetails = () => {
                     </div>
                     <div>
                       <p className="font-bold text-slate-800">Request {request.status}</p>
-                      <p className="text-sm text-slate-500 mt-0.5">{request.date_Processed}</p>
+                      <p className="text-sm text-slate-500 mt-0.5">{request.date_Processed ? formatDateTime(request.date_Processed) : "N/A"}</p>
                       <p className="text-xs text-slate-400 italic mt-1">Reviewed by {request.approverName} ({formatUserId(request.processedBy)})</p>
                     </div>
                   </div>

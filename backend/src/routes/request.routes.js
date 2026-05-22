@@ -11,6 +11,8 @@ const {
   getCalendarReport,
   DeleteRequest,
   getLeaveSummary,
+  UpdateUserRequest,
+  notifySupervisor,
 } = require("../controllers/userRequest.controlller");
 const { requireOps, requireStaff, requireRole } = require("../middleware/roleCheck.js");
 const authMiddleware = require("../middleware/auth.js");
@@ -36,6 +38,8 @@ router.get("/balance/:userId", (req, res, next) => {
 router.get("/details/:requestId", requireStaff, GetRequestDetails);
 router.get("/:userId", GetUserRequests);
 router.put("/update-status", requireOps, UpdateStatusRequest);
+router.put("/update/:requestId", authMiddleware, UpdateUserRequest);
+router.post("/notify-supervisor/:requestId", authMiddleware, notifySupervisor);
 router.delete("/delete/:requestId", DeleteRequest);
 
 module.exports = router;

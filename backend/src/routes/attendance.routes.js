@@ -15,6 +15,7 @@ router.post("/mark", (req, res, next) => {
 }, attendanceController.markAttendance);
 
 router.get("/report", attendanceController.getAttendanceReport);
+router.get("/report/summary", attendanceController.getSummaryReport);
 
 router.get("/occupancy", attendanceController.getOfficeOccupancy);
 

@@ -225,7 +225,8 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     const log = logMap[dateStr];
     const isOnField = onfieldMap.has(dateStr);
     
-    const isExcludedStatus = log && (log.att_status === 3 || log.att_status === 7);
+    // Status 7 is Incidental Visit (<3hrs on leave), should be ignored for worked time
+    const isExcludedStatus = log && (parseInt(log.att_status) === 3 || parseInt(log.att_status) === 7);
     const worked = (!!log && !isExcludedStatus) || isOnField;
     const isLeave = approvedLeaveDaysMap.has(dateStr);
 
@@ -237,14 +238,16 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
         dailyHrs = 8.0;
         dailyUnits = 8.0;
       } else if (log) {
-        // Use stored values if available, else fallback to session logic
-        if (log.total_units > 0) {
-          dailyHrs = log.reg_hrs;
-          dailyUnits = log.total_units;
-          total_nd_units += log.nd_hrs;
-          total_ot_units += log.ot_hrs;
-          total_hol_units += log.holiday_hrs;
+        // Use stored values if available
+        // Check total_units first, but only if NOT status 7 (already handled by isExcludedStatus)
+        if (parseFloat(log.total_units) > 0) {
+          dailyHrs = parseFloat(log.reg_hrs);
+          dailyUnits = parseFloat(log.total_units);
+          total_nd_units += parseFloat(log.nd_hrs);
+          total_ot_units += parseFloat(log.ot_hrs);
+          total_hol_units += parseFloat(log.holiday_hrs);
         } else {
+          // Fallback logic for older records - only run if status is NOT excluded
           const inArr = JSON.parse(log.time_Logged_inArr || "[]");
           const isExempt = parseInt(log.att_status) === 6;
           const SLOT_MIDPOINT = "12:30";
@@ -263,11 +266,11 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
             }
           }
           if (afternoonIn && afternoonIn !== "—") dailyHrs += 4.0;
-          dailyUnits = dailyHrs; // Fallback units
+          dailyUnits = dailyHrs; 
         }
       }
       
-      const dayPortion = dailyHrs >= 7 ? 1.0 : (dailyHrs >= 1 ? 0.5 : 0.0);
+      const dayPortion = dailyHrs >= 7 ? 1.0 : (dailyHrs >= 3 ? 0.5 : 0.0);
       actual_Worked_Days += dayPortion;
       actual_Worked_Hrs += dailyHrs;
       total_payable_units += dailyUnits;
@@ -551,28 +554,28 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const ratePerHr = dailyRate / WORK_HRS_PER_DAY;
   const ratePerMin = ratePerHr / 60;
 
-  // 1. Basic Pay (Based on Worked Physical Hours + Paid Leaves)
-  // stats.NoHrs_Worked already includes Regular Holidays not worked at 8.0 hrs
-  const totalPaidHrs = stats.NoHrs_Worked + (stats.paidLeave_Days * 8);
-  const basicPay = (totalPaidHrs / 8) * dailyRate;
+  // 1. Basic Pay (Assumption: Full Attendance Basic)
+  const potentialBasicPay = (stats.totalScheduledDays * dailyRate);
 
   // 2. Holiday Premiums (Using Precise Units)
-  // Hol_Units stores the premium part (e.g., 8.0 hrs extra for a 200% day)
   const legalHol_Amnt = stats.Hol_Units * ratePerHr;
-  const specialHol_Amnt = 0; // Integrated into legalHol_Amnt for simplicity in this precise mode
+  const specialHol_Amnt = 0; 
 
   // 3. OT & Night Diff
   const OT_Amnt = (stats.OT_Units + stats.OT_Hrs_Manual) * ratePerHr;
   const nightDiff_Amnt = stats.ND_Units * ratePerHr;
   
   // 4. Attendance Deductions
-  const absence_Amnt = 0; 
+  const absence_Amnt = stats.absence_Days * dailyRate; 
   const tardiness_Amnt = stats.tardiness_Mins * ratePerMin;
-  const unpaidLeave_Amnt = 0;
+  const unpaidLeave_Amnt = stats.unpaidLeave_Days * dailyRate;
   const specialHol_Adj = 0;
 
   const incentives = customIncentives; 
   const allowance = customAllowance;
+
+  // Actual Basic Pay = Potential - Absences - Unpaid Leaves
+  const basicPay = potentialBasicPay - absence_Amnt - unpaidLeave_Amnt;
 
   let totalEarnings = basicPay + legalHol_Amnt + nightDiff_Amnt + OT_Amnt + incentives - specialHol_Adj;
   if (totalEarnings < 0) totalEarnings = 0;
@@ -585,19 +588,20 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
 
   const Tax_Ded_Final = totalEarnings > 0 ? (parseFloat(tax_Share) || 0) : 0; 
 
-  const taxableIncome = totalEarnings - (absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt) - govtTotal;
-  const netPay = taxableIncome - (otherTotal + Tax_Ded_Final) + allowance;
+  const taxableIncome = totalEarnings - (tardiness_Amnt) - govtTotal;
+  const netPay = taxableIncome - (otherTotal + Tax_Ded_Final + parseFloat(ewLoan)) + allowance;
 
   const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded_Final + parseFloat(ewLoan);
 
   return {
     ...stats,
-    NoDays_Worked: (totalPaidHrs / 8), 
+    NoDays_Worked: stats.NoDays_Worked, 
     absence_Hrs: stats.absence_Days * 8,
     dailyRate,
     previousDailyRate,
     ratePerHr,
-    basicPay,
+    basicPay: potentialBasicPay, // Show Gross Potential Basic in Payslip
+    actualBasicPay: basicPay,     // Internal/Audit
     legalHol_Amnt,
     specialHol_Amnt,
     specialHol_Adj,
