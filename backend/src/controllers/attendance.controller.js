@@ -440,7 +440,7 @@ exports.viewUserLogs = async (req, res) => {
             holidayFormatted: formatDuration(stats.holiday_hrs)
           },
           logStatus: report.loggedStatusName,
-          attendanceStatus: report.attendanceStatusName === "Exempt" ? "On Time" : (report.attendanceStatusName || "—"),
+          attendanceStatus: (report.attendanceStatusName === "Exempt" ? "On Time" : (report.attendanceStatusName || (stats.totalPayableHours > 0 ? "Present" : "No Record"))),
         };
       }));
 
@@ -1245,7 +1245,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         outArr,
         hoursWorked: hoursObj.totalPayableHours,
         hoursWorkedFormatted: formatDuration(hoursObj.totalPayableHours),
-        status: r.attendanceStatusName === "Exempt" ? "On Time" : (r.attendanceStatusName ?? "—"),
+        status: (r.attendanceStatusName === "Exempt" ? "On Time" : (r.attendanceStatusName || (hoursObj.totalPayableHours > 0 ? "Present" : "—"))),
         shiftId: r.user_ShiftId,
         buckets: hoursObj.buckets
       };

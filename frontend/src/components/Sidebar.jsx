@@ -68,6 +68,16 @@ const Sidebar = ({ children }) => {
   );
   
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
+
+  // Refresh user data if updated elsewhere (e.g. Profile Edit)
+  useEffect(() => {
+    const refreshUserData = () => {
+      setUserData(JSON.parse(localStorage.getItem("userData")));
+    };
+    window.addEventListener("userUpdate", refreshUserData);
+    return () => window.removeEventListener("userUpdate", refreshUserData);
+  }, []);
+
   const { isMockTime } = useSystemTime();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);

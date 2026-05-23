@@ -236,7 +236,7 @@ exports.registerUser = async (req, res) => {
             user_Password: hashedPassword,
             user_RoleId: req.body.user_RoleId || 2,
             user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
-            user_ProfilePic: req.file ? req.file.filename : null,
+            user_ProfilePic: req.file ? `ProfilePictures/${req.file.filename}` : null,
             department: req.body.department || null,
             position: req.body.position || null,
             position_id: req.body.position_id || null,
@@ -896,7 +896,7 @@ exports.updateUser = async (req, res) => {
       }
 
       if (req.file) {
-        replacements.profilePic = req.file.filename;
+        replacements.profilePic = `ProfilePictures/${req.file.filename}`;
         sql += `, "user_ProfilePic" = :profilePic`;
       }
 

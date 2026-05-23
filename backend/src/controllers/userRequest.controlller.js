@@ -1,5 +1,6 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
+const path = require("path");
 const { getSystemTime, formatForSQL, formatDateLocal } = require("../utils/systemTime");
 const { 
   sendOnfieldEmail, 
@@ -280,8 +281,8 @@ exports.UserCreateRequest = async (req, res) => {
   const finalNoDays = parseInt(NoDays || 0);
   const finalStatus = parseInt(emp_reqStatusId || 1);
   
-  // Use the filename from multer if a file was uploaded
-  const proof_File = req.file ? req.file.filename : null;
+  // Use the filename from multer if a file was uploaded, prefixing with folder for dynamic serving
+  const proof_File = req.file ? `requestsFiles/${req.file.filename}` : null;
 
   if (!finalUserId || !finalReqTypeId) {
     return res
@@ -296,8 +297,11 @@ exports.UserCreateRequest = async (req, res) => {
     const nowStr = formatForSQL(now);
     const todayStr = formatDateLocal(now);
 
-    const finalRemarks = remarks || reason || purpose || null;
-    const finalReason = reason || purpose || remarks || "No reason provided";
+    const rawRemarks = remarks || reason || purpose || null;
+    const rawReason = reason || purpose || remarks || "No reason provided";
+
+    const finalRemarks = Array.isArray(rawRemarks) ? rawRemarks[0] : rawRemarks;
+    const finalReason = Array.isArray(rawReason) ? rawReason[0] : rawReason;
 
     // --- HOLIDAY ADJACENCY RULE (SANDWICH) ---
     if ([3, 4, 6, 7].includes(finalReqTypeId)) {
@@ -339,19 +343,110 @@ exports.UserCreateRequest = async (req, res) => {
 
       if (finalReqTypeId === 8 && user.user_Gender !== "Female") {
         await t.rollback();
+        console.log(`[MATERNITY-DEBUG-ERROR] User ID ${finalUserId} failed Maternity eligibility: Gender is ${user.user_Gender}`);
         return res.status(400).json({ error: "Only female employees are eligible for Maternity Leave." });
       }
-      if (finalReqTypeId === 9 && (user.user_Gender !== "Male" || user.civil_status !== "Married")) {
-        await t.rollback();
-        return res.status(400).json({ error: "Only married male employees are eligible for Paternity Leave." });
+
+      // --- NEW: Maternity Leave DOLE Logic ---
+      if (finalReqTypeId === 8) {
+        const maxDays = user.is_solo_parent ? 120 : 105;
+        if (finalNoDays > maxDays) {
+          await t.rollback();
+          console.log(`[MATERNITY-DEBUG-ERROR] User ID ${finalUserId} requested ${finalNoDays} days, exceeding max ${maxDays} days.`);
+          return res.status(400).json({ 
+            error: `Maternity leave duration cannot exceed ${maxDays} days (${user.is_solo_parent ? '105 days + 15 days Solo Parent' : '105 days'}). For miscarriage, please file for 60 days.` 
+          });
+        }
+
+        // Tenure Check (6 Months) - Warning Only
+        const hireDate = new Date(user.hireDate);
+        const tenureMonths = (new Date(todayStr) - hireDate) / (1000 * 60 * 60 * 24 * 30.44);
+        if (tenureMonths < 6) {
+          systemRemarks.push(`Warning: Employee has only rendered ${tenureMonths.toFixed(1)} months of service. DOLE Maternity leave typically requires 6 months. HR manual verification recommended.`);
+        }
+
+        // SSS 3-Month Check
+        const leaveStart = StartDate || req.body.DateOfLeave;
+        if (leaveStart) {
+          const sssCheck = await sequelize.query(
+            `SELECT COUNT(DISTINCT p."periodId") as sss_count
+             FROM "Payroll" p
+             JOIN "Payroll_Deductions" pd ON p."payrollId" = pd."payrollId"
+             WHERE p."user_Id" = :userId 
+             AND p."period_Start" >= (:leaveStart::date - INTERVAL '12 months')
+             AND p."period_Start" < :leaveStart::date
+             AND pd."SSS_Ded" > 0`,
+            {
+              replacements: { userId: finalUserId, leaveStart },
+              type: QueryTypes.SELECT,
+              transaction: t
+            }
+          );
+
+          const sssCount = parseInt(sssCheck[0].sss_count || 0);
+          if (sssCount < 3) {
+            systemRemarks.push(`Warning: Only ${sssCount} SSS contribution(s) found in the system for the 12 months prior to the leave start date. DOLE requires at least 3. HR manual verification required.`);
+          }
+        }
       }
-      if (finalReqTypeId === 10 && !user.is_solo_parent) {
-        await t.rollback();
-        return res.status(400).json({ error: "You must be registered as a Solo Parent to avail of this leave." });
+      // ----------------------------------------
+
+      if (finalReqTypeId === 9) {
+        if (user.user_Gender !== "Male" || user.civil_status !== "Married") {
+          await t.rollback();
+          console.log(`[PATERNITY-DEBUG-ERROR] User ID ${finalUserId} failed Paternity eligibility: Gender ${user.user_Gender}, Status ${user.civil_status}`);
+          return res.status(400).json({ error: "Only married male employees are eligible for Paternity Leave (RA 8187)." });
+        }
+        
+        const maxPaternityDays = 7;
+        if (finalNoDays > maxPaternityDays) {
+          await t.rollback();
+          return res.status(400).json({ error: `Paternity leave cannot exceed ${maxPaternityDays} days for each delivery.` });
+        }
+
+        systemRemarks.push("Note: Paternity leave is valid for the first 4 deliveries of the legitimate spouse only. HR to verify delivery count.");
       }
-      if (finalReqTypeId === 12 && user.user_Gender !== "Female") {
-        await t.rollback();
-        return res.status(400).json({ error: "Only female employees are eligible for Special Leave for Women." });
+
+      if (finalReqTypeId === 10) {
+        if (!user.is_solo_parent) {
+          await t.rollback();
+          console.log(`[SOLO-PARENT-DEBUG-ERROR] User ID ${finalUserId} failed: is_solo_parent is false.`);
+          return res.status(400).json({ error: "You must be registered as a Solo Parent to avail of this leave." });
+        }
+
+        const maxSoloParentDays = 7;
+        if (finalNoDays > maxSoloParentDays) {
+          await t.rollback();
+          return res.status(400).json({ error: `Solo Parent leave cannot exceed ${maxSoloParentDays} days per year (RA 11861).` });
+        }
+      }
+
+      if (finalReqTypeId === 11) {
+        if (user.user_Gender !== "Female") {
+          await t.rollback();
+          console.log(`[VAWC-DEBUG-ERROR] User ID ${finalUserId} failed: Gender is ${user.user_Gender}.`);
+          return res.status(400).json({ error: "Only female employees are eligible for VAWC Leave (RA 9262)." });
+        }
+
+        const maxVAWCDays = 10;
+        if (finalNoDays > maxVAWCDays) {
+          await t.rollback();
+          return res.status(400).json({ error: `VAWC leave cannot exceed ${maxVAWCDays} days. Extension requires a protection order.` });
+        }
+      }
+
+      if (finalReqTypeId === 12) {
+        if (user.user_Gender !== "Female") {
+          await t.rollback();
+          console.log(`[SPECIAL-WOMEN-DEBUG-ERROR] User ID ${finalUserId} failed: Gender is ${user.user_Gender}.`);
+          return res.status(400).json({ error: "Only female employees are eligible for Special Leave for Women (RA 9710)." });
+        }
+
+        const maxSpecialDays = 60; // 2 months
+        if (finalNoDays > maxSpecialDays) {
+          await t.rollback();
+          return res.status(400).json({ error: `Special Leave for Women cannot exceed ${maxSpecialDays} days (2 months) per year.` });
+        }
       }
 
       // Tenure checks (6 months for Solo Parent and Special Leave)
@@ -360,14 +455,15 @@ exports.UserCreateRequest = async (req, res) => {
         const tenureMonths = (new Date(todayStr) - hireDate) / (1000 * 60 * 60 * 24 * 30.44);
         if (tenureMonths < 6) {
           await t.rollback();
-          return res.status(400).json({ error: "You must have at least 6 months of service to avail of this benefit." });
+          console.log(`[STATUTORY-TENURE-DEBUG-ERROR] User ID ${finalUserId} failed tenure: ${tenureMonths.toFixed(1)} months (Type ${finalReqTypeId}).`);
+          return res.status(400).json({ error: "You must have at least 6 months of continuous service to avail of this benefit." });
         }
       }
 
-      // Mandatory attachment check
-      if ([8, 11, 12].includes(finalReqTypeId) && !proof_File) {
+      // Mandatory attachment check (8: Maternity, 9: Paternity, 10: Solo Parent, 11: VAWC, 12: Special Women)
+      if ([8, 9, 10, 11, 12].includes(finalReqTypeId) && !proof_File) {
         await t.rollback();
-        return res.status(400).json({ error: "Supporting documentation (Medical Cert/Barangay Cert) is mandatory for this request." });
+        return res.status(400).json({ error: "Supporting documentation (Medical Cert/SPIC/Barangay Cert/Court Order) is mandatory for this request." });
       }
     }
 
@@ -390,10 +486,10 @@ exports.UserCreateRequest = async (req, res) => {
 
       if (balanceResult.length === 0) {
         await sequelize.query(
-          `INSERT INTO "Leave_Balance" ("user_Id", "year", "VL_balance", "SL_balance", "SoloParent_balance", "VL_used", "SL_used", "SoloParent_used")
-           VALUES (:userId, :year, 7, 7, 0, 0, 0, 0)`,
+          `INSERT INTO "Leave_Balance" ("user_Id", "year", "VL_balance", "SL_balance", "SoloParent_balance", "VL_used", "SL_used", "SoloParent_used", "createdAt", "updatedAt")
+           VALUES (:userId, :year, 7, 7, 7, 0, 0, 0, :now, :now)`,
           {
-            replacements: { userId: finalUserId, year: currentYear },
+            replacements: { userId: finalUserId, year: currentYear, now: nowStr },
             type: QueryTypes.INSERT,
             transaction: t
           },
@@ -423,9 +519,9 @@ exports.UserCreateRequest = async (req, res) => {
         if (balance.VL_balance < finalNoDays) {
           systemRemarks.push(`Insufficient VL Balance (Current: ${balance.VL_balance})`);
         }
-      } else if (finalReqTypeId === 4 && balance.SL_balance < finalNoDays) {
+      } else if (finalReqTypeId === 4 && balance.SL_balance < checkDays) {
         systemRemarks.push(`Insufficient SL Balance (Current: ${balance.SL_balance})`);
-      } else if (finalReqTypeId === 10 && balance.SoloParent_balance < finalNoDays) {
+      } else if (finalReqTypeId === 10 && balance.SoloParent_balance < checkDays) {
         systemRemarks.push(`Insufficient Solo Parent Balance (Current: ${balance.SoloParent_balance})`);
       } else if (finalReqTypeId === 6) {
         // Emergency Leave (Type 6): 2 hours before 8:30 AM (6:30 AM)
@@ -675,6 +771,21 @@ exports.UserCreateRequest = async (req, res) => {
       const sDate = StartDate || req.body.DateOfLeave;
       const eDate = EndDate || req.body.DateOfLeave;
       
+      const insertCols = ["emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "proof_File", "reason", "WithPayID"];
+      const insertVals = [emp_reqId, finalUserId, sDate, eDate, finalNoDays, proof_File, finalReason, 1];
+      
+      console.log(`[MATERNITY-DEBUG-COUNT] Columns: ${insertCols.length}, Values: ${insertVals.length}`);
+      console.log(`[MATERNITY-DEBUG-DATA]`, {
+        emp_reqId,
+        userId: finalUserId,
+        StartDate: sDate,
+        EndDate: eDate,
+        NoDays: finalNoDays,
+        proof_File,
+        reason: finalReason,
+        WithPayID: 1
+      });
+
       const statResult = await sequelize.query(
         `INSERT INTO "Statutory_Leave"
         ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "proof_File", "reason", "WithPayID")
@@ -857,6 +968,9 @@ exports.UserCreateRequest = async (req, res) => {
     });
   } catch (error) {
     if (t) await t.rollback();
+    if ([8, 9, 10, 11, 12].includes(finalReqTypeId)) {
+      console.log(`[STATUTORY-DEBUG-ERROR] Internal Error for User ID ${finalUserId} (Type ${finalReqTypeId}):`, error.message);
+    }
     res.status(500).json({ error: error.message });
   }
 };
@@ -1391,8 +1505,8 @@ exports.UpdateStatusRequest = async (req, res) => {
           );
         } else if ([8, 9, 10, 11, 12].includes(typeId)) {
           await sequelize.query(
-            `UPDATE "Statutory_Leave" SET "WithPayID" = :withPayId WHERE "emp_reqId" = :emp_reqId`,
-            { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE },
+            `UPDATE "Statutory_Leave" SET "WithPayID" = 1 WHERE "emp_reqId" = :emp_reqId`,
+            { replacements: { emp_reqId }, type: QueryTypes.UPDATE },
           );
         }
       }

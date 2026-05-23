@@ -6,7 +6,7 @@ const { QueryTypes } = require("sequelize");
  */
 const getClientIp = (req) => {
   if (!req) return null;
-  let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || req.ip;
+  let ip = req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || req.ip;
   if (ip && ip.includes(",")) {
     ip = ip.split(",")[0];
   }

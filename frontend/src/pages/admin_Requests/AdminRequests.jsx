@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import EditRequestModal from "../../components/EditRequestModal";
+import FileViewerModal from "../../components/FileViewerModal";
 
 const AdminRequests = () => {
   const navigate = useNavigate();
@@ -42,6 +43,11 @@ const AdminRequests = () => {
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedRequestToEdit, setSelectedRequestToEdit] = useState(null);
+
+  // File Viewer Modal State
+  const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
+  const [viewingFileUrl, setViewingFileUrl] = useState("");
+  const [viewingFileName, setViewingFileName] = useState("");
 
   // History Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -219,18 +225,20 @@ const AdminRequests = () => {
   const getDates = (req) => {
     if (!req) return "";
     return req.VL_StartDate
-      ? `${req.VL_StartDate} — ${req.VL_EndDate}`
+      ? `${new Date(req.VL_StartDate).toLocaleDateString()} — ${new Date(req.VL_EndDate).toLocaleDateString()}`
       : req.SL_StartDate
-        ? `${req.SL_StartDate} — ${req.SL_EndDate}`
-        : req.OT_DateOf
-          ? `${req.OT_DateOf} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
-          : req.LC_logDate
-            ? req.LC_logDate
-            : req.EL_DateOfLeave
-              ? req.EL_DateOfLeave
-              : req.HD_DateOfLeave
-                ? req.HD_DateOfLeave
-                : req.DateonField;
+        ? `${new Date(req.SL_StartDate).toLocaleDateString()} — ${new Date(req.SL_EndDate).toLocaleDateString()}`
+        : req.ST_StartDate
+          ? `${new Date(req.ST_StartDate).toLocaleDateString()} — ${new Date(req.ST_EndDate).toLocaleDateString()}`
+          : req.OT_DateOf
+            ? `${new Date(req.OT_DateOf).toLocaleDateString()} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
+            : req.LC_logDate
+              ? new Date(req.LC_logDate).toLocaleDateString()
+              : req.EL_DateOfLeave
+                ? new Date(req.EL_DateOfLeave).toLocaleDateString()
+                : req.HD_DateOfLeave
+                  ? new Date(req.HD_DateOfLeave).toLocaleDateString()
+                  : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : "";
   };
 
   const getStatusColor = (statusId) => {
@@ -516,8 +524,7 @@ const AdminRequests = () => {
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
                     <div>
                       <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {current.reqTypeName}</h3>
-                      <p className="text-sm text-slate-500 mt-1">Submitted on {current.date_Filed}</p>
-                    </div>
+                      <p className="text-sm text-slate-500 mt-1">Submitted on {new Date(current.date_Filed).toLocaleDateString()}</p>                    </div>
                     
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
                       {activeTab === "completed" && userData?.user_RoleId === 1 && (
@@ -642,7 +649,7 @@ const AdminRequests = () => {
                       <>
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Status</label>
-                          {current.emp_reqStatusId === 1 && (current.emp_reqTypeId === 3 || current.emp_reqTypeId === 4) ? (
+                          {current.emp_reqStatusId === 1 && (current.emp_reqTypeId === 3 || current.emp_reqTypeId === 4 || current.emp_reqTypeId === 10) ? (
                             <Select value={paymentStatus} onValueChange={setPaymentStatus}>
                               <SelectTrigger className="bg-white h-8 mt-1">
                                 <SelectValue />
@@ -657,7 +664,7 @@ const AdminRequests = () => {
                             </Select>
                           ) : (
                             <p className="font-semibold text-slate-800 mt-1">
-                              {current.VL_withPayName || current.SL_withPayName || "N/A"}
+                              {current.VL_withPayName || current.SL_withPayName || current.ST_withPayName || "N/A"}
                             </p>
                           )}
                         </div>
@@ -665,11 +672,13 @@ const AdminRequests = () => {
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                             {current.emp_reqStatusId === 1 ? "Remaining Balance" : "Leave Used"}
                           </label>
-                          <p className={`font-semibold mt-1 ${(current.emp_reqStatusId === 1) && ((current.emp_reqTypeId === 3 && current.VL_balance < current.VL_NoDays) || (current.emp_reqTypeId === 4 && current.SL_balance < current.SL_NoDays)) ? "text-red-700 bg-red-100 px-2 py-0.5 rounded inline-block" : "text-slate-800"}`}>
+                          <p className={`font-semibold mt-1 ${(current.emp_reqStatusId === 1) && ((current.emp_reqTypeId === 3 && current.VL_balance < current.VL_NoDays) || (current.emp_reqTypeId === 4 && current.SL_balance < current.SL_NoDays) || (current.emp_reqTypeId === 10 && current.SoloParent_balance < current.ST_NoDays)) ? "text-red-700 bg-red-100 px-2 py-0.5 rounded inline-block" : "text-slate-800"}`}>
                             {current.emp_reqTypeId === 3 
                               ? (current.emp_reqStatusId === 1 ? `${current.VL_balance || 0} VL Remaining` : `${current.VL_NoDays || 0} Day(s) Used`)
                               : current.emp_reqTypeId === 4 
                               ? (current.emp_reqStatusId === 1 ? `${current.SL_balance || 0} SL Remaining` : `${current.SL_NoDays || 0} Day(s) Used`)
+                              : current.emp_reqTypeId === 10
+                              ? (current.emp_reqStatusId === 1 ? `${current.SoloParent_balance || 0} SP Remaining` : `${current.ST_NoDays || 0} Day(s) Used`)
                               : "N/A"}
                           </p>
                         </div>
@@ -701,18 +710,21 @@ const AdminRequests = () => {
                       </>
                     )}
 
-                    {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File) && (
+                    {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File) && (
                       <div className="space-y-1 col-span-1 sm:col-span-2 xl:col-span-3">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachment</label>
                         <div>
-                          <a 
-                            href={`/api/uploads/${current.SL_proof_File || current.OW_proof_File || current.LC_proof_File}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-[#2A174E] font-semibold hover:underline mt-1"
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setViewingFileUrl(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File);
+                              setViewingFileName(`Attachment for REQ-${current.emp_reqId}`);
+                              setIsFileViewerOpen(true);
+                            }}
+                            className="inline-flex items-center text-[#2A174E] font-semibold hover:underline mt-1 bg-transparent border-none cursor-pointer"
                           >
                             <AttachmentIcon className="mr-1 h-4 w-4" /> View Attachment
-                          </a>
+                          </button>
                         </div>
                       </div>
                     )}
@@ -804,6 +816,13 @@ const AdminRequests = () => {
         onClose={() => setIsEditModalOpen(false)}
         request={selectedRequestToEdit}
         onUpdate={fetchRequests}
+      />
+
+      <FileViewerModal
+        isOpen={isFileViewerOpen}
+        onClose={() => setIsFileViewerOpen(false)}
+        fileUrl={viewingFileUrl}
+        fileName={viewingFileName}
       />
     </Sidebar>
   );

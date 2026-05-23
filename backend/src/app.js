@@ -84,8 +84,19 @@ app.use((req, res, next) => {
 
 // 7. Static files
 app.use(express.static("public"));
-app.use("/api/uploads", express.static("uploads"));
-app.use("/uploads", express.static("uploads"));
+
+// Dynamic mapping for uploads based on System Settings
+app.use("/api/uploads", async (req, res, next) => {
+  try {
+    const { SystemSettings } = require("./config/sequelize");
+    const settings = await SystemSettings.findOne();
+    const rootPath = settings?.storageRootPath || path.join(__dirname, "../uploads");
+    express.static(rootPath)(req, res, next);
+  } catch (err) {
+    express.static("uploads")(req, res, next);
+  }
+});
+app.use("/uploads", (req, res, next) => res.redirect(`/api/uploads${req.url}`));
 
 // 8. Public routes
 const authRoutes = require("./routes/auth.routes.js");
@@ -142,6 +153,7 @@ const { checkPendingRequests } = require("./utils/requestEscalation");
 const { getSystemTime } = require("./utils/systemTime");
 const { checkAndTriggerArchival } = require("./utils/archiveService");
 const { initializeStorageStructure } = require("./utils/fileStorage");
+const { initializeAnnualLeaveBalances } = require("./utils/leaveBalanceHelper");
 
 // ── Database Connection and Background Tasks ──────────────────────────────────
 connectDB().then(async () => {
@@ -156,12 +168,12 @@ connectDB().then(async () => {
     // 2.0 Initialize Storage Folders
     await initializeStorageStructure();
 
-    // 2.1 Holiday Sync (Startup): Ensure holidays are up-to-date
-    console.log("[INIT] Synchronizing Philippine holidays...");
+    // 2.0.1 Initialize Annual Leave Balances
+    console.log("[INIT] Checking annual leave balances...");
     try {
-      await syncHolidaysService();
+      await initializeAnnualLeaveBalances();
     } catch (err) {
-      console.error("[INIT] Holiday sync failed:", err.message);
+      console.error("[INIT] Leave balance initialization failed:", err.message);
     }
 
     // 2.2 Check for any pending monthly archives

@@ -182,7 +182,11 @@ export default function PayrollConfiguration({ data, onUpdate }) {
       payrollRates: {
         ...localData,
         laborRates: Object.fromEntries(Object.entries(localData.laborRates).map(([k, v]) => [k, sanitize(v)])),
-        otNightRates: Object.fromEntries(Object.entries(localData.otNightRates).map(([k, v]) => [k, sanitize(v)])),
+        otNightRates: Object.fromEntries(
+          Object.entries(localData.otNightRates).map(([k, v]) => 
+            ['shiftStart', 'shiftEnd'].includes(k) ? [k, v] : [k, sanitize(v)]
+          )
+        ),
         statutoryConstants: sanitizedStatutory
       },
       payroll: sanitizedStatutory 
@@ -716,19 +720,17 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
               disabled={!isEditing}
               subtext="Statutory premium to base" 
             />
-            <FormInput 
-              label="Shift Start Time" 
-              value={data.shiftStart} 
+            <FormTimePicker 
+              label="Shift Start Time"
+              value={data.shiftStart}
               onChange={(e) => onChange('shiftStart', e.target.value)}
               disabled={!isEditing}
-              isText 
             />
-            <FormInput 
-              label="Shift End Time" 
-              value={data.shiftEnd} 
+            <FormTimePicker 
+              label="Shift End Time"
+              value={data.shiftEnd}
               onChange={(e) => onChange('shiftEnd', e.target.value)}
               disabled={!isEditing}
-              isText 
             />
           </div>
         </div>
@@ -1180,6 +1182,24 @@ function FormInput({ label, value, subtext, isText = false, type = "text", step 
         } ${isNumeric || type === "mono" ? 'font-mono' : ''}`}
       />
       {subtext && <p className="text-[11px] text-slate-400 font-normal leading-relaxed">{subtext}</p>}
+    </div>
+  );
+}
+
+{/* --- LOCAL TIME PICKER FORM ELEMENT ATOM --- */}
+function FormTimePicker({ label, value, onChange, disabled }) {
+  return (
+    <div className="space-y-1.5 text-left w-full">
+      <label className="block text-xs font-medium text-slate-500 tracking-wide">
+        {label}
+      </label>
+      <input
+        type="time"
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs cursor-pointer disabled:bg-slate-50 disabled:cursor-not-allowed"
+      />
     </div>
   );
 }

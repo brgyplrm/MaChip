@@ -99,18 +99,20 @@ const AdminRequestsOversight = () => {
   const getDates = (req) => {
     if (!req) return "";
     return req.VL_StartDate
-      ? `${req.VL_StartDate} — ${req.VL_EndDate}`
+      ? `${new Date(req.VL_StartDate).toLocaleDateString()} — ${new Date(req.VL_EndDate).toLocaleDateString()}`
       : req.SL_StartDate
-        ? `${req.SL_StartDate} — ${req.SL_EndDate}`
-        : req.OT_DateOf
-          ? `${req.OT_DateOf} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
-          : req.LC_logDate
-            ? req.LC_logDate
-            : req.EL_DateOfLeave
-              ? req.EL_DateOfLeave
-              : req.HD_DateOfLeave
-                ? req.HD_DateOfLeave
-                : req.DateonField;
+        ? `${new Date(req.SL_StartDate).toLocaleDateString()} — ${new Date(req.SL_EndDate).toLocaleDateString()}`
+        : req.ST_StartDate
+          ? `${new Date(req.ST_StartDate).toLocaleDateString()} — ${new Date(req.ST_EndDate).toLocaleDateString()}`
+          : req.OT_DateOf
+            ? `${new Date(req.OT_DateOf).toLocaleDateString()} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
+            : req.LC_logDate
+              ? new Date(req.LC_logDate).toLocaleDateString()
+              : req.EL_DateOfLeave
+                ? new Date(req.EL_DateOfLeave).toLocaleDateString()
+                : req.HD_DateOfLeave
+                  ? new Date(req.HD_DateOfLeave).toLocaleDateString()
+                  : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : "";
   };
 
   const getTypeColor = (shortType) => {
@@ -196,7 +198,7 @@ const AdminRequestsOversight = () => {
                         <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
                           {getShortType(req.reqTypeName)}
                         </Badge>
-                        <span className="text-xs text-slate-400 font-medium">{req.date_Filed}</span>
+                        <span className="text-xs text-slate-400 font-medium">{new Date(req.date_Filed).toLocaleDateString()}</span>
                       </div>
                       <p className="font-bold text-slate-800 text-sm mb-1">{req.userName}</p>
                       <div className="flex justify-between items-end mt-2 pr-2">
@@ -231,7 +233,7 @@ const AdminRequestsOversight = () => {
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
                     <div>
                       <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {current.reqTypeName}</h3>
-                      <p className="text-sm text-slate-500 mt-1">Submitted by <span className="font-semibold text-slate-700">{current.userName}</span> on {current.date_Filed}</p>
+                      <p className="text-sm text-slate-500 mt-1">Submitted by <span className="font-semibold text-slate-700">{current.userName}</span> on {new Date(current.date_Filed).toLocaleDateString()}</p>
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
@@ -278,8 +280,8 @@ const AdminRequestsOversight = () => {
                             ? `${current.OW_NoDays || 0} Day(s) (${current.OW_NoHrs || 0} Hrs)`
                             : current.emp_reqTypeId === 5
                               ? `${current.LC_correctionCategory || "Correction"}`
-                              : current.emp_reqTypeId === 6
-                                ? `${current.EL_NoDays || 0} Day(s)`
+                              : [3, 4, 6, 8, 9, 10, 11, 12].includes(current.emp_reqTypeId)
+                                ? `${current.VL_NoDays || current.SL_NoDays || current.EL_NoDays || current.ST_NoDays || 0} Day(s)`
                                 : current.emp_reqTypeId === 7
                                   ? `Half-day (${current.HD_period})`
                                   : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
@@ -320,12 +322,12 @@ const AdminRequestsOversight = () => {
                       </>
                     )}
 
-                    {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File) && (
+                    {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File) && (
                       <div className="space-y-1 col-span-1 sm:col-span-2 xl:col-span-3 pt-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Supporting Documents</label>
                         <div>
                           <a 
-                            href={`/api/uploads/${current.SL_proof_File || current.OW_proof_File || current.LC_proof_File}`} 
+                            href={`/api/uploads/${current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File}`} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="inline-flex items-center text-[#2A174E] bg-white border border-slate-200 px-3 py-2 rounded-md text-sm font-semibold hover:bg-slate-50 transition-colors mt-1 shadow-sm"

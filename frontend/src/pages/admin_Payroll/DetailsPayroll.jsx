@@ -61,6 +61,10 @@ const PayrollDetails = () => {
               basicPay: preview.basicPay,
               OT_Hrs: preview.OT_Hrs,
               OT_Amnt: preview.OT_Amnt,
+              nightOT_Hrs: preview.nightOT_Hrs,
+              nightOT_Amnt: preview.nightOT_Amnt,
+              nightDiff_Hrs: preview.nightDiff_Hrs,
+              nightDiff_Amnt: preview.nightDiff_Amnt,
               legalHol_Amnt: preview.legalHol_Amnt,
               specialHol_Amnt: preview.specialHol_Amnt,
               totalEarnings: preview.totalEarnings,
@@ -99,66 +103,28 @@ const PayrollDetails = () => {
             });
           }
         } else {
-          const response = await fetchWithAuth(`/api/payroll/${payrollId}`);
-          const data = await response.json();
-          if (response.ok) setPayroll(data);
+          const res = await fetchWithAuth(`/api/payroll/details/${payrollId}`);
+          const data = await res.json();
+          setPayroll(data);
         }
-      } catch (error) {
-        console.error("Error fetching details:", error);
+      } catch (err) {
+        console.error("Error fetching payroll details:", err);
       } finally {
         setLoading(false);
       }
     };
-    if (payrollId) fetchPayrollDetails();
-  }, [payrollId, periodStart, periodEnd]);
+    fetchPayrollDetails();
+  }, [payrollId]);
 
-  if (loading) return (
-    <div className="flex flex-col w-full min-h-screen bg-slate-50">
-      <Sidebar>
-      <div className="flex-1 p-4 md:p-4 w-full overflow-x-hidden min-w-0">
-        <div className="flex justify-between items-center mb-8">
-          <Skeleton className="h-10 w-[300px]" />
-          <Skeleton className="h-8 w-[100px] rounded-full" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i} className="border-0 shadow-sm">
-              <CardHeader className="pb-3"><Skeleton className="h-6 w-[150px]" /></CardHeader>
-              <CardContent className="grid grid-cols-2 gap-4">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <Skeleton className="h-[120px] w-full mt-6 rounded-xl" />
-      </div>
-      </Sidebar>
-    </div>
-  );
-
-  if (!payroll) return (
-    <div className="flex flex-col w-full min-h-screen bg-slate-50">
-      <Sidebar>
-      <div className="flex-1 flex justify-center items-center p-4">
-        <p className="text-slate-500 italic">Payroll record not found.</p>
-      </div>
-      </Sidebar>
-    </div>
-  );
+  if (loading || !payroll) return <Skeleton className="h-screen w-full" />;
 
   const eeSSS = parseFloat(payroll.SSS_Ded || 0);
-  const eePH = parseFloat(payroll.Philhealth_Ded || 0);
-  const eeHD = parseFloat(payroll.HDMF_Ded || 0);
-  const eeTax = parseFloat(payroll.Tax_Ded || 0);
-
-  // ER shares - these might be in the payroll object if the API returns them
-  // For now, I'll check if they exist, otherwise default to 0
   const erSSS = parseFloat(payroll.SSS_Ded_ER || 0);
+  const eePH = parseFloat(payroll.Philhealth_Ded || 0);
   const erPH = parseFloat(payroll.Philhealth_Ded_ER || 0);
+  const eeHD = parseFloat(payroll.HDMF_Ded || 0);
   const erHD = parseFloat(payroll.HDMF_Ded_ER || 0);
+  const eeTax = parseFloat(payroll.Tax_Ded || 0);
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
@@ -305,8 +271,16 @@ const PayrollDetails = () => {
                 <span className="font-semibold text-slate-800">₱{parseFloat(payroll.basicPay).toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                <span className="text-sm text-slate-600">Overtime ({payroll.OT_Hrs} hrs)</span>
+                <span className="text-sm text-slate-600">Overtime ({payroll.OT_Hrs || 0} hrs)</span>
                 <span className="font-semibold text-slate-800">₱{parseFloat(payroll.OT_Amnt || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                <span className="text-sm text-slate-600">Overtime with Night Shift ({payroll.nightOT_Hrs || 0} hrs)</span>
+                <span className="font-semibold text-slate-800">₱{parseFloat(payroll.nightOT_Amnt || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                <span className="text-sm text-slate-600">Night Differential ({payroll.nightDiff_Hrs || 0} hrs)</span>
+                <span className="font-semibold text-slate-800">₱{parseFloat(payroll.nightDiff_Amnt || 0).toLocaleString()}</span>
               </div>
               {payroll.legalHol_Amnt > 0 && (
                 <div className="flex justify-between items-center pb-3 border-b border-slate-50">
@@ -343,12 +317,10 @@ const PayrollDetails = () => {
           <Card className="border-0 shadow-sm bg-white py-0">
             <CardHeader className="border-b border-slate-50 py-4 bg-red-500">
               <CardTitle className="text-base flex items-center gap-2 text-white">
-                <TrendingDownIcon className="text-red-200 h-5 w-5" /> {activeTab === 'overview' ? 'Deductions Breakdown' : activeTab === 'govt' ? 'Government Contributions' : 'Other Deductions'}
+                <TrendingDownIcon className="text-red-200 h-5 w-5" /> Deductions Breakdown
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {activeTab === 'overview' && (
-                <>
                   <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">Absence ({payroll.absence_Hrs} hrs)</span>
                     <span className="font-semibold text-slate-800">₱{parseFloat(payroll.absence_Amnt || 0).toLocaleString()}</span>
@@ -373,92 +345,6 @@ const PayrollDetails = () => {
                     <span className="font-bold text-red-800">Total Deductions</span>
                     <span className="font-bold text-red-700 text-lg">₱{parseFloat(payroll.totalDeductions).toLocaleString()}</span>
                   </div>
-                </>
-              )}
-
-              {activeTab === 'govt' && (
-                <div className="govtTableWrapper overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold">
-                        <th className="p-2 text-left">Deduction Name</th>
-                        <th className="p-2 text-right">Employee</th>
-                        <th className="p-2 text-right">Employer</th>
-                        <th className="p-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      <tr>
-                        <td className="p-2">SSS Contribution</td>
-                        <td className="p-2 text-right">₱{eeSSS.toLocaleString()}</td>
-                        <td className="p-2 text-right">₱{erSSS.toLocaleString()}</td>
-                        <td className="p-2 text-right font-bold">₱{(eeSSS + erSSS).toLocaleString()}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2">PhilHealth</td>
-                        <td className="p-2 text-right">₱{eePH.toLocaleString()}</td>
-                        <td className="p-2 text-right">₱{erPH.toLocaleString()}</td>
-                        <td className="p-2 text-right font-bold">₱{(eePH + erPH).toLocaleString()}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2">HDMF (Pag-IBIG)</td>
-                        <td className="p-2 text-right">₱{eeHD.toLocaleString()}</td>
-                        <td className="p-2 text-right">₱{erHD.toLocaleString()}</td>
-                        <td className="p-2 text-right font-bold">₱{(eeHD + erHD).toLocaleString()}</td>
-                      </tr>
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-slate-50 font-bold">
-                        <td className="p-2">Total Government</td>
-                        <td className="p-2 text-right">₱{(eeSSS + eePH + eeHD).toLocaleString()}</td>
-                        <td className="p-2 text-right">₱{(erSSS + erPH + erHD).toLocaleString()}</td>
-                        <td className="p-2 text-right">₱{(eeSSS + eePH + eeHD + erSSS + erPH + erHD).toLocaleString()}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-
-              {activeTab === 'other' && (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-50 bg-blue-50/50 p-2 rounded">
-                    <span className="text-sm font-bold text-blue-800">Withholding Tax</span>
-                    <span className="font-bold text-blue-700">₱{eeTax.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-50 bg-indigo-50/50 p-2 rounded">
-                    <span className="text-sm font-bold text-[#2A174E]">Health Card (Maxicare)</span>
-                    <span className="font-bold text-[#2A174E]">₱{parseFloat(payroll.healthCard_Amnt || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">SSS Loan</span>
-                    <span className="font-semibold">₱{parseFloat(payroll.SSS_Loan || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">HDMF Loan</span>
-                    <span className="font-semibold">₱{parseFloat(payroll.HDMF_Loan || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">Calamity Loan</span>
-                    <span className="font-semibold">₱{parseFloat(payroll.calamityLoan_Amnt || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">Advances to Employees</span>
-                    <span className="font-semibold">₱{parseFloat(payroll.advances_Amnt || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">Eastwest Loan</span>
-                    <span className="font-semibold">₱{parseFloat(payroll.eastwest_Loan || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">Globe Deduction</span>
-                    <span className="font-semibold">₱{parseFloat(payroll.globe_Deduction || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">Multi-Purpose Savings</span>
-                    <span className="font-semibold">₱{parseFloat(payroll.multiPurposeSavings || 0).toLocaleString()}</span>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
 

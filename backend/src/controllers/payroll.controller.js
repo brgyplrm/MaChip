@@ -358,9 +358,9 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     NoDays_Worked: actual_Worked_Days,
     NoHrs_Worked: Math.round(actual_Worked_Hrs * 100) / 100,
     Total_Payable_Units: Math.round(total_payable_units * 100) / 100,
-    ND_Units: Math.round(total_nd_units * 100) / 100,
-    OT_Units: Math.round(total_ot_units * 100) / 100,
-    Hol_Units: Math.round(total_hol_units * 100) / 100,
+    nd_hrs: Math.round(total_nd_units * 100) / 100,
+    ot_hrs: Math.round(total_ot_units * 100) / 100,
+    holiday_hrs: Math.round(total_hol_units * 100) / 100,
     totalScheduledDays,
     absence_Days,
     paidLeave_Days,
@@ -397,39 +397,42 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     { replacements: { user_Id }, type: QueryTypes.SELECT }
   );
 
-  if (dailyRate === null) dailyRate = user[0]?.dailyRate || 0;
-  const previousDailyRate = user[0]?.previousDailyRate || 0;
+  if (dailyRate === null || isNaN(dailyRate)) dailyRate = parseFloat(user[0]?.dailyRate || 0);
+  const previousDailyRate = parseFloat(user[0]?.previousDailyRate || 0);
   
   // ── "Both Relation" Matrix Synchronization Logic ────────────────────────────
   const { computeMonthlySharesAsync } = require("../utils/govtDeductions");
   const dynamicShares = await computeMonthlySharesAsync(dailyRate);
 
+  // Check if period ends on 15th for government deductions
+  const periodEndDay = new Date(period_End).getDate();
+  const isMidMonth = periodEndDay === 15;
+
   // SSS Selection
   if (user[0]?.sss_is_manual) {
-    sss_Share = user[0]?.sss_Share || 0;
-    // For Employer share, we still use the matrix as a baseline unless we add er_is_manual
-    SSS_Ded_ER = dynamicShares.employer_sss; 
+    sss_Share = isMidMonth ? (user[0]?.sss_Share || 0) : 0;
+    SSS_Ded_ER = isMidMonth ? dynamicShares.employer_sss : 0;
   } else {
-    sss_Share = dynamicShares.sss_Share;
-    SSS_Ded_ER = dynamicShares.employer_sss;
+    sss_Share = isMidMonth ? dynamicShares.sss_Share : 0;
+    SSS_Ded_ER = isMidMonth ? dynamicShares.employer_sss : 0;
   }
 
   // PhilHealth Selection
   if (user[0]?.ph_is_manual) {
-    philhealth_Share = user[0]?.philhealth_Share || 0;
-    Philhealth_Ded_ER = dynamicShares.employer_ph;
+    philhealth_Share = isMidMonth ? (user[0]?.philhealth_Share || 0) : 0;
+    Philhealth_Ded_ER = isMidMonth ? dynamicShares.employer_ph : 0;
   } else {
-    philhealth_Share = dynamicShares.philhealth_Share;
-    Philhealth_Ded_ER = dynamicShares.employer_ph;
+    philhealth_Share = isMidMonth ? dynamicShares.philhealth_Share : 0;
+    Philhealth_Ded_ER = isMidMonth ? dynamicShares.employer_ph : 0;
   }
 
   // HDMF Selection
   if (user[0]?.hdmf_is_manual) {
-    hdmf_Share = user[0]?.hdmf_Share || 0;
-    HDMF_Ded_ER = dynamicShares.employer_hdmf;
+    hdmf_Share = isMidMonth ? (user[0]?.hdmf_Share || 0) : 0;
+    HDMF_Ded_ER = isMidMonth ? dynamicShares.employer_hdmf : 0;
   } else {
-    hdmf_Share = dynamicShares.hdmf_Share;
-    HDMF_Ded_ER = dynamicShares.employer_hdmf;
+    hdmf_Share = isMidMonth ? dynamicShares.hdmf_Share : 0;
+    HDMF_Ded_ER = isMidMonth ? dynamicShares.employer_hdmf : 0;
   }
   // ────────────────────────────────────────────────────────────────────────────
 
@@ -558,12 +561,34 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const potentialBasicPay = (stats.totalScheduledDays * dailyRate);
 
   // 2. Holiday Premiums (Using Precise Units)
-  const legalHol_Amnt = stats.Hol_Units * ratePerHr;
+  const legalHol_Amnt = stats.holiday_hrs * ratePerHr;
   const specialHol_Amnt = 0; 
 
   // 3. OT & Night Diff
-  const OT_Amnt = (stats.OT_Units + stats.OT_Hrs_Manual) * ratePerHr;
-  const nightDiff_Amnt = stats.ND_Units * ratePerHr;
+  // Retrieve settings to get dynamic multipliers
+  const settings = await SystemSettings.findOne();
+  const nsdRate = parseFloat(settings?.payrollRates?.otNightRates?.nsdRate ?? 10) / 100; // e.g. 0.10
+  const ordinaryOTRate = parseFloat(settings?.payrollRates?.otNightRates?.ordinaryOT ?? 25) / 100; // e.g. 0.25 (Total: 1.25)
+  
+  const OT_Rate = ratePerHr * (1 + ordinaryOTRate);
+  const ND_OT_Rate = ratePerHr * (1 + ordinaryOTRate) * (1 + nsdRate); // Logic: 1.25x * 1.1x = 1.375x
+
+  // Logic to separate regular night diff from OT night diff
+  // nd_hrs in stats is the total night hours (10PM-6AM)
+  // ot_hrs in stats is the total overtime hours
+  const night_OT_hrs = Math.min(stats.ot_hrs, stats.nd_hrs);
+  const regular_OT_hrs = Math.max(0, stats.ot_hrs - night_OT_hrs);
+  const regular_night_hrs = Math.max(0, stats.nd_hrs - night_OT_hrs);
+
+  const OT_Amnt = regular_OT_hrs * OT_Rate;
+  const nightOT_Amnt = night_OT_hrs * ND_OT_Rate;
+  const nightDiff_Amnt = regular_night_hrs * ratePerHr * nsdRate;
+
+  console.log(`[DEBUG PAYROLL] stats: ot_hrs=${stats.ot_hrs}, nd_hrs=${stats.nd_hrs}`);
+  console.log(`[DEBUG PAYROLL] split: regular_OT_hrs=${regular_OT_hrs}, night_OT_hrs=${night_OT_hrs}, regular_night_hrs=${regular_night_hrs}`);
+  console.log(`[DEBUG PAYROLL] amounts: OT_Amnt=${OT_Amnt}, nightOT_Amnt=${nightOT_Amnt}, nightDiff_Amnt=${nightDiff_Amnt}`);
+
+  const total_OT_Amnt = OT_Amnt + nightOT_Amnt;
   
   // 4. Attendance Deductions
   const absence_Amnt = stats.absence_Days * dailyRate; 
@@ -571,27 +596,29 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const unpaidLeave_Amnt = stats.unpaidLeave_Days * dailyRate;
   const specialHol_Adj = 0;
 
-  const incentives = customIncentives; 
-  const allowance = customAllowance;
+  const incentives = parseFloat(customIncentives || 0); 
+  const allowance = parseFloat(customAllowance || 0);
 
   // Actual Basic Pay = Potential - Absences - Unpaid Leaves
   const basicPay = potentialBasicPay - absence_Amnt - unpaidLeave_Amnt;
 
-  let totalEarnings = basicPay + legalHol_Amnt + nightDiff_Amnt + OT_Amnt + incentives - specialHol_Adj;
-  if (totalEarnings < 0) totalEarnings = 0;
+  let totalEarnings = basicPay + legalHol_Amnt + nightDiff_Amnt + OT_Amnt + nightOT_Amnt + incentives - specialHol_Adj;
+  if (isNaN(totalEarnings) || totalEarnings < 0) totalEarnings = 0;
 
   // 5. Government Deductions
-  const govtTotal = totalEarnings > 0 ? (parseFloat(sss_Share) + parseFloat(philhealth_Share) + parseFloat(hdmf_Share)) : 0;
+  const govtTotal = totalEarnings > 0 ? (parseFloat(sss_Share || 0) + parseFloat(philhealth_Share || 0) + parseFloat(hdmf_Share || 0)) : 0;
   
   // 6. Other Deductions
-  const otherTotal = totalEarnings > 0 ? (parseFloat(hCard) + parseFloat(sLoan) + parseFloat(hLoan) + parseFloat(cLoan) + parseFloat(advAmnt) + parseFloat(gDed) + parseFloat(mpSave)) : 0;
+  const otherTotal = totalEarnings > 0 ? (parseFloat(hCard || 0) + parseFloat(sLoan || 0) + parseFloat(hLoan || 0) + parseFloat(cLoan || 0) + parseFloat(advAmnt || 0) + parseFloat(gDed || 0) + parseFloat(mpSave || 0)) : 0;
 
-  const Tax_Ded_Final = totalEarnings > 0 ? (parseFloat(tax_Share) || 0) : 0; 
+  const Tax_Ded_Final = totalEarnings > 0 ? (parseFloat(tax_Share || 0) || 0) : 0; 
 
   const taxableIncome = totalEarnings - (tardiness_Amnt) - govtTotal;
-  const netPay = taxableIncome - (otherTotal + Tax_Ded_Final + parseFloat(ewLoan)) + allowance;
+  let netPay = taxableIncome - (otherTotal + Tax_Ded_Final + parseFloat(ewLoan || 0)) + allowance;
+  if (isNaN(netPay)) netPay = 0;
 
-  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded_Final + parseFloat(ewLoan);
+
+  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded_Final + parseFloat(ewLoan || 0);
 
   return {
     ...stats,
@@ -600,12 +627,18 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     dailyRate,
     previousDailyRate,
     ratePerHr,
-    basicPay: potentialBasicPay, // Show Gross Potential Basic in Payslip
+    basicPay: basicPay, // Updated: Show Actual Basic Pay for the period
     actualBasicPay: basicPay,     // Internal/Audit
     legalHol_Amnt,
     specialHol_Amnt,
     specialHol_Adj,
+    OT_Hrs: regular_OT_hrs,
     OT_Amnt,
+    nightOT_Hrs: night_OT_hrs,
+    nightOT_Amnt,
+    restDay_OT_Hrs: 0,
+    restDay_OT_Amnt: 0,
+    nightDiff_Hrs: regular_night_hrs,
     nightDiff_Amnt,
     incentives,
     allowance,
@@ -730,14 +763,18 @@ exports.generateBatchPayroll = async (req, res) => {
       const payrollId = payrollResult[0][0].payrollId;
 
       await sequelize.query(
-        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
-         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
-        { replacements: { 
+        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "nightOT_Hrs", "nightOT_Amnt", "nightDiff_Hrs", "nightDiff_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
+         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :nightOT_Hrs, :nightOT_Amnt, :nightDiff_Hrs, :nightDiff_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
+        { 
+          replacements: { 
             payrollId, user_Id: emp.user_Id, 
             OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
-            legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt,
-            specialHol_Adj: fullStats.specialHol_Adj
-          }, type: QueryTypes.INSERT }
+            nightOT_Hrs: fullStats.nightOT_Hrs, nightOT_Amnt: fullStats.nightOT_Amnt,
+            nightDiff_Hrs: fullStats.nightDiff_Hrs, nightDiff_Amnt: fullStats.nightDiff_Amnt,
+            legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt, specialHol_Adj: fullStats.specialHol_Adj
+          },
+          type: QueryTypes.INSERT 
+        }
       );
 
       await sequelize.query(
@@ -994,12 +1031,16 @@ async function recalculatePayrollInternal(payrollId) {
     await sequelize.query(
       `UPDATE "Payroll_Earnings" 
        SET "OT_Hrs" = :OT_Hrs, "OT_Amnt" = :OT_Amnt,
+           "nightOT_Hrs" = :nightOT_Hrs, "nightOT_Amnt" = :nightOT_Amnt,
+           "nightDiff_Hrs" = :nightDiff_Hrs, "nightDiff_Amnt" = :nightDiff_Amnt,
            "legalHol_Amnt" = :legalHol_Amnt, "specialHol_Amnt" = :specialHol_Amnt,
            "specialHol_Adj" = :specialHol_Adj
        WHERE "payrollId" = :payrollId`,
       { replacements: { 
           payrollId, 
           OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
+          nightOT_Hrs: fullStats.nightOT_Hrs, nightOT_Amnt: fullStats.nightOT_Amnt,
+          nightDiff_Hrs: fullStats.nightDiff_Hrs, nightDiff_Amnt: fullStats.nightDiff_Amnt,
           legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt,
           specialHol_Adj: fullStats.specialHol_Adj
         }, type: QueryTypes.UPDATE }
@@ -1110,14 +1151,18 @@ exports.generatePayroll = async (req, res) => {
 
     // 4. Insert Earnings and Deductions
     await sequelize.query(
-      `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
-       VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
-      { replacements: { 
+      `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "nightOT_Hrs", "nightOT_Amnt", "nightDiff_Hrs", "nightDiff_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
+       VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :nightOT_Hrs, :nightOT_Amnt, :nightDiff_Hrs, :nightDiff_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
+      { 
+        replacements: { 
           payrollId, user_Id, 
           OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
-          legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt,
-          specialHol_Adj: fullStats.specialHol_Adj
-        }, type: QueryTypes.INSERT }
+          nightOT_Hrs: fullStats.nightOT_Hrs, nightOT_Amnt: fullStats.nightOT_Amnt,
+          nightDiff_Hrs: fullStats.nightDiff_Hrs, nightDiff_Amnt: fullStats.nightDiff_Amnt,
+          legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt, specialHol_Adj: fullStats.specialHol_Adj
+        },
+        type: QueryTypes.INSERT 
+      }
     );
 
     await sequelize.query(
@@ -1430,9 +1475,9 @@ exports.getPayrollByUser = async (req, res) => {
     const payrolls = await sequelize.query(
       `SELECT
          p.*,
-         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
-         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
-         e."specialHol_Adj", e."incentives", e."allowance",
+         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt",
+         e."nightOT_Hrs", e."nightOT_Amnt",
+         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt",         e."specialHol_Adj", e."incentives", e."allowance",
          d.*,
          (COALESCE(d."healthCard_Amnt",0) +
           COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
@@ -1464,9 +1509,9 @@ exports.getPayrollById = async (req, res) => {
     const payroll = await sequelize.query(
       `SELECT
          p.*,
-         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
-         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
-         e."specialHol_Adj", e."incentives", e."allowance",
+         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt",
+         e."nightOT_Hrs", e."nightOT_Amnt",
+         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt",         e."specialHol_Adj", e."incentives", e."allowance",
          d.*,
          (COALESCE(d."healthCard_Amnt",0) +
           COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
@@ -1487,6 +1532,9 @@ exports.getPayrollById = async (req, res) => {
 
     // Calculate YTD (Year-To-Date)
     const currentPayroll = payroll[0];
+    
+    console.log(`[DEBUG PAYROLL GET] ID=${payrollId}, nightOT_Hrs=${currentPayroll.nightOT_Hrs}, nightOT_Amnt=${currentPayroll.nightOT_Amnt}`);
+    
     const year = new Date(currentPayroll.period_Start).getFullYear();
     
     const ytdData = await sequelize.query(
@@ -1540,9 +1588,9 @@ exports.getPayrollReport = async (req, res) => {
          COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
-        e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt", 
-        e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
-        e."specialHol_Adj", e."incentives", e."allowance"
+        e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt",
+        e."nightOT_Hrs", e."nightOT_Amnt",
+        e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt",        e."specialHol_Adj", e."incentives", e."allowance"
       FROM "Payroll" p
       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
@@ -1768,7 +1816,8 @@ exports.updatePayrollFull = async (req, res) => {
   const { payrollId } = req.params;
   const {
     dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, status,
-    OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance,
+    OT_Hrs, OT_Amnt, nightOT_Hrs, nightOT_Amnt, nightDiff_Hrs, nightDiff_Amnt,
+    legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance,
     absence_Days, absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days,
     SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded,
     SSS_Ded_ER, Philhealth_Ded_ER, HDMF_Ded_ER,
@@ -1795,7 +1844,7 @@ exports.updatePayrollFull = async (req, res) => {
 
     await sequelize.query(`UPDATE "Payroll" SET "dailyRate"=:dailyRate, "ratePerHr"=:ratePerHr, "NoDays_Worked"=:NoDays_Worked, "NoHrs_Worked"=:NoHrs_Worked, "basicPay"=:basicPay, "totalEarnings"=:totalEarnings, "totalDeductions"=:totalDed, "netPay"=:netPay, "status"=:status, "updatedAt"=:now WHERE "payrollId" = :payrollId`, { replacements: { payrollId, dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDed: computedTotalDed, netPay: computedNet, status, now: nowStr }, type: QueryTypes.UPDATE });
     
-    await sequelize.query(`UPDATE "Payroll_Earnings" SET "OT_Hrs"=:OT_Hrs, "OT_Amnt"=:OT_Amnt, "legalHol_Amnt"=:legalHol_Amnt, "specialHol_Amnt"=:specialHol_Amnt, "specialHol_Adj"=:specialHol_Adj, "incentives"=:incentives, "allowance"=:allowance WHERE "payrollId" = :payrollId`, { replacements: { payrollId, OT_Hrs, OT_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance }, type: QueryTypes.UPDATE });
+    await sequelize.query(`UPDATE "Payroll_Earnings" SET "OT_Hrs"=:OT_Hrs, "OT_Amnt"=:OT_Amnt, "nightOT_Hrs"=:nightOT_Hrs, "nightOT_Amnt"=:nightOT_Amnt, "nightDiff_Hrs"=:nightDiff_Hrs, "nightDiff_Amnt"=:nightDiff_Amnt, "legalHol_Amnt"=:legalHol_Amnt, "specialHol_Amnt"=:specialHol_Amnt, "specialHol_Adj"=:specialHol_Adj, "incentives"=:incentives, "allowance"=:allowance WHERE "payrollId" = :payrollId`, { replacements: { payrollId, OT_Hrs, OT_Amnt, nightOT_Hrs, nightOT_Amnt, nightDiff_Hrs, nightDiff_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance }, type: QueryTypes.UPDATE });
     
     await sequelize.query(`UPDATE "Payroll_Deductions" SET "absence_Hrs"=:absence_Hrs, "absence_Amnt"=:absence_Amnt, "tardiness_Mins"=:tardiness_Mins, "tardiness_Amnt"=:tardiness_Amnt, "unpaidLeave_Days"=:unpaidLeave_Days, "unpaidLeave_Amnt"=:unpaidLeave_Amnt, "paidLeave_Days"=:paidLeave_Days, "SSS_Ded"=:SSS_Ded, "Philhealth_Ded"=:Philhealth_Ded, "HDMF_Ded"=:HDMF_Ded, "Tax_Ded"=:Tax_Ded, "SSS_Ded_ER"=:SSS_Ded_ER, "Philhealth_Ded_ER"=:Philhealth_Ded_ER, "HDMF_Ded_ER"=:HDMF_Ded_ER, "healthCard_Amnt"=:healthCard_Amnt, "SSS_Loan"=:SSS_Loan, "HDMF_Loan"=:HDMF_Loan, "calamityLoan_Amnt"=:calamityLoan_Amnt, "multiPurposeSavings"=:multiPurposeSavings, "advances_Amnt"=:advances_Amnt, "globe_Deduction"=:globe_Deduction, "eastwest_Loan"=:eastwest_Loan WHERE "payrollId" = :payrollId`, { replacements: { payrollId, absence_Hrs:(parseFloat(absence_Days||0)*8), absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days, SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded, SSS_Ded_ER, Philhealth_Ded_ER, HDMF_Ded_ER, healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction, eastwest_Loan: (req.body.eastwest_Loan || 0) }, type: QueryTypes.UPDATE });
 

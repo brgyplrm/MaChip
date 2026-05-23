@@ -205,24 +205,24 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll }) => {
                     <tr>
                       <td className="p-3 pl-5 border-r border-slate-200">Regular Base Pay Hours Calculated</td>
                       <td className="p-3 text-center border-r border-slate-200 font-mono">{payroll.NoHrs_Worked} hrs</td>
-                      <td className="p-3 text-right font-semibold text-slate-900">₱{formatCurrency(payroll.basicPay)}</td>
+                      <td className="p-3 text-right font-semibold text-slate-900">₱{formatCurrency((payroll.NoHrs_Worked / 8) * payroll.dailyRate)}</td>
                     </tr>
                     
                     {/* Premium Pay Blocks */}
                     <tr>
-                      <td className="p-3 pl-5 border-r border-slate-200">Overtime Rendered Work Pay</td>
-                      <td className="p-3 text-center border-r border-slate-200 font-mono">{payroll.OT_Hrs || "0"} hrs</td>
-                      <td className="p-3 text-right font-semibold text-emerald-600">₱{formatCurrency(payroll.OT_Amnt)}</td>
+                      <td className="p-3 pl-5 border-r border-slate-200">Standard Overtime Pay</td>
+                      <td className="p-3 text-center border-r border-slate-200 font-mono">{payroll.OT_Hrs} hrs</td>
+                      <td className="p-3 text-right font-semibold text-slate-900">₱{formatCurrency(payroll.OT_Amnt)}</td>
                     </tr>
                     <tr>
-                      <td className="p-3 pl-5 border-r border-slate-200">Rest Day Shift Coverage Overtime</td>
-                      <td className="p-3 text-center border-r border-slate-200 font-mono">{payroll.restDay_OT_Hrs || "0"} hrs</td>
-                      <td className="p-3 text-right font-semibold text-emerald-600">₱{formatCurrency(payroll.restDay_OT_Amnt)}</td>
+                      <td className="p-3 pl-5 border-r border-slate-200">Overtime with Night Shift</td>
+                      <td className="p-3 text-center border-r border-slate-200 font-mono">{payroll.nightOT_Hrs || 0} hrs</td>
+                      <td className="p-3 text-right font-semibold text-slate-900">₱{formatCurrency(payroll.nightOT_Amnt || 0)}</td>
                     </tr>
                     <tr>
-                      <td className="p-3 pl-5 border-r border-slate-200">Night Differential Shift Premium</td>
-                      <td className="p-3 text-center border-r border-slate-200 font-mono">{payroll.nightDiff_Hrs || "0"} hrs</td>
-                      <td className="p-3 text-right font-semibold text-emerald-600">₱{formatCurrency(payroll.nightDiff_Amnt)}</td>
+                      <td className="p-3 pl-5 border-r border-slate-200">Night Differential Premium</td>
+                      <td className="p-3 text-center border-r border-slate-200 font-mono">{payroll.nightDiff_Hrs || 0} hrs</td>
+                      <td className="p-3 text-right font-semibold text-slate-900">₱{formatCurrency(payroll.nightDiff_Amnt)}</td>
                     </tr>
                     <tr>
                       <td className="p-3 pl-5 border-r border-slate-200">Statutory Holiday Compensation Matrix</td>

@@ -94,6 +94,10 @@ const validateForm = (formData) => {
   return errors;
 };
 
+import EditRequestModal from "../../components/EditRequestModal";
+import FileViewerModal from "../../components/FileViewerModal";
+import ImageCropperModal from "../../components/ImageCropperModal";
+
 const Edit = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
@@ -103,6 +107,12 @@ const Edit = () => {
 
   const [file, setFile] = useState("");
   const [existingAvatar, setExistingAvatar] = useState("");
+  const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
+  
+  // Cropper State
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
+  const [tempImageSrc, setTempImageSrc] = useState(null);
+
   const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [formData, setFormData] = useState({
     user_FirstName: "",
@@ -377,7 +387,7 @@ const Edit = () => {
             bank_AccountName: userData.bank_AccountName || ""
           });
           setUserData(userData);
-          setExistingAvatar(userData.user_Avatar || "");
+          setExistingAvatar(userData.user_ProfilePic || "");
           setOriginalRole(userData.user_Role);
           setOriginalMachipId(userData.user_MachipId || "");
           setOriginalFingerprintId(userData.user_FingerprintId || "");
@@ -479,7 +489,7 @@ const Edit = () => {
       });
 
       if (file) {
-        formDataToSend.append("user_Avatar", file);
+        formDataToSend.append("user_ProfilePic", file);
       }
 
       if (adminVerification) {
@@ -495,6 +505,19 @@ const Edit = () => {
       });
 
       if (response.ok) {
+        const result = await response.json();
+        
+        // If the updated user is the current logged-in user, update localStorage
+        const sessionUser = JSON.parse(localStorage.getItem("userData"));
+        if (sessionUser && parseInt(sessionUser.user_Id) === parseInt(userId)) {
+          // Merge existing session data with updated data from server
+          const updatedSessionData = { ...sessionUser, ...result.data };
+          localStorage.setItem("userData", JSON.stringify(updatedSessionData));
+          
+          // Trigger a custom event to notify other components (Sidebar/Navbar)
+          window.dispatchEvent(new Event("userUpdate"));
+        }
+
         showToastMsg("User profile successfully updated!", "success");
         setTimeout(() => navigate(-1), 2000);
       } else {
@@ -609,11 +632,32 @@ const Edit = () => {
                       <input
                         type="file"
                         id="file"
-                        onChange={(e) => setFile(e.target.files[0])}
+                        onChange={(e) => {
+                          const selectedFile = e.target.files[0];
+                          if (selectedFile) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setTempImageSrc(reader.result);
+                              setIsCropperOpen(true);
+                            };
+                            reader.readAsDataURL(selectedFile);
+                          }
+                        }}
                         style={{ display: "none" }}
                         accept="image/*"
                       />
-                      <span className="text-xs font-semibold text-slate-500">Upload Photo</span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-xs font-semibold text-slate-500">Upload Photo</span>
+                        {existingAvatar && (
+                          <button
+                            type="button"
+                            onClick={() => setIsFileViewerOpen(true)}
+                            className="text-[10px] text-[#2A174E] font-bold hover:underline"
+                          >
+                            View Full Photo
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Basic Info Grid */}
@@ -1054,6 +1098,22 @@ const Edit = () => {
         error={fingerprintError}
         currentId={originalFingerprintId}
         title="Fingerprint Scanner"
+      />
+
+      <FileViewerModal
+        isOpen={isFileViewerOpen}
+        onClose={() => setIsFileViewerOpen(false)}
+        fileUrl={existingAvatar}
+        fileName={`${formData.user_FirstName} ${formData.user_LastName} Profile Photo`}
+      />
+
+      <ImageCropperModal
+        isOpen={isCropperOpen}
+        onClose={() => setIsCropperOpen(false)}
+        imageSrc={tempImageSrc}
+        onCropComplete={(croppedBlob) => {
+          setFile(croppedBlob);
+        }}
       />
 
       </Sidebar>

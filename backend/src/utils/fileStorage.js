@@ -69,7 +69,9 @@ exports.initializeStorageStructure = async () => {
     const pathsToEnsure = [
       settings.storageRootPath,
       path.join(settings.storageRootPath, String(year)),
-      path.join(settings.storageRootPath, String(year), monthFolder)
+      path.join(settings.storageRootPath, String(year), monthFolder),
+      path.join(settings.storageRootPath, "requestsFiles"),
+      path.join(settings.storageRootPath, "ProfilePictures")
     ];
 
     console.log(`[DEBUG][FILE STORAGE] Verifying archival structure at: ${settings.storageRootPath}`);

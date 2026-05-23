@@ -61,6 +61,8 @@ module.exports = (sequelize, DataTypes) => {
       user_Id: { type: DataTypes.SMALLINT, allowNull: false },
       OT_Hrs: { type: DataTypes.FLOAT, defaultValue: 0 },
       OT_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
+      nightOT_Hrs: { type: DataTypes.FLOAT, defaultValue: 0 },
+      nightOT_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       restDay_OT_Hrs: { type: DataTypes.FLOAT, defaultValue: 0 },
       restDay_OT_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       leaveCredits: { type: DataTypes.FLOAT, defaultValue: 0 },
