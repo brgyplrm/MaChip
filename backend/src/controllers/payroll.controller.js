@@ -405,7 +405,9 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const dynamicShares = await computeMonthlySharesAsync(dailyRate);
 
   // Check if period ends on 15th for government deductions
-  const periodEndDay = new Date(period_End).getDate();
+  // Use string splitting to be robust against timezone shifts
+  const periodEndParts = String(period_End).split('-');
+  const periodEndDay = parseInt(periodEndParts[periodEndParts.length - 1]);
   const isMidMonth = periodEndDay === 15;
 
   // SSS Selection
@@ -667,6 +669,39 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   };
 }
 
+// ── Internal Helper: Calculate YTD ───────────────────────────────────────────
+async function calculateYTD(user_Id, period_Start, period_End, currentEarnings, currentAllowance, currentDeductions, currentTax) {
+  const year = new Date(period_Start).getFullYear();
+  const safeYear = isNaN(year) ? new Date().getFullYear() : year;
+
+  const ytdData = await sequelize.query(
+    `SELECT 
+       SUM(COALESCE(p."totalEarnings", 0)) as "ytdGross",
+       SUM(COALESCE(e."allowance", 0)) as "ytdNonTaxable",
+       SUM(COALESCE(p."totalDeductions", 0) - COALESCE(d."Tax_Ded", 0)) as "ytdDeductions",
+       SUM(COALESCE(d."Tax_Ded", 0)) as "ytdBIR"
+     FROM "Payroll" p
+     LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
+     LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+     WHERE p."user_Id" = :user_Id 
+     AND p."status" = 2
+     AND EXTRACT(YEAR FROM p."period_Start") = :safeYear
+     AND p."period_End" < :period_Start`,
+    { 
+      replacements: { user_Id, safeYear, period_Start }, 
+      type: QueryTypes.SELECT 
+    }
+  );
+
+  const hist = ytdData[0] || {};
+  return {
+    ytdGross: parseFloat(hist.ytdGross || 0) + parseFloat(currentEarnings || 0),
+    ytdNonTaxable: parseFloat(hist.ytdNonTaxable || 0) + parseFloat(currentAllowance || 0),
+    ytdDeductions: parseFloat(hist.ytdDeductions || 0) + (parseFloat(currentDeductions || 0) - parseFloat(currentTax || 0)),
+    ytdBIR: parseFloat(hist.ytdBIR || 0) + parseFloat(currentTax || 0)
+  };
+}
+
 // ── Get Payroll Preview ───────────────────────────────────────────────────────
 exports.getPayrollPreview = async (req, res) => {
   const { user_Id, period_Start, period_End } = req.query;
@@ -676,11 +711,290 @@ exports.getPayrollPreview = async (req, res) => {
 
   try {
     const fullStats = await calculatePayrollStats(user_Id, period_Start, period_End);
-    res.status(200).json(fullStats);
+    
+    // Add YTD to preview
+    const ytd = await calculateYTD(
+      user_Id, 
+      period_Start, 
+      period_End, 
+      fullStats.totalEarnings, 
+      fullStats.allowance, 
+      fullStats.totalDeductions, 
+      fullStats.Tax_Ded
+    );
+
+    res.status(200).json({ ...fullStats, ...ytd });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
+// ── Generate Batch Payroll (Internal) ───────────────────────────────────────
+async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = true, customDailyRate = null) {
+  const now = await getSystemTime();
+  const nowStr = formatForSQL(now);
+
+  const periodRow = await sequelize.query(
+    `SELECT "periodId" FROM "PayrollPeriod" 
+     WHERE "startDate" = :period_Start AND "endDate" = :period_End LIMIT 1`,
+    { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+  );
+  const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
+
+  const employees = await sequelize.query(
+    `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_Email", u."dailyRate", 
+            d."sss_Share", d."philhealth_Share", d."hdmf_Share", b."account_Number" 
+     FROM "User" u
+     LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+     LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+     WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
+     ORDER BY u."user_Id" ASC`, 
+    { type: QueryTypes.SELECT }
+  );
+
+  let processedCount = 0;
+  let skippedCount = 0;
+  const newPayrollsForEmail = [];
+
+  for (const emp of employees) {
+    const existing = await sequelize.query(
+      `SELECT "payrollId" FROM "Payroll" 
+       WHERE "user_Id" = :user_Id 
+       AND (("period_Start" = :period_Start AND "period_End" = :period_End) OR ("periodId" = :periodId))`,
+      { replacements: { user_Id: emp.user_Id, period_Start, period_End, periodId: periodId || -1 }, type: QueryTypes.SELECT }
+    );
+
+    if (existing.length > 0) {
+      skippedCount++;
+      continue;
+    }
+
+    // Use custom rate if provided, else use current employee rate
+    const rateToUse = customDailyRate !== null ? customDailyRate : emp.dailyRate;
+    const fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse);
+
+    const payrollResult = await sequelize.query(
+      `INSERT INTO "Payroll"
+        ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked", "totalScheduledDays",
+         "dailyRate", "previousDailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
+         "holidaysTotal", "holidaysRegularWorked", "holidaysSpecialWorked",
+         "status", "createdAt", "updatedAt")
+       VALUES
+        (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked, :totalScheduledDays,
+         :dailyRate, :previousDailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
+         :holidaysTotal, :holidaysRegularWorked, :holidaysSpecialWorked,
+         1, :now, :now)
+       RETURNING "payrollId"`,
+      {
+        replacements: {
+          user_Id: emp.user_Id, periodId, period_Start, period_End,
+          NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
+          totalScheduledDays: fullStats.totalScheduledDays,
+          dailyRate: fullStats.dailyRate, previousDailyRate: fullStats.previousDailyRate,
+          ratePerHr: fullStats.ratePerHr,
+          basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
+          totalDed: fullStats.totalDeductions, netPay: fullStats.netPay,
+          holidaysTotal: fullStats.holidaysTotal || 0,
+          holidaysRegularWorked: fullStats.legalHol_Days || 0,
+          holidaysSpecialWorked: fullStats.specialHol_Days || 0,
+          now: nowStr
+        },
+        type: QueryTypes.INSERT
+      }
+    );
+
+    const payrollId = payrollResult[0][0].payrollId;
+
+    await sequelize.query(
+      `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "nightOT_Hrs", "nightOT_Amnt", "nightDiff_Hrs", "nightDiff_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
+       VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :nightOT_Hrs, :nightOT_Amnt, :nightDiff_Hrs, :nightDiff_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
+      { 
+        replacements: { 
+          payrollId, user_Id: emp.user_Id, 
+          OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
+          nightOT_Hrs: fullStats.nightOT_Hrs, nightOT_Amnt: fullStats.nightOT_Amnt,
+          nightDiff_Hrs: fullStats.nightDiff_Hrs, nightDiff_Amnt: fullStats.nightDiff_Amnt,
+          legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt, specialHol_Adj: fullStats.specialHol_Adj
+        },
+        type: QueryTypes.INSERT 
+      }
+    );
+
+    await sequelize.query(
+      `INSERT INTO "Payroll_Deductions"
+        ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", 
+         "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days",
+         "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
+         "SSS_Ded_ER", "Philhealth_Ded_ER", "HDMF_Ded_ER",
+         "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
+         "multiPurposeSavings", "advances_Amnt", "globe_Deduction", "eastwest_Loan")
+       VALUES
+        (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
+         :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
+         :sss, :ph, :hd, :tax,
+         :sssER, :phER, :hdER,
+         :hc, :sl, :hl, :cl, :ms, :aa, :gd, :el)`,
+      {
+        replacements: {
+          payrollId,
+          absence_Hrs: (fullStats.absence_Days) * 8,
+          absence_Amnt: fullStats.absence_Amnt,
+          tardiness_Mins: fullStats.tardiness_Mins,
+          tardiness_Amnt: fullStats.tardiness_Amnt,
+          unpaidLeave_Days: fullStats.unpaidLeave_Days,
+          unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
+          paidLeave_Days: fullStats.paidLeave_Days,
+          sss: fullStats.SSS_Ded,
+          ph: fullStats.Philhealth_Ded,
+          hd: fullStats.HDMF_Ded,
+          tax: fullStats.Tax_Ded,
+          sssER: fullStats.SSS_Ded_ER,
+          phER: fullStats.Philhealth_Ded_ER,
+          hdER: fullStats.HDMF_Ded_ER,
+          hc: fullStats.healthCard_Amnt,
+          sl: fullStats.SSS_Loan,
+          hl: fullStats.HDMF_Loan,
+          cl: fullStats.calamityLoan_Amnt,
+          ms: fullStats.multiPurposeSavings,
+          aa: fullStats.advances_Amnt,
+          gd: fullStats.globe_Deduction,
+          el: fullStats.eastwest_Loan
+        },
+        type: QueryTypes.INSERT,
+      }
+    );
+
+    // ── Auto-record to Maxicare Table ─────────────────────────────────────
+    if (fullStats.healthCard_Amnt > 0) {
+      await sequelize.query(
+        `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
+         VALUES (:user_Id, :date, :amount, 'paid', :now, :now)
+         ON CONFLICT ("user_Id", "max_Month") DO UPDATE
+         SET "amount" = EXCLUDED."amount", "maxi_status" = 'paid', "updatedAt" = EXCLUDED."updatedAt"`,
+        { replacements: { user_Id: emp.user_Id, date: period_End, amount: fullStats.healthCard_Amnt, now: nowStr }, type: QueryTypes.INSERT }
+      );
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
+    // Collect data for background email dispatch
+    newPayrollsForEmail.push({
+      emp,
+      payrollId,
+      fullStats
+    });
+
+    processedCount++;
+  }
+
+  if (periodId && shouldRelease) {
+    await sequelize.query(
+      `UPDATE "PayrollPeriod" SET "status" = 'Released', "updatedAt" = :now WHERE "periodId" = :periodId`,
+      { replacements: { periodId, now: nowStr }, type: QueryTypes.UPDATE }
+    );
+    
+    // Also mark individual payrolls as released (status 2) if shouldRelease is true
+    await sequelize.query(
+      `UPDATE "Payroll" SET "status" = 2, "updatedAt" = :now WHERE "period_Start" = :period_Start AND "period_End" = :period_End`,
+      { replacements: { period_Start, period_End, now: nowStr }, type: QueryTypes.UPDATE }
+    );
+  }
+
+  // Handle background tasks (emails, archival) - strictly for non-interactive use
+  if (newPayrollsForEmail.length > 0 && shouldRelease) {
+    (async () => {
+      for (const item of newPayrollsForEmail) {
+        try {
+          const { emp, fullStats } = item;
+          const dtrData = await getAttendanceReportInternal(period_Start, period_End, emp.user_Id);
+          
+          const payrollDataForPass = {
+            period_Start,
+            period_End,
+            user_LastName: emp.user_LastName,
+            user_Id: emp.user_Id
+          };
+          const pdfPassword = generatePayslipPassword(payrollDataForPass);
+
+          const payslipBuffer = await generatePayslipPDF({
+            ...fullStats,
+            user_FirstName: emp.user_FirstName,
+            user_LastName: emp.user_LastName,
+            period_Start,
+            period_End,
+            accountNo: decrypt(emp.account_Number) || "—"
+          }, pdfPassword);
+
+          const dtrBuffer = await generateDTRPDF({
+            employee: emp,
+            dtrData,
+            period_Start,
+            period_End,
+            netPay: fullStats.netPay
+          });
+
+          const dateObj = new Date(period_End);
+          const archiveOpts = {
+            year: dateObj.getFullYear(),
+            month: formatMonthFolder(dateObj),
+            subFolder: getPeriodFolder(period_Start, period_End)
+          };
+
+          await saveFileToArchive(payslipBuffer, `Payslip_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
+          await saveFileToArchive(dtrBuffer, `DTR_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
+
+          // Skip email for seed/internal runs if needed, but here we just try
+          await sendPayrollEmail({
+            email: emp.user_Email,
+            name: `${emp.user_FirstName} ${emp.user_LastName}`,
+            period: `${period_Start} to ${period_End}`,
+            netPay: fullStats.netPay,
+            attachments: [
+              { filename: `Payslip_${emp.user_LastName}.pdf`, content: payslipBuffer },
+              { filename: `DTR_${emp.user_LastName}.pdf`, content: dtrBuffer }
+            ]
+          });
+        } catch (emailErr) {
+          console.error(`[INTERNAL BATCH ERROR] for ${item.emp.user_Email}:`, emailErr.message);
+        }
+      }
+
+      // Archival logic
+      try {
+        const dateObj = new Date(period_End);
+        const archiveOpts = {
+          year: dateObj.getFullYear(),
+          month: formatMonthFolder(dateObj),
+          subFolder: getPeriodFolder(period_Start, period_End)
+        };
+
+        const payrollRows = newPayrollsForEmail.map(item => ({
+          ...item.fullStats,
+          user_FirstName: item.emp.user_FirstName,
+          user_LastName: item.emp.user_LastName,
+          sss_Share: item.emp.sss_Share,
+          philhealth_Share: item.emp.philhealth_Share,
+          hdmf_Share: item.emp.hdmf_Share,
+          previousDailyRate: item.emp.previousDailyRate,
+          accountNo: decrypt(item.emp.account_Number)
+        }));
+
+        const start = new Date(period_Start + "T00:00:00");
+        const end   = new Date(period_End   + "T00:00:00");
+        const month = start.toLocaleString("en-PH", { month: "long" });
+        const periodLabel = `${month} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`;
+        const summaryPDF = await generatePayrollSummaryPDF(payrollRows, periodLabel);
+        await saveFileToArchive(summaryPDF, `SummaryReport_${period_Start}_${period_End}.pdf`, archiveOpts);
+      } catch (archErr) {
+        console.error(`[INTERNAL BATCH ARCHIVE ERROR]:`, archErr.message);
+      }
+    })();
+  }
+
+  return { processedCount, skippedCount, periodId };
+}
+
+exports.generateBatchPayrollInternal = generateBatchPayrollInternal;
+exports.calculatePayrollStats = calculatePayrollStats;
 
 // ── Generate Batch Payroll ──────────────────────────────────────────────────
 exports.generateBatchPayroll = async (req, res) => {
@@ -690,317 +1004,17 @@ exports.generateBatchPayroll = async (req, res) => {
   }
 
   try {
-    const now = await getSystemTime();
-    const nowStr = formatForSQL(now);
-
-    const periodRow = await sequelize.query(
-      `SELECT "periodId" FROM "PayrollPeriod" 
-       WHERE "startDate" = :period_Start AND "endDate" = :period_End LIMIT 1`,
-      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
-    );
-    const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
-
-    const employees = await sequelize.query(
-      `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_Email", u."dailyRate", 
-              d."sss_Share", d."philhealth_Share", d."hdmf_Share", b."account_Number" 
-       FROM "User" u
-       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
-       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
-       WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
-       ORDER BY u."user_Id" ASC`, 
-      { type: QueryTypes.SELECT }
-    );
-
-    let processedCount = 0;
-    let skippedCount = 0;
-    const newPayrollsForEmail = [];
-
-    for (const emp of employees) {
-      const existing = await sequelize.query(
-        `SELECT "payrollId" FROM "Payroll" 
-         WHERE "user_Id" = :user_Id 
-         AND (("period_Start" = :period_Start AND "period_End" = :period_End) OR ("periodId" = :periodId))`,
-        { replacements: { user_Id: emp.user_Id, period_Start, period_End, periodId: periodId || -1 }, type: QueryTypes.SELECT }
-      );
-
-      if (existing.length > 0) {
-        skippedCount++;
-        continue;
-      }
-
-      const fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, emp.dailyRate);
-
-      const payrollResult = await sequelize.query(
-        `INSERT INTO "Payroll"
-          ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked", "totalScheduledDays",
-           "dailyRate", "previousDailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
-           "holidaysTotal", "holidaysRegularWorked", "holidaysSpecialWorked",
-           "status", "createdAt", "updatedAt")
-         VALUES
-          (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked, :totalScheduledDays,
-           :dailyRate, :previousDailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
-           :holidaysTotal, :holidaysRegularWorked, :holidaysSpecialWorked,
-           2, :now, :now)
-         RETURNING "payrollId"`,
-        {
-          replacements: {
-            user_Id: emp.user_Id, periodId, period_Start, period_End,
-            NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
-            totalScheduledDays: fullStats.totalScheduledDays,
-            dailyRate: fullStats.dailyRate, previousDailyRate: fullStats.previousDailyRate,
-            ratePerHr: fullStats.ratePerHr,
-            basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
-            totalDed: fullStats.totalDeductions, netPay: fullStats.netPay,
-            holidaysTotal: fullStats.holidaysTotal || 0,
-            holidaysRegularWorked: fullStats.legalHol_Days || 0,
-            holidaysSpecialWorked: fullStats.specialHol_Days || 0,
-            now: nowStr
-          },
-          type: QueryTypes.INSERT
-        }
-      );
-
-      const payrollId = payrollResult[0][0].payrollId;
-
-      await sequelize.query(
-        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "nightOT_Hrs", "nightOT_Amnt", "nightDiff_Hrs", "nightDiff_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
-         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :nightOT_Hrs, :nightOT_Amnt, :nightDiff_Hrs, :nightDiff_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
-        { 
-          replacements: { 
-            payrollId, user_Id: emp.user_Id, 
-            OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
-            nightOT_Hrs: fullStats.nightOT_Hrs, nightOT_Amnt: fullStats.nightOT_Amnt,
-            nightDiff_Hrs: fullStats.nightDiff_Hrs, nightDiff_Amnt: fullStats.nightDiff_Amnt,
-            legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt, specialHol_Adj: fullStats.specialHol_Adj
-          },
-          type: QueryTypes.INSERT 
-        }
-      );
-
-      await sequelize.query(
-        `INSERT INTO "Payroll_Deductions"
-          ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", 
-           "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days",
-           "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
-           "SSS_Ded_ER", "Philhealth_Ded_ER", "HDMF_Ded_ER",
-           "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
-           "multiPurposeSavings", "advances_Amnt", "globe_Deduction", "eastwest_Loan")
-         VALUES
-          (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
-           :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
-           :sss, :ph, :hd, :tax,
-           :sssER, :phER, :hdER,
-           :hc, :sl, :hl, :cl, :ms, :aa, :gd, :el)`,
-        {
-          replacements: {
-            payrollId,
-            absence_Hrs: (fullStats.absence_Days) * 8,
-            absence_Amnt: fullStats.absence_Amnt,
-            tardiness_Mins: fullStats.tardiness_Mins,
-            tardiness_Amnt: fullStats.tardiness_Amnt,
-            unpaidLeave_Days: fullStats.unpaidLeave_Days,
-            unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
-            paidLeave_Days: fullStats.paidLeave_Days,
-            sss: fullStats.SSS_Ded,
-            ph: fullStats.Philhealth_Ded,
-            hd: fullStats.HDMF_Ded,
-            tax: fullStats.Tax_Ded,
-            sssER: fullStats.SSS_Ded_ER,
-            phER: fullStats.Philhealth_Ded_ER,
-            hdER: fullStats.HDMF_Ded_ER,
-            hc: fullStats.healthCard_Amnt,
-            sl: fullStats.SSS_Loan,
-            hl: fullStats.HDMF_Loan,
-            cl: fullStats.calamityLoan_Amnt,
-            ms: fullStats.multiPurposeSavings,
-            aa: fullStats.advances_Amnt,
-            gd: fullStats.globe_Deduction,
-            el: fullStats.eastwest_Loan
-          },
-          type: QueryTypes.INSERT,
-        }
-      );
-
-      // ── Auto-record to Maxicare Table ─────────────────────────────────────
-      if (fullStats.healthCard_Amnt > 0) {
-        await sequelize.query(
-          `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
-           VALUES (:user_Id, :date, :amount, 'paid', :now, :now)
-           ON CONFLICT ("user_Id", "max_Month") DO UPDATE
-           SET "amount" = EXCLUDED."amount", "maxi_status" = 'paid', "updatedAt" = EXCLUDED."updatedAt"`,
-          { replacements: { user_Id: emp.user_Id, date: period_End, amount: fullStats.healthCard_Amnt, now: nowStr }, type: QueryTypes.INSERT }
-        );
-      }
-      // ──────────────────────────────────────────────────────────────────────
-
-      // Collect data for background email dispatch
-      newPayrollsForEmail.push({
-        emp,
-        payrollId,
-        fullStats
-      });
-
-      processedCount++;
-    }
-
-    if (periodId) {
-      await sequelize.query(
-        `UPDATE "PayrollPeriod" SET "status" = 'Released', "updatedAt" = :now WHERE "periodId" = :periodId`,
-        { replacements: { periodId, now: nowStr }, type: QueryTypes.UPDATE }
-      );
-    }
-
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "BATCH_PAYROLL_GEN", `Generated batch payroll for period ${period_Start} to ${period_End}`, { processedCount, periodId }, req);
+    const result = await generateBatchPayrollInternal(period_Start, period_End, currentAdminId);
 
-    // ── Background Email Dispatch ───────────────────────────────────────────
-    if (newPayrollsForEmail.length > 0) {
-      console.log(`[BATCH EMAIL] Starting background dispatch for ${newPayrollsForEmail.length} emails...`);
-      (async () => {
-        for (const item of newPayrollsForEmail) {
-          try {
-            const { emp, fullStats } = item;
-            const dtrData = await getAttendanceReportInternal(period_Start, period_End, emp.user_Id);
-            
-            const payrollDataForPass = {
-              period_Start,
-              period_End,
-              user_LastName: emp.user_LastName,
-              user_Id: emp.user_Id
-            };
-            const pdfPassword = generatePayslipPassword(payrollDataForPass);
+    await logTransaction(null, currentAdminId, "BATCH_PAYROLL_GEN", `Generated batch payroll for period ${period_Start} to ${period_End}`, { processedCount: result.processedCount, periodId: result.periodId }, req);
 
-            const payslipBuffer = await generatePayslipPDF({
-              ...fullStats,
-              user_FirstName: emp.user_FirstName,
-              user_LastName: emp.user_LastName,
-              period_Start,
-              period_End,
-              accountNo: decrypt(emp.account_Number) || "—"
-            }, pdfPassword);
-
-            const dtrBuffer = await generateDTRPDF({
-              employee: emp,
-              dtrData,
-              period_Start,
-              period_End,
-              netPay: fullStats.netPay
-            });
-
-            // ── Archive to PC Drive ──────────────────────────────────────────
-            const dateObj = new Date(period_End);
-            const archiveOpts = {
-              year: dateObj.getFullYear(),
-              month: formatMonthFolder(dateObj),
-              subFolder: getPeriodFolder(period_Start, period_End)
-            };
-
-            await saveFileToArchive(payslipBuffer, `Payslip_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
-            await saveFileToArchive(dtrBuffer, `DTR_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
-            // ──────────────────────────────────────────────────────────────────
-
-            await sendPayrollEmail({
-              email: emp.user_Email,
-              name: `${emp.user_FirstName} ${emp.user_LastName}`,
-              period: `${period_Start} to ${period_End}`,
-              netPay: fullStats.netPay,
-              attachments: [
-                { filename: `Payslip_${emp.user_LastName}.pdf`, content: payslipBuffer },
-                { filename: `DTR_${emp.user_LastName}.pdf`, content: dtrBuffer }
-              ]
-            });
-          } catch (emailErr) {
-            console.error(`[BATCH EMAIL ERROR] for ${item.emp.user_Email}:`, emailErr.message);
-          }
-        }
-        console.log(`[BATCH EMAIL] Background dispatch completed.`);
-
-        // ── Automatically Archive Summary Report ─────────────────────────────
-        try {
-          console.log(`[BATCH ARCHIVE] Generating period summary and secure ZIP archive...`);
-          
-          const dateObj = new Date(period_End);
-          const archiveOpts = {
-            year: dateObj.getFullYear(),
-            month: formatMonthFolder(dateObj),
-            subFolder: getPeriodFolder(period_Start, period_End)
-          };
-
-          // 1. Generate and Save Summary PDF
-          const payrollRows = newPayrollsForEmail.map(item => ({
-            ...item.fullStats,
-            user_FirstName: item.emp.user_FirstName,
-            user_LastName: item.emp.user_LastName,
-            sss_Share: item.emp.sss_Share,
-            philhealth_Share: item.emp.philhealth_Share,
-            hdmf_Share: item.emp.hdmf_Share,
-            previousDailyRate: item.emp.previousDailyRate,
-            accountNo: decrypt(item.emp.account_Number)
-          }));
-
-          const start = new Date(period_Start + "T00:00:00");
-          const end   = new Date(period_End   + "T00:00:00");
-          const month = start.toLocaleString("en-PH", { month: "long" });
-          const periodLabel = `${month} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`;
-          const summaryPDF = await generatePayrollSummaryPDF(payrollRows, periodLabel);
-          await saveFileToArchive(summaryPDF, `SummaryReport_${period_Start}_${period_End}.pdf`, archiveOpts);
-
-          // 2. Create and Save Password-Protected ZIP of all individual files
-          // ZIP Password format: MaChip_{PeriodDigits}{MonthName}{Year}
-          const periodDigits = `${String(start.getDate()).padStart(2, '0')}${String(end.getDate()).padStart(2, '0')}`;
-          const archiveZipPassword = `MaChip_${periodDigits}${month}${start.getFullYear()}`;
-          
-          const fs = require('fs');
-          const path = require('path');
-          const settings = await SystemSettings.findOne();          
-          if (settings && settings.storageRootPath) {
-            const zipFileName = `Batch_Archive_${period_Start}_${period_End}.zip`;
-            const zipPath = path.join(settings.storageRootPath, String(archiveOpts.year), archiveOpts.month, archiveOpts.subFolder, zipFileName);
-            
-            const output = fs.createWriteStream(zipPath);
-            const archive = archiver("zip-encryptable", {
-              zlib: { level: 9 },
-              password: archiveZipPassword
-            });
-
-            archive.pipe(output);
-
-            for (const item of newPayrollsForEmail) {
-              const { emp, fullStats } = item;
-              const pdfPassword = generatePayslipPassword({
-                period_Start,
-                period_End,
-                user_LastName: emp.user_LastName,
-                user_Id: emp.user_Id
-              });
-
-              const payslipBuffer = await generatePayslipPDF({
-                ...fullStats,
-                user_FirstName: emp.user_FirstName,
-                user_LastName: emp.user_LastName,
-                period_Start,
-                period_End,
-                accountNo: decrypt(emp.account_Number) || "—"
-              }, pdfPassword);
-
-              archive.append(payslipBuffer, { name: `Payslip_${emp.user_LastName}_${emp.user_Id}.pdf` });
-            }
-
-            await archive.finalize();
-            console.log(`[BATCH ARCHIVE] Secure ZIP archived successfully at: ${zipPath}`);
-          }
-        } catch (summaryErr) {
-          console.error(`[BATCH ARCHIVE ERROR] Archival failed:`, summaryErr.message);
-        }
-        // ──────────────────────────────────────────────────────────────────
-      })();
-    }
-
-    res.status(201).json({ message: "Batch payroll generated and emails are being sent.", processed: processedCount, skipped: skippedCount });
+    res.status(201).json({ message: "Batch payroll generated and emails are being sent.", processed: result.processedCount, skipped: result.skippedCount });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 // ── Recalculate Payroll (Internal) ───────────────────────────────────────────
 /**
@@ -1340,7 +1354,7 @@ exports.releasePayroll = async (req, res) => {
     const nowStr = formatForSQL(now);
 
     const [updated] = await sequelize.query(
-      `UPDATE "Payroll" SET "status" = 3, "updatedAt" = :now WHERE "payrollId" = :payrollId`,
+      `UPDATE "Payroll" SET "status" = 2, "updatedAt" = :now WHERE "payrollId" = :payrollId`,
       { replacements: { payrollId, now: nowStr }, type: QueryTypes.UPDATE }
     );
 
@@ -1508,16 +1522,31 @@ exports.getPayrollById = async (req, res) => {
   try {
     const payroll = await sequelize.query(
       `SELECT
-         p.*,
+         p."payrollId", p."user_Id", p."period_Start", p."period_End", 
+         p."NoDays_Worked", p."NoHrs_Worked", p."totalScheduledDays",
+         p."dailyRate", p."previousDailyRate", p."ratePerHr", 
+         p."basicPay", p."totalEarnings", p."totalDeductions", p."netPay",
+         p."holidaysTotal", p."holidaysRegularWorked", p."holidaysSpecialWorked",
+         p."status", p."createdAt", p."updatedAt",
+         
          e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt",
          e."nightOT_Hrs", e."nightOT_Amnt",
-         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt",         e."specialHol_Adj", e."incentives", e."allowance",
-         d.*,
+         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
+         e."specialHol_Adj", e."incentives", e."allowance",
+         
+         d."absence_Hrs", d."absence_Amnt", d."tardiness_Mins", d."tardiness_Amnt",
+         d."unpaidLeave_Days", d."unpaidLeave_Amnt", d."paidLeave_Days",
+         d."SSS_Ded", d."Philhealth_Ded", d."HDMF_Ded", 
+         d."SSS_Ded_ER", d."Philhealth_Ded_ER", d."HDMF_Ded_ER", 
+         d."Tax_Ded", d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", 
+         d."calamityLoan_Amnt", d."multiPurposeSavings", d."advances_Amnt", 
+         d."globe_Deduction", d."eastwest_Loan",
+         
          (COALESCE(d."healthCard_Amnt",0) +
           COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
           COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
           COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
-         u."user_FirstName", u."user_LastName", u."position" AS "user_Position", u."dailyRate",
+         u."user_FirstName", u."user_LastName", u."position" AS "user_Position",
          ps."PaystatusName"
        FROM "Payroll" p
        LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
@@ -1530,42 +1559,39 @@ exports.getPayrollById = async (req, res) => {
     );
     if (payroll.length === 0) return res.status(404).json({ error: "Not found" });
 
-    // Calculate YTD (Year-To-Date)
     const currentPayroll = payroll[0];
     
-    console.log(`[DEBUG PAYROLL GET] ID=${payrollId}, nightOT_Hrs=${currentPayroll.nightOT_Hrs}, nightOT_Amnt=${currentPayroll.nightOT_Amnt}`);
+    // Ensure numeric fields are numbers (sometimes pg returns them as strings)
+    const numericFields = [
+      "dailyRate", "previousDailyRate", "ratePerHr", "basicPay", "totalEarnings", 
+      "totalDeductions", "netPay", "OT_Amnt", "restDay_OT_Amnt", "nightOT_Amnt", 
+      "nightDiff_Amnt", "specialHol_Amnt", "legalHol_Amnt", "specialHol_Adj", 
+      "incentives", "allowance", "absence_Amnt", "tardiness_Amnt", "unpaidLeave_Amnt",
+      "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "SSS_Ded_ER", "Philhealth_Ded_ER", 
+      "HDMF_Ded_ER", "Tax_Ded", "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", 
+      "calamityLoan_Amnt", "multiPurposeSavings", "advances_Amnt", "globe_Deduction", 
+      "eastwest_Loan", "Other_Deductions"
+    ];
     
-    const year = new Date(currentPayroll.period_Start).getFullYear();
-    
-    const ytdData = await sequelize.query(
-      `SELECT 
-         SUM(p."totalEarnings") as "ytdGross",
-         SUM(e."allowance") as "ytdNonTaxable",
-         SUM(p."totalDeductions" - COALESCE(d."Tax_Ded", 0)) as "ytdDeductions",
-         SUM(d."Tax_Ded") as "ytdBIR"
-       FROM "Payroll" p
-       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
-       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
-       WHERE p."user_Id" = :user_Id 
-       AND p."status" = 'Released'
-       AND EXTRACT(YEAR FROM p."period_Start") = :year
-       AND p."period_End" <= :period_End`,
-      { 
-        replacements: { 
-          user_Id: currentPayroll.user_Id, 
-          year, 
-          period_End: currentPayroll.period_End 
-        }, 
-        type: QueryTypes.SELECT 
+    numericFields.forEach(field => {
+      if (currentPayroll[field] !== undefined) {
+        currentPayroll[field] = parseFloat(currentPayroll[field] || 0);
       }
+    });
+
+    const ytd = await calculateYTD(
+      currentPayroll.user_Id,
+      currentPayroll.period_Start,
+      currentPayroll.period_End,
+      currentPayroll.totalEarnings,
+      currentPayroll.allowance,
+      currentPayroll.totalDeductions,
+      currentPayroll.Tax_Ded
     );
 
     const result = {
       ...currentPayroll,
-      ytdGross: ytdData[0]?.ytdGross || 0,
-      ytdNonTaxable: ytdData[0]?.ytdNonTaxable || 0,
-      ytdDeductions: ytdData[0]?.ytdDeductions || 0,
-      ytdBIR: ytdData[0]?.ytdBIR || 0
+      ...ytd
     };
 
     res.status(200).json(result);
@@ -1724,7 +1750,25 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
     const month = start.toLocaleString("en-PH", { month: "long" });
     const periodLabel = `${month} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`;
 
-    const pdfBuffer = await generatePayrollSummaryPDF(payrollRows, periodLabel);
+    // Fetch Signatures
+    const sigUsers = await sequelize.query(
+      `SELECT u."user_FirstName", u."user_LastName", u."position", u."department"
+       FROM "User" u
+       WHERE (u."position" IN ('ACCOUNTING STAFF', 'PRESIDENT') OR (u."position" = 'SUPERVISOR' AND u."department" = 'ADMIN'))
+       AND u."deletedAt" IS NULL`,
+      { type: QueryTypes.SELECT }
+    );
+
+    const signatures = {
+      preparedBy: sigUsers.find(u => u.position === 'ACCOUNTING STAFF') ? `${sigUsers.find(u => u.position === 'ACCOUNTING STAFF').user_FirstName} ${sigUsers.find(u => u.position === 'ACCOUNTING STAFF').user_LastName}` : "Loonie Medina",
+      approvedBy: sigUsers.find(u => u.position === 'PRESIDENT') ? `${sigUsers.find(u => u.position === 'PRESIDENT').user_FirstName} ${sigUsers.find(u => u.position === 'PRESIDENT').user_LastName}` : "Kael Voss",
+      checkedBy: sigUsers.find(u => u.position === 'SUPERVISOR' && u.department === 'ADMIN') ? `${sigUsers.find(u => u.position === 'SUPERVISOR' && u.department === 'ADMIN').user_FirstName} ${sigUsers.find(u => u.position === 'SUPERVISOR' && u.department === 'ADMIN').user_LastName}` : "Jenny C. Galeon",
+      preparedByLabel: "Prepared by",
+      approvedByLabel: "Approved by",
+      checkedByLabel: "Checked by"
+    };
+
+    const pdfBuffer = await generatePayrollSummaryPDF(payrollRows, periodLabel, signatures);
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="Summary_${period_Start}_${period_End}.pdf"`);
@@ -1802,8 +1846,26 @@ exports.getPayrollSummaryPreview = async (req, res) => {
     const month = start.toLocaleString("en-PH", { month: "long" });
     const periodLabel = `${month} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()} (DRAFT PREVIEW)`;
 
+    // Fetch Signatures
+    const sigUsers = await sequelize.query(
+      `SELECT u."user_FirstName", u."user_LastName", u."position", u."department"
+       FROM "User" u
+       WHERE (u."position" IN ('ACCOUNTING STAFF', 'PRESIDENT') OR (u."position" = 'SUPERVISOR' AND u."department" = 'ADMIN'))
+       AND u."deletedAt" IS NULL`,
+      { type: QueryTypes.SELECT }
+    );
+
+    const signatures = {
+      preparedBy: sigUsers.find(u => u.position === 'ACCOUNTING STAFF') ? `${sigUsers.find(u => u.position === 'ACCOUNTING STAFF').user_FirstName} ${sigUsers.find(u => u.position === 'ACCOUNTING STAFF').user_LastName}` : "Loonie Medina",
+      approvedBy: sigUsers.find(u => u.position === 'PRESIDENT') ? `${sigUsers.find(u => u.position === 'PRESIDENT').user_FirstName} ${sigUsers.find(u => u.position === 'PRESIDENT').user_LastName}` : "Kael Voss",
+      checkedBy: sigUsers.find(u => u.position === 'SUPERVISOR' && u.department === 'ADMIN') ? `${sigUsers.find(u => u.position === 'SUPERVISOR' && u.department === 'ADMIN').user_FirstName} ${sigUsers.find(u => u.position === 'SUPERVISOR' && u.department === 'ADMIN').user_LastName}` : "Jenny C. Galeon",
+      preparedByLabel: "Prepared by",
+      approvedByLabel: "Approved by",
+      checkedByLabel: "Checked by"
+    };
+
     const { build8PageReportHTML } = require("../utils/payrollSummaryGenerator");
-    const html = build8PageReportHTML(payrollRows, periodLabel);
+    const html = build8PageReportHTML(payrollRows, periodLabel, signatures);
     res.send(html);
   } catch (error) { 
     console.error("[PREVIEW ERROR]:", error);
@@ -2130,7 +2192,7 @@ exports.getThirteenthMonthPreview = async (req, res) => {
        FROM "User" u
        LEFT JOIN "Payroll" p ON u."user_Id" = p."user_Id" 
          AND EXTRACT(YEAR FROM p."period_Start") = :year 
-         AND p."status" = 3
+         AND p."status" = 2
        LEFT JOIN "Payroll_ThirteenthMonth" tm ON u."user_Id" = tm."user_Id" AND tm."year" = :year
        WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
        GROUP BY u."user_Id", tm."status", tm."amount", u."user_LastName"

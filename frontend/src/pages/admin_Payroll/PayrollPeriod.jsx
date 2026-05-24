@@ -455,7 +455,7 @@ const PayrollPeriod = () => {
                           </TableCell>
                           <TableCell className="py-4 text-right pr-6">
                             <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-                              <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}`}>
+                              <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}&periodId=${selectedPeriod.periodId}`}>
                                 {/* <VisibilityIcon className="mr-1 h-4 w-4" />  */} View Details
                               </Link>
                             </Button>

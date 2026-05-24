@@ -284,7 +284,16 @@ const connectDB = async () => {
     // Ensure Exempt status exists
     await sequelize.query(`
       INSERT INTO "attendance_status" ("statusId", "statusName")
-      VALUES (6, 'Exempt')
+      VALUES 
+        (6, 'Exempt'),
+        (7, 'Incidental Visit')
+      ON CONFLICT ("statusId") DO NOTHING;
+    `);
+
+    // Ensure System Generated logged status exists
+    await sequelize.query(`
+      INSERT INTO "logged_status" ("statusId", "statusName")
+      VALUES (7, 'System Generated')
       ON CONFLICT ("statusId") DO NOTHING;
     `);
 

@@ -132,7 +132,29 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll }) => {
               </div>
 
               <div className="mt-8">
-                <p className="text-[10px] mb-6">RECEIVED BY:</p>
+                <p className="text-[10px] mb-6 font-bold border-b border-slate-100 pb-1">YEAR-TO-DATE (YTD) ACCUMULATED</p>
+                <div className="grid grid-cols-2 gap-4 text-[9px]">
+                  <div className="flex justify-between border-b border-slate-50 pb-1">
+                    <span className="text-slate-500 font-medium">YTD GROSS:</span>
+                    <span className="font-bold">₱{formatCurrency(payroll.ytdGross)}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-50 pb-1">
+                    <span className="text-slate-500 font-medium">YTD NON-TAX:</span>
+                    <span className="font-bold">₱{formatCurrency(payroll.ytdNonTaxable)}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-50 pb-1">
+                    <span className="text-slate-500 font-medium">YTD DED:</span>
+                    <span className="font-bold">({formatCurrency(payroll.ytdDeductions)})</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-50 pb-1">
+                    <span className="text-slate-500 font-medium">YTD TAX:</span>
+                    <span className="font-bold">({formatCurrency(payroll.ytdBIR)})</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8">
+                <p className="text-[10px] mb-6 uppercase">RECEIVED BY:</p>
                 <div className="w-40 border-b border-slate-800"></div>
                 <p className="text-[10px] font-bold mt-1 uppercase">{payroll.user_FirstName} {payroll.user_LastName}</p>
               </div>

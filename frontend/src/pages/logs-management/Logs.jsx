@@ -81,7 +81,11 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
   const isAdminOrAccountant = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
 
   const systemDateKey = systemToday?.toDateString() || "";
-  const period = useMemo(() => getCurrentPeriod(systemToday), [systemDateKey, getCurrentPeriod]);
+  const period = useMemo(() => {
+    // If a specific date is filtered, show the period containing that date
+    const baseDate = filterDate ? new Date(filterDate) : systemToday;
+    return getCurrentPeriod(baseDate);
+  }, [systemDateKey, filterDate, getCurrentPeriod]);
 
   const [users, setUsers] = useState([]);
 
@@ -94,10 +98,13 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
     setSearchQuery("");
     setSelectedUser("all");
     setStatusFilter("All");
+    setFilterDate("");
+    setStartTime("");
+    setEndTime("");
     setCurrentPage(1);
   };
 
-  const isFiltering = searchQuery !== "" || selectedUser !== "all" || statusFilter !== "All";
+  const isFiltering = searchQuery !== "" || selectedUser !== "all" || statusFilter !== "All" || filterDate !== "" || startTime !== "" || endTime !== "";
 
   // Fetch Users
   const fetchUsers = useCallback(async () => {
@@ -120,8 +127,9 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
   // Fetch all logs from the backend (raw)
   const fetchLogs = useCallback(async () => {
     try {
-      const start = filterDate ? filterDate : period.startDate;
-      const end = filterDate ? filterDate : period.endDate;
+      // Always fetch the whole period to allow period-wide stats in the cards
+      const start = period.startDate;
+      const end = period.endDate;
       const response = await fetchWithAuth(`/api/attendance/all?startDate=${start}&endDate=${end}`);
       if (response.ok) {
         const logs = await response.json();
@@ -150,13 +158,13 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
     } catch (err) {
       console.error("Error fetching logs:", err);
     }
-  }, [period.startDate, period.endDate, filterDate]);
+  }, [period.startDate, period.endDate]);
 
   // Fetch day logs
   const fetchDayLogs = useCallback(async () => {
     try {
-      const start = filterDate ? filterDate : period.startDate;
-      const end = filterDate ? filterDate : period.endDate;
+      const start = period.startDate;
+      const end = period.endDate;
       let url = `/api/attendance/report?startDate=${start}&endDate=${end}`;
       if (selectedUser !== "all") url += `&user_Id=${selectedUser}`;
       else url += `&user_Id=All Employees`;
@@ -173,7 +181,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
     } catch (error) {
       console.error("Error fetching day logs:", error);
     }
-  }, [period.startDate, period.endDate, selectedUser, filterDate]);
+  }, [period.startDate, period.endDate, selectedUser]);
 
   // Load logs on mount and start polling/listening
   useEffect(() => {
@@ -201,7 +209,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
         window.removeEventListener("dataRefresh", handleRefresh);
       };
     }
-  }, [fetchLogs, fetchUsers, fetchDayLogs, viewMode, filterDate]);
+  }, [fetchLogs, fetchUsers, fetchDayLogs, viewMode, period.startDate, period.endDate]);
 
   const handleGenerateLogs = async (forcedStatus) => {
     setLoading(true);
@@ -373,19 +381,15 @@ const sortedAndFilteredDayLogs = useMemo(() => {
   const currentData = activeData.slice(startIndex, endIndex);
 
   // ------------------ STATISTICS CALCULATION ------------------
-  const todayRawLogs = useMemo(() => {
-    const todayStr = String(systemToday.toISOString()).split('T')[0];
-    return logData.filter(l => l.log_Date === todayStr);
-  }, [logData, systemToday]);
-
+  // Stats should reflect the entire period being viewed (Current or Filtered)
   const stats = {
-    total: viewMode === "raw" ? todayRawLogs.length : dayLogsData.length,
+    total: viewMode === "raw" ? logData.length : dayLogsData.length,
     metric1: viewMode === "raw" 
-      ? todayRawLogs.filter(l => l.log_type?.toLowerCase().includes("in")).length 
-      : dayLogsData.filter(l => l.status === "On Time" || l.status === "On-Field").length,
+      ? logData.filter(l => l.log_type?.toLowerCase().includes("in")).length 
+      : dayLogsData.filter(l => l.status === "On Time" || l.status === "On-Field" || l.status === "On-time").length,
     metric2: viewMode === "raw"
-      ? todayRawLogs.filter(l => l.log_type?.toLowerCase().includes("out")).length
-      : dayLogsData.filter(l => l.status && l.status !== "On Time" && l.status !== "On-Field").length,
+      ? logData.filter(l => l.log_type?.toLowerCase().includes("out")).length
+      : dayLogsData.filter(l => l.status && !["On Time", "On-Field", "On-time"].includes(l.status)).length,
   };
 
   // State tracking visibility masking state mapped to log identifiers
@@ -453,7 +457,7 @@ const toggleMachipVisibility = (rowId) => {
                     <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
                   </div>
                   <p className="text-xs text-[#2A174E]/70 italic mt-4">
-                    {viewMode === "raw" ? "Total events captured today" : "All captured records for context"}
+                    {viewMode === "raw" ? "Total events captured in this period" : "All captured records for context"}
                   </p>
                 </div>
                 <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
@@ -473,7 +477,7 @@ const toggleMachipVisibility = (rowId) => {
                     <p className="text-4xl font-bold text-[#3B4E17]">{stats.metric1}</p>
                   </div>
                   <p className="text-xs text-[#3B4E17]/70 italic mt-4">
-                    {viewMode === "raw" ? "Entry scans recorded today" : "Employees arriving on or before 8:00 AM"}
+                    {viewMode === "raw" ? "Entry scans recorded in this period" : "Employees arriving on or before 8:00 AM"}
                   </p>
                 </div>
                 <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
@@ -493,7 +497,7 @@ const toggleMachipVisibility = (rowId) => {
                     <p className="text-4xl font-bold text-[#BB8B26]">{stats.metric2}</p>
                   </div>
                   <p className="text-xs text-[#BB8B26]/70 italic mt-4">
-                    {viewMode === "raw" ? "Exit scans recorded today" : "Days recorded with infractions"}
+                    {viewMode === "raw" ? "Exit scans recorded in this period" : "Days recorded with infractions"}
                   </p>
                 </div>
                 <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">

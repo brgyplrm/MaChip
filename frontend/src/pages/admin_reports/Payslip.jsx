@@ -210,7 +210,31 @@ if (!payroll) return (
               </tbody>
             </table>
 
-            <div className="signatureSection">
+            <div className="ytdSection mt-8 border-t pt-4">
+              <p className="text-[10px] font-bold mb-2">YEAR-TO-DATE (YTD) SUMMARY</p>
+              <table className="w-full text-[10px] border-collapse">
+                <tbody>
+                  <tr>
+                    <td className="border border-slate-200 p-2 w-1/2">YTD Gross Earnings</td>
+                    <td className="border border-slate-200 p-2 text-right font-bold">₱{parseFloat(payroll.ytdGross || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-slate-200 p-2 w-1/2">YTD Total Non-Taxable</td>
+                    <td className="border border-slate-200 p-2 text-right font-bold">₱{parseFloat(payroll.ytdNonTaxable || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-slate-200 p-2 w-1/2">YTD Total Deductions</td>
+                    <td className="border border-slate-200 p-2 text-right font-bold">({parseFloat(payroll.ytdDeductions || 0).toLocaleString(undefined, {minimumFractionDigits: 2})})</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-slate-200 p-2 w-1/2">YTD BIR (Withholding Tax)</td>
+                    <td className="border border-slate-200 p-2 text-right font-bold">({parseFloat(payroll.ytdBIR || 0).toLocaleString(undefined, {minimumFractionDigits: 2})})</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="signatureSection mt-8">
               <p>RECEIVED BY:</p>
               <div className="signatureLine"></div>
               <p className="employeeName">{payroll.user_FirstName} {payroll.user_LastName}</p>

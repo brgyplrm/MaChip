@@ -26,3 +26,8 @@ request_debug.log
 backend/request_debug.log
 backend/seed_scenario.js
 backend/seed_leaves.js
+2024_mass_seed.js
+2025_mass_seed.js
+2026_mass_seed.js
+debugs
+seeds

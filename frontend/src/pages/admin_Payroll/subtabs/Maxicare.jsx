@@ -368,8 +368,13 @@ const Maxicare = () => {
         }
 
         if (savedDates.length > 0) {
-          setExpectedDates(savedDates);
-        } else if (initialDate) {
+          const validSavedDates = savedDates.filter(d => {
+            if (!d) return false;
+            const parts = d.split('-');
+            return parts.length === 3 && parts[0].length === 4 && !isNaN(new Date(d).getTime());
+          });
+          setExpectedDates(validSavedDates);
+        } else if (initialDate && initialDate.length >= 10) {
           setExpectedDates(generateExpectedDates(initialDate, currentYearConfig.monthsToPay || settingsData.maxicareMonthsToPay));
         }
       }
@@ -668,7 +673,7 @@ const Maxicare = () => {
       };
 
       const settingsRes = await fetchWithAuth("/api/system/settings", {
-        method: "POST",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           // ONLY update global fallback if no configs exist yet (initial setup)
@@ -792,14 +797,23 @@ const Maxicare = () => {
 
   // ── Auto-generate expected dates when config changes ──────────────────────
   useEffect(() => {
-    if (config.cycleStartDate && config.monthsToPay) {
+    // Only generate if the start date is fully typed (e.g., YYYY-MM-DD)
+    if (config.cycleStartDate && config.cycleStartDate.length >= 10 && config.monthsToPay) {
       const newDates = generateExpectedDates(config.cycleStartDate, config.monthsToPay);
       
       setExpectedDates(prev => {
         // We want to merge the new template dates with whatever is already there.
         // We don't want to strictly overwrite because the user might have added 
         // manual periods (like Aug 15/31 at the end of a cycle).
-        const merged = [...new Set([...prev, ...newDates])].sort();
+        
+        // Remove old generated dates for this cycle to avoid duplicate/invalid keystroke dates
+        const year = new Date(config.cycleStartDate).getFullYear();
+        const prevWithoutCurrentCycle = prev.filter(d => {
+           const dYear = new Date(d).getFullYear();
+           return isNaN(dYear) || (dYear !== year && dYear !== year + 1);
+        });
+
+        const merged = [...new Set([...prevWithoutCurrentCycle, ...newDates])].sort();
         
         if (JSON.stringify(merged) !== JSON.stringify(prev)) {
           return merged;
