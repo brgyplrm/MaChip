@@ -22,19 +22,36 @@ const SeparationPay = () => {
   const { systemToday } = useSystemTime();
   const [employees, setEmployees] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
-  const [separationDate, setSeparationDate] = useState(new Date().toISOString().split('T')[0]);
+  const [separationDate, setSeparationDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().split('T')[0];
+  });
   const [preview, setPreview] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
-  const [selectedCause, setSelectedCause] = useState("");
+  const [causes, setCauses] = useState([]);
+  const [selectedCauseId, setSelectedCauseId] = useState("");
   const [reason, setReason] = useState("");
+
+  const fetchCauses = async () => {
+    try {
+      const res = await fetchWithAuth("/api/payroll/separation/causes");
+      const data = await res.json();
+      if (res.ok) setCauses(data);
+    } catch (err) {
+      console.error("Error fetching causes:", err);
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetchWithAuth("/api/users?status=active");
+      const res = await fetchWithAuth("/api/users/all");
       const data = await res.json();
-      if (res.ok) setEmployees(data);
+      if (res.ok) {
+        setEmployees(Array.isArray(data) ? data : (data.users || []));
+      }
     } catch (err) {
       console.error("Error fetching employees:", err);
     }
@@ -51,6 +68,7 @@ const SeparationPay = () => {
   };
 
   useEffect(() => {
+    fetchCauses();
     fetchEmployees();
     fetchHistory();
   }, []);
@@ -64,7 +82,7 @@ const SeparationPay = () => {
       if (res.ok) {
         setPreview(data);
         if (data.preview && data.preview.length > 0) {
-          setSelectedCause(data.preview[0].type);
+          setSelectedCauseId(data.preview[0].causeId);
         }
       } else {
         setToast({ message: data.error || "Failed to fetch preview", type: "error" });
@@ -77,8 +95,21 @@ const SeparationPay = () => {
     }
   };
 
-  const handleGenerate = async () => {
-    if (!preview || !selectedCause) return;
+  const handleGenerate = async (targetStatus = 'Draft') => {
+    if (!preview || !selectedCauseId) return;
+    
+    if (targetStatus === 'Notice Served') {
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+      const sepDate = new Date(separationDate);
+      
+      let confirmMsg = `Are you sure you want to serve the Notice of Termination to ${preview.name}?`;
+      if (sepDate < thirtyDaysFromNow) {
+        confirmMsg += "\n\n⚠️ WARNING: The selected separation date is less than 30 days from today. DOLE requires at least 30 days notice.";
+      }
+      if (!window.confirm(confirmMsg)) return;
+    }
+
     setLoading(true);
     try {
       const res = await fetchWithAuth("/api/payroll/separation/generate", {
@@ -87,14 +118,17 @@ const SeparationPay = () => {
         body: JSON.stringify({
           user_Id: selectedUser,
           separationDate,
-          causeType: selectedCause,
-          reason: reason || selectedCause
+          causeId: selectedCauseId,
+          reason: reason,
+          status: targetStatus
         })
       });
       const data = await res.json();
       if (res.ok) {
         setToast({ message: data.message, type: "success" });
         fetchHistory();
+        setPreview(null);
+        setSelectedUser("");
       } else {
         setToast({ message: data.error || "Failed to generate", type: "error" });
       }
@@ -105,8 +139,24 @@ const SeparationPay = () => {
     }
   };
 
+  const handleCancel = async (id) => {
+    if (!window.confirm("Are you sure you want to rescind this termination notice? This will restore the employee to Active status and send a notification email.")) return;
+    try {
+      const res = await fetchWithAuth(`/api/payroll/separation/cancel/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        setToast({ message: data.message, type: "success" });
+        fetchHistory();
+      } else {
+        setToast({ message: data.error || "Failed to cancel", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Network error", type: "error" });
+    }
+  };
+
   const handleRelease = async (id) => {
-    if (!window.confirm("Release this separation pay?")) return;
+    if (!window.confirm("Release the final settlement? This will mark the employee as 'Separated' and archive their profile.")) return;
     try {
       const res = await fetchWithAuth(`/api/payroll/separation/release/${id}`, { method: "PUT" });
       const data = await res.json();
@@ -217,16 +267,73 @@ const SeparationPay = () => {
 
                       <Card className="shadow-sm border-0 bg-white">
                         <CardHeader>
+                          <CardTitle className="text-lg font-bold text-[#2A174E]">Final Settlement Breakdown</CardTitle>
+                          <CardDescription>Consolidated components of the final pay package.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Pro-rated 13th Month</p>
+                              <div className="flex justify-between items-end">
+                                <div>
+                                  <p className="text-xs text-slate-500">Basis: {formatCurrency(preview.backPay.totalBasicYear)}</p>
+                                  <p className="text-xs text-slate-500">Formula: Basis / 12</p>
+                                </div>
+                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.backPay.prorated13thMonth)}</p>
+                              </div>
+                            </div>
+                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Leave Conversion</p>
+                              <div className="flex justify-between items-end">
+                                <div>
+                                  <p className="text-xs text-slate-500">VL: {preview.backPay.vlBalance} | SL: {preview.backPay.slBalance}</p>
+                                  <p className="text-xs text-slate-500">Formula: Credits x Daily Rate</p>
+                                </div>
+                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.backPay.leaveConversion)}</p>
+                              </div>
+                            </div>
+                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Final Worked Days</p>
+                              <div className="flex justify-between items-end">
+                                <div>
+                                  <p className="text-xs text-slate-500">Days: {preview.backPay.workedDaysCount}</p>
+                                  <p className="text-xs text-slate-500 font-medium text-rose-500 uppercase text-[9px] tracking-tight">Since Last Payroll</p>
+                                </div>
+                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.backPay.finalWorkedSalary)}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 p-4 bg-[#2A174E]/5 border border-[#2A174E]/10 rounded-xl">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-bold text-[#2A174E]">Estimated Total Back Pay</span>
+                              <span className="text-xl font-black text-[#2A174E]">
+                                {formatCurrency(
+                                  parseFloat(preview.backPay.prorated13thMonth || 0) + 
+                                  parseFloat(preview.backPay.leaveConversion || 0) + 
+                                  parseFloat(preview.backPay.finalWorkedSalary || 0)
+                                )}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1 italic">
+                              *Includes earned 13th month, converted leave credits, and unpaid actual worked days.
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="shadow-sm border-0 bg-white">
+                        <CardHeader>
                           <CardTitle className="text-lg font-bold text-[#2A174E]">Choose Authorized Cause</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {preview.preview.map((p) => (
                               <div 
-                                key={p.type}
-                                onClick={() => setSelectedCause(p.type)}
+                                key={p.causeId}
+                                onClick={() => setSelectedCauseId(p.causeId)}
                                 className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                                  selectedCause === p.type 
+                                  selectedCauseId === p.causeId 
                                   ? 'border-[#2A174E] bg-[#2A174E]/5 shadow-md' 
                                   : 'border-slate-100 bg-slate-50 hover:border-slate-200'
                                 }`}
@@ -235,8 +342,9 @@ const SeparationPay = () => {
                                   <Badge className={p.multiplier === 1.0 ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}>
                                     {p.multiplier === 1.0 ? "1 Month Pay / Yr" : "1/2 Month Pay / Yr"}
                                   </Badge>
-                                  {selectedCause === p.type && <CheckCircleIcon className="text-[#2A174E] h-5 w-5" />}
+                                  {selectedCauseId === p.causeId && <CheckCircleIcon className="text-[#2A174E] h-5 w-5" />}
                                 </div>
+                                <p className="font-bold text-[#2A174E] mb-1">{p.causeName}</p>
                                 <p className="text-xl font-black text-slate-900 mb-1">{formatCurrency(p.amount)}</p>
                                 <p className="text-[10px] text-slate-500 font-medium leading-tight">{p.desc}</p>
                               </div>
@@ -253,13 +361,22 @@ const SeparationPay = () => {
                             />
                           </div>
 
-                          <Button 
-                            onClick={handleGenerate} 
-                            className="w-full py-6 bg-green-600 hover:bg-green-700 text-white font-bold"
-                            disabled={loading || !selectedCause}
-                          >
-                            <SaveIcon className="mr-2 h-4 w-4" /> Finalize Separation Payout
-                          </Button>
+                          <div className="grid grid-cols-2 gap-4">
+                            <Button 
+                              onClick={() => handleGenerate('Draft')} 
+                              className="w-full py-6 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold"
+                              disabled={loading || !selectedCauseId}
+                            >
+                              <SaveIcon className="mr-2 h-4 w-4" /> Save as Draft
+                            </Button>
+                            <Button 
+                              onClick={() => handleGenerate('Notice Served')} 
+                              className="w-full py-6 bg-[#2A174E] hover:bg-[#1a0f33] text-white font-bold"
+                              disabled={loading || !selectedCauseId}
+                            >
+                              <CheckCircleIcon className="mr-2 h-4 w-4" /> Finalize & Serve Notice
+                            </Button>
+                          </div>
                         </CardContent>
                       </Card>
                     </>
@@ -296,23 +413,54 @@ const SeparationPay = () => {
                           <TableCell className="font-bold text-[#2A174E]">{h.user_LastName}, {h.user_FirstName}</TableCell>
                           <TableCell>{new Date(h.separationDate).toLocaleDateString()}</TableCell>
                           <TableCell>{h.yearsOfService} Years</TableCell>
-                          <TableCell className="font-bold text-green-700">{formatCurrency(h.totalAmount)}</TableCell>
-                          <TableCell className="max-w-[150px] truncate" title={h.reason}>{h.reason}</TableCell>
                           <TableCell>
-                            <Badge className={h.status === 'Released' ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}>
-                              {h.status}
-                            </Badge>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-green-700">{formatCurrency(parseFloat(h.totalAmount || 0) + parseFloat(h.backPay_Total || 0))}</span>
+                              <span className="text-[9px] text-slate-400 uppercase font-bold">
+                                Sep: {formatCurrency(h.totalAmount)} | Back: {formatCurrency(h.backPay_Total)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-[150px] truncate">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-700">{h.causeName}</span>
+                              <span className="text-[10px] text-slate-400 italic truncate" title={h.reason}>{h.reason}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <Badge className={
+                                h.status === 'Released' ? "bg-green-100 text-green-800" : 
+                                h.status === 'Notice Served' ? "bg-blue-100 text-blue-800" : 
+                                "bg-amber-100 text-amber-800"
+                              }>
+                                {h.status}
+                              </Badge>
+                              <p className="text-[9px] text-slate-400 font-bold uppercase italic">{h.userCurrentStatus}</p>
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            {h.status === 'Draft' && (
-                              <Button 
-                                size="sm" 
-                                onClick={() => handleRelease(h.separationId)}
-                                className="bg-[#2A174E] text-white"
-                              >
-                                Release
-                              </Button>
-                            )}
+                            <div className="flex justify-end gap-2">
+                              {h.status !== 'Released' && (
+                                <>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => handleCancel(h.separationId)}
+                                    className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                                  >
+                                    Rescind
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => handleRelease(h.separationId)}
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                  >
+                                    Release
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       )) : (

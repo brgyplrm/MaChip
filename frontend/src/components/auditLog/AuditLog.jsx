@@ -26,13 +26,96 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterAction, setFilterAction] = useState("All Actions");
+  const [filterAction, setFilterAction] = useState("All Categories");
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
 
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const ACTION_LABELS = {
+    // Authentication
+    "LOGIN": "Admin Login",
+    "LOGOUT": "Admin Logout",
+    
+    // User Management
+    "CREATE_USER": "User Created",
+    "UPDATE_USER": "User Details Updated",
+    "SOFT_DELETE_USER": "User Deactivated",
+    "RESTORE_USER": "User Restored",
+    "PERMANENT_DELETE_USER": "User Permanently Deleted",
+    "UPDATE_DAILY_RATE": "Rate Adjustment",
+    
+    // Attendance
+    "UPDATE_LOGS": "Attendance Logs Modified",
+    "DELETE_ALL_ATTENDANCE": "Attendance Data Purged",
+    
+    // Payroll
+    "UPDATE_PAYROLL_FULL": "Payroll Record Updated",
+    
+    // System Settings
+    "CREATE_POSITION": "New Position Added",
+    "UPDATE_POSITION": "Position Updated",
+    "DELETE_POSITION": "Position Removed",
+    "CREATE_HOLIDAY": "Holiday Added",
+    "UPDATE_HOLIDAY": "Holiday Updated",
+    "DELETE_HOLIDAY": "Holiday Removed",
+    "UPDATE_MANDATED_WAGE": "Minimum Wage Updated",
+    "UPDATE_SETTINGS": "System Settings Updated",
+    "CREATE_PAYROLL_PERIOD": "Payroll Period Created",
+    "CREATE_DUE_DATE": "New Due Date Set",
+    "DELETE_DUE_DATE": "Due Date Removed",
+
+    // Requests
+    "UPDATE_REQUEST_STATUS": "Request Status Changed",
+
+    // Common API Routes (Explicit Mapping)
+    "PUT /notifications/mark-all-read": "Notifications Marked as Read",
+    "PUT /notifications/mark-read": "Notification Read",
+    "POST /auth/login": "System Login Attempt",
+    "POST /auth/logout": "System Logout"
+  };
+
+  const formatAction = (action) => {
+    // Check for exact match in labels first (case-insensitive keys would be better but let's try exact first)
+    const upperAction = action.toUpperCase();
+    if (ACTION_LABELS[action]) return ACTION_LABELS[action];
+    if (ACTION_LABELS[upperAction]) return ACTION_LABELS[upperAction];
+    
+    // Handle API routes like "PUT /notifications/mark-all-read" or "POST /api/system/settings"
+    const routeRegex = /^(GET|POST|PUT|DELETE|PATCH)\s+(\/.*)$/i;
+    const match = action.match(routeRegex);
+    
+    if (match) {
+      const method = match[1].toUpperCase();
+      const path = match[2];
+      
+      // Check if the path itself is in our labels (without method)
+      if (ACTION_LABELS[path]) return ACTION_LABELS[path];
+
+      // Deep clean the path into a category
+      const pathParts = path.split("/").filter(p => p && p !== "api" && p !== "v1");
+      
+      if (pathParts.length > 0) {
+        // Special handling for common patterns
+        const primary = pathParts[0].toUpperCase();
+        const secondary = pathParts[1] ? pathParts[1].replace(/-/g, " ") : "";
+        
+        if (secondary.includes("mark all read")) return "Clear All Notifications";
+        if (secondary.includes("mark read")) return "Read Notification";
+        
+        return `${method} ${primary} ${secondary}`.trim();
+      }
+      
+      return `${method} SYSTEM REQUEST`;
+    }
+
+    // Fallback: replace underscores and title case
+    return action.replace(/_/g, " ").split(" ").map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(" ");
+  };
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -58,17 +141,19 @@ const AuditLogs = () => {
 
   const handleClearFilters = () => {
     setSearchQuery("");
-    setFilterAction("All Actions");
+    setFilterAction("All Categories");
     setCurrentPage(1);
   };
 
-  const isFiltering = searchQuery !== "" || filterAction !== "All Actions";
+  const isFiltering = searchQuery !== "" || filterAction !== "All Categories";
 
   const filteredLogs = logs.filter(log => {
+    const actionLabel = formatAction(log.action);
     const matchesSearch = (log.user_FirstName + " " + log.user_LastName).toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          actionLabel.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           String(log.target_Id).includes(searchQuery);
-    const matchesAction = filterAction === "All Actions" || log.action === filterAction;
+    const matchesAction = filterAction === "All Categories" || actionLabel === filterAction;
     return matchesSearch && matchesAction;
   });
 
@@ -79,22 +164,22 @@ const AuditLogs = () => {
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentLogs = filteredLogs.slice(startIndex, endIndex);
 
-  const uniqueActions = ["All Actions", ...new Set(logs.map(l => l.action))];
+  const uniqueActions = ["All Categories", ...new Set(logs.map(l => formatAction(l.action)))];
 
   const stats = {
     totalActions: logs.length,
-    securityAlerts: logs.filter(l => l.action.includes("DELETE")).length,
+    securityAlerts: logs.filter(l => l.action.includes("DELETE") || l.action.includes("PERMANENT")).length,
     userUpdates: logs.filter(l => l.action.includes("USER") || l.action.includes("RATE")).length,
     activeAdmins: new Set(logs.map(l => l.user_Id)).size,
   };
 
   const handleExportPDF = () => {
-    const headers = ["Timestamp", "Module", "Administrator", "Action", "Target", "ID"];
+    const headers = ["Timestamp", "Module", "Administrator", "Event Category", "Target", "ID"];
     const data = filteredLogs.map(log => [
       new Date(log.createdAt).toLocaleString(),
       log.module || "System",
       `${log.user_FirstName} ${log.user_LastName}`,
-      log.action,
+      formatAction(log.action),
       log.target_Table,
       log.target_Id
     ]);
@@ -102,12 +187,12 @@ const AuditLogs = () => {
   };
 
   const handleExport = () => {
-    const headers = ["Timestamp", "Module", "Administrator", "Action", "Target Table", "Target ID"];
+    const headers = ["Timestamp", "Module", "Administrator", "Event Category", "Target Table", "Target ID"];
     const data = filteredLogs.map(log => [
       new Date(log.createdAt).toLocaleString(),
       log.module || "System",
       `${log.user_FirstName} ${log.user_LastName}`,
-      log.action,
+      formatAction(log.action),
       log.target_Table,
       log.target_Id
     ]);
@@ -176,7 +261,7 @@ const AuditLogs = () => {
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Actions</p>
+                  <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Activities</p>
                   <p className="text-4xl font-bold text-[#2A174E]">{stats.totalActions}</p>
                 </div>
                 <p className="text-xs text-[#2A174E]/70 italic mt-4">All recorded system changes</p>
@@ -256,7 +341,7 @@ const AuditLogs = () => {
                 <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
                 <Select value={filterAction} onValueChange={setFilterAction}>
                   <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                    <SelectValue placeholder="All Actions" />
+                    <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
                   <SelectContent>
                     {uniqueActions.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
@@ -287,7 +372,7 @@ const AuditLogs = () => {
                     <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Timestamp</TableHead>
                     <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Module</TableHead>
                     <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Administrator</TableHead>
-                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Action</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Event Category</TableHead>
                     <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Target</TableHead>
                     <TableHead className="font-semibold text-white py-4 text-right pr-6 uppercase text-xs tracking-wider">Details</TableHead>
                   </TableRow>
@@ -301,7 +386,11 @@ const AuditLogs = () => {
                           <Badge variant="secondary" className="bg-slate-100 text-slate-600">{log.module || "System"}</Badge>
                         </TableCell>
                         <TableCell className="font-semibold text-[#2A174E] py-4">{log.user_FirstName} {log.user_LastName}</TableCell>
-                        <TableCell className="py-4"><Badge variant="outline" className="border-slate-200">{log.action}</Badge></TableCell>
+                        <TableCell className="py-4">
+                          <Badge variant="outline" className="border-slate-200 bg-slate-50/50 text-[10px] uppercase font-bold tracking-tight">
+                            {formatAction(log.action)}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="font-semibold text-slate-700 py-4">{log.target_Table} #{log.target_Id}</TableCell>
                         <TableCell className="text-right pr-6 py-4">
                           <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)} className="text-[#2A174E] hover:bg-slate-100 border border-transparent hover:border-slate-200">
@@ -374,7 +463,7 @@ const AuditLogs = () => {
       <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="text-[#2A174E] capitalize">{selectedLog?.action} Details</DialogTitle>
+            <DialogTitle className="text-[#2A174E] capitalize">{selectedLog ? formatAction(selectedLog.action) : "Log Details"}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <DiffViewer oldVal={selectedLog?.old_Value} newVal={selectedLog?.new_Value} />

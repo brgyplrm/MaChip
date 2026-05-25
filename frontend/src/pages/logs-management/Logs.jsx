@@ -172,7 +172,8 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
       const response = await fetchWithAuth(url);
       if (response.ok) {
         const data = await response.json();
-        const mapped = data.map(d => ({
+        const actualLogs = Array.isArray(data) ? data : (data.logs || []);
+        const mapped = actualLogs.map(d => ({
           ...d,
           log_Date: String(d.log_Date).split('T')[0]
         }));

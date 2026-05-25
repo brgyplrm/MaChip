@@ -222,6 +222,27 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: false, freezeTableName: true },
   );
 
+  // ── Loan Request ──────────────────────────────────────────────────────────
+  const Loan_Request = sequelize.define(
+    "Loan_Request",
+    {
+      loanReqId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      emp_reqId: { type: DataTypes.INTEGER, allowNull: false },
+      user_Id: { type: DataTypes.SMALLINT, allowNull: false },
+      agency: { type: DataTypes.STRING(50), allowNull: false },
+      loanType: { type: DataTypes.STRING(50), allowNull: false },
+      amountRequested: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+      monthsToPay: { type: DataTypes.INTEGER, allowNull: true },
+      isEnrollment: { type: DataTypes.BOOLEAN, defaultValue: false },
+      proof_File: { type: DataTypes.STRING, allowNull: true },
+    },
+    { timestamps: true, freezeTableName: true },
+  );
+
   // ── Leave Balance ──────────────────────────────────────────────────────────
   const Leave_Balance = sequelize.define(
     "Leave_Balance",
@@ -307,6 +328,15 @@ module.exports = (sequelize, DataTypes) => {
     as: "request",
   });
 
+  emp_Request.hasOne(Loan_Request, {
+    foreignKey: "emp_reqId",
+    sourceKey: "emp_reqId",
+  });
+  Loan_Request.belongsTo(emp_Request, {
+    foreignKey: "emp_reqId",
+    as: "request",
+  });
+
   Vacation_Leave.belongsTo(withPay, {
     foreignKey: "WithPayID",
     targetKey: "withPayId",
@@ -336,6 +366,7 @@ module.exports = (sequelize, DataTypes) => {
     Onfield_Work,
     LogCorrection_Request,
     Statutory_Leave,
+    Loan_Request,
     Leave_Balance,
   };
 };

@@ -7,6 +7,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import CakeIcon from "@mui/icons-material/Cake";
 import WorkIcon from "@mui/icons-material/Work";
 import ReceiptIcon from "@mui/icons-material/Receipt";
+import EditIcon from "@mui/icons-material/Edit";
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import Toast from "../../../components/toast/Toast";
@@ -20,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 const RetirementPay = () => {
   const { systemToday } = useSystemTime();
@@ -31,11 +33,18 @@ const RetirementPay = () => {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
 
+  // Edit Modal State
+  const [editRecord, setEditRecord] = useState(null);
+  const [newDate, setNewDate] = useState("");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
   const fetchEmployees = async () => {
     try {
-      const res = await fetchWithAuth("/api/users?status=active");
+      const res = await fetchWithAuth("/api/users/all");
       const data = await res.json();
-      if (res.ok) setEmployees(data);
+      if (res.ok) {
+        setEmployees(Array.isArray(data) ? data : (data.users || []));
+      }
     } catch (err) {
       console.error("Error fetching employees:", err);
     }
@@ -93,6 +102,30 @@ const RetirementPay = () => {
         fetchHistory();
       } else {
         setToast({ message: data.error || "Failed to generate", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Network error", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateDate = async () => {
+    if (!editRecord || !newDate) return;
+    setLoading(true);
+    try {
+      const res = await fetchWithAuth(`/api/payroll/retirement/update-date/${editRecord.retirementId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retirementDate: newDate })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setToast({ message: data.message, type: "success" });
+        setIsEditModalOpen(false);
+        fetchHistory();
+      } else {
+        setToast({ message: data.error || "Failed to update date", type: "error" });
       }
     } catch (err) {
       setToast({ message: "Network error", type: "error" });
@@ -195,22 +228,28 @@ const RetirementPay = () => {
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-3">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-slate-600">Current Age:</span>
-                              <span className={`font-bold ${preview.age >= 60 ? 'text-green-600' : 'text-amber-600'}`}>{preview.age} Years Old</span>
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-slate-600">Current Age:</span>
+                              <div className="flex items-center gap-2">
+                                {preview.age < 60 && <span className="text-[10px] text-rose-500 font-bold uppercase">(Req: 60)</span>}
+                                <span className={`font-bold ${preview.age >= 60 ? 'text-green-600' : 'text-amber-600'}`}>{preview.age} Years Old</span>
+                              </div>
                             </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-slate-600">Tenure Rounding:</span>
-                              <span className={`font-bold ${preview.yearsOfService >= 5 ? 'text-green-600' : 'text-amber-600'}`}>{preview.yearsOfService} Years</span>
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-slate-600">Tenure (Rounded):</span>
+                              <div className="flex items-center gap-2">
+                                {preview.yearsOfService < 5 && <span className="text-[10px] text-rose-500 font-bold uppercase">(Req: 5)</span>}
+                                <span className={`font-bold ${preview.yearsOfService >= 5 ? 'text-green-600' : 'text-amber-600'}`}>{preview.yearsOfService} Years</span>
+                              </div>
                             </div>
-                            <div className="pt-2 border-t border-slate-100 flex gap-2">
+                            <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-2">
                                 {preview.isEligible ? (
-                                    <Badge className="bg-green-100 text-green-700">Eligible</Badge>
+                                    <Badge className="bg-green-100 text-green-700">Fully Eligible</Badge>
                                 ) : (
-                                    <Badge variant="destructive">Ineligible</Badge>
+                                    <Badge variant="destructive">Ineligible for Statutory Pay</Badge>
                                 )}
                                 {preview.isCompulsory && <Badge className="bg-blue-100 text-blue-700">Compulsory (65+)</Badge>}
-                                {preview.isTaxExempt && <Badge className="bg-purple-100 text-purple-700">Tax Exempt</Badge>}
+                                {preview.isTaxExempt && <Badge className="bg-purple-100 text-purple-700">Tax Exempt (BIR)</Badge>}
                             </div>
                           </CardContent>
                         </Card>
@@ -227,6 +266,63 @@ const RetirementPay = () => {
                           </CardContent>
                         </Card>
                       </div>
+
+                      <Card className="shadow-sm border-0 bg-white">
+                        <CardHeader>
+                          <CardTitle className="text-lg font-bold text-[#2A174E]">Final Settlement Breakdown</CardTitle>
+                          <CardDescription>Consolidated components of the retiree's final pay package.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Pro-rated 13th Month</p>
+                              <div className="flex justify-between items-end">
+                                <div>
+                                  <p className="text-xs text-slate-500">Basis: {formatCurrency(preview.backPay.totalBasicYear)}</p>
+                                  <p className="text-xs text-slate-500">Formula: Basis / 12</p>
+                                </div>
+                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.backPay.prorated13thMonth)}</p>
+                              </div>
+                            </div>
+                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Leave Conversion</p>
+                              <div className="flex justify-between items-end">
+                                <div>
+                                  <p className="text-xs text-slate-500">VL: {preview.backPay.vlBalance} | SL: {preview.backPay.slBalance}</p>
+                                  <p className="text-xs text-slate-500">Formula: Credits x Daily Rate</p>
+                                </div>
+                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.backPay.leaveConversion)}</p>
+                              </div>
+                            </div>
+                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Final Worked Days</p>
+                              <div className="flex justify-between items-end">
+                                <div>
+                                  <p className="text-xs text-slate-500">Days: {preview.backPay.workedDaysCount}</p>
+                                  <p className="text-xs text-slate-500 font-medium text-rose-500 uppercase text-[9px] tracking-tight">Since Last Payroll</p>
+                                </div>
+                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.backPay.finalWorkedSalary)}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 p-4 bg-[#2A174E]/5 border border-[#2A174E]/10 rounded-xl">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-bold text-[#2A174E]">Estimated Total Back Pay</span>
+                              <span className="text-xl font-black text-[#2A174E]">
+                                {formatCurrency(
+                                  parseFloat(preview.backPay.prorated13thMonth || 0) + 
+                                  parseFloat(preview.backPay.leaveConversion || 0) + 
+                                  parseFloat(preview.backPay.finalWorkedSalary || 0)
+                                )}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1 italic">
+                              *Includes earned 13th month, converted leave credits, and unpaid actual worked days.
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
 
                       <Card className="shadow-sm border-0 bg-white">
                         <CardHeader>
@@ -296,7 +392,14 @@ const RetirementPay = () => {
                           <TableCell className="font-bold text-[#2A174E]">{h.user_LastName}, {h.user_FirstName}</TableCell>
                           <TableCell>{new Date(h.retirementDate).toLocaleDateString()}</TableCell>
                           <TableCell>{h.yearsOfService} Years</TableCell>
-                          <TableCell className="font-bold text-green-700">{formatCurrency(h.totalAmount)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-green-700">{formatCurrency(parseFloat(h.totalAmount || 0) + parseFloat(h.backPay_Total || 0))}</span>
+                              <span className="text-[9px] text-slate-400 uppercase font-bold">
+                                Ret: {formatCurrency(h.totalAmount)} | Back: {formatCurrency(h.backPay_Total)}
+                              </span>
+                            </div>
+                          </TableCell>
                           <TableCell>
                             {h.isTaxExempt ? (
                                 <Badge className="bg-purple-100 text-purple-700">Yes</Badge>
@@ -310,15 +413,31 @@ const RetirementPay = () => {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            {h.status === 'Draft' && (
-                              <Button 
-                                size="sm" 
-                                onClick={() => handleRelease(h.retirementId)}
-                                className="bg-[#2A174E] text-white"
-                              >
-                                Release
-                              </Button>
-                            )}
+                            <div className="flex justify-end gap-2">
+                              {h.status === 'Draft' && (
+                                <>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditRecord(h);
+                                      setNewDate(h.retirementDate);
+                                      setIsEditModalOpen(true);
+                                    }}
+                                    className="border-slate-200 text-slate-600 hover:bg-slate-50"
+                                  >
+                                    <EditIcon className="h-3 w-3 mr-1" /> Edit Date
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => handleRelease(h.retirementId)}
+                                    className="bg-[#2A174E] text-white"
+                                  >
+                                    Release
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       )) : (
@@ -336,6 +455,44 @@ const RetirementPay = () => {
           </Tabs>
         </div>
       </Sidebar>
+
+      {/* Edit Date Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#2A174E]">Adjust Retirement Date</DialogTitle>
+            <DialogDescription>
+              Update the retirement date for {editRecord?.user_FirstName} {editRecord?.user_LastName}. 
+              All benefits will be re-calculated based on this new date.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-6 space-y-4">
+            <div className="space-y-2">
+              <Label>New Retirement Date</Label>
+              <Input 
+                type="date" 
+                value={newDate} 
+                onChange={(e) => setNewDate(e.target.value)}
+                className="bg-white border-slate-200"
+              />
+            </div>
+            
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <p className="text-xs text-blue-800 font-medium italic">
+                ℹ️ Changing the date may affect tenure rounding (Years of Service) and will re-audit attendance logs for the final salary component.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdateDate} disabled={loading} className="bg-[#2A174E] text-white">
+              {loading ? "Re-calculating..." : "Update & Re-calculate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

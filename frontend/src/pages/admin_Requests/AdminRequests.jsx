@@ -153,6 +153,8 @@ const AdminRequests = () => {
     if (name.includes("correction")) return "LC";
     if (name.includes("emergency")) return "EL";
     if (name.includes("half-day")) return "HD";
+    if (name.includes("certification")) return "LCERT";
+    if (name.includes("enrollment")) return "LENRL";
     return "REQ";
   };
 
@@ -237,10 +239,10 @@ const AdminRequests = () => {
               : req.EL_DateOfLeave
                 ? new Date(req.EL_DateOfLeave).toLocaleDateString()
                 : req.HD_DateOfLeave
-                  ? new Date(req.HD_DateOfLeave).toLocaleDateString()
-                  : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : "";
-  };
-
+                ? new Date(req.HD_DateOfLeave).toLocaleDateString()
+                : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : 
+                (req.emp_reqTypeId === 13 || req.emp_reqTypeId === 14) ? new Date(req.date_Filed).toLocaleDateString() : "";
+                };
   const getStatusColor = (statusId) => {
     if (statusId === 1 || statusId === 4) return "bg-orange-100 text-orange-800 hover:bg-orange-100";
     if (statusId === 2) return "bg-green-100 text-green-800 hover:bg-green-100";
@@ -255,6 +257,8 @@ const AdminRequests = () => {
       case "SL": return "bg-red-100 text-red-800 border-transparent";
       case "OW": return "bg-orange-100 text-orange-800 border-transparent";
       case "OT": return "bg-blue-100 text-blue-800 border-transparent";
+      case "LCERT": return "bg-sky-100 text-sky-800 border-transparent";
+      case "LENRL": return "bg-teal-100 text-teal-800 border-transparent";
       default: return "bg-slate-100 text-slate-800 border-transparent";
     }
   };
@@ -679,6 +683,8 @@ const AdminRequests = () => {
                               ? (current.emp_reqStatusId === 1 ? `${current.SL_balance || 0} SL Remaining` : `${current.SL_NoDays || 0} Day(s) Used`)
                               : current.emp_reqTypeId === 10
                               ? (current.emp_reqStatusId === 1 ? `${current.SoloParent_balance || 0} SP Remaining` : `${current.ST_NoDays || 0} Day(s) Used`)
+                              : [13, 14].includes(current.emp_reqTypeId)
+                              ? `${current.LR_agency} - ${current.LR_loanType}`
                               : "N/A"}
                           </p>
                         </div>
@@ -710,14 +716,39 @@ const AdminRequests = () => {
                       </>
                     )}
 
-                    {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File) && (
+                    {[13, 14].includes(current.emp_reqTypeId) && (
+                      <>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Agency</label>
+                          <p className="font-semibold text-slate-800">{current.LR_agency}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Loan Type</label>
+                          <p className="font-semibold text-slate-800">{current.LR_loanType}</p>
+                        </div>
+                        {current.emp_reqTypeId === 14 && (
+                          <>
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</label>
+                              <p className="font-bold text-green-700">₱{parseFloat(current.LR_amount || 0).toLocaleString()}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Repayment Term</label>
+                              <p className="font-semibold text-slate-800">{current.LR_months} Months</p>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+
+                    {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File) && (
                       <div className="space-y-1 col-span-1 sm:col-span-2 xl:col-span-3">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachment</label>
                         <div>
                           <button 
                             type="button"
                             onClick={() => {
-                              setViewingFileUrl(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File);
+                              setViewingFileUrl(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File);
                               setViewingFileName(`Attachment for REQ-${current.emp_reqId}`);
                               setIsFileViewerOpen(true);
                             }}

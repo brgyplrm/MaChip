@@ -279,53 +279,79 @@ exports.sendRequestStatusEmail = async ({ email, name, requestType, status, date
 };
 
 /**
- * Sends a notification to an admin/supervisor about a new request.
+ * Sends a Notice of Termination email.
  */
-exports.sendRequestNotificationEmail = async ({ toEmail, approverName, requesterName, requestType, dateStr, duration, isEscalation = false }) => {
+exports.sendTerminationNoticeEmail = async ({ email, name, separationDate, cause, message }) => {
   const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
-
-  if (!EMAIL_USER || !EMAIL_PASS) {
-    console.error("[EMAIL CONFIG ERROR]: Missing credentials.");
-    return;
-  }
+  if (!EMAIL_USER || !EMAIL_PASS) return;
 
   const transporter = nodemailer.createTransport({
     service: EMAIL_SERVICE || "gmail",
     auth: { user: EMAIL_USER, pass: EMAIL_PASS },
   });
 
-  const subject = isEscalation 
-    ? `URGENT: Pending Request Reminder - ${requesterName}`
-    : `New Request Filed - ${requesterName}`;
-
   const mailOptions = {
-    from: `"MaChip System" <${EMAIL_USER}>`,
-    to: toEmail,
-    subject: subject,
+    from: `"MaChip HR" <${EMAIL_USER}>`,
+    to: email,
+    subject: "Notice of Termination of Employment",
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2 style="color: ${isEscalation ? '#e74c3c' : '#2c3e50'};">
-          ${isEscalation ? '⚠️ Escalated Pending Request' : '📄 New Request for Approval'}
-        </h2>
-        <p>Hello ${approverName},</p>
-        <p>${requesterName} has ${isEscalation ? 'a request that has been pending for over 8 hours' : 'filed a new request'}:</p>
-        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Type:</strong> ${requestType}</p>
-          <p style="margin: 5px 0;"><strong>Date:</strong> ${dateStr}</p>
-          ${duration ? `<p style="margin: 5px 0;"><strong>Duration/Details:</strong> ${duration}</p>` : ''}
+        <h2 style="color: #c0392b;">Notice of Termination</h2>
+        <p>Dear ${name},</p>
+        <p>We regret to inform you that your employment with MAC-J Int'l Forwarding Ltd., Co. will be terminated effective <strong>${separationDate}</strong>.</p>
+        <div style="background: #fdf2f2; padding: 20px; border-radius: 8px; border: 1px solid #f5c6cb; margin: 20px 0;">
+          <p style="margin: 5px 0;"><strong>Authorized Cause:</strong> ${cause}</p>
+          <p style="margin: 5px 0;"><strong>Effective Date:</strong> ${separationDate}</p>
         </div>
-        <p style="margin-top: 20px;">Please log in to the MaChip portal to review and take action.</p>
+        <p>${message || "Please coordinate with the HR department regarding your clearance and final settlement. As per DOLE guidelines, your final pay will be released within 30 days of your separation date, provided clearance is completed."}</p>
         <br/>
-        <p>Best Regards,<br/><strong>MaChip Notification System</strong></p>
+        <p>Best Regards,<br/><strong>HR Department</strong></p>
       </div>
     `,
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`[REQUEST EMAIL SENT] ${isEscalation ? '(ESCALATION)' : ''} to ${toEmail}`);
+    console.log(`[TERMINATION NOTICE SENT] to ${email}`);
   } catch (error) {
-    console.error(`[REQUEST EMAIL ERROR] to ${toEmail}:`, error.message);
+    console.error(`[TERMINATION NOTICE ERROR] for ${email}:`, error.message);
   }
 };
+
+/**
+ * Sends a Notice of Rescission (Cancellation of Termination).
+ */
+exports.sendTerminationRescissionEmail = async ({ email, name }) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+  if (!EMAIL_USER || !EMAIL_PASS) return;
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  });
+
+  const mailOptions = {
+    from: `"MaChip HR" <${EMAIL_USER}>`,
+    to: email,
+    subject: "Notice of Rescission of Termination",
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #27ae60;">Rescission of Termination Notice</h2>
+        <p>Dear ${name},</p>
+        <p>We are pleased to inform you that the previous notice of termination served to you has been <strong>rescinded</strong>. Your employment status remains <strong>Active</strong>.</p>
+        <p>We look forward to your continued service with the company. If you have any questions, please contact the HR department.</p>
+        <br/>
+        <p>Best Regards,<br/><strong>HR Department</strong></p>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[RESCISSION NOTICE SENT] to ${email}`);
+  } catch (error) {
+    console.error(`[RESCISSION NOTICE ERROR] for ${email}:`, error.message);
+  }
+};
+
 

@@ -251,6 +251,17 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: true, freezeTableName: true },
   );
 
+  const Separation_Cause = sequelize.define(
+    "Separation_Cause",
+    {
+      causeId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+      causeName: { type: DataTypes.STRING(100), allowNull: false },
+      multiplier: { type: DataTypes.DOUBLE, allowNull: false },
+      description: { type: DataTypes.TEXT, allowNull: true },
+    },
+    { timestamps: true, freezeTableName: true }
+  );
+
   const Payroll_Separation = sequelize.define(
     "Payroll_Separation",
     {
@@ -267,13 +278,14 @@ module.exports = (sequelize, DataTypes) => {
       multiplier: { type: DataTypes.FLOAT, allowNull: false }, // 0.5 or 1.0
       totalAmount: { type: DataTypes.FLOAT, allowNull: false },
       reason: { type: DataTypes.STRING, allowNull: false },
-      causeType: { 
-        type: DataTypes.ENUM("Retrenchment/Closure/Disease (1/2 Month)", "Redundancy/Installation of Devices (1 Month)"),
-        allowNull: false 
-      },
+      causeId: { type: DataTypes.INTEGER, allowNull: false },
+      backPay_13thMonth: { type: DataTypes.FLOAT, defaultValue: 0 },
+      backPay_LeaveConversion: { type: DataTypes.FLOAT, defaultValue: 0 },
+      finalWorkedSalary: { type: DataTypes.FLOAT, defaultValue: 0 },
+      backPay_Total: { type: DataTypes.FLOAT, defaultValue: 0 },
       isTaxExempt: { type: DataTypes.BOOLEAN, defaultValue: true },
       status: { 
-        type: DataTypes.ENUM("Draft", "Released"),
+        type: DataTypes.ENUM("Draft", "Notice Served", "Released"),
         defaultValue: "Draft"
       },
       releasedAt: { type: DataTypes.DATE, allowNull: true },
@@ -298,6 +310,10 @@ module.exports = (sequelize, DataTypes) => {
       component_salary_15days: { type: DataTypes.FLOAT, allowNull: false },
       component_sil_5days: { type: DataTypes.FLOAT, allowNull: false },
       component_13thmonth_2_5days: { type: DataTypes.FLOAT, allowNull: false },
+      backPay_13thMonth: { type: DataTypes.FLOAT, defaultValue: 0 },
+      backPay_LeaveConversion: { type: DataTypes.FLOAT, defaultValue: 0 },
+      finalWorkedSalary: { type: DataTypes.FLOAT, defaultValue: 0 },
+      backPay_Total: { type: DataTypes.FLOAT, defaultValue: 0 },
       isTaxExempt: { type: DataTypes.BOOLEAN, defaultValue: false },
       status: { 
         type: DataTypes.ENUM("Draft", "Released"),
@@ -330,5 +346,8 @@ module.exports = (sequelize, DataTypes) => {
   Payroll.hasMany(Payroll_GovernmentLoans, { foreignKey: "payrollId" });
   Payroll_GovernmentLoans.belongsTo(Payroll, { foreignKey: "payrollId" });
 
-  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances, Payroll_Eastwest, Payroll_GovernmentLoans, Payroll_ThirteenthMonth, Payroll_Separation, Payroll_Retirement };
+  Payroll_Separation.belongsTo(Separation_Cause, { foreignKey: "causeId", as: "cause" });
+  Separation_Cause.hasMany(Payroll_Separation, { foreignKey: "causeId" });
+
+  return { Payroll, Payroll_Earnings, Payroll_Deductions, Payroll_status, PayrollPeriod, Payroll_maxicare, Payroll_Cash_Advances, Payroll_Eastwest, Payroll_GovernmentLoans, Payroll_ThirteenthMonth, Payroll_Separation, Separation_Cause, Payroll_Retirement };
 };

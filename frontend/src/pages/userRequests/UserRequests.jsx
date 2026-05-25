@@ -117,17 +117,19 @@ const UserRequests = () => {
     claimedOut: "",
     correctionCategory: "",
     period: "",
+    agency: "",
+    loanType: "",
+    amountRequested: "",
+    monthsToPay: "",
   });
 
   const [currentPeriodLogs, setCurrentPeriodLogs] = useState([]);
   const [periodDates, setPeriodDates] = useState([]);
 
   const fetchCurrentPeriodLogs = async () => {
-    if (!userData?.user_Id) return;
+    if (!userData?.user_Id || !payroll) return;
     try {
-      const { start: pStart, end: pEnd } = payroll;
-      const start = pStart;
-      const end = pEnd;
+      const { start, end } = payroll;
 
       const dates = [];
       const startDate = new Date(start + "T00:00:00");
@@ -146,7 +148,8 @@ const UserRequests = () => {
       const response = await fetchWithAuth(`/api/attendance/report?startDate=${start}&endDate=${end}&user_Id=${userData.user_Id}`);
       if (response.ok) {
         const data = await response.json();
-        setCurrentPeriodLogs(data);
+        const actualLogs = Array.isArray(data) ? data : (data.logs || []);
+        setCurrentPeriodLogs(actualLogs);
       }
     } catch (error) {
       console.error("Error fetching logs for correction:", error);
@@ -349,7 +352,14 @@ const UserRequests = () => {
   };
 
   const handleSelectChange = (name, val) => {
-    setFormData((prev) => ({ ...prev, [name]: val }));
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: val };
+      if (name === "agency") {
+        updated.loanType = "";
+      }
+      return updated;
+    });
+    
     if (name === "correctionCategory") {
       refreshLogDisplay(formData.logCorrDate, val, currentPeriodLogs);
     }
@@ -420,6 +430,11 @@ const UserRequests = () => {
       formDataToSubmit.append("DateOfLeave", formData.leaveStartDate);
       formDataToSubmit.append("period", formData.period);
       formDataToSubmit.append("NoDays", 0.5);
+    } else if (["13", "14"].includes(formData.emp_reqTypeId)) {
+      formDataToSubmit.append("agency", formData.agency);
+      formDataToSubmit.append("loanType", formData.loanType);
+      formDataToSubmit.append("amountRequested", formData.amountRequested);
+      formDataToSubmit.append("monthsToPay", formData.monthsToPay);
     } else if (["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) {
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
       formDataToSubmit.append("EndDate", formData.leaveEndDate);
@@ -464,6 +479,10 @@ const UserRequests = () => {
           claimedIn: "",
           claimedOut: "",
           correctionCategory: "",
+          agency: "",
+          loanType: "",
+          amountRequested: "",
+          monthsToPay: "",
         });
         fetchBalance();
         fetchHistory();
@@ -522,10 +541,10 @@ const UserRequests = () => {
               : req.EL_DateOfLeave
                 ? new Date(req.EL_DateOfLeave).toLocaleDateString()
                 : req.HD_DateOfLeave
-                  ? new Date(req.HD_DateOfLeave).toLocaleDateString()
-                  : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : "";
-  };
-
+                ? new Date(req.HD_DateOfLeave).toLocaleDateString()
+                : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : 
+                (req.emp_reqTypeId === 13 || req.emp_reqTypeId === 14) ? new Date(req.date_Filed).toLocaleDateString() : "";
+                };
   const getShortType = (typeName) => {
     if (!typeName) return "REQ";
     const name = typeName.toLowerCase();
@@ -541,6 +560,8 @@ const UserRequests = () => {
     if (name.includes("solo parent")) return "SP";
     if (name.includes("vawc")) return "VAW";
     if (name.includes("special leave") || name.includes("special")) return "SPC";
+    if (name.includes("certification")) return "LCERT";
+    if (name.includes("enrollment")) return "LENRL";
     return "REQ";
   };
 
@@ -563,6 +584,8 @@ const UserRequests = () => {
       case "SP": return "bg-amber-100 text-amber-800 border-transparent";
       case "VAW": return "bg-red-100 text-red-800 border-transparent";
       case "SPC": return "bg-violet-100 text-violet-800 border-transparent";
+      case "LCERT": return "bg-sky-100 text-sky-800 border-transparent";
+      case "LENRL": return "bg-teal-100 text-teal-800 border-transparent";
       default: return "bg-slate-100 text-slate-800 border-transparent";
     }
   };
@@ -808,6 +831,12 @@ const UserRequests = () => {
                         </SelectGroup>
                         
                         <SelectGroup>
+                          <SelectLabel>Loan Requests</SelectLabel>
+                          <SelectItem value="13">Loan Certification (Nudge Admin)</SelectItem>
+                          <SelectItem value="14">Loan Enrollment (Payroll Setup)</SelectItem>
+                        </SelectGroup>
+
+                        <SelectGroup>
                           <SelectLabel>Statutory Benefits</SelectLabel>
                           {userData?.user_Gender === "Female" && (
                             <SelectItem value="8">Maternity Leave</SelectItem>
@@ -967,18 +996,86 @@ const UserRequests = () => {
                     </div>
                   )}
 
+                  {(["13", "14"].includes(formData.emp_reqTypeId)) && (
+                    <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Agency <span className="text-red-500">*</span></label>
+                          <Select value={formData.agency} onValueChange={(val) => handleSelectChange('agency', val)} required>
+                            <SelectTrigger className="w-full bg-slate-50/50 border-slate-200">
+                              <SelectValue placeholder="Select agency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="SSS">SSS</SelectItem>
+                              <SelectItem value="Pag-IBIG">Pag-IBIG</SelectItem>
+                              <SelectItem value="Company">Company / Internal</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Loan Type <span className="text-red-500">*</span></label>
+                          <Select 
+                            value={formData.loanType} 
+                            onValueChange={(val) => handleSelectChange('loanType', val)} 
+                            required
+                            disabled={!formData.agency}
+                          >
+                            <SelectTrigger className="w-full bg-slate-50/50 border-slate-200">
+                              <SelectValue placeholder={!formData.agency ? "Select agency first" : "Select loan type"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {formData.agency === "SSS" && (
+                                <>
+                                  <SelectItem value="Salary Loan">Salary Loan</SelectItem>
+                                  <SelectItem value="Calamity Loan">Calamity Loan</SelectItem>
+                                  <SelectItem value="Pension Loan">Pension Loan</SelectItem>
+                                  <SelectItem value="Emergency Loan">Emergency Loan</SelectItem>
+                                  <SelectItem value="Micro-Loan (LoanLite)">Micro-Loan (LoanLite)</SelectItem>
+                                  <SelectItem value="SSS Conso Loan">SSS Conso Loan</SelectItem>
+                                </>
+                              )}
+                              {formData.agency === "Pag-IBIG" && (
+                                <>
+                                  <SelectItem value="Multi-Purpose Loan (MPL)">Multi-Purpose Loan (MPL)</SelectItem>
+                                  <SelectItem value="Calamity Loan">Calamity Loan</SelectItem>
+                                </>
+                              )}
+                              {formData.agency === "Company" && (
+                                <SelectItem value="Cash Advance">Cash Advance</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {formData.emp_reqTypeId === "14" && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Loan Amount <span className="text-red-500">*</span></label>
+                            <Input type="number" name="amountRequested" value={formData.amountRequested} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="0.00" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Repayment (Months) <span className="text-red-500">*</span></label>
+                            <Input type="number" name="monthsToPay" value={formData.monthsToPay} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="e.g. 12" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="space-y-2 pt-4 border-t border-slate-100 border-dashed">
                     <label className="text-sm font-bold text-slate-700">Description / Purpose <span className="text-red-500">*</span></label>
-                    <Textarea name="remarks" placeholder="Please provide detailed remarks..." value={formData.remarks} onChange={handleInputChange} required className="bg-slate-50/50 resize-none h-24" />
+                    <Textarea name="remarks" placeholder={formData.emp_reqTypeId === "13" ? "e.g. Applied for SSS Salary Loan on [Date]. Please certify." : "Please provide detailed remarks..."} value={formData.remarks} onChange={handleInputChange} required className="bg-slate-50/50 resize-none h-24" />
                   </div>
                   
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Attachment {["8", "11", "12"].includes(formData.emp_reqTypeId) ? <span className="text-red-500">*</span> : "(Optional)"}</label>
+                    <label className="text-sm font-bold text-slate-700">Attachment {["8", "11", "12", "14"].includes(formData.emp_reqTypeId) ? <span className="text-red-500">*</span> : "(Optional)"}</label>
                     <Input type="file" name="proofFile" onChange={handleInputChange} accept="image/png, image/jpeg, image/jpg" className="bg-slate-50/50 cursor-pointer" />
                     <p className="text-xs text-slate-400">
-                      {["8", "11", "12"].includes(formData.emp_reqTypeId) 
-                        ? "Mandatory for legal compliance (Medical Cert/Barangay Cert)." 
-                        : "Required for Sick Leaves spanning more than 2 days."}
+                      {formData.emp_reqTypeId === "14" 
+                        ? "Mandatory: Please upload your Loan Voucher or Billing Statement."
+                        : ["8", "11", "12"].includes(formData.emp_reqTypeId) 
+                          ? "Mandatory for legal compliance (Medical Cert/Barangay Cert)." 
+                          : "Required for Sick Leaves spanning more than 2 days."}
                     </p>
                   </div>
 
@@ -1101,6 +1198,8 @@ const UserRequests = () => {
                                 ? (currentReq.emp_reqStatusId === 1 ? `${currentReq.SL_balance || 0} SL Remaining` : `${currentReq.SL_NoDays || 0} Day(s) Used`)
                                 : currentReq.emp_reqTypeId === 10
                                 ? (currentReq.emp_reqStatusId === 1 ? `${currentReq.SoloParent_balance || 0} SP Remaining` : `${currentReq.ST_NoDays || 0} Day(s) Used`)
+                                : [13, 14].includes(currentReq.emp_reqTypeId)
+                                ? `${currentReq.LR_agency} - ${currentReq.LR_loanType}`
                                 : "N/A"}
                             </p>
                           </div>
@@ -1128,24 +1227,50 @@ const UserRequests = () => {
                             <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
                             <p className="font-semibold text-slate-800">{currentReq.date_Processed ? formatDateTime(currentReq.date_Processed) : "Pending"}</p>
-                            </div>                        </>
-                      )}
+                            </div>
+                            </>
+                            )}
 
-                      {(currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File) && (
-                        <div className="space-y-1 col-span-1 sm:col-span-2 xl:col-span-3">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachment</label>
-                          <div>
+                            {[13, 14].includes(currentReq.emp_reqTypeId) && (
+                            <>
+                            <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Agency</label>
+                            <p className="font-semibold text-slate-800">{currentReq.LR_agency}</p>
+                            </div>
+                            <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Loan Type</label>
+                            <p className="font-semibold text-slate-800">{currentReq.LR_loanType}</p>
+                            </div>
+                            {currentReq.emp_reqTypeId === 14 && (
+                            <>
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</label>
+                                <p className="font-bold text-green-700">₱{parseFloat(currentReq.LR_amount || 0).toLocaleString()}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Repayment Term</label>
+                                <p className="font-semibold text-slate-800">{currentReq.LR_months} Months</p>
+                              </div>
+                            </>
+                            )}
+                            </>
+                            )}
+
+                            {(currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File || currentReq.LR_proof_File) && (
+                            <div className="space-y-1 col-span-1 sm:col-span-2 xl:col-span-3">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachment</label>
+                            <div>
                             <a 
-                              href={`/api/uploads/${currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File}`} 
+                              href={`/api/uploads/${currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File || currentReq.LR_proof_File}`} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="inline-flex items-center text-[#2A174E] font-semibold hover:underline mt-1"
                             >
                               <AttachmentIcon className="mr-1 h-4 w-4" /> View Attachment
                             </a>
-                          </div>
-                        </div>
-                      )}
+                            </div>
+                            </div>
+                            )}
 
                       <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3 border-t border-slate-200 pt-4 mt-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your Remarks / Purpose</label>

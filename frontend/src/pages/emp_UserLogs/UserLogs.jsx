@@ -25,6 +25,18 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 const UserLogs = () => {
   const { systemToday } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
+
+  const formatCurrency = (val) =>
+    `₱${parseFloat(val || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const cleanTime = (time, isSystem) => {
+    if (!time || time === "—" || time === "00:00") return "";
+    return time;
+  };
+
   const [toast, setToast] = useState({ message: "", type: "success" });
   
   // Data States
@@ -77,6 +89,7 @@ const UserLogs = () => {
   const [dtrStartDate, setDtrStartDate] = useState(currentPayroll.start);
   const [dtrEndDate, setDtrEndDate] = useState(currentPayroll.end);
   const [payEndingLabel, setPayEndingLabel] = useState(currentPayroll.payEnding);
+  const [dtrSummary, setDtrSummary] = useState(null);
 
   useEffect(() => {
     const fetchPeriods = async () => {
@@ -147,7 +160,13 @@ const UserLogs = () => {
       );
       if (response.ok) {
         const data = await response.json();
-        setDtrData(data);
+        if (data.logs) {
+          setDtrData(data.logs);
+          setDtrSummary(data.summary);
+        } else {
+          setDtrData(data);
+          setDtrSummary(null);
+        }
       }
     } catch (error) {
       console.error("Error fetching DTR:", error);
@@ -157,12 +176,13 @@ const UserLogs = () => {
   };
 
   const fetchRawScans = async () => {
-    if (!userData?.user_Id) return;
+    if (!userData?.user_Id || !dtrStartDate || !dtrEndDate) return;
     try {
-      // Replicating Logs.jsx behavior: Fetch all raw scans and filter for this user
-      const response = await fetchWithAuth("/api/attendance/all");
+      // Use backend filtering for the selected period
+      const response = await fetchWithAuth(`/api/attendance/all?startDate=${dtrStartDate}&endDate=${dtrEndDate}`);
       if (response.ok) {
         const data = await response.json();
+        // Still filter for the specific user as /all returns everything
         const userScans = data.filter(log => String(log.user_Id ?? log.user_id) === String(userData.user_Id));
         setRawScans(userScans);
       }
@@ -174,10 +194,14 @@ const UserLogs = () => {
   useEffect(() => {
     fetchDailyLogs();
     fetchDTR();
-  }, [userData?.user_Id, dtrStartDate, dtrEndDate]);
+    // Also fetch raw scans if we are on that tab so it updates when period changes
+    if (activeTab === "raw_logs") {
+      fetchRawScans();
+    }
+  }, [userData?.user_Id, dtrStartDate, dtrEndDate, activeTab]);
 
   useEffect(() => {
-    if (activeTab === "raw_logs" && rawScans.length === 0) {
+    if (activeTab === "raw_logs") {
       fetchRawScans();
     }
   }, [activeTab]);
@@ -442,8 +466,8 @@ const UserLogs = () => {
                               <TableCell className="font-medium text-slate-700">
                                 {targetDate.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
                               </TableCell>
-                              <TableCell className="text-slate-600 font-mono text-xs">{log?.time_In || "—"}</TableCell>
-                              <TableCell className="text-slate-600 font-mono text-xs">{log?.time_Out || "—"}</TableCell>
+                              <TableCell className="text-slate-600 font-mono text-xs">{cleanTime(log?.time_In, log?.systemGenerated)}</TableCell>
+                              <TableCell className="text-slate-600 font-mono text-xs">{cleanTime(log?.time_Out, log?.systemGenerated)}</TableCell>
                               <TableCell>
                                 <Badge variant="outline" className={`uppercase text-[9px] font-bold tracking-wider px-2 py-0.5 ${getBadgeStyle(displayStatus)}`}>
                                   {displayStatus}
@@ -487,17 +511,30 @@ const UserLogs = () => {
                         </thead>
                         <tbody>
                           <tr>
-                            <td className="border border-slate-400 p-1 text-left font-normal text-slate-600">Reg.</td><td className="border border-slate-400 p-1 w-12"></td><td className="border border-slate-400 p-1 w-12"></td><td className="border border-slate-400 p-1 w-12"></td>
-                            <td className="border border-slate-400 p-1 text-left font-normal text-slate-600">Fines</td><td className="border border-slate-400 p-1 w-12"></td>
+                            <td className="border border-slate-400 p-1 text-left font-normal text-slate-600">Reg.</td>
+                            <td className="border border-slate-400 p-1 w-12 text-center text-slate-700">{parseFloat(dtrSummary?.reg_hrs || 0).toFixed(2)}</td>
+                            <td className="border border-slate-400 p-1 w-12 text-center text-slate-700">{formatCurrency(dtrSummary?.ratePerHr || 0)}</td>
+                            <td className="border border-slate-400 p-1 w-12 text-center text-slate-700">{formatCurrency(dtrSummary?.basicPay || 0)}</td>
+                            <td className="border border-slate-400 p-1 text-left font-normal text-slate-600">Fines</td>
+                            <td className="border border-slate-400 p-1 w-12 text-center text-slate-700">({formatCurrency(dtrSummary?.tardiness_Amnt || 0)})</td>
                           </tr>
                           <tr>
                             <td className="border border-slate-400 p-1 text-left font-normal text-slate-600">Total Hrs</td>
-                            <td className="border border-slate-400 p-1 text-center font-bold" colSpan="3">{dtrData.reduce((sum, d) => sum + parseFloat(d.hoursWorked || 0), 0).toFixed(2)} hrs</td>
-                            <td className="border border-slate-400 p-1 text-left font-normal text-slate-600">Tax</td><td className="border border-slate-400 p-1"></td>
+                            <td className="border border-slate-400 p-1 text-center font-bold text-slate-800" colSpan="3">
+                              {dtrData.reduce((sum, d) => sum + parseFloat(d.hoursWorked || 0), 0).toFixed(2)} hrs
+                            </td>
+                            <td className="border border-slate-400 p-1 text-left font-normal text-slate-600">Count</td>
+                            <td className="border border-slate-400 p-1 text-center text-slate-700">{dtrSummary?.absence_Days || 0} days</td>
                           </tr>
                           <tr className="font-bold">
-                            <td className="border border-slate-400 p-1 text-left text-slate-600" colSpan="3">NET PAY</td><td className="border border-slate-400 p-1 text-slate-400 font-normal">TBD</td>
-                            <td className="border border-slate-400 p-1 text-left text-slate-600">TOTAL</td><td className="border border-slate-400 p-1"></td>
+                            <td className="border border-slate-400 p-1 text-left text-slate-600" colSpan="3">NET PAY (Payroll)</td>
+                            <td className="border border-slate-400 p-1 text-slate-800">
+                              {dtrSummary?.netPay ? formatCurrency(dtrSummary.netPay) : "TBD"}
+                            </td>
+                            <td className="border border-slate-400 p-1 text-left text-slate-600">TOTAL (Attn.)</td>
+                            <td className="border border-slate-400 p-1 text-slate-800">
+                              {formatCurrency(parseFloat(dtrSummary?.basicPay || 0) - parseFloat(dtrSummary?.tardiness_Amnt || 0))}
+                            </td>
                           </tr>
                         </tbody>
                       </table>
@@ -528,7 +565,7 @@ const UserLogs = () => {
                             const isSunday = targetDate.getDay() === 0;
 
                             const log = getDtrLogsForDay(dayNum);
-                            const getCell = (val) => (!isSunday && log && val && val !== "—" ? val : "");
+                            const getCell = (val) => (!isSunday && log ? cleanTime(val, log.systemGenerated) : "");
 
                             return (
                               <tr key={dayNum} className={`text-center h-6 ${isSunday ? "bg-slate-200/50 text-slate-400" : ""}`}>

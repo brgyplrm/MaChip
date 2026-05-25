@@ -1,7 +1,11 @@
 const { sequelize, SystemSettings } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
-const { sendPayrollEmail } = require("../utils/emailService");
+const { 
+  sendPayrollEmail, 
+  sendTerminationNoticeEmail, 
+  sendTerminationRescissionEmail 
+} = require("../utils/emailService");
 const { generatePayslipPDF } = require("../utils/pdfGenerator");
 const { generatePayslipPassword } = require("../utils/payslipPassword");
 const { generateDTRPDF } = require("../utils/dtrGenerator");
@@ -929,7 +933,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
             dtrData,
             period_Start,
             period_End,
-            netPay: fullStats.netPay
+            fullStats: fullStats
           });
 
           const dateObj = new Date(period_End);
@@ -1259,7 +1263,7 @@ exports.generatePayroll = async (req, res) => {
           dtrData,
           period_Start,
           period_End,
-          netPay: fullStats.netPay
+          fullStats: fullStats
         });
 
         // ── Archive to PC Drive ──────────────────────────────────────────
@@ -1436,7 +1440,7 @@ exports.resendPayrollEmail = async (req, res) => {
         dtrData,
         period_Start: payroll.period_Start,
         period_End: payroll.period_End,
-        netPay: payroll.netPay
+        fullStats: fullStats
       })
     ]);
 
@@ -2183,25 +2187,42 @@ exports.getThirteenthMonthPreview = async (req, res) => {
   try {
     const preview = await sequelize.query(
       `SELECT 
-         u."user_Id", u."user_FirstName", u."user_LastName",
+         u."user_Id", u."user_FirstName", u."user_LastName", u."deletedAt",
          COALESCE(SUM(p."basicPay"), 0) as "totalBasicEarned",
          (COALESCE(SUM(p."basicPay"), 0) / 12) as "computedAmount",
          GREATEST(0, (COALESCE(SUM(p."basicPay"), 0) / 12) - 90000) as "taxableExcess",
          tm."status" as "existingStatus",
-         tm."amount" as "savedAmount"
+         tm."amount" as "savedAmount",
+         (
+           SELECT json_agg(m)
+           FROM (
+             SELECT 
+               EXTRACT(MONTH FROM p2."period_Start") as month_num,
+               TO_CHAR(p2."period_Start", 'Month') as month_name,
+               SUM(p2."basicPay") as monthly_basic
+             FROM "Payroll" p2
+             WHERE p2."user_Id" = u."user_Id" 
+               AND EXTRACT(YEAR FROM p2."period_Start") = :year 
+               AND p2."status" = 2
+             GROUP BY month_num, month_name
+             ORDER BY month_num
+           ) m
+         ) as "breakdown"
        FROM "User" u
        LEFT JOIN "Payroll" p ON u."user_Id" = p."user_Id" 
          AND EXTRACT(YEAR FROM p."period_Start") = :year 
          AND p."status" = 2
        LEFT JOIN "Payroll_ThirteenthMonth" tm ON u."user_Id" = tm."user_Id" AND tm."year" = :year
-       WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
-       GROUP BY u."user_Id", tm."status", tm."amount", u."user_LastName"
+       WHERE u."dailyRate" > 0
+       GROUP BY u."user_Id", u."user_FirstName", u."user_LastName", tm."status", tm."amount", u."deletedAt"
+       HAVING COALESCE(SUM(p."basicPay"), 0) > 0 OR tm."status" IS NOT NULL
        ORDER BY u."user_LastName" ASC`,
-      { replacements: { year }, type: QueryTypes.SELECT }
+      { replacements: { year: parseInt(year) }, type: QueryTypes.SELECT }
     );
 
     res.status(200).json(preview);
   } catch (error) {
+    console.error("[13TH_MONTH_PREVIEW_ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -2211,6 +2232,8 @@ exports.getThirteenthMonthPreview = async (req, res) => {
  */
 exports.generateThirteenthMonth = async (req, res) => {
   const { year, records } = req.body; 
+  console.log(`[13TH_MONTH_GEN] Received request for year ${year} with ${records?.length} records`);
+
   if (!year || !records || !Array.isArray(records)) {
     return res.status(400).json({ error: "Year and records array are required." });
   }
@@ -2218,8 +2241,17 @@ exports.generateThirteenthMonth = async (req, res) => {
   try {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
+    let savedCount = 0;
+    let skippedCount = 0;
 
     for (const rec of records) {
+      // Basic sanity check
+      const basicEarned = parseFloat(rec.totalBasicEarned || 0);
+      if (!rec.user_Id || basicEarned <= 0) {
+        skippedCount++;
+        continue;
+      }
+
       await sequelize.query(
         `INSERT INTO "Payroll_ThirteenthMonth" 
           ("user_Id", "year", "totalBasicEarned", "amount", "taxable_Excess", "status", "createdAt", "updatedAt")
@@ -2234,48 +2266,110 @@ exports.generateThirteenthMonth = async (req, res) => {
         { 
           replacements: { 
             user_Id: rec.user_Id, 
-            year, 
-            totalBasicEarned: rec.totalBasicEarned, 
-            amount: rec.amount, 
-            taxable_Excess: rec.taxable_Excess,
+            year: parseInt(year), 
+            totalBasicEarned: basicEarned, 
+            amount: parseFloat(rec.amount || 0), 
+            taxable_Excess: parseFloat(rec.taxable_Excess || 0),
             now: nowStr
-          } 
+          },
+          type: QueryTypes.INSERT
         }
       );
+      savedCount++;
     }
 
-    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "13TH_MONTH_GEN", `Generated draft 13th month records for year ${year}`, { year, count: records.length }, req);
+    console.log(`[13TH_MONTH_GEN] Saved: ${savedCount}, Skipped: ${skippedCount}`);
 
-    res.status(201).json({ message: "13th month drafts generated successfully." });
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "13TH_MONTH_GEN", `Generated draft 13th month records for year ${year}`, { year, count: savedCount }, req);
+
+    res.status(201).json({ message: `Successfully saved ${savedCount} 13th month drafts.`, savedCount, skippedCount });
   } catch (error) {
+    console.error("[13TH_MONTH_GEN_ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
 /**
  * Releases 13th Month Pay records for a specific year.
+ * This will automatically UPSERT drafts for all eligible employees before releasing.
  */
 exports.releaseThirteenthMonth = async (req, res) => {
   const { year } = req.body;
+  console.log(`[13TH_MONTH_RELEASE] Processing release for year ${year}`);
+  
   if (!year) return res.status(400).json({ error: "Year is required." });
 
+  const t = await sequelize.transaction();
   try {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
+    const parsedYear = parseInt(year);
 
-    const [updatedCount] = await sequelize.query(
-      `UPDATE "Payroll_ThirteenthMonth" 
-       SET "status" = 'Released', "releasedAt" = :now, "updatedAt" = :now
-       WHERE "year" = :year AND "status" = 'Draft'`,
-      { replacements: { year, now: nowStr }, type: QueryTypes.UPDATE }
+    // 1. Fetch eligible data (same logic as preview)
+    const eligibleRecords = await sequelize.query(
+      `SELECT 
+         u."user_Id",
+         COALESCE(SUM(p."basicPay"), 0) as "totalBasicEarned",
+         (COALESCE(SUM(p."basicPay"), 0) / 12) as "computedAmount",
+         GREATEST(0, (COALESCE(SUM(p."basicPay"), 0) / 12) - 90000) as "taxableExcess"
+       FROM "User" u
+       JOIN "Payroll" p ON u."user_Id" = p."user_Id" 
+         AND EXTRACT(YEAR FROM p."period_Start") = :year 
+         AND p."status" = 2
+       WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
+       GROUP BY u."user_Id"
+       HAVING SUM(p."basicPay") > 0`,
+      { replacements: { year: parsedYear }, type: QueryTypes.SELECT, transaction: t }
     );
 
-    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "13TH_MONTH_RELEASE", `Released 13th month records for year ${year}`, { year, updatedCount }, req);
+    if (eligibleRecords.length === 0) {
+      await t.rollback();
+      return res.status(200).json({ message: "No eligible records found to release.", updatedCount: 0 });
+    }
 
-    res.status(200).json({ message: `Successfully released 13th month records for ${year}.` });
+    // 2. Upsert into Payroll_ThirteenthMonth
+    for (const rec of eligibleRecords) {
+      await sequelize.query(
+        `INSERT INTO "Payroll_ThirteenthMonth" 
+          ("user_Id", "year", "totalBasicEarned", "amount", "taxable_Excess", "status", "releasedAt", "createdAt", "updatedAt")
+         VALUES 
+          (:user_Id, :year, :totalBasicEarned, :amount, :taxable_Excess, 'Released', :now, :now, :now)
+         ON CONFLICT ("user_Id", "year") DO UPDATE SET
+          "totalBasicEarned" = EXCLUDED."totalBasicEarned",
+          "amount" = EXCLUDED."amount",
+          "taxable_Excess" = EXCLUDED."taxable_Excess",
+          "status" = 'Released',
+          "releasedAt" = :now,
+          "updatedAt" = :now
+         WHERE "Payroll_ThirteenthMonth"."status" != 'Released'`,
+        { 
+          replacements: { 
+            user_Id: rec.user_Id, 
+            year: parsedYear, 
+            totalBasicEarned: parseFloat(rec.totalBasicEarned), 
+            amount: parseFloat(rec.computedAmount), 
+            taxable_Excess: parseFloat(rec.taxableExcess),
+            now: nowStr
+          },
+          type: QueryTypes.INSERT,
+          transaction: t
+        }
+      );
+    }
+
+    await t.commit();
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "13TH_MONTH_RELEASE", `Released 13th month records for year ${year}`, { year, updatedCount: eligibleRecords.length }, req);
+
+    res.status(200).json({ 
+      message: `Successfully released ${eligibleRecords.length} 13th month records for ${year}.`, 
+      updatedCount: eligibleRecords.length 
+    });
   } catch (error) {
+    if (t) await t.rollback();
+    console.error("[13TH_MONTH_RELEASE_ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -2287,13 +2381,29 @@ exports.getThirteenthMonthHistory = async (req, res) => {
   const { year } = req.query;
   try {
     let query = `
-      SELECT tm.*, u."user_FirstName", u."user_LastName"
+      SELECT tm.*, u."user_FirstName", u."user_LastName",
+      (
+        SELECT json_agg(m)
+        FROM (
+          SELECT 
+            EXTRACT(MONTH FROM p2."period_Start") as month_num,
+            TO_CHAR(p2."period_Start", 'Month') as month_name,
+            SUM(p2."basicPay") as monthly_basic
+          FROM "Payroll" p2
+          WHERE p2."user_Id" = tm."user_Id" 
+            AND EXTRACT(YEAR FROM p2."period_Start") = tm."year"
+            AND p2."status" = 2
+          GROUP BY month_num, month_name
+          ORDER BY month_num
+        ) m
+      ) as "breakdown"
       FROM "Payroll_ThirteenthMonth" tm
       JOIN "User" u ON tm."user_Id" = u."user_Id"
+      WHERE tm."status" = 'Released'
     `;
     const replacements = {};
     if (year) {
-      query += ` WHERE tm."year" = :year`;
+      query += ` AND tm."year" = :year`;
       replacements.year = year;
     }
     query += ` ORDER BY tm."year" DESC, u."user_LastName" ASC`;
@@ -2308,6 +2418,21 @@ exports.getThirteenthMonthHistory = async (req, res) => {
 // ── Separation Pay Logic ───────────────────────────────────────────────────
 
 /**
+ * Gets all authorized separation causes.
+ */
+exports.getSeparationCauses = async (req, res) => {
+  try {
+    const causes = await sequelize.query(`SELECT * FROM "Separation_Cause" ORDER BY "causeId" ASC`, {
+      type: QueryTypes.SELECT
+    });
+    res.status(200).json(causes);
+  } catch (error) {
+    console.error("[GET_SEPARATION_CAUSES_ERROR]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
  * Previews Separation Pay for an employee.
  */
 exports.getSeparationPayPreview = async (req, res) => {
@@ -2319,7 +2444,7 @@ exports.getSeparationPayPreview = async (req, res) => {
   try {
     const userResult = await sequelize.query(
       `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."hireDate", u."dailyRate",
-              d."allowance" as "monthlyAllowance"
+              0 as "monthlyAllowance"
        FROM "User" u
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        WHERE u."user_Id" = :user_Id LIMIT 1`,
@@ -2349,7 +2474,69 @@ exports.getSeparationPayPreview = async (req, res) => {
     const monthlyBasic = (user.dailyRate || 0) * 26;
     const baseSalary = monthlyBasic + (parseFloat(user.monthlyAllowance) || 0);
 
-    res.status(200).json({
+    // 1. Fetch current year earnings for pro-rated 13th month
+    const currentYear = new Date(separationDate).getFullYear();
+    const earningsResult = await sequelize.query(
+      `SELECT COALESCE(SUM("basicPay"), 0) as "totalBasic"
+       FROM "Payroll" 
+       WHERE "user_Id" = :user_Id 
+         AND EXTRACT(YEAR FROM "period_Start") = :year 
+         AND "status" = 2`,
+      { replacements: { user_Id, year: currentYear }, type: QueryTypes.SELECT }
+    );
+    const totalBasicYear = parseFloat(earningsResult[0]?.totalBasic || 0);
+    const prorated13thMonth = totalBasicYear / 12;
+
+    // 2. Fetch Leave Balances
+    const leaveBalances = await sequelize.query(
+      `SELECT "VL_balance", "SL_balance" FROM "Leave_Balance" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    const vlBalance = parseFloat(leaveBalances[0]?.VL_balance || 0);
+    const slBalance = parseFloat(leaveBalances[0]?.SL_balance || 0);
+    const totalLeaveCredits = vlBalance + slBalance;
+    const leaveConversion = totalLeaveCredits * (user.dailyRate || 0);
+
+    // 3. Fetch Final Worked Days Salary (Attendance Audit)
+    // Find the end date of the last released payroll for this user
+    const lastPayroll = await sequelize.query(
+      `SELECT MAX(pp."endDate") as "lastDate" 
+       FROM "Payroll" p 
+       JOIN "PayrollPeriod" pp ON p."periodId" = pp."periodId" 
+       WHERE p."user_Id" = :user_Id AND p."status" = 2`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    
+    // Fallback to hireDate if no previous payroll found
+    const startDate = lastPayroll[0]?.lastDate || user.hireDate;
+
+    const attendanceGap = await sequelize.query(
+      `SELECT COUNT(*) as "worked" 
+       FROM "employee_Logging_report" 
+       WHERE "user_id" = :user_Id 
+         AND "log_Date" > :startDate 
+         AND "log_Date" <= :sepDate
+         AND "attendance_StatusId" IN (1, 2, 4, 5, 6)`,
+      { 
+        replacements: { user_Id, startDate, sepDate: separationDate }, 
+        type: QueryTypes.SELECT 
+      }
+    );
+
+    const workedDaysCount = parseInt(attendanceGap[0]?.worked || 0);
+    const finalWorkedSalary = workedDaysCount * (user.dailyRate || 0);
+
+    // 4. Fetch all causes to generate previews
+    const causes = await sequelize.query(`SELECT * FROM "Separation_Cause"`, { type: QueryTypes.SELECT });
+    const previews = causes.map(c => ({
+      causeId: c.causeId,
+      causeName: c.causeName,
+      multiplier: c.multiplier,
+      amount: Math.max(baseSalary, baseSalary * c.multiplier * yearsOfService),
+      desc: c.description
+    }));
+
+    return res.status(200).json({
       user_Id: user.user_Id,
       name: `${user.user_LastName}, ${user.user_FirstName}`,
       hireDate: user.hireDate,
@@ -2359,23 +2546,19 @@ exports.getSeparationPayPreview = async (req, res) => {
       monthlyBasic,
       monthlyAllowance: user.monthlyAllowance || 0,
       baseSalary,
-      preview: [
-        { 
-          type: "1/2 Month", 
-          multiplier: 0.5, 
-          amount: Math.max(baseSalary, baseSalary * 0.5 * yearsOfService), 
-          desc: "Retrenchment, Closure (not due to loss), Disease" 
-        },
-        { 
-          type: "1 Month", 
-          multiplier: 1.0, 
-          amount: baseSalary * 1.0 * yearsOfService, 
-          desc: "Redundancy, Labor-saving devices, Impossible Reinstatement" 
-        }
-      ]
+      backPay: {
+        prorated13thMonth,
+        totalBasicYear,
+        leaveConversion,
+        vlBalance,
+        slBalance,
+        workedDaysCount,
+        finalWorkedSalary
+      },
+      preview: previews
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -2383,30 +2566,47 @@ exports.getSeparationPayPreview = async (req, res) => {
  * Generates/Drafts Separation Pay record.
  */
 exports.generateSeparationPay = async (req, res) => {
-  const { user_Id, separationDate, causeType, reason } = req.body;
-  if (!user_Id || !separationDate || !causeType) {
-    return res.status(400).json({ error: "user_Id, separationDate, and causeType are required." });
+  const { user_Id, separationDate, causeId, reason, status } = req.body;
+  const targetStatus = status || 'Draft';
+
+  if (!user_Id || !separationDate || !causeId) {
+    return res.status(400).json({ error: "user_Id, separationDate, and causeId are required." });
   }
 
+  const t = await sequelize.transaction();
   try {
     const previewRes = await exports.getSeparationPayPreview({ query: { user_Id, separationDate } }, { 
       status: () => ({ json: (d) => d }),
       json: (d) => d
     });
 
-    if (previewRes.error) return res.status(400).json({ error: previewRes.error });
+    if (previewRes.error) {
+      await t.rollback();
+      return res.status(400).json({ error: previewRes.error });
+    }
 
-    const multiplier = causeType.includes("1/2 Month") ? 0.5 : 1.0;
-    const selectedPreview = previewRes.preview.find(p => p.multiplier === multiplier);
+    const selectedCause = previewRes.preview.find(p => p.causeId === parseInt(causeId));
+    if (!selectedCause) {
+      await t.rollback();
+      return res.status(400).json({ error: "Invalid causeId." });
+    }
     
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    const backPayTotal = parseFloat(previewRes.backPay.prorated13thMonth || 0) + 
+                         parseFloat(previewRes.backPay.leaveConversion || 0) + 
+                         parseFloat(previewRes.backPay.finalWorkedSalary || 0);
+
     const result = await sequelize.query(
       `INSERT INTO "Payroll_Separation" 
-        ("user_Id", "hireDate", "separationDate", "yearsOfService", "baseSalary", "multiplier", "totalAmount", "reason", "causeType", "status", "createdAt", "updatedAt")
+        ("user_Id", "hireDate", "separationDate", "yearsOfService", "baseSalary", "multiplier", "totalAmount", 
+         "backPay_13thMonth", "backPay_LeaveConversion", "finalWorkedSalary", "backPay_Total",
+         "reason", "causeId", "status", "createdAt", "updatedAt")
        VALUES 
-        (:user_Id, :hireDate, :separationDate, :yearsOfService, :baseSalary, :multiplier, :totalAmount, :reason, :causeType, 'Draft', :now, :now)
+        (:user_Id, :hireDate, :separationDate, :yearsOfService, :baseSalary, :multiplier, :totalAmount, 
+         :bp13th, :bpLeave, :bpFinalSalary, :bpTotal,
+         :reason, :causeId, :status, :now, :now)
        RETURNING "separationId"`,
       {
         replacements: {
@@ -2415,21 +2615,54 @@ exports.generateSeparationPay = async (req, res) => {
           separationDate,
           yearsOfService: previewRes.yearsOfService,
           baseSalary: previewRes.baseSalary,
-          multiplier,
-          totalAmount: selectedPreview.amount,
-          reason: reason || causeType,
-          causeType,
+          multiplier: selectedCause.multiplier,
+          totalAmount: selectedCause.amount,
+          bp13th: previewRes.backPay.prorated13thMonth,
+          bpLeave: previewRes.backPay.leaveConversion,
+          bpFinalSalary: previewRes.backPay.finalWorkedSalary,
+          bpTotal: backPayTotal,
+          reason: reason || selectedCause.causeName,
+          causeId,
+          status: targetStatus,
           now: nowStr
         },
-        type: QueryTypes.INSERT
+        type: QueryTypes.INSERT,
+        transaction: t
       }
     );
 
-    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "SEPARATION_GEN", `Generated separation pay draft for user ${user_Id}`, { separationId: result[0][0].separationId }, req);
+    const separationId = result[0][0].separationId;
 
-    res.status(201).json({ message: "Separation pay draft generated.", separationId: result[0][0].separationId });
+    if (targetStatus === 'Notice Served') {
+      await sequelize.query(
+        `UPDATE "User" SET "user_EmploymentStatusId" = 4, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+      );
+
+      const user = await sequelize.query(`SELECT "user_Email", "user_FirstName", "user_LastName" FROM "User" WHERE "user_Id" = :user_Id`, {
+        replacements: { user_Id },
+        type: QueryTypes.SELECT,
+        transaction: t
+      });
+
+      if (user.length > 0) {
+        await sendTerminationNoticeEmail({
+          email: user[0].user_Email,
+          name: `${user[0].user_FirstName} ${user[0].user_LastName}`,
+          separationDate,
+          cause: selectedCause.causeName
+        });
+      }
+    }
+
+    await t.commit();
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "SEPARATION_GEN", `Generated separation pay (${targetStatus}) for user ${user_Id}`, { separationId }, req);
+
+    res.status(201).json({ message: `Separation pay ${targetStatus.toLowerCase()} successfully.`, separationId });
   } catch (error) {
+    if (t) await t.rollback();
     res.status(500).json({ error: error.message });
   }
 };
@@ -2439,22 +2672,119 @@ exports.generateSeparationPay = async (req, res) => {
  */
 exports.releaseSeparationPay = async (req, res) => {
   const { separationId } = req.params;
+  const t = await sequelize.transaction();
   try {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    const [updated] = await sequelize.query(
-      `UPDATE "Payroll_Separation" SET "status" = 'Released', "releasedAt" = :now, "updatedAt" = :now WHERE "separationId" = :separationId AND "status" = 'Draft'`,
-      { replacements: { separationId, now: nowStr }, type: QueryTypes.UPDATE }
+    const record = await sequelize.query(
+      `SELECT * FROM "Payroll_Separation" WHERE "separationId" = :separationId LIMIT 1`,
+      { replacements: { separationId }, type: QueryTypes.SELECT, transaction: t }
     );
 
-    if (updated === 0) return res.status(404).json({ error: "Draft separation pay not found." });
+    if (record.length === 0) {
+      await t.rollback();
+      return res.status(404).json({ error: "Separation record not found." });
+    }
+
+    if (record[0].status === 'Released') {
+      await t.rollback();
+      return res.status(400).json({ error: "Record already released." });
+    }
+
+    const user_Id = record[0].user_Id;
+
+    // 1. Update Separation Record
+    await sequelize.query(
+      `UPDATE "Payroll_Separation" SET "status" = 'Released', "releasedAt" = :now, "updatedAt" = :now WHERE "separationId" = :separationId`,
+      { replacements: { separationId, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+    );
+
+    // 2. Update User Status to 'Separated' (5)
+    await sequelize.query(
+      `UPDATE "User" SET "user_EmploymentStatusId" = 5, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+    );
+
+    // 3. Soft Delete User (Paranoid)
+    await sequelize.query(
+      `UPDATE "User" SET "deletedAt" = :now WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+    );
+
+    await t.commit();
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "SEPARATION_RELEASE", `Released separation pay ID ${separationId}`, { separationId }, req);
+    await logTransaction(null, currentAdminId, "SEPARATION_RELEASE", `Released separation pay and archived user ${user_Id}`, { separationId, user_Id }, req);
 
-    res.status(200).json({ message: "Separation pay released successfully." });
+    res.status(200).json({ message: "Separation pay released and employee archived." });
   } catch (error) {
+    if (t) await t.rollback();
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Cancels/Rescinds Separation Pay.
+ */
+exports.cancelSeparationPay = async (req, res) => {
+  const { separationId } = req.params;
+  const t = await sequelize.transaction();
+  try {
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    const record = await sequelize.query(
+      `SELECT * FROM "Payroll_Separation" WHERE "separationId" = :separationId LIMIT 1`,
+      { replacements: { separationId }, type: QueryTypes.SELECT, transaction: t }
+    );
+
+    if (record.length === 0) {
+      await t.rollback();
+      return res.status(404).json({ error: "Record not found." });
+    }
+
+    if (record[0].status === 'Released') {
+      await t.rollback();
+      return res.status(400).json({ error: "Cannot cancel a released payment." });
+    }
+
+    const user_Id = record[0].user_Id;
+
+    // 1. Reset User Status to 'Regular' (1) - or could be mapped back to previous
+    await sequelize.query(
+      `UPDATE "User" SET "user_EmploymentStatusId" = 1, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+    );
+
+    // 2. Delete Separation Record
+    await sequelize.query(
+      `DELETE FROM "Payroll_Separation" WHERE "separationId" = :separationId`,
+      { replacements: { separationId }, type: QueryTypes.DELETE, transaction: t }
+    );
+
+    // 3. Get User Email for notification
+    const user = await sequelize.query(`SELECT "user_Email", "user_FirstName", "user_LastName" FROM "User" WHERE "user_Id" = :user_Id`, {
+      replacements: { user_Id },
+      type: QueryTypes.SELECT,
+      transaction: t
+    });
+
+    if (user.length > 0) {
+      await sendTerminationRescissionEmail({
+        email: user[0].user_Email,
+        name: `${user[0].user_FirstName} ${user[0].user_LastName}`
+      });
+    }
+
+    await t.commit();
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "SEPARATION_CANCEL", `Rescinded separation for user ${user_Id}`, { separationId, user_Id }, req);
+
+    res.status(200).json({ message: "Termination notice rescinded and employee status restored." });
+  } catch (error) {
+    if (t) await t.rollback();
     res.status(500).json({ error: error.message });
   }
 };
@@ -2465,9 +2795,12 @@ exports.releaseSeparationPay = async (req, res) => {
 exports.getSeparationPayHistory = async (req, res) => {
   try {
     const history = await sequelize.query(
-      `SELECT s.*, u."user_FirstName", u."user_LastName"
+      `SELECT s.*, u."user_FirstName", u."user_LastName", st."statusName" as "userCurrentStatus",
+              c."causeName"
        FROM "Payroll_Separation" s
        JOIN "User" u ON s."user_Id" = u."user_Id"
+       JOIN "employementStatus" st ON u."user_EmploymentStatusId" = st."statusId"
+       JOIN "Separation_Cause" c ON s."causeId" = c."causeId"
        ORDER BY s."separationDate" DESC`,
       { type: QueryTypes.SELECT }
     );
@@ -2533,7 +2866,56 @@ exports.getRetirementPayPreview = async (req, res) => {
     // Tax Exemption Check (Age 50+ AND 10+ years tenure AND one-time only)
     const isTaxExempt = age >= 50 && yearsOfService >= 10 && !user.hasAvailedRetirementTax;
 
-    res.status(200).json({
+    // 1. Fetch current year earnings for pro-rated 13th month
+    const currentYearNum = targetDate.getFullYear();
+    const earningsResult = await sequelize.query(
+      `SELECT COALESCE(SUM("basicPay"), 0) as "totalBasic"
+       FROM "Payroll" 
+       WHERE "user_Id" = :user_Id 
+         AND EXTRACT(YEAR FROM "period_Start") = :year 
+         AND "status" = 2`,
+      { replacements: { user_Id, year: currentYearNum }, type: QueryTypes.SELECT }
+    );
+    const totalBasicYear = parseFloat(earningsResult[0]?.totalBasic || 0);
+    const prorated13thMonth = totalBasicYear / 12;
+
+    // 2. Fetch Leave Balances
+    const leaveBalances = await sequelize.query(
+      `SELECT "VL_balance", "SL_balance" FROM "Leave_Balance" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    const vlBalance = parseFloat(leaveBalances[0]?.VL_balance || 0);
+    const slBalance = parseFloat(leaveBalances[0]?.SL_balance || 0);
+    const totalLeaveCredits = vlBalance + slBalance;
+    const leaveConversion = totalLeaveCredits * dailyRate;
+
+    // 3. Fetch Final Worked Days Salary (Attendance Audit)
+    const lastPayroll = await sequelize.query(
+      `SELECT MAX(pp."endDate") as "lastDate" 
+       FROM "Payroll" p 
+       JOIN "PayrollPeriod" pp ON p."periodId" = pp."periodId" 
+       WHERE p."user_Id" = :user_Id AND p."status" = 2`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    
+    const auditStartDate = lastPayroll[0]?.lastDate || user.hireDate;
+    const attendanceGap = await sequelize.query(
+      `SELECT COUNT(*) as "worked" 
+       FROM "employee_Logging_report" 
+       WHERE "user_id" = :user_Id 
+         AND "log_Date" > :startDate 
+         AND "log_Date" <= :sepDate
+         AND "attendance_StatusId" IN (1, 2, 4, 5, 6)`,
+      { 
+        replacements: { user_Id, startDate: auditStartDate, sepDate: retirementDate }, 
+        type: QueryTypes.SELECT 
+      }
+    );
+
+    const workedDaysCount = parseInt(attendanceGap[0]?.worked || 0);
+    const finalWorkedSalary = workedDaysCount * dailyRate;
+
+    return res.status(200).json({
       user_Id: user.user_Id,
       name: `${user.user_LastName}, ${user.user_FirstName}`,
       age,
@@ -2548,12 +2930,21 @@ exports.getRetirementPayPreview = async (req, res) => {
         thirteenthMonth2_5Days,
         oneHalfMonthSalary
       },
+      backPay: {
+        prorated13thMonth,
+        totalBasicYear,
+        leaveConversion,
+        vlBalance,
+        slBalance,
+        workedDaysCount,
+        finalWorkedSalary
+      },
       totalAmount,
       hireDate: user.hireDate,
       retirementDate
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -2577,14 +2968,20 @@ exports.generateRetirementPay = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
+    const backPayTotal = parseFloat(previewRes.backPay.prorated13thMonth || 0) + 
+                         parseFloat(previewRes.backPay.leaveConversion || 0) + 
+                         parseFloat(previewRes.backPay.finalWorkedSalary || 0);
+
     const result = await sequelize.query(
       `INSERT INTO "Payroll_Retirement" 
         ("user_Id", "hireDate", "retirementDate", "yearsOfService", "dailyRate", "totalAmount", 
          "component_salary_15days", "component_sil_5days", "component_13thmonth_2_5days", 
+         "backPay_13thMonth", "backPay_LeaveConversion", "finalWorkedSalary", "backPay_Total",
          "isTaxExempt", "status", "createdAt", "updatedAt")
        VALUES 
         (:user_Id, :hireDate, :retirementDate, :yearsOfService, :dailyRate, :totalAmount, 
          :salary15Days, :sil5Days, :thirteenthMonth2_5Days, 
+         :bp13th, :bpLeave, :bpFinalSalary, :bpTotal,
          :isTaxExempt, 'Draft', :now, :now)
        RETURNING "retirementId"`,
       {
@@ -2598,6 +2995,10 @@ exports.generateRetirementPay = async (req, res) => {
           salary15Days: previewRes.components.salary15Days,
           sil5Days: previewRes.components.sil5Days,
           thirteenthMonth2_5Days: previewRes.components.thirteenthMonth2_5Days,
+          bp13th: previewRes.backPay.prorated13thMonth,
+          bpLeave: previewRes.backPay.leaveConversion,
+          bpFinalSalary: previewRes.backPay.finalWorkedSalary,
+          bpTotal: backPayTotal,
           isTaxExempt: previewRes.isTaxExempt,
           now: nowStr
         },
@@ -2633,6 +3034,8 @@ exports.releaseRetirementPay = async (req, res) => {
     if (retirement[0].status === 'Released') return res.status(400).json({ error: "Retirement pay already released." });
 
     await sequelize.transaction(async (t) => {
+      const user_Id = retirement[0].user_Id;
+
       // 1. Update Retirement Status
       await sequelize.query(
         `UPDATE "Payroll_Retirement" SET "status" = 'Released', "releasedAt" = :now, "updatedAt" = :now WHERE "retirementId" = :retirementId`,
@@ -2643,16 +3046,104 @@ exports.releaseRetirementPay = async (req, res) => {
       if (retirement[0].isTaxExempt) {
         await sequelize.query(
           `UPDATE "User" SET "hasAvailedRetirementTax" = true WHERE "user_Id" = :user_Id`,
-          { replacements: { user_Id: retirement[0].user_Id }, type: QueryTypes.UPDATE, transaction: t }
+          { replacements: { user_Id }, type: QueryTypes.UPDATE, transaction: t }
         );
       }
 
-      // 3. Log Transaction
+      // 3. Update User Status to 'Retired' (6) and Archive
+      await sequelize.query(
+        `UPDATE "User" SET "user_EmploymentStatusId" = 6, "deletedAt" = :now, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+      );
+
+      // 4. Log Transaction
       const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-      await logTransaction(null, currentAdminId, "RETIREMENT_RELEASE", `Released retirement pay ID ${retirementId}`, { retirementId }, req);
+      await logTransaction(null, currentAdminId, "RETIREMENT_RELEASE", `Released retirement pay ID ${retirementId} and archived user ${user_Id}`, { retirementId, user_Id }, req);
     });
 
     res.status(200).json({ message: "Retirement pay released successfully." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Updates a draft Retirement Pay record with a new date.
+ * Re-calculates everything based on the new retirementDate.
+ */
+exports.updateRetirementDate = async (req, res) => {
+  const { retirementId } = req.params;
+  const { retirementDate } = req.body;
+
+  if (!retirementDate) return res.status(400).json({ error: "retirementDate is required." });
+
+  try {
+    // 1. Fetch current record
+    const record = await sequelize.query(
+      `SELECT * FROM "Payroll_Retirement" WHERE "retirementId" = :retirementId LIMIT 1`,
+      { replacements: { retirementId }, type: QueryTypes.SELECT }
+    );
+
+    if (record.length === 0) return res.status(404).json({ error: "Record not found." });
+    if (record[0].status === 'Released') return res.status(400).json({ error: "Cannot edit a released payout." });
+
+    const user_Id = record[0].user_Id;
+
+    // 2. Trigger re-calculation
+    const previewRes = await exports.getRetirementPayPreview({ query: { user_Id, retirementDate } }, { 
+      status: () => ({ json: (d) => d }),
+      json: (d) => d
+    });
+
+    if (previewRes.error) return res.status(400).json({ error: previewRes.error });
+
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    const backPayTotal = parseFloat(previewRes.backPay.prorated13thMonth || 0) + 
+                         parseFloat(previewRes.backPay.leaveConversion || 0) + 
+                         parseFloat(previewRes.backPay.finalWorkedSalary || 0);
+
+    // 3. Update DB
+    await sequelize.query(
+      `UPDATE "Payroll_Retirement" SET
+        "retirementDate" = :retirementDate,
+        "yearsOfService" = :yearsOfService,
+        "totalAmount" = :totalAmount,
+        "component_salary_15days" = :salary15Days,
+        "component_sil_5days" = :sil5Days,
+        "component_13thmonth_2_5days" = :thirteenthMonth2_5Days,
+        "backPay_13thMonth" = :bp13th,
+        "backPay_LeaveConversion" = :bpLeave,
+        "finalWorkedSalary" = :bpFinalSalary,
+        "backPay_Total" = :bpTotal,
+        "isTaxExempt" = :isTaxExempt,
+        "updatedAt" = :now
+       WHERE "retirementId" = :retirementId`,
+      {
+        replacements: {
+          retirementId,
+          retirementDate,
+          yearsOfService: previewRes.yearsOfService,
+          totalAmount: previewRes.totalAmount,
+          salary15Days: previewRes.components.salary15Days,
+          sil5Days: previewRes.components.sil5Days,
+          thirteenthMonth2_5Days: previewRes.components.thirteenthMonth2_5Days,
+          bp13th: previewRes.backPay.prorated13thMonth,
+          bpLeave: previewRes.backPay.leaveConversion,
+          bpFinalSalary: previewRes.backPay.finalWorkedSalary,
+          bpTotal: backPayTotal,
+          isTaxExempt: previewRes.isTaxExempt,
+          now: nowStr
+        },
+        type: QueryTypes.UPDATE
+      }
+    );
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "RETIREMENT_UPDATE", `Updated retirement date to ${retirementDate} for user ${user_Id}`, { retirementId }, req);
+
+    res.status(200).json({ message: "Retirement date updated and amounts re-calculated." });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

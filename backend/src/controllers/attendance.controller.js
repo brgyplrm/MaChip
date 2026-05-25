@@ -365,14 +365,20 @@ exports.viewUserLogs = async (req, res) => {
         const ot_Out = dayOT && outArr.length > 0 && outArr[outArr.length-1].substring(0,5) > dayOT.HrFrom.substring(0,5) ? outArr[outArr.length-1].substring(0,5) : "—";
       
         const otStartTime = dayOT ? dayOT.HrFrom.substring(0, 5) : null;
-        const { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings, otStartTime);
+        let { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings, otStartTime);
         
+        const mStart = settings?.morningShiftStart?.substring(0, 5) || "08:30";
+        const mEnd   = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
+        const lStart = settings?.lunchStartThreshold?.substring(0, 5) || "12:00";
+        const lEnd   = settings?.lunchEndThreshold?.substring(0, 5) || "13:00";
+
+        if (isOnField) {
+          morning_In = mStart; morning_Out = lStart; afternoon_In = lEnd; afternoon_Out = mEnd;
+        }
+
         // Final fallback for time_Out: pick the absolute last out if bucketed ones are missing
         const absoluteLastOut = outArr.length > 0 ? outArr[outArr.length - 1].substring(0, 5) : "—";
         const effectiveOut = (ot_Out !== "—" ? ot_Out : (afternoon_Out !== "—" ? afternoon_Out : (morning_Out !== "—" ? morning_Out : absoluteLastOut)));
-
-        const mStart = settings?.morningShiftStart?.substring(0, 5) || "08:30";
-        const mEnd   = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
 
         // ── TIME-SLICING CALCULATION (Prefer Stored Values) ──
         let stats = {
@@ -383,8 +389,13 @@ exports.viewUserLogs = async (req, res) => {
           totalPayableHours: parseFloat(report.total_payable_hrs || 0)
         };
 
+        if (isOnField) {
+          stats.reg_hrs = 8.0;
+          stats.totalPayableHours = 8.0;
+        }
+
         // Fallback for older records or if recalculation is needed
-        if (stats.totalPayableHours === 0 && inArr.length > 0 && outArr.length > 0) {
+        if (stats.totalPayableHours === 0 && !isOnField && inArr.length > 0 && outArr.length > 0) {
           let firstIn = inArr[0];
           let lastOut = outArr[outArr.length - 1];
 
@@ -441,6 +452,7 @@ exports.viewUserLogs = async (req, res) => {
           },
           logStatus: report.loggedStatusName,
           attendanceStatus: (report.attendanceStatusName === "Exempt" ? "On Time" : (report.attendanceStatusName || (stats.totalPayableHours > 0 ? "Present" : "No Record"))),
+          systemGenerated: report.logged_StatusId === 7 || isOnField
         };
       }));
 
@@ -1198,10 +1210,6 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       const absoluteLastOut = outArr.length > 0 ? outArr[outArr.length - 1].substring(0, 5) : "—";
       let effectiveOut = (afternoon_Out !== "—" ? afternoon_Out : (morning_Out !== "—" ? morning_Out : absoluteLastOut));
 
-      if (isOnField) {
-        morning_In = mStart; morning_Out = lStart; afternoon_In = lEnd; afternoon_Out = mEnd;
-      }
-
       // ── TIME-SLICING CALCULATION ──
       let firstIn = inArr[0];
       let lastOut = outArr[outArr.length - 1];
@@ -1210,6 +1218,14 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       if (!dayOT && lastOut && lastOut > mEnd && r.user_ShiftId !== 2) lastOut = mEnd;
 
       const hoursObj = await calculateMultiBucketHours(firstIn, lastOut, dateStr, r.user_ShiftId, settings, holidays);
+
+      if (isOnField) {
+        morning_In = mStart; morning_Out = lStart; afternoon_In = lEnd; afternoon_Out = mEnd;
+        // Ensure on-field work is credited with 8 hours even if no physical logs exist
+        hoursObj.reg_hrs = 8.0;
+        hoursObj.totalPayableHours = 8.0;
+        hoursObj.formatted = "8h 0m"; 
+      }
 
       // ── INCIDENTAL VISIT OVERRIDE (Status 7) ──
       if (parseInt(r.attendance_StatusId) === 7) {
@@ -1243,11 +1259,12 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         time_Out: ot_Out !== "—" ? ot_Out : effectiveOut,
         inArr,
         outArr,
-        hoursWorked: hoursObj.totalPayableHours,
-        hoursWorkedFormatted: formatDuration(hoursObj.totalPayableHours),
-        status: (r.attendanceStatusName === "Exempt" ? "On Time" : (r.attendanceStatusName || (hoursObj.totalPayableHours > 0 ? "Present" : "—"))),
+        hoursWorked: hoursObj.reg_hrs || 0,
+        hoursWorkedFormatted: formatDuration(hoursObj.reg_hrs || 0),
+        status: (r.attendanceStatusName === "Exempt" ? "On Time" : (r.attendanceStatusName || (hoursObj.reg_hrs > 0 ? "Present" : "—"))),
         shiftId: r.user_ShiftId,
-        buckets: hoursObj.buckets
+        buckets: hoursObj.buckets,
+        systemGenerated: r.logged_StatusId === 7
       };
     }));
 
@@ -1260,8 +1277,62 @@ exports.getAttendanceReportInternal = getAttendanceReportInternal;
 exports.getAttendanceReport = async (req, res) => {
   const { startDate, endDate, user_Id } = req.query;
   try {
-    const data = await getAttendanceReportInternal(startDate, endDate, user_Id);
-    res.status(200).json(data);
+    const logs = await getAttendanceReportInternal(startDate, endDate, user_Id);
+    
+    let payrollSummary = null;
+
+    // If a specific user is requested, try to fetch payroll summary
+    if (user_Id && user_Id !== "All Employees") {
+      const payroll = await sequelize.query(
+        `SELECT p.*, d."tardiness_Amnt", (COALESCE(d."absence_Hrs", 0) / 8) as "absence_Days"
+         FROM "Payroll" p
+         LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+         WHERE p."user_Id" = :user_Id 
+           AND p."period_Start" = :startDate 
+           AND p."period_End" = :endDate
+         LIMIT 1`,
+        { replacements: { user_Id, startDate, endDate }, type: QueryTypes.SELECT }
+      );
+
+      if (payroll.length > 0) {
+        const p = payroll[0];
+        payrollSummary = {
+          reg_hrs: p.NoHrs_Worked,
+          ratePerHr: p.ratePerHr,
+          basicPay: p.basicPay,
+          tardiness_Amnt: p.tardiness_Amnt,
+          absence_Days: p.absence_Days,
+          netPay: p.netPay
+        };
+      } else {
+        // Fallback: If payroll not generated, fetch live rates from User profile
+        const user = await sequelize.query(
+          `SELECT "dailyRate" FROM "User" WHERE "user_Id" = :user_Id`,
+          { replacements: { user_Id }, type: QueryTypes.SELECT }
+        );
+        if (user.length > 0) {
+          const dailyRate = parseFloat(user[0].dailyRate || 0);
+          const ratePerHr = dailyRate / 8;
+          const reg_hrs = logs.reduce((sum, l) => sum + parseFloat(l.hoursWorked || 0), 0);
+          
+          payrollSummary = {
+            reg_hrs,
+            ratePerHr,
+            basicPay: reg_hrs * ratePerHr, // Estimated gross based on attendance
+            tardiness_Amnt: 0,
+            absence_Days: 0,
+            netPay: null // TBD
+          };
+        }
+      }
+    }
+
+    // Return as object if summary exists, else stay as array for backward compatibility
+    if (payrollSummary) {
+      return res.status(200).json({ logs, summary: payrollSummary });
+    }
+
+    res.status(200).json(logs);
   } catch (error) {
     console.error("[GET ATTENDANCE REPORT ERROR]:", error);
     res.status(500).json({ error: error.message });

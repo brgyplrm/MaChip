@@ -151,7 +151,7 @@ const AdminReports = () => {
       const response = await fetchWithAuth(`/api/attendance/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
       if (response.ok) {
         const data = await response.json();
-        setAttendanceData(data);
+        setAttendanceData(Array.isArray(data) ? data : (data.logs || []));
       }
     } catch (error) {
       console.error("Error fetching attendance report:", error);

@@ -39,6 +39,11 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         claimedOut: request.LC_claimedOut || "",
         correctionCategory: request.LC_correctionCategory || "",
         period: request.HD_period || "",
+        // Loan fields
+        agency: request.LR_agency || "",
+        loanType: request.LR_loanType || "",
+        amountRequested: request.LR_amount || "",
+        monthsToPay: request.LR_months || "",
       });
     }
   }, [request]);
@@ -51,7 +56,13 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
   };
 
   const handleSelectChange = (name, value) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const updated = { ...prev, [name]: value };
+      if (name === 'agency') {
+        updated.loanType = "";
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -204,6 +215,69 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                   </Select>
                 </div>
                </>
+            )}
+
+            {[13, 14].includes(request.emp_reqTypeId) && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700">Agency</label>
+                  <Select value={formData.agency} onValueChange={(val) => handleSelectChange('agency', val)}>
+                    <SelectTrigger className="w-full h-10 border-slate-200">
+                      <SelectValue placeholder="Select Agency" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[110]">
+                      <SelectItem value="SSS">SSS</SelectItem>
+                      <SelectItem value="Pag-IBIG">Pag-IBIG</SelectItem>
+                      <SelectItem value="Company">Company</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700">Loan Type</label>
+                  <Select 
+                    value={formData.loanType} 
+                    onValueChange={(val) => handleSelectChange('loanType', val)}
+                    disabled={!formData.agency}
+                  >
+                    <SelectTrigger className="w-full h-10 border-slate-200">
+                      <SelectValue placeholder={!formData.agency ? "Select agency first" : "Select Type"} />
+                    </SelectTrigger>
+                    <SelectContent className="z-[110]">
+                      {formData.agency === "SSS" && (
+                        <>
+                          <SelectItem value="Salary Loan">Salary Loan</SelectItem>
+                          <SelectItem value="Calamity Loan">Calamity Loan</SelectItem>
+                          <SelectItem value="Pension Loan">Pension Loan</SelectItem>
+                          <SelectItem value="Emergency Loan">Emergency Loan</SelectItem>
+                          <SelectItem value="Micro-Loan (LoanLite)">Micro-Loan (LoanLite)</SelectItem>
+                          <SelectItem value="SSS Conso Loan">SSS Conso Loan</SelectItem>
+                        </>
+                      )}
+                      {formData.agency === "Pag-IBIG" && (
+                        <>
+                          <SelectItem value="Multi-Purpose Loan (MPL)">Multi-Purpose Loan (MPL)</SelectItem>
+                          <SelectItem value="Calamity Loan">Calamity Loan</SelectItem>
+                        </>
+                      )}
+                      {formData.agency === "Company" && (
+                        <SelectItem value="Cash Advance">Cash Advance</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {request.emp_reqTypeId === 14 && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700">Amount</label>
+                      <Input type="number" name="amountRequested" value={formData.amountRequested} onChange={handleInputChange} required />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700">Months</label>
+                      <Input type="number" name="monthsToPay" value={formData.monthsToPay} onChange={handleInputChange} required />
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </div>
 

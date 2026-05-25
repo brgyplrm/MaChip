@@ -116,6 +116,12 @@ exports.UpdateUserRequest = async (req, res) => {
       await sequelize.query(`UPDATE "HalfDay_Leave" SET "DateOfLeave" = :StartDate, "reason" = :reason, "WithPayID" = :WithPayID, "period" = :period WHERE "emp_reqId" = :requestId`, { replacements: { StartDate, reason, WithPayID: WithPayID || 1, period: period || "Morning", requestId }, transaction: t });
     } else if (typeId === 5) {
       await sequelize.query(`UPDATE "Log_Correction" SET "logDate" = :logDate, "claimedIn" = :claimedIn, "claimedOut" = :claimedOut, "reason" = :reason WHERE "emp_reqId" = :requestId`, { replacements: { logDate, claimedIn, claimedOut, reason, requestId }, transaction: t });
+    } else if (typeId === 13 || typeId === 14) {
+      const { agency, loanType, amountRequested, monthsToPay } = req.body;
+      await sequelize.query(
+        `UPDATE "Loan_Request" SET "agency" = :agency, "loanType" = :loanType, "amountRequested" = :amountRequested, "monthsToPay" = :monthsToPay, "updatedAt" = :now WHERE "emp_reqId" = :requestId`,
+        { replacements: { agency, loanType, amountRequested, monthsToPay, now: nowStr, requestId }, transaction: t }
+      );
     }
 
     // ── Notify Employee ──────────────────────────────────────────────────────
@@ -834,7 +840,46 @@ exports.UserCreateRequest = async (req, res) => {
         },
       );
       childData = lcResult[0][0];
-    } else {
+    } 
+    // Loan Request (13: Certification, 14: Enrollment)
+    else if (finalReqTypeId === 13 || finalReqTypeId === 14) {
+      const { agency, loanType, amountRequested, monthsToPay } = req.body;
+      const isEnrollment = finalReqTypeId === 14;
+
+      if (!agency || !loanType) {
+        await t.rollback();
+        return res.status(400).json({ error: "Agency and Loan Type are required for loan requests." });
+      }
+
+      if (isEnrollment && (!amountRequested || !proof_File)) {
+        await t.rollback();
+        return res.status(400).json({ error: "Amount and Voucher/Proof File are mandatory for loan enrollment." });
+      }
+
+      const loanReqResult = await sequelize.query(
+        `INSERT INTO "Loan_Request"
+        ("emp_reqId", "user_Id", "agency", "loanType", "amountRequested", "monthsToPay", "isEnrollment", "proof_File", "createdAt", "updatedAt")
+        VALUES (:emp_reqId, :userId, :agency, :loanType, :amountRequested, :monthsToPay, :isEnrollment, :proof_File, :now, :now)
+        RETURNING *`,
+        {
+          replacements: {
+            emp_reqId,
+            userId: finalUserId,
+            agency,
+            loanType,
+            amountRequested: amountRequested || null,
+            monthsToPay: monthsToPay || null,
+            isEnrollment,
+            proof_File: proof_File,
+            now: nowStr
+          },
+          type: QueryTypes.INSERT,
+          transaction: t
+        }
+      );
+      childData = loanReqResult[0][0];
+    }
+    else {
       await t.rollback();
       return res.status(400).json({ error: "Invalid Request Type" });
     }
@@ -843,7 +888,13 @@ exports.UserCreateRequest = async (req, res) => {
     await t.commit();
 
     // 4. Notifications
-    const typeNameMap = { 1: "Overtime", 2: "Onfield Work", 3: "Vacation Leave", 4: "Sick Leave", 5: "Log Correction", 6: "Emergency Leave", 7: "Half-Day Leave" };
+    const typeNameMap = { 
+      1: "Overtime", 2: "Onfield Work", 3: "Vacation Leave", 4: "Sick Leave", 
+      5: "Log Correction", 6: "Emergency Leave", 7: "Half-Day Leave",
+      8: "Maternity Leave", 9: "Paternity Leave", 10: "Solo Parent Leave",
+      11: "VAWC Leave", 12: "Special Leave for Women",
+      13: "Loan Certification", 14: "Loan Enrollment"
+    };
     const typeName = typeNameMap[finalReqTypeId] || "Request";
 
     // Fetch requester details for the approver notifications
@@ -866,7 +917,9 @@ exports.UserCreateRequest = async (req, res) => {
         replacements: {
           userId: finalUserId,
           title: "Request Submitted",
-          message: `Your ${typeName} request has been submitted and is currently pending review.`,
+          message: finalReqTypeId === 13 
+            ? `Your request for ${childData.agency} loan certification has been submitted. The admin will be notified to certify your application on the portal.`
+            : `Your ${typeName} request has been submitted and is currently pending review.`,
           targetId: emp_reqId,
           now: nowStr,
         },
@@ -910,18 +963,25 @@ exports.UserCreateRequest = async (req, res) => {
       } else if (finalReqTypeId === 7) { // Half-Day
         dateStr = req.body.DateOfLeave;
         duration = `Half-Day (${req.body.period})`;
+      } else if (finalReqTypeId === 13 || finalReqTypeId === 14) {
+        dateStr = todayStr;
+        duration = `${childData.agency} - ${childData.loanType}`;
       }
 
       for (const approver of approvers) {
         // 1. In-App Notification
+        const customMsg = finalReqTypeId === 13 
+          ? `Action Required: ${requesterName} is requesting certification for an ${childData.agency} ${childData.loanType} loan. Please check the employer portal.`
+          : `${requesterName} has submitted a ${typeName} request that requires your review.`;
+
         await sequelize.query(
           `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
            VALUES (:userId, :title, :message, false, :targetId, :now, :now)`,
           {
             replacements: {
               userId: approver.user_Id,
-              title: "New Request for Review",
-              message: `${requesterName} has submitted a ${typeName} request that requires your review.`,
+              title: finalReqTypeId === 13 ? "Loan Certification Nudge" : "New Request for Review",
+              message: customMsg,
               targetId: emp_reqId,
               now: nowStr,
             },
@@ -1029,6 +1089,12 @@ exports.GetUserRequests = async (req, res) => {
         lc."claimedIn" as "LC_claimedIn",
         lc."claimedOut" as "LC_claimedOut",
         lc."correctionCategory" as "LC_correctionCategory",
+        lr."agency" as "LR_agency",
+        lr."loanType" as "LR_loanType",
+        lr."amountRequested" as "LR_amount",
+        lr."monthsToPay" as "LR_months",
+        lr."isEnrollment" as "LR_isEnrollment",
+        lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
         lb."SL_balance",
         lb."SoloParent_balance",
@@ -1055,6 +1121,7 @@ exports.GetUserRequests = async (req, res) => {
       LEFT JOIN "withPay" wpst ON st."WithPayID" = wpst."withPayId"
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
+      LEFT JOIN "Loan_Request" lr ON er."emp_reqId" = lr."emp_reqId"
       LEFT JOIN "User" ap ON er."processedBy" = ap."user_Id"
       LEFT JOIN "User" rc ON er."recommendedBy" = rc."user_Id"
       LEFT JOIN "Leave_Balance" lb ON er."user_Id" = lb."user_Id" AND lb."year" = (SELECT EXTRACT(YEAR FROM CURRENT_DATE))
@@ -1133,6 +1200,12 @@ exports.GetAllRequests = async (req, res) => {
         lc."claimedOut" as "LC_claimedOut",
         lc."correctionCategory" as "LC_correctionCategory",
         lc."proof_File" as "LC_proof_File",
+        lr."agency" as "LR_agency",
+        lr."loanType" as "LR_loanType",
+        lr."amountRequested" as "LR_amount",
+        lr."monthsToPay" as "LR_months",
+        lr."isEnrollment" as "LR_isEnrollment",
+        lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
         lb."SL_balance",
         lb."SoloParent_balance",
@@ -1162,6 +1235,7 @@ exports.GetAllRequests = async (req, res) => {
       LEFT JOIN "withPay" wpst ON st."WithPayID" = wpst."withPayId"
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
+      LEFT JOIN "Loan_Request" lr ON er."emp_reqId" = lr."emp_reqId"
       LEFT JOIN "Leave_Balance" lb ON er."user_Id" = lb."user_Id" AND lb."year" = :currentYear
       ORDER BY er."createdAt" DESC`,
       {
@@ -1466,6 +1540,58 @@ exports.UpdateStatusRequest = async (req, res) => {
     }
     // --------------------------------------------------
 
+    // --- AUTO-CREATE LOAN DEDUCTION FOR ENROLLMENT ---
+    if (finalStatusId === 2 && typeId === 14) {
+      const loanDetails = await sequelize.query(
+        `SELECT * FROM "Loan_Request" WHERE "emp_reqId" = :emp_reqId`,
+        { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+      );
+
+      if (loanDetails.length > 0) {
+        const { agency, loanType, amountRequested, monthsToPay, proof_File } = loanDetails[0];
+        const totalAmount = parseFloat(amountRequested);
+        const months = parseInt(monthsToPay || 12);
+        const cutoffs = months * 2;
+        const deductionPerCutoff = totalAmount / cutoffs;
+
+        // Map agency/type to deductionType enum
+        let dedType = 'multipurpose';
+        if (agency === 'SSS') dedType = 'sss_loan';
+        else if (agency === 'Pag-IBIG') {
+          if (loanType === 'Calamity Loan') dedType = 'calamity';
+          else dedType = 'hdmf_loan';
+        }
+        else if (agency === 'Company') dedType = 'cash_advance';
+        
+        // Handle specialized SSS/Pag-IBIG Calamity
+        if (loanType === 'Calamity Loan') dedType = 'calamity';
+
+        await sequelize.query(
+          `INSERT INTO "Loan_Deductions" 
+            ("userId", "deductionType", "status", "contractDate", "monthsToPay", "deductionPerCutoff", "totalAmount", "remainingBalance", "provider", "notes", "createdBy", "createdAt", "updatedAt")
+          VALUES 
+            (:userId, :dedType, 'active', :now, :months, :perCutoff, :total, :total, :agency, :notes, :adminId, :now, :now)`,
+          {
+            replacements: {
+              userId: requesterId,
+              dedType,
+              now: nowStr,
+              months,
+              perCutoff: deductionPerCutoff,
+              total: totalAmount,
+              agency,
+              notes: `Auto-enrolled from Request #${emp_reqId}`,
+              adminId: operatorId
+            },
+            type: QueryTypes.INSERT
+          }
+        );
+
+        await logTransaction(requesterId, operatorId, "LOAN_ENROLLED", `${agency} loan enrolled for ${totalAmount} via approved request #${emp_reqId}`, { agency, totalAmount });
+      }
+    }
+    // --------------------------------------------------
+
     const newRequestResult = await sequelize.query(
       `SELECT * FROM "emp_Request" WHERE "emp_reqId" = :emp_reqId`,
       { replacements: { emp_reqId }, type: QueryTypes.SELECT }
@@ -1741,6 +1867,12 @@ exports.GetRequestDetails = async (req, res) => {
         lc."claimedOut" as "LC_claimedOut",
         lc."correctionCategory" as "LC_correctionCategory",
         lc."proof_File" as "LC_proof_File",
+        lr."agency" as "LR_agency",
+        lr."loanType" as "LR_loanType",
+        lr."amountRequested" as "LR_amount",
+        lr."monthsToPay" as "LR_months",
+        lr."isEnrollment" as "LR_isEnrollment",
+        lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
         lb."SL_balance",
         lb."VL_used",
@@ -1764,6 +1896,7 @@ exports.GetRequestDetails = async (req, res) => {
       LEFT JOIN "withPay" wphd ON hd."WithPayID" = wphd."withPayId"
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
+      LEFT JOIN "Loan_Request" lr ON er."emp_reqId" = lr."emp_reqId"
       LEFT JOIN "Leave_Balance" lb ON er."user_Id" = lb."user_Id" AND lb."year" = :currentYear
       LEFT JOIN "User" ap ON er."processedBy" = ap."user_Id"
       LEFT JOIN "User" rc ON er."recommendedBy" = rc."user_Id"
@@ -1955,6 +2088,7 @@ exports.DeleteRequest = async (req, res) => {
     else if (typeId === 4) await sequelize.query(`DELETE FROM "Sick_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
     else if (typeId === 6) await sequelize.query(`DELETE FROM "Emergency_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
     else if (typeId === 7) await sequelize.query(`DELETE FROM "HalfDay_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
+    else if (typeId === 13 || typeId === 14) await sequelize.query(`DELETE FROM "Loan_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
 
     await sequelize.query(`DELETE FROM "emp_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
 
