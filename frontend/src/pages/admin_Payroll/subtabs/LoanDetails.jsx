@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Download, Pencil, Pause, CheckCircle2, User, FileText, Clock, DollarSign } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Sidebar from "../../../components/Sidebar";
+import { useState } from "react";
 
 
 export default function LoanDetailsPage() {
@@ -73,6 +74,26 @@ export default function LoanDetailsPage() {
             year: 'numeric'
         });
         }
+
+    const useTableData = (data, rowsPerPage = 5) => {
+    const [page, setPage] = useState(1);
+    const [search, setSearch] = useState("");
+
+    const filtered = data?.filter(item => 
+        Object.values(item).some(val => 
+            String(val).toLowerCase().includes(search.toLowerCase())
+        )
+    ) || [];
+
+    const totalPages = Math.ceil(filtered.length / rowsPerPage);
+    const paginated = filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage);
+
+    return { page, setPage, search, setSearch, paginated, totalPages };
+};
+
+    // Inside your component, initialize them:
+    const amortizationTable = useTableData(loan?.amortization);
+    const historyTable = useTableData(loan?.history);
   return (
     <div className="flex flex-col w-full min-h-screen">
     <Sidebar>
@@ -192,30 +213,38 @@ export default function LoanDetailsPage() {
 
             <TabsContent value="amortization" className="mt-4">
               <Card className="border-0 shadow-sm overflow-hidden py-0">
-                {/* Header title */}
-                <div className="bg-[#2A174E] p-4 text-white font-bold text-sm">Payment History</div>
+                {/* Header Title */}
+                <div className="bg-[#2A174E] p-4 text-white font-bold text-sm">Amortization Schedule</div>
                 
-                {/* Added 'px-4' here to provide padding for the table content */}
-                <div className="px-4 pb-6"> 
+                {/* Added px-4 for side padding */}
+                <div className="px-4 pb-6">
                     <Table>
-                    <TableHeader className="bg-slate-50 [&_tr]:border-0"> {/* Removed border to close the gap */}
+                    {/* Added border-0 to Header to close the gap */}
+                    <TableHeader className="bg-slate-50 [&_tr]:border-0">
                         <TableRow>
-                            <TableHead>Payment ID</TableHead>
-                            <TableHead>Period</TableHead>
-                            <TableHead>Payment Date</TableHead>
-                            <TableHead>Amount Paid</TableHead>
-                            <TableHead>Method</TableHead>
-                            <TableHead>Method</TableHead>
+                        <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">#</TableHead>
+                        <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PERIOD ID</TableHead>
+                        <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">DUE DATE</TableHead>
+                        <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider text-right pr-8">PRINCIPAL</TableHead>
+                        <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider text-right pr-8">TOTAL PAYMENT</TableHead>
+                        <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider text-right pr-8">REMAINING</TableHead>
+                        <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider text-center">STATUS</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {loan?.history?.map((pay) => (
-                        <TableRow key={pay?.id}>
-                            <TableCell className="font-bold">{pay?.id}</TableCell>
-                            <TableCell>{pay?.period}</TableCell>
-                            <TableCell>{formatDate(pay?.date)}</TableCell>
-                            <TableCell className="text-emerald-600 font-bold">₱{pay?.amount.toLocaleString()}</TableCell>
-                            <TableCell><Badge variant="secondary">{pay?.method}</Badge></TableCell>
+                        {loan?.amortization?.map((row) => (
+                        <TableRow key={row?.id}>
+                            <TableCell>{row?.number}</TableCell>
+                            <TableCell>{row?.periodId}</TableCell>
+                            <TableCell>{formatDate(row?.dueDate)}</TableCell>
+                            <TableCell className="text-right pr-8">₱{row?.principal.toLocaleString()}</TableCell>
+                            <TableCell className="text-right pr-8 text-emerald-600 font-bold">₱{row?.total.toLocaleString()}</TableCell>
+                            <TableCell className="text-right pr-8">₱{row?.remaining.toLocaleString()}</TableCell>
+                            <TableCell className="text-right pr-6">
+                            <Badge className={row?.status === 'PAID' ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}>
+                                {row?.status}
+                            </Badge>
+                            </TableCell>
                         </TableRow>
                         ))}
                     </TableBody>
@@ -227,28 +256,32 @@ export default function LoanDetailsPage() {
             <TabsContent value="history" className="mt-4">
               <Card className="border-0 shadow-sm overflow-hidden py-0">
                 <div className="bg-[#2A174E] p-4 text-white font-bold text-sm">Payment History</div>
-                <Table>
-                  <TableHeader className="bg-slate-50">
-                    <TableRow>
-                        <TableHead>Payment ID</TableHead>
-                        <TableHead>Period</TableHead>
-                        <TableHead>Payment Date</TableHead>
-                        <TableHead>Amount Paid</TableHead>
-                        <TableHead>Method</TableHead>
-                    </TableRow>
-                </TableHeader>
-                  <TableBody>
-                    {loan?.history?.map((pay) => (
-                        <TableRow key={pay?.id}>
-                        <TableCell className="font-bold">{pay?.id}</TableCell>
-                        <TableCell>{pay?.period}</TableCell>
-                        <TableCell>{formatDate(pay?.date)}</TableCell>
-                        <TableCell className="text-emerald-600 font-bold">₱{pay?.amount.toLocaleString()}</TableCell>
-                        <TableCell><Badge variant="secondary">{pay?.method}</Badge></TableCell>
+                
+                {/* Added 'px-4' here to provide padding for the table content */}
+                <div className="px-4 pb-6"> 
+                    <Table>
+                    <TableHeader className="bg-slate-50 [&_tr]:border-0"> {/* Removed border to close the gap */}
+                        <TableRow>
+                            <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">Payment ID</TableHead>
+                            <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">Period</TableHead>
+                            <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider text-center">Payment Date</TableHead>
+                            <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider text-right pr-8">Amount Paid</TableHead>
+                            <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider text-center">Method</TableHead>
                         </TableRow>
-                    ))}
+                    </TableHeader>
+                    <TableBody>
+                        {loan?.history?.map((pay) => (
+                        <TableRow key={pay?.id}>
+                            <TableCell className="font-bold">{pay?.id}</TableCell>
+                            <TableCell>{pay?.period}</TableCell>
+                            <TableCell className="text-center">{formatDate(pay?.date)}</TableCell>
+                            <TableCell className="text-right pr-8 text-emerald-600 font-bold">₱{pay?.amount.toLocaleString()}</TableCell>
+                            <TableCell className="text-center"><Badge variant="secondary">{pay?.method}</Badge></TableCell>
+                        </TableRow>
+                        ))}
                     </TableBody>
-                </Table>
+                    </Table>
+                </div>
               </Card>
             </TabsContent>
           </Tabs>

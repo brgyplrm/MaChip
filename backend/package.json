@@ -8,6 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:reset": "node db_reset.js",
     "db:manager": "node db-manager.js",
+    "seed:users": "node seeds/seed_users.js",
     "migrate": "sequelize db:migrate",
     "migrate:undo": "sequelize db:migrate:undo"
   },

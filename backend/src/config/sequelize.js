@@ -276,6 +276,7 @@ const connectDB = async () => {
     await Payroll_ThirteenthMonth.sync({ alter: true });
 
     // Create the Separation Pay table if it doesn't exist
+    await Separation_Cause.sync({ alter: true });
     await Payroll_Separation.sync({ alter: true });
 
     // Create the Retirement Pay table if it doesn't exist
