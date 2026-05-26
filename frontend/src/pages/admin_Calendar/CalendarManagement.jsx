@@ -7,22 +7,22 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SyncIcon from '@mui/icons-material/Sync';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
-import MapIcon from '@mui/icons-material/Map';
 import AssignmentIcon from '@mui/icons-material/Assignment'; 
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownload';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import CheckIcon from '@mui/icons-material/Check';
 import Toast from "../../components/toast/Toast";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
 import { useState, useEffect } from "react";
 import { formatUserId } from "../../utils/formatUserId";
 import EmptyState from "@/components/EmptyState";
-import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownload';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
-import CheckIcon from '@mui/icons-material/Check';
+
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription} from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,8 +52,30 @@ const CalendarManagement = () => {
 
   const [batchFile, setBatchFile] = useState(null);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [selectedDueDateDetails, setSelectedDueDateDetails] = useState(null);
+  const handleDueDateClick = (dueDate) => {
+    setSelectedDueDateDetails(dueDate);
+  };
+
+  const [selectedPersonnelAction, setSelectedPersonnelAction] = useState(null);
+
+  const handlePersonnelActionClick = (action) => {
+    setSelectedPersonnelAction(action);
+  };
 
   const [selectedHolidayDetails, setSelectedHolidayDetails] = useState(null);
+
+  const getEventConfig = (type, details = "") => {
+    const isSpecial = type === "Holiday" && details?.toLowerCase().includes("special");
+    const configs = {
+      "Holiday": { bg: isSpecial ? "bg-purple-50" : "bg-red-50", text: isSpecial ? "text-purple-900" : "text-red-900", dot: isSpecial ? "bg-purple-500" : "bg-red-500", border: isSpecial ? "border-purple-200" : "border-red-200" },
+      "Leave": { bg: "bg-green-50", text: "text-green-900", dot: "bg-green-500", border: "border-green-200" },
+      "Field Work": { bg: "bg-orange-50", text: "text-orange-900", dot: "bg-orange-500", border: "border-orange-200" },
+      "Overtime": { bg: "bg-blue-50", text: "text-blue-900", dot: "bg-blue-500", border: "border-blue-200" },
+      "Due Date": { bg: "bg-teal-50", text: "text-teal-900", dot: "bg-teal-500", border: "border-teal-200" }
+    };
+    return configs[type] || { bg: "bg-slate-50", text: "text-slate-900", dot: "bg-slate-500", border: "border-slate-200" };
+  };
 
   // --- NEW: BATCH CSV LOGIC ---
   const downloadHolidayTemplate = () => {
@@ -68,8 +90,8 @@ const CalendarManagement = () => {
   };
 
   const downloadDueDateTemplate = () => {
-    const headers = "type,name,date,details\n";
-    const sample = "Due Date,BIR Filing,2026-06-15,Form 1701Q Submission\nDue Date,Payroll Cutoff,2026-06-25,Admin Processing";
+    const headers = "type,name,date,details,priority,reminder\n";
+    const sample = "Due Date,BIR Tax Filing,2026-06-15,Form 1701Q,Critical,1 day before\nDue Date,Payroll Cutoff,2026-06-25,Admin Processing,Medium,3 days before";
     const blob = new Blob([headers + sample], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -238,21 +260,26 @@ const CalendarManagement = () => {
     type: "Regular Holiday"
   });
 
-  const [dueDateForm, setDueDateForm] = useState({
-    title: "",
-    date: "",
-    description: ""
-  });
+  const [dueDateForm, setDueDateForm] = useState({ 
+      title: "", 
+      date: "", 
+      description: "", 
+      priority: "Medium",
+      reminder: "1 day before"
+    });
 
   const handleOpenEditHoliday = (holiday) => {
-    setHolidayForm({
-      id: holiday.id,
-      name: holiday.name,
-      date: holiday.date.split('T')[0],
-      type: holiday.details || "Regular Holiday"
-    });
-    setModalType('editHoliday');
-  };
+  // 1. Populate the form state so the Dialog fields are filled
+  setHolidayForm({
+    id: holiday.id,
+    name: holiday.name,
+    date: holiday.date.split('T')[0], // Ensure YYYY-MM-DD
+    type: holiday.details || "Regular Holiday"
+  });
+
+  // 2. Setting this to 'editHoliday' triggers the dedicated Dialog
+  setModalType('editHoliday');
+};
 
   // Submit Handlers
   const handleHolidaySubmit = async (e) => {
@@ -359,18 +386,6 @@ const CalendarManagement = () => {
       }
     } catch (error) {
       setToast({ message: "Connection error.", type: "error" });
-    }
-  };
-
-  // Universal form submission router based on tab/modal state
-  const handleModalSubmit = (e) => {
-    e.preventDefault();
-    if (modalType === 'editHoliday') {
-      handleHolidaySubmit(e);
-    } else {
-      if (activeTab === 'fieldWork') handleFieldWorkSubmit(e);
-      else if (activeTab === 'dueDate') handleDueDateSubmit(e);
-      else handleHolidaySubmit(e);
     }
   };
 
@@ -504,10 +519,10 @@ const CalendarManagement = () => {
         </div>
 
         {/* Main Layout Split */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1">
           
-          {/* Left Calendar Column */}
-          <div className="lg:col-span-8">
+          {/* Full-Width Calendar */}
+          <div className="w-full">
             <Card className="py-0 overflow-hidden border-0 shadow-sm bg-white">
               <div className=" bg-[#2A174E] text-white flex justify-between items-center p-3 md:p-4 rounded-t-xl">
                 <ChevronLeftIcon className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => changeMonth(-1)} />
@@ -574,7 +589,7 @@ const CalendarManagement = () => {
                           {d}
                         </div>
 
-                        {dayEvents.map((e, i) => {
+                        {dayEvents.slice(0, 2).map((e, i) => {
                           let typeClass = "bg-red-100 text-red-800"; 
                           if (e.type === "Holiday") {
                             typeClass = e.details?.toLowerCase().includes("special") ? "bg-purple-100 text-purple-800" : "bg-red-100 text-red-800";
@@ -589,11 +604,21 @@ const CalendarManagement = () => {
                           }
                           
                           return (
-                            <div key={i} className={`text-[9px] md:text-[11px] p-1 rounded mt-1 shrink-0 truncate w-full font-medium ${typeClass}`} title={e.name || e.details}>
+                            <div 
+                              key={i} 
+                              className={`text-[9px] md:text-[10px] p-1 rounded mt-1 shrink-0 truncate w-full font-medium ${typeClass}`} 
+                              title={e.name || e.details}
+                            >
                               {e.name || e.details}
                             </div>
                           );
                         })}
+                        {/* "More" indicator */}
+                        {dayEvents.length > 2 && (
+                          <div className="text-[9px] font-bold text-slate-500 mt-1 pl-1 cursor-pointer hover:text-[#2A174E]">
+                            +{dayEvents.length - 2} more
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -601,138 +626,204 @@ const CalendarManagement = () => {
               </div>
             </Card>
           </div>
-
+          <div className="h-6" /> {/* Spacer */}
           {/* Right Side Cards */}
-          <div className="lg:col-span-4 flex flex-col gap-6 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* Holidays List Card */}
-            <Card className="shadow-sm border-0 bg-white flex flex-col h-[320px] py-0 border-t-4 border-[#2A174E]">
+            <Card className="shadow-sm border-0 h-[500px] border-t-4 border-[#2A174E] py-0 overflow-hidden">
               <CardHeader className="pb-0 pt-5">
                 <CardTitle className="text-lg text-[#2A174E]">Holidays</CardTitle>
               </CardHeader>
-              <CardContent className="px-4 pb-4 flex-1 overflow-y-auto custom-scrollbar">
+              <CardContent className="px-4 pb-4 h-[440px] overflow-y-auto custom-scrollbar">
                 {getUpcomingHolidays().length > 0 ? (
                   <div className="space-y-2 mt-2">
                     {getUpcomingHolidays().map((holiday, idx) => {
                       const isSpecial = holiday.type?.toLowerCase().includes("special") || holiday.details?.toLowerCase().includes("special");
-                      const accentColor = isSpecial ? "border-l-purple-500" : "border-l-red-500";
                       
                       return (
                         <div 
-                          className={`group cursor-pointer transition-all flex flex-col sm:flex-row justify-between sm:items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 border border-l-4 ${accentColor}`} 
+                          className="group relative cursor-pointer transition-all flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100 hover:bg-slate-50" 
                           key={idx} 
                           onClick={() => handleHolidayClick(holiday)}
                         >
-                          <div>
-                            <p className="font-semibold text-sm text-slate-800">{holiday.name}</p>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(holiday.date).toLocaleDateString()} • {holiday.details || holiday.type}
+                          {/* Content Container - Fixed PR to prevent text overlap */}
+                          <div className="flex flex-col min-w-0 pr-12">
+                            <p className="font-bold text-sm text-slate-800 truncate">{holiday.name}</p>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {new Date(holiday.date).toLocaleDateString('en-US', { 
+                                month: 'long', day: 'numeric', year: 'numeric' 
+                              })}
                             </span>
                           </div>
-                          {isAdmin && (
-                            <div className="flex gap-1 mt-2 sm:mt-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-[#2A174E]" onClick={(e) => { e.stopPropagation(); handleOpenEditHoliday(holiday); }}>
-                                <EditIcon className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-red-500 hover:bg-red-50" onClick={(e) => {
-                                  e.stopPropagation();
-                                  initiateDelete(holiday.id, 'Holiday');
-                                }}>
-                                <DeleteIcon className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
+
+                          {/* Actions Container - Positioned Absolutely to prevent layout shift */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="secondary" className={`text-[9px] ${isSpecial ? "bg-purple-100 text-purple-700" : "bg-red-100 text-red-700"}`}>
+                              {isSpecial ? "SPECIAL" : "REGULAR"}
+                            </Badge>
+                            
+                            {isAdmin && (
+                              <div className="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-sm p-1 rounded-md shadow-sm border border-slate-100 flex gap-1 z-10">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-slate-500 hover:text-[#2A174E]" 
+                                  onClick={(e) => { e.stopPropagation(); handleOpenEditHoliday(holiday); }}
+                                >
+                                  <EditIcon className="h-3 w-3" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-slate-500 hover:text-red-500" 
+                                  onClick={(e) => { e.stopPropagation(); initiateDelete(holiday.id, 'Holiday'); }}
+                                >
+                                  <DeleteIcon className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                    <EmptyState 
-                      className="min-h-0 h-full w-full border-0 bg-transparent hover:bg-transparent shadow-none p-0"
-                      icon={<EventAvailableIcon sx={{ fontSize: 32 }} className="text-slate-300" />}
-                      title="No Holidays"
-                      description="There are no holidays registered for this period."
-                    />
+                  <EmptyState 
+                    className="min-h-0 h-full w-full border-0 bg-transparent shadow-none p-0"
+                    icon={<EventAvailableIcon sx={{ fontSize: 32 }} className="text-slate-300" />}
+                    title="No Holidays"
+                    description="None registered for this period."
+                  />
                 )}
               </CardContent>
             </Card>
 
-            {/* 2. NEW: Due Dates List Card */}
-            <Card className="shadow-sm border-0 bg-white flex flex-col flex-1 py-0 border-t-4 border-teal-500 min-h-[250px]">
-              <CardHeader className="pb-0 pt-4">
-                <CardTitle className="text-lg text-teal-700">Administrative Due Dates</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 flex-1 overflow-y-auto custom-scrollbar">
-                {events.filter(e => e.type === "Due Date").length > 0 ? (
-                  <div className="space-y-2 mt-2">
-                    {events.filter(e => e.type === "Due Date").map((item, idx) => (
-                      <div className="group transition-all flex flex-row justify-between items-center p-3 bg-slate-50 rounded-lg border border-l-4 border-l-teal-500" key={idx}>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm text-slate-800 truncate">{item.name}</p>
-                          <span className="text-[11px] text-muted-foreground block">
-                            {new Date(item.date).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500" onClick={() => initiateDelete(item.id, 'Due Date')}>
-                          <DeleteIcon className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState className="!h-full !border-0 bg-transparent" title="No Due Dates" description="No deadlines set." />
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Field Work & Due Dates List Card */}
-            <Card className="shadow-sm border-0 bg-white flex flex-col h-[320px] py-0 border-t-4 border-[#FFB33D]">
+            {/* 2. Combined Personnel Actions (Leave & Overtime) */}
+            <Card className="shadow-sm border-0 h-[500px] border-t-4 border-green-600 py-0 overflow-hidden">
               <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-[#C97819 ]">Upcoming Events & Field Work</CardTitle>
+                <CardTitle className="text-lg text-green-700">Personnel Actions</CardTitle>
               </CardHeader>
-              <CardContent className="px-4 flex-1 overflow-y-auto custom-scrollbar">
-                {events.filter(e => e.type === "Field Work" || e.type === "Due Date").length > 0 ? (
-                  <div className="space-y-2 mt-2">
-                    {events.filter(e => e.type === "Field Work" || e.type === "Due Date").map((item, idx) => {
-                      const isFieldWork = item.type === "Field Work";
-                      const borderColor = isFieldWork ? "border-l-orange-500" : "border-l-teal-500";
-                      
-                      return (
+              <CardContent className="h-[440px] pt-0 px-0">
+                <Tabs defaultValue="leave" className="w-full h-full flex flex-col">
+                  <TabsList className="grid w-[90%] mx-auto grid-cols-2 mb-4">
+                    <TabsTrigger value="leave">Leaves</TabsTrigger>
+                    <TabsTrigger value="ot">Overtime</TabsTrigger>
+                  </TabsList>
+                  
+                  {/* Scrollable Container */}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
+                    <TabsContent value="leave" className="mt-0 space-y-2">
+                      {events.filter(e => e.type === "Leave").map((item, i) => (
                         <div 
-                          className={`group cursor-pointer transition-all flex flex-row justify-between items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 gap-3 border border-l-4 ${borderColor}`} 
-                          key={idx} 
-                          onClick={() => isFieldWork ? handleFieldWorkClick(item) : null}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm text-slate-800 truncate">{item.name || item.details}</p>
-                            <span className="text-[11px] text-muted-foreground block truncate">
-                              {item.date} • {item.type}
+                        key={i} 
+                        className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-green-50/50 transition-colors cursor-pointer group"
+                        onClick={() => handlePersonnelActionClick(item)} >
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-800">{item.name}</span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                             </span>
-                            {isFieldWork && <p className="text-[11px] text-slate-500 mt-0.5 italic truncate">{item.details}</p>}
                           </div>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-slate-500 hover:text-red-500 hover:bg-red-50 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity shrink-0" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              initiateDelete(item.id, item.type);
-                            }}
-                          >
-                            <DeleteIcon className="h-4 w-4" />
-                          </Button>
+                          <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 hover:bg-green-100">LEAVE</Badge>
                         </div>
-                      )
-                    })}
+                      ))}
+                    </TabsContent>
+                    
+                    <TabsContent value="ot" className="mt-0 space-y-2">
+                      {events.filter(e => e.type === "Overtime").map((item, i) => (
+                        <>
+                        <div 
+                          key={i} 
+                          className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                          onClick={() => handlePersonnelActionClick(item)}>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-800">{item.name}</span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700 hover:bg-blue-100">OT</Badge>
+                        </div>
+                        </>
+                      ))}
+                    </TabsContent>
+                    <div className="h-6" />
                   </div>
-                ) : (
-                    <EmptyState 
-                      className="!h-full !min-h-0 border-0 bg-transparent hover:bg-transparent shadow-none !p-2"
-                      icon={<MapIcon sx={{ fontSize: 32 }} className="text-slate-300" />}
-                      title="No Tasks Found"
-                      description="No field assignments scheduled."
-                    />
-                )}
+                </Tabs>
+              </CardContent>
+            </Card>
+
+            {/* 3. Operational Tasks (Field Work & Due Dates) */}
+            <Card className="shadow-sm border-0 h-[500px] border-t-4 border-orange-500 py-0 overflow-hidden">
+              <CardHeader className="pb-0 pt-5">
+                <CardTitle className="text-lg text-orange-700">Operational Tasks</CardTitle>
+              </CardHeader>
+              <CardContent className="h-[440px] pt-0 px-0">
+                <Tabs defaultValue="field" className="w-full h-full flex flex-col">
+                  <TabsList className="grid w-[90%] mx-auto grid-cols-2 mb-2">
+                    <TabsTrigger value="field">Field Work</TabsTrigger>
+                    <TabsTrigger value="due">Due Dates</TabsTrigger>
+                  </TabsList>
+                  
+                  <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
+                    {/* --- FIELD WORK TAB --- */}
+                    <TabsContent value="field" className="mt-0 space-y-2">
+                      {events.filter(e => e.type === "Field Work").length > 0 ? (
+                        events.filter(e => e.type === "Field Work").map((item, idx) => (
+                          <div 
+                            key={idx} 
+                            className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-orange-50/50 transition-colors cursor-pointer group"
+                            onClick={() => handleFieldWorkClick(item)}
+                          >
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-700">FIELD</Badge>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); initiateDelete(item.id, 'Field Work'); }}>
+                                <DeleteIcon className="h-3 w-3 text-red-500" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <EmptyState className="h-20 border-0" title="No Field Work" />
+                      )}
+                    </TabsContent>
+
+                    {/* --- DUE DATES TAB --- */}
+                    <TabsContent value="due" className="mt-0 space-y-2">
+                      {events.filter(e => e.type === "Due Date").length > 0 ? (
+                        events.filter(e => e.type === "Due Date").map((item, idx) => (
+                          <div 
+                            key={idx} 
+                            className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-teal-50/50 transition-colors cursor-pointer group"
+                            onClick={() => handleDueDateClick(item)}
+                          >
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-bold text-slate-800 truncate">{item.name}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="text-[10px] bg-teal-100 text-teal-700">DUE</Badge>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); initiateDelete(item.id, 'Due Date'); }}>
+                                <DeleteIcon className="h-3 w-3 text-red-500" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <EmptyState className="h-20 border-0" title="No Due Dates" />
+                      )}
+                    </TabsContent>
+                  </div>
+                </Tabs>
               </CardContent>
             </Card>
 
@@ -789,12 +880,12 @@ const CalendarManagement = () => {
           </DialogContent>
         </Dialog>
 
-       {/* MAIN ADD/EDIT DIALOG (Holidays, Field Work, and Due Dates with Integrated Batch) */}
+       {/* MAIN ADD DIALOG (Holidays, Field Work, and Due Dates with Integrated Batch) */}
       <Dialog open={!!modalType} onOpenChange={(open) => !open && setModalType(null)}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="text-[#2A174E] text-lg font-bold text-center">
-              {modalType === 'editHoliday' ? 'Edit Holiday' : 'Add Calendar Event'}
+              {modalType === 'addEvent' && "Add Calendar Event"}
             </DialogTitle>
           </DialogHeader>
 
@@ -1127,14 +1218,54 @@ const CalendarManagement = () => {
 
                   <TabsContent value="single" className="space-y-4">
                     <div className="grid gap-2">
-                      <Label>Title</Label>
-                      <Input placeholder="e.g., BIR Tax Deadline" value={dueDateForm.title} onChange={(e) => setDueDateForm({...dueDateForm, title: e.target.value})} />
+                      <Label>Title *</Label>
+                      <Input 
+                        placeholder="e.g., BIR Tax Deadline" 
+                        value={dueDateForm.title} 
+                        onChange={(e) => setDueDateForm({...dueDateForm, title: e.target.value})} 
+                      />
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label>Deadline Date *</Label>
+                        <Input type="date" value={dueDateForm.date} onChange={(e) => setDueDateForm({...dueDateForm, date: e.target.value})} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>Priority</Label>
+                        <Select value={dueDateForm.priority} onValueChange={(val) => setDueDateForm({...dueDateForm, priority: val})}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Low">Low</SelectItem>
+                            <SelectItem value="Medium">Medium</SelectItem>
+                            <SelectItem value="High">High</SelectItem>
+                            <SelectItem value="Critical">Critical</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label>Reminder</Label>
+                        <Select value={dueDateForm.reminder} onValueChange={(val) => setDueDateForm({...dueDateForm, reminder: val})}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No Reminder</SelectItem>
+                            <SelectItem value="1 day before">1 day before</SelectItem>
+                            <SelectItem value="3 days before">3 days before</SelectItem>
+                            <SelectItem value="1 week before">1 week before</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
                     <div className="grid gap-2">
-                      <Label>Deadline Date</Label>
-                      <Input type="date" value={dueDateForm.date} onChange={(e) => setDueDateForm({...dueDateForm, date: e.target.value})} />
+                      <Label>Description / Note</Label>
+                      <Input placeholder="Add context or links..." value={dueDateForm.description} onChange={(e) => setDueDateForm({...dueDateForm, description: e.target.value})} />
                     </div>
-                    <DialogFooter className="flex gap-2">
+
+                    <DialogFooter className="flex gap-2 pt-2">
                       <Button type="button" variant="outline" onClick={() => setModalType(null)} className="flex-1">Cancel</Button>
                       <Button className="flex-1 bg-teal-600 text-white" onClick={handleDueDateSubmit}>Set Due Date</Button>
                     </DialogFooter>
@@ -1216,37 +1347,104 @@ const CalendarManagement = () => {
         </DialogContent>
       </Dialog>
 
-        {/* DELETE CONFIRMATION ALERT DIALOG */}
-        <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to remove this calendar entry? This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => { setShowDeleteModal(false); setItemToDelete(null); }}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+      {/* Edit Holiday Modal */}
+      <Dialog 
+        open={modalType === 'editHoliday'} 
+        onOpenChange={(open) => !open && setModalType(null)}
+      >
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-[#2A174E]">Edit Holiday</DialogTitle>
+          </DialogHeader>
 
-        {/* HOLIDAY CONFLICT DIALOG */}
-        <Dialog open={!!selectedHolidayWork} onOpenChange={(open) => !open && setSelectedHolidayWork(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Field Work on {selectedHolidayWork?.holiday.name}</DialogTitle>
+          <div className="space-y-4 pt-4">
+            <div className="grid gap-2">
+              <Label>Holiday Name</Label>
+              <Input 
+                value={holidayForm.name} 
+                onChange={(e) => setHolidayForm({...holidayForm, name: e.target.value})} 
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Date</Label>
+              <Input 
+                type="date" 
+                value={holidayForm.date} 
+                onChange={(e) => setHolidayForm({...holidayForm, date: e.target.value})} 
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Type</Label>
+              <Select value={holidayForm.type} onValueChange={(val) => setHolidayForm({...holidayForm, type: val})}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Regular Holiday">Regular Holiday</SelectItem>
+                  <SelectItem value="Special Holiday">Special Holiday</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2 pt-2">
+            <Button variant="outline" onClick={() => setModalType(null)} className="flex-1">Cancel</Button>
+            <Button className="flex-1 bg-[#2A174E] text-white" onClick={handleHolidaySubmit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DAY DETAILS DIALOG */}
+        <Dialog open={!!selectedDayDetails} onOpenChange={(open) => !open && setSelectedDayDetails(null)}>
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
+            <DialogHeader className="border-b pb-4">
+              <DialogTitle className="text-lg font-bold text-[#2A174E]">
+                Schedule for {selectedDayDetails?.date}
+              </DialogTitle>
             </DialogHeader>
-            <div className="space-y-3 pt-4">
-              {selectedHolidayWork?.matchingWork.map((work, i) => (
-                <div key={i} className="p-3 bg-slate-50 rounded-lg text-sm border border-slate-200">
-                  <strong className="text-slate-800">Location:</strong> {work.details} <br/>
-                  <strong className="text-slate-800 mt-1 block">Assigned:</strong> {userData.user_FirstName} {userData.user_LastName}
-                </div>
-              ))}
+
+            <div className="pt-2 overflow-y-auto custom-scrollbar">
+              {selectedDayDetails?.events.length > 0 ? (
+                // 1. Group events by type
+                Object.entries(
+                  selectedDayDetails.events.reduce((acc, event) => {
+                    if (!acc[event.type]) acc[event.type] = [];
+                    acc[event.type].push(event);
+                    return acc;
+                  }, {})
+                ).map(([type, events]) => {
+                  // 2. Get the config once per group
+                  const config = getEventConfig(type);
+                  
+                  return (
+                    <div key={type} className="mb-6">
+                      {/* Type Header */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className={`w-2 h-2 rounded-full ${config.dot}`}></span>
+                        <h4 className={`text-xs font-bold uppercase tracking-wider ${config.text}`}>
+                          {type}s ({events.length})
+                        </h4>
+                      </div>
+
+                      {/* Grid of events for this specific type */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {events.map((event, idx) => (
+                          <div key={idx} className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all`}>
+                            <p className={`font-semibold text-sm ${config.text}`}>
+                              {event.name || event.details}
+                            </p>
+                            {event.type === "Field Work" && (
+                              <p className="text-[10px] opacity-70 font-medium italic mt-1">
+                                Auto-credited: 8hrs
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">No events scheduled.</div>
+              )}
             </div>
           </DialogContent>
         </Dialog>
@@ -1330,6 +1528,70 @@ const CalendarManagement = () => {
           </DialogContent>
         </Dialog>
 
+        {/* PERSONNEL ACTION DETAIL DIALOG (Leaves & Overtime) */}
+        <Dialog 
+          open={!!selectedPersonnelAction} 
+          onOpenChange={(open) => !open && setSelectedPersonnelAction(null)}
+        >
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="text-[#2A174E] flex items-center gap-2">
+                <AssignmentIcon className={selectedPersonnelAction?.type === "Leave" ? "text-green-500" : "text-blue-500"} />
+                {selectedPersonnelAction?.type} Summary
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 text-sm pt-4">
+              {/* Employee Name Section */}
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <span className="font-semibold text-slate-500">Employee:</span> 
+                <span className="text-[#2A174E] font-bold text-base">
+                  {selectedPersonnelAction?.name || "N/A"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 px-1">
+                <div className="flex justify-between border-b border-slate-100 pb-2">
+                  <span className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Date</span> 
+                  <span className="text-slate-800 font-medium">
+                    {selectedPersonnelAction?.date && new Date(selectedPersonnelAction.date).toLocaleDateString('en-US', { 
+                      month: 'long', day: 'numeric', year: 'numeric' 
+                    })}
+                  </span>
+                </div>
+                
+                {/* Conditional Field: No. of Days vs No. of Hours */}
+                <div className="flex justify-between border-b border-slate-100 pb-2">
+                  <span className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">
+                    {selectedPersonnelAction?.type === "Leave" ? "No. of Days" : "No. of Hours"}
+                  </span> 
+                  <span className={`${selectedPersonnelAction?.type === "Leave" ? "text-green-600" : "text-blue-600"} font-bold`}>
+                    {selectedPersonnelAction?.hours || "1"} {selectedPersonnelAction?.type === "Leave" ? "Day(s)" : "Hour(s)"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between border-b border-slate-100 pb-2">
+                  <span className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Approved By</span> 
+                  <span className="text-slate-800 font-medium">{selectedPersonnelAction?.approvedBy || "Management"}</span>
+                </div>
+              </div>
+              
+              {/* System Note */}
+              <div className={`p-3 rounded-lg text-[11px] italic border ${
+                selectedPersonnelAction?.type === "Leave" ? "bg-green-50 text-green-700 border-green-100" : "bg-blue-50 text-blue-700 border-blue-100"
+              }`}>
+                Note: This {selectedPersonnelAction?.type.toLowerCase()} request has been verified and approved by the system administrator.
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" className="w-full" onClick={() => setSelectedPersonnelAction(null)}>
+                Close Summary
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* FIELD WORK LOG DIALOG */}
         <Dialog open={!!selectedFieldLog} onOpenChange={(open) => !open && setSelectedFieldLog(null)}>
           <DialogContent className="sm:max-w-[425px]">
@@ -1378,58 +1640,87 @@ const CalendarManagement = () => {
           </DialogContent>
         </Dialog>
 
-        {/* DAY DETAILS DIALOG */}
-        <Dialog open={!!selectedDayDetails} onOpenChange={(open) => !open && setSelectedDayDetails(null)}>
-          <DialogContent>
+        {/* DUE DATE DETAIL DIALOG */}
+        <Dialog 
+          open={!!selectedDueDateDetails} 
+          onOpenChange={(open) => !open && setSelectedDueDateDetails(null)}
+        >
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Schedule for {selectedDayDetails?.date}</DialogTitle>
+              <DialogTitle className="text-teal-700 flex items-center gap-2">
+                <AssignmentIcon className="text-teal-500" />
+                Due Date Details
+              </DialogTitle>
             </DialogHeader>
-            <div className="space-y-3 pt-4 max-h-[60vh] overflow-y-auto">
-              {selectedDayDetails?.events.length > 0 ? (
-                selectedDayDetails.events.map((event, idx) => {
-                  let typeClass = "bg-red-50 text-red-800 border-red-200"; 
-                  let dotBg = "bg-red-400";
 
-                  if (event.type === "Holiday") {
-                    if(event.details?.toLowerCase().includes("special")) {
-                      typeClass = "bg-purple-50 text-purple-800 border-purple-200";
-                      dotBg = "bg-purple-400";
-                    }
-                  } else if (event.type === "Leave") {
-                    typeClass = "bg-green-50 text-green-800 border-green-200";
-                    dotBg = "bg-green-400";
-                  } else if (event.type === "Field Work") {
-                    typeClass = "bg-orange-50 text-orange-800 border-orange-200";
-                    dotBg = "bg-orange-400";
-                  } else if (event.type === "Overtime") {
-                    typeClass = "bg-blue-50 text-blue-800 border-blue-200";
-                    dotBg = "bg-blue-400";
-                  } else if (event.type === "Due Date") {
-                    typeClass = "bg-teal-50 text-teal-800 border-teal-200";
-                    dotBg = "bg-teal-400";
-                  }
+            <div className="space-y-4 pt-4">
+              {/* Title & Deadline Section */}
+              <div className="p-5 rounded-xl border-l-4 border-teal-500 bg-teal-50 shadow-sm">
+                <h3 className="text-lg font-bold text-slate-800 mb-1 leading-tight">
+                  {selectedDueDateDetails?.name}
+                </h3>
+                <p className="text-xs font-semibold text-teal-800/80 uppercase tracking-wide">
+                  Deadline: {selectedDueDateDetails?.date && new Date(selectedDueDateDetails.date).toLocaleDateString('en-US', { 
+                    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+                  })}
+                </p>
+              </div>
 
-                  return (
-                    <div key={idx} className={`p-3 rounded-lg border text-sm ${typeClass}`}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`w-2 h-2 rounded-full ${dotBg}`}></span>
-                        <strong className="font-semibold">{event.type}</strong>
-                      </div>
-                      <p className="m-0 mt-1 font-medium">{event.name || event.details}</p>
-                      {event.type === "Field Work" && (
-                        <p className="m-0 mt-1 text-xs opacity-80 italic">Automatically credited as 8 hours on-field.</p>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center text-muted-foreground p-4">
-                  <p className="m-0 text-sm">No events or assignments scheduled for this day.</p>
+              {/* Grid for Priority and Reminder */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Priority</span>
+                  <span className={`text-sm font-bold ${
+                    selectedDueDateDetails?.priority === 'Critical' ? 'text-red-600' : 
+                    selectedDueDateDetails?.priority === 'High' ? 'text-orange-600' : 'text-slate-700'
+                  }`}>
+                    {selectedDueDateDetails?.priority || "Medium"}
+                  </span>
+                </div>
+                <div className="flex flex-col p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reminder</span>
+                  <span className="text-sm font-bold text-slate-700">
+                    {selectedDueDateDetails?.reminder || "1 day before"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Description / Note */}
+              {selectedDueDateDetails?.details && (
+                <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                  <p className="font-bold text-slate-400 text-[10px] uppercase mb-1">Description / Note</p>
+                  <p className="text-slate-700 text-sm">{selectedDueDateDetails.details}</p>
                 </div>
               )}
             </div>
+
+            <DialogFooter>
+              <Button variant="outline" className="w-full" onClick={() => setSelectedDueDateDetails(null)}>
+                Close
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
+
+         {/* DELETE CONFIRMATION ALERT DIALOG */}
+        <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove this calendar entry? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setShowDeleteModal(false); setItemToDelete(null); }}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+
 <style dangerouslySetInnerHTML={{__html: `  
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;

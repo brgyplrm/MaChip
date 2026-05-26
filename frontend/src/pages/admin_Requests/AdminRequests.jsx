@@ -294,8 +294,11 @@ const AdminRequests = () => {
             asChild
             className="w-full md:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#f0ebfa] font-semibold shadow-sm transition-all"
           >
-            <Link to="/requestSum">
-              <AssessmentIcon className="mr-2 h-4 w-4" /> View Request Summary
+            <Link 
+              to="/adminReports" 
+              state={{ activeTab: "requests" }}
+            >
+            <AssessmentIcon className="mr-2 h-4 w-4" /> View Request Report
             </Link>
           </Button>
           
@@ -449,7 +452,7 @@ const AdminRequests = () => {
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-3 py-0 custom-scrollbar">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1 mt-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1 mt-0">
                 {activeTab === "pending" ? "Queue" : "Past Requests"} ({totalItems})
               </h4>
               

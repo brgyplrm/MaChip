@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label";
 const RfidManagement = () => {
   const [rfidList, setRfidList] = useState([]);
   const [unassignedEmployees, setUnassignedEmployees] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   
@@ -173,32 +173,78 @@ const RfidManagement = () => {
 
   const isFiltering = searchQuery !== "" || statusFilter !== "All";
 
+  const PageSkeleton = () => (
+  <div className="space-y-6 w-full h-screen"> {/* Added h-screen */}
+    <div className="h-16 w-full bg-slate-100 animate-pulse rounded-lg" />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="h-32 w-full bg-slate-100 animate-pulse rounded-xl" />
+      <div className="h-32 w-full bg-slate-100 animate-pulse rounded-xl" />
+    </div>
+    <div className="h-20 w-full bg-slate-100 animate-pulse rounded-xl" />
+    <div className="h-96 w-full bg-slate-100 animate-pulse rounded-xl" />
+  </div>
+);
+
   return (
     <Sidebar>
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-        
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div className="flex items-center gap-4">
-            <Link to="/users" className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-200 text-[#2A174E] transition-colors">
-              <ArrowBackIcon className="h-6 w-6" />
-            </Link>
-            <div>
+        {loading ? <PageSkeleton /> :(
+        <>
+        <div className="group flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 transition-all">
+          <div className="flex items-center gap-0">
+            {/* Back Button: Hidden by default, slides and fades in on hover */}
+            <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+              <Button 
+                variant="ghost"
+                size="icon" 
+                asChild 
+                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+              >
+                <Link to="/users">
+                  <ArrowBackIcon className="h-6 w-6" />
+                </Link>
+              </Button>
+            </div>
+            
+            {/* Title: Adds left padding when hovered */}
+            <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
               <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">RFID Card Registry</h1>
               <span className="text-sm text-slate-500 mt-1 block">Manage MaChip hardware alignments, token authorizations, and card access states.</span>
             </div>
           </div>
+          
           <Button onClick={() => setShowScanModal(true)} className="bg-[#2A174E] hover:bg-[#1a0e30] font-bold shadow-sm gap-2">
             <ScanLine className="h-4 w-4 text-white" />
             <span>Scan RFID</span>
           </Button>
         </div>
 
-        {/* Statistics Dashboard Cards */}
+        {/* Statistics Dashboard Cards with Descriptions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <Card className="border-t-5 border-[#2A174E] bg-white py-0"><CardContent className="px-5 py-5 flex justify-between items-center"><div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Paired Cards</p><p className="text-3xl font-bold text-[#2A174E]">{stats.total}</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg"><CreditCardIcon /></div></CardContent></Card>
-          <Card className="border-t-5 border-green-600 bg-white py-0"><CardContent className="px-5 py-5 flex justify-between items-center"><div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Active Credentials</p><p className="text-3xl font-bold text-green-700">{stats.active}</p></div><div className="bg-green-50 text-green-600 p-3 rounded-lg"><ContactlessIcon /></div></CardContent></Card>
+          {/* Card 1 */}
+          <Card className="border-t-5 border-[#2A174E] bg-white py-0">
+            <CardContent className="px-5 py-5 flex justify-between items-center">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Paired Cards</p>
+                <p className="text-3xl font-bold text-[#2A174E]">{stats.total}</p>
+                <p className="text-[10px] text-slate-400 mt-2 italic">Total number of RFID tokens currently registered in the system.</p>
+              </div>
+              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg"><CreditCardIcon /></div>
+            </CardContent>
+          </Card>
+          
+          {/* Card 2 */}
+          <Card className="border-t-5 border-green-600 bg-white py-0">
+            <CardContent className="px-5 py-5 flex justify-between items-center">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Active Credentials</p>
+                <p className="text-3xl font-bold text-green-700">{stats.active}</p>
+                <p className="text-[10px] text-slate-400 mt-2 italic">Tokens authorized for immediate building access.</p>
+              </div>
+              <div className="bg-green-50 text-green-600 p-3 rounded-lg"><ContactlessIcon /></div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Filters Card */}
@@ -263,7 +309,9 @@ const RfidManagement = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </>
+        )}
+        </div>
 
       {/* STEP 1: Core Scan Sensor Interceptor Modal */}
       <RfidScanModal isOpen={showScanModal} onClose={() => setShowScanModal(false)} onScanSuccess={handleRfidScanned} />

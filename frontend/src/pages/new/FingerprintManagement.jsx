@@ -218,28 +218,35 @@ const FingerprintManagement = () => {
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div className="flex items-center gap-4">
-            <Link 
-              to="/users" 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-200 text-[#2A174E] transition-colors"
-            >
-              <ArrowBackIcon className="h-6 w-6" />
-            </Link>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Biometric Fingerprint Registry</h1>
-              <span className="text-sm text-slate-500 mt-1 block">Audit device memory allocations, flash signatures, and biometric slot maps.</span>
+        {/* Header Section with Hover-Back Button */}
+          <div className="group flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 transition-all">
+            <div className="flex items-center gap-0">
+              {/* Back Button: Hidden by default, slides and fades in on hover */}
+              <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  asChild 
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                >
+                  <Link to="/users">
+                    <ArrowBackIcon className="h-6 w-6" />
+                  </Link>
+                </Button>
+              </div>
+              
+              {/* Title: Adds left padding when hovered */}
+              <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
+                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Biometric Fingerprint Registry</h1>
+                <span className="text-sm text-slate-500 mt-1 block">Audit device memory allocations, flash signatures, and biometric slot maps.</span>
+              </div>
             </div>
+            
+            <Button onClick={handleStartFingerprintScan} className="bg-[#2A174E] hover:bg-[#1a0e30] font-bold shadow-sm gap-2">
+              <ScanLine className="h-4 w-4 text-white" />
+              <span>Enroll Fingerprint</span>
+            </Button>
           </div>
-          <Button 
-            onClick={handleStartFingerprintScan} 
-            className="bg-[#2A174E] hover:bg-[#1a0e30] font-bold shadow-sm gap-2"
-          >
-            <ScanLine className="h-4 w-4 text-white" />
-            <span>Enroll Fingerprint</span>
-          </Button>
-        </div>
 
         {/* Statistics Widgets */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

@@ -7,10 +7,12 @@ import SaveIcon from "@mui/icons-material/Save";
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import Toast from "../../../components/toast/Toast";
-
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import EmptyState from "../../../components/EmptyState";
+import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -34,6 +36,30 @@ const ThirteenthMonth = () => {
   const [selectedBreakdown, setSelectedBreakdown] = useState(null);
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
+
+  // ... inside the component
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Reset pagination when data changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
+
+  // Filter Logic
+  const filteredData = useMemo(() => {
+    return previewData.filter(item => 
+      `${item.user_LastName} ${item.user_FirstName}`.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [previewData, searchQuery]);
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const paginatedData = filteredData.slice(
+    (currentPage - 1) * itemsPerPage, 
+    currentPage * itemsPerPage
+  );
 
   // Grouped history state
   const [expandedYears, setExpandedYears] = useState({});
@@ -167,68 +193,49 @@ const ThirteenthMonth = () => {
   const formatCurrency = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-slate-50">
-      <Sidebar>
-        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+    <div className="flex flex-col w-full min-h-screen">
+        <div className="p-1 overflow-x-hidden w-full max-w-6xl mx-auto">
           {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: "", type: "success" })} />}
           
-          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">13th Month Pay Management</h1>
-              <p className="text-sm text-slate-500 mt-1">Calculate and process annual 13th-month bonuses based on Basic Salary.</p>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Button onClick={fetchPreview} variant="outline" size="sm" className="border-[#2A174E] text-[#2A174E]">
-                <RefreshIcon className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
-              </Button>
-            </div>
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-2">
+            <Card className="bg-blue-50 border-blue-200 shadow-none mb-4 w-full py-0">
+              <CardContent className="flex items-start gap-4 p-4">
+                <div className="bg-blue-100 p-2 rounded-lg mt-0.5">
+                  <InfoOutlinedIcon className="h-5 w-5 text-[#005a9c]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#005a9c] text-sm">Policy Guideline</h3>
+                  <p className="text-sm text-blue-900/80 mt-0.5">
+                    Calculate and process annual 13th-month bonuses based on Basic Salary according to Presidential Decree No. 851.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <Tabs defaultValue="preview" className="w-full">
-            <TabsList className="mb-6">
+            <TabsList className="mb-4">
               <TabsTrigger value="preview">Compute & Draft ({currentYear})</TabsTrigger>
               <TabsTrigger value="history">Release History</TabsTrigger>
             </TabsList>
 
             <TabsContent value="preview">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <Card className="border-t-4 border-t-[#2A174E]">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase">Yearly Basis</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold text-slate-900">{currentYear}</p>
-                  </CardContent>
-                </Card>
-                <Card className="border-t-4 border-t-blue-500">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase">Eligible Employees</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold text-slate-900">{previewData.filter(i => i.totalBasicEarned > 0).length}</p>
-                  </CardContent>
-                </Card>
-                <Card className="border-t-4 border-t-green-500">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold text-slate-400 uppercase">Total Disbursement</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold text-slate-900">
-                      {formatCurrency(previewData.reduce((acc, curr) => acc + (curr.computedAmount || 0), 0))}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
+                    <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">YEARLY BASIS</p><p className="text-4xl font-bold text-[#2A174E]">{currentYear}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Calculation Period.</p></div></CardContent></Card>
+                    <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">ELIGIBLE EMPLOYEES</p><p className="text-4xl font-bold text-[#3B4E17]">{previewData.filter(i => i.totalBasicEarned > 0).length}</p></div><p className="text-xs text-[#3B4E17]/70 italic mt-4">Employees eligible for payout.</p></div></CardContent></Card>
+                    <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">TOTAL DISBURSEMENT</p><p className="text-4xl font-bold text-[#BB8B26]">{formatCurrency(previewData.reduce((acc, curr) => acc + (curr.computedAmount || 0), 0))}</p></div><p className="text-xs text-[#BB8B26]/70 italic mt-4">Total projected payout.</p></div></CardContent></Card>
+                  </div>
 
-              <Card className="shadow-sm border-0 bg-white mb-6">
-                <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100">
+              <Card className="shadow-sm border-0 bg-white mb-6 py-0">
+                <CardHeader className="bg-[#2A174E] pt-4! flex flex-row items-center justify-between border-b border-slate-100">
                   <div>
-                    <CardTitle className="text-lg font-bold text-[#2A174E]">Computation Table</CardTitle>
-                    <CardDescription>Based on Released Payroll Basic Salary for {currentYear}</CardDescription>
+                    <CardTitle className="text-lg font-bold text-white">Computation Table</CardTitle>
+                    <CardDescription className="text-white/80">
+                      Based on Released Payroll Basic Salary for {currentYear}
+                    </CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={handleGenerateDrafts} className="bg-[#2A174E] text-white">
+                    <Button onClick={handleGenerateDrafts} className="bg-[#2A174E] text-white hover:bg-[#BA90E9]">
                       <SaveIcon className="mr-2 h-4 w-4" /> Save Drafts
                     </Button>
                     <Button onClick={handleRelease} variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
@@ -236,9 +243,9 @@ const ThirteenthMonth = () => {
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0">
+                <CardContent className="pt-0! mt-0!">
                   <Table>
-                    <TableHeader className="bg-slate-50">
+                    <TableHeader className="">
                       <TableRow>
                         <TableHead>Employee Name</TableHead>
                         <TableHead>Total Basic Earned</TableHead>
@@ -281,8 +288,13 @@ const ThirteenthMonth = () => {
                         </TableRow>
                       )) : (
                         <TableRow>
-                          <TableCell colSpan={6} className="h-32 text-center text-slate-400 italic">
-                            No data found for this year.
+                          <TableCell colSpan={6}>
+                              <EmptyState 
+                                  icon={<AssessmentOutlinedIcon className="h-8 w-8 text-slate-400" />}
+                                  title="No 13th Month Pay Records"
+                                  description="There are no 13th month pay records available for the period."
+
+                                />
                           </TableCell>
                         </TableRow>
                       )}
@@ -361,16 +373,20 @@ const ThirteenthMonth = () => {
                     )}
                   </Card>
                 )) : (
-                  <Card className="p-12 flex flex-col items-center justify-center bg-white border-0 shadow-sm text-slate-400 italic">
-                    <HistoryIcon className="h-12 w-12 mb-2 opacity-20" />
-                    No release history found.
+                  
+                  <Card className="p-6 flex flex-col items-center justify-center bg-white border-0 shadow-sm text-slate-400 italic">
+
+                    <EmptyState 
+                      icon={<HistoryIcon className="h-8 w-8 text-slate-400" />}
+                      title="No release history found."
+                      description="Release history will appear after the first payout is processed."
+                    />
                   </Card>
                 )}
               </div>
             </TabsContent>
           </Tabs>
         </div>
-      </Sidebar>
 
       {/* Breakdown Modal */}
       <Dialog open={isBreakdownOpen} onOpenChange={setIsBreakdownOpen}>

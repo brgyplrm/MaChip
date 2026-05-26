@@ -1,6 +1,5 @@
 import Sidebar from "../../components/Sidebar";
 import Datatable from "../../components/datatable/Datatable"
-//import PageTransition from "../../components/PageTransition/PageTransition"
 
 const List = () => {
   return (

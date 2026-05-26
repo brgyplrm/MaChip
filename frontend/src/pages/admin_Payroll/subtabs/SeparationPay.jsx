@@ -7,6 +7,9 @@ import SaveIcon from "@mui/icons-material/Save";
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import Toast from "../../../components/toast/Toast";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import HistoryIcon from "@mui/icons-material/History";
+import EmptyState from "../../../components/EmptyState";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -174,19 +177,24 @@ const SeparationPay = () => {
   const formatCurrency = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-slate-50">
-      <Sidebar>
-        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+    <div className="flex flex-col w-full min-h-screen">
+        <div className=" overflow-x-hidden w-full max-w-6xl mx-auto p-1">
           {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: "", type: "success" })} />}
 
-          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Separation Pay Management</h1>
-              <p className="text-sm text-slate-500 mt-1">Calculate statutory separation pay according to DOLE Articles 298-299.</p>
-            </div>
-            <Button onClick={fetchHistory} variant="outline" size="icon" className="border-[#2A174E] text-[#2A174E]">
-              <RefreshIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            </Button>
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-4">
+            <Card className="bg-blue-50 border-blue-200 shadow-none mb-4 w-full py-0">
+              <CardContent className="flex items-start gap-4 p-4">
+                <div className="bg-blue-100 p-2 rounded-lg mt-0.5">
+                  <InfoOutlinedIcon className="h-5 w-5 text-[#005a9c]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#005a9c] text-sm">Policy Guideline</h3>
+                  <p className="text-sm text-blue-900/80 mt-0.5">
+                    Calculate and process statutory separation pay according to DOLE Articles 298-299.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <Tabs defaultValue="calculator" className="w-full">
@@ -381,8 +389,13 @@ const SeparationPay = () => {
                       </Card>
                     </>
                   ) : (
-                    <Card className="h-full border-dashed border-2 flex items-center justify-center p-12 text-slate-400 italic">
-                      Compute an employee to see benefits preview.
+                    
+                    <Card className="h-full  flex items-center justify-center p-6 text-slate-400 italic">
+                      <EmptyState 
+                      icon={<HistoryIcon className="h-8 w-8 text-slate-400" />}
+                      title="Separation Pay Preview"
+                      description="Choose an employee to view computed benefits."
+                    />
                     </Card>
                   )}
                 </div>
@@ -390,11 +403,11 @@ const SeparationPay = () => {
             </TabsContent>
 
             <TabsContent value="history">
-              <Card className="shadow-sm border-0 bg-white">
-                <CardHeader>
-                  <CardTitle className="text-lg font-bold text-[#2A174E]">Separation Pay Records</CardTitle>
+              <Card className="shadow-sm border-0 bg-white py-0">
+                <CardHeader className="bg-[#2A174E] border-b-0 pt-6 pb-4">
+                  <CardTitle className="text-lg font-bold text-white">Separation Pay Records</CardTitle>
                 </CardHeader>
-                <CardContent className="p-0">
+                <CardContent className="px-4">
                   <Table>
                     <TableHeader className="bg-slate-50">
                       <TableRow>
@@ -465,8 +478,12 @@ const SeparationPay = () => {
                         </TableRow>
                       )) : (
                         <TableRow>
-                          <TableCell colSpan={7} className="h-32 text-center text-slate-400 italic">
-                            No separation history records found.
+                          <TableCell colSpan={7} className="h-32 text-center text-slate-400 italic p-6">
+                            <EmptyState 
+                                icon={<HistoryIcon className="h-8 w-8 text-slate-400" />}
+                                title="No payout history found."
+                                description="Payout history will appear after the first payout is processed."
+                              />
                           </TableCell>
                         </TableRow>
                       )}
@@ -477,7 +494,6 @@ const SeparationPay = () => {
             </TabsContent>
           </Tabs>
         </div>
-      </Sidebar>
     </div>
   );
 };

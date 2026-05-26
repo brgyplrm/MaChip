@@ -169,13 +169,28 @@ const ArchivedUsers = () => {
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
-        {/* Header section */}
-        <div className="flex items-start md:items-center gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Archived Users</h1>
-            <span className="text-sm text-slate-500 mt-1 block">Manage archived user records - restore or permanently delete</span>
-          </div>
-        </div>
+        {/* Header section with hover-back button */}
+            <div className="group flex items-start md:items-center gap-0 mb-6 transition-all">
+              {/* Back Button: Hidden by default, slides and fades in on hover */}
+              <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  asChild 
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                >
+                  <Link to="/users">
+                    <ArrowBackIcon className="h-6 w-6" />
+                  </Link>
+                </Button>
+              </div>
+
+              {/* Title: Adds left padding when hovered */}
+              <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
+                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Archived Users</h1>
+                <span className="text-sm text-slate-500 mt-1 block">Manage archived user records - restore or permanently delete</span>
+              </div>
+            </div>
 
         {/* Statistics Cards */}
               <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">

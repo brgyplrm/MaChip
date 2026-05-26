@@ -405,7 +405,7 @@ const toggleMachipVisibility = (rowId) => {
 
   return (
     <Sidebar>
-      <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <div className="flex flex-col w-full min-h-screen">
         <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
         
         <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
@@ -461,9 +461,9 @@ const toggleMachipVisibility = (rowId) => {
                     {viewMode === "raw" ? "Total events captured in this period" : "All captured records for context"}
                   </p>
                 </div>
-                <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                {/* <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                   <FormatListBulletedIcon className="h-6 w-6" />
-                </div>
+                </div> */}
               </CardContent>
             </Card>
 
@@ -481,29 +481,29 @@ const toggleMachipVisibility = (rowId) => {
                     {viewMode === "raw" ? "Entry scans recorded in this period" : "Employees arriving on or before 8:00 AM"}
                   </p>
                 </div>
-                <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                {/* <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                   <AccessTimeIcon className="h-6 w-6" />
-                </div>
+                </div> */}
               </CardContent>
             </Card>
 
             {/* Card 3: Admins & Supervisors */}
-            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+            <Card className="border-t-5 border-[#B06E16] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">
+                    <p className="text-xs font-bold text-[#B06E16] uppercase tracking-wider mb-2">
                       {viewMode === "raw" ? "Clock Out Events" : "Late & Absent"}
                     </p>
-                    <p className="text-4xl font-bold text-[#BB8B26]">{stats.metric2}</p>
+                    <p className="text-4xl font-bold text-[#B06E16]">{stats.metric2}</p>
                   </div>
-                  <p className="text-xs text-[#BB8B26]/70 italic mt-4">
+                  <p className="text-xs text-[#B06E16]/70 italic mt-4">
                     {viewMode === "raw" ? "Exit scans recorded in this period" : "Days recorded with infractions"}
                   </p>
                 </div>
-                <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                {/* <div className="bg-[#B06E16]/20 text-[#B06E16] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                   <AssignmentLateIcon className="h-6 w-6" />
-                </div>
+                </div> */}
               </CardContent>
             </Card>
           </div>

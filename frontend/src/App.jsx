@@ -50,6 +50,7 @@ import LoanDetailsPage from "./components/LoanDetailsPage";
 import ThirteenthMonth from "./pages/admin_Payroll/subtabs/ThirteenthMonth";
 import SeparationPay from "./pages/admin_Payroll/subtabs/SeparationPay";
 import RetirementPay from "./pages/admin_Payroll/subtabs/RetirementPay";
+import LaborBenefits from "./pages/admin_Payroll/LaborBenefits";
 
 function App() {
 
@@ -125,6 +126,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 4]}>
               <Payroll />
+            </ProtectedRoute>
+          }
+        />
+
+         <Route
+          path="/laborBenefits"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <LaborBenefits />
             </ProtectedRoute>
           }
         />

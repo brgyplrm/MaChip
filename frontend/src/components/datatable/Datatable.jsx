@@ -163,45 +163,52 @@ const toggleMachipVisibility = (userId) => {
           <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">User Management</h1>
           <span className="text-sm text-muted-foreground mt-1 block">Manage user accounts and roles</span>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          {/* Left side: Biometric Infrastructure (Tertiary) */}
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              asChild 
+              className="text-slate-600 hover:text-[#2A174E] hover:bg-slate-100"
+            >
+              <Link to="/users/rfid"><CreditCardIcon className="mr-2 h-4 w-4"/> Cards</Link>
+            </Button>
+            <Button 
+              variant="ghost" 
+              asChild 
+              className="text-slate-600 hover:text-[#2A174E] hover:bg-slate-100"
+            >
+              <Link to="/users/fingerprint"><FingerprintIcon className="mr-2 h-4 w-4"/> Slots</Link>
+            </Button>
+          </div>
+
+          {/* Right side: User Management (Primary & Secondary) */}
           {isAdminOrAccountant && (
-            <>
+            <div className="flex gap-2 w-full sm:w-auto">
+              {/* Secondary Action */}
               <Button 
                 variant="outline" 
                 asChild 
-                className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
+                className="flex-1 sm:flex-none border-slate-300 text-slate-700 hover:bg-slate-50"
               >
                 <Link to="/users/archived">
                   <ArchiveIcon className="h-4 w-4 mr-1" /> Archived
                 </Link>
               </Button>
+
+              {/* Primary Action */}
               <Button 
                 asChild 
-                className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]"
+                className="flex-1 sm:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm"
               >
                 <Link to="/users/newUser">
                   <PersonAddIcon className="h-4 w-4 mr-1" /> Add User
                 </Link>
               </Button>
-            </>
+            </div>
           )}
         </div>
       </div>
-      {/* Add this section at the top or bottom of your New.jsx registration view component */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
-          <div className="flex-1">
-            <p className="text-sm font-bold text-slate-800">Biometric Infrastructure Links</p>
-            <p className="text-xs text-slate-500">Ensure module address spaces and cards are clean before pairing.</p>
-          </div>
-          <div className="flex gap-3 shrink-0 items-center">
-            <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E] bg-white">
-              <Link to="/users/rfid"><CreditCardIcon className="mr-2 h-4 w-4"/> Monitor Cards</Link>
-            </Button>
-            <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E] bg-white">
-              <Link to="/users/fingerprint"><FingerprintIcon className="mr-2 h-4 w-4"/> Monitor Slots</Link>
-            </Button>
-          </div>
-        </div>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
@@ -212,7 +219,7 @@ const toggleMachipVisibility = (userId) => {
               <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Active Users</p>
               <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
             </div>
-            <p className="text-xs text-[#2A174E]/70 italic mt-4">Total registered active accounts</p>
+            <p className="text-xs font-semibold text-[#2A174E]/70 italic mt-4">Total registered active accounts</p>
           </CardContent>
         </Card>
 
@@ -223,18 +230,18 @@ const toggleMachipVisibility = (userId) => {
               <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Employees</p>
               <p className="text-4xl font-bold text-[#3B4E17]">{stats.employees}</p>
             </div>
-            <p className="text-xs text-[#3B4E17]/70 italic mt-4">Active standard staff records</p>
+            <p className="text-xs font-semibold text-[#3B4E17]/70 italic mt-4">Active standard staff records</p>
           </CardContent>
         </Card>
 
         {/* Card 3: Admins & Supervisors */}
-        <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+        <Card className="border-t-5 border-[#B06E16] bg-white py-0 h-full">
           <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
             <div>
-              <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Admin & Supervisor</p>
-              <p className="text-4xl font-bold text-[#BB8B26]">{stats.admins}</p>
+              <p className="text-xs font-bold text-[#B06E16] uppercase tracking-wider mb-2">Admin & Supervisor</p>
+              <p className="text-4xl font-bold text-[#B06E16]">{stats.admins}</p>
             </div>
-            <p className="text-xs text-[#BB8B26]/70 italic mt-4">Active management records</p>
+            <p className="text-xs font-semibold text-[#B06E16]/70 italic mt-4">Active management records</p>
           </CardContent>
         </Card>
       </div>
@@ -259,7 +266,7 @@ const toggleMachipVisibility = (userId) => {
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
               <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                <SelectTrigger className="w-full sm:w-40 border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
                   <SelectValue placeholder="Filter by Role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -274,7 +281,7 @@ const toggleMachipVisibility = (userId) => {
 
             <div className="flex items-center w-full sm:w-auto">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                <SelectTrigger className="w-full sm:w-40 border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
                   <SelectValue placeholder="Filter by Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -306,16 +313,16 @@ const toggleMachipVisibility = (userId) => {
       <Card className="shadow-sm border-0 bg-white py-0">
         <CardContent className="p-0 flex flex-col">
           <div className="overflow-x-auto">
-            <Table className="min-w-[800px] md:min-w-full">
+            <Table className="min-w-200 md:min-w-full">
               <TableHeader className="bg-[#2B174F]">
                 <TableRow className="hover:bg-transparent border-b-slate-200">
-                  <TableHead className="font-semibold text-slate-700 py-4 px-6 uppercase text-xs tracking-wider text-white">User ID</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white">Full Name</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white">Role</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white">Status</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white hidden md:table-cell">MaChip ID</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white hidden md:table-cell">Email</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 uppercase text-xs tracking-wider text-white text-right pr-6">Actions</TableHead>
+                  <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider ">User ID</TableHead>
+                  <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider ">Full Name</TableHead>
+                  <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider ">Role</TableHead>
+                  <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Status</TableHead>
+                  <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wide hidden md:table-cell">MaChip ID</TableHead>
+                  <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wide hidden md:table-cell">Email</TableHead>
+                  <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider text-right pr-6">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -329,7 +336,7 @@ const toggleMachipVisibility = (userId) => {
                       <TableCell className="font-medium text-slate-800 py-4">
                           {user.user_FirstName || user.user_LastName ? (
                             <span 
-                              className="inline-block max-w-[150px] truncate align-bottom" 
+                              className="inline-block max-w-37.5 truncate align-bottom" 
                               title={`${user.user_FirstName} ${user.user_LastName}`}
                             >
                               {`${user.user_FirstName} ${user.user_LastName}`}
