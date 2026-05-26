@@ -268,6 +268,7 @@ const Payroll = () => {
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header */}
+        
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 min-w-0">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Payroll Management</h1>
@@ -275,19 +276,10 @@ const Payroll = () => {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-              <Link to="/thirteenth-month">
-                <AssignmentTurnedInIcon className="mr-2 h-4 w-4" /> 13th Month Pay
-              </Link>
-            </Button>
-            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-              <Link to="/separation-pay">
-                <AccountBalanceWalletIcon className="mr-2 h-4 w-4" /> Separation Pay
-              </Link>
-            </Button>
-            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E]/10 text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-              <Link to="/retirement-pay">
-                <AssignmentTurnedInIcon className="mr-2 h-4 w-4" /> Retirement Pay
+            
+            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E]/10 text-[#2A174E] hover:bg-[#BA90E9] hover:text-white transition-colors">
+              <Link to="/laborBenefits">
+                <AssignmentTurnedInIcon className="mr-2 h-4 w-4" /> Labor Benefits
               </Link>
             </Button>
             <Button variant="outline" asChild className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#BA90E9] hover:text-white transition-colors">
@@ -302,13 +294,13 @@ const Payroll = () => {
             >
               <EventNoteIcon className="mr-2 h-4 w-4" /> Payroll Schedule
             </Button> */}
-            <Button 
+            {/* <Button 
               className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]"
               onClick={fetchActive}
               disabled={refreshing}
             >
               <RefreshIcon className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            </Button>
+            </Button> */}
           </div>
         </div>
 

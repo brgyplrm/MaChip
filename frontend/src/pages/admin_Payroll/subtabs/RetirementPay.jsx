@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../../components/Sidebar";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -14,6 +14,7 @@ import Toast from "../../../components/toast/Toast";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutline";
 import HistoryIcon from "@mui/icons-material/History";
 import EmptyState from "../../../components/EmptyState";  
+
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -154,6 +155,29 @@ const RetirementPay = () => {
   };
 
   const formatCurrency = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// Inside the component:
+const [currentPage, setCurrentPage] = useState(1);
+const [itemsPerPage, setItemsPerPage] = useState(10);
+const [searchQuery, setSearchQuery] = useState("");
+
+// Reset pagination when filter changes
+useEffect(() => {
+  setCurrentPage(1);
+}, [searchQuery, itemsPerPage]);
+
+// Memoized filtered and paginated data
+const filteredHistory = useMemo(() => {
+  return history.filter(h => 
+    `${h.user_LastName} ${h.user_FirstName}`.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+}, [history, searchQuery]);
+
+const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+const paginatedHistory = filteredHistory.slice(
+  (currentPage - 1) * itemsPerPage, 
+  currentPage * itemsPerPage
+);
 
   return (
     <div className="flex flex-col w-full min-h-screen">
@@ -382,6 +406,21 @@ const RetirementPay = () => {
             </TabsContent>
 
             <TabsContent value="history">
+
+              <Card className="mb-4 p-4 flex flex-col sm:flex-row gap-4 items-center justify-between shadow-sm border-0">
+                <div className="relative w-full sm:w-80">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input 
+                    placeholder="Search employee name..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <div className="text-sm text-slate-500 font-medium">
+                  Showing {paginatedHistory.length} of {filteredHistory.length} records
+                </div>
+              </Card>
               <Card className="shadow-sm border-0 bg-white py-0">
                 <CardHeader className="pt-6 pb-4 bg-[#2A174E]">
                   <CardTitle className="text-lg font-bold text-white">Retirement Records</CardTitle>
@@ -400,7 +439,7 @@ const RetirementPay = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {history.length > 0 ? history.map((h) => (
+                      {paginatedHistory.length > 0 ? paginatedHistory.map((h) => (
                         <TableRow key={h.retirementId}>
                           <TableCell className="font-bold text-[#2A174E]">{h.user_LastName}, {h.user_FirstName}</TableCell>
                           <TableCell>{new Date(h.retirementDate).toLocaleDateString()}</TableCell>
@@ -455,13 +494,35 @@ const RetirementPay = () => {
                         </TableRow>
                       )) : (
                         <TableRow>
-                          <TableCell colSpan={7} className="h-32 text-center text-slate-400 italic">
-                            No retirement records found.
+                          <TableCell colSpan={7} className="h-32 text-center text-slate-400 italic p-6">
+                            <EmptyState 
+                              icon={<HistoryIcon className="h-8 w-8 text-slate-400" />}
+                              title="No Retirement Pay History"
+                              description="Process Retirement Pay to see records here."
+                            />
                           </TableCell>
                         </TableRow>
                       )}
                     </TableBody>
                   </Table>
+                  {filteredHistory.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 gap-4">
+                      <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
+                        <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="20">20</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                        <div className="flex items-center px-2 font-bold text-[#2A174E]">{currentPage} / {totalPages || 1}</div>
+                        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>Next</Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

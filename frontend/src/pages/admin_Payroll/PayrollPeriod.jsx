@@ -254,25 +254,34 @@ const PayrollPeriod = () => {
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header section with back button */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-          <div className="flex items-start md:items-center gap-4">
-            <Link 
-              to="/payroll" 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+
+        <div className="group flex items-start md:items-center gap-0transition-all">
+          {/* Back Button: Hidden by default, slides and fades in on hover */}
+          <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              asChild 
+              className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
             >
-              <ArrowBackIcon className="h-6 w-6" />
-            </Link>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">
+              <Link to="/payroll">
+                <ArrowBackIcon className="h-6 w-6" />
+              </Link>
+            </Button>
+          </div>
+
+          {/* Title: Adds left padding when hovered */}
+          <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">
                 {selectedPeriod?.label} {selectedPeriod?.status === 'Draft' ? "Current Period" : "Previous Period"}
               </h1>
               <span className="text-sm text-slate-500 mt-1 block">
                 {selectedPeriod?.startDate ? new Date(selectedPeriod.startDate).toLocaleDateString() : "—"} to {selectedPeriod?.endDate ? new Date(selectedPeriod.endDate).toLocaleDateString() : "—"}
               </span>
-            </div>
           </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0">
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0">
             <Button 
               className="w-full sm:w-auto bg-[#f8fafc] text-[#2A174E] border border-slate-200 hover:bg-slate-100" 
               onClick={handlePreviewSummary}
@@ -299,22 +308,7 @@ const PayrollPeriod = () => {
               <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> 
               {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}
             </Button>
-            
-            {/* <Button 
-              className="w-full sm:w-auto bg-green-600 text-white hover:bg-green-700" 
-              onClick={handleDownloadSummary}
-              disabled={loading || payrolls.length === 0 || selectedPeriod?.status === 'Draft'}
-            >
-              <DownloadIcon className="mr-2 h-4 w-4" /> Export PDF
-            </Button> */}
-            {/* <Button 
-              className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]" 
-              onClick={() => fetchData(true)}
-              disabled={refreshing}
-            >
-              <RefreshIcon className={` h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            </Button> */}
-          </div>
+        </div>
         </div>
 
          {/* Statistics Cards */}
@@ -329,9 +323,9 @@ const PayrollPeriod = () => {
                 </div>
                 <p className="text-xs text-[#2A174E]/70 italic mt-4">Calculated total distribution amount</p>
               </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              {/* <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <PaymentsIcon className="h-6 w-6" />
-              </div>
+              </div> */}
               </CardContent>
             </Card>
 
@@ -345,9 +339,9 @@ const PayrollPeriod = () => {
                 </div>
                 <p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross pay including OT and allowances</p>
               </div>
-              <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              {/* <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <KeyboardDoubleArrowUpIcon className="h-6 w-6" />
-              </div>
+              </div> */}
               </CardContent>
             </Card>
 
@@ -361,9 +355,9 @@ const PayrollPeriod = () => {
                 </div>
                 <p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings including taxes and loans</p>
               </div>
-              <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              {/* <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
-              </div>
+              </div> */}
               </CardContent>
             </Card>
           </div>
@@ -547,7 +541,7 @@ const PayrollPeriod = () => {
             <CardContent className="p-0 flex flex-col h-full">
               <div className="flex justify-between items-center p-4 bg-[#2A174E] text-white">
                 <h3 className="font-bold text-lg flex items-center gap-2">
-                  <VisibilityIcon /> Payroll Summary Preview - {selectedPeriod?.label}
+                   Payroll Summary Preview - {selectedPeriod?.label}
                 </h3>
                 <div className="flex gap-2">
                   <Button variant="secondary" size="sm" onClick={handleDownloadSummary} className="bg-green-600 hover:bg-green-700 text-white border-0">

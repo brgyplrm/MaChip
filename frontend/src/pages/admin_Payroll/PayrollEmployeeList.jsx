@@ -197,28 +197,27 @@ const PayrollEmployeeList = () => {
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-          <div className="flex items-start md:items-center gap-4">
-            <Link 
-              to="/payroll" 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
-            >
-              <ArrowBackIcon className="h-6 w-6" />
-            </Link>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Masterlist</h1>
-              <span className="text-sm text-slate-500 mt-1 block">Manage employee records and daily compensation rates</span>
+        <div className="group flex items-start md:items-center gap-0 mb-6 transition-all">
+              {/* Back Button: Hidden by default, slides and fades in on hover */}
+              <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  asChild 
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                >
+                  <Link to="/payroll">
+                    <ArrowBackIcon className="h-6 w-6" />
+                  </Link>
+                </Button>
+              </div>
+
+              {/* Title: Adds left padding when hovered */}
+              <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
+                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Employee Masterlist</h1>
+                <span className="text-sm text-slate-500 mt-1 block">Manage employee records and daily compensation rates</span>
+              </div>
             </div>
-          </div>
-          <Button 
-            className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]" 
-            onClick={() => fetchEmployees(true)}
-            disabled={refreshing}
-          >
-            <RefreshIcon className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </Button>
-        </div>
 
         <div className="h-2"></div>
 

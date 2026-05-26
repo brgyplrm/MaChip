@@ -13,6 +13,8 @@ import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EmptyState from "../../../components/EmptyState";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
+import SearchIcon from "@mui/icons-material/Search";
+
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,6 +22,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const ThirteenthMonth = () => {
   const { systemToday } = useSystemTime();
@@ -226,6 +230,21 @@ const ThirteenthMonth = () => {
                     <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">TOTAL DISBURSEMENT</p><p className="text-4xl font-bold text-[#BB8B26]">{formatCurrency(previewData.reduce((acc, curr) => acc + (curr.computedAmount || 0), 0))}</p></div><p className="text-xs text-[#BB8B26]/70 italic mt-4">Total projected payout.</p></div></CardContent></Card>
                   </div>
 
+                  <Card className="mb-6 p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                    <div className="relative w-full sm:w-80">
+                      <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input 
+                        placeholder="Search employee name..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    <div className="text-sm text-slate-500">
+                      Showing {paginatedData.length} of {filteredData.length} employees
+                    </div>
+                  </Card>
+
               <Card className="shadow-sm border-0 bg-white mb-6 py-0">
                 <CardHeader className="bg-[#2A174E] pt-4! flex flex-row items-center justify-between border-b border-slate-100">
                   <div>
@@ -300,6 +319,38 @@ const ThirteenthMonth = () => {
                       )}
                     </TableBody>
                   </Table>
+                  <div className="flex items-center justify-between p-4 border-t border-slate-100">
+                    <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
+                      <SelectTrigger className="w-24">
+                        <SelectValue placeholder="10" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(p => p - 1)}
+                      >
+                        Previous
+                      </Button>
+                      <div className="flex items-center px-4 font-bold text-[#2A174E]">
+                        {currentPage} / {totalPages || 1}
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setCurrentPage(p => p + 1)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

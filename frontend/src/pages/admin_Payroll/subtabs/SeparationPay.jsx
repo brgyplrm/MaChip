@@ -10,6 +10,7 @@ import Toast from "../../../components/toast/Toast";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import HistoryIcon from "@mui/icons-material/History";
 import EmptyState from "../../../components/EmptyState";
+import {useMemo} from "react";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,30 @@ const SeparationPay = () => {
   const [causes, setCauses] = useState([]);
   const [selectedCauseId, setSelectedCauseId] = useState("");
   const [reason, setReason] = useState("");
+
+  // --- Pagination & Filter States ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
+
+  // Filtering and Pagination Logic
+  const filteredHistory = useMemo(() => {
+    return history.filter(h => 
+      `${h.user_LastName} ${h.user_FirstName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      h.causeName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [history, searchQuery]);
+
+  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+  const paginatedHistory = filteredHistory.slice(
+    (currentPage - 1) * itemsPerPage, 
+    currentPage * itemsPerPage
+  );
 
   const fetchCauses = async () => {
     try {
@@ -403,6 +428,20 @@ const SeparationPay = () => {
             </TabsContent>
 
             <TabsContent value="history">
+              <Card className="mb-4 p-4 flex flex-col sm:flex-row gap-4 items-center justify-between shadow-sm border-0">
+                <div className="relative w-full sm:w-80">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input 
+                    placeholder="Search employee or cause..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <div className="text-sm text-slate-500 font-medium">
+                  {filteredHistory.length} Total Records
+                </div>
+              </Card>
               <Card className="shadow-sm border-0 bg-white py-0">
                 <CardHeader className="bg-[#2A174E] border-b-0 pt-6 pb-4">
                   <CardTitle className="text-lg font-bold text-white">Separation Pay Records</CardTitle>
@@ -421,7 +460,7 @@ const SeparationPay = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {history.length > 0 ? history.map((h) => (
+                      {paginatedHistory.length > 0 ? paginatedHistory.map((h) => (
                         <TableRow key={h.separationId}>
                           <TableCell className="font-bold text-[#2A174E]">{h.user_LastName}, {h.user_FirstName}</TableCell>
                           <TableCell>{new Date(h.separationDate).toLocaleDateString()}</TableCell>
@@ -489,6 +528,24 @@ const SeparationPay = () => {
                       )}
                     </TableBody>
                   </Table>
+                  {filteredHistory.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 gap-4">
+                      <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
+                        <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="20">20</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                        <div className="flex items-center px-2 font-bold text-[#2A174E]">{currentPage} / {totalPages || 1}</div>
+                        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>Next</Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
