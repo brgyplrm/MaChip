@@ -14,6 +14,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import Toast from "../../../components/toast/Toast";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Link } from "react-router-dom";
+import EmptyState from "../../../components/EmptyState";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -105,23 +106,37 @@ const EastwestLoanHistory = () => {
         
         {/* Header Section */}
         <div className="flex flex-col md:flex-row items-start md:items-center gap-1 mb-8">
-          <Link 
-               to="/eastwestloan" 
-               className="mr-4 flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
-              >
-            <ArrowBackIcon className="h-6 w-6" />
-          </Link>
-          <div className="flex justify-between gap-[350px]">
-            <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Eastwest Loan Records</h1>
+  
+        {/* Group container for the sliding animation */}
+        <div className="group flex items-center gap-0 w-full md:w-auto">
+          
+          {/* Back Button Container: Slides out from 0 width */}
+          <div className="w-0 overflow-hidden group-hover:w-10 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              asChild 
+              className="text-[#2A174E]"
+            >
+              <Link to="/eastwestloan">
+                <ArrowBackIcon className="h-6 w-6" />
+              </Link>
+            </Button>
+          </div>
+
+          {/* Title Group: Moves to the right via ml-2 when hovered */}
+          <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out flex-1">
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Loan Records</h1>
             <span className="text-sm text-slate-500 mt-1 block">Complete historical log of employee bank loan repayments via payroll.</span>
           </div>
-          <Button className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-sm">
-            <DownloadIcon className="mr-2 h-4 w-4" /> Export History (PDF)
-          </Button>
-          </div>
-          
         </div>
+
+        {/* Right Action: PDF Export */}
+        {/* Added 'md:ml-auto' to push this button to the far right on desktop */}
+        <Button className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-sm md:ml-auto shrink-0 mt-4 md:mt-0">
+          <DownloadIcon className="mr-2 h-4 w-4" /> Export History (PDF)
+        </Button>
+      </div>
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -231,7 +246,13 @@ const EastwestLoanHistory = () => {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-32 text-center text-slate-400 italic">No loan records found for the selected criteria.</TableCell>
+                    <TableCell colSpan={4} className="h-32 text-center text-slate-400 italic p-6">
+                        <EmptyState 
+                        icon={<HistoryIcon className="h-8 w-8 text-slate-400" />}
+                        title="No employee loan history found."
+                        description="Loan history will appear after the first deduction is processed."
+                      />
+                      </TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -239,7 +260,7 @@ const EastwestLoanHistory = () => {
 
             {/* Pagination Controls */}
             <div className="flex items-center justify-between p-4 bg-slate-50/50 border-t border-slate-100">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-tighter">
+              <span className="text-xs font-medium text-slate-500">
                 Showing {startIndex + 1} to {endIndex} of {totalItems} loan records
               </span>
               <div className="flex gap-2">

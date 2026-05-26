@@ -18,6 +18,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
 import { useSystemTime } from "../context/SystemTimeContext";
 import { Badge } from "./ui/badge";
+import TuneIcon from '@mui/icons-material/Tune';
 
 import {
   Sidebar as ShadcnSidebar,
@@ -50,9 +51,35 @@ import { Separator } from "./ui/separator";
 
 import { fetchWithAuth } from "../utils/api";
 
+const routeLabels = {
+  "loanManagement": "Government Loans",
+  "rfid" : "RFIDs",
+  "fingerprint" : "Biometrics",
+  "newUser" : "New User",
+  "adminRequests" : "Requests",
+  "payroll" : "Payroll Management",
+  "payrollPeriod" : "Payroll Period",
+  "laborBenefits" : "Labor Benefits",
+  "employeeList" : "Employee List",
+  "govloans" : "Summary",
+  "eastwestloan" : "Employee Loans",
+  "maxicare" : "HMOs",
+  "adminReports" : "Admin Reports",
+  "auditLogs" : "Audit Logs",
+  "transactionLog" : "Transaction Logs",
+  "settings" : "Configurations",
+  "faq" : "Help & Support",
+  "employeeHome" : "Home",
+  "employeeCalendar" : "calendar",
+  "accessLogs" : "Access Logs",
+
+  // Add as many as needed
+};
+
 const Sidebar = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Dropdown states for submenus - initialized based on the current URL
   const [isUsersOpen, setIsUsersOpen] = useState(() => location.pathname.startsWith("/users"));
@@ -475,50 +502,62 @@ const Sidebar = ({ children }) => {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-          {/* --- BOTTOM SECTION (ANCHORED) --- */}
+         {/* --- BOTTOM SECTION (ANCHORED) --- */}
         <SidebarFooter className="border-t border-gray-100 p-3 mt-auto">
           <SidebarGroupLabel>SYSTEM</SidebarGroupLabel>
           <SidebarMenu>
-            {isMaster && (
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/auditLogs")} className={isActive("/auditLogs") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}>
-                  <Link to="/auditLogs">
-                    <ListAltIcon className="!text-[22px]" />
-                    <span className="ms-3 text-[14px]">Audit</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-
-            {isMaster && (
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/transactionLog")} className={isActive("/transactionLog") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}>
-                  <Link to="/transactionLog">
-                    <ReceiptLongIcon className="!text-[22px]" />
-                    <span className="ms-3 text-[14px]">Transaction</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-
-            {isManagement && (
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/settings")} className={isActive("/settings") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}>
-                  <Link to="/settings">
-                    <SettingsIcon className="!text-[22px]" />
-                    <span className="ms-3 text-[14px]">Settings</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-
             <SidebarMenuItem>
-              <SidebarMenuButton asChild className="text-gray-500 hover:bg-[#f0ebfa] hover:text-[#2A174E]">
-                <Link to="/faq" className="flex items-center">
-                  <HelpOutlinedIcon className="!text-[20px]" />
-                  <span className="ms-3 text-[14px]">Help & Support</span>
-                </Link>
+              {/* Settings acts as the trigger for the popup menu */}
+              <SidebarMenuButton 
+                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                className={isSettingsOpen ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+              >
+                <SettingsIcon className="!text-[22px]" />
+                <span className="flex-1 ms-3 text-[14px]">Settings</span>
+                <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isSettingsOpen ? "rotate-180" : ""}`} />
               </SidebarMenuButton>
+
+              {/* Popup Menu */}
+              {isSettingsOpen && (
+                <SidebarMenuSub>
+                  {isMaster && (
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild>
+                        <Link to="/auditLogs">
+                          <ListAltIcon className="!text-[18px] mr-2" /> Audit
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  )}
+
+                  {isMaster && (
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild>
+                        <Link to="/transactionLog">
+                          <ReceiptLongIcon className="!text-[18px] mr-2" /> Transaction
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  )}
+
+                  {/* New Configuration Link */}
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton asChild>
+                      <Link to="/settings">
+                        <TuneIcon className="!text-[18px] mr-2" /> Configuration
+                      </Link>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton asChild>
+                      <Link to="/faq">
+                        <HelpOutlinedIcon className="!text-[18px] mr-2" /> Help & Support
+                      </Link>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                </SidebarMenuSub>
+              )}
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
@@ -540,15 +579,16 @@ const Sidebar = ({ children }) => {
                   {pathnames.map((name, index) => {
                     const routeTo = `/${pathnames.slice(0, index + 1).join("/")}`;
                     const isLast = index === pathnames.length - 1;
+                    const label = routeLabels[name] || name.replace(/-/g, " ");
                     return (
                       <React.Fragment key={name}>
                         <BreadcrumbSeparator className="hidden md:block" />
                         <BreadcrumbItem>
                           {isLast ? (
-                            <BreadcrumbPage className="capitalize">{name.replace(/-/g, " ")}</BreadcrumbPage>
+                            <BreadcrumbPage className="capitalize">{label}</BreadcrumbPage>
                           ) : (
                             <BreadcrumbLink asChild className="capitalize">
-                              <Link to={routeTo}>{name.replace(/-/g, " ")}</Link>
+                              <Link to={routeTo}>{label}</Link>
                             </BreadcrumbLink>
                           )}
                         </BreadcrumbItem>

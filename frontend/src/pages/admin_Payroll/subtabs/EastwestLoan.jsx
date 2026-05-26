@@ -435,64 +435,6 @@ const EastwestLoan = () => {
 
   const totalAllTime = data.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0);
 
-  const LoanTimeline = ({ data, employeeList, expectedDates, isInSamePeriod, getRowTotal, stats }) => {
-  const [expandedPeriod, setExpandedPeriod] = useState(null);
-
-  return (
-    <div className="space-y-4">
-      {expectedDates.map((dateStr) => {
-        const isExpanded = expandedPeriod === dateStr;
-        const total = getRowTotal(dateStr);
-
-        return (
-          <Card key={dateStr} className={`border ${isExpanded ? "border-[#2A174E] shadow-md" : "border-slate-200 shadow-sm"}`}>
-            {/* Period Summary Header */}
-            <div 
-              className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
-              onClick={() => setExpandedPeriod(isExpanded ? null : dateStr)}
-            >
-              <div className="flex items-center gap-4">
-                {isExpanded ? <ChevronDown className="text-[#2A174E]" /> : <ChevronRight className="text-slate-400" />}
-                <div>
-                  <h3 className="font-bold text-slate-800">
-                    {new Date(dateStr).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium uppercase">Period Disbursement</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-black text-[#2A174E] text-lg">{parseFloat(total).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-              </div>
-            </div>
-
-            {/* Expanded Employee Breakdown */}
-            {isExpanded && (
-              <div className="border-t border-slate-100 bg-slate-50/50 p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {employeeList.map((emp) => {
-                  const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
-                  const record = actualRecord ? actualRecord.values[emp.key] : null;
-                  const amount = record ? record.amount : 0;
-
-                  return (
-                    <div key={emp.key} className="bg-white p-3 rounded-lg border border-slate-100 flex justify-between items-center shadow-sm">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-slate-400" />
-                        <span className="text-xs font-bold text-slate-700">{emp.name.split(',')[0]}</span>
-                      </div>
-                      <span className={`text-xs font-mono ${amount > 0 ? "font-bold text-emerald-600" : "text-slate-300"}`}>
-                        {amount > 0 ? parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2}) : "—"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-        );
-      })}
-    </div>
-  );
-  };
 
   const EmployeeLoanDashboard = ({ data, employeeList, expectedDates, isInSamePeriod }) => {
   const [selectedEmp, setSelectedEmp] = useState(employeeList[0]?.key || "");
@@ -731,21 +673,25 @@ const HeatmapLoanMatrix = ({ data, employeeList, expectedDates, isInSamePeriod }
         
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
         
-        {/* Header Section */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Loan Management</h1>
-            <span className="text-sm text-slate-500 mt-1 block">
-              Manage employee personal loan deductions, track repayments, and configure matrix schedules.
-            </span>
-          </div>
+  
+        {/* Header Text Group */}
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Loan Management</h1>
+          <span className="text-sm text-slate-500 mt-1 block">
+            Manage employee personal loan deductions, track repayments, and configure matrix schedules.
+          </span>
+        </div>
+
+        {/* Control Group: View History + Fiscal Year Dropdown */}
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E]">
             <Link to="/eastwestloan/history">
-              <HistoryIcon className="mr-2 h-4 w-4" /> View Remittance History
+              <HistoryIcon className="mr-2 h-4 w-4" /> View History
             </Link>
           </Button>
+
           <div className="flex items-center gap-2">
-            <FilterListIcon className="text-slate-400 h-5 w-5" />
             <Select value={selectedYear} onValueChange={setSelectedYear}>
               <SelectTrigger className="w-[160px] h-9 bg-white font-bold text-slate-700">
                 <SelectValue placeholder="Select Year" />
@@ -758,6 +704,7 @@ const HeatmapLoanMatrix = ({ data, employeeList, expectedDates, isInSamePeriod }
             </Select>
           </div>
         </div>
+      </div>
 
         {/* Dashboard-Style Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans">
@@ -839,7 +786,6 @@ const HeatmapLoanMatrix = ({ data, employeeList, expectedDates, isInSamePeriod }
             )}
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-0">
           <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-xl custom-scrollbar">
             <table className="w-full min-w-max border-collapse text-sm">
@@ -1021,15 +967,6 @@ const HeatmapLoanMatrix = ({ data, employeeList, expectedDates, isInSamePeriod }
             </table>
           </div>
         </div>
-
-        <LoanTimeline 
-          data={data} 
-          employeeList={employeeList} 
-          expectedDates={expectedDates} 
-          isInSamePeriod={isInSamePeriod} 
-          getRowTotal={getRowTotal} 
-          stats={stats} 
-        /> 
 
       </div>
 

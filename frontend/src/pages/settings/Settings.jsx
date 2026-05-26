@@ -255,8 +255,8 @@ const Settings = () => {
 
           {/* Integrated Tabbed Navigation controls */}
           <Tabs value={activeSettingsTab} onValueChange={setActiveSettingsTab} className="w-full">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-              <TabsList className="grid grid-cols-2 lg:grid-cols-4 w-full sm:w-auto h-[55px]! bg-slate-200/60 p-1 rounded-lg">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
+              <TabsList className="grid grid-cols-2 lg:grid-cols-5 w-full sm:w-auto h-[55px]! bg-slate-200/60 p-1 rounded-lg">
                 <TabsTrigger value="simulation" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
                   <SettingsSuggestIcon className="mr-2 h-4 w-4" /> System Variables
                 </TabsTrigger>
