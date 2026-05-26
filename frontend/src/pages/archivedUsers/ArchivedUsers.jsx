@@ -164,7 +164,7 @@ const ArchivedUsers = () => {
   };
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+    <div className="flex flex-col w-full min-h-screen">
       <Sidebar>
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
@@ -193,40 +193,40 @@ const ArchivedUsers = () => {
             </div>
 
         {/* Statistics Cards */}
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-                {/* Card 1: Total Active Users */}
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
-                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
-                    <div>
-                      <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Archived</p>
-                      <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
-                    </div>
-                    <p className="text-xs text-[#2A174E]/70 italic mt-4">Total registered active accounts</p>
-                  </CardContent>
-                </Card>
-        
-                {/* Card 2: Employees */}
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
-                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
-                    <div>
-                      <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Employees</p>
-                      <p className="text-4xl font-bold text-[#3B4E17]">{stats.employees}</p>
-                    </div>
-                    <p className="text-xs text-[#3B4E17]/70 italic mt-4">Active standard staff records</p>
-                  </CardContent>
-                </Card>
-        
-                {/* Card 3: Admins & Supervisors */}
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
-                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
-                    <div>
-                      <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Admin & Supervisor</p>
-                      <p className="text-4xl font-bold text-[#BB8B26]">{stats.admins}</p>
-                    </div>
-                    <p className="text-xs text-[#BB8B26]/70 italic mt-4">Active management records</p>
-                  </CardContent>
-                </Card>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          {/* Card 1: Total Active Users */}
+          <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Archived</p>
+                <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
               </div>
+              <p className="text-xs text-[#2A174E]/70 italic mt-4">Total registered active accounts</p>
+            </CardContent>
+          </Card>
+  
+          {/* Card 2: Employees */}
+          <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Employees</p>
+                <p className="text-4xl font-bold text-[#3B4E17]">{stats.employees}</p>
+              </div>
+              <p className="text-xs text-[#3B4E17]/70 italic mt-4">Active standard staff records</p>
+            </CardContent>
+          </Card>
+  
+          {/* Card 3: Admins & Supervisors */}
+          <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Admin & Supervisor</p>
+                <p className="text-4xl font-bold text-[#BB8B26]">{stats.admins}</p>
+              </div>
+              <p className="text-xs text-[#BB8B26]/70 italic mt-4">Active management records</p>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Filters Card */}
         <Card className="shadow-sm border-0 bg-white mb-6 py-0">

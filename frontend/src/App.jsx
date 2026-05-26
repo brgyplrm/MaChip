@@ -46,6 +46,7 @@ import FAQ from "./components/FAQ";
 import LoanManagement from "./pages/admin_Payroll/subtabs/LoanManagement";
 import LoanManagementHub from "./pages/admin_Payroll/subtabs/LoanManagementHub";
 import LM2 from "./pages/admin_Payroll/subtabs/LM2";
+import LoanDetails from "./pages/admin_Payroll/subtabs/LoanDetails";
 import LoanDetailsPage from "./components/LoanDetailsPage";
 import ThirteenthMonth from "./pages/admin_Payroll/subtabs/ThirteenthMonth";
 import SeparationPay from "./pages/admin_Payroll/subtabs/SeparationPay";
@@ -138,12 +139,20 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/loanmod"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <LoanModule />
+            </ProtectedRoute>
+          }
+        />
         <Route 
           path="/loanMan2" 
           element={<ProtectedRoute allowedRoles={[1, 4]}><LM2 /></ProtectedRoute>} />
         <Route 
-          path="/loanMan2/:id" 
-          element={<ProtectedRoute allowedRoles={[1, 4]}><LoanDetailsPage /></ProtectedRoute>} />
+          path="/loanDetails" 
+          element={<ProtectedRoute allowedRoles={[1, 4]}><LoanDetails /></ProtectedRoute>} />
 
         <Route
           path="/loanManagementHub"

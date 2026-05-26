@@ -115,7 +115,9 @@ const Sidebar = ({ children }) => {
       location.pathname.startsWith("/maxicare") || 
       location.pathname.startsWith("/eastwestloan") || 
       location.pathname.startsWith("/govloans") || 
-      location.pathname.startsWith("/cashadvances")
+      location.pathname.startsWith("/cashadvances") ||
+      location.pathname.startsWith("/laborBenefits") ||
+      location.pathname.startsWith("/loanMan2")
     ) {
       setIsPayrollOpen(true);
     }
@@ -395,6 +397,13 @@ const Sidebar = ({ children }) => {
                           <SidebarMenuSubButton asChild isActive={isActive("/maxicare")}>
                             <Link to="/maxicare" className={isActive("/maxicare") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Maxicare
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/loanmod")}>
+                            <Link to="/loanmod" className={isActive("/loanmod") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Loan Module
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

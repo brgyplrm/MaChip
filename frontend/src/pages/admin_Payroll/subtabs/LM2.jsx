@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import LoanAdjustmentDialog from "@/components/LoanAdjustmentDialog";
 import { useNavigate } from "react-router-dom";
+import LoanDetails from "./LoanDetails";
 
 const loans = [
   { id: "LOAN-001", employee: "Cydoel Tomas", title: "Emergency Medical Advance", principal: 15000, paid: 7500, outstanding: 7500, progress: 50 },
@@ -23,58 +24,106 @@ export default function LM2() {
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
+  const myLoan = {
+  id: "LOAN-001",
+  title: "Emergency Medical Advance",
+  employee: "Cydoel Tomas",
+  email: "cydtomas555@gmail.com",
+  employeeId: "1"
+};
+
   return (
     <Sidebar>
-      <div className="p-2 md:p-8  min-h-screen w-full max-w-6xl mx-auto">
+      <div className="p-2 md:p-4  min-h-screen w-full max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Loan Management</h1>
-            <p className="text-muted-foreground">Create and manage custom employee loans dynamically</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Loan Management Hub</h1>
+            <span className="text-sm text-slate-500 mt-1 block">Manage loan records - view details, make adjustments, or close loans</span>
           </div>
           <Button onClick={() => setShowLoanModal(true)} className="bg-[#2A174E] hover:bg-[#1a0e30]">
             <Plus className="mr-2 h-4 w-4" /> Create Custom Loan
           </Button>
         </div>
 
-        {/* Stats Grid - Kept as is */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          {[
-            { label: "Total Loans", value: "2" },
-            { label: "Active Loans", value: "2", color: "text-emerald-600" },
-            { label: "Total Disbursed", value: "₱40,000" },
-            { label: "Total Collected", value: "₱19,500", color: "text-emerald-600" },
-            { label: "Outstanding", value: "₱20,500", color: "text-orange-500" },
-          ].map((stat, i) => (
-            <Card key={i}>
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{stat.label}</CardTitle></CardHeader>
-              <CardContent><p className={`text-2xl font-bold ${stat.color || ""}`}>{stat.value}</p></CardContent>
-            </Card>
-          ))}
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-8 w-full">
+          
+          {/* Card 1: Total Loans */}
+          <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Loans</p>
+                <p className="text-4xl font-bold text-[#2A174E]">{loans.length}</p>
+              </div>
+              <p className="text-xs text-[#2A174E]/70 italic mt-4">Total loan agreements created</p>
+            </CardContent>
+          </Card>
+
+
+          {/* Card 3: Total Disbursed */}
+          <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Disbursed</p>
+                <p className="text-4xl font-bold text-[#BB8B26]">
+                  ₱{loans.reduce((acc, curr) => acc + curr.principal, 0).toLocaleString()}
+                </p>
+              </div>
+              <p className="text-xs text-[#BB8B26]/70 italic mt-4">Cumulative loan principal amount</p>
+            </CardContent>
+          </Card>
+
+          {/* Card 4: Total Collected */}
+          <Card className="border-t-5 border-[#174e4e] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#174e4e] uppercase tracking-wider mb-2">Total Collected</p>
+                <p className="text-4xl font-bold text-[#174e4e]">
+                  ₱{loans.reduce((acc, curr) => acc + curr.paid, 0).toLocaleString()}
+                </p>
+              </div>
+              <p className="text-xs text-[#174e4e]/70 italic mt-4">Total payments received</p>
+            </CardContent>
+          </Card>
+
+          {/* Card 5: Outstanding */}
+          <Card className="border-t-5 border-[#a12626] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#a12626] uppercase tracking-wider mb-2">Outstanding</p>
+                <p className="text-4xl font-bold text-[#a12626]">
+                  ₱{loans.reduce((acc, curr) => acc + curr.outstanding, 0).toLocaleString()}
+                </p>
+              </div>
+              <p className="text-xs text-[#a12626]/70 italic mt-4">Remaining balance to collect</p>
+            </CardContent>
+          </Card>
+
         </div>
 
         {/* Table Section */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Active Loans</CardTitle>
+        <Card className="py-0">
+          <CardHeader className="bg-[#2A174E] flex flex-row items-center justify-between pt-4 pb-4">
+            <CardTitle className="text-white font-semibold">Active Loans</CardTitle>
             <div className="relative w-64">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search loans..." className="pl-8" />
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-[#2A174E]" />
+              <Input placeholder="Search loans..." className="pl-8 text-[#2A174E] bg-white border-white" />
             </div>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="px-4">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>LOAN ID</TableHead>
-                  <TableHead>EMPLOYEE</TableHead>
-                  <TableHead>LOAN TITLE</TableHead>
-                  <TableHead>PRINCIPAL</TableHead>
-                  <TableHead>PAID</TableHead>
-                  <TableHead>OUTSTANDING</TableHead>
-                  <TableHead>PROGRESS</TableHead>
-                  <TableHead>STATUS</TableHead>
-                  <TableHead>ACTIONS</TableHead>
+                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">GOV TYPE</TableHead>
+                  <TableHead className="font-semibold text-[#2A174E] py-4  uppercase text-xs tracking-wider">EMPLOYEE</TableHead>
+                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">LOAN TITLE</TableHead>
+                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PRINCIPAL</TableHead>
+                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PAID</TableHead>
+                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">OUTSTANDING</TableHead>
+                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PROGRESS</TableHead>
+                  <TableHead className="font-semibold text-[#2A174E] py-4  uppercase text-xs tracking-wider">STATUS</TableHead>
+                  <TableHead className="font-semibold text-[#2A174E] py-4  pl-10 uppercase text-xs tracking-wider">ACTIONS</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -93,20 +142,20 @@ export default function LM2() {
                       </div>
                     </TableCell>
                     <TableCell><Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">ACTIVE</Badge></TableCell>
-                    <TableCell className="flex gap-2 text-muted-foreground">
-                        <Button variant="ghost" size="icon" onClick={() => setShowEditModal(true)}>
-                            <Edit2 className="h-4 w-4" />
-                        </Button>
+                    <TableCell className="flex gap-0 text-muted-foreground">
+                      <Button variant="ghost" size="icon" onClick={() => setShowEditModal(true)}>
+                          <Edit2 className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon">
-                            <Pause className="h-4 w-4" />
-                        </Button>
+                          <Pause className="h-4 w-4" />
+                      </Button>
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        onClick={() => navigate(`/loanMan2 /${loan.id}`)}
+                        onClick={() => navigate('/loanDetails')}
                         >
                         <Eye className="h-4 w-4 cursor-pointer hover:text-black" />
-                        </Button>
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
