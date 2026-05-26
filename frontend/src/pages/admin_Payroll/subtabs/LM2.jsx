@@ -13,24 +13,48 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import LoanAdjustmentDialog from "@/components/LoanAdjustmentDialog";
 import { useNavigate } from "react-router-dom";
 import LoanDetails from "./LoanDetails";
+import { Filter } from "lucide-react";
 
 const loans = [
-  { id: "LOAN-001", employee: "Cydoel Tomas", title: "Emergency Medical Advance", principal: 15000, paid: 7500, outstanding: 7500, progress: 50 },
-  { id: "LOAN-002", employee: "Michael Brown", title: "Laptop Co-Payment", principal: 25000, paid: 12000, outstanding: 13000, progress: 48 },
+  { govtype: "PAG-IBIG", employee: "Cydoel Tomas", title: "Emergency Medical Advance", principal: 15000, paid: 7500, outstanding: 7500, progress: 50 },
+  { govtype: "SSS", employee: "Michael Brown", title: "Laptop Co-Payment", principal: 25000, paid: 12000, outstanding: 13000, progress: 48 },
 ];
 
-export default function LM2() {
+export default function LoanManagement() {
   const navigate = useNavigate();
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
   const myLoan = {
-  id: "LOAN-001",
+  govtype: "PAG-IBIG",
   title: "Emergency Medical Advance",
   employee: "Cydoel Tomas",
   email: "cydtomas555@gmail.com",
   employeeId: "1"
 };
+
+  // --- Inside LoanManagement component ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+
+  // Filtering Logic
+  const filteredLoans = loans.filter(loan => {
+    const matchesSearch = loan.employee.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          loan.title.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Ensure 'status' exists on your loan objects, or this will be undefined
+    const matchesStatus = statusFilter === "ALL" || loan.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+// Update your Pagination Logic to use filteredLoans
+const totalPages = Math.ceil(filteredLoans.length / itemsPerPage);
+const startIndex = (currentPage - 1) * itemsPerPage;
+const endIndex = Math.min(startIndex + itemsPerPage, filteredLoans.length);
+const currentLoans = filteredLoans.slice(startIndex, endIndex);
 
   return (
     <Sidebar>
@@ -102,14 +126,63 @@ export default function LM2() {
 
         </div>
 
+        {/* Filter Card */}
+        <Card className="shadow-sm border-0 bg-white mb-6 py-0">
+          <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
+            
+            {/* Search Bar */}
+            <div className="relative w-full xl:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Search employee or loan title..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+              />
+            </div>
+            
+            {/* Dropdown Filters and Clear Button */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+              
+              {/* Status Filter */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Filter className="text-slate-400 h-5 w-5 hidden sm:block" />
+                <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}>
+                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectValue placeholder="Filter by Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Statuses</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="PAUSED">Paused</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Conditionally Rendered Clear Button */}
+              {(searchQuery !== "" || statusFilter !== "ALL") && (
+                <Button 
+                  variant="ghost" 
+                  onClick={() => { 
+                    setSearchQuery(""); 
+                    setStatusFilter("ALL"); 
+                    setCurrentPage(1); 
+                  }}
+                  className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Table Section */}
         <Card className="py-0">
           <CardHeader className="bg-[#2A174E] flex flex-row items-center justify-between pt-4 pb-4">
             <CardTitle className="text-white font-semibold">Active Loans</CardTitle>
-            <div className="relative w-64">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-[#2A174E]" />
-              <Input placeholder="Search loans..." className="pl-8 text-[#2A174E] bg-white border-white" />
-            </div>
           </CardHeader>
           <CardContent className="px-4">
             <Table>
@@ -127,7 +200,7 @@ export default function LM2() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loans.map((loan) => (
+                {currentLoans.map((loan) => (
                   <TableRow key={loan.id}>
                     <TableCell className="font-medium">{loan.id}</TableCell>
                     <TableCell>{loan.employee}</TableCell>
@@ -142,12 +215,9 @@ export default function LM2() {
                       </div>
                     </TableCell>
                     <TableCell><Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">ACTIVE</Badge></TableCell>
-                    <TableCell className="flex gap-0 text-muted-foreground">
+                    <TableCell className="flex gap-0 text-muted-foreground justify-center">
                       <Button variant="ghost" size="icon" onClick={() => setShowEditModal(true)}>
                           <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon">
-                          <Pause className="h-4 w-4" />
                       </Button>
                       <Button 
                         variant="ghost" 
@@ -161,8 +231,36 @@ export default function LM2() {
                 ))}
               </TableBody>
             </Table>
+            {filteredLoans.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 gap-4 bg-slate-50/30">
+              <div className="flex items-center gap-4 text-sm text-slate-500">
+                <div className="flex items-center gap-2">
+                  <span className="hidden sm:inline">Rows per page:</span>
+                  <Select value={itemsPerPage.toString()} onValueChange={(val) => { setItemsPerPage(Number(val)); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-8 w-[70px] bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="font-medium">
+                  Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{filteredLoans.length}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Previous</Button>
+                <div className="w-8 h-8 flex items-center justify-center font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">{currentPage}</div>
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>Next</Button>
+              </div>
+            </div>
+          )}
           </CardContent>
         </Card>
+
+        
 
         {/* Edit Modal */}
         <LoanAdjustmentDialog 

@@ -7,9 +7,15 @@ import { ArrowLeft, Download, Pencil, Pause, CheckCircle2, User, FileText, Clock
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Sidebar from "../../../components/Sidebar";
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { useEffect } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Link } from "react-router-dom";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 
 export default function LoanDetailsPage() {
+    const [activeTab, setActiveTab] = useState("overview");
     const loan = {
         id: "LOAN-001",
         title: "Emergency Medical Advance",
@@ -75,42 +81,66 @@ export default function LoanDetailsPage() {
         });
         }
 
-    const useTableData = (data, rowsPerPage = 5) => {
-    const [page, setPage] = useState(1);
-    const [search, setSearch] = useState("");
+    const useTableData = (data) => {
+      const [page, setPage] = useState(1);
+      const [rowsPerPage, setRowsPerPage] = useState(5);
+      const [search, setSearch] = useState("");
+      const [filter, setFilter] = useState("ALL");
 
-    const filtered = data?.filter(item => 
-        Object.values(item).some(val => 
-            String(val).toLowerCase().includes(search.toLowerCase())
-        )
-    ) || [];
+      const filtered = data?.filter(item => {
+          const matchesSearch = Object.values(item).some(val => 
+              String(val).toLowerCase().includes(search.toLowerCase())
+          );
+          const matchesFilter = filter === "ALL" || item.status === filter || item.method === filter;
+          return matchesSearch && matchesFilter;
+      }) || [];
 
-    const totalPages = Math.ceil(filtered.length / rowsPerPage);
-    const paginated = filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage);
+      const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1;
+      const startIndex = (page - 1) * rowsPerPage;
+      const endIndex = Math.min(startIndex + rowsPerPage, filtered.length);
+      const paginated = filtered.slice(startIndex, startIndex + rowsPerPage);
 
-    return { page, setPage, search, setSearch, paginated, totalPages };
-};
+      return { page, setPage, rowsPerPage, setRowsPerPage, search, setSearch, filter, setFilter, paginated, totalPages, startIndex, endIndex, totalItems: filtered.length };
+  };
 
     // Inside your component, initialize them:
     const amortizationTable = useTableData(loan?.amortization);
     const historyTable = useTableData(loan?.history);
+    const activeTable = activeTab === "amortization" ? amortizationTable : historyTable;
+
   return (
     <div className="flex flex-col w-full min-h-screen">
     <Sidebar>
     <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto gap-6 flex flex-col">
       {/* Header Actions */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon"><ArrowLeft /></Button>
-          <div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="group flex items-center gap-0">
+          
+          {/* Back Button Container */}
+          <div className="w-0 overflow-hidden group-hover:w-10 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              asChild 
+              className="text-[#2A174E]"
+            >
+              <Link to="/loanMan2">
+                <ArrowBackIcon className="h-6 w-6" />
+              </Link>
+            </Button>
+          </div>
+
+          {/* Title Group: Added 'ml-2' to create the space */}
+          <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out">
             <h1 className="text-2xl font-bold text-[#2A174E]">Loan Details</h1>
             <p className="text-slate-500">Loan ID: LOAN-001</p>
           </div>
+
+          {/* Actions moved outside the group if they should not be part of the hover state */}
         </div>
+        
         <div className="flex gap-2">
-          <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Export PDF</Button>
-          <Button variant="outline" className="text-blue-600"><Pencil className="mr-2 h-4 w-4" /> Adjust Loan</Button>
-          <Button variant="destructive"><Pause className="mr-2 h-4 w-4" /> Pause Loan</Button>
+            <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Export PDF</Button>
         </div>
       </div>
 
@@ -186,30 +216,30 @@ export default function LoanDetailsPage() {
             </TabsList>
             
             <TabsContent value="overview" className="mt-4">
-                <Card className="p-8 bg-gradient-to-br from-[#FAF2FF] via-[#2B174F]/5 to-[#FAF2FF] shadow-sm">
-                    <h2 className="font-bold flex items-center gap-2 text-[#2A174E] mb-8">
-                    <Clock className="h-4 w-4" /> Loan Timeline
-                    </h2>
-                    
-                    <div className="relative flex justify-between items-center w-full max-w-3xl mx-auto">
-                    {/* Background Connecting Line */}
-                    <div className="absolute top-2 left-0 right-0 h-0.5 bg-[#7A52B5] z-0" />
+              <Card className="p-8 bg-gradient-to-br from-[#FAF2FF] via-[#2B174F]/5 to-[#FAF2FF] shadow-sm">
+                  <h2 className="font-bold flex items-center gap-2 text-[#2A174E] mb-8">
+                  <Clock className="h-4 w-4" /> Loan Timeline
+                  </h2>
+                  
+                  <div className="relative flex justify-between items-center w-full max-w-3xl mx-auto">
+                  {/* Background Connecting Line */}
+                  <div className="absolute top-2 left-0 right-0 h-0.5 bg-[#7A52B5] z-0" />
 
-                    {/* Timeline Items */}
-                    {[
-                        { label: "Loan Created", date: "5/15/2026" },
-                        { label: "Disbursement", date: "5/15/2026" },
-                        { label: "Completion", date: "11/15/2026" }
-                    ].map((item, index) => (
-                        <div key={index} className="hover:shadow-lg p-2 relative z-10 flex flex-col items-center bg-white shadow-sm rounded-lg px-2">
-                        <div className="w-4 h-4 rounded-full bg-[#7A52B5] border-2 border-white shadow-sm mb-2" />
-                        <p className="font-bold text-xs text-[#2A174E] whitespace-nowrap">{item.label}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{formatDate(item.date)}</p>
-                        </div>
-                    ))}
-                    </div>
+                  {/* Timeline Items */}
+                  {[
+                      { label: "Loan Created", date: "5/15/2026" },
+                      { label: "Disbursement", date: "5/15/2026" },
+                      { label: "Completion", date: "11/15/2026" }
+                  ].map((item, index) => (
+                      <div key={index} className="hover:shadow-lg p-2 relative z-10 flex flex-col items-center bg-white shadow-sm rounded-lg px-2">
+                      <div className="w-4 h-4 rounded-full bg-[#7A52B5] border-2 border-white shadow-sm mb-2" />
+                      <p className="font-bold text-xs text-[#2A174E] whitespace-nowrap">{item.label}</p>
+                      <p className="text-[10px] text-slate-400 font-mono">{formatDate(item.date)}</p>
+                      </div>
+                  ))}
+                  </div>
                 </Card>
-                </TabsContent>
+              </TabsContent>
 
             <TabsContent value="amortization" className="mt-4">
               <Card className="border-0 shadow-sm overflow-hidden py-0">
@@ -218,6 +248,26 @@ export default function LoanDetailsPage() {
                 
                 {/* Added px-4 for side padding */}
                 <div className="px-4 pb-6">
+                  <div className="flex gap-2 px-4 py-3 bg-slate-50 border-b justify-between items-center">
+                    <Input 
+                        placeholder="Search..." 
+                        className="w-40 h-8 text-xs"
+                        value={activeTable.search}
+                        onChange={(e) => { activeTable.setSearch(e.target.value); activeTable.setPage(1); }} 
+                    />
+                    
+                    <Select value={activeTable.filter} onValueChange={(val) => { activeTable.setFilter(val); activeTable.setPage(1); }}>
+                        <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Filter..." /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">All Records</SelectItem>
+                            {activeTab === "amortization" ? (
+                                <><SelectItem value="PAID">Paid</SelectItem><SelectItem value="PENDING">Pending</SelectItem></>
+                            ) : (
+                                <SelectItem value="Payroll Deduction">Payroll Deduction</SelectItem>
+                            )}
+                        </SelectContent>
+                    </Select>
+                </div>
                     <Table>
                     {/* Added border-0 to Header to close the gap */}
                     <TableHeader className="bg-slate-50 [&_tr]:border-0">
@@ -249,6 +299,28 @@ export default function LoanDetailsPage() {
                         ))}
                     </TableBody>
                     </Table>
+                    {/* Pagination Footer */}
+                    {activeTable.totalItems > 0 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t gap-4 bg-slate-50/30">
+                            <div className="flex items-center gap-4 text-sm text-slate-500">
+                                <div className="flex items-center gap-2">
+                                    <span>Rows:</span>
+                                    <Select value={activeTable.rowsPerPage.toString()} onValueChange={(v) => activeTable.setRowsPerPage(Number(v))}>
+                                        <SelectTrigger className="h-8 w-16"><SelectValue /></SelectTrigger>
+                                        <SelectContent><SelectItem value="5">5</SelectItem><SelectItem value="10">10</SelectItem><SelectItem value="20">20</SelectItem></SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="font-medium">
+                                    Showing {activeTable.startIndex + 1} to {activeTable.endIndex} of {activeTable.totalItems}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button size="sm" variant="outline" onClick={() => activeTable.setPage(p => Math.max(p - 1, 1))} disabled={activeTable.page === 1}>Prev</Button>
+                                <div className="w-8 h-8 flex items-center justify-center font-bold text-[#2A174E] bg-[#2A174E]/10 rounded">{activeTable.page}</div>
+                                <Button size="sm" variant="outline" onClick={() => activeTable.setPage(p => Math.min(p + 1, activeTable.totalPages))} disabled={activeTable.page >= activeTable.totalPages}>Next</Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 </Card>
             </TabsContent>
@@ -259,6 +331,27 @@ export default function LoanDetailsPage() {
                 
                 {/* Added 'px-4' here to provide padding for the table content */}
                 <div className="px-4 pb-6"> 
+                  {/* Toolbar: Search + Filter */}
+                  <div className="flex gap-2 px-4 py-3 bg-slate-50 border-b justify-between items-center">
+                      <Input 
+                          placeholder="Search..." 
+                          className="w-40 h-8 text-xs"
+                          value={activeTable.search}
+                          onChange={(e) => { activeTable.setSearch(e.target.value); activeTable.setPage(1); }} 
+                      />
+                      
+                      <Select value={activeTable.filter} onValueChange={(val) => { activeTable.setFilter(val); activeTable.setPage(1); }}>
+                          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Filter..." /></SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="ALL">All Records</SelectItem>
+                              {activeTab === "amortization" ? (
+                                  <><SelectItem value="PAID">Paid</SelectItem><SelectItem value="PENDING">Pending</SelectItem></>
+                              ) : (
+                                  <SelectItem value="Payroll Deduction">Payroll Deduction</SelectItem>
+                              )}
+                          </SelectContent>
+                      </Select>
+                  </div>
                     <Table>
                     <TableHeader className="bg-slate-50 [&_tr]:border-0"> {/* Removed border to close the gap */}
                         <TableRow>
@@ -281,6 +374,28 @@ export default function LoanDetailsPage() {
                         ))}
                     </TableBody>
                     </Table>
+                    {/* Pagination Footer */}
+                    {activeTable.totalItems > 0 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t gap-4 bg-slate-50/30">
+                            <div className="flex items-center gap-4 text-sm text-slate-500">
+                                <div className="flex items-center gap-2">
+                                    <span>Rows:</span>
+                                    <Select value={activeTable.rowsPerPage.toString()} onValueChange={(v) => activeTable.setRowsPerPage(Number(v))}>
+                                        <SelectTrigger className="h-8 w-16"><SelectValue /></SelectTrigger>
+                                        <SelectContent><SelectItem value="5">5</SelectItem><SelectItem value="10">10</SelectItem><SelectItem value="20">20</SelectItem></SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="font-medium">
+                                    Showing {activeTable.startIndex + 1} to {activeTable.endIndex} of {activeTable.totalItems}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button size="sm" variant="outline" onClick={() => activeTable.setPage(p => Math.max(p - 1, 1))} disabled={activeTable.page === 1}>Prev</Button>
+                                <div className="w-8 h-8 flex items-center justify-center font-bold text-[#2A174E] bg-[#2A174E]/10 rounded">{activeTable.page}</div>
+                                <Button size="sm" variant="outline" onClick={() => activeTable.setPage(p => Math.min(p + 1, activeTable.totalPages))} disabled={activeTable.page >= activeTable.totalPages}>Next</Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
               </Card>
             </TabsContent>
