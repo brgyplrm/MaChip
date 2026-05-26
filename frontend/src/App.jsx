@@ -45,7 +45,6 @@ import AdminRequestsOversight from "./pages/AdminRequestsOversight";
 import FAQ from "./components/FAQ";
 import LoanManagement from "./pages/admin_Payroll/subtabs/LoanManagement";
 import LoanManagementHub from "./pages/admin_Payroll/subtabs/LoanManagementHub";
-import LM2 from "./pages/admin_Payroll/subtabs/LM2";
 import LoanDetails from "./pages/admin_Payroll/subtabs/LoanDetails";
 import LoanDetailsPage from "./components/LoanDetailsPage";
 import ThirteenthMonth from "./pages/admin_Payroll/subtabs/ThirteenthMonth";
@@ -148,8 +147,8 @@ function App() {
           }
         />
         <Route 
-          path="/loanMan2" 
-          element={<ProtectedRoute allowedRoles={[1, 4]}><LM2 /></ProtectedRoute>} />
+          path="/loanManagement" 
+          element={<ProtectedRoute allowedRoles={[1, 4]}><LoanManagement /></ProtectedRoute>} />
         <Route 
           path="/loanDetails" 
           element={<ProtectedRoute allowedRoles={[1, 4]}><LoanDetails /></ProtectedRoute>} />

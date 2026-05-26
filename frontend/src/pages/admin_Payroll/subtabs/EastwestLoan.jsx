@@ -734,9 +734,9 @@ const HeatmapLoanMatrix = ({ data, employeeList, expectedDates, isInSamePeriod }
         {/* Header Section */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Eastwest Loan Management</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Loan Management</h1>
             <span className="text-sm text-slate-500 mt-1 block">
-              Manage employee loan deductions, track repayments, and configure matrix schedules.
+              Manage employee personal loan deductions, track repayments, and configure matrix schedules.
             </span>
           </div>
           <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E]">

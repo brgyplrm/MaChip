@@ -124,7 +124,7 @@ export default function LoanDetailsPage() {
               asChild 
               className="text-[#2A174E]"
             >
-              <Link to="/loanMan2">
+              <Link to="/loanManagement">
                 <ArrowBackIcon className="h-6 w-6" />
               </Link>
             </Button>

@@ -65,7 +65,9 @@ const Sidebar = ({ children }) => {
     location.pathname.startsWith("/eastwestloan") || 
     location.pathname.startsWith("/govloans") || 
     location.pathname.startsWith("/cashadvances") ||
-    location.pathname.startsWith("/laborBenefits") 
+    location.pathname.startsWith("/laborBenefits")  ||
+    location.pathname.startsWith("/loanManagement") ||
+    location.pathname.startsWith("/loanmod")
   );
   
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
@@ -379,6 +381,30 @@ const Sidebar = ({ children }) => {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
+
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/loanManagement")}>
+                            <Link to="/loanManagement" className={isActive("/loanManagement") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Government Loans
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/eastwestloan")}>
+                            <Link to="/eastwestloan" className={isActive("/eastwestloan") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Employee Loan
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/maxicare")}>
+                            <Link to="/maxicare" className={isActive("/maxicare") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              HMO Management
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/laborBenefits")}>
                             <Link to="/laborBenefits" className={isActive("/laborBenefits") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
@@ -386,6 +412,8 @@ const Sidebar = ({ children }) => {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem> 
+
+                        {/* Lipat sa Access Logs */}
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll/leave-summary")}>
                             <Link to="/payroll/leave-summary" className={isActive("/payroll/leave-summary") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
@@ -393,62 +421,34 @@ const Sidebar = ({ children }) => {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/maxicare")}>
-                            <Link to="/maxicare" className={isActive("/maxicare") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Maxicare
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/loanmod")}>
-                            <Link to="/loanmod" className={isActive("/loanmod") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Loan Module
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/loanMan2")}>
-                            <Link to="/loanMan2" className={isActive("/loanMan2") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Loan Man 2
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
+                        {/* <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/loanManagementHub")}>
                             <Link to="/loanManagementHub" className={isActive("/loanManagementHub") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Loan Man Hub
                             </Link>
                           </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/loanManagement")}>
-                            <Link to="/loanManagement" className={isActive("/loanManagement") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Loan Management
+                        </SidebarMenuSubItem> */}
+                        {/* <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/loanmod")}>
+                            <Link to="/loanmod" className={isActive("/loanmod") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Loan Module
                             </Link>
                           </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/eastwestloan")}>
-                            <Link to="/eastwestloan" className={isActive("/eastwestloan") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Eastwest Loan
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
+                        </SidebarMenuSubItem> */}
+                        {/* <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/govloans")}>
                             <Link to="/govloans" className={isActive("/govloans") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Government Loans
                             </Link>
                           </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
+                        </SidebarMenuSubItem> */}
+                        {/* <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/cashadvances")}>
                             <Link to="/cashadvances" className={isActive("/cashadvances") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Cash Advances
                             </Link>
                           </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+                        </SidebarMenuSubItem> */}
                       </SidebarMenuSub>
                     )}
                   </SidebarMenuItem>

@@ -1276,7 +1276,7 @@ const Maxicare = () => {
         {/* Header Section */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Maxicare HMO Management</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">HMO Management</h1>
             <span className="text-sm text-slate-500 mt-1 block">
               Manage employee health insurance deductions, track employer/employee shares, and configure the billing cycle.
             </span>

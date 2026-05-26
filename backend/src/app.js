@@ -45,8 +45,9 @@ app.use((req, res, next) => {
 // 4. CORS — must be before rate limiters so OPTIONS preflight isn't rate-limited
 const allowedOrigins = [
   "http://192.168.254.120:5173",
+  "http://192.168.1.18:5173",
+  "http://localhost:5173",
   "http://192.168.1.18:5173"
-
 ];
 
 app.use(

@@ -54,6 +54,7 @@ const {
   Payroll_GovernmentLoans,
   Payroll_ThirteenthMonth,
   Payroll_Separation,
+  Separation_Cause,
   Payroll_Retirement,
 } = require("../models/payroll.model")(sequelize, DataTypes);
 
@@ -353,5 +354,6 @@ module.exports = {
   Payroll_GovernmentLoans,
   Payroll_ThirteenthMonth,
   Payroll_Separation,
+  Separation_Cause,
   Payroll_Retirement,
 };

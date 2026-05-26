@@ -18,6 +18,8 @@ import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 import { Link } from "react-router-dom";
 import { HistoryIcon } from "lucide-react";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+
 
 // shadcn/ui components
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -647,17 +649,41 @@ const GovLoans = () => {
         
         {/* Top Header */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
-          <div>
+  
+        {/* Left Section: Back Button + Title */}
+        <div className="group flex items-center gap-0 w-full xl:w-auto">
+          
+          {/* Back Button Container */}
+          <div className="w-0 overflow-hidden group-hover:w-10 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              asChild 
+              className="text-[#2A174E]"
+            >
+              <Link to="/loanmanagement">
+                <ArrowBackIcon className="h-6 w-6" />
+              </Link>
+            </Button>
+          </div>
+
+          {/* Title Group: Adds margin-left only when hovered */}
+          <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out">
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Governmental Loans</h1>
             <span className="text-sm text-slate-500 mt-1 block">
               Manage statutory loans like SSS, Pag-IBIG, and other government deductions.
             </span>
           </div>
-          <Button variant="outline" asChild className="ml-[150px] border-[#2A174E] text-[#2A174E]">
+        </div>
+
+        {/* Right Section: Actions */}
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+          {/* <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E]">
             <Link to="/govloans/history">
               <HistoryIcon className="mr-2 h-4 w-4" /> View Agency History
             </Link>
-          </Button>
+          </Button> */}
+          
           <div className="flex items-center gap-2">
             <FilterListIcon className="text-slate-400 h-5 w-5" />
             <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
@@ -672,6 +698,7 @@ const GovLoans = () => {
             </Select>
           </div>
         </div>
+      </div>
 
         {/* Tab Navigation */}
         <div className="flex flex-wrap gap-2 mb-6 border-b border-slate-200 pb-4">
