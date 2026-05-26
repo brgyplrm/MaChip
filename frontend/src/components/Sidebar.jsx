@@ -64,7 +64,8 @@ const Sidebar = ({ children }) => {
     location.pathname.startsWith("/maxicare") || 
     location.pathname.startsWith("/eastwestloan") || 
     location.pathname.startsWith("/govloans") || 
-    location.pathname.startsWith("/cashadvances")
+    location.pathname.startsWith("/cashadvances") ||
+    location.pathname.startsWith("/laborBenefits") 
   );
   
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
@@ -382,18 +383,18 @@ const Sidebar = ({ children }) => {
                               Labor Benefits
                             </Link>
                           </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        {/* <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/payroll/payrollPeriod")}>
-                            <Link to="/payroll/payrollPeriod" className={isActive("/payroll/payrollPeriod") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Payroll Details
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem> */}   
+                        </SidebarMenuSubItem> 
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll/leave-summary")}>
                             <Link to="/payroll/leave-summary" className={isActive("/payroll/leave-summary") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Leave Summary
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/maxicare")}>
+                            <Link to="/maxicare" className={isActive("/maxicare") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Maxicare
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -415,13 +416,6 @@ const Sidebar = ({ children }) => {
                           <SidebarMenuSubButton asChild isActive={isActive("/loanManagement")}>
                             <Link to="/loanManagement" className={isActive("/loanManagement") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
                               Loan Management
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/maxicare")}>
-                            <Link to="/maxicare" className={isActive("/maxicare") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Maxicare
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

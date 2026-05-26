@@ -35,6 +35,15 @@ const LeaveSummary = () => {
   const [rates, setRates] = useState({ vlRate: 1.0, slRate: 1.0 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Add these with your other useState hooks
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(9); // 9 matches the 3-column grid layout
+
+  // Reset page when search or year changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, year]);
   
   // Track active tab for the PDF export requirement
   const [activeTab, setActiveTab] = useState("all");
@@ -63,6 +72,12 @@ const LeaveSummary = () => {
   const filteredData = data.filter(employee =>
     employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     employee.user_Id.toString().includes(searchTerm)
+  );
+
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const paginatedData = filteredData.slice(
+    (currentPage - 1) * itemsPerPage, 
+    currentPage * itemsPerPage
   );
 
   return (
@@ -120,7 +135,7 @@ const LeaveSummary = () => {
         ) : (
           /* Cards Grid Framework */
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredData.map((row) => {
+            {paginatedData.map((row) => {
               // Exact mathematical transformations from your old component logic
               const monthlyVl = row.vl || [];
               const monthlySl = row.sl || [];
@@ -140,10 +155,10 @@ const LeaveSummary = () => {
               const totalCombinedConversion = vlFinalAmount + slFinalAmount;
 
               return (
-                <Card key={row.user_Id} className="border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
+                <Card key={row.user_Id} className="py-0 border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
                   
                   {/* Card Profile Section */}
-                  <CardHeader className="bg-slate-50/60 pb-4 border-b border-slate-100 flex flex-row items-center justify-between space-y-0">
+                  <CardHeader className="pt-6 bg-slate-50/60 pb-4 border-b border-slate-100 border-t-4 flex flex-row items-center justify-between space-y-0">
                     <div className="flex items-center gap-3 truncate mr-2">
                       <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
                         <AccountCircleIcon />
@@ -291,6 +306,36 @@ const LeaveSummary = () => {
             })}
           </div>
         )}
+        {/* Pagination Controls */}
+        {filteredData.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between py-6 border-t border-slate-100 gap-4">
+            <div className="text-sm text-slate-500">
+              Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredData.length)} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
+                {currentPage}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                disabled={currentPage >= totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
@@ -299,6 +344,7 @@ const LeaveSummary = () => {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}} />
+      
     </Sidebar>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../../components/Sidebar";
 import Navbar from "../../../components/navbar/Navbar";
 import { fetchWithAuth } from "../../../utils/api";
@@ -13,6 +13,7 @@ import { HistoryIcon } from "lucide-react";
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 import { Link } from "react-router-dom";
+import { ChevronDown, ChevronRight, User } from "lucide-react";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -27,6 +28,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  ResponsiveContainer // <--- Add this here
+} from 'recharts';
 
 const EastwestLoan = () => {
   const { systemToday } = useSystemTime();
@@ -425,6 +434,178 @@ const EastwestLoan = () => {
   };
 
   const totalAllTime = data.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0);
+
+  const LoanTimeline = ({ data, employeeList, expectedDates, isInSamePeriod, getRowTotal, stats }) => {
+  const [expandedPeriod, setExpandedPeriod] = useState(null);
+
+  return (
+    <div className="space-y-4">
+      {expectedDates.map((dateStr) => {
+        const isExpanded = expandedPeriod === dateStr;
+        const total = getRowTotal(dateStr);
+
+        return (
+          <Card key={dateStr} className={`border ${isExpanded ? "border-[#2A174E] shadow-md" : "border-slate-200 shadow-sm"}`}>
+            {/* Period Summary Header */}
+            <div 
+              className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+              onClick={() => setExpandedPeriod(isExpanded ? null : dateStr)}
+            >
+              <div className="flex items-center gap-4">
+                {isExpanded ? <ChevronDown className="text-[#2A174E]" /> : <ChevronRight className="text-slate-400" />}
+                <div>
+                  <h3 className="font-bold text-slate-800">
+                    {new Date(dateStr).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium uppercase">Period Disbursement</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="font-black text-[#2A174E] text-lg">{parseFloat(total).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+              </div>
+            </div>
+
+            {/* Expanded Employee Breakdown */}
+            {isExpanded && (
+              <div className="border-t border-slate-100 bg-slate-50/50 p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {employeeList.map((emp) => {
+                  const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
+                  const record = actualRecord ? actualRecord.values[emp.key] : null;
+                  const amount = record ? record.amount : 0;
+
+                  return (
+                    <div key={emp.key} className="bg-white p-3 rounded-lg border border-slate-100 flex justify-between items-center shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-700">{emp.name.split(',')[0]}</span>
+                      </div>
+                      <span className={`text-xs font-mono ${amount > 0 ? "font-bold text-emerald-600" : "text-slate-300"}`}>
+                        {amount > 0 ? parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2}) : "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+  };
+
+  const EmployeeLoanDashboard = ({ data, employeeList, expectedDates, isInSamePeriod }) => {
+  const [selectedEmp, setSelectedEmp] = useState(employeeList[0]?.key || "");
+
+  // Extract data for the selected employee
+  const employeeData = useMemo(() => {
+    return expectedDates.map(dateStr => {
+      const period = data.find(d => isInSamePeriod(d.date, dateStr));
+      const record = period ? period.values[selectedEmp] : null;
+      return {
+        date: new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
+        amount: record ? record.amount : 0
+      };
+    });
+  }, [data, selectedEmp, expectedDates]);
+
+  return (
+    <div className="space-y-6">
+      {/* Selector */}
+      <Card className="p-4 flex items-center gap-4">
+        <label className="text-sm font-bold text-slate-600">Viewing Records For:</label>
+        <Select value={selectedEmp} onValueChange={setSelectedEmp}>
+          <SelectTrigger className="w-64">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {employeeList.map(emp => (
+              <SelectItem key={emp.key} value={emp.key}>{emp.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Visual Trend */}
+        <Card className="p-6">
+          <h3 className="text-sm font-bold text-slate-500 uppercase mb-4">Loan Trend</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={employeeData}>
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="amount" fill="#2A174E" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        {/* Detailed Breakdown List */}
+        <Card className="overflow-hidden">
+          <div className="p-4 bg-slate-50 font-bold text-slate-600 border-b">History Detail</div>
+          <div className="max-h-64 overflow-y-auto">
+            {employeeData.map((d, i) => (
+              <div key={i} className="flex justify-between p-3 border-b text-sm">
+                <span className="text-slate-500">{d.date}</span>
+                <span className={`font-mono ${d.amount > 0 ? "font-bold text-emerald-600" : "text-slate-300"}`}>
+                  {d.amount > 0 ? d.amount.toLocaleString() : "—"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+const HeatmapLoanMatrix = ({ data, employeeList, expectedDates, isInSamePeriod }) => {
+  // Helper to determine cell intensity
+  const getIntensity = (amount) => {
+    if (amount === 0) return "bg-slate-50";
+    if (amount < 5000) return "bg-blue-100";
+    if (amount < 15000) return "bg-blue-300";
+    return "bg-[#2A174E] text-white"; // High impact
+  };
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-separate border-spacing-1">
+        <thead>
+          <tr>
+            <th className="p-2 text-[10px] uppercase text-slate-400">Date</th>
+            {employeeList.map(emp => (
+              <th key={emp.key} className="p-2 text-[10px] text-[#2A174E]">{emp.name.split(',')[0]}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {expectedDates.map((dateStr) => (
+            <tr key={dateStr}>
+              <td className="p-2 text-xs font-bold text-slate-600">
+                {new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+              </td>
+              {employeeList.map((emp) => {
+                const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
+                const amount = actualRecord?.values[emp.key]?.amount || 0;
+                
+                return (
+                  <td 
+                    key={emp.key} 
+                    title={`₱${amount.toLocaleString()}`} // Simple hover to show value
+                    className={`h-8 w-12 rounded-sm transition-all cursor-pointer ${getIntensity(amount)}`}
+                  />
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
@@ -840,6 +1021,15 @@ const EastwestLoan = () => {
             </table>
           </div>
         </div>
+
+        <LoanTimeline 
+          data={data} 
+          employeeList={employeeList} 
+          expectedDates={expectedDates} 
+          isInSamePeriod={isInSamePeriod} 
+          getRowTotal={getRowTotal} 
+          stats={stats} 
+        /> 
 
       </div>
 

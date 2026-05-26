@@ -59,7 +59,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll }) => {
           {/* Left Side: Standard Payslip Layout */}
           <div className="flex-shrink-0">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">Standard Compliance Payslip</h3>
-            <div className="bg-white border-2 border-red-700 p-8 w-[500px] shadow-md font-sans text-[#1e293b]">
+            <div className="bg-white border-2 rounded-lg p-8 w-[500px] shadow-sm font-sans text-[#1e293b]">
               <div className="text-center mb-6">
                 <h2 className="text-[#1e3a8a] text-lg font-bold">MAC-J INT'L., FORWARDING LTD., CO.</h2>
                 <p className="text-[10px] text-slate-500">Unit 201, 2nd Floor, Ma. Natividad Bldg., 1007 M.H. Del Pilar St., Ermita, Manila</p>

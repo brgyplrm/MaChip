@@ -87,8 +87,8 @@ const PayrollDetails = () => {
               SSS_Loan: preview.SSS_Loan,
               HDMF_Loan: preview.HDMF_Loan,
               calamityLoan_Amnt: preview.calamityLoan_Amnt,
-              advances_Amnt: preview.advances_Amnt,
-              globe_Deduction: preview.globe_Deduction,
+              // advances_Amnt: preview.advances_Amnt,
+              // globe_Deduction: preview.globe_Deduction,
               eastwest_Loan: preview.eastwest_Loan,
               multiPurposeSavings: preview.multiPurposeSavings,
               totalDeductions: preview.totalDeductions,
@@ -145,34 +145,48 @@ const PayrollDetails = () => {
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header Section */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <div className="flex items-start sm:items-center gap-4">
+        <div className="group flex items-center justify-between gap-4 mb-8">
+      {/* Left Side: Back Button + Title */}
+      <div className="flex items-center gap-2">
+        {/* Animated Back Button */}
+        <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            asChild 
+            className="opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          >
             <Link 
-              to={periodId ? `/payroll/payrollPeriod?periodId=${periodId}` : "/payroll/payrollPeriod"} 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
+              to={periodId ? `/payroll/payrollPeriod?periodId=${periodId}` : "/payroll/payrollPeriod"}
+              className="flex items-center justify-center rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-all hover:scale-110"
             >
               <ArrowBackIcon className="h-6 w-6" />
             </Link>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Payroll Details</h1>
-              <span className="text-sm text-slate-500 mt-1 block font-mono">Payroll ID: {payroll.payrollId}</span>
-            </div>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsModalOpen(true)}
-              className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-all shadow-sm flex items-center gap-2"
-            >
-              <ReceiptLongIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">View Payslip</span>
-            </Button>
-          </div>
-          <Badge 
-            variant="secondary" 
-            className={`px-4 py-3 text-xs font-bold uppercase tracking-wider ${payroll.PaystatusName?.toLowerCase() === "released" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}
-          >
-            {payroll.PaystatusName}
-          </Badge>
+          </Button>
         </div>
+
+        {/* Title & Subtitle */}
+        <div className="flex flex-col">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Payroll Details</h1>
+          <span className="text-sm text-slate-500 font-mono">Payroll ID: {payroll.payrollId}</span>
+        </div>
+      </div>
+
+      {/* Right Side: Actions (Payslip + Badge) */}
+      <div className="flex items-center gap-3">
+        
+        <Badge 
+          variant="secondary" 
+          className={`px-4 py-3 text-xs font-bold uppercase tracking-wider ${
+            payroll.PaystatusName?.toLowerCase() === "released" 
+              ? "bg-green-100 text-green-800" 
+              : "bg-amber-100 text-amber-800"
+          }`}
+        >
+          {payroll.PaystatusName}
+        </Badge>
+      </div>
+    </div>
 
         {/* Payslip Preview Modal */}
         <ViewPayslipModal 
@@ -181,28 +195,42 @@ const PayrollDetails = () => {
           payroll={payroll} 
         />
 
-        {/* Tab Switcher */}
-        <div className="flex gap-2 mb-6">
+        {/* Flex container to separate left (tabs) and right (action) */}
+        <div className="flex items-center justify-between mb-6">
+          
+          {/* Tab Group (Left) */}
+          <div className="flex gap-2">
+            <Button 
+              variant={activeTab === "overview" ? "default" : "outline"} 
+              onClick={() => setActiveTab("overview")}
+              className={activeTab === "overview" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E] hover:bg-[#2A174E]/5"}
+            >
+              Overview
+            </Button>
+            <Button 
+              variant={activeTab === "govt" ? "default" : "outline"} 
+              onClick={() => setActiveTab("govt")}
+              className={activeTab === "govt" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E] hover:bg-[#2A174E]/5"}
+            >
+              Gov't Share
+            </Button>
+            <Button 
+              variant={activeTab === "other" ? "default" : "outline"} 
+              onClick={() => setActiveTab("other")}
+              className={activeTab === "other" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E] hover:bg-[#2A174E]/5"}
+            >
+              Other Deductions
+            </Button>
+          </div>
+
+          {/* View Payslip (Right) */}
           <Button 
-            variant={activeTab === "overview" ? "default" : "outline"} 
-            onClick={() => setActiveTab("overview")}
-            className={activeTab === "overview" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E]"}
+            variant="outline" 
+            onClick={() => setIsModalOpen(true)}
+            className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-all shadow-sm flex items-center gap-2"
           >
-            Overview
-          </Button>
-          <Button 
-            variant={activeTab === "govt" ? "default" : "outline"} 
-            onClick={() => setActiveTab("govt")}
-            className={activeTab === "govt" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E]"}
-          >
-            Gov't Share
-          </Button>
-          <Button 
-            variant={activeTab === "other" ? "default" : "outline"} 
-            onClick={() => setActiveTab("other")}
-            className={activeTab === "other" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E]"}
-          >
-            Other Deductions
+            <ReceiptLongIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">View Payslip</span>
           </Button>
         </div>
 
@@ -216,7 +244,7 @@ const PayrollDetails = () => {
                 <PersonOutlineIcon className="text-white h-5 w-5" /> Employee Information
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-6">
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-0 pb-6">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Employee Name</label>
                 <p className="font-semibold text-slate-800">{payroll.user_FirstName} {payroll.user_LastName}</p>
@@ -243,7 +271,7 @@ const PayrollDetails = () => {
                 <CalendarTodayIcon className="text-white h-5 w-5" /> Pay Period
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-6">
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-0 pb-6">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Period Start</label>
                 <p className="font-semibold text-slate-800">{new Date(payroll.period_Start).toLocaleDateString()}</p>
@@ -280,7 +308,7 @@ const PayrollDetails = () => {
                     <TrendingUpIcon className="text-green-100 h-5 w-5" /> Earnings Breakdown
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 py-6">
+                <CardContent className="space-y-4  pt-0 pb-6">
                   <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">Basic Pay</span>
                     <span className="font-semibold text-slate-800">₱{parseFloat(payroll.basicPay).toLocaleString()}</span>
@@ -335,7 +363,7 @@ const PayrollDetails = () => {
                     <TrendingDownIcon className="text-red-200 h-5 w-5" /> Time-based Deductions
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 py-6">
+                <CardContent className="space-y-4 pt-0 pb-6">
                       <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                         <span className="text-sm text-slate-600">Absence ({payroll.absence_Hrs} hrs)</span>
                         <span className="font-semibold text-slate-800">₱{parseFloat(payroll.absence_Amnt || 0).toLocaleString()}</span>
@@ -365,23 +393,14 @@ const PayrollDetails = () => {
                 </CardContent>
               </Card>
 
-              {/* Net Pay Highlight */}
-              <div className="bg-gradient-to-r from-orange-500 to-orange-400 p-8 rounded-2xl text-white flex justify-between items-center relative overflow-hidden mb-8 shadow-md lg:col-span-2">
-                <div className="relative z-10">
-                  <p className="text-sm uppercase tracking-wider font-bold opacity-90 mb-1">Net Pay</p>
-                  <p className="text-4xl md:text-5xl font-extrabold tracking-tight">₱{parseFloat(payroll.netPay).toLocaleString()}</p>
-                </div>
-                <AttachMoneyIcon className="absolute -right-4 -bottom-4 text-[150px] opacity-20 transform -rotate-12" />
-              </div>
-
               {/* YTD Snapshot Card */}
               <Card className="border-0 shadow-sm bg-white py-0 h-full lg:col-span-2">
-                <CardHeader className="border-b border-slate-50 py-4 bg-[#2A174E]/10">
-                  <CardTitle className="text-base flex items-center gap-2 text-[#2A174E]">
-                    <TrendingUpIcon className="text-[#2A174E] h-5 w-5" /> Year-To-Date (YTD) Snapshot
+                <CardHeader className="border-b border-slate-50 py-4 bg-[#0C0530]">
+                  <CardTitle className="text-base flex items-center gap-2 text-white">
+                    <TrendingUpIcon className="text-white h-5 w-5" /> Year-To-Date (YTD) Snapshot
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 sm:grid-cols-4 gap-6 py-6">
+                <CardContent className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-0 pb-6">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">YTD Gross</label>
                     <p className="font-bold text-[#2A174E] text-lg">₱{parseFloat(payroll.ytdGross || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
@@ -400,6 +419,15 @@ const PayrollDetails = () => {
                   </div>
                 </CardContent>
               </Card>
+
+               {/* Net Pay Highlight */}
+              <div className="bg-gradient-to-r from-orange-500 to-orange-400 p-8 rounded-2xl text-white flex justify-between items-center relative overflow-hidden mb-4 shadow-md lg:col-span-2">
+                <div className="relative z-10">
+                  <p className="text-sm uppercase tracking-wider font-bold opacity-90 mb-1">Net Pay</p>
+                  <p className="text-4xl md:text-5xl font-extrabold tracking-tight">₱{parseFloat(payroll.netPay).toLocaleString()}</p>
+                </div>
+                <AttachMoneyIcon className="absolute -right-4 -bottom-4 text-[150px] opacity-20 transform -rotate-12" />
+              </div>
             </>
           )}
 
@@ -412,7 +440,7 @@ const PayrollDetails = () => {
                     <AccountBalanceIcon className="text-blue-100 h-5 w-5" /> Employee Share (EE)
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 py-6">
+                <CardContent className="space-y-4 pt-0 pb-6">
                   <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">SSS Contribution</span>
                     <span className="font-semibold text-slate-800">₱{eeSSS.toLocaleString()}</span>
@@ -443,7 +471,7 @@ const PayrollDetails = () => {
                     <AccountBalanceIcon className="text-slate-100 h-5 w-5" /> Employer Share (ER)
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 py-6">
+                <CardContent className="space-y-4 pt-0 pb-6">
                   <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">SSS (Employer)</span>
                     <span className="font-semibold text-slate-800">₱{erSSS.toLocaleString()}</span>
@@ -471,10 +499,10 @@ const PayrollDetails = () => {
               <Card className="border-0 shadow-sm bg-white py-0 h-full">
                 <CardHeader className="border-b border-slate-50 py-4 bg-amber-600">
                   <CardTitle className="text-base flex items-center gap-2 text-white">
-                    <ListAltIcon className="text-amber-100 h-5 w-5" /> Loans & Advances
+                    <ListAltIcon className="text-amber-100 h-5 w-5" /> Governmental & Personal Loans
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 py-6">
+                <CardContent className="space-y-4 pt-0 pb-6">
                   <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">SSS Loan</span>
                     <span className="font-semibold text-slate-800">₱{parseFloat(payroll.SSS_Loan || 0).toLocaleString()}</span>
@@ -488,12 +516,16 @@ const PayrollDetails = () => {
                     <span className="font-semibold text-slate-800">₱{parseFloat(payroll.calamityLoan_Amnt || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">EastWest Loan</span>
+                    <span className="text-sm text-slate-600">Personal Loan</span>
                     <span className="font-semibold text-slate-800">₱{parseFloat(payroll.eastwest_Loan || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                  {/* <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">Cash Advances</span>
                     <span className="font-semibold text-slate-800">₱{parseFloat(payroll.advances_Amnt || 0).toLocaleString()}</span>
+                  </div> */}
+                  <div className="flex justify-between items-center p-4 bg-amber-50 rounded-xl mt-4 border border-amber-100">
+                    <span className="font-bold text-amber-800">Total Loans</span>
+                    <span className="font-bold text-amber-700 text-lg">₱{(parseFloat(payroll.SSS_Loan || 0) + parseFloat(payroll.HDMF_Loan || 0) + parseFloat(payroll.calamityLoan_Amnt || 0) + parseFloat(payroll.eastwest_Loan || 0)).toLocaleString()}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -505,22 +537,22 @@ const PayrollDetails = () => {
                     <AttachMoneyIcon className="text-cyan-100 h-5 w-5" /> Misc. Deductions
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 py-6">
+                <CardContent className="space-y-4 pt-0 pb-6">
                   <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">Health Card (HMO)</span>
                     <span className="font-semibold text-slate-800">₱{parseFloat(payroll.healthCard_Amnt || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                  {/* <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">Globe Deduction</span>
                     <span className="font-semibold text-slate-800">₱{parseFloat(payroll.globe_Deduction || 0).toLocaleString()}</span>
-                  </div>
+                  </div> */}
                   <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">Multi-purpose Savings</span>
                     <span className="font-semibold text-slate-800">₱{parseFloat(payroll.multiPurposeSavings || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center p-4 bg-cyan-50 rounded-xl mt-4 border border-cyan-100">
                     <span className="font-bold text-cyan-800">Total Misc</span>
-                    <span className="font-bold text-cyan-700 text-lg">₱{(parseFloat(payroll.healthCard_Amnt || 0) + parseFloat(payroll.globe_Deduction || 0) + parseFloat(payroll.multiPurposeSavings || 0)).toLocaleString()}</span>
+                    <span className="font-bold text-cyan-700 text-lg">₱{(parseFloat(payroll.healthCard_Amnt || 0) + parseFloat(payroll.multiPurposeSavings || 0)).toLocaleString()}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -530,7 +562,7 @@ const PayrollDetails = () => {
         </div>
 
         {/* Record Information */}
-        <div className="flex flex-col sm:flex-row gap-8 px-4 mt-8">
+        <div className="flex flex-col sm:flex-row gap-8 px-4">
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Created At</label>
             <p className="text-sm text-slate-600">{new Date(payroll.createdAt).toLocaleString()}</p>
