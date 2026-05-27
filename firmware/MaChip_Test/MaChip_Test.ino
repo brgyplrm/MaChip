@@ -540,6 +540,21 @@ void loop() {
       if (p == FINGERPRINT_OK) {
         p = finger.image2Tz(1);
         if (p == FINGERPRINT_OK) {
+          // --- NEW DEDUPLICATION CHECK ---
+          p = finger.fingerFastSearch();
+          if (p == FINGERPRINT_OK) {
+            updateFrontDisplay("DUPLICATE", "Finger already enrolled!\nAbort and Check Admin", ST77XX_RED);
+            provideFeedback(ERROR_FAIL);
+            // Send special "DUPLICATE" string in template field to notify backend
+            uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "DUPLICATE:" + String(finger.fingerID));
+            enrollmentMode = false; fpEnrollStage = 0;
+            delay(3000);
+            setLED(LED_SLOW_BLINK, LED_OFF);
+            updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+            return;
+          }
+          // --- END CHECK ---
+          
           updateFrontDisplay("ENROLL BIOMETRIC", "First Scan OK! Release sensor...", ST77XX_YELLOW);
           beep(100);
           fpEnrollStart = millis();

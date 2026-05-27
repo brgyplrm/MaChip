@@ -279,6 +279,56 @@ exports.sendRequestStatusEmail = async ({ email, name, requestType, status, date
 };
 
 /**
+ * Sends a notification email to approvers for a new request.
+ */
+exports.sendRequestNotificationEmail = async ({ toEmail, approverName, requesterName, requestType, dateStr, duration, isEscalation = false }) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.error("[EMAIL CONFIG ERROR]: Missing credentials.");
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  });
+
+  const subject = isEscalation 
+    ? `Escalation Notice: ${requestType} Pending Review - ${requesterName}`
+    : `New Request for Review: ${requestType} - ${requesterName}`;
+
+  const mailOptions = {
+    from: `"MaChip System" <${EMAIL_USER}>`,
+    to: toEmail,
+    subject: subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #2c3e50;">${isEscalation ? "Request Escalation Notice" : "New Request for Review"}</h2>
+        <p>Hello ${approverName},</p>
+        <p><strong>${requesterName}</strong> has submitted a <strong>${requestType}</strong> request that requires your attention.</p>
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eee; margin: 20px 0; border-left: 5px solid #3498db;">
+          <p style="margin: 5px 0;"><strong>Request Type:</strong> ${requestType}</p>
+          <p style="margin: 5px 0;"><strong>Requester:</strong> ${requesterName}</p>
+          <p style="margin: 5px 0;"><strong>Date/Period:</strong> ${dateStr}</p>
+          ${duration ? `<p style="margin: 5px 0;"><strong>Duration:</strong> ${duration}</p>` : ''}
+        </div>
+        <p style="margin-top: 20px;">Please login to the MaChip portal to review and take action on this request.</p>
+        <br/>
+        <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[NOTIFICATION EMAIL SENT] to ${toEmail} for ${requestType}`);
+  } catch (error) {
+    console.error(`[NOTIFICATION EMAIL ERROR] for ${toEmail}:`, error.message);
+  }
+};
+
+/**
  * Sends a Notice of Termination email.
  */
 exports.sendTerminationNoticeEmail = async ({ email, name, separationDate, cause, message }) => {

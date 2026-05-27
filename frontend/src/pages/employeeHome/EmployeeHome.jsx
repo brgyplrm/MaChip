@@ -107,7 +107,7 @@ const EmployeeHome = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-        <div className="p-4 md:p-8 overflow-x-hidden w-full max-w-7xl mx-auto space-y-8">
+        <div className="p-4 md:p-4 overflow-x-hidden w-full max-w-7xl mx-auto space-y-6">
           
           {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -115,11 +115,11 @@ const EmployeeHome = () => {
               <h1 className="text-3xl font-extrabold text-[#2A174E]">Welcome back, {userData?.user_FirstName}!</h1>
               <p className="text-slate-500 mt-1">Manage your schedule and track your performance here.</p>
             </div>
-            <Button asChild className="bg-[#2A174E] hover:bg-[#1a0e30] shadow-lg shadow-[#2A174E]/20">
+            {/* <Button asChild className="bg-[#2A174E] hover:bg-[#1a0e30] shadow-lg shadow-[#2A174E]/20">
               <Link to="/requests">
                 <FileText className="mr-2 h-4 w-4" /> New Request
               </Link>
-            </Button>
+            </Button> */}
           </div>
 
           {/* Quick Stats Grid */}
@@ -202,7 +202,7 @@ const EmployeeHome = () => {
               <Card className="shadow-sm border-t-4 border-red-500 h-full">
                 <CardHeader><CardTitle className="text-base">Quick Actions</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
-                  <Button className="w-full justify-start" variant="outline" asChild><Link to="/requests"><FileText className="mr-2 h-4 w-4"/> File Leave</Link></Button>
+                  <Button className="w-full justify-start" variant="outline" asChild><Link to="/requests"><FileText className="mr-2 h-4 w-4"/> File Requests</Link></Button>
                   <Button className="w-full justify-start" variant="outline" asChild><Link to="/payroll"><CreditCardIcon className="mr-2 h-4 w-4"/> View Payslips</Link></Button>
                   <Button className="w-full justify-start" variant="outline" asChild><Link to="/profile"><UserCheck className="mr-2 h-4 w-4"/> Update Profile</Link></Button>
                 </CardContent>
@@ -211,14 +211,14 @@ const EmployeeHome = () => {
 
             {/* Standardized Attendance & Requests Container */}
 
-              {/* Attendance Timeline (Left - 7 Columns) */}
-              <div className="md:col-span-7">
-                <Card className="shadow-sm border-0 h-full flex flex-col">
-                  <CardHeader className="border-b border-slate-100 bg-slate-50/30">
-                    <CardTitle className="text-[#2A174E] text-base">Attendance Timeline</CardTitle>
+              {/* Attendance Timeline (7/12 Width) */}
+              <div className="md:col-span-6">
+                <Card className="shadow-sm border-0 h-full flex flex-col border-t-4 border-[#2A174E]">
+                  <CardHeader className="pb-4 flex flex-row items-center justify-between">
+                    <CardTitle className="text-[#2A174E] text-base font-bold uppercase tracking-wider">Attendance Timeline</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-4 flex-1">
-                    <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                  <CardContent className="px-6 pb-6">
+                    <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
                       {dashboardStats.recentLogs.map((log, idx) => {
                         const isGood = log.status?.toLowerCase().includes('time') || log.status?.toLowerCase().includes('field');
                         return (
@@ -243,48 +243,33 @@ const EmployeeHome = () => {
                 </Card>
               </div>
 
-              {/* Recent Requests (Right - 5 Columns) */}
-              <div className="md:col-span-5">
-                <Card className="shadow-sm border-0 h-full flex flex-col py-2">
-                  <CardHeader className="border-b border-slate-100 bg-slate-50/30 flex flex-row items-center justify-between py-4">
-                    <CardTitle className="text-[#2A174E] text-base">Recent Requests</CardTitle>
-                    <Button variant="link" size="sm" asChild className="text-[#2A174E] text-[11px] font-bold uppercase p-0 h-auto">
+              {/* Recent Requests (5/12 Width) */}
+              <div className="md:col-span-6">
+                <Card className="shadow-sm border-0 h-full flex flex-col border-t-4 border-[#3B4E17]">
+                  <CardHeader className="flex flex-row items-center justify-between pb-4">
+                    <CardTitle className="text-[#3B4E17] text-base font-bold uppercase tracking-wider">Recent Requests</CardTitle>
+                    <Button variant="link" size="sm" asChild className="text-[#3B4E17] text-[11px] font-bold uppercase p-0 h-auto">
                       <Link to="/requests">View All <ChevronRight className="h-3 w-3 ml-1" /></Link>
                     </Button>
                   </CardHeader>
-                  <CardContent className="p-4 flex-1">
-                    {loading ? (
-                      <div className="space-y-3">
-                        <Skeleton className="h-16 w-full rounded-lg" />
-                        <Skeleton className="h-16 w-full rounded-lg" />
-                      </div>
-                    ) : recentRequests.length > 0 ? (
-                      <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
-                        {recentRequests.map(req => {
-                          const isApproved = req.status?.toLowerCase().includes("approve");
-                          const isRejected = req.status?.toLowerCase().includes("reject");
-                          const boxStyle = isApproved ? "bg-green-50 border-green-100" : isRejected ? "bg-red-50 border-red-100" : "bg-amber-50 border-amber-100";
-                          const iconColor = isApproved ? "text-green-600" : isRejected ? "text-red-600" : "text-amber-500";
-                          
-                          return (
-                            <div key={req.emp_reqId} className={`flex items-center gap-3 p-3 rounded-lg border ${boxStyle} transition-all`}>
-                              <div className={`hidden sm:flex shrink-0 ${iconColor} bg-white p-2 rounded-full shadow-sm`}>
-                                {isApproved ? <CheckCircleIcon className="h-4 w-4" /> : isRejected ? <CancelIcon className="h-4 w-4" /> : <HourglassEmptyIcon className="h-4 w-4" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-[#2A174E] truncate text-xs">{req.reqTypeName}</p>
-                                <p className="text-[10px] font-semibold text-slate-500 truncate">{req.remarks || "No description"}</p>
-                              </div>
-                              <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0.5 ${isApproved ? "bg-green-500" : isRejected ? "bg-red-500" : "bg-amber-500"}`}>
-                                {req.status}
-                              </Badge>
+                  <CardContent className="px-6 pb-6">
+                    <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
+                      {recentRequests.map(req => {
+                        const isApproved = req.status?.toLowerCase().includes("approve");
+                        const boxStyle = isApproved ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100";
+                        return (
+                          <div key={req.emp_reqId} className={`flex items-center gap-3 p-3 rounded-lg border ${boxStyle}`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-[#2A174E] truncate text-xs">{req.reqTypeName}</p>
+                              <p className="text-[10px] font-semibold text-slate-500 truncate">{req.remarks || "No description"}</p>
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="py-8 text-center text-slate-400 italic text-xs">No recent requests.</div>
-                    )}
+                            <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0.5 ${isApproved ? "bg-green-500" : "bg-amber-500"}`}>
+                              {req.status}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </CardContent>
                 </Card>
               </div>

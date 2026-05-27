@@ -886,6 +886,7 @@ exports.UserCreateRequest = async (req, res) => {
 
     // Commit transaction BEFORE notifications to ensure data is persistent
     await t.commit();
+    let transactionFinished = true;
 
     // 4. Notifications
     const typeNameMap = { 
@@ -903,6 +904,16 @@ exports.UserCreateRequest = async (req, res) => {
       { replacements: { userId: finalUserId }, type: QueryTypes.SELECT }
     );
     const requester = requesterResult[0];
+    if (!requester) {
+      console.error(`[UserCreateRequest] User ID ${finalUserId} not found for notification.`);
+      return res.status(200).json({
+        message: "Request created successfully (Notification skipped: User not found)",
+        data: {
+          request: newRequest,
+          details: childData,
+        },
+      });
+    }
     const requesterName = `${requester.user_FirstName} ${requester.user_LastName}`;
     const requesterRole = requester.user_RoleId;
 
@@ -1027,7 +1038,14 @@ exports.UserCreateRequest = async (req, res) => {
       },
     });
   } catch (error) {
-    if (t) await t.rollback();
+    console.error("[UserCreateRequest ERROR]:", error);
+    if (t && typeof transactionFinished === 'undefined') {
+      try {
+        await t.rollback();
+      } catch (rbErr) {
+        console.error("[UserCreateRequest Rollback Error]:", rbErr.message);
+      }
+    }
     if ([8, 9, 10, 11, 12].includes(finalReqTypeId)) {
       console.log(`[STATUTORY-DEBUG-ERROR] Internal Error for User ID ${finalUserId} (Type ${finalReqTypeId}):`, error.message);
     }

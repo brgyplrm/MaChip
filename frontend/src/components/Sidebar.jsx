@@ -19,6 +19,7 @@ import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
 import { useSystemTime } from "../context/SystemTimeContext";
 import { Badge } from "./ui/badge";
 import TuneIcon from '@mui/icons-material/Tune';
+import { cn } from "../lib/utils";
 
 import {
   Sidebar as ShadcnSidebar,
@@ -73,8 +74,6 @@ const routeLabels = {
   "employeeCalendar" : "calendar",
   "accessLogs" : "Access Logs",
   "logs/edit/:userId/:date" : "Edit Attendance",
-
-  // Add as many as needed
 };
 
 const Sidebar = ({ children }) => {
@@ -235,19 +234,25 @@ const Sidebar = ({ children }) => {
   const showProfileMenu = isProfileHovered || isProfileLocked;
   const showNotifMenu = isNotifHovered || isNotifLocked;
 
+  const menuButtonClass = (active) => cn(
+    "transition-all duration-200",
+    active ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500",
+    "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!px-0"
+  );
+
   return (
     <SidebarProvider>
       <ShadcnSidebar collapsible="icon" className="bg-white border-r border-gray-200">
-        <SidebarHeader className="p-4 border-b border-gray-100 relative">
-          <Link to={homePath} className="flex no-underline items-center pl-5 md:pl-8">
+        <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2 border-b border-gray-100 relative overflow-hidden transition-all duration-200">
+          <Link to={homePath} className="flex no-underline items-center justify-center">
             <img 
               src="/logo2.png" 
               alt="MAC-J Logo" 
-              className="w-[150px] md:w-[150px] object-contain"
+              className="w-[150px] group-data-[collapsible=icon]:w-8 object-contain transition-all duration-200"
             />
           </Link>
           {isMockTime && (
-            <div className="absolute top-2 right-2">
+            <div className="absolute top-2 right-2 group-data-[collapsible=icon]:hidden">
               <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] px-1.5 h-4 border-none shadow-sm animate-pulse">
                 MOCK
               </Badge>
@@ -256,8 +261,8 @@ const Sidebar = ({ children }) => {
         </SidebarHeader>
         <div className="h-1" />
         <SidebarContent className="no-scrollbar px-3 flex flex-col">
-          <SidebarGroup><SidebarGroupLabel>MAIN</SidebarGroupLabel>
-
+          <SidebarGroup>
+            <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">MAIN</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {/* Dashboard */}
@@ -265,16 +270,16 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuButton 
                     asChild 
                     isActive={isActive(homePath)}
-                    className={(isActive(homePath) ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500") + "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!px-0"}
+                    className={menuButtonClass(isActive(homePath))}
                   >
                     <Link to={homePath}>
                       <DashboardOutlinedIcon 
-                          className="!text-[22px]" 
+                          className="!text-[22px] shrink-0" 
                           sx={{ strokeWidth: 1/2 }}
                       />
                       <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">
-                      Dashboard
-                    </span>
+                        Dashboard
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -284,11 +289,11 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuButton 
                     asChild 
                     isActive={isActive("/calendar") || isActive("/employeeCalendar")}
-                    className={isActive("/calendar") || isActive("/employeeCalendar") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                    className={menuButtonClass(isActive("/calendar") || isActive("/employeeCalendar"))}
                   >
                     <Link to={isManagement || isSupervisor ? "/calendar" : "/employeeCalendar"}>
-                      <EditCalendarIcon className="!text-[22px]" />
-                      <span className="ms-3 text-[14px]">Calendar</span>
+                      <EditCalendarIcon className="!text-[22px] shrink-0" />
+                      <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Calendar</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -298,13 +303,19 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       onClick={() => setIsUsersOpen(!isUsersOpen)}
-                      className={location.pathname.startsWith("/users") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                      className={cn(
+                        menuButtonClass(location.pathname.startsWith("/users")),
+                        "justify-start"
+                      )}
                     >
-                      <PersonOutlineIcon className="!text-[22px]" />
-                      <span className="flex-1 ms-3 text-left text-[14px]">
+                      <PersonOutlineIcon className="!text-[22px] shrink-0" />
+                      <span className="flex-1 ms-3 text-left text-[14px] group-data-[collapsible=icon]:hidden">
                         Users
                       </span>
-                      <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isUsersOpen ? "rotate-180" : ""}`} />
+                      <KeyboardArrowDownIcon className={cn(
+                        "!text-[18px] transition-transform duration-300 group-data-[collapsible=icon]:hidden",
+                        isUsersOpen ? "rotate-180" : ""
+                      )} />
                     </SidebarMenuButton>
                     {isUsersOpen && (
                       <SidebarMenuSub>
@@ -342,14 +353,14 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuButton 
                     asChild 
                     isActive={isActive("/users")}
-                    className={isActive("/users") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                    className={menuButtonClass(isActive("/users"))}
                   >
-                    <Link to="/users" className={isActive("/users") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                    <Link to="/users">
                       <PersonOutlineIcon 
-                          className="!text-[22px]" 
+                          className="!text-[22px] shrink-0" 
                           sx={{ strokeWidth: 1/2 }}
                       />
-                      <span className="ms-3 text-[14px]">Users</span>
+                      <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Users</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -360,11 +371,11 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuButton 
                     asChild 
                     isActive={isActive("/logs") || isActive("/accessLogs")}
-                    className={isActive("/logs") || isActive("/accessLogs") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                    className={menuButtonClass(isActive("/logs") || isActive("/accessLogs"))}
                   >
                     <Link to={isManagement || isSupervisor ? "/logs" : "/accessLogs"}>
-                      <HistoryIcon className="!text-[22px]" />
-                      <span className="ms-3 text-[14px]">Access Logs</span>
+                      <HistoryIcon className="!text-[22px] shrink-0" />
+                      <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Access Logs</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -374,7 +385,7 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuButton 
                     asChild 
                     isActive={isActive("/requests") || isActive("/adminRequests") || isActive("/adminoversight")}
-                    className={(isActive("/requests") || isActive("/adminRequests") || isActive("/adminoversight")) ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                    className={menuButtonClass(isActive("/requests") || isActive("/adminRequests") || isActive("/adminoversight"))}
                   >
                     <Link 
                       to={
@@ -382,13 +393,12 @@ const Sidebar = ({ children }) => {
                           ? "/requests" 
                           : (isAccountant ? "/adminoversight" : (isAdmin || isSupervisor ? "/adminRequests" : "/requests"))
                       } 
-                      className={(isActive("/requests") || isActive("/adminRequests") || isActive("/adminoversight")) ? "text-[#2A174E] font-bold" : "text-gray-500"}
                     >
                       <DescriptionIcon 
-                          className="!text-[22px]" 
+                          className="!text-[22px] shrink-0" 
                           sx={{ strokeWidth: 1/2 }}
                       />
-                      <span className="ms-3 text-[14px]">Requests</span>
+                      <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Requests</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -398,17 +408,23 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       onClick={() => setIsPayrollOpen(!isPayrollOpen)}
-                      className={(
-                        location.pathname.startsWith("/payroll") || 
-                        location.pathname.startsWith("/maxicare") || 
-                        location.pathname.startsWith("/eastwestloan") || 
-                        location.pathname.startsWith("/loanManagement") ||
-                        location.pathname.startsWith("/laborBenefits")
-                      ) ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                      className={cn(
+                        menuButtonClass(
+                          location.pathname.startsWith("/payroll") || 
+                          location.pathname.startsWith("/maxicare") || 
+                          location.pathname.startsWith("/eastwestloan") || 
+                          location.pathname.startsWith("/loanManagement") ||
+                          location.pathname.startsWith("/laborBenefits")
+                        ),
+                        "justify-start"
+                      )}
                     >
-                      <CreditCardIcon className="!text-[22px]" />
-                      <span className="flex-1 ms-3 text-left text-[14px]">Payroll</span>
-                      <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isPayrollOpen ? "rotate-180" : ""}`} />
+                      <CreditCardIcon className="!text-[22px] shrink-0" />
+                      <span className="flex-1 ms-3 text-left text-[14px] group-data-[collapsible=icon]:hidden">Payroll</span>
+                      <KeyboardArrowDownIcon className={cn(
+                        "!text-[18px] transition-transform duration-300 group-data-[collapsible=icon]:hidden",
+                        isPayrollOpen ? "rotate-180" : ""
+                      )} />
                     </SidebarMenuButton>
                     {isPayrollOpen && (
                       <SidebarMenuSub>
@@ -458,7 +474,6 @@ const Sidebar = ({ children }) => {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem> 
 
-                        {/* Lipat sa Access Logs */}
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll/leave-summary")}>
                             <Link to="/payroll/leave-summary" className={isActive("/payroll/leave-summary") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
@@ -466,34 +481,6 @@ const Sidebar = ({ children }) => {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                        {/* <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/loanManagementHub")}>
-                            <Link to="/loanManagementHub" className={isActive("/loanManagementHub") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Loan Man Hub
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem> */}
-                        {/* <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/loanmod")}>
-                            <Link to="/loanmod" className={isActive("/loanmod") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Loan Module
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem> */}
-                        {/* <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/govloans")}>
-                            <Link to="/govloans" className={isActive("/govloans") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Government Loans
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem> */}
-                        {/* <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/cashadvances")}>
-                            <Link to="/cashadvances" className={isActive("/cashadvances") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
-                              Cash Advances
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem> */}
                       </SidebarMenuSub>
                     )}
                   </SidebarMenuItem>
@@ -505,42 +492,44 @@ const Sidebar = ({ children }) => {
                     <SidebarMenuButton 
                       asChild 
                       isActive={isActive("/adminReports")}
-                      className={isActive("/adminReports") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                      className={menuButtonClass(isActive("/adminReports"))}
                     >
                       <Link to="/adminReports">
-                        <AssessmentIcon className="!text-[22px]" />
-                        <span className="ms-3 text-[14px]">Reports</span>
+                        <AssessmentIcon className="!text-[22px] shrink-0" />
+                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Reports</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
-
-               
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
         {/* --- BOTTOM SECTION (ANCHORED) --- */}
-        <SidebarFooter className="border-t border-gray-100 p-3 mt-auto">
-          <SidebarGroupLabel>SYSTEM</SidebarGroupLabel>
+        <SidebarFooter className="border-t border-gray-100 p-3 mt-auto overflow-hidden transition-all duration-200">
+          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">SYSTEM</SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem>
-              {/* Settings Action Core Trigger */}
               <SidebarMenuButton 
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                className={(
-                  location.pathname.startsWith("/auditLogs") || 
-                  location.pathname.startsWith("/transactionLog") || 
-                  location.pathname.startsWith("/settings") || 
-                  location.pathname.startsWith("/faq")
-                ) ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                className={cn(
+                  menuButtonClass(
+                    location.pathname.startsWith("/auditLogs") || 
+                    location.pathname.startsWith("/transactionLog") || 
+                    location.pathname.startsWith("/settings") || 
+                    location.pathname.startsWith("/faq")
+                  ),
+                  "justify-start"
+                )}
               >
-                <SettingsIcon className="!text-[22px]" />
-                <span className="flex-1 ms-3 text-[14px]">Settings</span>
-                <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isSettingsOpen ? "rotate-180" : ""}`} />
+                <SettingsIcon className="!text-[22px] shrink-0" />
+                <span className="flex-1 ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Settings</span>
+                <KeyboardArrowDownIcon className={cn(
+                  "!text-[18px] transition-transform duration-300 group-data-[collapsible=icon]:hidden",
+                  isSettingsOpen ? "rotate-180" : ""
+                )} />
               </SidebarMenuButton>
 
-              {/* Dropdown Menu Panel Items */}
               {isSettingsOpen && (
                 <SidebarMenuSub>
                   {isMaster && (
@@ -569,7 +558,6 @@ const Sidebar = ({ children }) => {
                     </SidebarMenuSubItem>
                   )}
 
-                  {/* Configuration Management Tab Link */}
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/settings")}>
                       <Link 
@@ -581,7 +569,6 @@ const Sidebar = ({ children }) => {
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
 
-                  {/* Help & Support Tab Link */}
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/faq")}>
                       <Link 
@@ -600,8 +587,8 @@ const Sidebar = ({ children }) => {
       </ShadcnSidebar>
 
       {children && (
-        <SidebarInset className="flex-1 min-w-0">
-          <header className="flex h-16 items-center justify-between gap-2 border-b border-gray-100 bg-white transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 sticky top-0 z-50 px-4">
+        <SidebarInset className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out">
+          <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-gray-100 bg-white px-4 sticky top-0 z-50">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="-ml-1" />
               <Separator orientation="vertical" className="mr-2 h-10" />
@@ -775,7 +762,7 @@ const Sidebar = ({ children }) => {
               </div>
             </div>
           </header>
-          <div className="flex flex-1 flex-col gap-4 p-4 pt-0 overflow-x-hidden max-w-[100vw]">
+          <div className="flex flex-1 flex-col p-4 w-full overflow-x-hidden">
             {children}
           </div>
         </SidebarInset>

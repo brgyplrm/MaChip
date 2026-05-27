@@ -228,7 +228,7 @@ const Edit = () => {
       body: JSON.stringify({ userId, type: 'RFID' })
     }).catch(err => console.error("Failed to start RFID session:", err));
     try {
-      const scanResponse = await fetchWithAuth("/api/users/generateRfid");
+      const scanResponse = await fetchWithAuth(`/api/users/generateRfid?userId=${userId}`);
       const scanData = await scanResponse.json();
   
       if (scanResponse.ok && scanData.rfid) {

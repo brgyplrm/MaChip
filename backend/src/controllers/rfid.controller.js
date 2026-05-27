@@ -19,6 +19,7 @@ const maskUid = (uid, isAuthorized) => {
 let captureSession = {
   isCapturing: false,
   scannedUid: null,
+  userId: null,
   expiresAt: null
 };
 
@@ -602,7 +603,16 @@ exports.scanRFID = async (req, res) => {
 };
 
 exports.generateRfid = async (req, res) => {
-  captureSession = { isCapturing: true, scannedUid: null, expiresAt: Date.now() + 25000 };
+  const { userId } = req.query;
+  const targetUserId = userId || "temp_registration";
+  
+  captureSession = { 
+    isCapturing: true, 
+    scannedUid: null, 
+    userId: targetUserId,
+    expiresAt: Date.now() + 25000 
+  };
+  
   const startTime = Date.now();
   const checkInterval = setInterval(() => {
     if (captureSession.scannedUid) {
@@ -677,7 +687,8 @@ exports.generateFingerprint = async (req, res) => {
             template: fpCaptureSession.template 
           });
         } else {
-          return res.status(400).json({ error: "Enrollment failed or was cancelled. Ensure the sensor is connected and finger is placed correctly." });
+          const errorMsg = fpCaptureSession.errorMessage || "Enrollment failed or was cancelled. Ensure the sensor is connected and finger is placed correctly.";
+          return res.status(400).json({ error: errorMsg });
         }
       }
 
@@ -724,7 +735,7 @@ exports.getFingerprintSession = async (req, res) => {
      return res.status(200).json({
       active: true,
       slotId: 1,
-      userId: "temp_registration",
+      userId: captureSession.userId || "temp_registration",
       type: "RFID"
     });
   }
@@ -805,6 +816,34 @@ exports.confirmFingerprintEnroll = async (req, res) => {
     }
 
     if (success && template) {
+      // Check for deduplication signal from ESP32
+      if (template.startsWith("DUPLICATE:")) {
+        const duplicateSlotId = template.split(":")[1];
+        console.log(`[FP-CONFIRM] Duplicate detected! Slot: ${duplicateSlotId}`);
+        
+        fpCaptureSession.success = false;
+        fpCaptureSession.isCapturing = false;
+
+        try {
+          const [existingUser] = await sequelize.query(
+            `SELECT u."user_FirstName", u."user_LastName" 
+             FROM "User" u
+             INNER JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+             WHERE h."user_FingerprintId" = :slotId AND u."deletedAt" IS NULL`,
+            { replacements: { slotId: duplicateSlotId }, type: QueryTypes.SELECT }
+          );
+
+          if (existingUser) {
+            fpCaptureSession.errorMessage = `This finger is already registered to ${existingUser.user_FirstName} ${existingUser.user_LastName}.`;
+          } else {
+            fpCaptureSession.errorMessage = "This finger is already registered to another user (Slot " + duplicateSlotId + ").";
+          }
+        } catch (err) {
+          fpCaptureSession.errorMessage = "Duplicate fingerprint detected.";
+        }
+        return res.status(200).json({ success: true });
+      }
+
       // ALWAYS store the template and slot in the session so the frontend polling endpoint can pick it up
       fpCaptureSession.template = template;
       fpCaptureSession.scannedSlot = finalSlotId;

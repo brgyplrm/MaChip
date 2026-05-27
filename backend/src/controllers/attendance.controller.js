@@ -361,10 +361,10 @@ exports.viewUserLogs = async (req, res) => {
         const dayOT = approvedRequests.find(req => Number(req.emp_reqTypeId) === 1 && formatDateOnly(req.OT_DateOf) === dateStr);
         const isOnField = approvedRequests.some(req => Number(req.emp_reqTypeId) === 2 && formatDateOnly(req.DateonField) === dateStr);
         
-        const ot_In = dayOT ? dayOT.HrFrom.substring(0, 5) : "—";
-        const ot_Out = dayOT && outArr.length > 0 && outArr[outArr.length-1].substring(0,5) > dayOT.HrFrom.substring(0,5) ? outArr[outArr.length-1].substring(0,5) : "—";
+        const ot_In = (dayOT && dayOT.HrFrom) ? dayOT.HrFrom.substring(0, 5) : "—";
+        const ot_Out = (dayOT && dayOT.HrFrom && outArr.length > 0 && outArr[outArr.length-1] && outArr[outArr.length-1].substring(0,5) > dayOT.HrFrom.substring(0,5)) ? outArr[outArr.length-1].substring(0,5) : "—";
       
-        const otStartTime = dayOT ? dayOT.HrFrom.substring(0, 5) : null;
+        const otStartTime = (dayOT && dayOT.HrFrom) ? dayOT.HrFrom.substring(0, 5) : null;
         let { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings, otStartTime);
         
         const mStart = settings?.morningShiftStart?.substring(0, 5) || "08:30";
@@ -1240,8 +1240,8 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         hoursObj.totalPayableHours += parseFloat(dayOT.Total_Hrs) * (settings.overtimeRate || 1.25);
       }
 
-      const ot_In = (dayOT && parseInt(r.attendance_StatusId) !== 7) ? dayOT.HrFrom.substring(0, 5) : "—";
-      const ot_Out = (dayOT && parseInt(r.attendance_StatusId) !== 7 && outArr.length > 0 && outArr[outArr.length-1].substring(0,5) > dayOT.HrFrom.substring(0,5)) ? outArr[outArr.length-1].substring(0,5) : "—";
+      const ot_In = (dayOT && dayOT.HrFrom && parseInt(r.attendance_StatusId) !== 7) ? dayOT.HrFrom.substring(0, 5) : "—";
+      const ot_Out = (dayOT && dayOT.HrFrom && parseInt(r.attendance_StatusId) !== 7 && outArr.length > 0 && outArr[outArr.length-1] && outArr[outArr.length-1].substring(0,5) > dayOT.HrFrom.substring(0,5)) ? outArr[outArr.length-1].substring(0,5) : "—";
 
       return {
         sessionId: `${r.user_id}-${dateStr}`,
@@ -1377,8 +1377,8 @@ exports.getSingleAttendanceRecord = async (req, res) => {
     const { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings, otStartTime);
     
     // OT In defaults to the approved HrFrom if no specific log exists at that time
-    const ot_In = hasApprovedOT ? (inArr.find(t => t.substring(0, 5) >= otStart)?.substring(0, 5) || otStart.substring(0, 5)) : "";
-    const ot_Out = hasApprovedOT ? (outArr.find(t => t.substring(0, 5) >= otStart)?.substring(0, 5) || "") : "";
+    const ot_In = hasApprovedOT && r.ot_HrFrom ? (inArr.find(t => t.substring(0, 5) >= r.ot_HrFrom)?.substring(0, 5) || r.ot_HrFrom.substring(0, 5)) : "";
+    const ot_Out = hasApprovedOT && r.ot_HrFrom ? (outArr.find(t => t.substring(0, 5) >= r.ot_HrFrom)?.substring(0, 5) || "") : "";
 
     res.status(200).json({
       user_Id: r.user_id,
