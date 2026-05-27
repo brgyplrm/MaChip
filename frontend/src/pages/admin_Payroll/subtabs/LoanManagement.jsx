@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Sidebar from "../../../components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,60 +6,72 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Edit2, Eye, Pause, Search, Plus, X } from "lucide-react";
+import { Edit2, Eye, Pause, Search, Plus, X, Filter } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import LoanAdjustmentDialog from "@/components/LoanAdjustmentDialog";
 import { useNavigate } from "react-router-dom";
-import LoanDetails from "./LoanDetails";
-import { Filter } from "lucide-react";
-import GovLoans from "./GovLoans";
 import { Link } from "react-router-dom";
 import AssessmentIcon  from "@mui/icons-material/Assessment";
-
-
-const loans = [
-  { govtype: "PAG-IBIG", employee: "Cydoel Tomas", title: "Emergency Medical Advance", principal: 15000, paid: 7500, outstanding: 7500, progress: 50 },
-  { govtype: "SSS", employee: "Michael Brown", title: "Laptop Co-Payment", principal: 25000, paid: 12000, outstanding: 13000, progress: 48 },
-];
+import { fetchWithAuth } from "../../../utils/api";
 
 export default function LoanManagement() {
   const navigate = useNavigate();
+  const [activeLoans, setActiveLoans] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
 
-  const myLoan = {
-  govtype: "PAG-IBIG",
-  title: "Emergency Medical Advance",
-  employee: "Cydoel Tomas",
-  email: "cydtomas555@gmail.com",
-  employeeId: "1"
-};
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetchWithAuth("/api/payroll/loans/active");
+      if (res.ok) {
+        const data = await res.json();
+        setActiveLoans(data);
+      }
+    } catch (err) {
+      console.error("Fetch Error:", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // --- Inside LoanManagement component ---
+  useEffect(() => {
+    fetchData();
+  }, []);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
   // Filtering Logic
-  const filteredLoans = loans.filter(loan => {
-    const matchesSearch = loan.employee.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          loan.title.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredLoans = activeLoans.filter(loan => {
+    const matchesSearch = 
+      loan.employee.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (loan.title && loan.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      loan.govtype.toLowerCase().includes(searchQuery.toLowerCase());
     
-    // Ensure 'status' exists on your loan objects, or this will be undefined
-    const matchesStatus = statusFilter === "ALL" || loan.status === statusFilter;
+    const matchesStatus = statusFilter === "ALL" || loan.status.toUpperCase() === statusFilter;
     
     return matchesSearch && matchesStatus;
   });
 
-// Update your Pagination Logic to use filteredLoans
-const totalPages = Math.ceil(filteredLoans.length / itemsPerPage);
-const startIndex = (currentPage - 1) * itemsPerPage;
-const endIndex = Math.min(startIndex + itemsPerPage, filteredLoans.length);
-const currentLoans = filteredLoans.slice(startIndex, endIndex);
+  const stats = {
+    totalLoans: activeLoans.length,
+    totalDisbursed: activeLoans.reduce((sum, l) => sum + parseFloat(l.principal || 0), 0),
+    totalCollected: activeLoans.reduce((sum, l) => sum + parseFloat(l.paid || 0), 0),
+    outstanding: activeLoans.reduce((sum, l) => sum + parseFloat(l.outstanding || 0), 0),
+  };
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredLoans.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, filteredLoans.length);
+  const currentLoans = filteredLoans.slice(startIndex, endIndex);
 
   return (
     <Sidebar>
@@ -100,7 +112,7 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
                 <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Loans</p>
-                <p className="text-4xl font-bold text-[#2A174E]">{loans.length}</p>
+                <p className="text-4xl font-bold text-[#2A174E]">{loading ? "..." : stats.totalLoans}</p>
               </div>
               <p className="text-xs text-[#2A174E]/70 italic mt-4">Total loan agreements created</p>
             </CardContent>
@@ -113,7 +125,7 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
               <div>
                 <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Disbursed</p>
                 <p className="text-4xl font-bold text-[#BB8B26]">
-                  ₱{loans.reduce((acc, curr) => acc + curr.principal, 0).toLocaleString()}
+                  {loading ? "₱0.00" : `₱${stats.totalDisbursed.toLocaleString()}`}
                 </p>
               </div>
               <p className="text-xs text-[#BB8B26]/70 italic mt-4">Cumulative loan principal amount</p>
@@ -126,7 +138,7 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
               <div>
                 <p className="text-xs font-bold text-[#174e4e] uppercase tracking-wider mb-2">Total Collected</p>
                 <p className="text-4xl font-bold text-[#174e4e]">
-                  ₱{loans.reduce((acc, curr) => acc + curr.paid, 0).toLocaleString()}
+                  {loading ? "₱0.00" : `₱${stats.totalCollected.toLocaleString()}`}
                 </p>
               </div>
               <p className="text-xs text-[#174e4e]/70 italic mt-4">Total payments received</p>
@@ -139,7 +151,7 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
               <div>
                 <p className="text-xs font-bold text-[#a12626] uppercase tracking-wider mb-2">Outstanding</p>
                 <p className="text-4xl font-bold text-[#a12626]">
-                  ₱{loans.reduce((acc, curr) => acc + curr.outstanding, 0).toLocaleString()}
+                  {loading ? "₱0.00" : `₱${stats.outstanding.toLocaleString()}`}
                 </p>
               </div>
               <p className="text-xs text-[#a12626]/70 italic mt-4">Remaining balance to collect</p>
@@ -177,7 +189,7 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
                   <SelectContent>
                     <SelectItem value="ALL">All Statuses</SelectItem>
                     <SelectItem value="ACTIVE">Active</SelectItem>
-                    <SelectItem value="PAUSED">Paused</SelectItem>
+                    <SelectItem value="COMPLETED">Completed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -235,53 +247,79 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
             <CardTitle className="text-white font-semibold">Active Loans</CardTitle>
           </CardHeader>
           <CardContent className="px-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">GOV TYPE</TableHead>
-                  <TableHead className="font-semibold text-[#2A174E] py-4  uppercase text-xs tracking-wider">EMPLOYEE</TableHead>
-                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">LOAN TITLE</TableHead>
-                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PRINCIPAL</TableHead>
-                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PAID</TableHead>
-                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">OUTSTANDING</TableHead>
-                  <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PROGRESS</TableHead>
-                  <TableHead className="font-semibold text-[#2A174E] py-4  uppercase text-xs tracking-wider">STATUS</TableHead>
-                  <TableHead className="font-semibold text-[#2A174E] py-4  pl-10 uppercase text-xs tracking-wider">ACTIONS</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {currentLoans.map((loan) => (
-                  <TableRow key={loan.id}>
-                    <TableCell className="font-medium">{loan.id}</TableCell>
-                    <TableCell>{loan.employee}</TableCell>
-                    <TableCell>{loan.title}</TableCell>
-                    <TableCell>₱{loan.principal.toLocaleString()}</TableCell>
-                    <TableCell className="text-emerald-600">₱{loan.paid.toLocaleString()}</TableCell>
-                    <TableCell className="text-orange-600">₱{loan.outstanding.toLocaleString()}</TableCell>
-                    <TableCell className="w-40">
-                      <div className="flex items-center gap-2">
-                        <Progress value={loan.progress} />
-                        <span className="text-xs">{loan.progress}%</span>
-                      </div>
-                    </TableCell>
-                    <TableCell><Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">ACTIVE</Badge></TableCell>
-                    <TableCell className="flex gap-0 text-muted-foreground justify-center gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => navigate('/loanDetails')}
-                        className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
-                        >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setShowEditModal(true)} className="border-[#B8551F]/40 text-[#B8551F] hover:bg-[#FEE0C0] hover:border-[#E18C52]">
-                          <Edit2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">GOV TYPE</TableHead>
+                    <TableHead className="font-semibold text-[#2A174E] py-4  uppercase text-xs tracking-wider">EMPLOYEE</TableHead>
+                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">LOAN TITLE</TableHead>
+                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PRINCIPAL</TableHead>
+                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PAID</TableHead>
+                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">OUTSTANDING</TableHead>
+                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PROGRESS</TableHead>
+                    <TableHead className="font-semibold text-[#2A174E] py-4  uppercase text-xs tracking-wider">STATUS</TableHead>
+                    <TableHead className="font-semibold text-[#2A174E] py-4  pl-10 uppercase text-xs tracking-wider">ACTIONS</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="h-32 text-center text-slate-500 animate-pulse">Syncing loan database...</TableCell>
+                    </TableRow>
+                  ) : currentLoans.length > 0 ? (
+                    currentLoans.map((loan) => (
+                      <TableRow key={loan.id}>
+                        <TableCell className="font-bold text-[11px] text-[#2A174E]">
+                          <Badge variant="outline" className="border-[#2A174E]/20 text-[#2A174E] bg-[#2A174E]/5 rounded uppercase">
+                            {loan.govtype}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col text-left">
+                            <span className="font-bold text-[#2A174E]">{loan.employee}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">MACJ-{String(loan.employeeId).padStart(3, '0')}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate text-xs font-medium text-slate-600 text-left">{loan.title || "No Title"}</TableCell>
+                        <TableCell className="font-bold">₱{parseFloat(loan.principal || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-emerald-600 font-bold">₱{parseFloat(loan.paid || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-rose-600 font-bold">₱{parseFloat(loan.outstanding || 0).toLocaleString()}</TableCell>
+                        <TableCell className="w-40">
+                          <div className="flex items-center gap-2">
+                            <Progress value={loan.progress} className="h-1.5" />
+                            <span className="text-[10px] font-black text-[#2A174E]">{loan.progress}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={loan.status === "active" ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-slate-100 text-slate-700"}>
+                            {loan.status.toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="flex gap-1 text-muted-foreground justify-center">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => navigate(`/loanDetails/${loan.id}`)}
+                            className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
+                            title="View Ledger"
+                            >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => setShowEditModal(true)} className="border-[#B8551F]/40 text-[#B8551F] hover:bg-[#FEE0C0] hover:border-[#E18C52]">
+                              <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={9} className="h-32 text-center text-slate-400 italic">No loan records found.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
             {filteredLoans.length > 0 && (
             <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 gap-4 bg-slate-50/30">
               <div className="flex items-center gap-4 text-sm text-slate-500">
@@ -312,8 +350,10 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
-          {currentLoans.map(loan => (
-            <Card key={loan.id} className="border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden">
+          {loading ? (
+             <div className="col-span-full h-32 flex items-center justify-center text-slate-500 animate-pulse">Loading loan dashboard...</div>
+          ) : currentLoans.map(loan => (
+            <Card key={loan.id} className="border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden text-left">
               
               {/* Card Header Profile Block */}
               <CardHeader className="bg-slate-50/60 pb-3.5 border-b border-slate-100 flex flex-row items-center justify-between space-y-0">
@@ -324,7 +364,7 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
                   <div className="truncate text-left">
                     <h4 className="text-sm font-bold text-[#2A174E] truncate">{loan.employee}</h4>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] font-mono font-semibold text-slate-400">{loan.id}</span>
+                      <span className="text-[10px] font-mono font-semibold text-slate-400">MACJ-{String(loan.employeeId).padStart(3, '0')}</span>
                       <Badge variant="outline" className="text-[9px] font-black px-1.5 py-0 border-[#2A174E]/20 text-[#2A174E] bg-[#2A174E]/5 rounded">
                         {loan.govtype}
                       </Badge>
@@ -336,8 +376,9 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  onClick={() => navigate('/loanDetails')}
+                  onClick={() => navigate(`/loanDetails/${loan.id}`)}
                   className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0"
+                  title="View Ledger"
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
@@ -349,7 +390,7 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
                 {/* Loan Description Detail Banner */}
                 <div className="space-y-0.5">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Agreement Label</span>
-                  <span className="text-xs font-semibold text-slate-800 line-clamp-1">{loan.title}</span>
+                  <span className="text-xs font-semibold text-slate-800 line-clamp-1">{loan.title || "No Title Provided"}</span>
                 </div>
 
                 {/* Secondary 3-Column Metrics Grid */}
@@ -357,21 +398,21 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
                   <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between min-w-0">
                     <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Principal</span>
                     <span className="text-xs font-bold text-slate-700 block truncate mt-0.5">
-                      ₱{loan.principal.toLocaleString()}
+                      ₱{parseFloat(loan.principal || 0).toLocaleString()}
                     </span>
                   </div>
                   
                   <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between min-w-0">
                     <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Total Paid</span>
                     <span className="text-xs font-bold text-emerald-600 block truncate mt-0.5">
-                      ₱{loan.paid.toLocaleString()}
+                      ₱{parseFloat(loan.paid || 0).toLocaleString()}
                     </span>
                   </div>
 
                   <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between min-w-0">
                     <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Outstanding</span>
                     <span className="text-xs font-bold text-orange-600 block truncate mt-0.5">
-                      ₱{loan.outstanding.toLocaleString()}
+                      ₱{parseFloat(loan.outstanding || 0).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -389,8 +430,8 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">State:</span>
-                    <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200/60">
-                      ACTIVE
+                    <Badge variant="secondary" className={`${loan.status === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" : "bg-slate-100 text-slate-600"} text-[10px] font-bold px-2 py-0.5 rounded-full border`}>
+                      {loan.status.toUpperCase()}
                     </Badge>
                   </div>
 
@@ -412,10 +453,6 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
           ))}
         </div>
       )}
-
-        
-
-        
 
         {/* Edit Modal */}
         <LoanAdjustmentDialog 

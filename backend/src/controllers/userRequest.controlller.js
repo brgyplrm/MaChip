@@ -843,7 +843,18 @@ exports.UserCreateRequest = async (req, res) => {
     } 
     // Loan Request (13: Certification, 14: Enrollment)
     else if (finalReqTypeId === 13 || finalReqTypeId === 14) {
-      const { agency, loanType, amountRequested, monthsToPay } = req.body;
+      const { 
+        agency, 
+        loanType, 
+        amountRequested, 
+        monthsToPay,
+        loanReferenceNo,
+        loanApprovalDate,
+        monthlyAmortization,
+        totalLoanTerm,
+        amortizationStartMonth,
+        totalOutstandingBalance
+      } = req.body;
       const isEnrollment = finalReqTypeId === 14;
 
       if (!agency || !loanType) {
@@ -851,15 +862,24 @@ exports.UserCreateRequest = async (req, res) => {
         return res.status(400).json({ error: "Agency and Loan Type are required for loan requests." });
       }
 
-      if (isEnrollment && (!amountRequested || !proof_File)) {
+      if (isEnrollment && agency === "SSS" && loanType === "Salary Loan") {
+         if (!loanReferenceNo || !loanApprovalDate || !monthlyAmortization || !totalLoanTerm || !amortizationStartMonth || !totalOutstandingBalance || !proof_File) {
+            await t.rollback();
+            return res.status(400).json({ error: "All SSS Salary Loan fields and the Disclosure Statement upload are mandatory." });
+         }
+      } else if (isEnrollment && (!amountRequested || !proof_File)) {
         await t.rollback();
         return res.status(400).json({ error: "Amount and Voucher/Proof File are mandatory for loan enrollment." });
       }
 
       const loanReqResult = await sequelize.query(
         `INSERT INTO "Loan_Request"
-        ("emp_reqId", "user_Id", "agency", "loanType", "amountRequested", "monthsToPay", "isEnrollment", "proof_File", "createdAt", "updatedAt")
-        VALUES (:emp_reqId, :userId, :agency, :loanType, :amountRequested, :monthsToPay, :isEnrollment, :proof_File, :now, :now)
+        ("emp_reqId", "user_Id", "agency", "loanType", "amountRequested", "monthsToPay", "isEnrollment", "proof_File", 
+         "loanReferenceNo", "loanApprovalDate", "monthlyAmortization", "totalLoanTerm", "amortizationStartMonth", "totalOutstandingBalance",
+         "createdAt", "updatedAt")
+        VALUES (:emp_reqId, :userId, :agency, :loanType, :amountRequested, :monthsToPay, :isEnrollment, :proof_File, 
+                :loanReferenceNo, :loanApprovalDate, :monthlyAmortization, :totalLoanTerm, :amortizationStartMonth, :totalOutstandingBalance,
+                :now, :now)
         RETURNING *`,
         {
           replacements: {
@@ -871,6 +891,12 @@ exports.UserCreateRequest = async (req, res) => {
             monthsToPay: monthsToPay || null,
             isEnrollment,
             proof_File: proof_File,
+            loanReferenceNo: loanReferenceNo || null,
+            loanApprovalDate: loanApprovalDate || null,
+            monthlyAmortization: monthlyAmortization || null,
+            totalLoanTerm: totalLoanTerm || null,
+            amortizationStartMonth: amortizationStartMonth || null,
+            totalOutstandingBalance: totalOutstandingBalance || null,
             now: nowStr
           },
           type: QueryTypes.INSERT,
@@ -1111,6 +1137,12 @@ exports.GetUserRequests = async (req, res) => {
         lr."loanType" as "LR_loanType",
         lr."amountRequested" as "LR_amount",
         lr."monthsToPay" as "LR_months",
+        lr."loanReferenceNo" as "LR_reference",
+        lr."loanApprovalDate" as "LR_approvalDate",
+        lr."monthlyAmortization" as "LR_amortization",
+        lr."totalLoanTerm" as "LR_term",
+        lr."amortizationStartMonth" as "LR_startMonth",
+        lr."totalOutstandingBalance" as "LR_balance",
         lr."isEnrollment" as "LR_isEnrollment",
         lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
@@ -1222,6 +1254,12 @@ exports.GetAllRequests = async (req, res) => {
         lr."loanType" as "LR_loanType",
         lr."amountRequested" as "LR_amount",
         lr."monthsToPay" as "LR_months",
+        lr."loanReferenceNo" as "LR_reference",
+        lr."loanApprovalDate" as "LR_approvalDate",
+        lr."monthlyAmortization" as "LR_amortization",
+        lr."totalLoanTerm" as "LR_term",
+        lr."amortizationStartMonth" as "LR_startMonth",
+        lr."totalOutstandingBalance" as "LR_balance",
         lr."isEnrollment" as "LR_isEnrollment",
         lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
@@ -1566,44 +1604,111 @@ exports.UpdateStatusRequest = async (req, res) => {
       );
 
       if (loanDetails.length > 0) {
-        const { agency, loanType, amountRequested, monthsToPay, proof_File } = loanDetails[0];
-        const totalAmount = parseFloat(amountRequested);
-        const months = parseInt(monthsToPay || 12);
-        const cutoffs = months * 2;
-        const deductionPerCutoff = totalAmount / cutoffs;
+        const { 
+          agency, loanType, amountRequested, monthsToPay, proof_File,
+          loanReferenceNo, loanApprovalDate, monthlyAmortization, totalLoanTerm,
+          amortizationStartMonth, totalOutstandingBalance
+        } = loanDetails[0];
+        
+        const totalAmount = parseFloat(amountRequested || totalOutstandingBalance);
+        const months = parseInt(monthsToPay || totalLoanTerm || 12);
+        
+        // AUTO-CALCULATE PER CUTOFF (Total Amount / (Months * 2))
+        // This ensures math integrity regardless of manual entry errors
+        const perCutoff = totalAmount / (months * 2);
 
         // Map agency/type to deductionType enum
         let dedType = 'multipurpose';
-        if (agency === 'SSS') dedType = 'sss_loan';
-        else if (agency === 'Pag-IBIG') {
-          if (loanType === 'Calamity Loan') dedType = 'calamity';
-          else dedType = 'hdmf_loan';
-        }
-        else if (agency === 'Company') dedType = 'cash_advance';
+        let govDbType = 'Multi-Purpose'; // for Payroll_GovernmentLoans
         
-        // Handle specialized SSS/Pag-IBIG Calamity
-        if (loanType === 'Calamity Loan') dedType = 'calamity';
+        if (agency === 'SSS') {
+          dedType = 'sss_loan';
+          govDbType = 'SSS';
+        }
+        else if (agency === 'Pag-IBIG') {
+          if (loanType === 'Calamity Loan') {
+            dedType = 'calamity';
+            govDbType = 'Calamity';
+          }
+          else {
+            dedType = 'hdmf_loan';
+            govDbType = 'Pag-IBIG';
+          }
+        }
+        else if (agency === 'Company') {
+          dedType = 'cash_advance';
+          govDbType = 'Company'; 
+        }
 
+        // 1. Insert into master Loan_Deductions table
         await sequelize.query(
           `INSERT INTO "Loan_Deductions" 
-            ("userId", "deductionType", "status", "contractDate", "monthsToPay", "deductionPerCutoff", "totalAmount", "remainingBalance", "provider", "notes", "createdBy", "createdAt", "updatedAt")
+            ("userId", "deductionType", "status", "contractDate", "monthsToPay", "deductionPerCutoff", "totalAmount", "remainingBalance", "provider", "reference", "notes", "createdBy", "createdAt", "updatedAt")
           VALUES 
-            (:userId, :dedType, 'active', :now, :months, :perCutoff, :total, :total, :agency, :notes, :adminId, :now, :now)`,
+            (:userId, :dedType, 'active', :contractDate, :months, :perCutoff, :total, :balance, :agency, :reference, :notes, :adminId, :now, :now)`,
           {
             replacements: {
               userId: requesterId,
               dedType,
-              now: nowStr,
+              contractDate: loanApprovalDate || nowStr.split(' ')[0],
               months,
-              perCutoff: deductionPerCutoff,
+              perCutoff,
               total: totalAmount,
+              balance: totalAmount,
               agency,
-              notes: `Auto-enrolled from Request #${emp_reqId}`,
-              adminId: operatorId
+              reference: loanReferenceNo || null,
+              notes: `${agency} ${loanType} via Request #${emp_reqId}`,
+              adminId: operatorId,
+              now: nowStr
             },
             type: QueryTypes.INSERT
           }
         );
+
+        // 2. Generate ledger records in Payroll_GovernmentLoans to show in the matrix
+        if (agency === 'SSS' || agency === 'Pag-IBIG') {
+          try {
+            // ENFORCE SSS START RULE: 2nd month following approval
+            let currentYear, currentMonth;
+            
+            const startTarget = new Date(now.getFullYear(), now.getMonth() + 2, 1);
+            currentYear = startTarget.getFullYear();
+            currentMonth = startTarget.getMonth();
+
+            const totalTermMonths = months;
+            for (let i = 0; i < totalTermMonths; i++) {
+              const loopDate = new Date(currentYear, currentMonth + i, 1);
+              const year = loopDate.getFullYear();
+              const month = loopDate.getMonth();
+
+              const d15 = `${year}-${String(month + 1).padStart(2, '0')}-15`;
+              const dEnd = new Date(year, month + 1, 0);
+              const dEndStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dEnd.getDate()).padStart(2, '0')}`;
+
+              const scheduleDates = [d15, dEndStr];
+
+              for (const sDate of scheduleDates) {
+                await sequelize.query(
+                  `INSERT INTO "Payroll_GovernmentLoans" ("user_Id", "government_type", "date", "amount", "createdAt", "updatedAt")
+                   VALUES (:userId, :govType, :date, :amount, :now, :now)
+                   ON CONFLICT ("user_Id", "date", "government_type") DO NOTHING`,
+                  {
+                    replacements: {
+                      userId: requesterId,
+                      govType: govDbType,
+                      date: sDate,
+                      amount: perCutoff,
+                      now: nowStr
+                    },
+                    type: QueryTypes.INSERT
+                  }
+                );
+              }
+            }
+          } catch (schedErr) {
+            console.error("[LOAN_SCHEDULE_GEN_ERROR]:", schedErr.message);
+          }
+        }
 
         await logTransaction(requesterId, operatorId, "LOAN_ENROLLED", `${agency} loan enrolled for ${totalAmount} via approved request #${emp_reqId}`, { agency, totalAmount });
       }
@@ -1889,6 +1994,12 @@ exports.GetRequestDetails = async (req, res) => {
         lr."loanType" as "LR_loanType",
         lr."amountRequested" as "LR_amount",
         lr."monthsToPay" as "LR_months",
+        lr."loanReferenceNo" as "LR_reference",
+        lr."loanApprovalDate" as "LR_approvalDate",
+        lr."monthlyAmortization" as "LR_amortization",
+        lr."totalLoanTerm" as "LR_term",
+        lr."amortizationStartMonth" as "LR_startMonth",
+        lr."totalOutstandingBalance" as "LR_balance",
         lr."isEnrollment" as "LR_isEnrollment",
         lr."proof_File" as "LR_proof_File",
         lb."VL_balance",

@@ -121,6 +121,12 @@ const UserRequests = () => {
     loanType: "",
     amountRequested: "",
     monthsToPay: "",
+    loanReferenceNo: "",
+    loanApprovalDate: "",
+    monthlyAmortization: "",
+    totalLoanTerm: "",
+    amortizationStartMonth: "",
+    totalOutstandingBalance: "",
   });
 
   const [currentPeriodLogs, setCurrentPeriodLogs] = useState([]);
@@ -344,6 +350,45 @@ const UserRequests = () => {
     }
 
     const newValue = type === "checkbox" ? checked : type === "file" ? files[0] : value;
+    
+    // Auto-calculate for SSS Salary Loans
+    if (formData.agency === "SSS" && formData.loanType === "Salary Loan" && (name === "totalOutstandingBalance" || name === "totalLoanTerm")) {
+       const principal = name === "totalOutstandingBalance" ? parseFloat(value) : parseFloat(formData.totalOutstandingBalance);
+       const term = name === "totalLoanTerm" ? parseInt(value) : parseInt(formData.totalLoanTerm);
+
+       if (principal > 0 && term > 0) {
+          // Estimated Amortization with ~10% annual interest
+          const monthlyInterest = (0.10 / 12);
+          const estimatedAmort = (principal * monthlyInterest * Math.pow(1 + monthlyInterest, term)) / (Math.pow(1 + monthlyInterest, term) - 1);
+          
+          setFormData(prev => ({ 
+            ...prev, 
+            [name]: newValue,
+            monthlyAmortization: Math.round(estimatedAmort)
+          }));
+          return;
+       }
+    }
+
+    // Auto-calculate Amortization Start Month for SSS Salary Loans
+    if (name === "loanApprovalDate" && value && formData.agency === "SSS" && formData.loanType === "Salary Loan") {
+      const approvalDate = new Date(value);
+      if (!isNaN(approvalDate.getTime())) {
+        // SSS Rule: 2nd month following the month of approval
+        // Month is 0-indexed, so +2 gets us the correct target month
+        const startMonth = new Date(approvalDate.getFullYear(), approvalDate.getMonth() + 2, 1);
+        const yyyy = startMonth.getFullYear();
+        const mm = String(startMonth.getMonth() + 1).padStart(2, '0');
+        
+        setFormData(prev => ({ 
+          ...prev, 
+          [name]: newValue,
+          amortizationStartMonth: `${yyyy}-${mm}` 
+        }));
+        return; // Exit early as we've handled both fields
+      }
+    }
+
     setFormData((prev) => ({ ...prev, [name]: newValue }));
 
     if (name === "otDate") {
@@ -435,6 +480,15 @@ const UserRequests = () => {
       formDataToSubmit.append("loanType", formData.loanType);
       formDataToSubmit.append("amountRequested", formData.amountRequested);
       formDataToSubmit.append("monthsToPay", formData.monthsToPay);
+      
+      if (formData.agency === "SSS" && formData.loanType === "Salary Loan" && formData.emp_reqTypeId === "14") {
+        formDataToSubmit.append("loanReferenceNo", formData.loanReferenceNo);
+        formDataToSubmit.append("loanApprovalDate", formData.loanApprovalDate);
+        formDataToSubmit.append("monthlyAmortization", formData.monthlyAmortization);
+        formDataToSubmit.append("totalLoanTerm", formData.totalLoanTerm);
+        formDataToSubmit.append("amortizationStartMonth", formData.amortizationStartMonth);
+        formDataToSubmit.append("totalOutstandingBalance", formData.totalOutstandingBalance);
+      }
     } else if (["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) {
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
       formDataToSubmit.append("EndDate", formData.leaveEndDate);
@@ -1048,15 +1102,52 @@ const UserRequests = () => {
                         </div>
                       </div>
                       {formData.emp_reqTypeId === "14" && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">Loan Amount <span className="text-red-500">*</span></label>
-                            <Input type="number" name="amountRequested" value={formData.amountRequested} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="0.00" />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">Repayment (Months) <span className="text-red-500">*</span></label>
-                            <Input type="number" name="monthsToPay" value={formData.monthsToPay} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="e.g. 12" />
-                          </div>
+                        <div className="space-y-4">
+                          {formData.agency === "SSS" && formData.loanType === "Salary Loan" ? (
+                            <>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Loan Reference No. <span className="text-red-500">*</span></label>
+                                  <Input name="loanReferenceNo" value={formData.loanReferenceNo} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="e.g. 12-3456789-0" />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Loan Approval Date <span className="text-red-500">*</span></label>
+                                  <Input type="date" name="loanApprovalDate" value={formData.loanApprovalDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Monthly Amortization (₱) <span className="text-red-500">*</span></label>
+                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="0.00" />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Total Loan Term (Months) <span className="text-red-500">*</span></label>
+                                  <Input type="number" name="totalLoanTerm" value={formData.totalLoanTerm} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="e.g. 24" />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Amortization Start Month <span className="text-red-500">*</span></label>
+                                  <Input type="month" name="amortizationStartMonth" value={formData.amortizationStartMonth} onChange={handleInputChange} required className="bg-slate-50/50" />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Total Outstanding Balance (₱) <span className="text-red-500">*</span></label>
+                                  <Input type="number" name="totalOutstandingBalance" value={formData.totalOutstandingBalance} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="0.00" />
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Loan Amount <span className="text-red-500">*</span></label>
+                                <Input type="number" name="amountRequested" value={formData.amountRequested} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="0.00" />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Repayment (Months) <span className="text-red-500">*</span></label>
+                                <Input type="number" name="monthsToPay" value={formData.monthsToPay} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="e.g. 12" />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1137,7 +1228,9 @@ const UserRequests = () => {
                                     })()
                                   : currentReq.emp_reqTypeId === 7 
                                     ? `Half-day (${currentReq.HD_period})`
-                                    : `${currentReq.VL_NoDays || currentReq.SL_NoDays || 0} Day(s)`}
+                                    : [13, 14].includes(currentReq.emp_reqTypeId)
+                                      ? `${currentReq.LR_agency} ${currentReq.LR_loanType}`
+                                      : `${currentReq.VL_NoDays || currentReq.SL_NoDays || 0} Day(s)`}
                         </p>
                       </div>
 
@@ -1179,27 +1272,25 @@ const UserRequests = () => {
                         </>
                       )}
 
-                      {currentReq.emp_reqTypeId !== 1 && currentReq.emp_reqTypeId !== 5 && (
+                      {currentReq.emp_reqTypeId !== 1 && currentReq.emp_reqTypeId !== 5 && ![13, 14].includes(currentReq.emp_reqTypeId) && (
                         <>
                           <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Status</label>
                             <p className="font-semibold text-slate-800 mt-1">
-                                {currentReq.VL_withPayName || currentReq.SL_withPayName || currentReq.ST_withPayName || (currentReq.emp_reqStatusId === 1 ? "Pending" : "N/A")}
+                                {currentReq.VL_withPayName || currentReq.SL_withPayName || currentReq.ST_withPayName || ([1, 4].includes(currentReq.emp_reqStatusId) ? "Pending" : "N/A")}
                             </p>
                           </div>
                           <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                              {currentReq.emp_reqStatusId === 1 ? "Remaining Balance" : "Leave Used"}
+                              {[1, 4].includes(currentReq.emp_reqStatusId) ? "Remaining Balance" : "Leave Used"}
                             </label>
                             <p className="font-semibold text-slate-800 mt-1">
                               {currentReq.emp_reqTypeId === 3 
-                                ? (currentReq.emp_reqStatusId === 1 ? `${currentReq.VL_balance || 0} VL Remaining` : `${currentReq.VL_NoDays || 0} Day(s) Used`)
+                                ? ([1, 4].includes(currentReq.emp_reqStatusId) ? `${currentReq.VL_balance || 0} VL Remaining` : `${currentReq.VL_NoDays || 0} Day(s) Used`)
                                 : currentReq.emp_reqTypeId === 4 
-                                ? (currentReq.emp_reqStatusId === 1 ? `${currentReq.SL_balance || 0} SL Remaining` : `${currentReq.SL_NoDays || 0} Day(s) Used`)
+                                ? ([1, 4].includes(currentReq.emp_reqStatusId) ? `${currentReq.SL_balance || 0} SL Remaining` : `${currentReq.SL_NoDays || 0} Day(s) Used`)
                                 : currentReq.emp_reqTypeId === 10
-                                ? (currentReq.emp_reqStatusId === 1 ? `${currentReq.SoloParent_balance || 0} SP Remaining` : `${currentReq.ST_NoDays || 0} Day(s) Used`)
-                                : [13, 14].includes(currentReq.emp_reqTypeId)
-                                ? `${currentReq.LR_agency} - ${currentReq.LR_loanType}`
+                                ? ([1, 4].includes(currentReq.emp_reqStatusId) ? `${currentReq.SoloParent_balance || 0} SP Remaining` : `${currentReq.ST_NoDays || 0} Day(s) Used`)
                                 : "N/A"}
                             </p>
                           </div>
@@ -1208,6 +1299,19 @@ const UserRequests = () => {
                             <p className="font-semibold text-slate-800">{currentReq.approverName ? `${currentReq.approverName} (${formatUserId(currentReq.processedBy)})` : "Pending Review"}</p>
                           </div>
                           <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
+                            <p className="font-semibold text-slate-800">{currentReq.date_Processed ? formatDateTime(currentReq.date_Processed) : "Pending"}</p>
+                            </div>
+                            </>
+                            )}
+
+                            {[13, 14].includes(currentReq.emp_reqTypeId) && (
+                            <>
+                            <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Processed By</label>
+                            <p className="font-semibold text-slate-800">{currentReq.approverName ? `${currentReq.approverName} (${formatUserId(currentReq.processedBy)})` : "Pending Review"}</p>
+                            </div>
+                            <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
                             <p className="font-semibold text-slate-800">{currentReq.date_Processed ? formatDateTime(currentReq.date_Processed) : "Pending"}</p>
                             </div>
@@ -1244,13 +1348,25 @@ const UserRequests = () => {
                             {currentReq.emp_reqTypeId === 14 && (
                             <>
                               <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</label>
-                                <p className="font-bold text-green-700">₱{parseFloat(currentReq.LR_amount || 0).toLocaleString()}</p>
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount / Balance</label>
+                                <p className="font-bold text-green-700">₱{parseFloat(currentReq.LR_balance || currentReq.LR_amount || 0).toLocaleString()}</p>
                               </div>
                               <div className="space-y-1">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Repayment Term</label>
-                                <p className="font-semibold text-slate-800">{currentReq.LR_months} Months</p>
+                                <p className="font-semibold text-slate-800">{currentReq.LR_term || currentReq.LR_months} Months</p>
                               </div>
+                              {currentReq.LR_amortization && (
+                                <div className="space-y-1">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Amortization</label>
+                                  <p className="font-bold text-blue-700">₱{parseFloat(currentReq.LR_amortization).toLocaleString()}</p>
+                                </div>
+                              )}
+                              {currentReq.LR_reference && (
+                                <div className="space-y-1">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reference No.</label>
+                                  <p className="font-mono text-xs font-bold text-slate-700">{currentReq.LR_reference}</p>
+                                </div>
+                              )}
                             </>
                             )}
                             </>

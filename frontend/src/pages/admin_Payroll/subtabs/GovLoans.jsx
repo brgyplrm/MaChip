@@ -85,10 +85,10 @@ const GovLoans = () => {
   const [syncingCell, setSyncingCell] = useState(null);
 
   const govTypes = [
-    { id: "sss_loan", label: "SSS Loan", dbType: "SSS Loan" },
-    { id: "pagibig_loan", label: "Pag-IBIG Loan", dbType: "Pag-IBIG Loan" },
+    { id: "sss_loan", label: "SSS Loan", dbType: "SSS" },
+    { id: "pagibig_loan", label: "Pag-IBIG Loan", dbType: "Pag-IBIG" },
     { id: "multipurpose", label: "Multipurpose Savings", dbType: "Multi-Purpose" },
-    { id: "calamity", label: "Calamity Loan", dbType: "Calamity Loan" }
+    { id: "calamity", label: "Calamity Loan", dbType: "Calamity" }
   ];
 
   const fetchCutoffDates = () => {

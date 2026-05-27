@@ -150,7 +150,7 @@ function App() {
           path="/loanManagement" 
           element={<ProtectedRoute allowedRoles={[1, 4]}><LoanManagement /></ProtectedRoute>} />
         <Route 
-          path="/loanDetails" 
+          path="/loanDetails/:id" 
           element={<ProtectedRoute allowedRoles={[1, 4]}><LoanDetails /></ProtectedRoute>} />
 
         <Route

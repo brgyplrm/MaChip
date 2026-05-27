@@ -2000,9 +2000,9 @@ exports.syncMaxicareHistory = async (req, res) => {
 // ── Loan Management Helpers ──────────────────────────────────────────────────
 const loanTypeMapper = {
   "Cash Advance": { dbType: "cash_advance", dedCol: "advances_Amnt" },
-  "SSS Loan": { dbType: "sss_loan", dedCol: "SSS_Loan", govType: "SSS" },
-  "Pag-IBIG Loan": { dbType: "hdmf_loan", dedCol: "HDMF_Loan", govType: "Pag-IBIG" },
-  "Calamity Loan": { dbType: "calamity", dedCol: "calamityLoan_Amnt", govType: "Calamity" },
+  "SSS": { dbType: "sss_loan", dedCol: "SSS_Loan", govType: "SSS" },
+  "Pag-IBIG": { dbType: "hdmf_loan", dedCol: "HDMF_Loan", govType: "Pag-IBIG" },
+  "Calamity": { dbType: "calamity", dedCol: "calamityLoan_Amnt", govType: "Calamity" },
   "Multi-Purpose": { dbType: "multipurpose", dedCol: "multiPurposeSavings", govType: "Multi-Purpose" },
   "Eastwest Loan": { dbType: "eastwest", dedCol: "eastwest_Loan" }
 };
@@ -2526,15 +2526,35 @@ exports.getSeparationPayPreview = async (req, res) => {
     const workedDaysCount = parseInt(attendanceGap[0]?.worked || 0);
     const finalWorkedSalary = workedDaysCount * (user.dailyRate || 0);
 
-    // 4. Fetch all causes to generate previews
+    // 4. Fetch Outstanding Loans (Mandatory full deduction on separation per SSS rules)
+    const activeLoans = await sequelize.query(
+      `SELECT "id", "deductionType", "totalAmount", "remainingBalance" 
+       FROM "Loan_Deductions" 
+       WHERE "userId" = :user_Id AND "status" = 'active'`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    const totalLoanBalance = activeLoans.reduce((sum, loan) => sum + parseFloat(loan.remainingBalance || 0), 0);
+
+    // 5. Fetch all causes to generate previews
     const causes = await sequelize.query(`SELECT * FROM "Separation_Cause"`, { type: QueryTypes.SELECT });
-    const previews = causes.map(c => ({
-      causeId: c.causeId,
-      causeName: c.causeName,
-      multiplier: c.multiplier,
-      amount: Math.max(baseSalary, baseSalary * c.multiplier * yearsOfService),
-      desc: c.description
-    }));
+    const previews = causes.map(c => {
+      const separationPay = Math.max(baseSalary, baseSalary * c.multiplier * yearsOfService);
+      const backPayTotal = prorated13thMonth + leaveConversion + finalWorkedSalary;
+      const grandTotal = separationPay + backPayTotal;
+      const netAmount = Math.max(0, grandTotal - totalLoanBalance);
+
+      return {
+        causeId: c.causeId,
+        causeName: c.causeName,
+        multiplier: c.multiplier,
+        amount: separationPay,
+        backPayTotal,
+        grandTotal,
+        loanDeductions: totalLoanBalance,
+        netAmount,
+        desc: c.description
+      };
+    });
 
     return res.status(200).json({
       user_Id: user.user_Id,
@@ -2546,6 +2566,7 @@ exports.getSeparationPayPreview = async (req, res) => {
       monthlyBasic,
       monthlyAllowance: user.monthlyAllowance || 0,
       baseSalary,
+      loanDeductions: totalLoanBalance,
       backPay: {
         prorated13thMonth,
         totalBasicYear,
@@ -2598,14 +2619,20 @@ exports.generateSeparationPay = async (req, res) => {
                          parseFloat(previewRes.backPay.leaveConversion || 0) + 
                          parseFloat(previewRes.backPay.finalWorkedSalary || 0);
 
+    const grandTotal = parseFloat(selectedCause.amount) + backPayTotal;
+    const loanDeductions = parseFloat(previewRes.loanDeductions || 0);
+    const netAmount = Math.max(0, grandTotal - loanDeductions);
+
     const result = await sequelize.query(
       `INSERT INTO "Payroll_Separation" 
         ("user_Id", "hireDate", "separationDate", "yearsOfService", "baseSalary", "multiplier", "totalAmount", 
          "backPay_13thMonth", "backPay_LeaveConversion", "finalWorkedSalary", "backPay_Total",
+         "loanDeductions", "netAmount",
          "reason", "causeId", "status", "createdAt", "updatedAt")
        VALUES 
         (:user_Id, :hireDate, :separationDate, :yearsOfService, :baseSalary, :multiplier, :totalAmount, 
          :bp13th, :bpLeave, :bpFinalSalary, :bpTotal,
+         :loanDeductions, :netAmount,
          :reason, :causeId, :status, :now, :now)
        RETURNING "separationId"`,
       {
@@ -2621,6 +2648,8 @@ exports.generateSeparationPay = async (req, res) => {
           bpLeave: previewRes.backPay.leaveConversion,
           bpFinalSalary: previewRes.backPay.finalWorkedSalary,
           bpTotal: backPayTotal,
+          loanDeductions,
+          netAmount,
           reason: reason || selectedCause.causeName,
           causeId,
           status: targetStatus,
@@ -2709,6 +2738,17 @@ exports.releaseSeparationPay = async (req, res) => {
     // 3. Soft Delete User (Paranoid)
     await sequelize.query(
       `UPDATE "User" SET "deletedAt" = :now WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+    );
+
+    // 4. Settle Outstanding Loans (Mandatory per SSS rules)
+    await sequelize.query(
+      `UPDATE "Loan_Deductions" 
+       SET "status" = 'completed', 
+           "remainingBalance" = 0, 
+           "notes" = CONCAT("notes", ' | Settled in full via Separation Pay on ', :now),
+           "updatedAt" = :now 
+       WHERE "userId" = :user_Id AND "status" = 'active'`,
       { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
     );
 
@@ -2915,6 +2955,19 @@ exports.getRetirementPayPreview = async (req, res) => {
     const workedDaysCount = parseInt(attendanceGap[0]?.worked || 0);
     const finalWorkedSalary = workedDaysCount * dailyRate;
 
+    // 4. Fetch Outstanding Loans (Mandatory deduction per SSS rules)
+    const activeLoans = await sequelize.query(
+      `SELECT "id", "remainingBalance" 
+       FROM "Loan_Deductions" 
+       WHERE "userId" = :user_Id AND "status" = 'active'`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    const totalLoanBalance = activeLoans.reduce((sum, loan) => sum + parseFloat(loan.remainingBalance || 0), 0);
+
+    const backPayTotal = prorated13thMonth + leaveConversion + finalWorkedSalary;
+    const grandTotal = totalAmount + backPayTotal;
+    const netAmount = Math.max(0, grandTotal - totalLoanBalance);
+
     return res.status(200).json({
       user_Id: user.user_Id,
       name: `${user.user_LastName}, ${user.user_FirstName}`,
@@ -2930,6 +2983,8 @@ exports.getRetirementPayPreview = async (req, res) => {
         thirteenthMonth2_5Days,
         oneHalfMonthSalary
       },
+      loanDeductions: totalLoanBalance,
+      netAmount,
       backPay: {
         prorated13thMonth,
         totalBasicYear,
@@ -2972,16 +3027,22 @@ exports.generateRetirementPay = async (req, res) => {
                          parseFloat(previewRes.backPay.leaveConversion || 0) + 
                          parseFloat(previewRes.backPay.finalWorkedSalary || 0);
 
+    const grandTotal = parseFloat(previewRes.totalAmount) + backPayTotal;
+    const loanDeductions = parseFloat(previewRes.loanDeductions || 0);
+    const netAmount = Math.max(0, grandTotal - loanDeductions);
+
     const result = await sequelize.query(
       `INSERT INTO "Payroll_Retirement" 
         ("user_Id", "hireDate", "retirementDate", "yearsOfService", "dailyRate", "totalAmount", 
          "component_salary_15days", "component_sil_5days", "component_13thmonth_2_5days", 
          "backPay_13thMonth", "backPay_LeaveConversion", "finalWorkedSalary", "backPay_Total",
+         "loanDeductions", "netAmount",
          "isTaxExempt", "status", "createdAt", "updatedAt")
        VALUES 
         (:user_Id, :hireDate, :retirementDate, :yearsOfService, :dailyRate, :totalAmount, 
          :salary15Days, :sil5Days, :thirteenthMonth2_5Days, 
          :bp13th, :bpLeave, :bpFinalSalary, :bpTotal,
+         :loanDeductions, :netAmount,
          :isTaxExempt, 'Draft', :now, :now)
        RETURNING "retirementId"`,
       {
@@ -2999,6 +3060,8 @@ exports.generateRetirementPay = async (req, res) => {
           bpLeave: previewRes.backPay.leaveConversion,
           bpFinalSalary: previewRes.backPay.finalWorkedSalary,
           bpTotal: backPayTotal,
+          loanDeductions,
+          netAmount,
           isTaxExempt: previewRes.isTaxExempt,
           now: nowStr
         },
@@ -3056,7 +3119,18 @@ exports.releaseRetirementPay = async (req, res) => {
         { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
       );
 
-      // 4. Log Transaction
+      // 4. Settle Outstanding Loans (Mandatory per SSS rules)
+      await sequelize.query(
+        `UPDATE "Loan_Deductions" 
+         SET "status" = 'completed', 
+             "remainingBalance" = 0, 
+             "notes" = CONCAT("notes", ' | Settled in full via Retirement Pay on ', :now),
+             "updatedAt" = :now 
+         WHERE "userId" = :user_Id AND "status" = 'active'`,
+        { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+      );
+
+      // 5. Log Transaction
       const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
       await logTransaction(null, currentAdminId, "RETIREMENT_RELEASE", `Released retirement pay ID ${retirementId} and archived user ${user_Id}`, { retirementId, user_Id }, req);
     });
@@ -3145,6 +3219,131 @@ exports.updateRetirementDate = async (req, res) => {
 
     res.status(200).json({ message: "Retirement date updated and amounts re-calculated." });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets all active loans for management dashboard.
+ */
+exports.getActiveLoans = async (req, res) => {
+  try {
+    const loans = await sequelize.query(
+      `SELECT 
+        ld."id",
+        CASE 
+          WHEN ld."deductionType" = 'sss_loan' THEN 'SSS'
+          WHEN ld."deductionType" = 'hdmf_loan' THEN 'Pag-IBIG'
+          WHEN ld."deductionType" = 'calamity' THEN 'Calamity'
+          WHEN ld."deductionType" = 'cash_advance' THEN 'Cash Advance'
+          WHEN ld."deductionType" = 'multipurpose' THEN 'Multi-Purpose'
+          ELSE ld."deductionType"
+        END as "govtype",
+        u."user_FirstName" || ' ' || u."user_LastName" as "employee",
+        ld."notes" as "title",
+        ld."totalAmount" as "principal",
+        (ld."totalAmount" - ld."remainingBalance") as "paid",
+        ld."remainingBalance" as "outstanding",
+        ld."status",
+        u."user_Email" as "email",
+        ld."userId" as "employeeId",
+        CASE 
+          WHEN ld."totalAmount" > 0 THEN ROUND(((ld."totalAmount" - ld."remainingBalance") / ld."totalAmount") * 100)
+          ELSE 0 
+        END as "progress"
+       FROM "Loan_Deductions" ld
+       JOIN "User" u ON ld."userId" = u."user_Id"
+       WHERE u."deletedAt" IS NULL
+       ORDER BY ld."createdAt" DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(loans);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets specific loan details by ID.
+ */
+exports.getLoanById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const loanResult = await sequelize.query(
+      `SELECT 
+        ld."id" as "loanId",
+        ld."userId" as "requesterId",
+        ld."deductionType" as "deductionType",
+        ld."status" as "status",
+        ld."contractDate" as "contractDate",
+        ld."monthsToPay" as "monthsToPay",
+        ld."deductionPerCutoff" as "deductionPerCutoff",
+        ld."totalAmount" as "totalAmount",
+        ld."remainingBalance" as "remainingBalance",
+        ld."provider" as "provider",
+        ld."reference" as "reference",
+        ld."notes" as "notes",
+        ld."createdAt" as "createdAt",
+        u."user_FirstName" || ' ' || u."user_LastName" as "employeeName",
+        u."user_Email" as "employeeEmail",
+        u."hireDate" as "hireDate",
+        u."user_Id" as "empId",
+        es."statusName" as "employmentStatus"
+       FROM "Loan_Deductions" ld
+       JOIN "User" u ON ld."userId" = u."user_Id"
+       LEFT JOIN "employementStatus" es ON u."user_EmploymentStatusId" = es."statusId"
+       WHERE ld."id" = :id`,
+      { replacements: { id }, type: QueryTypes.SELECT }
+    );
+
+    if (loanResult.length === 0) {
+      return res.status(404).json({ error: "Loan record not found." });
+    }
+
+    const loan = loanResult[0];
+    const targetUserId = loan.requesterId || loan.empId;
+
+    // Map govType for ledger lookup
+    let govType = 'SSS';
+    if (loan.deductionType === 'sss_loan') govType = 'SSS';
+    else if (loan.deductionType === 'hdmf_loan') govType = 'Pag-IBIG';
+    else if (loan.deductionType === 'calamity') govType = 'Calamity';
+    else if (loan.deductionType === 'multipurpose') govType = 'Multi-Purpose';
+
+    // Fetch Ledger (Amortization + History)
+    const ledger = await sequelize.query(
+      `SELECT 
+        "govern_Id" as "id",
+        "date" as "dueDate",
+        "amount" as "principal",
+        "amount" as "total",
+        "payrollId",
+        CASE WHEN "payrollId" IS NOT NULL THEN 'PAID' ELSE 'PENDING' END as "status"
+       FROM "Payroll_GovernmentLoans"
+       WHERE "user_Id" = :userId AND "government_type" = :govType
+       ORDER BY "date" ASC`,
+      { replacements: { userId: targetUserId, govType }, type: QueryTypes.SELECT }
+    );
+
+    // Calculate remaining for each row (diminishing view)
+    let runningBalance = parseFloat(loan.totalAmount || 0);
+    const schedule = (ledger || []).map((item, idx) => {
+      const currentAmt = parseFloat(item.total || 0);
+      runningBalance -= currentAmt;
+      return {
+        ...item,
+        number: idx + 1,
+        remaining: Math.max(0, runningBalance)
+      };
+    });
+
+    res.status(200).json({
+      ...loan,
+      schedule,
+      history: schedule.filter(s => s.status === 'PAID')
+    });
+  } catch (error) {
+    console.error("[getLoanById Error]:", error);
     res.status(500).json({ error: error.message });
   }
 };

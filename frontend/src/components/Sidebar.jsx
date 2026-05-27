@@ -243,7 +243,7 @@ const Sidebar = ({ children }) => {
   return (
     <SidebarProvider>
       <ShadcnSidebar collapsible="icon" className="bg-white border-r border-gray-200">
-        <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2 border-b border-gray-100 relative overflow-hidden transition-all duration-200">
+        <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:h-14 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center border-b border-gray-100 relative overflow-hidden transition-all duration-200">
           <Link to={homePath} className="flex no-underline items-center justify-center">
             <img 
               src="/logo2.png" 
@@ -260,8 +260,8 @@ const Sidebar = ({ children }) => {
           )}
         </SidebarHeader>
         <div className="h-1" />
-        <SidebarContent className="no-scrollbar px-3 flex flex-col">
-          <SidebarGroup>
+        <SidebarContent className="no-scrollbar px-3 group-data-[collapsible=icon]:px-0 flex flex-col">
+          <SidebarGroup className="group-data-[collapsible=icon]:p-0">
             <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">MAIN</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>

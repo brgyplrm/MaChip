@@ -337,10 +337,20 @@ const SeparationPay = () => {
                             </div>
                           </div>
 
+                          {preview.loanDeductions > 0 && (
+                            <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl flex justify-between items-center">
+                              <div>
+                                <p className="text-[10px] font-bold text-rose-600 uppercase">Outstanding Loan Balance</p>
+                                <p className="text-xs text-rose-500 italic">Mandatory deduction per SSS separation rules.</p>
+                              </div>
+                              <p className="text-xl font-black text-rose-600">-{formatCurrency(preview.loanDeductions)}</p>
+                            </div>
+                          )}
+
                           <div className="mt-4 p-4 bg-[#2A174E]/5 border border-[#2A174E]/10 rounded-xl">
                             <div className="flex justify-between items-center">
-                              <span className="text-sm font-bold text-[#2A174E]">Estimated Total Back Pay</span>
-                              <span className="text-xl font-black text-[#2A174E]">
+                              <span className="text-sm font-bold text-[#2A174E]">Gross Back Pay</span>
+                              <span className="text-lg font-bold text-[#2A174E]">
                                 {formatCurrency(
                                   parseFloat(preview.backPay.prorated13thMonth || 0) + 
                                   parseFloat(preview.backPay.leaveConversion || 0) + 
@@ -348,9 +358,22 @@ const SeparationPay = () => {
                                 )}
                               </span>
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-1 italic">
-                              *Includes earned 13th month, converted leave credits, and unpaid actual worked days.
-                            </p>
+                            <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#2A174E]/10">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-black text-[#2A174E] uppercase">Net Benefit (Back Pay Only)</span>
+                                <span className="text-[9px] text-slate-500 italic">*Gross Back Pay minus Outstanding Loans</span>
+                              </div>
+                              <span className="text-xl font-black text-green-600">
+                                {formatCurrency(
+                                  Math.max(0, 
+                                    (parseFloat(preview.backPay.prorated13thMonth || 0) + 
+                                     parseFloat(preview.backPay.leaveConversion || 0) + 
+                                     parseFloat(preview.backPay.finalWorkedSalary || 0)) - 
+                                    parseFloat(preview.loanDeductions || 0)
+                                  )
+                                )}
+                              </span>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>

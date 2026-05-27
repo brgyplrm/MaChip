@@ -621,7 +621,9 @@ const AdminRequests = () => {
                                   })()
                                 : current.emp_reqTypeId === 7 // Half-day
                                   ? `Half-day (${current.HD_period})`
-                                  : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
+                                  : [13, 14].includes(current.emp_reqTypeId)
+                                    ? `${current.LR_agency} ${current.LR_loanType}`
+                                    : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
                       </p>
                     </div>
 
@@ -663,7 +665,7 @@ const AdminRequests = () => {
                       </>
                     )}
 
-                    {current.emp_reqTypeId !== 1 && current.emp_reqTypeId !== 5 && (
+                    {current.emp_reqTypeId !== 1 && current.emp_reqTypeId !== 5 && ![13, 14].includes(current.emp_reqTypeId) && (
                       <>
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Status</label>
@@ -682,24 +684,22 @@ const AdminRequests = () => {
                             </Select>
                           ) : (
                             <p className="font-semibold text-slate-800 mt-1">
-                              {current.VL_withPayName || current.SL_withPayName || current.ST_withPayName || "N/A"}
+                              {current.VL_withPayName || current.SL_withPayName || current.ST_withPayName || ([1, 4].includes(current.emp_reqStatusId) ? "Pending" : "N/A")}
                             </p>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            {current.emp_reqStatusId === 1 ? "Remaining Balance" : "Leave Used"}
+                            {[1, 4].includes(current.emp_reqStatusId) ? "Remaining Balance" : "Leave Used"}
                           </label>
                           <p className={`font-semibold mt-1 ${(current.emp_reqStatusId === 1) && ((current.emp_reqTypeId === 3 && current.VL_balance < current.VL_NoDays) || (current.emp_reqTypeId === 4 && current.SL_balance < current.SL_NoDays) || (current.emp_reqTypeId === 10 && current.SoloParent_balance < current.ST_NoDays)) ? "text-red-700 bg-red-100 px-2 py-0.5 rounded inline-block" : "text-slate-800"}`}>
-                            {current.emp_reqTypeId === 3 
-                              ? (current.emp_reqStatusId === 1 ? `${current.VL_balance || 0} VL Remaining` : `${current.VL_NoDays || 0} Day(s) Used`)
-                              : current.emp_reqTypeId === 4 
-                              ? (current.emp_reqStatusId === 1 ? `${current.SL_balance || 0} SL Remaining` : `${current.SL_NoDays || 0} Day(s) Used`)
-                              : current.emp_reqTypeId === 10
-                              ? (current.emp_reqStatusId === 1 ? `${current.SoloParent_balance || 0} SP Remaining` : `${current.ST_NoDays || 0} Day(s) Used`)
-                              : [13, 14].includes(current.emp_reqTypeId)
-                              ? `${current.LR_agency} - ${current.LR_loanType}`
-                              : "N/A"}
+                            {current.emp_reqTypeId === 3
+                              ? ([1, 4].includes(current.emp_reqStatusId) ? `${current.VL_balance || 0} VL Remaining` : `${current.VL_NoDays || 0} Day(s) Used`)
+                              : current.emp_reqTypeId === 4
+                                ? ([1, 4].includes(current.emp_reqStatusId) ? `${current.SL_balance || 0} SL Remaining` : `${current.SL_NoDays || 0} Day(s) Used`)
+                                : current.emp_reqTypeId === 10
+                                  ? ([1, 4].includes(current.emp_reqStatusId) ? `${current.SoloParent_balance || 0} SP Remaining` : `${current.ST_NoDays || 0} Day(s) Used`)
+                                  : "N/A"}
                           </p>
                         </div>
                         <div className="space-y-1">
@@ -713,6 +713,18 @@ const AdminRequests = () => {
                       </>
                     )}
 
+                    {[13, 14].includes(current.emp_reqTypeId) && (
+                      <>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Processed By</label>
+                          <p className="font-semibold text-slate-800">{current.approverName ? `${current.approverName} (${formatUserId(current.processedBy)})` : "Pending Review"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
+                          <p className="font-semibold text-slate-800">{current.date_Processed ? formatDateTime(current.date_Processed) : "Pending"}</p>
+                        </div>
+                      </>
+                    )}
                     {current.emp_reqTypeId === 5 && (
                       <>
                         <div className="space-y-1">
@@ -743,13 +755,25 @@ const AdminRequests = () => {
                         {current.emp_reqTypeId === 14 && (
                           <>
                             <div className="space-y-1">
-                              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</label>
-                              <p className="font-bold text-green-700">₱{parseFloat(current.LR_amount || 0).toLocaleString()}</p>
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount / Balance</label>
+                              <p className="font-bold text-green-700">₱{parseFloat(current.LR_balance || current.LR_amount || 0).toLocaleString()}</p>
                             </div>
                             <div className="space-y-1">
                               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Repayment Term</label>
-                              <p className="font-semibold text-slate-800">{current.LR_months} Months</p>
+                              <p className="font-semibold text-slate-800">{current.LR_term || current.LR_months} Months</p>
                             </div>
+                            {current.LR_amortization && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Amortization</label>
+                                <p className="font-bold text-blue-700">₱{parseFloat(current.LR_amortization).toLocaleString()}</p>
+                              </div>
+                            )}
+                            {current.LR_reference && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reference No.</label>
+                                <p className="font-mono text-xs font-bold text-slate-700">{current.LR_reference}</p>
+                              </div>
+                            )}
                           </>
                         )}
                       </>
