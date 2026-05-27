@@ -1,6 +1,6 @@
 import Sidebar from "../../components/Sidebar";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
@@ -34,10 +34,13 @@ const formatDateStr = (dateStr) => {
 };
 
 const Logs = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialView = searchParams.get("view") === "day" ? "day" : "raw";
   const { systemToday } = useSystemTime();
-  const [viewMode, setViewMode] = useState("raw"); // "raw" or "day"
+  const [viewMode, setViewMode] = useState(initialView); // "raw" or "day"
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  
 
   // New Filter States
 const [filterDate, setFilterDate] = useState(""); // Specific date (YYYY-MM-DD)
@@ -433,7 +436,10 @@ const toggleMachipVisibility = (rowId) => {
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
               {/* View Mode Toggle (Tabs integrated into Header) */}
-              <Tabs value={viewMode} onValueChange={(val) => setViewMode(val)} className="w-full sm:w-[320px] xl:w-[320px]">
+              <Tabs value={viewMode} onValueChange={(val) => {
+                setViewMode(val);
+                setSearchParams({ view: val });
+              }}  className="w-full sm:w-[320px] xl:w-[320px]">
                 <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 rounded-lg">
                   <TabsTrigger value="raw" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
                     Raw Logs
@@ -698,7 +704,7 @@ const toggleMachipVisibility = (rowId) => {
                                 <TableCell className="text-slate-600 py-4">{row.log_Date}</TableCell>
                                 <TableCell className="text-slate-600 py-4">{row.time}</TableCell>
                                 <TableCell className="py-4 text-right pr-6">
-                                  <Button variant="outline" size="sm" asChild className="border-[#2A174E]/10 text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+                                  <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
                                     <Link to={`/users/${row.user_Id}`}>
                                     <EyeIcon className="h-4 w-4" />
                                     </Link>
@@ -780,7 +786,7 @@ const toggleMachipVisibility = (rowId) => {
                                 </TableCell>
                                 <TableCell className="text-right py-4 pr-6">
                                   {isAdminOrAccountant ? (
-                                    <Button variant="outline" size="sm" asChild className="border-[#2A174E]/10 text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+                                    <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
                                       <Link to={`/logs/edit/${row.user_Id}/${row.log_Date.split('T')[0]}?from=logs`}>
                                         <SquarePen className="h-4 w-4" />
                                       </Link>

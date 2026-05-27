@@ -1,31 +1,71 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import Chart from "../../components/chart/Chart";
-import Table from "../../components/table/Table";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
 import { formatUserId } from "../../utils/formatUserId";
+import { formatTime12h } from "../../utils/formatTime";
 import { Link } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
 
-// shadcn/ui components
+// UI Components
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Memoized Pagination & Filtering Logic
+  const { paginatedLogs, totalItems, totalPages, startIndex, endIndex } = useMemo(() => {
+    // 1. Filter
+    const filtered = attendanceLogs.filter(log => {
+      const dateStr = log.log_Date ? new Date(log.log_Date).toLocaleDateString() : "";
+      return (
+        (log.logStatus?.toLowerCase().includes(searchQuery.toLowerCase())) || 
+        (log.attendanceStatus?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (dateStr.includes(searchQuery))
+      );
+    });
+
+    // 2. Paginate
+    const total = filtered.length;
+    const pages = Math.ceil(total / itemsPerPage) || 1;
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = Math.min(start + itemsPerPage, total);
+    
+    return {
+      paginatedLogs: filtered.slice(start, end),
+      totalItems: total,
+      totalPages: pages,
+      startIndex: start,
+      endIndex: end
+    };
+  }, [attendanceLogs, searchQuery, currentPage, itemsPerPage]);
+
+  // Reset page when filtering
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchProfileData = async () => {
       const userDataString = localStorage.getItem("userData");
-      const userData = userDataString ? JSON.parse(userDataString) : null;
-      const userId = userData?.user_Id;
+      const storedUserData = userDataString ? JSON.parse(userDataString) : null;
+      const userId = storedUserData?.user_Id;
 
       if (!userId) {
         setLoading(false);
@@ -33,24 +73,44 @@ const Profile = () => {
       }
 
       try {
-        const response = await fetchWithAuth(`/api/users/${userId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data);
-          // Optional: Update localStorage if backend data is newer
-          localStorage.setItem("userData", JSON.stringify(data));
-        } else {
-          console.error("Failed to fetch user data");
+        const [userRes, logsRes] = await Promise.all([
+          fetchWithAuth(`/api/users/${userId}`),
+          fetchWithAuth(`/api/attendance/logs/${userId}`)
+        ]);
+
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          setUser(userData);
+          localStorage.setItem("userData", JSON.stringify(userData));
+        }
+        
+        if (logsRes.ok) {
+          const logsData = await logsRes.json();
+          setAttendanceLogs(Array.isArray(logsData) ? logsData : []);
         }
       } catch (error) {
-        console.error("Error connecting to server:", error);
+        console.error("Error fetching profile data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProfile();
+    fetchProfileData();
   }, []);
+
+  const getLogStatusVariant = (status) => {
+    if (status?.includes("In")) return "success";
+    if (status?.includes("Out")) return "destructive";
+    return "secondary";
+  };
+
+  const getAttendanceVariant = (status) => {
+    const s = status?.toLowerCase();
+    if (s?.includes("present")) return "outline";
+    if (s?.includes("absent")) return "destructive";
+    if (s?.includes("late")) return "warning";
+    return "secondary";
+  };
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
@@ -89,7 +149,7 @@ const Profile = () => {
           ) : (
             <>
               {/* Hero Banner Section */}
-              <Card className="bg-white border-0 shadow-sm mb-6 relative overflow-hidden">
+              <Card className="bg-white border-0 shadow-sm mb-6 relative overflow-hidden py-0">
                 <div className="h-28 bg-gradient-to-r from-[#2A174E] to-[#45297e]"></div>
                 <CardContent className="px-6 pb-6 pt-0 relative">
                   <div className="flex flex-col md:flex-row items-center md:items-end gap-6 -mt-12">
@@ -117,8 +177,6 @@ const Profile = () => {
 
               {/* Dashboard Identity Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full animate-in fade-in zoom-in-95 duration-200">
-                
-                {/* Card 1: Account ID */}
                 <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
@@ -134,7 +192,6 @@ const Profile = () => {
                   </CardContent>
                 </Card>
 
-                {/* Card 2: Role */}
                 <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
@@ -150,7 +207,6 @@ const Profile = () => {
                   </CardContent>
                 </Card>
 
-                {/* Card 3: MaChip */}
                 <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
@@ -178,7 +234,7 @@ const Profile = () => {
                   <div className="min-w-[700px]">
                     <Chart
                       aspect={4 / 1}
-                      title="" // Title moved to CardHeader above
+                      title=""
                       userId={user.user_Id}
                     />
                   </div>
@@ -186,16 +242,121 @@ const Profile = () => {
               </Card>
 
               {/* Table Section */}
-              <Card className="border-0 shadow-sm bg-white py-0">
-                <CardHeader className="border-b border-slate-100 py-4">
-                  <CardTitle className="text-lg font-bold text-slate-800">Personal Activity Logs</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <div className="min-w-[800px]">
-                      <Table userId={user.user_Id} />
+              <Card className="border-0 shadow-sm bg-white mb-6">
+                <CardHeader className="border-b border-slate-100 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <CardTitle className="text-lg font-bold text-slate-800">Personal Attendance Logs</CardTitle>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                      <Input 
+                        placeholder="Search logs..." 
+                        className="pl-9 h-9 text-sm"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)} 
+                      />
                     </div>
                   </div>
+                </CardHeader>
+                
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-slate-50">
+                        <TableRow>
+                          <TableHead className="font-bold">Date</TableHead>
+                          <TableHead className="font-bold">Time In</TableHead>
+                          <TableHead className="font-bold">Time Out</TableHead>
+                          <TableHead className="font-bold">Status</TableHead>
+                          <TableHead className="font-bold">Attendance</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedLogs.length > 0 ? (
+                          paginatedLogs.map((log, index) => (
+                            <TableRow key={log.sessionId || index}>
+                              <TableCell className="text-xs text-slate-500">
+                                {log.log_Date ? new Date(log.log_Date).toLocaleDateString() : "—"}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {formatTime12h(log.time_In)}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {formatTime12h(log.time_Out)}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={getLogStatusVariant(log.logStatus)} className="font-semibold text-[10px] uppercase">
+                                  {log.logStatus || "—"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={getAttendanceVariant(log.attendanceStatus)} className="font-semibold text-[10px] uppercase">
+                                  {log.attendanceStatus !== "—" ? log.attendanceStatus : "—"}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-10 text-slate-400 italic">
+                              No attendance records found.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  
+                  {/* Pagination Controls */}
+                  {totalItems > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
+                      <div className="flex items-center gap-4 text-sm text-slate-500">
+                        <div className="flex items-center gap-2">
+                          <span className="hidden sm:inline">Rows per page:</span>
+                          <Select 
+                            value={itemsPerPage.toString()} 
+                            onValueChange={(val) => setItemsPerPage(Number(val))}
+                          >
+                            <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
+                              <SelectValue placeholder="10" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="5">5</SelectItem>
+                              <SelectItem value="10">10</SelectItem>
+                              <SelectItem value="20">20</SelectItem>
+                              <SelectItem value="50">50</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="font-medium">
+                          Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                        >
+                          Previous
+                        </Button>
+                        <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
+                          {currentPage}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                          disabled={currentPage === totalPages || totalPages === 0}
+                          className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

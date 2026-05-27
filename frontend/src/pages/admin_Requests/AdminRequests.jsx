@@ -292,7 +292,7 @@ const AdminRequests = () => {
             <Button 
             variant="outline" 
             asChild
-            className="w-full md:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#f0ebfa] font-semibold shadow-sm transition-all"
+            className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
           >
             <Link 
               to="/adminReports" 
@@ -531,48 +531,59 @@ const AdminRequests = () => {
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
                     <div>
                       <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {current.reqTypeName}</h3>
-                      <p className="text-sm text-slate-500 mt-1">Submitted on {new Date(current.date_Filed).toLocaleDateString()}</p>                    </div>
+                      <p className="text-sm text-slate-500 mt-1">Submitted on {new Date(current.date_Filed).toLocaleDateString()}</p>
+                    </div>
                     
-                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+                    {/* Right Side Grouping Wrapper */}
+                    <div className="flex flex-row items-center gap-2 ml-auto md:ml-0 shrink-0">
+                      
+                      <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                        {/* Pending / Returnable Requests Action Hub */}
+                        {(current.emp_reqStatusId === 1 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
+                          <>
+                            {current.user_Id === userData?.user_Id ? (
+                              <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-blue-100 text-blue-800">Your Self-Request</Badge>
+                            ) : (userData?.user_RoleId === 4) ? (
+                              <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-slate-100 text-slate-500 italic">View Only</Badge>
+                            ) : (
+                              <div className="flex gap-2 w-full flex-wrap">
+                                <Button className="flex-1 min-w-[120px] bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
+                                  <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
+                                </Button>
+                                <Button className="flex-1 min-w-[120px] bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
+                                  <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
+                                </Button>
+                                <Button className="flex-1 min-w-[120px] bg-orange-500 hover:bg-orange-600 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 5)}>
+                                  <ReplyIcon className="mr-2 h-4 w-4" /> Return
+                                </Button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        
+                        {/* Completed / Approved / Rejected Request Badges */}
+                        {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || current.emp_reqStatusId === 4) && (
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(current.emp_reqStatusId)}`}>
+                              {current.status}
+                            </Badge>
+                            {current.emp_reqStatusId === 4 && userData?.user_RoleId === 2 && (
+                              <span className="text-[10px] font-bold text-blue-600 uppercase italic">Awaiting Admin Final Action</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Edit Button: Placed immediately next to the active badges inside the root right-group flex wrapper */}
                       {activeTab === "completed" && userData?.user_RoleId === 1 && (
                         <Button 
                           variant="outline" 
-                          className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 font-bold"
+                          size="icon"
+                          className="text-[#2A174E]/70 border-transparent! hover:text-[#2A174E] font-bold h-9 w-9 shrink-0"
                           onClick={() => handleEditClick(current)}
                         >
-                          <EditIcon className="mr-2 h-4 w-4" /> Edit Record
+                          <EditIcon className="h-4 w-4" />
                         </Button>
-                      )}
-                      {(current.emp_reqStatusId === 1 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
-                        <>
-                          {current.user_Id === userData?.user_Id ? (
-                            <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-blue-100 text-blue-800">Your Self-Request</Badge>
-                          ) : (userData?.user_RoleId === 4) ? (
-                             <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-slate-100 text-slate-500 italic">View Only</Badge>
-                          ) : (
-                            <div className="flex gap-2 w-full flex-wrap">
-                              <Button className="flex-1 min-w-[120px] bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
-                                <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
-                              </Button>
-                              <Button className="flex-1 min-w-[120px] bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
-                                <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
-                              </Button>
-                              <Button className="flex-1 min-w-[120px] bg-orange-500 hover:bg-orange-600 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 5)}>
-                                <ReplyIcon className="mr-2 h-4 w-4" /> Return
-                              </Button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || current.emp_reqStatusId === 4) && (
-                        <div className="flex flex-col items-end gap-2">
-                          <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(current.emp_reqStatusId)}`}>
-                            {current.status}
-                          </Badge>
-                          {current.emp_reqStatusId === 4 && userData?.user_RoleId === 2 && (
-                            <span className="text-[10px] font-bold text-blue-600 uppercase italic">Awaiting Admin Final Action</span>
-                          )}
-                        </div>
                       )}
                     </div>
                   </div>

@@ -11,9 +11,22 @@ import { Link } from "react-router-dom";
 import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import { fetchWithAuth } from "../../utils/api";
+import CreditCardIcon from '@mui/icons-material/CreditCard';
+// Lucide Icons (More modern aesthetic)
+import { 
+  CalendarDays, 
+  Clock, 
+  CheckCircle2, 
+  XCircle, 
+  AlertCircle, 
+  ChevronRight, 
+  History, 
+  FileText,
+  UserCheck
+} from "lucide-react";
 
-// shadcn/ui components
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+// Shadcn UI components
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -90,6 +103,197 @@ const EmployeeHome = () => {
   const balance = dashboardStats.leaveBalance;
   const recentRequests = dashboardStats.monthlyRequests;
   const totalTrackedDays = att.absent + att.onTime + att.late || 1;
+
+  return (
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
+        <div className="p-4 md:p-8 overflow-x-hidden w-full max-w-7xl mx-auto space-y-8">
+          
+          {/* Header */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-extrabold text-[#2A174E]">Welcome back, {userData?.user_FirstName}!</h1>
+              <p className="text-slate-500 mt-1">Manage your schedule and track your performance here.</p>
+            </div>
+            <Button asChild className="bg-[#2A174E] hover:bg-[#1a0e30] shadow-lg shadow-[#2A174E]/20">
+              <Link to="/requests">
+                <FileText className="mr-2 h-4 w-4" /> New Request
+              </Link>
+            </Button>
+          </div>
+
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            {/* On-Time Card */}
+            <Card className="border-none shadow-sm bg-gradient-to-br from-green-500 to-green-600 text-white">
+              <CardContent className=" flex justify-between items-center">
+                <div>
+                  <p className="text-green-50 text-xs font-bold uppercase tracking-wider">On-Time</p>
+                  <p className="text-4xl font-black mt-1">{att.onTime} / {totalTrackedDays}</p>
+                  <p className="text-[11px] text-green-100 font-medium mt-1 italic font-semibold">
+                    {((att.onTime / totalTrackedDays) * 100).toFixed(0)}% of tracked days
+                  </p>
+                </div>
+                <CheckCircle2 className="h-10 w-10 opacity-30" />
+              </CardContent>
+            </Card>
+
+            {/* Late Card */}
+            <Card className="border-none shadow-sm bg-gradient-to-br from-amber-500 to-amber-600 text-white">
+              <CardContent className=" flex justify-between items-center">
+                <div>
+                  <p className="text-amber-50 text-xs font-bold uppercase tracking-wider">Late</p>
+                  <p className="text-4xl font-black mt-1">{att.late} / {totalTrackedDays}</p>
+                  <p className="text-[11px] text-amber-100 font-medium mt-1 italic font-semibold">
+                    {((att.late / totalTrackedDays) * 100).toFixed(0)}% of tracked days
+                  </p>
+                </div>
+                <Clock className="h-10 w-10 opacity-30" />
+              </CardContent>
+            </Card>
+
+            {/* Absent Card */}
+            <Card className="border-none shadow-sm bg-gradient-to-br from-red-500 to-red-600 text-white">
+              <CardContent className=" flex justify-between items-center">
+                <div>
+                  <p className="text-red-50 text-xs font-bold uppercase tracking-wider">Absent</p>
+                  <p className="text-4xl font-black mt-1">{att.absent} / {totalTrackedDays}</p>
+                  <p className="text-[11px] text-red-100 font-medium mt-1 italic font-semibold">
+                    {((att.absent / totalTrackedDays) * 100).toFixed(0)}% of tracked days
+                  </p>
+                </div>
+                <XCircle className="h-10 w-10 opacity-30" />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Unified Full-Width Grid Layout */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 w-full">
+
+            {/* Row 1: Quick Stats & Leave Balances (12 Columns) */}
+            <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <Card className="border-t-4 border-green-500 shadow-sm bg-green-50/50 p-6 flex flex-col justify-center items-center text-center">
+                <Clock className="h-10 w-10 text-green-600 mb-2" />
+                <p className="text-sm font-bold text-green-900">Today's Log-In</p>
+                {/* Assuming you have a 'tok
+                dayIn' property in your dashboardStats */}
+                <p className="text-lg font-black text-green-950 mt-1">
+                  {dashboardStats.todayIn || "--:-- AM"}
+                </p>
+              </Card>
+              <Card className="shadow-sm border-t-4 border-amber-500 bg-white p-6">
+                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Leave Balances</h3>
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex justify-between text-xs font-bold mb-1"><span>Vacation (VL)</span><span>{balance.VL_balance} / {balance.VL_total}</span></div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-[#2A174E]" style={{width: `${(balance.VL_used/balance.VL_total)*100}%`}}></div></div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs font-bold mb-1"><span>Sick (SL)</span><span>{balance.SL_balance} / {balance.SL_total}</span></div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-[#7451f8]" style={{width: `${(balance.SL_used/balance.SL_total)*100}%`}}></div></div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Row 1: Actions (4 Columns) */}
+            <div className="md:col-span-4">
+              <Card className="shadow-sm border-t-4 border-red-500 h-full">
+                <CardHeader><CardTitle className="text-base">Quick Actions</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  <Button className="w-full justify-start" variant="outline" asChild><Link to="/requests"><FileText className="mr-2 h-4 w-4"/> File Leave</Link></Button>
+                  <Button className="w-full justify-start" variant="outline" asChild><Link to="/payroll"><CreditCardIcon className="mr-2 h-4 w-4"/> View Payslips</Link></Button>
+                  <Button className="w-full justify-start" variant="outline" asChild><Link to="/profile"><UserCheck className="mr-2 h-4 w-4"/> Update Profile</Link></Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Standardized Attendance & Requests Container */}
+
+              {/* Attendance Timeline (Left - 7 Columns) */}
+              <div className="md:col-span-7">
+                <Card className="shadow-sm border-0 h-full flex flex-col">
+                  <CardHeader className="border-b border-slate-100 bg-slate-50/30">
+                    <CardTitle className="text-[#2A174E] text-base">Attendance Timeline</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 flex-1">
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                      {dashboardStats.recentLogs.map((log, idx) => {
+                        const isGood = log.status?.toLowerCase().includes('time') || log.status?.toLowerCase().includes('field');
+                        return (
+                          <div key={idx} className={`flex justify-between items-center p-3 border rounded-lg transition-all ${isGood ? "bg-green-50 border-green-100" : "bg-red-50 border-red-100"}`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm ${isGood ? "text-green-600" : "text-red-600"}`}>
+                                <History className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-slate-800">{new Date(log.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</p>
+                                <p className="text-[10px] text-slate-500 font-medium">{log.timeIn} - {log.timeOut}</p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className={`text-[10px] uppercase border-0 ${isGood ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                              {log.status}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Recent Requests (Right - 5 Columns) */}
+              <div className="md:col-span-5">
+                <Card className="shadow-sm border-0 h-full flex flex-col py-2">
+                  <CardHeader className="border-b border-slate-100 bg-slate-50/30 flex flex-row items-center justify-between py-4">
+                    <CardTitle className="text-[#2A174E] text-base">Recent Requests</CardTitle>
+                    <Button variant="link" size="sm" asChild className="text-[#2A174E] text-[11px] font-bold uppercase p-0 h-auto">
+                      <Link to="/requests">View All <ChevronRight className="h-3 w-3 ml-1" /></Link>
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="p-4 flex-1">
+                    {loading ? (
+                      <div className="space-y-3">
+                        <Skeleton className="h-16 w-full rounded-lg" />
+                        <Skeleton className="h-16 w-full rounded-lg" />
+                      </div>
+                    ) : recentRequests.length > 0 ? (
+                      <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                        {recentRequests.map(req => {
+                          const isApproved = req.status?.toLowerCase().includes("approve");
+                          const isRejected = req.status?.toLowerCase().includes("reject");
+                          const boxStyle = isApproved ? "bg-green-50 border-green-100" : isRejected ? "bg-red-50 border-red-100" : "bg-amber-50 border-amber-100";
+                          const iconColor = isApproved ? "text-green-600" : isRejected ? "text-red-600" : "text-amber-500";
+                          
+                          return (
+                            <div key={req.emp_reqId} className={`flex items-center gap-3 p-3 rounded-lg border ${boxStyle} transition-all`}>
+                              <div className={`hidden sm:flex shrink-0 ${iconColor} bg-white p-2 rounded-full shadow-sm`}>
+                                {isApproved ? <CheckCircleIcon className="h-4 w-4" /> : isRejected ? <CancelIcon className="h-4 w-4" /> : <HourglassEmptyIcon className="h-4 w-4" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-[#2A174E] truncate text-xs">{req.reqTypeName}</p>
+                                <p className="text-[10px] font-semibold text-slate-500 truncate">{req.remarks || "No description"}</p>
+                              </div>
+                              <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0.5 ${isApproved ? "bg-green-500" : isRejected ? "bg-red-500" : "bg-amber-500"}`}>
+                                {req.status}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-slate-400 italic text-xs">No recent requests.</div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+            </div>
+          </div>
+      </Sidebar>
+    </div>
+  );
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
@@ -302,72 +506,7 @@ const EmployeeHome = () => {
                 <Link to="/requests">View All Requests</Link>
               </Button>
             </CardHeader>
-            <CardContent className="p-6">
-              {loading ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-20 w-full rounded-xl" />
-                  <Skeleton className="h-20 w-full rounded-xl" />
-                </div>
-              ) : recentRequests.length > 0 ? (
-                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                  {recentRequests.map(req => {
-                    let dateDisplay = "";
-                    if (req.emp_reqTypeId === 1) {
-                      dateDisplay = req.OT_DateOf;
-                    } else if (req.emp_reqTypeId === 2) {
-                      dateDisplay = req.DateonField;
-                    } else if (req.emp_reqTypeId === 5) {
-                      dateDisplay = req.LC_logDate;
-                    } else if (req.emp_reqTypeId === 6) {
-                      dateDisplay = req.EL_DateOfLeave;
-                    } else if (req.emp_reqTypeId === 7) {
-                      dateDisplay = req.HD_DateOfLeave;
-                    } else {
-                      const start = req.VL_StartDate || req.SL_StartDate;
-                      const end = req.VL_EndDate || req.SL_EndDate;
-                      dateDisplay = start === end ? start : `${start} to ${end}`;
-                    }
-
-                    // Dynamic Styles based on status
-                    const isApproved = req.status?.toLowerCase().includes("approve");
-                    const isRejected = req.status?.toLowerCase().includes("reject");
-                    
-                    const boxStyle = isApproved ? "bg-green-50 border-green-200" 
-                                   : isRejected ? "bg-red-50 border-red-200" 
-                                   : "bg-amber-50 border-amber-200";
-                    
-                    const iconColor = isApproved ? "text-green-600" 
-                                    : isRejected ? "text-red-600" 
-                                    : "text-amber-500";
-
-                    const badgeStyle = isApproved ? "bg-green-500 text-white hover:bg-green-600" 
-                                     : isRejected ? "bg-red-500 text-white hover:bg-red-600" 
-                                     : "bg-amber-500 text-white hover:bg-amber-600";
-
-                    return (
-                      <div key={req.emp_reqId} className={`flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border ${boxStyle} transition-all shadow-sm`}>
-                        <div className={`hidden sm:flex shrink-0 ${iconColor} bg-white p-2 rounded-full shadow-sm`}>
-                          {isApproved ? <CheckCircleIcon className="h-6 w-6" /> : 
-                           isRejected ? <CancelIcon className="h-6 w-6" /> : 
-                           <HourglassEmptyIcon className="h-6 w-6" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-[#2A174E] truncate mb-1 text-sm md:text-base">{dateDisplay}</p>
-                          <p className="text-xs md:text-sm font-semibold text-slate-600 truncate uppercase tracking-wider">{req.reqTypeName} <span className="text-slate-400 normal-case tracking-normal font-normal ml-1">— {req.remarks || "No description"}</span></p>
-                        </div>
-                        <Badge className={`shrink-0 w-fit ${badgeStyle} shadow-sm font-bold uppercase tracking-wider text-[10px] px-3 py-1`}>
-                          {req.status}
-                        </Badge>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="py-12 text-center text-slate-500 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  No recent leave requests.
-                </div>
-              )}
-            </CardContent>
+            
           </Card>
         </div>
 

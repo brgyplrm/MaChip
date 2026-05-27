@@ -18,6 +18,8 @@ import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp
 import KeyboardDoubleArrowDownIcon from '@mui/icons-material/KeyboardDoubleArrowDown';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import { useSystemTime } from "../../context/SystemTimeContext";
+import SummarizeOutlinedIcon from '@mui/icons-material/SummarizeOutlined';
+import { EyeIcon } from "lucide-react";  
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -283,15 +285,15 @@ const PayrollPeriod = () => {
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0">
             <Button 
-              className="w-full sm:w-auto bg-[#f8fafc] text-[#2A174E] border border-slate-200 hover:bg-slate-100" 
+              className="w-full sm:w-auto bg-[#f8fafc] hover:text-[#2A174E] text-[#2A174E]/70 border border-slate-200 hover:bg-slate-100" 
               onClick={handlePreviewSummary}
               disabled={loading || payrolls.length === 0}
             >
-              <VisibilityIcon className="mr-2 h-4 w-4" /> Summary View
+              <SummarizeOutlinedIcon className="mr-2 h-4 w-4" /> Summary View
             </Button>
             {/* Updated Process Batch Button */}
             <Button 
-              className={`w-full sm:w-auto bg-[#2A174E] text-white border border-[#b8daff] hover:bg-[#BA90E9] ${
+              className={`w-full sm:w-auto bg-[#2A174E] text-white border hover:bg-[#7A52B5] ${
                 (selectedPeriod?.status !== 'Draft' || !isProcessingWindow) ? "opacity-50 cursor-not-allowed" : ""
               }`}
               onClick={() => setIsConfirmOpen(true)}
@@ -448,9 +450,9 @@ const PayrollPeriod = () => {
                             </Badge>
                           </TableCell>
                           <TableCell className="py-4 text-right pr-6">
-                            <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+                            <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
                               <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}&periodId=${selectedPeriod.periodId}`}>
-                                {/* <VisibilityIcon className="mr-1 h-4 w-4" />  */} View Details
+                                <EyeIcon className="h-4 w-4" />
                               </Link>
                             </Button>
                           </TableCell>

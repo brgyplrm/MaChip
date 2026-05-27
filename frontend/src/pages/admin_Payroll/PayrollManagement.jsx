@@ -18,6 +18,8 @@ import { Link } from "react-router-dom";
 import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodModal";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
+import { EyeIcon } from "lucide-react";
 import { 
   BarChart, 
   Bar, 
@@ -277,12 +279,12 @@ const Payroll = () => {
           
           <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
             
-            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E]/10 text-[#2A174E] hover:bg-[#BA90E9] hover:text-white transition-colors">
+            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E]/10 hover:text-[#2A174E] text-[#2A174E]/70 transition-colors">
               <Link to="/laborBenefits">
                 <AssignmentTurnedInIcon className="mr-2 h-4 w-4" /> Labor Benefits
               </Link>
             </Button>
-            <Button variant="outline" asChild className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#BA90E9] hover:text-white transition-colors">
+            <Button variant="outline" asChild className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#7A52B5] hover:text-white transition-colors">
               <Link to="/payroll/employeeList">
                 <PeopleAltIcon className="mr-2 h-4 w-4" /> Employee List
               </Link>
@@ -350,9 +352,9 @@ const Payroll = () => {
                   </div>
                 </CardContent>
                 <div className="p-6 pt-0 mt-auto">
-                  <Button asChild className="w-full bg-[#2A174E] hover:bg-[#1a0e30] py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5">
+                  <Button asChild className="w-full bg-[#2A174E] hover:bg-[#7A52B5] py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5">
                     <Link to={`/payroll/payrollPeriod?periodId=${activePeriod.id}`}>
-                      <VisibilityIcon className="mr-2 h-4 w-4" /> Process Active Payroll
+                      <ReceiptOutlinedIcon className="mr-2 h-4 w-4" /> Process Active Payroll
                     </Link>
                   </Button>
                 </div>
@@ -524,10 +526,10 @@ const Payroll = () => {
                                 variant="outline" 
                                 size="sm" 
                                 asChild 
-                                className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
+                                className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors"
                               >
                                 <Link to={`/payroll/payrollPeriod?periodId=${p.periodId}`}>
-                                  View Details
+                                  <EyeIcon className="h-4 w-4" />
                                 </Link>
                               </Button>
                             </TableCell>

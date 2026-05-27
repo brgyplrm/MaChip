@@ -405,7 +405,7 @@ const toggleMachipVisibility = (userId) => {
                             variant="outline" 
                             size="sm" 
                             asChild 
-                            className=" text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
+                            className=" border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors"
                           >
                             <Link to={`/users/${user.user_Id}`}>
                             <EyeIcon className="h-4 w-4" /></Link>

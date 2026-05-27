@@ -17,6 +17,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Link } from "react-router-dom";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { fetchWithAuth } from "../../utils/api";
+import { Edit2, Edit2Icon } from "lucide-react";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -448,10 +449,10 @@ const PayrollEmployeeList = () => {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleEdit(emp)}
-                                className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
+                                className="border-[#B8551F]/40 text-[#B8551F] hover:bg-[#FEE0C0] hover:border-[#E18C52]"
                                 title="Edit daily rate"
                               >
-                                <EditIcon className="h-4 w-4 mr-1" /> Edit Rate
+                                <Edit2Icon className="h- w-4" />
                               </Button>
                             </TableCell>
                           </TableRow>

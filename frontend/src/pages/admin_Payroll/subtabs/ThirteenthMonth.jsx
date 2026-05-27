@@ -24,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EyeIcon } from "lucide-react";
 
 const ThirteenthMonth = () => {
   const { systemToday } = useSystemTime();
@@ -300,8 +301,8 @@ const ThirteenthMonth = () => {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={() => handleViewDetails(item)} title="View Breakdown">
-                              <VisibilityIcon className="h-4 w-4 text-slate-500" />
+                            <Button variant="ghost" size="sm" onClick={() => handleViewDetails(item)} title="View Breakdown" className=" border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]">
+                              <EyeIcon className="h-4 w-4 " />
                             </Button>
                           </TableCell>
                         </TableRow>

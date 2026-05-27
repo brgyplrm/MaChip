@@ -1365,9 +1365,16 @@ const Maxicare = () => {
               Manage employee health insurance deductions, track employer/employee shares, and configure the billing cycle.
             </span>
           </div>
-          <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E]">
-            <Link to="/maxicare/history">
-              <HistoryIcon className="mr-2 h-4 w-4" /> View Deduction History
+          <Button 
+            variant="outline" 
+            asChild
+            className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+          >
+            <Link 
+              to="/maxicare/history" 
+              state={{ activeTab: "requests" }}
+            >
+            <HistoryIcon className="mr-1 h-4 w-4" /> View History
             </Link>
           </Button>
           <div className="flex items-center gap-2">

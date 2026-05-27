@@ -73,13 +73,20 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
 
         {/* Button Group: These will now stay together on the right */}
         <div className="flex items-center gap-2">
-          <Link to="/govloans">
-            <Button className="bg-white hover:bg-[#BA90E9] hover:text-white hover:border-[#BA90E9] text-[#2A174E] border border-[#2A174E]">
+          <Button 
+              variant="outline" 
+              asChild
+              className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+            >
+              <Link 
+                to="/govloans" 
+                state={{ activeTab: "requests" }}
+              >
               <AssessmentIcon className="mr-2 h-4 w-4" /> View Summary
+              </Link>
             </Button>
-          </Link>
           
-          <Button onClick={() => setShowLoanModal(true)} className="bg-[#2A174E] hover:bg-[#1a0e30]">
+          <Button onClick={() => setShowLoanModal(true)} className="bg-[#2A174E] hover:bg-[#7A52B5]">
             <Plus className="mr-2 h-4 w-4" /> Create Custom Loan
           </Button>
         </div>
@@ -258,16 +265,17 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
                       </div>
                     </TableCell>
                     <TableCell><Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">ACTIVE</Badge></TableCell>
-                    <TableCell className="flex gap-0 text-muted-foreground justify-center">
-                      <Button variant="ghost" size="icon" onClick={() => setShowEditModal(true)}>
-                          <Edit2 className="h-4 w-4" />
-                      </Button>
+                    <TableCell className="flex gap-0 text-muted-foreground justify-center gap-1">
                       <Button 
                         variant="ghost" 
                         size="icon" 
                         onClick={() => navigate('/loanDetails')}
+                        className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
                         >
-                        <Eye className="h-4 w-4 cursor-pointer hover:text-black" />
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => setShowEditModal(true)} className="border-[#B8551F]/40 text-[#B8551F] hover:bg-[#FEE0C0] hover:border-[#E18C52]">
+                          <Edit2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>

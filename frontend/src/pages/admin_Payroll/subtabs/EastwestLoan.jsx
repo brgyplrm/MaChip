@@ -749,9 +749,16 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
 
         {/* Control Group: View History + Fiscal Year Dropdown */}
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E]">
-            <Link to="/eastwestloan/history">
-              <HistoryIcon className="mr-2 h-4 w-4" /> View History
+          <Button 
+            variant="outline" 
+            asChild
+            className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+          >
+            <Link 
+              to="/eastwestloan/history" 
+              state={{ activeTab: "requests" }}
+            >
+            <HistoryIcon className="mr-2 h-4 w-4" /> View History
             </Link>
           </Button>
 

@@ -13,6 +13,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
 import { exportToPDF } from "../../utils/pdfExport";
+import { EyeIcon } from "lucide-react";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -329,8 +330,8 @@ const TransactionLog = () => {
                           <TableCell className="text-slate-500 text-sm max-w-[300px] truncate py-4" title={t.description}>{maskDescription(t.description, t.event_Type)}</TableCell>
                           <TableCell className="text-slate-400 font-mono text-xs py-4">{t.ip_Address || t.metadata?.deviceIp || "Local"}</TableCell>
                           <TableCell className="text-right pr-6 py-4">
-                            <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="text-[#2A174E] hover:bg-slate-100 border border-transparent hover:border-slate-200">
-                              <VisibilityIcon className="mr-1 h-4 w-4"/> View
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]">
+                              <EyeIcon className=" h-4 w-4"/>
                             </Button>
                           </TableCell>
                         </TableRow>

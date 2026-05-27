@@ -4,6 +4,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
+import { Link } from "react-router-dom";
 
 // shadcn/ui custom structural primitives
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +16,9 @@ const EditAttendance = () => {
 
   const queryParams = new URLSearchParams(location.search);
   const fromPath = queryParams.get("from");
-  const backPath = fromPath === "adminRequests" ? "/adminRequests" : "/logs";
+  
+  // FIX: Appended ?view=day to your target routes to persist the tab configuration
+  const backPath = fromPath === "/adminRequests" ? "/adminRequests" : "/logs?view=day";
 
   const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
   const isAdminOrAccountant = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
@@ -143,7 +146,7 @@ const EditAttendance = () => {
           <div className="p-4 md:p-5 flex flex-col text-left bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] group transition-all duration-300">
             <div className="flex items-center relative overflow-hidden">
               <div className="flex items-center w-0 opacity-0 group-hover:w-9 group-hover:opacity-100 transition-all duration-300 ease-in-out shrink-0">
-                <button
+                  <button
                   type="button"
                   onClick={() => navigate(backPath)}
                   className="p-1.5 rounded-full text-slate-400 hover:text-[#2A174E] hover:bg-slate-100 transition-colors mr-1"
