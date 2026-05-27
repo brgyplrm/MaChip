@@ -194,22 +194,31 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
           </CardContent>
         </Card>
 
-        <div className="flex items-center gap-2 bg-slate-100 p-2 rounded-lg mb-4">
-          <Button 
-            size="sm" 
-            variant={viewMode === 'table' ? 'default' : 'ghost'} 
-            onClick={() => setViewMode('table')}
-            className={viewMode === 'table' ? 'bg-white text-[#2A174E] px-6 hover:bg-[#BA90E9] hover:text-white' : 'hover:bg-[#E2C6FC] hover:text-white'}
+        {/* Layout View Switcher */}
+        <div className="mb-4 flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
+          <Button
+            size="sm"
+            variant={viewMode === "table" ? "default" : "ghost"}
+            onClick={() => setViewMode("table")}
+            className={`h-7 text-xs font-bold transition-all px-4 ${
+              viewMode === "table" 
+                ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" 
+                : "text-slate-500 hover:text-[#2A174E]"
+            }`}
           >
-            Table
+            Table Mode
           </Button>
-          <Button 
-            size="sm" 
-            variant={viewMode === 'grid' ? 'default' : 'ghost'} 
-            onClick={() => setViewMode('grid')}
-            className={viewMode === 'grid' ? 'bg-white text-[#2A174E] px-6 hover:bg-[#BA90E9] hover:text-white' : 'hover:bg-[#E2C6FC] hover:text-white'}
+          <Button
+            size="sm"
+            variant={viewMode === "grid" ? "default" : "ghost"}
+            onClick={() => setViewMode("grid")}
+            className={`h-7 text-xs font-bold transition-all px-4 ${
+              viewMode === "grid" 
+                ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" 
+                : "text-slate-500 hover:text-[#2A174E]"
+            }`}
           >
-            Grid
+            Grid Mode
           </Button>
         </div>
 
@@ -294,33 +303,102 @@ const currentLoans = filteredLoans.slice(startIndex, endIndex);
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
           {currentLoans.map(loan => (
-            <Card key={loan.id} className="border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all">
-              <CardHeader className="bg-slate-50/50 pb-3.5 border-b border-slate-100 flex flex-row items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E]">
+            <Card key={loan.id} className="border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden">
+              
+              {/* Card Header Profile Block */}
+              <CardHeader className="bg-slate-50/60 pb-3.5 border-b border-slate-100 flex flex-row items-center justify-between space-y-0">
+                <div className="flex items-center gap-3 truncate mr-2">
+                  <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
                     <Edit2 className="h-4 w-4" />
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-[#2A174E]">{loan.employee}</h4>
-                    <span className="text-xs font-mono text-slate-400">{loan.id}</span>
+                  <div className="truncate text-left">
+                    <h4 className="text-sm font-bold text-[#2A174E] truncate">{loan.employee}</h4>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] font-mono font-semibold text-slate-400">{loan.id}</span>
+                      <Badge variant="outline" className="text-[9px] font-black px-1.5 py-0 border-[#2A174E]/20 text-[#2A174E] bg-[#2A174E]/5 rounded">
+                        {loan.govtype}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => navigate('/loanDetails')}>
+
+                {/* Main Upper Right Action Trigger */}
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => navigate('/loanDetails')}
+                  className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0"
+                >
                   <Eye className="h-4 w-4" />
                 </Button>
               </CardHeader>
-              <CardContent className="p-5 space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-xs text-slate-400 uppercase">Title</span>
-                  <span className="text-xs font-semibold">{loan.title}</span>
+
+              {/* Card Body Core Parameters */}
+              <CardContent className="p-5 space-y-4 flex-1 text-left">
+                
+                {/* Loan Description Detail Banner */}
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Agreement Label</span>
+                  <span className="text-xs font-semibold text-slate-800 line-clamp-1">{loan.title}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-xs text-slate-400 uppercase">Outstanding</span>
-                  <span className="text-xs font-bold text-orange-600">₱{loan.outstanding.toLocaleString()}</span>
+
+                {/* Secondary 3-Column Metrics Grid */}
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between min-w-0">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Principal</span>
+                    <span className="text-xs font-bold text-slate-700 block truncate mt-0.5">
+                      ₱{loan.principal.toLocaleString()}
+                    </span>
+                  </div>
+                  
+                  <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between min-w-0">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Total Paid</span>
+                    <span className="text-xs font-bold text-emerald-600 block truncate mt-0.5">
+                      ₱{loan.paid.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between min-w-0">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Outstanding</span>
+                    <span className="text-xs font-bold text-orange-600 block truncate mt-0.5">
+                      ₱{loan.outstanding.toLocaleString()}
+                    </span>
+                  </div>
                 </div>
-                <Progress value={loan.progress} />
+
+                {/* Amortization Completion Progress Gauge */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between text-[11px] font-medium">
+                    <span className="text-slate-500">Amortization Progress</span>
+                    <span className="text-slate-800 font-bold">{loan.progress}%</span>
+                  </div>
+                  <Progress value={loan.progress} className="h-1.5 bg-slate-100" />
+                </div>
+
+                {/* Lower Card Control Segment Block */}
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">State:</span>
+                    <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200/60">
+                      ACTIVE
+                    </Badge>
+                  </div>
+
+                  {/* Inline Cell Modifier Tools Group */}
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setShowEditModal(true)}
+                      className="h-8 text-xs font-semibold px-2.5 text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"
+                    >
+                      <Edit2 className="h-3.5 w-3.5 mr-1" /> Adjust
+                    </Button>
+                  </div>
+                </div>
+
               </CardContent>
             </Card>
           ))}
