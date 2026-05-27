@@ -209,6 +209,11 @@ export default function LoanDetailsPage() {
                                 <InfoItem label="Reference No." value={<span className="font-mono text-xs font-black text-indigo-600">{loan.reference || 'N/A'}</span>} />
                                 <InfoItem label="Total Term" value={`${loan.monthsToPay} Months`} />
                                 <InfoItem label="Deduction Start" value={formatDate(loan.contractDate)} />
+                                {loan.calamityArea && (
+                                  <div className="sm:col-span-2 mt-2">
+                                    <InfoItem label="Calamity Area" value={<span className="text-orange-600 font-bold uppercase text-xs">{loan.calamityArea}</span>} />
+                                  </div>
+                                )}
                             </CardContent>
                         </Card>
                     </div>
@@ -230,17 +235,28 @@ export default function LoanDetailsPage() {
                                     <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2 z-0 rounded-full" />
                                     <div className="absolute top-1/2 left-0 h-1 bg-indigo-500 -translate-y-1/2 z-0 rounded-full transition-all duration-1000" style={{ width: `${paidPercentage}%` }} />
 
-                                    {[
-                                        { label: "Loan Enrolled", date: loan.createdAt },
-                                        { label: "1st Deduction", date: loan.schedule?.[0]?.dueDate },
-                                        { label: "Final Expected", date: loan.schedule?.[loan.schedule.length - 1]?.dueDate }
-                                    ].map((item, index) => (
-                                        <div key={index} className="relative z-10 flex flex-col items-center">
-                                            <div className={`w-5 h-5 rounded-full border-4 border-white shadow-md mb-3 ${new Date(item.date) <= new Date() ? 'bg-indigo-500' : 'bg-slate-300'}`} />
-                                            <p className="font-black text-[10px] text-[#2A174E] whitespace-nowrap uppercase tracking-tighter">{item.label}</p>
-                                            <p className="text-[10px] text-slate-400 font-bold font-mono">{formatDate(item.date)}</p>
-                                        </div>
-                                    ))}
+                                    {(() => {
+                                        const firstDeduction = loan.schedule?.[0]?.dueDate || loan.contractDate;
+                                        // Calculate final date if schedule is empty
+                                        let finalDate = loan.schedule?.[loan.schedule.length - 1]?.dueDate;
+                                        if (!finalDate && loan.contractDate && loan.monthsToPay) {
+                                            const d = new Date(loan.contractDate);
+                                            d.setMonth(d.getMonth() + parseInt(loan.monthsToPay));
+                                            finalDate = d.toISOString().split('T')[0];
+                                        }
+
+                                        return [
+                                            { label: "Loan Enrolled", date: loan.createdAt },
+                                            { label: "1st Deduction", date: firstDeduction },
+                                            { label: "Final Expected", date: finalDate }
+                                        ].map((item, index) => (
+                                            <div key={index} className="relative z-10 flex flex-col items-center">
+                                                <div className={`w-5 h-5 rounded-full border-4 border-white shadow-md mb-3 ${new Date(item.date) <= new Date() ? 'bg-indigo-500' : 'bg-slate-300'}`} />
+                                                <p className="font-black text-[10px] text-[#2A174E] whitespace-nowrap uppercase tracking-tighter">{item.label}</p>
+                                                <p className="text-[10px] text-slate-400 font-bold font-mono">{formatDate(item.date)}</p>
+                                            </div>
+                                        ));
+                                    })()}
                                 </div>
                             </Card>
                         </TabsContent>

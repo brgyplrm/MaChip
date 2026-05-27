@@ -47,6 +47,10 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         loanReferenceNo: request.LR_reference || "",
         monthlyAmortization: request.LR_amortization || "",
         totalOutstandingBalance: request.LR_balance || "",
+        pagibigTAV: request.LR_pagibigTAV || "",
+        loanApprovalDate: request.LR_approvalDate || "",
+        amortizationStartMonth: request.LR_amortizationStart || "",
+        calamityArea: request.LR_calamityArea || "",
       });
     }
   }, [request]);
@@ -55,6 +59,47 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    
+    // Auto-calculate for Pag-IBIG MPL in Edit Modal
+    if (formData.agency === "Pag-IBIG" && (formData.loanType === "Multi-Purpose Loan (MPL)" || formData.loanType === "Calamity Loan")) {
+      if (name === "amountRequested" || name === "monthsToPay") {
+        const principal = name === "amountRequested" ? parseFloat(value) : parseFloat(formData.amountRequested || 0);
+        const term = name === "monthsToPay" ? parseInt(value) : parseInt(formData.monthsToPay || 0);
+        
+        if (principal > 0 && term > 0) {
+           // Pag-IBIG Rates: MPL (10.5%), Calamity (5.95%)
+           const annualRate = formData.loanType === "Calamity Loan" ? 0.0595 : 0.105;
+           const monthlyRate = annualRate / 12;
+           const factor = Math.pow(1 + monthlyRate, term);
+           const monthlyAmort = (principal * monthlyRate * factor) / (factor - 1);
+           
+           setFormData(prev => ({ 
+             ...prev, 
+             [name]: value,
+             monthlyAmortization: Math.round(monthlyAmort)
+           }));
+           return;
+        }
+      }
+
+      if (name === "loanApprovalDate") {
+        const approvalDate = new Date(value);
+        if (!isNaN(approvalDate.getTime())) {
+          let monthsToAdd = formData.loanType === "Calamity Loan" ? 4 : 1;
+          const startMonth = new Date(approvalDate.getFullYear(), approvalDate.getMonth() + monthsToAdd, 1);
+          const yyyy = startMonth.getFullYear();
+          const mm = String(startMonth.getMonth() + 1).padStart(2, '0');
+          
+          setFormData(prev => ({ 
+            ...prev, 
+            [name]: value,
+            amortizationStartMonth: `${yyyy}-${mm}` 
+          }));
+          return;
+        }
+      }
+    }
+
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -273,8 +318,32 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                       <Input type="number" name="amountRequested" value={formData.amountRequested} onChange={handleInputChange} required />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700">Months Term</label>
-                      <Input type="number" name="monthsToPay" value={formData.monthsToPay} onChange={handleInputChange} required />
+                      <label className="text-sm font-bold text-slate-700">Repayment Term</label>
+                      {formData.agency === "Pag-IBIG" ? (
+                        <Select 
+                          value={formData.monthsToPay ? String(formData.monthsToPay) : ""} 
+                          onValueChange={(val) => handleSelectChange('monthsToPay', val)}
+                        >
+                          <SelectTrigger className="w-full h-10 border-slate-200">
+                            <SelectValue placeholder="Select Term" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[110]">
+                            {formData.loanType === "Calamity Loan" ? (
+                              <>
+                                <SelectItem value="24">24 Months</SelectItem>
+                                <SelectItem value="36">36 Months</SelectItem>
+                              </>
+                            ) : (
+                              <>
+                                <SelectItem value="12">12 Months</SelectItem>
+                                <SelectItem value="24">24 Months</SelectItem>
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input type="number" name="monthsToPay" value={formData.monthsToPay} onChange={handleInputChange} required />
+                      )}
                     </div>
                     {formData.agency === "SSS" && (
                       <>
@@ -290,6 +359,36 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                           <label className="text-sm font-bold text-slate-700">Reference No.</label>
                           <Input type="text" name="loanReferenceNo" value={formData.loanReferenceNo} onChange={handleInputChange} />
                         </div>
+                      </>
+                    )}
+                    {formData.agency === "Pag-IBIG" && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Monthly Amortization</label>
+                          <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-50" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">TAV</label>
+                          <Input type="number" name="pagibigTAV" value={formData.pagibigTAV} onChange={handleInputChange} />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Approval Date</label>
+                          <Input type="date" name="loanApprovalDate" value={formData.loanApprovalDate} onChange={handleInputChange} />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Start Month</label>
+                          <Input type="month" name="amortizationStartMonth" value={formData.amortizationStartMonth} readOnly className="bg-slate-50" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Reference No.</label>
+                          <Input type="text" name="loanReferenceNo" value={formData.loanReferenceNo} onChange={handleInputChange} />
+                        </div>
+                        {formData.loanType === "Calamity Loan" && (
+                           <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Calamity Area</label>
+                            <Input type="text" name="calamityArea" value={formData.calamityArea} onChange={handleInputChange} />
+                          </div>
+                        )}
                       </>
                     )}
                   </>

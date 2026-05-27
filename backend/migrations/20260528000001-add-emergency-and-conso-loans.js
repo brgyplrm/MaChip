@@ -29,6 +29,13 @@ module.exports = {
     } catch (e) {
       console.log("Enum sss_conso might already exist:", e.message);
     }
+
+    try {
+      await queryInterface.sequelize.query(`ALTER TYPE "enum_Loan_Deductions_deductionType" ADD VALUE IF NOT EXISTS 'hdmf_calamity'`);
+      console.log("Added hdmf_calamity to Loan_Deductions");
+    } catch (e) {
+      console.log("Enum hdmf_calamity might already exist:", e.message);
+    }
   },
 
   down: async (queryInterface, Sequelize) => {

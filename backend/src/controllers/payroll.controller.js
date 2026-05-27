@@ -2029,6 +2029,7 @@ exports.getLoanHistory = async (req, res) => {
         `SELECT "date", "user_Id", "amount" FROM "Payroll_Cash_Advances" ORDER BY "date" ASC`,
         { type: QueryTypes.SELECT }
       );
+      console.log(`[DEBUG_LOAN_HISTORY] Returning ${history.length} CA records. First record:`, history[0]);
       return res.status(200).json(history);
     }
 
@@ -3258,15 +3259,17 @@ exports.getActiveLoans = async (req, res) => {
     const loans = await sequelize.query(
       `SELECT 
         ld."id",
-        CASE 
+        CASE
           WHEN ld."deductionType" = 'sss_loan' THEN 'SSS'
-          WHEN ld."deductionType" = 'hdmf_loan' THEN 'Pag-IBIG'
-          WHEN ld."deductionType" = 'calamity' THEN 'Calamity'
+          WHEN ld."deductionType" = 'sss_emergency' THEN 'SSS Emergency'
+          WHEN ld."deductionType" = 'sss_conso' THEN 'SSS Conso Loan'
+          WHEN ld."deductionType" = 'hdmf_loan' THEN 'Pag-IBIG MPL'
+          WHEN ld."deductionType" = 'hdmf_calamity' THEN 'Pag-IBIG Calamity'
+          WHEN ld."deductionType" = 'calamity' THEN 'SSS Calamity'
           WHEN ld."deductionType" = 'cash_advance' THEN 'Cash Advance'
           WHEN ld."deductionType" = 'multipurpose' THEN 'Multi-Purpose'
           ELSE ld."deductionType"
-        END as "govtype",
-        u."user_FirstName" || ' ' || u."user_LastName" as "employee",
+        END as "govtype",        u."user_FirstName" || ' ' || u."user_LastName" as "employee",
         ld."notes" as "title",
         ld."totalAmount" as "principal",
         (ld."totalAmount" - ld."remainingBalance") as "paid",
@@ -3332,10 +3335,20 @@ exports.getLoanById = async (req, res) => {
 
     // Map govType for ledger lookup
     let govType = 'SSS';
-    if (loan.deductionType === 'sss_loan') govType = 'SSS';
-    else if (loan.deductionType === 'hdmf_loan') govType = 'Pag-IBIG';
-    else if (loan.deductionType === 'calamity') govType = 'Calamity';
-    else if (loan.deductionType === 'multipurpose') govType = 'Multi-Purpose';
+    const dT = loan.deductionType;
+    if (dT === 'sss_loan') govType = 'SSS';
+    else if (dT === 'sss_emergency') govType = 'SSS Emergency';
+    else if (dT === 'sss_conso') govType = 'SSS Conso Loan';
+    else if (dT === 'hdmf_loan') govType = 'Pag-IBIG MPL';
+    else if (dT === 'hdmf_calamity') govType = 'Pag-IBIG Calamity';
+    else if (dT === 'calamity') {
+       if (loan.provider === 'Pag-IBIG') govType = 'Pag-IBIG Calamity';
+       else govType = 'SSS Calamity';
+    }
+    else if (dT === 'multipurpose') govType = 'Multi-Purpose';
+    else if (loan.provider === 'Pag-IBIG') govType = 'Pag-IBIG MPL'; 
+    else if (loan.provider === 'SSS') govType = 'SSS';
+    else if (loan.provider === 'Company') govType = 'Company';
 
     // Fetch Ledger (Amortization + History)
     const ledger = await sequelize.query(
@@ -3352,6 +3365,18 @@ exports.getLoanById = async (req, res) => {
       { replacements: { userId: targetUserId, govType }, type: QueryTypes.SELECT }
     );
 
+    // Fetch calamity details if applicable
+    let calamityArea = null;
+    if (dT === 'calamity' || dT === 'hdmf_calamity') {
+       const reqRes = await sequelize.query(
+         `SELECT lr."calamityArea" FROM "emp_Request" er
+          JOIN "Loan_Request" lr ON er."emp_reqId" = lr."emp_reqId"
+          WHERE er."user_Id" = :userId AND er."emp_reqTypeId" = 14 AND lr."loanType" = 'Calamity Loan'
+          ORDER BY er."date_Processed" DESC LIMIT 1`,
+         { replacements: { userId: targetUserId }, type: QueryTypes.SELECT }
+       );
+       if (reqRes.length > 0) calamityArea = reqRes[0].calamityArea;
+    }
     // Calculate remaining for each row (diminishing view)
     let runningBalance = parseFloat(loan.totalAmount || 0);
     const schedule = (ledger || []).map((item, idx) => {
@@ -3367,6 +3392,7 @@ exports.getLoanById = async (req, res) => {
     res.status(200).json({
       ...loan,
       schedule,
+      calamityArea,
       history: schedule.filter(s => s.status === 'PAID')
     });
   } catch (error) {

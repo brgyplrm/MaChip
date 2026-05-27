@@ -343,6 +343,12 @@ exports.UserCreateRequest = async (req, res) => {
     const finalRemarks = Array.isArray(rawRemarks) ? rawRemarks[0] : rawRemarks;
     const finalReason = Array.isArray(rawReason) ? rawReason[0] : rawReason;
 
+    // --- LOAN-SPECIFIC REMARKS ENHANCEMENT ---
+    let enhancedRemarks = finalRemarks;
+    if (finalReqTypeId === 14 && req.body.agency === "Pag-IBIG" && req.body.loanType === "Calamity Loan") {
+       enhancedRemarks = `Pag-IBIG Calamity Loan for ${req.body.calamityArea}. ${finalRemarks || ""}`;
+    }
+
     // --- HOLIDAY ADJACENCY RULE (SANDWICH) ---
     if ([3, 4, 6, 7].includes(finalReqTypeId)) {
       const leaveDateStart = StartDate || req.body.DateOfLeave;
@@ -627,7 +633,7 @@ exports.UserCreateRequest = async (req, res) => {
           emp_reqTypeId: finalReqTypeId,
           emp_reqStatusId: finalStatus,
           date_Filed: todayStr,
-          remarks: finalRemarks,
+          remarks: enhancedRemarks,
           system_remarks: systemRemarks.length > 0 ? systemRemarks.join(" | ") : null,
           now: nowStr,
         },
@@ -918,6 +924,16 @@ exports.UserCreateRequest = async (req, res) => {
             await t.rollback();
             return res.status(400).json({ error: "All SSS Emergency Loan fields and the Disclosure Statement upload are mandatory." });
          }
+      } else if (isEnrollment && agency === "Pag-IBIG" && loanType === "Multi-Purpose Loan (MPL)") {
+         if (!amountRequested || !monthsToPay || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !amortizationStartMonth || !proof_File) {
+            await t.rollback();
+            return res.status(400).json({ error: "All Pag-IBIG MPL fields and the Loan Voucher upload are mandatory." });
+         }
+      } else if (isEnrollment && agency === "Pag-IBIG" && loanType === "Calamity Loan") {
+         if (!amountRequested || !monthsToPay || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !amortizationStartMonth || !proof_File || !calamityArea) {
+            await t.rollback();
+            return res.status(400).json({ error: "All Pag-IBIG Calamity Loan fields and the Loan Voucher upload are mandatory." });
+         }
       } else if (isEnrollment && agency === "SSS" && loanType === "SSS Conso Loan") {
          if (!totalOutstandingBalance || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !amortizationStartMonth || !totalLoanTerm || !proof_File) {
             console.log("[DEBUG_LOAN_ENROLLMENT] Failed Conso Loan Validation. Missing field:", {
@@ -932,23 +948,30 @@ exports.UserCreateRequest = async (req, res) => {
             await t.rollback();
             return res.status(400).json({ error: "All SSS Conso Loan fields and the Disclosure Statement upload are mandatory." });
          }
-      } else if (isEnrollment && (!amountRequested || !proof_File)) {
-        console.log("[DEBUG_LOAN_ENROLLMENT] Failed Generic Validation");
+      } else if (isEnrollment && (!amountRequested || (agency !== "Company" && !proof_File))) {
+        console.log("[DEBUG_LOAN_ENROLLMENT] Failed Generic Validation. Field values:", { amountRequested: !!amountRequested, proof_File: !!proof_File, agency });
         await t.rollback();
         return res.status(400).json({ error: "Amount and Voucher/Proof File are mandatory for loan enrollment." });
       }
 
       console.log("[DEBUG_LOAN_ENROLLMENT] Validation passed, executing insert...");
 
+      const { 
+        mscCount,
+        avgMSC,
+        consoDP,
+        pagibigTAV
+      } = req.body;
+
       const loanReqResult = await sequelize.query(
         `INSERT INTO "Loan_Request"
         ("emp_reqId", "user_Id", "agency", "loanType", "amountRequested", "monthsToPay", "isEnrollment", "proof_File", 
          "loanReferenceNo", "loanApprovalDate", "monthlyAmortization", "totalLoanTerm", "amortizationStartMonth", "totalOutstandingBalance",
-         "calamityArea", "damageProof_File", "netPaySufficient",
+         "calamityArea", "damageProof_File", "netPaySufficient", "mscCount", "avgMSC", "consoDP", "pagibigTAV",
          "createdAt", "updatedAt")
         VALUES (:emp_reqId, :userId, :agency, :loanType, :amountRequested, :monthsToPay, :isEnrollment, :proof_File, 
                 :loanReferenceNo, :loanApprovalDate, :monthlyAmortization, :totalLoanTerm, :amortizationStartMonth, :totalOutstandingBalance,
-                :calamityArea, :damageProof_File, :netPaySufficient,
+                :calamityArea, :damageProof_File, :netPaySufficient, :mscCount, :avgMSC, :consoDP, :pagibigTAV,
                 :now, :now)
         RETURNING *`,
         {
@@ -957,19 +980,23 @@ exports.UserCreateRequest = async (req, res) => {
             userId: finalUserId,
             agency,
             loanType,
-            amountRequested: amountRequested || null,
-            monthsToPay: monthsToPay || null,
+            amountRequested: amountRequested || 0,
+            monthsToPay: monthsToPay || 0,
             isEnrollment,
-            proof_File: proof_File,
+            proof_File: proof_File || null,
             loanReferenceNo: loanReferenceNo || null,
             loanApprovalDate: loanApprovalDate || null,
-            monthlyAmortization: monthlyAmortization || null,
-            totalLoanTerm: totalLoanTerm || null,
+            monthlyAmortization: monthlyAmortization || 0,
+            totalLoanTerm: totalLoanTerm || 0,
             amortizationStartMonth: amortizationStartMonth || null,
-            totalOutstandingBalance: totalOutstandingBalance || null,
+            totalOutstandingBalance: totalOutstandingBalance || 0,
             calamityArea: calamityArea || null,
             damageProof_File: damageProof_File || null,
             netPaySufficient: netPaySufficient === 'true' || netPaySufficient === true,
+            mscCount: mscCount || null,
+            avgMSC: avgMSC || 0,
+            consoDP: consoDP || 0,
+            pagibigTAV: pagibigTAV || 0,
             now: nowStr
           },
           type: QueryTypes.INSERT,
@@ -1728,6 +1755,36 @@ exports.UpdateStatusRequest = async (req, res) => {
         else if (agency === 'Company') {
           dedType = 'cash_advance';
           govDbType = 'Company'; 
+
+          // 1.5 Auto-record into Payroll_Cash_Advances ledger for one-time deduction
+          // Logic: Set the date to the exact upcoming cutoff date (15th or end of month)
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = today.getMonth();
+          let targetDateStr;
+          
+          if (today.getDate() <= 15) {
+            // If approved between 1st and 15th, deduct on the current month's 15th
+            targetDateStr = `${year}-${String(month + 1).padStart(2, '0')}-15`;
+          } else {
+            // If approved after the 15th, deduct on the current month's last day (e.g. 30th/31st)
+            const lastDay = new Date(year, month + 1, 0).getDate();
+            targetDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+          }
+
+          console.log(`[DEBUG_CASH_ADVANCE] Scheduling CA deduction for user ${requesterId} on ${targetDateStr} for amount ${totalAmount}`);
+
+          try {
+            await sequelize.query(
+              `INSERT INTO "Payroll_Cash_Advances" ("user_Id", "date", "amount", "createdAt", "updatedAt")
+               VALUES (:userId, :date, :amount, :now, :now)
+               ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = "Payroll_Cash_Advances"."amount" + EXCLUDED."amount", "updatedAt" = EXCLUDED."updatedAt"`,
+              { replacements: { userId: requesterId, date: targetDateStr, amount: totalAmount, now: nowStr } }
+            );
+            console.log(`[DEBUG_CASH_ADVANCE] Successfully inserted CA into ledger.`);
+          } catch (caErr) {
+            console.error(`[DEBUG_CASH_ADVANCE_ERROR]:`, caErr.message);
+          }
         }
 
         // 1. Insert into master Loan_Deductions table
@@ -1775,10 +1832,18 @@ exports.UpdateStatusRequest = async (req, res) => {
                 currentMonth = startTarget.getMonth();
               }
             } else {
-              // Pag-IBIG typically starts the following month
-              const startTarget = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-              currentYear = startTarget.getFullYear();
-              currentMonth = startTarget.getMonth();
+              if (loanType === 'Calamity Loan') {
+                // ENFORCE PAG-IBIG CALAMITY START RULE: 3-month grace period
+                // Example: Approved May -> Skip June-Aug -> Starts September (4 months later)
+                const startTarget = new Date(now.getFullYear(), now.getMonth() + 4, 1);
+                currentYear = startTarget.getFullYear();
+                currentMonth = startTarget.getMonth();
+              } else {
+                // Pag-IBIG MPL typically starts the following month
+                const startTarget = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                currentYear = startTarget.getFullYear();
+                currentMonth = startTarget.getMonth();
+              }
             }
 
             const totalTermMonths = months;

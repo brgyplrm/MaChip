@@ -127,6 +127,10 @@ const UserRequests = () => {
     totalLoanTerm: "",
     amortizationStartMonth: "",
     totalOutstandingBalance: "",
+    pagibigTAV: "",
+    consoDP: "",
+    mscCount: "",
+    avgMSC: "",
   });
 
   const [currentPeriodLogs, setCurrentPeriodLogs] = useState([]);
@@ -377,12 +381,52 @@ const UserRequests = () => {
       }
     }
 
+    // Auto-calculate for Pag-IBIG MPL and Calamity
+    if (formData.agency === "Pag-IBIG" && (formData.loanType === "Multi-Purpose Loan (MPL)" || formData.loanType === "Calamity Loan")) {
+      const isPrincipalField = name === "amountRequested";
+      const isTermField = name === "monthsToPay";
+
+      if (isPrincipalField || isTermField) {
+        const principal = isPrincipalField ? parseFloat(value) : parseFloat(formData.amountRequested || 0);
+        const term = isTermField ? parseInt(value) : parseInt(formData.monthsToPay || 0);
+        
+        if (principal > 0 && term > 0) {
+           // Pag-IBIG Rates: MPL (10.5%), Calamity (5.95%)
+           const annualRate = formData.loanType === "Calamity Loan" ? 0.0595 : 0.105;
+           const monthlyRate = annualRate / 12;
+           const factor = Math.pow(1 + monthlyRate, term);
+           const monthlyAmort = (principal * monthlyRate * factor) / (factor - 1);
+           
+           setFormData(prev => ({ 
+             ...prev, 
+             [name]: newValue,
+             monthlyAmortization: Math.round(monthlyAmort)
+           }));
+           return;
+        }
+      }
+    }
+
     // Auto-calculate Amortization Start Month
-    if (name === "loanApprovalDate" && value && formData.agency === "SSS") {
+    if (name === "loanApprovalDate" && value) {
       const approvalDate = new Date(value);
       if (!isNaN(approvalDate.getTime())) {
-        // SSS Rule: 2nd month following the month of approval
-        const startMonth = new Date(approvalDate.getFullYear(), approvalDate.getMonth() + 2, 1);
+        let monthsToAdd = 1;
+        
+        if (formData.agency === "SSS") {
+          // SSS Rule: 2nd month following the month of approval
+          monthsToAdd = 2;
+        } else if (formData.agency === "Pag-IBIG") {
+          if (formData.loanType === "Calamity Loan") {
+            // Pag-IBIG Calamity: 3-month grace period (starts 4th month)
+            monthsToAdd = 4;
+          } else {
+            // Pag-IBIG MPL: Starts following month
+            monthsToAdd = 1;
+          }
+        }
+
+        const startMonth = new Date(approvalDate.getFullYear(), approvalDate.getMonth() + monthsToAdd, 1);
         const yyyy = startMonth.getFullYear();
         const mm = String(startMonth.getMonth() + 1).padStart(2, '0');
         
@@ -407,6 +451,10 @@ const UserRequests = () => {
       const updated = { ...prev, [name]: val };
       if (name === "agency") {
         updated.loanType = "";
+        if (val === "Company") {
+          updated.loanType = "Cash Advance";
+          updated.monthsToPay = "1";
+        }
       }
       return updated;
     });
@@ -432,9 +480,10 @@ const UserRequests = () => {
       else if (formData.emp_reqTypeId === "7" && 0.5 > vlBal) isInsufficient = true;
     }
 
-    // Attachment validation for specific statutory leaves
-    if (["8", "11", "12"].includes(formData.emp_reqTypeId) && !formData.proofFile) {
-      setToast({ message: "Supporting documentation is mandatory for this request.", type: "error" });
+    // Attachment validation for specific statutory leaves and government loans
+    const isGovLoan = formData.emp_reqTypeId === "14" && formData.agency !== "Company";
+    if ((["8", "11", "12"].includes(formData.emp_reqTypeId) || isGovLoan) && !formData.proofFile) {
+      setToast({ message: "Voucher or Disclosure Statement is mandatory for government loan enrollment.", type: "error" });
       return;
     }
 
@@ -516,6 +565,18 @@ const UserRequests = () => {
         if (formData.damageProofFile) {
           formDataToSubmit.append("damageProofFile", formData.damageProofFile);
         }
+      } else if (formData.agency === "Pag-IBIG" && formData.loanType === "Multi-Purpose Loan (MPL)" && formData.emp_reqTypeId === "14") {
+        formDataToSubmit.append("pagibigTAV", formData.pagibigTAV);
+        formDataToSubmit.append("loanReferenceNo", formData.loanReferenceNo);
+        formDataToSubmit.append("loanApprovalDate", formData.loanApprovalDate);
+        formDataToSubmit.append("monthlyAmortization", formData.monthlyAmortization);
+        formDataToSubmit.append("amortizationStartMonth", formData.amortizationStartMonth);
+      } else if (formData.agency === "Pag-IBIG" && formData.loanType === "Calamity Loan" && formData.emp_reqTypeId === "14") {
+        formDataToSubmit.append("calamityArea", formData.calamityArea);
+        formDataToSubmit.append("loanReferenceNo", formData.loanReferenceNo);
+        formDataToSubmit.append("loanApprovalDate", formData.loanApprovalDate);
+        formDataToSubmit.append("monthlyAmortization", formData.monthlyAmortization);
+        formDataToSubmit.append("amortizationStartMonth", formData.amortizationStartMonth);
       }
     } else if (["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) {
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
@@ -1337,6 +1398,192 @@ const UserRequests = () => {
                                 <Input name="loanReferenceNo" value={formData.loanReferenceNo} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="e.g. 12-3456789-0" />
                               </div>
                             </>
+                          ) : formData.agency === "Pag-IBIG" && formData.loanType === "Multi-Purpose Loan (MPL)" && formData.emp_reqTypeId === "14" ? (
+                            <>
+                              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 space-y-4 mb-4">
+                                <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Pag-IBIG Multi-Purpose Loan (MPL)</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-700">Total Accumulated Value (TAV) <span className="text-red-500">*</span></label>
+                                    <Input 
+                                      type="number" 
+                                      name="pagibigTAV" 
+                                      value={formData.pagibigTAV || ""} 
+                                      onChange={handleInputChange} 
+                                      required 
+                                      className="bg-white border-emerald-200" 
+                                      placeholder="Sum of all contributions" 
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-700">Loan Amount <span className="text-red-500">*</span></label>
+                                    <Input 
+                                      type="number" 
+                                      name="amountRequested" 
+                                      value={formData.amountRequested || ""} 
+                                      onChange={handleInputChange} 
+                                      required 
+                                      className="bg-white border-emerald-200" 
+                                      placeholder="Up to 80% of TAV" 
+                                    />
+                                    {parseFloat(formData.pagibigTAV) > 0 && parseFloat(formData.amountRequested) > (parseFloat(formData.pagibigTAV) * 0.80) && (
+                                      <p className="text-[10px] text-red-500 font-bold">Limit: ₱{(parseFloat(formData.pagibigTAV) * 0.80).toLocaleString()} (80% of TAV)</p>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {parseFloat(formData.amountRequested) > 0 && (
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-3 bg-white/50 rounded-lg border border-emerald-200">
+                                      <p className="text-[10px] font-bold text-emerald-600 uppercase">Service Fee (1%)</p>
+                                      <p className="text-sm font-black text-emerald-900">
+                                        ₱{(parseFloat(formData.amountRequested) * 0.01).toLocaleString('en-PH', {minimumFractionDigits: 2})}
+                                      </p>
+                                    </div>
+                                    <div className="p-3 bg-white/50 rounded-lg border border-emerald-200">
+                                      <p className="text-[10px] font-bold text-emerald-600 uppercase">Net Proceeds</p>
+                                      <p className="text-sm font-black text-emerald-900">
+                                        ₱{(parseFloat(formData.amountRequested) * 0.99).toLocaleString('en-PH', {minimumFractionDigits: 2})}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Repayment Term <span className="text-red-500">*</span></label>
+                                  <Select 
+                                    value={formData.monthsToPay ? String(formData.monthsToPay) : undefined} 
+                                    onValueChange={(val) => handleSelectChange('monthsToPay', val)}
+                                  >
+                                    <SelectTrigger className="bg-slate-50/50 border-slate-200">
+                                      <SelectValue placeholder="Select Term" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="12">12 Months (1 Year)</SelectItem>
+                                      <SelectItem value="24">24 Months (2 Years)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Monthly Amortization (₱) <span className="text-red-500">*</span></label>
+                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-100 text-[#2A174E] font-bold" />
+                                  <p className="text-[10px] text-slate-400 italic">Auto-computed at 10.5% p.a. interest.</p>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Loan Approval Date <span className="text-red-500">*</span></label>
+                                  <Input type="date" name="loanApprovalDate" value={formData.loanApprovalDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Amortization Start Month</label>
+                                  <Input type="month" name="amortizationStartMonth" value={formData.amortizationStartMonth} readOnly className="bg-slate-100 text-slate-500 font-bold" />
+                                  <p className="text-[10px] text-emerald-600 font-medium">Starts the following month after approval.</p>
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Loan Reference No. <span className="text-red-500">*</span></label>
+                                <Input name="loanReferenceNo" value={formData.loanReferenceNo} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="e.g. 12-3456789-0" />
+                              </div>
+                            </>
+                          ) : formData.agency === "Pag-IBIG" && formData.loanType === "Calamity Loan" && formData.emp_reqTypeId === "14" ? (
+                            <>
+                              <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 space-y-4 mb-4">
+                                <h4 className="text-xs font-bold text-orange-800 uppercase tracking-wider">Pag-IBIG Calamity Loan</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-700">Declared Calamity Area <span className="text-red-500">*</span></label>
+                                    <Input name="calamityArea" value={formData.calamityArea || ""} onChange={handleInputChange} required className="bg-white border-orange-200" placeholder="e.g. Typhoon Enteng - Bicol" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-700">Loan Amount <span className="text-red-500">*</span></label>
+                                    <Input 
+                                      type="number" 
+                                      name="amountRequested" 
+                                      value={formData.amountRequested || ""} 
+                                      onChange={handleInputChange} 
+                                      required 
+                                      className="bg-white border-orange-200" 
+                                      placeholder="0.00" 
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Repayment Term <span className="text-red-500">*</span></label>
+                                  <Select 
+                                    value={formData.monthsToPay ? String(formData.monthsToPay) : undefined} 
+                                    onValueChange={(val) => handleSelectChange('monthsToPay', val)}
+                                  >
+                                    <SelectTrigger className="bg-slate-50/50 border-slate-200">
+                                      <SelectValue placeholder="Select Term" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="24">24 Months (2 Years)</SelectItem>
+                                      <SelectItem value="36">36 Months (3 Years)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Monthly Amortization (₱) <span className="text-red-500">*</span></label>
+                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-100 text-[#2A174E] font-bold" />
+                                  <p className="text-[10px] text-slate-400 italic">Auto-computed at 5.95% p.a. interest.</p>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Loan Approval Date <span className="text-red-500">*</span></label>
+                                  <Input type="date" name="loanApprovalDate" value={formData.loanApprovalDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-bold text-slate-700">Amortization Start Month</label>
+                                  <Input type="month" name="amortizationStartMonth" value={formData.amortizationStartMonth} readOnly className="bg-slate-100 text-slate-500 font-bold" />
+                                  <p className="text-[10px] text-orange-600 font-medium">Auto-calculated: 3-month grace period applied.</p>
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Loan Reference No. <span className="text-red-500">*</span></label>
+                                <Input name="loanReferenceNo" value={formData.loanReferenceNo} onChange={handleInputChange} required className="bg-slate-50/50" placeholder="e.g. 12-3456789-0" />
+                              </div>
+                            </>
+                          ) : formData.agency === "Company" && formData.loanType === "Cash Advance" && formData.emp_reqTypeId === "14" ? (
+                            <>
+                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4 mb-4">
+                                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">Company Cash Advance</h4>
+                                <div className="grid grid-cols-1 gap-4">
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-700">Requested Amount <span className="text-red-500">*</span></label>
+                                    <Input 
+                                      type="number" 
+                                      name="amountRequested" 
+                                      value={formData.amountRequested || ""} 
+                                      onChange={handleInputChange} 
+                                      required 
+                                      className="bg-white border-slate-300 h-12 text-lg font-bold" 
+                                      placeholder="0.00" 
+                                    />
+                                    <p className="text-[10px] text-slate-400 italic">Note: This is a short-term advance to be deducted in full on the next available payroll.</p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Purpose of Advance <span className="text-red-500">*</span></label>
+                                <Textarea 
+                                  name="remarks" 
+                                  value={formData.remarks} 
+                                  onChange={handleInputChange} 
+                                  required 
+                                  className="bg-white border-slate-200 h-20" 
+                                  placeholder="e.g. Personal emergency, medical expenses, etc." 
+                                />
+                              </div>
+                            </>
                           ) : formData.loanType === "Calamity Loan" ? (
                             <>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1391,21 +1638,31 @@ const UserRequests = () => {
                     </div>
                   )}
 
-                  <div className="space-y-2 pt-4 border-t border-slate-100 border-dashed">
-                    <label className="text-sm font-bold text-slate-700">Description / Purpose <span className="text-red-500">*</span></label>
-                    <Textarea name="remarks" placeholder={formData.emp_reqTypeId === "13" ? "e.g. Applied for SSS Salary Loan on [Date]. Please certify." : "Please provide detailed remarks..."} value={formData.remarks} onChange={handleInputChange} required className="bg-slate-50/50 resize-none h-24" />
-                  </div>
+                  {!(formData.agency === "Company" && formData.loanType === "Cash Advance" && formData.emp_reqTypeId === "14") && (
+                    <div className="space-y-2 pt-4 border-t border-slate-100 border-dashed">
+                      <label className="text-sm font-bold text-slate-700">Description / Purpose <span className="text-red-500">*</span></label>
+                      <Textarea name="remarks" placeholder={formData.emp_reqTypeId === "13" ? "e.g. Applied for SSS Salary Loan on [Date]. Please certify." : "Please provide detailed remarks..."} value={formData.remarks} onChange={handleInputChange} required className="bg-slate-50/50 resize-none h-24" />
+                    </div>
+                  )}
                   
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">
                       {formData.emp_reqTypeId === "14" && formData.loanType === "Calamity Loan" ? "Disclosure Statement (Required)" : (
-                        <>Attachment {["8", "11", "12", "14"].includes(formData.emp_reqTypeId) ? <span className="text-red-500">*</span> : "(Optional)"}</>
+                        <>Attachment {["8", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company") ? <span className="text-red-500">*</span> : "(Optional)"}</>
                       )}
                     </label>
-                    <Input type="file" name="proofFile" onChange={handleInputChange} accept="image/png, image/jpeg, image/jpg, application/pdf" className="bg-slate-50/50 cursor-pointer" required={["8", "11", "12", "14"].includes(formData.emp_reqTypeId)} />
+                    <Input 
+                      type="file" 
+                      name="proofFile" 
+                      onChange={handleInputChange} 
+                      accept="image/png, image/jpeg, image/jpg, application/pdf" 
+                      className="bg-slate-50/50 cursor-pointer" 
+                      required={["8", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company")} 
+                    />
                     <p className="text-xs text-slate-400">
-                      {formData.emp_reqTypeId === "14" && formData.loanType === "Calamity Loan"
-                        ? "Mandatory: Please upload the official SSS Disclosure Statement."
+                      {formData.agency === "Company" ? "Optional: You may upload a supporting document or voucher if necessary." :
+                       formData.emp_reqTypeId === "14" && formData.loanType === "Calamity Loan"
+                        ? "Mandatory: Please upload the official Disclosure Statement."
                         : formData.emp_reqTypeId === "14" 
                         ? "Mandatory: Please upload your Loan Voucher or Billing Statement."
                         : ["8", "11", "12"].includes(formData.emp_reqTypeId) 
@@ -1593,13 +1850,21 @@ const UserRequests = () => {
                             <>
                               <div className="space-y-1">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount / Balance</label>
-                                <p className="font-bold text-green-700">₱{parseFloat(currentReq.LR_balance || currentReq.LR_amount || 0).toLocaleString()}</p>
+                                <p className="font-bold text-green-700">
+                                  ₱{parseFloat(
+                                    (currentReq.LR_agency === "Company" || !currentReq.LR_balance || parseFloat(currentReq.LR_balance) === 0) 
+                                      ? (currentReq.LR_amount || 0) 
+                                      : currentReq.LR_balance
+                                  ).toLocaleString()}
+                                </p>
                               </div>
                               <div className="space-y-1">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Repayment Term</label>
-                                <p className="font-semibold text-slate-800">{currentReq.LR_term || currentReq.LR_months} Months</p>
+                                <p className="font-semibold text-slate-800">
+                                  {currentReq.LR_agency === "Company" ? "1 Month (Full)" : `${(currentReq.LR_term && parseFloat(currentReq.LR_term) > 0) ? currentReq.LR_term : (currentReq.LR_months || 0)} Months`}
+                                </p>
                               </div>
-                              {currentReq.LR_amortization && (
+                              {currentReq.LR_amortization && parseFloat(currentReq.LR_amortization) > 0 && (
                                 <div className="space-y-1">
                                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Amortization</label>
                                   <p className="font-bold text-blue-700">₱{parseFloat(currentReq.LR_amortization).toLocaleString()}</p>

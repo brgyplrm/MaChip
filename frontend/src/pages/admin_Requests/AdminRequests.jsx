@@ -756,22 +756,41 @@ const AdminRequests = () => {
                           <>
                             <div className="space-y-1">
                               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount / Balance</label>
-                              <p className="font-bold text-green-700">₱{parseFloat(current.LR_balance || current.LR_amount || 0).toLocaleString()}</p>
+                              <p className="font-bold text-green-700">
+                                ₱{parseFloat(
+                                  (current.LR_agency === "Company" || !current.LR_balance || parseFloat(current.LR_balance) === 0) 
+                                    ? (current.LR_amount || 0) 
+                                    : current.LR_balance
+                                ).toLocaleString()}
+                              </p>
                             </div>
                             <div className="space-y-1">
                               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Repayment Term</label>
-                              <p className="font-semibold text-slate-800">{current.LR_term || current.LR_months} Months</p>
+                              <p className="font-semibold text-slate-800">
+                                {current.LR_agency === "Company" ? "1 Month (Full)" : `${(current.LR_term && parseFloat(current.LR_term) > 0) ? current.LR_term : (current.LR_months || 0)} Months`}
+                              </p>
                             </div>
-                            {current.LR_amortization && (
+                            {current.LR_amortization && parseFloat(current.LR_amortization) > 0 && (
                               <div className="space-y-1">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Amortization</label>
                                 <p className="font-bold text-blue-700">₱{parseFloat(current.LR_amortization).toLocaleString()}</p>
                               </div>
-                            )}
-                            {current.LR_reference && (
+                            )}                            {current.LR_reference && (
                               <div className="space-y-1">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reference No.</label>
                                 <p className="font-mono text-xs font-bold text-slate-700">{current.LR_reference}</p>
+                              </div>
+                            )}
+                            {current.LR_pagibigTAV > 0 && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pag-IBIG TAV</label>
+                                <p className="font-bold text-emerald-700">₱{parseFloat(current.LR_pagibigTAV).toLocaleString()}</p>
+                              </div>
+                            )}
+                            {current.LR_amortizationStart && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Starts On</label>
+                                <p className="font-bold text-slate-700">{current.LR_amortizationStart}</p>
                               </div>
                             )}
                             {current.LR_calamityArea && (
