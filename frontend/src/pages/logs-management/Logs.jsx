@@ -6,6 +6,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import { EyeIcon, SquarePen } from "lucide-react";  
 
 // Icons
 import SearchIcon from "@mui/icons-material/Search";
@@ -422,7 +423,7 @@ const toggleMachipVisibility = (rowId) => {
             <Button 
               variant="outline" 
               asChild
-              className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#f0ebfa] font-semibold"
+              className="w-full sm:w-auto border-[#2A174E]/30 text-[#2A174E]/80 hover:text-[#2A174E] font-semibold"
             >
               <Link to="/adminReports" state={{ activeTab: "attendance" }}>
                 <AssessmentIcon className="mr-2 h-4 w-4" /> View Detailed Reports
@@ -431,17 +432,17 @@ const toggleMachipVisibility = (rowId) => {
           
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-                {/* View Mode Toggle (Tabs integrated into Header) */}
-                <Tabs value={viewMode} onValueChange={(val) => setViewMode(val)} className="w-full sm:w-[320px] xl:w-[320px]">
-                  <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 p-1 rounded-lg">
-                    <TabsTrigger value="raw" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
-                      Raw Logs
-                    </TabsTrigger>
-                    <TabsTrigger value="day" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
-                      Day Summaries
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+              {/* View Mode Toggle (Tabs integrated into Header) */}
+              <Tabs value={viewMode} onValueChange={(val) => setViewMode(val)} className="w-full sm:w-[320px] xl:w-[320px]">
+                <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 rounded-lg">
+                  <TabsTrigger value="raw" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
+                    Raw Logs
+                  </TabsTrigger>
+                  <TabsTrigger value="day" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
+                    Day Summaries
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
           <div className="h-6"></div>
  
@@ -697,8 +698,10 @@ const toggleMachipVisibility = (rowId) => {
                                 <TableCell className="text-slate-600 py-4">{row.log_Date}</TableCell>
                                 <TableCell className="text-slate-600 py-4">{row.time}</TableCell>
                                 <TableCell className="py-4 text-right pr-6">
-                                  <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-                                    <Link to={`/users/${row.user_Id}`}>View</Link>
+                                  <Button variant="outline" size="sm" asChild className="border-[#2A174E]/10 text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+                                    <Link to={`/users/${row.user_Id}`}>
+                                    <EyeIcon className="h-4 w-4" />
+                                    </Link>
                                   </Button>
                                 </TableCell>
                               </TableRow>
@@ -777,8 +780,10 @@ const toggleMachipVisibility = (rowId) => {
                                 </TableCell>
                                 <TableCell className="text-right py-4 pr-6">
                                   {isAdminOrAccountant ? (
-                                    <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-                                      <Link to={`/logs/edit/${row.user_Id}/${row.log_Date.split('T')[0]}?from=logs`}>Edit</Link>
+                                    <Button variant="outline" size="sm" asChild className="border-[#2A174E]/10 text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+                                      <Link to={`/logs/edit/${row.user_Id}/${row.log_Date.split('T')[0]}?from=logs`}>
+                                        <SquarePen className="h-4 w-4" />
+                                      </Link>
                                     </Button>
                                   ) : (
                                     <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">

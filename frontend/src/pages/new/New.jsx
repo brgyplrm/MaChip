@@ -539,16 +539,16 @@ const New = ({ inputs = [], title }) => {
           </div>
 
           {/* Tabs List */}
-          <TabsList className="grid w-full sm:w-[350px] grid-cols-2 h-11 bg-slate-200/60 rounded-lg shrink-0">
+          <TabsList className=" grid w-full sm:w-[350px] grid-cols-2 h-auto bg-slate-200/60 rounded-lg shrink-0">
             <TabsTrigger 
               value="single" 
-              className="data-[state=active]:bg-[#2A174E] data-[state=active]:text-white data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md"
+              className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md"
             >
               Single Registration
             </TabsTrigger>
             <TabsTrigger 
               value="batch" 
-              className="data-[state=active]:bg-[#2A174E] data-[state=active]:text-white data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md"
+              className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md"
             >
               Batch Upload (CSV)
             </TabsTrigger>

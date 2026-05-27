@@ -72,6 +72,7 @@ const routeLabels = {
   "employeeHome" : "Home",
   "employeeCalendar" : "calendar",
   "accessLogs" : "Access Logs",
+  "logs/edit/:userId/:date" : "Edit Attendance",
 
   // Add as many as needed
 };
