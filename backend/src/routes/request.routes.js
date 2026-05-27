@@ -18,10 +18,15 @@ const { requireOps, requireStaff, requireRole } = require("../middleware/roleChe
 const authMiddleware = require("../middleware/auth.js");
 const upload = require("../middleware/upload");
 
-router.post("/", upload.single("proofFile"), UserCreateRequest);
+const uploadFields = upload.fields([
+  { name: "proofFile", maxCount: 1 },
+  { name: "damageProofFile", maxCount: 1 }
+]);
+
+router.post("/", uploadFields, UserCreateRequest);
 router.post(
   "/UserCreateRequest",
-  upload.single("proofFile"),
+  uploadFields,
   UserCreateRequest,
 );
 router.get("/all", requireStaff, GetAllRequests);

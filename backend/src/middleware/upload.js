@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
       // Determine subfolder based on fieldname or URL context
       if (file.fieldname === 'user_ProfilePic' || file.fieldname === 'avatar' || req.originalUrl.includes('/users')) {
         finalPath = path.join(rootPath, 'ProfilePictures');
-      } else if (file.fieldname === 'proofFile' || file.fieldname === 'proof_File' || req.originalUrl.includes('/request')) {
+      } else if (file.fieldname === 'proofFile' || file.fieldname === 'proof_File' || file.fieldname === 'damageProofFile' || req.originalUrl.includes('/request')) {
         finalPath = path.join(rootPath, 'requestsFiles');
       }
 

@@ -117,10 +117,32 @@ exports.UpdateUserRequest = async (req, res) => {
     } else if (typeId === 5) {
       await sequelize.query(`UPDATE "Log_Correction" SET "logDate" = :logDate, "claimedIn" = :claimedIn, "claimedOut" = :claimedOut, "reason" = :reason WHERE "emp_reqId" = :requestId`, { replacements: { logDate, claimedIn, claimedOut, reason, requestId }, transaction: t });
     } else if (typeId === 13 || typeId === 14) {
-      const { agency, loanType, amountRequested, monthsToPay } = req.body;
+      const { agency, loanType, amountRequested, monthsToPay, loanReferenceNo, monthlyAmortization, totalOutstandingBalance } = req.body;
       await sequelize.query(
-        `UPDATE "Loan_Request" SET "agency" = :agency, "loanType" = :loanType, "amountRequested" = :amountRequested, "monthsToPay" = :monthsToPay, "updatedAt" = :now WHERE "emp_reqId" = :requestId`,
-        { replacements: { agency, loanType, amountRequested, monthsToPay, now: nowStr, requestId }, transaction: t }
+        `UPDATE "Loan_Request" SET 
+          "agency" = :agency, 
+          "loanType" = :loanType, 
+          "amountRequested" = :amountRequested, 
+          "monthsToPay" = :monthsToPay, 
+          "loanReferenceNo" = :loanReferenceNo,
+          "monthlyAmortization" = :monthlyAmortization,
+          "totalOutstandingBalance" = :totalOutstandingBalance,
+          "updatedAt" = :now 
+        WHERE "emp_reqId" = :requestId`,
+        { 
+          replacements: { 
+            agency, 
+            loanType, 
+            amountRequested: amountRequested || null, 
+            monthsToPay: monthsToPay || null, 
+            loanReferenceNo: loanReferenceNo || null,
+            monthlyAmortization: monthlyAmortization || null,
+            totalOutstandingBalance: totalOutstandingBalance || null,
+            now: nowStr, 
+            requestId 
+          }, 
+          transaction: t 
+        }
       );
     }
 
@@ -287,8 +309,20 @@ exports.UserCreateRequest = async (req, res) => {
   const finalNoDays = parseInt(NoDays || 0);
   const finalStatus = parseInt(emp_reqStatusId || 1);
   
-  // Use the filename from multer if a file was uploaded, prefixing with folder for dynamic serving
-  const proof_File = req.file ? `requestsFiles/${req.file.filename}` : null;
+  // Handle both single and multiple file uploads (for backward compatibility and new Calamity fields)
+  let proof_File = null;
+  let damageProof_File = null;
+
+  if (req.file) {
+    proof_File = `requestsFiles/${req.file.filename}`;
+  } else if (req.files) {
+    if (req.files['proofFile'] && req.files['proofFile'].length > 0) {
+      proof_File = `requestsFiles/${req.files['proofFile'][0].filename}`;
+    }
+    if (req.files['damageProofFile'] && req.files['damageProofFile'].length > 0) {
+      damageProof_File = `requestsFiles/${req.files['damageProofFile'][0].filename}`;
+    }
+  }
 
   if (!finalUserId || !finalReqTypeId) {
     return res
@@ -853,9 +887,13 @@ exports.UserCreateRequest = async (req, res) => {
         monthlyAmortization,
         totalLoanTerm,
         amortizationStartMonth,
-        totalOutstandingBalance
+        totalOutstandingBalance,
+        calamityArea,
+        netPaySufficient
       } = req.body;
       const isEnrollment = finalReqTypeId === 14;
+
+      console.log("[DEBUG_LOAN_ENROLLMENT] Incoming Payload:", { agency, loanType, isEnrollment, amountRequested, monthsToPay, loanReferenceNo, loanApprovalDate, monthlyAmortization, totalLoanTerm, amortizationStartMonth, totalOutstandingBalance, proof_File });
 
       if (!agency || !loanType) {
         await t.rollback();
@@ -864,21 +902,53 @@ exports.UserCreateRequest = async (req, res) => {
 
       if (isEnrollment && agency === "SSS" && loanType === "Salary Loan") {
          if (!loanReferenceNo || !loanApprovalDate || !monthlyAmortization || !totalLoanTerm || !amortizationStartMonth || !totalOutstandingBalance || !proof_File) {
+            console.log("[DEBUG_LOAN_ENROLLMENT] Failed Salary Loan Validation");
             await t.rollback();
             return res.status(400).json({ error: "All SSS Salary Loan fields and the Disclosure Statement upload are mandatory." });
          }
+      } else if (isEnrollment && agency === "SSS" && loanType === "Calamity Loan") {
+         if (!calamityArea || !loanReferenceNo || !loanApprovalDate || !totalOutstandingBalance || !monthlyAmortization || !proof_File || !damageProof_File || !netPaySufficient) {
+            console.log("[DEBUG_LOAN_ENROLLMENT] Failed Calamity Loan Validation");
+            await t.rollback();
+            return res.status(400).json({ error: "All SSS Calamity Loan fields and both file uploads are mandatory." });
+         }
+      } else if (isEnrollment && agency === "SSS" && loanType === "Emergency Loan") {
+         if (!amountRequested || !monthsToPay || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !amortizationStartMonth || !proof_File) {
+            console.log("[DEBUG_LOAN_ENROLLMENT] Failed Emergency Loan Validation");
+            await t.rollback();
+            return res.status(400).json({ error: "All SSS Emergency Loan fields and the Disclosure Statement upload are mandatory." });
+         }
+      } else if (isEnrollment && agency === "SSS" && loanType === "SSS Conso Loan") {
+         if (!totalOutstandingBalance || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !amortizationStartMonth || !totalLoanTerm || !proof_File) {
+            console.log("[DEBUG_LOAN_ENROLLMENT] Failed Conso Loan Validation. Missing field:", {
+               totalOutstandingBalance: !!totalOutstandingBalance,
+               monthlyAmortization: !!monthlyAmortization,
+               loanReferenceNo: !!loanReferenceNo,
+               loanApprovalDate: !!loanApprovalDate,
+               amortizationStartMonth: !!amortizationStartMonth,
+               totalLoanTerm: !!totalLoanTerm,
+               proof_File: !!proof_File
+            });
+            await t.rollback();
+            return res.status(400).json({ error: "All SSS Conso Loan fields and the Disclosure Statement upload are mandatory." });
+         }
       } else if (isEnrollment && (!amountRequested || !proof_File)) {
+        console.log("[DEBUG_LOAN_ENROLLMENT] Failed Generic Validation");
         await t.rollback();
         return res.status(400).json({ error: "Amount and Voucher/Proof File are mandatory for loan enrollment." });
       }
+
+      console.log("[DEBUG_LOAN_ENROLLMENT] Validation passed, executing insert...");
 
       const loanReqResult = await sequelize.query(
         `INSERT INTO "Loan_Request"
         ("emp_reqId", "user_Id", "agency", "loanType", "amountRequested", "monthsToPay", "isEnrollment", "proof_File", 
          "loanReferenceNo", "loanApprovalDate", "monthlyAmortization", "totalLoanTerm", "amortizationStartMonth", "totalOutstandingBalance",
+         "calamityArea", "damageProof_File", "netPaySufficient",
          "createdAt", "updatedAt")
         VALUES (:emp_reqId, :userId, :agency, :loanType, :amountRequested, :monthsToPay, :isEnrollment, :proof_File, 
                 :loanReferenceNo, :loanApprovalDate, :monthlyAmortization, :totalLoanTerm, :amortizationStartMonth, :totalOutstandingBalance,
+                :calamityArea, :damageProof_File, :netPaySufficient,
                 :now, :now)
         RETURNING *`,
         {
@@ -897,6 +967,9 @@ exports.UserCreateRequest = async (req, res) => {
             totalLoanTerm: totalLoanTerm || null,
             amortizationStartMonth: amortizationStartMonth || null,
             totalOutstandingBalance: totalOutstandingBalance || null,
+            calamityArea: calamityArea || null,
+            damageProof_File: damageProof_File || null,
+            netPaySufficient: netPaySufficient === 'true' || netPaySufficient === true,
             now: nowStr
           },
           type: QueryTypes.INSERT,
@@ -1144,6 +1217,9 @@ exports.GetUserRequests = async (req, res) => {
         lr."amortizationStartMonth" as "LR_startMonth",
         lr."totalOutstandingBalance" as "LR_balance",
         lr."isEnrollment" as "LR_isEnrollment",
+        lr."calamityArea" as "LR_calamityArea",
+        lr."damageProof_File" as "LR_damageProof",
+        lr."netPaySufficient" as "LR_netPaySufficient",
         lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
         lb."SL_balance",
@@ -1261,6 +1337,9 @@ exports.GetAllRequests = async (req, res) => {
         lr."amortizationStartMonth" as "LR_startMonth",
         lr."totalOutstandingBalance" as "LR_balance",
         lr."isEnrollment" as "LR_isEnrollment",
+        lr."calamityArea" as "LR_calamityArea",
+        lr."damageProof_File" as "LR_damageProof",
+        lr."netPaySufficient" as "LR_netPaySufficient",
         lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
         lb."SL_balance",
@@ -1622,17 +1701,28 @@ exports.UpdateStatusRequest = async (req, res) => {
         let govDbType = 'Multi-Purpose'; // for Payroll_GovernmentLoans
         
         if (agency === 'SSS') {
-          dedType = 'sss_loan';
-          govDbType = 'SSS';
+          if (loanType === 'Calamity Loan') {
+            dedType = 'calamity';
+            govDbType = 'SSS Calamity';
+          } else if (loanType === 'Emergency Loan') {
+            dedType = 'sss_emergency';
+            govDbType = 'SSS Emergency';
+          } else if (loanType === 'SSS Conso Loan') {
+            dedType = 'sss_conso';
+            govDbType = 'SSS Conso Loan';
+          } else {
+            dedType = 'sss_loan';
+            govDbType = 'SSS'; // Keeping SSS as Salary Loan for backwards compatibility
+          }
         }
         else if (agency === 'Pag-IBIG') {
           if (loanType === 'Calamity Loan') {
-            dedType = 'calamity';
-            govDbType = 'Calamity';
+            dedType = 'hdmf_calamity';
+            govDbType = 'Pag-IBIG Calamity';
           }
           else {
             dedType = 'hdmf_loan';
-            govDbType = 'Pag-IBIG';
+            govDbType = 'Pag-IBIG MPL';
           }
         }
         else if (agency === 'Company') {
@@ -1668,12 +1758,28 @@ exports.UpdateStatusRequest = async (req, res) => {
         // 2. Generate ledger records in Payroll_GovernmentLoans to show in the matrix
         if (agency === 'SSS' || agency === 'Pag-IBIG') {
           try {
-            // ENFORCE SSS START RULE: 2nd month following approval
             let currentYear, currentMonth;
             
-            const startTarget = new Date(now.getFullYear(), now.getMonth() + 2, 1);
-            currentYear = startTarget.getFullYear();
-            currentMonth = startTarget.getMonth();
+            if (agency === 'SSS') {
+              if (loanType === 'Emergency Loan') {
+                // ENFORCE SSS EMERGENCY START RULE: 6-month moratorium
+                // Example: Approved May -> Skip June-Nov -> Starts December (7 months later)
+                const startTarget = new Date(now.getFullYear(), now.getMonth() + 7, 1);
+                currentYear = startTarget.getFullYear();
+                currentMonth = startTarget.getMonth();
+              } else {
+                // ENFORCE SSS START RULE: 2nd month following approval (Applies to Salary, Calamity, Conso Loan)
+                // Example: Approved May -> Starts July
+                const startTarget = new Date(now.getFullYear(), now.getMonth() + 2, 1);
+                currentYear = startTarget.getFullYear();
+                currentMonth = startTarget.getMonth();
+              }
+            } else {
+              // Pag-IBIG typically starts the following month
+              const startTarget = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+              currentYear = startTarget.getFullYear();
+              currentMonth = startTarget.getMonth();
+            }
 
             const totalTermMonths = months;
             for (let i = 0; i < totalTermMonths; i++) {
@@ -2001,6 +2107,9 @@ exports.GetRequestDetails = async (req, res) => {
         lr."amortizationStartMonth" as "LR_startMonth",
         lr."totalOutstandingBalance" as "LR_balance",
         lr."isEnrollment" as "LR_isEnrollment",
+        lr."calamityArea" as "LR_calamityArea",
+        lr."damageProof_File" as "LR_damageProof",
+        lr."netPaySufficient" as "LR_netPaySufficient",
         lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
         lb."SL_balance",

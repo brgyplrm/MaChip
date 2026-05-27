@@ -245,6 +245,9 @@ module.exports = (sequelize, DataTypes) => {
       totalLoanTerm: { type: DataTypes.INTEGER, allowNull: true },
       amortizationStartMonth: { type: DataTypes.STRING(50), allowNull: true },
       totalOutstandingBalance: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+      calamityArea: { type: DataTypes.STRING(255), allowNull: true },
+      damageProof_File: { type: DataTypes.STRING(255), allowNull: true },
+      netPaySufficient: { type: DataTypes.BOOLEAN, defaultValue: false, allowNull: true },
     },
     { timestamps: true, freezeTableName: true },
   );

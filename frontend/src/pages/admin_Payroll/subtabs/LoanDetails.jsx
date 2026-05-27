@@ -264,7 +264,7 @@ export default function LoanDetailsPage() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {amortizationTable.paginated.map((row) => (
+                                            {amortizationTable.paginated.length > 0 ? amortizationTable.paginated.map((row) => (
                                                 <TableRow key={row.id} className="hover:bg-slate-50/50 transition-colors">
                                                     <TableCell className="font-bold text-slate-300 text-xs text-left">{row.number}</TableCell>
                                                     <TableCell className="font-bold text-slate-700 text-xs text-left">{formatDate(row.dueDate)}</TableCell>
@@ -277,7 +277,21 @@ export default function LoanDetailsPage() {
                                                         </Badge>
                                                     </TableCell>
                                                 </TableRow>
-                                            ))}
+                                            )) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={6} className="h-48 text-center py-12">
+                                                      <div className="flex flex-col items-center gap-3">
+                                                        <div className="h-12 w-12 bg-slate-50 rounded-full flex items-center justify-center">
+                                                          <FileText className="h-6 w-6 text-slate-200" />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                          <p className="font-black text-[#2A174E] text-xs uppercase tracking-wider">No Amortization Schedule Found</p>
+                                                          <p className="text-[10px] text-slate-400">The ledger for this loan has not been generated or is unavailable.</p>
+                                                        </div>
+                                                      </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
                                         </TableBody>
                                     </Table>
                                     {amortizationTable.totalItems > 10 && (

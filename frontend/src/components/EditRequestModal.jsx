@@ -44,6 +44,9 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         loanType: request.LR_loanType || "",
         amountRequested: request.LR_amount || "",
         monthsToPay: request.LR_months || "",
+        loanReferenceNo: request.LR_reference || "",
+        monthlyAmortization: request.LR_amortization || "",
+        totalOutstandingBalance: request.LR_balance || "",
       });
     }
   }, [request]);
@@ -72,7 +75,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
       // Ensure WithPayID is sent as integer for the backend
       const payload = { 
         ...formData, 
-        WithPayID: parseInt(formData.WithPayID),
+        WithPayID: parseInt(formData.WithPayID) || 1,
         modificationReason 
       };
       
@@ -247,9 +250,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                         <>
                           <SelectItem value="Salary Loan">Salary Loan</SelectItem>
                           <SelectItem value="Calamity Loan">Calamity Loan</SelectItem>
-                          <SelectItem value="Pension Loan">Pension Loan</SelectItem>
                           <SelectItem value="Emergency Loan">Emergency Loan</SelectItem>
-                          <SelectItem value="Micro-Loan (LoanLite)">Micro-Loan (LoanLite)</SelectItem>
                           <SelectItem value="SSS Conso Loan">SSS Conso Loan</SelectItem>
                         </>
                       )}
@@ -268,13 +269,29 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                 {request.emp_reqTypeId === 14 && (
                   <>
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700">Amount</label>
+                      <label className="text-sm font-bold text-slate-700">Amount / Principal</label>
                       <Input type="number" name="amountRequested" value={formData.amountRequested} onChange={handleInputChange} required />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700">Months</label>
+                      <label className="text-sm font-bold text-slate-700">Months Term</label>
                       <Input type="number" name="monthsToPay" value={formData.monthsToPay} onChange={handleInputChange} required />
                     </div>
+                    {formData.agency === "SSS" && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Monthly Amortization</label>
+                          <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} onChange={handleInputChange} step="0.01" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Outstanding Balance</label>
+                          <Input type="number" name="totalOutstandingBalance" value={formData.totalOutstandingBalance} onChange={handleInputChange} step="0.01" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Reference No.</label>
+                          <Input type="text" name="loanReferenceNo" value={formData.loanReferenceNo} onChange={handleInputChange} />
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
               </>

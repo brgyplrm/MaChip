@@ -35,6 +35,7 @@ const GovLoans = () => {
   const isAdmin = userData?.user_RoleId === 1 || userData?.user_RoleId === 4;
 
   const [activeTab, setActiveTab] = useState("summary"); 
+  const [activeMainTab, setActiveMainTab] = useState("summary"); 
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -85,10 +86,13 @@ const GovLoans = () => {
   const [syncingCell, setSyncingCell] = useState(null);
 
   const govTypes = [
-    { id: "sss_loan", label: "SSS Loan", dbType: "SSS" },
-    { id: "pagibig_loan", label: "Pag-IBIG Loan", dbType: "Pag-IBIG" },
-    { id: "multipurpose", label: "Multipurpose Savings", dbType: "Multi-Purpose" },
-    { id: "calamity", label: "Calamity Loan", dbType: "Calamity" }
+    { id: "sss_salary", label: "SSS Salary Loan", dbType: "SSS" },
+    { id: "sss_calamity", label: "SSS Calamity Loan", dbType: "SSS Calamity" },
+    { id: "sss_emergency", label: "SSS Emergency Loan", dbType: "SSS Emergency" },
+    { id: "sss_conso", label: "SSS Conso Loan", dbType: "SSS Conso Loan" },
+    { id: "pagibig_mpl", label: "Pag-IBIG MPL", dbType: "Pag-IBIG MPL" },
+    { id: "pagibig_calamity", label: "Pag-IBIG Calamity", dbType: "Pag-IBIG Calamity" },
+    { id: "multipurpose", label: "Multipurpose Savings", dbType: "Multi-Purpose" }
   ];
 
   const fetchCutoffDates = () => {
@@ -131,7 +135,8 @@ const GovLoans = () => {
             if (!dateMap[dKey]) dateMap[dKey] = {};
             dateMap[dKey][item.user_Id.toString()] = {
               amount: parseFloat(item.amount),
-              status: 'paid'
+              status: 'paid',
+              payrollId: item.payrollId
             };
           });
           combinedData[type.id] = Object.keys(dateMap).sort().map(date => ({
@@ -432,12 +437,15 @@ const GovLoans = () => {
 
     typeData.forEach(item => {
       const recordYear = new Date(item.date).getFullYear();
+      
       if (recordYear === selectedYear) {
         Object.keys(item.values).forEach(empKey => {
-          const amt = item.values[empKey].amount;
+          const record = item.values[empKey];
+          const amt = record.amount;
           if (amt > 0) {
             subscribers.add(empKey);
-            totalPaid += amt;
+            // Only count towards totalPaid if it has a payrollId (meaning it was deducted)
+            if (record.payrollId) totalPaid += amt;
           }
         });
       }
@@ -454,7 +462,11 @@ const GovLoans = () => {
 
   const currentTypeName = govTypes.find(t => t.id === activeTab)?.label || "";
   const typeDataForStats = activeTab !== "summary" ? (allData[activeTab] || []) : [];
-  const totalAllTime = typeDataForStats.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0);
+  const totalAllTime = typeDataForStats.reduce((acc, item) => {
+    // Only count loans that have a payrollId
+    const deductedInThisPeriod = Object.values(item.values).reduce((sum, v) => sum + (v.payrollId ? (v.amount || 0) : 0), 0);
+    return acc + deductedInThisPeriod;
+  }, 0);
 
   const renderSummaryTable = (typeObj) => {
     const typeData = allData[typeObj.id] || [];
@@ -462,7 +474,12 @@ const GovLoans = () => {
       <Card key={typeObj.id} className="shadow-sm border-0 bg-white pb-0 pt-4">
         <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-slate-50">
           <CardTitle className="text-base text-[#2A174E]">{typeObj.label} Summary</CardTitle>
-          <Button variant="link" onClick={() => setActiveTab(typeObj.id)} className="text-blue-500 font-bold uppercase text-[11px] hover:underline">View Details</Button>
+          <Button variant="link" onClick={() => {
+            if (typeObj.id.startsWith("sss")) setActiveMainTab("sss");
+            else if (typeObj.id.startsWith("pagibig")) setActiveMainTab("pagibig");
+            else setActiveMainTab("multipurpose");
+            setActiveTab(typeObj.id);
+          }} className="text-blue-500 font-bold uppercase text-[11px] hover:underline">View Details</Button>
         </CardHeader>
         <CardContent className="p-0">
           <div className="relative max-h-[400px] overflow-auto w-full bg-white rounded-b-xl custom-scrollbar">
@@ -488,12 +505,15 @@ const GovLoans = () => {
               </thead>
               <tbody>
                 {employeeList.map(emp => {
-                  const totalRow = summaryDates.reduce((acc, d) => {
+                  const totalRowDeducted = summaryDates.reduce((acc, d) => {
                     const record = typeData.find(item => item.date === d);
-                    return acc + (record?.values[emp.key]?.amount || 0);
+                    const val = record?.values[emp.key];
+                    return acc + (val?.payrollId ? (val.amount || 0) : 0);
                   }, 0);
 
-                  if (totalRow === 0 && activeTab === "summary") return null;
+                  const hasAnyValue = summaryDates.some(d => (typeData.find(item => item.date === d)?.values[emp.key]?.amount || 0) > 0);
+
+                  if (!hasAnyValue && activeTab === "summary") return null;
 
                   return (
                     <tr key={emp.user_Id} className="hover:bg-slate-50">
@@ -502,11 +522,17 @@ const GovLoans = () => {
                       </td>
                       {summaryDates.map(d => {
                         const record = typeData.find(item => item.date === d);
-                        const amount = record?.values[emp.key]?.amount || 0;
+                        const val = record?.values[emp.key];
+                        const amount = val?.amount || 0;
+                        const isDeducted = val?.payrollId != null;
                         const isCurrent = d === currentCutoffDate;
                         return (
-                          <td key={d} className={`p-3 text-center align-middle font-mono text-[12px] border-r border-b border-slate-100 ${amount > 0 ? 'text-green-800 font-bold' : 'text-slate-300'} ${isCurrent ? "bg-blue-50/30" : ""}`}>
-                            {amount > 0 ? amount.toFixed(2) : "—"}
+                          <td key={d} className={`p-3 text-center align-middle font-mono text-[12px] border-r border-b border-slate-100 ${amount > 0 ? (isDeducted ? 'text-green-800 font-bold' : 'text-blue-600 font-bold') : 'text-slate-300'} ${isCurrent ? "bg-blue-50/30" : ""}`}>
+                            <div className="flex flex-col items-center">
+                              <span>{amount.toFixed(2)}</span>
+                              {isDeducted && <span className="text-[7px] text-green-700 font-black uppercase tracking-tighter">Deducted</span>}
+                              {!isDeducted && amount > 0 && <span className="text-[7px] text-blue-700 font-black uppercase tracking-tighter">Ledger</span>}
+                            </div>
                           </td>
                         );
                       })}
@@ -700,26 +726,96 @@ const GovLoans = () => {
         </div>
       </div>
 
-        {/* Tab Navigation */}
-        <div className="flex flex-wrap gap-2 mb-6 border-b border-slate-200 pb-4">
+        {/* Main Tab Navigation */}
+        <div className="flex flex-wrap gap-2 mb-2">
           <Button
             variant="ghost"
-            className={`h-9 text-sm font-semibold rounded-lg ${activeTab === "summary" ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
-            onClick={() => {setActiveTab("summary"); setIsEditingTable(false);}}
+            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "summary" ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
+            onClick={() => {setActiveMainTab("summary"); setActiveTab("summary"); setIsEditingTable(false);}}
           >
             <DashboardIcon className="mr-2 h-4 w-4" /> Summary Overview
           </Button>
-          {govTypes.map(type => (
-            <Button
-              key={type.id}
-              variant="ghost"
-              className={`h-9 text-sm font-semibold rounded-lg ${activeTab === type.id ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
-              onClick={() => {setActiveTab(type.id); setIsEditingTable(false);}}
-            >
-              <AccountBalanceIcon className="mr-2 h-4 w-4" /> {type.label}
-            </Button>
-          ))}
+          <Button
+            variant="ghost"
+            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "sss" ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
+            onClick={() => {setActiveMainTab("sss"); setActiveTab("sss_salary"); setIsEditingTable(false);}}
+          >
+            <AccountBalanceIcon className="mr-2 h-4 w-4" /> SSS
+          </Button>
+          <Button
+            variant="ghost"
+            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "pagibig" ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
+            onClick={() => {setActiveMainTab("pagibig"); setActiveTab("pagibig_mpl"); setIsEditingTable(false);}}
+          >
+            <AccountBalanceIcon className="mr-2 h-4 w-4" /> Pag-IBIG
+          </Button>
+          <Button
+            variant="ghost"
+            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "multipurpose" ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
+            onClick={() => {setActiveMainTab("multipurpose"); setActiveTab("multipurpose"); setIsEditingTable(false);}}
+          >
+            <AccountBalanceIcon className="mr-2 h-4 w-4" /> Multipurpose Savings
+          </Button>
         </div>
+
+        {/* Sub Tab Navigation */}
+        {activeMainTab !== "summary" && activeMainTab !== "multipurpose" && (
+          <div className="flex flex-wrap gap-2 mb-6 border-b border-slate-200 pb-4">
+            {activeMainTab === "sss" && (
+              <>
+                <Button
+                  variant="ghost"
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_salary" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  onClick={() => {setActiveTab("sss_salary"); setIsEditingTable(false);}}
+                >
+                  Salary Loan
+                </Button>
+                <Button
+                  variant="ghost"
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_calamity" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  onClick={() => {setActiveTab("sss_calamity"); setIsEditingTable(false);}}
+                >
+                  Calamity Loan
+                </Button>
+                <Button
+                  variant="ghost"
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_emergency" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  onClick={() => {setActiveTab("sss_emergency"); setIsEditingTable(false);}}
+                >
+                  Emergency Loan
+                </Button>
+                <Button
+                  variant="ghost"
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_conso" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  onClick={() => {setActiveTab("sss_conso"); setIsEditingTable(false);}}
+                >
+                  Conso Loan
+                </Button>
+              </>
+            )}
+            {activeMainTab === "pagibig" && (
+              <>
+                <Button
+                  variant="ghost"
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "pagibig_mpl" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  onClick={() => {setActiveTab("pagibig_mpl"); setIsEditingTable(false);}}
+                >
+                  MPL
+                </Button>
+                <Button
+                  variant="ghost"
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "pagibig_calamity" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  onClick={() => {setActiveTab("pagibig_calamity"); setIsEditingTable(false);}}
+                >
+                  Calamity Loan
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+        {(activeMainTab === "summary" || activeMainTab === "multipurpose") && (
+          <div className="mb-6 border-b border-slate-200 pb-4"></div>
+        )}
 
         {/* Conditional Dashboard Stats for Specific Loans */}
         {activeTab !== "summary" && (
@@ -866,13 +962,13 @@ const GovLoans = () => {
                             const typeData = allData[activeTab] || [];
                             const rowTotals = {};
                             
-                            // Pre-calculate row totals
+                            // Pre-calculate row totals (only deducted)
                             expectedDates.forEach(dStr => {
                               const period = typeData.find(d => isInSamePeriod(d.date, dStr));
-                              rowTotals[dStr] = period ? Object.values(period.values).reduce((acc, v) => acc + (v.amount || 0), 0) : 0;
+                              rowTotals[dStr] = period ? Object.values(period.values).reduce((acc, v) => acc + (v.payrollId ? (v.amount || 0) : 0), 0) : 0;
                             });
 
-                            // Function to get monthly total
+                            // Function to get monthly total (only deducted)
                             const getMonthlyTotal = (dStr) => {
                               const date = new Date(dStr);
                               const m = date.getMonth();
@@ -926,6 +1022,7 @@ const GovLoans = () => {
                                     const actualRecord = typeData.find(d => isInSamePeriod(d.date, dateStr));
                                     const record = actualRecord ? actualRecord.values[emp.key] : null;
                                     const amount = record ? record.amount : 0;
+                                    const isDeducted = record?.payrollId != null;
                                     
                                     const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
                                     const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
@@ -933,7 +1030,10 @@ const GovLoans = () => {
                                     let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer ";
                                     if (isEditing) cellClass += "bg-white p-0 ";
                                     else if (isSyncing) cellClass += "bg-yellow-50 ";
-                                    else if (amount > 0) cellClass += "text-green-800 font-bold ";
+                                    else if (amount > 0) {
+                                      if (isDeducted) cellClass += "text-green-800 font-bold bg-green-50/50 ";
+                                      else cellClass += "text-blue-600 font-bold ";
+                                    }
                                     else if (record) cellClass += "text-red-600 font-semibold opacity-80 ";
                                     else cellClass += "text-slate-400 "; 
 
@@ -941,7 +1041,7 @@ const GovLoans = () => {
                                       <td 
                                         key={emp.key} 
                                         className={cellClass}
-                                        onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
+                                        onDoubleClick={() => !isDeducted && handleCellDoubleClick(dateStr, emp.key, amount)}
                                       >
                                         {isEditing ? (
                                           <input 
@@ -961,7 +1061,10 @@ const GovLoans = () => {
                                         ) : isSyncing ? (
                                           <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
                                         ) : (
-                                          amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"
+                                          <div className="flex flex-col items-center">
+                                            <span>{amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}</span>
+                                            {isDeducted && <span className="text-[8px] text-green-700 font-black uppercase tracking-tighter">Deducted</span>}
+                                          </div>
                                         )}
                                       </td>
                                     );
@@ -969,12 +1072,12 @@ const GovLoans = () => {
 
                                   {/* Right Column Cells (Row Totals) */}
                                   <td className={`sticky right-[120px] z-[40] border-l-2 border-b border-[#2A174E] p-3 text-center align-middle font-bold text-[#2A174E] min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isCurrentRow ? "bg-blue-50" : "bg-white"}`}>
-                                    {parseFloat(rowTotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {rowTotal > 0 ? parseFloat(rowTotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                                   </td>
                                   <td className={`sticky right-0 z-[40] border-l border-b border-slate-200 p-3 text-center align-middle font-bold text-[#2A174E] min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isCurrentRow ? "bg-blue-50" : "bg-slate-50"}`}>
-                                    {monthlyTotal !== null 
+                                    {monthlyTotal !== null && monthlyTotal > 0
                                       ? parseFloat(monthlyTotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                      : ""}
+                                      : monthlyTotal !== null ? "—" : ""}
                                   </td>
                                 </tr>
                               );
@@ -990,11 +1093,12 @@ const GovLoans = () => {
                                 const typeData = allData[activeTab] || [];
                                 const empSubtotal = expectedDates.reduce((acc, dateStr) => {
                                   const period = typeData.find(d => isInSamePeriod(d.date, dateStr));
-                                  return acc + (period?.values[emp.key]?.amount || 0);
+                                  const record = period?.values[emp.key];
+                                  return acc + (record?.payrollId ? (record.amount || 0) : 0);
                                 }, 0);
                                 return (
                                   <td key={emp.key} className="border-r border-t-2 border-b border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
-                                    {parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {empSubtotal > 0 ? parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                                   </td>
                                 );
                               })}
@@ -1003,9 +1107,9 @@ const GovLoans = () => {
                                    const typeData = allData[activeTab] || [];
                                    const stats = expectedDates.reduce((acc, dateStr) => {
                                      const period = typeData.find(d => isInSamePeriod(d.date, dateStr));
-                                     return acc + (period ? Object.values(period.values).reduce((sum, v) => sum + (v.amount || 0), 0) : 0);
+                                     return acc + (period ? Object.values(period.values).reduce((sum, v) => sum + (v.payrollId ? (v.amount || 0) : 0), 0) : 0);
                                    }, 0);
-                                   return parseFloat(stats).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                   return stats > 0 ? parseFloat(stats).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
                                 })()}
                               </td>
                               <td className="sticky right-0 z-[50] bg-[#2A174E] text-yellow-400 border-l border-t-2 border-b border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
@@ -1013,9 +1117,9 @@ const GovLoans = () => {
                                    const typeData = allData[activeTab] || [];
                                    const stats = expectedDates.reduce((acc, dateStr) => {
                                      const period = typeData.find(d => isInSamePeriod(d.date, dateStr));
-                                     return acc + (period ? Object.values(period.values).reduce((sum, v) => sum + (v.amount || 0), 0) : 0);
+                                     return acc + (period ? Object.values(period.values).reduce((sum, v) => sum + (v.payrollId ? (v.amount || 0) : 0), 0) : 0);
                                    }, 0);
-                                   return parseFloat(stats).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                   return stats > 0 ? parseFloat(stats).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
                                 })()}
                               </td>
                             </tr>
@@ -1027,25 +1131,28 @@ const GovLoans = () => {
                               </td>
                               {employeeList.map((emp) => {
                                 const typeData = allData[activeTab] || [];
-                                const totalLoans = typeData.reduce((acc, item) => acc + (item.values[emp.key]?.amount || 0), 0);
+                                const totalLoans = typeData.reduce((acc, item) => {
+                                  const record = item.values[emp.key];
+                                  return acc + (record?.payrollId ? (record.amount || 0) : 0);
+                                }, 0);
                                 return (
                                   <td key={emp.key} className="border-r border-t border-slate-300 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
-                                    {parseFloat(totalLoans).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {totalLoans > 0 ? parseFloat(totalLoans).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                                   </td>
                                 );
                               })}
                               <td className="sticky right-[120px] z-[50] bg-white text-[#2A174E] border-l-2 border-t border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                                 {(() => {
                                    const typeData = allData[activeTab] || [];
-                                   const totalAllTime = typeData.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0);
-                                   return parseFloat(totalAllTime).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                   const totalAllTimeDeducted = typeData.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.payrollId ? (v.amount || 0) : 0), 0), 0);
+                                   return totalAllTimeDeducted > 0 ? parseFloat(totalAllTimeDeducted).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
                                 })()}
                               </td>
                               <td className="sticky right-0 z-[50] bg-white text-[#2A174E] border-l border-t border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                                 {(() => {
                                    const typeData = allData[activeTab] || [];
-                                   const totalAllTime = typeData.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.amount || 0), 0), 0);
-                                   return parseFloat(totalAllTime).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                   const totalAllTimeDeducted = typeData.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.payrollId ? (v.amount || 0) : 0), 0), 0);
+                                   return totalAllTimeDeducted > 0 ? parseFloat(totalAllTimeDeducted).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
                                 })()}
                               </td>
                             </tr>

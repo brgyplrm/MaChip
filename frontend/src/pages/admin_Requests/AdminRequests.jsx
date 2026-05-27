@@ -774,30 +774,50 @@ const AdminRequests = () => {
                                 <p className="font-mono text-xs font-bold text-slate-700">{current.LR_reference}</p>
                               </div>
                             )}
-                          </>
-                        )}
-                      </>
-                    )}
+                            {current.LR_calamityArea && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Declared Calamity Area</label>
+                                <p className="font-semibold text-orange-600">{current.LR_calamityArea}</p>
+                              </div>
+                            )}
+                            </>
+                            )}
+                            </>
+                            )}
 
-                    {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File) && (
-                      <div className="space-y-1 col-span-1 sm:col-span-2 xl:col-span-3">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachment</label>
-                        <div>
-                          <button 
+                            {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File || current.LR_damageProof) && (
+                            <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachments</label>
+                            <div className="flex flex-col gap-2">
+                            {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File) && (
+                            <button
                             type="button"
                             onClick={() => {
                               setViewingFileUrl(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File);
                               setViewingFileName(`Attachment for REQ-${current.emp_reqId}`);
                               setIsFileViewerOpen(true);
                             }}
-                            className="inline-flex items-center text-[#2A174E] font-semibold hover:underline mt-1 bg-transparent border-none cursor-pointer"
-                          >
-                            <AttachmentIcon className="mr-1 h-4 w-4" /> View Attachment
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
+                            className="inline-flex items-center text-[#2A174E] font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
+                            >
+                            <AttachmentIcon className="mr-1 h-4 w-4" /> View Primary Document (Disclosure Statement/Medical Cert)
+                            </button>
+                            )}
+                            {current.LR_damageProof && (
+                            <button
+                            type="button"
+                            onClick={() => {
+                              setViewingFileUrl(current.LR_damageProof);
+                              setViewingFileName(`Damage Proof for REQ-${current.emp_reqId}`);
+                              setIsFileViewerOpen(true);
+                            }}
+                            className="inline-flex items-center text-orange-600 font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
+                            >
+                            <AttachmentIcon className="mr-1 h-4 w-4" /> View Property Damage Proof
+                            </button>
+                            )}
+                            </div>
+                            </div>
+                            )}
                     <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3 border-t border-slate-200 pt-4 mt-2">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employee Remarks / Purpose</label>
                       <p className="text-sm text-slate-700 italic bg-white p-4 rounded-lg border border-slate-200">"{current.remarks || "No details provided"}"</p>

@@ -543,12 +543,16 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     mpSave = user[0]?.multiPurposeSavings || 0;
 
     // Apply overrides from ledger if they exist for this specific period
-    govLoanRecords.forEach(record => {
-      if (record.government_type === 'SSS') sLoan = record.amount;
-      if (record.government_type === 'Pag-IBIG') hLoan = record.amount;
-      if (record.government_type === 'Calamity') cLoan = record.amount;
-      if (record.government_type === 'Multi-Purpose') mpSave = record.amount;
-    });
+    if (govLoanRecords.length > 0) {
+      sLoan = 0; hLoan = 0; cLoan = 0; mpSave = 0;
+      govLoanRecords.forEach(record => {
+        const type = record.government_type;
+        if (type === 'SSS' || type === 'SSS Salary') sLoan += record.amount;
+        else if (type === 'Pag-IBIG' || type === 'Pag-IBIG MPL') hLoan += record.amount;
+        else if (type === 'Calamity' || type === 'SSS Calamity' || type === 'Pag-IBIG Calamity') cLoan += record.amount;
+        else if (type === 'Multi-Purpose') mpSave += record.amount;
+      });
+    }
   } catch (err) {
     console.error("[GOV LOAN LEDGER CHECK ERROR]:", err.message);
     sLoan = user[0]?.SSS_Loan || 0;
@@ -2001,7 +2005,12 @@ exports.syncMaxicareHistory = async (req, res) => {
 const loanTypeMapper = {
   "Cash Advance": { dbType: "cash_advance", dedCol: "advances_Amnt" },
   "SSS": { dbType: "sss_loan", dedCol: "SSS_Loan", govType: "SSS" },
+  "SSS Calamity": { dbType: "sss_calamity", dedCol: "calamityLoan_Amnt", govType: "SSS Calamity" },
+  "SSS Emergency": { dbType: "sss_emergency", dedCol: "calamityLoan_Amnt", govType: "SSS Emergency" },
+  "SSS Conso Loan": { dbType: "sss_conso", dedCol: "SSS_Loan", govType: "SSS Conso Loan" },
   "Pag-IBIG": { dbType: "hdmf_loan", dedCol: "HDMF_Loan", govType: "Pag-IBIG" },
+  "Pag-IBIG MPL": { dbType: "pagibig_mpl", dedCol: "HDMF_Loan", govType: "Pag-IBIG MPL" },
+  "Pag-IBIG Calamity": { dbType: "pagibig_calamity", dedCol: "calamityLoan_Amnt", govType: "Pag-IBIG Calamity" },
   "Calamity": { dbType: "calamity", dedCol: "calamityLoan_Amnt", govType: "Calamity" },
   "Multi-Purpose": { dbType: "multipurpose", dedCol: "multiPurposeSavings", govType: "Multi-Purpose" },
   "Eastwest Loan": { dbType: "eastwest", dedCol: "eastwest_Loan" }
@@ -2034,14 +2043,14 @@ exports.getLoanHistory = async (req, res) => {
     // 2. Government Loan Ledger
     if (config.govType) {
       const history = await sequelize.query(
-        `SELECT "date", "user_Id", "amount" FROM "Payroll_GovernmentLoans" WHERE "government_type" = :govType ORDER BY "date" ASC`,
+        `SELECT "date", "user_Id", "amount", "payrollId" FROM "Payroll_GovernmentLoans" WHERE "government_type" = :govType ORDER BY "date" ASC`,
         { replacements: { govType: config.govType }, type: QueryTypes.SELECT }
       );
 
       // Fallback for transition period: pull from Payroll_Deductions if ledger is empty
       if (history.length === 0) {
          const legacyHistory = await sequelize.query(
-          `SELECT p."period_End" as date, p."user_Id", pd."${config.dedCol}" as amount
+          `SELECT p."period_End" as date, p."user_Id", pd."${config.dedCol}" as amount, p."payrollId"
            FROM "Payroll" p
            JOIN "Payroll_Deductions" pd ON p."payrollId" = pd."payrollId"
            WHERE pd."${config.dedCol}" > 0
@@ -2112,14 +2121,32 @@ exports.syncLoanHistory = async (req, res) => {
       }
 
       // 2. Update Payroll_Deductions (if payroll record already exists)
+      let finalAmount = amount;
+      if (config.govType) {
+        let categoryTypes = [];
+        if (config.dedCol === 'SSS_Loan') categoryTypes = ['SSS', 'SSS Salary'];
+        else if (config.dedCol === 'HDMF_Loan') categoryTypes = ['Pag-IBIG', 'Pag-IBIG MPL'];
+        else if (config.dedCol === 'calamityLoan_Amnt') categoryTypes = ['Calamity', 'SSS Calamity', 'Pag-IBIG Calamity'];
+        else if (config.dedCol === 'multiPurposeSavings') categoryTypes = ['Multi-Purpose'];
+
+        if (categoryTypes.length > 0) {
+          const sumRes = await sequelize.query(
+            `SELECT SUM("amount") as "total" FROM "Payroll_GovernmentLoans" 
+             WHERE "user_Id" = :user_Id AND "date" = :date AND "government_type" IN (:categoryTypes)`,
+            { replacements: { user_Id, date, categoryTypes }, type: QueryTypes.SELECT }
+          );
+          finalAmount = parseFloat(sumRes[0]?.total || 0);
+        }
+      }
+
       const [_, metadata] = await sequelize.query(
         `UPDATE "Payroll_Deductions" pd
-         SET "${config.dedCol}" = :amount
+         SET "${config.dedCol}" = :finalAmount
          FROM "Payroll" p
          WHERE p."payrollId" = pd."payrollId"
          AND p."user_Id" = :user_Id
          AND p."period_End" = :date`,
-        { replacements: { amount, user_Id, date }, type: QueryTypes.UPDATE }
+        { replacements: { finalAmount, user_Id, date }, type: QueryTypes.UPDATE }
       );
 
       const rowsAffected = metadata?.rowCount || 0;
