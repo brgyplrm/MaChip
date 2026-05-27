@@ -24,16 +24,25 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined';
 import HistoryIcon from "@mui/icons-material/History";
 import { Link, useSearchParams } from "react-router-dom";
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Table, TableHeader, TableRow, TableHead, TableBody } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
 
 const Maxicare = () => {
   const { systemToday } = useSystemTime();
   const [searchParams] = useSearchParams();
   const queryYear = searchParams.get("year");
+
+  const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card"
   
   const userData = JSON.parse(localStorage.getItem("userData"));
   const isAdmin = userData?.user_RoleId === 4 || 1;
@@ -49,6 +58,8 @@ const Maxicare = () => {
   const [employerShare, setEmployerShare] = useState(50);
   const [initialSyncDone, setInitialSyncDone] = useState(false);
   const [excludedDates, setExcludedDates] = useState([]);
+
+  const [selectedSheetMonth, setSelectedSheetMonth] = useState("ALL");
   
   const [config, setConfig] = useState({
     totalGross: 0,
@@ -1113,6 +1124,79 @@ const Maxicare = () => {
     return today.getFullYear();
   }, [cycleConfigs, systemToday]);
 
+  const employeeCardsData = useMemo(() => {
+    return employeeList.map(emp => {
+      let totalCollectedInCycle = 0;
+      const individualLogMatrix = displayDates.map(dateStr => {
+        const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
+        let amount = 0;
+        let status = "unpaid";
+
+        if (actualRecord && actualRecord.values[emp.key]) {
+          const record = actualRecord.values[emp.key];
+          amount = record.amount;
+          status = record.status;
+        } else if (!isUnconfigured && dateStr >= (systemToday ? formatDateLocal(systemToday) : "")) {
+          amount = parseFloat(emp.expectedDeduction) || 0;
+          status = "estimated";
+        }
+
+        if (status === 'paid') {
+          totalCollectedInCycle += amount;
+        }
+
+        return { dateStr, amount, status };
+      });
+
+      const totalHistoricalPaid = displayDates
+        .filter(d => !currentCutoffDate || d < currentCutoffDate)
+        .reduce((acc, dateStr) => {
+          const period = data.find(d => isInSamePeriod(d.date, dateStr));
+          return acc + ((period && period.values[emp.key]) ? period.values[emp.key].amount : 0);
+        }, 0);
+
+      const balance = (parseFloat(emp.expectedDeduction) || 0) > 0 || totalHistoricalPaid > 0 
+        ? (employeeShareAmount - totalHistoricalPaid) 
+        : 0;
+
+      return {
+        ...emp,
+        totalCollectedInCycle,
+        totalHistoricalPaid,
+        balance,
+        logs: individualLogMatrix
+      };
+    });
+  }, [employeeList, displayDates, data, isUnconfigured, systemToday, employeeShareAmount]);
+  
+  // Add these for Card Layout controls
+  const [cardSearchQuery, setCardSearchQuery] = useState("");
+  const [cardCurrentPage, setCardCurrentPage] = useState(1);
+  const cardItemsPerPage = 6; // Fits cleanly into a balanced 3-column dashboard grid
+
+  // Reset page position if the search query changes
+  useEffect(() => {
+    setCardCurrentPage(1);
+  }, [cardSearchQuery]);
+
+  // Filter cards based on employee name or company system ID match
+  const filteredCardEmployees = useMemo(() => {
+    return employeeCardsData.filter(emp => 
+      emp.name.toLowerCase().includes(cardSearchQuery.toLowerCase()) ||
+      emp.id.toLowerCase().includes(cardSearchQuery.toLowerCase())
+    );
+  }, [employeeCardsData, cardSearchQuery]);
+
+  // Compute pagination limits
+  const totalCardPages = Math.ceil(filteredCardEmployees.length / cardItemsPerPage);
+  const cardStartIndex = (cardCurrentPage - 1) * cardItemsPerPage;
+  const cardEndIndex = Math.min(cardStartIndex + cardItemsPerPage, filteredCardEmployees.length);
+  
+  // Slice data for rendering on the active page frame
+  const paginatedCardEmployees = useMemo(() => {
+    return filteredCardEmployees.slice(cardStartIndex, cardStartIndex + cardItemsPerPage);
+  }, [filteredCardEmployees, cardStartIndex]);
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Dialog open={showCalculator} onOpenChange={setShowCalculator}>
@@ -1419,39 +1503,93 @@ const Maxicare = () => {
         </div>
 
         {/* Matrix Table Section */}
+        <h3 className="text-xl font-bold text-[#2A174E]">Employee Deduction History ({getCycleLabel()})</h3>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4 mt-8">
-          <h3 className="text-xl font-bold text-[#2A174E]">Employee Deduction History ({getCycleLabel()})</h3>
-          <div className="flex flex-wrap gap-2">
-            {isAdmin && (
-              <>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    setIsEditing(true);
-                    setShowCalculator(true);
-                  }}
-                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50"
-                  disabled={loading}
-                >
-                  <EditIcon className="mr-1 h-4 w-4" /> Edit Config
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    setBatchForm(prev => ({ 
-                      ...prev, 
-                      dates: [],
-                      amount: deductionCutoff > 0 ? deductionCutoff.toFixed(2) : "" 
-                    }));
-                    setShowBatchModal(true);
-                  }}
-                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50"
-                  disabled={loading || displayDates.length === 0}
-                >
-                  <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
-                </Button>
+        
+        {/* Sub-container: Pushed to the right, spans full width on mobile, auto-width on desktop */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full">
+          
+          {/* Left Side: Layout View Switcher */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
+            <Button
+              size="sm"
+              variant={displayLayout === "table" ? "default" : "ghost"}
+              onClick={() => setDisplayLayout("table")}
+              className={`h-7 text-xs font-bold transition-all ${
+                displayLayout === "table" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
+              }`}
+            >
+              Matrix Table
+            </Button>
+            <Button
+              size="sm"
+              variant={displayLayout === "card" ? "default" : "ghost"}
+              onClick={() => setDisplayLayout("card")}
+              className={`h-7 text-xs font-bold transition-all ${
+                displayLayout === "card" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
+              }`}
+            >
+              Employee Cards
+            </Button>
+          </div>
+
+          {displayLayout === "card" && (
+            <>
+            {/* Cards Action Subheader Tools */}
+            <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md mr-auto items-center">
+              <div className="relative w-full">
+                <Input
+                  placeholder="Search card profile name or ID..."
+                  value={cardSearchQuery}
+                  onChange={(e) => setCardSearchQuery(e.target.value)}
+                  className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E] pr-8 pl-3 h-9 text-xs"
+                />
+                {cardSearchQuery && (
+                  <button 
+                    onClick={() => setCardSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-rose-500 font-semibold transition-colors"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+            </>
+          )}
+
+          {/* Right Side: Admin Action Buttons */}
+          {isAdmin && (
+            <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setIsEditing(true);
+                  setShowCalculator(true);
+                }}
+                className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
+                disabled={loading}
+              >
+                <EditIcon className="mr-1 h-4 w-4" /> Edit
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setBatchForm(prev => ({ 
+                    ...prev, 
+                    dates: [],
+                    amount: deductionCutoff > 0 ? deductionCutoff.toFixed(2) : "" 
+                  }));
+                  setShowBatchModal(true);
+                }}
+                className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
+                disabled={loading || displayDates.length === 0}
+              >
+                <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch
+              </Button>
+              
+              {displayLayout === "table" && (
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -1462,42 +1600,45 @@ const Maxicare = () => {
                       setIsEditingTable(true);
                     }
                   }}
-                  className={`${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
+                  className={`h-9 ${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
                 >
                   {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Table</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Table</>}
                 </Button>
+              )}
 
-                {isEditingTable && (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={addPeriod}
-                      className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                    >
-                      Add Period
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={clearYearTemplate}
-                      className="border-rose-600 text-rose-600 hover:bg-rose-50"
-                    >
-                      Empty Months
-                    </Button>
-                  </>
-                )}
-              </>
-            )}
+              {isEditingTable && displayLayout === "table" && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={addPeriod}
+                    className="border-blue-600 text-blue-600 hover:bg-blue-50 h-9"
+                  >
+                    Add Period
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={clearYearTemplate}
+                    className="border-rose-600 text-rose-600 hover:bg-rose-50 h-9"
+                  >
+                    Empty Months
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-0">
-          <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-xl">
-            <table className="w-full min-w-max border-collapse text-sm">
-              <thead className="sticky top-0 z-[50] shadow-sm">
-                <tr>
-                  <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-[#2A174E] p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+        {displayLayout === "table" ? (
+          <>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-0">
+            <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-xl">
+              <table className="w-full min-w-max border-collapse text-sm">
+                <thead className="sticky top-0 z-[50] shadow-sm">
+                  <tr>
+                    <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-[#2A174E] p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                     <div className="flex flex-col leading-tight">
                       <span className="text-[9px] font-black uppercase opacity-90">{getCycleLabel()}</span>
                       <span className="text-xs text-white font-bold">MONTHS / DATE</span>
@@ -1756,6 +1897,249 @@ const Maxicare = () => {
             </table>
           </div>
         </div>
+        </>
+        ) : (
+          /* Employee-First Cards View Framework Container */
+          <div className="space-y-4 mt-4 animate-in fade-in duration-200">
+
+            {paginatedCardEmployees.length === 0 ? (
+              <div className="text-center py-16 text-slate-400 font-medium border border-dashed rounded-xl bg-slate-50/50 text-sm">
+                No active employee card records found matching "{cardSearchQuery}".
+              </div>
+            ) : (
+              <>
+                {/* Responsive Card Deck */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {paginatedCardEmployees.map((emp) => {
+                    const progressPercentage = employeeShareAmount > 0 
+                      ? Math.min((emp.totalHistoricalPaid / employeeShareAmount) * 100, 100) 
+                      : 0;
+
+                    return (
+                      <Card key={emp.key} className="py-0 border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
+                        <CardHeader className="pt-6 bg-slate-50/60 pb-4 border-b border-slate-100 border-t-4 flex flex-row items-center justify-between space-y-0">
+                          <div className="flex items-center gap-3 truncate mr-2">
+                            <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
+                              <AccountCircleIcon />
+                            </div>
+                            <div className="truncate text-left">
+                              <CardTitle className="text-sm md:text-base font-bold text-[#2A174E] truncate">{emp.name}</CardTitle>
+                              <span className="text-xs font-mono text-slate-400 block mt-0.5">{emp.id}</span>
+                            </div>
+                          </div>
+
+                          <Sheet>
+                            <SheetTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0">
+                                <OpenInNewIcon fontSize="small" />
+                              </Button>
+                            </SheetTrigger>
+                            {/* Upgrades to 4xl (~896px) on desktop and 5xl (~1024px) on wide monitors */}
+                            <SheetContent className="w-full sm:max-w-2xl lg:max-w-xl! xl:max-w-5xl bg-white overflow-y-auto custom-scrollbar p-6">
+                              <SheetHeader className="pb-4 border-b border-slate-100 text-left">
+                                <SheetTitle className="text-xl font-bold text-[#2A174E]">
+                                  {emp.name}'s Premium History
+                                </SheetTitle>
+                                <SheetDescription className="text-xs text-slate-400 font-mono">
+                                  ID Ref: {emp.id} | Active Cycle Track: {getCycleLabel()}
+                                </SheetDescription>
+                              </SheetHeader>
+
+                              <div className="grid grid-cols-2 gap-4 my-6 text-left">
+                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide block">Cycle Subtotal Paid</span>
+                                  <span className="text-base font-bold text-green-700">₱{emp.totalHistoricalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide block">Remaining Balance</span>
+                                  <span className={`text-base font-bold ${emp.balance < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                                    ₱{emp.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-4">
+                                {/* Table Header Section containing Title and Filter Selector */}
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-1">
+                                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 text-left">Deductions Ledger Matrix</h3>
+                                  
+                                  {/* Interval Date Filter Dropdown */}
+                                  <div className="w-full sm:w-[160px]">
+                                    <Select value={selectedSheetMonth} onValueChange={setSelectedSheetMonth}>
+                                      <SelectTrigger className="h-8 text-[11px] bg-slate-50 border-slate-200 font-semibold text-slate-600 focus-visible:ring-[#2A174E]">
+                                        <SelectValue placeholder="Filter by Month" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="ALL">All Cut-offs</SelectItem>
+                                        <SelectItem value="0">January</SelectItem>
+                                        <SelectItem value="1">February</SelectItem>
+                                        <SelectItem value="2">March</SelectItem>
+                                        <SelectItem value="3">April</SelectItem>
+                                        <SelectItem value="4">May</SelectItem>
+                                        <SelectItem value="5">June</SelectItem>
+                                        <SelectItem value="6">July</SelectItem>
+                                        <SelectItem value="7">August</SelectItem>
+                                        <SelectItem value="8">September</SelectItem>
+                                        <SelectItem value="9">October</SelectItem>
+                                        <SelectItem value="10">November</SelectItem>
+                                        <SelectItem value="11">December</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                <div className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
+                                  <Table>
+                                    <TableHeader className="bg-[#2B174F]">
+                                      <TableRow className="hover:bg-transparent border-b-0">
+                                        <TableHead className="font-semibold text-white uppercase text-[10px] tracking-wider py-3 px-4">Payroll Interval Point</TableHead>
+                                        <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">Deduction Amount</TableHead>
+                                        <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">Posting Status</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {(() => {
+                                        // Context filter execution
+                                        const filteredLogs = emp.logs.filter(log => {
+                                          if (selectedSheetMonth === "ALL") return true;
+                                          const logDate = new Date(log.dateStr);
+                                          return logDate.getMonth().toString() === selectedSheetMonth;
+                                        });
+
+                                        if (filteredLogs.length === 0) {
+                                          return (
+                                            <TableRow>
+                                              <td colSpan={3} className="text-center py-8 text-xs text-slate-400 font-medium italic bg-slate-50/50">
+                                                No logs found for the selected month window.
+                                              </td>
+                                            </TableRow>
+                                          );
+                                        }
+
+                                        return filteredLogs.map((log) => {
+                                          const dObj = new Date(log.dateStr);
+                                          return (
+                                            <TableRow key={log.dateStr} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
+                                              <td className="font-bold text-[#2A174E] text-xs py-2.5 px-4 text-left">
+                                                {dObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                {log.dateStr === currentCutoffDate && <span className="bg-yellow-400 text-[#2A174E] text-[8px] font-black px-1.5 py-0.2 rounded ml-2">CURRENT</span>}
+                                              </td>
+                                              <td className="text-center text-xs font-mono font-bold text-slate-700">
+                                                {log.amount > 0 ? `₱${log.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "—"}
+                                              </td>
+                                              <td className="text-center text-xs">
+                                                <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                                                  log.status === 'paid' ? 'bg-green-50 text-green-700 border border-green-200' : 
+                                                  log.status === 'estimated' ? 'bg-amber-50 text-amber-600 italic border border-amber-100' : 
+                                                  'bg-slate-50 text-slate-400'
+                                                }`}>
+                                                  {log.status}
+                                                </span>
+                                              </td>
+                                            </TableRow>
+                                          );
+                                        });
+                                      })()}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            </SheetContent>
+                          </Sheet>
+                        </CardHeader>
+
+                        <CardContent className="p-5 space-y-4 flex-1 text-left">
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-xs font-medium">
+                              <span className="text-slate-500">Cycle Amortization Progress</span>
+                              <span className="text-slate-800 font-bold">
+                                {progressPercentage.toFixed(0)}% <span className="text-slate-400 font-normal">Complete</span>
+                              </span>
+                            </div>
+                            <Progress value={progressPercentage} className="h-1.5 bg-slate-100" />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex flex-col justify-between">
+                              <div className="flex items-center gap-1 text-[#2A174E] mb-1">
+                                <AccountBalanceWalletIcon className="!text-xs shrink-0" />
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Per Cut-Off</span>
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-slate-800 block">
+                                  ₱{emp.expectedDeduction.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex flex-col justify-between">
+                              <div className="flex items-center gap-1 text-orange-500 mb-1">
+                                <TrendingUpIcon className="!text-xs shrink-0" />
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total Remitted</span>
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-slate-800 block">
+                                  ₱{emp.totalHistoricalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className={`border rounded-lg p-2.5 flex items-center justify-between mt-1 ${
+                            emp.balance < 0 ? 'bg-rose-50/40 border-rose-100' : 'bg-emerald-50/40 border-emerald-100'
+                          }`}>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <SecurityIcon className={emp.balance < 0 ? 'text-rose-600 shrink-0' : 'text-emerald-600 shrink-0'} fontSize="small" />
+                              <span className={`text-[11px] font-semibold truncate ${emp.balance < 0 ? 'text-rose-800' : 'text-emerald-800'}`}>
+                                {emp.balance < 0 ? 'Overpaid Balance' : 'Remaining Cycle Balance'}
+                              </span>
+                            </div>
+                            <span className={`text-sm font-extrabold shrink-0 ${emp.balance < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                              ₱{Math.abs(emp.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                {/* Dashboard-Style Pagination Controls */}
+                <div className="flex flex-col sm:flex-row items-center justify-between pt-6 border-t border-slate-100 gap-4 mt-2">
+                  <div className="text-xs font-medium text-slate-500">
+                    Showing <span className="text-slate-800 font-bold">{cardStartIndex + 1}</span> to{" "}
+                    <span className="text-slate-800 font-bold">{cardEndIndex}</span> of{" "}
+                    <span className="text-slate-800 font-bold">{filteredCardEmployees.length}</span> profiles
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setCardCurrentPage(p => Math.max(1, p - 1))} 
+                      disabled={cardCurrentPage === 1}
+                      className="h-8 text-xs font-semibold px-3"
+                    >
+                      Previous
+                    </Button>
+                    <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-[#2A174E] bg-[#2A174E]/10 rounded-md px-2">
+                      {cardCurrentPage} / {totalCardPages || 1}
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setCardCurrentPage(p => Math.min(totalCardPages, p + 1))} 
+                      disabled={cardCurrentPage >= totalCardPages}
+                      className="h-8 text-xs font-semibold px-3"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
       </Sidebar>
     </div>

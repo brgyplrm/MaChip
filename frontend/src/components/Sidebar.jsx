@@ -227,7 +227,7 @@ const Sidebar = ({ children }) => {
 
   return (
     <SidebarProvider>
-      <ShadcnSidebar className="bg-white border-r border-gray-200">
+      <ShadcnSidebar collapsible="icon" className="bg-white border-r border-gray-200">
         <SidebarHeader className="p-4 border-b border-gray-100 relative">
           <Link to={homePath} className="flex no-underline items-center pl-5 md:pl-8">
             <img 
@@ -255,14 +255,16 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuButton 
                     asChild 
                     isActive={isActive(homePath)}
-                    className={isActive(homePath) ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                    className={(isActive(homePath) ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500") + "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!px-0"}
                   >
                     <Link to={homePath}>
                       <DashboardOutlinedIcon 
                           className="!text-[22px]" 
                           sx={{ strokeWidth: 1/2 }}
                       />
-                      <span className="ms-3 text-[14px]">Dashboard</span>
+                      <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">
+                      Dashboard
+                    </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
