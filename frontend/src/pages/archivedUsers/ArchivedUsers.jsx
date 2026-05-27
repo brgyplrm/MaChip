@@ -329,7 +329,7 @@ const ArchivedUsers = () => {
                               className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white transition-colors"
                               onClick={() => handleRestore(user)}
                             >
-                              <RestoreIcon className="mr-1 h-4 w-4" /> Restore
+                              <RestoreIcon className=" h-4 w-4" />
                             </Button>
                             {currentUser?.user_Id !== user.user_Id && (
                               <Button 
@@ -338,7 +338,7 @@ const ArchivedUsers = () => {
                                 className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors"
                                 onClick={() => initiatePermanentDelete(user)}
                               >
-                                <DeleteOutlineIcon className="mr-1 h-4 w-4" /> Delete
+                                <DeleteOutlineIcon className="h-4 w-4" />
                               </Button>
                             )}
                           </div>

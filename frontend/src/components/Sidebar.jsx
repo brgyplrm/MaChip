@@ -150,6 +150,15 @@ const Sidebar = ({ children }) => {
     ) {
       setIsPayrollOpen(true);
     }
+
+    if (
+      location.pathname.startsWith("/auditLogs") || 
+      location.pathname.startsWith("/transactionLog") || 
+      location.pathname.startsWith("/settings") || 
+      location.pathname.startsWith("/faq")
+    ) {
+      setIsSettingsOpen(true);
+    }
   }, [location.pathname]);
 
   // Click-outside listener to unlock the dropdowns
@@ -288,7 +297,7 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       onClick={() => setIsUsersOpen(!isUsersOpen)}
-                      className={isActive("/users") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                      className={location.pathname.startsWith("/users") ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
                     >
                       <PersonOutlineIcon className="!text-[22px]" />
                       <span className="flex-1 ms-3 text-left text-[14px]">
@@ -388,7 +397,13 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       onClick={() => setIsPayrollOpen(!isPayrollOpen)}
-                      className="text-gray-500"
+                      className={(
+                        location.pathname.startsWith("/payroll") || 
+                        location.pathname.startsWith("/maxicare") || 
+                        location.pathname.startsWith("/eastwestloan") || 
+                        location.pathname.startsWith("/loanManagement") ||
+                        location.pathname.startsWith("/laborBenefits")
+                      ) ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
                     >
                       <CreditCardIcon className="!text-[22px]" />
                       <span className="flex-1 ms-3 text-left text-[14px]">Payroll</span>
@@ -504,28 +519,36 @@ const Sidebar = ({ children }) => {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-         {/* --- BOTTOM SECTION (ANCHORED) --- */}
+        {/* --- BOTTOM SECTION (ANCHORED) --- */}
         <SidebarFooter className="border-t border-gray-100 p-3 mt-auto">
           <SidebarGroupLabel>SYSTEM</SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem>
-              {/* Settings acts as the trigger for the popup menu */}
+              {/* Settings Action Core Trigger */}
               <SidebarMenuButton 
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                className={isSettingsOpen ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
+                className={(
+                  location.pathname.startsWith("/auditLogs") || 
+                  location.pathname.startsWith("/transactionLog") || 
+                  location.pathname.startsWith("/settings") || 
+                  location.pathname.startsWith("/faq")
+                ) ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500"}
               >
                 <SettingsIcon className="!text-[22px]" />
                 <span className="flex-1 ms-3 text-[14px]">Settings</span>
                 <KeyboardArrowDownIcon className={`!text-[18px] transition-transform duration-300 ${isSettingsOpen ? "rotate-180" : ""}`} />
               </SidebarMenuButton>
 
-              {/* Popup Menu */}
+              {/* Dropdown Menu Panel Items */}
               {isSettingsOpen && (
                 <SidebarMenuSub>
                   {isMaster && (
                     <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild>
-                        <Link to="/auditLogs">
+                      <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/auditLogs")}>
+                        <Link 
+                          to="/auditLogs" 
+                          className={location.pathname.startsWith("/auditLogs") ? "text-[#2A174E] font-bold" : "text-gray-500"}
+                        >
                           <ListAltIcon className="!text-[18px] mr-2" /> Audit
                         </Link>
                       </SidebarMenuSubButton>
@@ -534,26 +557,36 @@ const Sidebar = ({ children }) => {
 
                   {isMaster && (
                     <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild>
-                        <Link to="/transactionLog">
+                      <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/transactionLog")}>
+                        <Link 
+                          to="/transactionLog" 
+                          className={location.pathname.startsWith("/transactionLog") ? "text-[#2A174E] font-bold" : "text-gray-500"}
+                        >
                           <ReceiptLongIcon className="!text-[18px] mr-2" /> Transaction
                         </Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   )}
 
-                  {/* New Configuration Link */}
+                  {/* Configuration Management Tab Link */}
                   <SidebarMenuSubItem>
-                    <SidebarMenuSubButton asChild>
-                      <Link to="/settings">
+                    <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/settings")}>
+                      <Link 
+                        to="/settings" 
+                        className={location.pathname.startsWith("/settings") ? "text-[#2A174E] font-bold" : "text-gray-500"}
+                      >
                         <TuneIcon className="!text-[18px] mr-2" /> Configuration
                       </Link>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
 
+                  {/* Help & Support Tab Link */}
                   <SidebarMenuSubItem>
-                    <SidebarMenuSubButton asChild>
-                      <Link to="/faq">
+                    <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/faq")}>
+                      <Link 
+                        to="/faq" 
+                        className={location.pathname.startsWith("/faq") ? "text-[#2A174E] font-bold" : "text-gray-500"}
+                      >
                         <HelpOutlinedIcon className="!text-[18px] mr-2" /> Help & Support
                       </Link>
                     </SidebarMenuSubButton>

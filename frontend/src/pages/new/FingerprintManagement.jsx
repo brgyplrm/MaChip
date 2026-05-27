@@ -242,7 +242,7 @@ const FingerprintManagement = () => {
               </div>
             </div>
             
-            <Button onClick={handleStartFingerprintScan} className="bg-[#2A174E] hover:bg-[#1a0e30] font-bold shadow-sm gap-2">
+            <Button onClick={handleStartFingerprintScan} className="bg-[#2A174E] hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
               <ScanLine className="h-4 w-4 text-white" />
               <span>Enroll Fingerprint</span>
             </Button>
@@ -336,7 +336,7 @@ const FingerprintManagement = () => {
               <span className="text-xs font-medium text-slate-500">Showing {startIndex + 1} to {endIndex} of {totalItems} profiles</span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1}>Previous</Button>
-                <div className="h-8 w-8 flex items-center justify-center bg-[#2A174E] text-white rounded text-xs font-bold">{currentPage}</div>
+                <div className="h-8 w-8 flex items-center justify-center bg-[#2A174E]/10 text-[#2A174E] rounded text-xs font-bold">{currentPage}</div>
                 <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages}>Next</Button>
               </div>
             </div>

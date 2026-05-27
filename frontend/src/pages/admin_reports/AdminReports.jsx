@@ -424,21 +424,55 @@ const AdminReports = () => {
 
           {/* Navigation Tabs */}
           <Tabs value={activeReport} onValueChange={(val) => setActiveReport(val)} className="w-full mb-6">
-            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-4 h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0">
-              <TabsTrigger value="attendance" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-                <AssessmentIcon className="mr-2 h-4 w-4" /> Attendance Report
-              </TabsTrigger>
-              <TabsTrigger value="payroll" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-                <PaymentsIcon className="mr-2 h-4 w-4" /> Payroll Report
-              </TabsTrigger>
-              <TabsTrigger value="calendar" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-                <CalendarMonthIcon className="mr-2 h-4 w-4" /> Calendar / Events
-              </TabsTrigger>
-              <TabsTrigger value="requests" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-                <FileInput className="mr-2 h-4 w-4" /> Requests
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {/* TabsList container matches your layout switcher backgrounds perfectly */}
+          <TabsList className="grid grid-cols-1 sm:grid-cols-4 h-auto sm:h-10 bg-slate-100 rounded-lg border border-slate-200 gap-1 sm:gap-0 shrink-0">
+            
+            {/* Attendance Report Tab */}
+            <TabsTrigger 
+              value="attendance" 
+              className="text-xs font-bold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-[#2A174E]"
+            >
+              <AssessmentIcon className="mr-2 h-4 w-4 shrink-0" /> 
+              <span>Attendance Report</span>
+            </TabsTrigger>
+
+            {/* Payroll Report Tab */}
+            <TabsTrigger 
+              value="payroll" 
+              className="text-xs font-bold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-[#2A174E]"
+            >
+              <PaymentsIcon className="mr-2 h-4 w-4 shrink-0" /> 
+              <span>Payroll Report</span>
+            </TabsTrigger>
+
+            {/* Calendar / Events Tab */}
+            <TabsTrigger 
+              value="calendar" 
+              className="text-xs font-bold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-[#2A174E]"
+            >
+              <CalendarMonthIcon className="mr-2 h-4 w-4 shrink-0" /> 
+              <span>Calendar / Events</span>
+            </TabsTrigger>
+
+            {/* Requests Tab */}
+            <TabsTrigger 
+              value="requests" 
+              className="text-xs font-bold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-[#2A174E]"
+            >
+              <FileInput className="mr-2 h-4 w-4 shrink-0" /> 
+              <span>Requests</span>
+            </TabsTrigger>
+
+          </TabsList>
+        </Tabs>
 
           {/* Statistics Display Grid Area */}
           <div className="w-full animate-in fade-in zoom-in-95 duration-200">

@@ -472,7 +472,8 @@ const CalendarManagement = () => {
           </div>
           <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full md:w-auto">
             {isAdmin && (
-                <Button 
+              <>
+                {/* <Button 
                   variant="outline"
                   className="w-full sm:w-auto text-[#2A174E] border-[#2A174E] hover:bg-slate-50 transition-colors"
                   onClick={handleSyncHolidays} 
@@ -480,18 +481,19 @@ const CalendarManagement = () => {
                   title="Sync Holidays from Official Gazette"
                 >
                   <SyncIcon className={` h-4 w-4 ${loading ? "animate-spin" : ""}`} /> 
+                </Button> */}
+
+                <Button 
+                  className="w-full sm:w-auto bg-[#2A174E] hover:bg-[#7A52B5] text-white"
+                  onClick={() => {
+                    setModalType('addEvent');
+                    setActiveTab('fieldWork');
+                  }}
+                >
+                  <AddIcon className="mr-1 h-4 w-4" /> Add Calendar Event
                 </Button>
+                </>
             )}
-            
-            <Button 
-              className="w-full sm:w-auto bg-[#2A174E] hover:bg-[#1a0e30] text-white"
-              onClick={() => {
-                setModalType('addEvent');
-                setActiveTab('fieldWork');
-              }}
-            >
-              <AddIcon className="mr-1 h-4 w-4" /> Add Calendar Event
-            </Button>
           </div>
         </div>
 

@@ -12,6 +12,8 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
 import { CreditCardIcon } from "lucide-react";
 import { FingerprintIcon } from "lucide-react";
+import { EyeIcon} from "lucide-react";  
+import { Archive, ArchiveRestore, ArchiveX } from "lucide-react";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -199,7 +201,7 @@ const toggleMachipVisibility = (userId) => {
               {/* Primary Action */}
               <Button 
                 asChild 
-                className="flex-1 sm:flex-none bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm"
+                className="flex-1 sm:flex-none bg-[#2A174E] text-white hover:bg-[#7A52B5] shadow-sm"
               >
                 <Link to="/users/newUser">
                   <PersonAddIcon className="h-4 w-4 mr-1" /> Add User
@@ -403,18 +405,18 @@ const toggleMachipVisibility = (userId) => {
                             variant="outline" 
                             size="sm" 
                             asChild 
-                            className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
+                            className=" text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
                           >
-                            <Link to={`/users/${user.user_Id}`}>View</Link>
+                            <Link to={`/users/${user.user_Id}`}>
+                            <EyeIcon className="h-4 w-4" /></Link>
                           </Button>
                           {isAdminOrAccountant && currentUser?.user_Id !== user.user_Id && (
                             <Button 
                               variant="outline" 
                               size="sm" 
                               className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors" 
-                              onClick={() => initiateArchive(user.user_Id)}
-                            >
-                              Archive
+                              onClick={() => initiateArchive(user.user_Id)}>
+                                <Archive className="h-4 w-4" />
                             </Button>
                           )}
                         </div>
