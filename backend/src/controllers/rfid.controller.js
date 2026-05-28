@@ -181,13 +181,16 @@ exports.scanRFID = async (req, res) => {
 
   // ── SECURITY ACTION CHECK (from ESP32) ───────────────────────────────────
   if (action === "unenrolled_card_attempt" || action === "suspicious_biometric_fail") {
-    const type = action === "unenrolled_card_attempt" ? "Unenrolled Card" : "Biometric Failure";
+    const isBiometric = action === "suspicious_biometric_fail";
+    const type = isBiometric ? "Unauthorized scan" : "Unrecognized card or scan";
+    const eventType = isBiometric ? "UNAUTHORIZED_SCAN" : "UNRECOGNIZED_SCAN";
+    
     console.log(`[SECURITY-LOG] ${type} for UID: ${uid} on ${terminalType || "FRONT"}`);
     
     const masked = maskUid(uid, false);
     const deviceIp = req.ip || req.socket.remoteAddress || "Unknown ESP32";
 
-    await logTransaction(null, null, "SUSPICIOUS_SCAN", `${type} detected on device ${deviceIp}`, { 
+    await logTransaction(null, null, eventType, `${type} detected on device ${deviceIp}`, { 
       uid: masked,
       deviceIp,
       result: "Security Alert",
@@ -265,13 +268,16 @@ exports.scanRFID = async (req, res) => {
     }
 
     if (!user) {
-      const type = action === "fingerprint_scan" ? "Fingerprint" : "MaChip";
+      const isFP = action === "fingerprint_scan";
+      const type = isFP ? "Unauthorized scan" : "Unrecognized card or scan";
+      const eventType = isFP ? "UNAUTHORIZED_SCAN" : "UNRECOGNIZED_SCAN";
+      
       console.log(`[SECURITY] Unenrolled ${type} attempt: ${uid}`);
-      const masked = action === "fingerprint_scan" ? `Slot ${uid}` : maskUid(uid, false);
+      const masked = isFP ? `Slot ${uid}` : maskUid(uid, false);
       const deviceIp = req.ip || req.socket.remoteAddress || "Unknown ESP32";
 
-      // Mark as SUSPICIOUS_SCAN for unauthorized users
-      await logTransaction(null, null, "SUSPICIOUS_SCAN", `Suspicious ${type} (${masked}) detected on device ${deviceIp}`, { 
+      // Mark as UNRECOGNIZED_SCAN or UNAUTHORIZED_SCAN for unauthorized users
+      await logTransaction(null, null, eventType, `${type} (${masked}) detected on device ${deviceIp}`, { 
         uid: masked,
         deviceIp,
         result: "Denied/Suspicious",
@@ -284,8 +290,8 @@ exports.scanRFID = async (req, res) => {
         const admins = await User.findAll({ where: { user_RoleId: 1, deletedAt: null } });
         const notifications = admins.map(admin => ({
           user_Id: admin.user_Id,
-          title: `Suspicious ${type} Activity`,
-          message: `A suspicious ${type} (ID: ${masked}) was detected on device ${deviceIp} at ${now.toLocaleTimeString()}. Possible unauthorized access attempt.`,
+          title: type,
+          message: `A ${type.toLowerCase()} (ID: ${masked}) was detected on device ${deviceIp} at ${now.toLocaleTimeString()}. Possible unauthorized access attempt.`,
           isRead: false
         }));
         await Notification.bulkCreate(notifications);
@@ -378,7 +384,7 @@ exports.scanRFID = async (req, res) => {
 
       if (isNaN(dbFingerId) || dbFingerId !== inputFingerId) {
         console.log(`[2FA] Mismatch for ${user.user_FirstName}`);
-        await logTransaction(user.user_Id, null, "2FA_FAILURE", `2FA Mismatch.`, { uid: maskUid(rfidUid, true), scannedFingerId }, req);
+        await logTransaction(user.user_Id, null, "UNAUTHORIZED_SCAN", `Unauthorized scan (2FA Mismatch).`, { uid: maskUid(rfidUid, true), scannedFingerId }, req);
         return res.status(200).json({ success: false, message: "2FA Verification Failed" });
       }
       console.log(`[2FA] Success for ${user.user_FirstName}`);
@@ -440,18 +446,19 @@ exports.scanRFID = async (req, res) => {
     const hasPriorClockIn = !!firstLoginToday[0];
 
     const isSuspiciousWindow = (now >= fivePMThirty || now < fiveAMThirty);
-    const isLateNightFirstIn = (nextStatus === 1 && isSuspiciousWindow && !hasPriorClockIn && !isWithinOTWindow);
-    const isUnauthorizedReEntry = (nextStatus === 1 && hasPriorClockIn && isSuspiciousWindow && !isWithinOTWindow);
-    const isPastOTEntry = (nextStatus === 1 && hasApprovedOT && isPastOTWindow);
+    const isIrregular = (nextStatus === 1 && isSuspiciousWindow && !hasPriorClockIn && !isWithinOTWindow) ||
+                        (nextStatus === 1 && hasPriorClockIn && isSuspiciousWindow && !isWithinOTWindow) ||
+                        (nextStatus === 1 && hasApprovedOT && isPastOTWindow);
 
-    if (isLateNightFirstIn || isUnauthorizedReEntry || isPastOTEntry) {
+    if (isIrregular) {
       const admins = await User.findAll({ where: { user_RoleId: 1 }, attributes: ["user_Id"] });
       const timeFmt = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      let msg = `[SYSTEM NOTICE] Suspicious activity: ${user.user_FirstName} ${user.user_LastName} `;
-      if (isPastOTEntry) msg += `clocked in at ${timeFmt}, past OT window (Ended ${approvedOT.HrTo}).`;
-      else if (isLateNightFirstIn) msg += `logged in at ${timeFmt} (Outside 5:30 AM - 5:30 PM) without prior record or approved OT.`;
-      else if (isUnauthorizedReEntry) msg += `clocked in again at ${timeFmt} (Suspicious Hours: 5:30 PM - 5:30 AM) after logging out, without approved OT.`;
-      for (const admin of admins) await Notification.create({ user_Id: admin.user_Id, title: "Suspicious Activity", message: msg, isRead: false });
+      let msg = `Irregular log: ${user.user_FirstName} ${user.user_LastName} `;
+      if (nextStatus === 1 && hasApprovedOT && isPastOTWindow) msg += `clocked in at ${timeFmt}, past OT window (Ended ${approvedOT.HrTo}).`;
+      else if (nextStatus === 1 && isSuspiciousWindow && !hasPriorClockIn) msg += `logged in at ${timeFmt} (Outside 5:30 AM - 5:30 PM) without prior record or approved OT.`;
+      else if (nextStatus === 1 && hasPriorClockIn && isSuspiciousWindow) msg += `clocked in again at ${timeFmt} (Irregular Hours: 5:30 PM - 5:30 AM) after logging out, without approved OT.`;
+      
+      for (const admin of admins) await Notification.create({ user_Id: admin.user_Id, title: "Irregular logs", message: msg, isRead: false });
     }
 
     let attendanceVal = null;
@@ -555,10 +562,10 @@ exports.scanRFID = async (req, res) => {
 
     // 6. Log Transaction
     const method = action === "fingerprint_scan" ? "Fingerprint" : "RFID";
-    const isSuspicious = isLateNightFirstIn || isUnauthorizedReEntry || isPastOTEntry;
+    const isIrregularEvent = isLateNightFirstIn || isUnauthorizedReEntry || isPastOTEntry;
     
-    if (isSuspicious) {
-      await logTransaction(target_user_Id, null, "ATTENDANCE_LOG_SUSPICIOUS", `Suspicious ${statusLabels[nextStatus]} at ${timeStr}`, { 
+    if (isIrregularEvent) {
+      await logTransaction(target_user_Id, null, "IRREGULAR_LOG", `Irregular ${statusLabels[nextStatus]} at ${timeStr}`, { 
         status: statusLabels[nextStatus], 
         time: timeStr, 
         method: method,

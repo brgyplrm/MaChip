@@ -254,7 +254,7 @@ exports.markAttendance = async (req, res) => {
     }
 
     const labels = { 1: "Clock In", 2: "Clock Out", 3: "Out For Lunch", 4: "In From Lunch", 5: "Overtime-In", 6: "Overtime-Out" };
-    if (isLateNightFirstIn || isUnauthorizedReEntry || isPastOTEntry) await logTransaction(target_user_Id, null, "ATTENDANCE_LOG_SUSPICIOUS", `Suspicious ${labels[nextStatus]} at ${timeStr}`, { status: labels[nextStatus], time: timeStr, method: log_Type || "Manual/RFID" }, req);
+    if (isLateNightFirstIn || isUnauthorizedReEntry || isPastOTEntry) await logTransaction(target_user_Id, null, "IRREGULAR_LOG", `Irregular ${labels[nextStatus]} at ${timeStr}`, { status: labels[nextStatus], time: timeStr, method: log_Type || "Manual/RFID" }, req);
     else await logTransaction(target_user_Id, null, "ATTENDANCE_LOG", `${labels[nextStatus]} for user ${target_user_Id}`, { status: labels[nextStatus], time: timeStr, method: log_Type || "Manual/RFID" }, req);
 
     const io = getIO(); io.emit("NEW_ATTENDANCE_LOG", { userId: target_user_Id, status: labels[nextStatus] }); io.to(`user_${target_user_Id}`).emit("NOTIFICATION_UPDATE");
@@ -476,6 +476,10 @@ exports.viewAllAttendance = async (req, res) => {
 
     if (user_Id) {
       whereClause.user_id = user_Id;
+      // Strictly filter Visitor logs to only show Visitor Access statuses
+      if (parseInt(user_Id) === 999) {
+        whereClause.logged_StatusId = [8, 9];
+      }
     } else {
       // Exclude Visitor system user (999) from general raw logs
       whereClause.user_id = {
@@ -1035,7 +1039,7 @@ exports.getDashboardStats = async (req, res) => {
     // Anomalies Count (Today)
     const anomaliesResult = await sequelize.query(
       `SELECT COUNT(*)::int as count FROM "Transaction_Log" 
-       WHERE "event_Type" IN ('SUSPICIOUS_SCAN', '2FA_FAILURE', 'ATTENDANCE_LOG_SUSPICIOUS', 'UNAUTHORIZED_SCAN')
+       WHERE "event_Type" IN ('UNAUTHORIZED_SCAN', 'UNRECOGNIZED_SCAN', 'IRREGULAR_LOG', 'ATTENDANCE_LOG_SUSPICIOUS', '2FA_FAILURE')
        AND "createdAt" >= :todayStart`,
       { replacements: { todayStart: todayStr }, type: QueryTypes.SELECT }
     );

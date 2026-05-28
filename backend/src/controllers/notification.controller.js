@@ -19,7 +19,10 @@ exports.GetUserNotifications = async (req, res) => {
       'Final Approval Required', 
       'Unauthorized RFID Scan', 
       'Suspicious Activity Detected',
-      'Password Reset Request'
+      'Password Reset Request',
+      'Unauthorized scan',
+      'Unrecognized card or scan',
+      'Irregular logs'
     ];
 
     if (viewMode === "management") {
@@ -116,7 +119,10 @@ exports.GetUnreadCount = async (req, res) => {
       'Final Approval Required', 
       'Unauthorized RFID Scan', 
       'Suspicious Activity Detected',
-      'Password Reset Request'
+      'Password Reset Request',
+      'Unauthorized scan',
+      'Unrecognized card or scan',
+      'Irregular logs'
     ];
 
     if (viewMode === "management") {

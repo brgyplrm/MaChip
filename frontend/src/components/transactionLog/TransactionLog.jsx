@@ -86,12 +86,22 @@ const TransactionLog = () => {
     total: transactions.length,
     payrollReleases: transactions.filter(t => t.event_Type === "PAYROLL_RELEASE").length,
     batchRuns: transactions.filter(t => t.event_Type === "BATCH_PAYROLL_GEN").length,
-    unauthorizedScans: transactions.filter(t => ["UNAUTHORIZED_SCAN", "2FA_FAILURE", "SUSPICIOUS_SCAN", "ATTENDANCE_LOG_SUSPICIOUS"].includes(t.event_Type)).length,
+    unauthorizedScans: transactions.filter(t => ["UNAUTHORIZED_SCAN", "UNRECOGNIZED_SCAN", "IRREGULAR_LOG", "2FA_FAILURE", "SUSPICIOUS_SCAN", "ATTENDANCE_LOG_SUSPICIOUS"].includes(t.event_Type)).length,
   };
 
   const maskDescription = (desc, type) => {
-    if (["UNAUTHORIZED_SCAN", "2FA_FAILURE", "SUSPICIOUS_SCAN", "ATTENDANCE_LOG_SUSPICIOUS"].includes(type)) return desc;
     return desc; 
+  };
+
+  const getEventLabel = (type) => {
+    const labels = {
+      "UNAUTHORIZED_SCAN": "Unauthorized scan",
+      "UNRECOGNIZED_SCAN": "Unrecognized card or scan",
+      "IRREGULAR_LOG": "Irregular logs",
+      "ATTENDANCE_LOG_SUSPICIOUS": "Suspicious Activity",
+      "2FA_FAILURE": "Biometric Mismatch"
+    };
+    return labels[type] || type.replace(/_/g, " ");
   };
 
   const handleExportPDF = () => {
@@ -100,10 +110,10 @@ const TransactionLog = () => {
       new Date(t.createdAt).toLocaleString(),
       t.emp_FirstName 
         ? `${t.emp_FirstName} ${t.emp_LastName}` 
-        : t.event_Type === "UNAUTHORIZED_SCAN" 
+        : ["UNAUTHORIZED_SCAN", "UNRECOGNIZED_SCAN"].includes(t.event_Type)
           ? `Unknown Device`
           : "System",
-      t.event_Type.replace(/_/g, " "),
+      getEventLabel(t.event_Type),
       maskDescription(t.description, t.event_Type),
       t.ip_Address || t.metadata?.deviceIp || "Local"
     ]);
@@ -116,10 +126,10 @@ const TransactionLog = () => {
       new Date(t.createdAt).toLocaleString(),
       t.emp_FirstName 
         ? `${t.emp_FirstName} ${t.emp_LastName} (${formatUserId(t.user_Id)})` 
-        : t.event_Type === "UNAUTHORIZED_SCAN" 
+        : ["UNAUTHORIZED_SCAN", "UNRECOGNIZED_SCAN"].includes(t.event_Type)
           ? `Unknown Device`
           : "System",
-      t.event_Type.replace(/_/g, " "),
+      getEventLabel(t.event_Type),
       maskDescription(t.description, t.event_Type),
       t.ip_Address || t.metadata?.deviceIp || "Local"
     ]);
@@ -325,7 +335,7 @@ const TransactionLog = () => {
                             }
                           </TableCell>
                           <TableCell className="py-4">
-                            <Badge variant="outline" className={`${badgeColor} uppercase tracking-wider text-[10px]`}>{t.event_Type.replace(/_/g, " ")}</Badge>
+                            <Badge variant="outline" className={`${badgeColor} uppercase tracking-wider text-[10px]`}>{getEventLabel(t.event_Type)}</Badge>
                           </TableCell>
                           <TableCell className="text-slate-500 text-sm max-w-[300px] truncate py-4" title={t.description}>{maskDescription(t.description, t.event_Type)}</TableCell>
                           <TableCell className="text-slate-400 font-mono text-xs py-4">{t.ip_Address || t.metadata?.deviceIp || "Local"}</TableCell>
