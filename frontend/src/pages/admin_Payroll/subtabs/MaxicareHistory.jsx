@@ -169,7 +169,7 @@ const MaxicareHistory = () => {
       const existingDates = settingsData.maxicareDates?.dates || [];
 
       const saveRes = await fetchWithAuth("/api/system/settings", {
-        method: "POST",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           maxicareDates: {

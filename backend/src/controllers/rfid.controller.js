@@ -1,9 +1,10 @@
-const { sequelize, User, Notification, System_State } = require("../config/sequelize.js");
+const { sequelize, User, Notification, System_State, User_Hardware } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
 const { logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
 const { resolveLeaveConflict } = require("../utils/attendanceHelper.js");
+const { decrypt } = require("../utils/encryption.js");
 
 const maskUid = (uid, isAuthorized) => {
   if (isAuthorized) return "[REDACTED]";
@@ -71,8 +72,11 @@ exports.clearFingerprintSession = async (req, res) => {
 
   // Clear database registration session
   try {
-    const { System_State } = require("../config/sequelize.js");
-    await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
+    if (System_State) {
+      await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
+    } else {
+      console.warn("[ENROLL CLEAR] System_State model not loaded yet.");
+    }
   } catch (err) {
     console.error("[ENROLL CLEAR ERROR]", err);
   }
@@ -110,6 +114,35 @@ exports.scanRFID = async (req, res) => {
 
   if (!uid) {
     return res.status(400).json({ success: false, message: "No UID provided" });
+  }
+
+  // ── REGISTRATION / CAPTURE INTERCEPT (PRIORITY #1) ───────────────────────
+  // If the system is in Registration/Capture mode, we INTERCEPT ALL scans.
+  try {
+    const regSession = await System_State.findOne({ where: { key: 'REGISTRATION_SESSION' } });
+    const isGenericCapture = captureSession.isCapturing && (Date.now() < captureSession.expiresAt);
+
+    if (regSession || isGenericCapture) {
+      console.log(`[RFID-ADMIN] Intercept Triggered. UID: ${uid}`);
+      
+      captureSession.scannedUid = uid;
+      captureSession.isCapturing = false;
+      
+      // Clear database session to release hardware
+      if (regSession) {
+        await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
+      }
+      
+      return res.status(200).json({
+        success: false, // Prevents solenoid activation
+        isCapture: true, 
+        mode: 'RFID_REG_SUCCESS',
+        rfid: uid,
+        message: "CAPTURE OK"
+      });
+    }
+  } catch (err) {
+    console.error("[SCAN-INTERCEPT ERROR]:", err);
   }
 
   // ── ANTI-RAPID TAP PROTECTION ───────────────────────────────────────────
@@ -160,61 +193,6 @@ exports.scanRFID = async (req, res) => {
       mode: "WAITING_FOR_FINGERPRINT",
       message: "Ready for fingerprint enrollment"
     });
-  }
-
-  // ── REGISTRATION SESSION CHECK (Prioritize Enrollment over Access) ───────
-  try {
-    const regSession = await System_State.findOne({ where: { key: 'REGISTRATION_SESSION' } });
-    
-    if (regSession && (terminalType === 'FRONT' || !terminalType)) {
-      const sessionData = JSON.parse(regSession.value);
-
-      // Check if this card is already enrolled to someone else
-      const enrolled = await sequelize.query(
-        `SELECT h."user_Id" FROM "User_Hardware" h 
-         JOIN "User" u ON h."user_Id" = u."user_Id" 
-         WHERE LOWER(h."user_MachipId") = LOWER(:uid) AND u."deletedAt" IS NULL LIMIT 1`,
-        { replacements: { uid }, type: QueryTypes.SELECT }
-      );
-
-      // Intercept only if card is unknown OR explicitly for the user being registered
-      if (enrolled.length === 0 || enrolled[0].user_Id === parseInt(sessionData.userId)) {
-        if (sessionData.type === 'RFID') {
-          console.log(`[RFID] Captured UID for registration session: ${uid}`);
-          captureSession.scannedUid = uid;
-          captureSession.isCapturing = false;
-          return res.status(200).json({
-            success: false, // Prevents solenoid
-            isCapture: true, 
-            mode: 'RFID_REG_SUCCESS',
-            rfid: uid
-          });
-        }
-      }
-    }
-  } catch (err) {
-    console.error("[REG SESSION CHECK ERROR]:", err);
-  }
-
-  // ── CAPTURE MODE CHECK (Legacy/Compatibility) ────────────────────────────
-  if (captureSession.isCapturing && Date.now() < captureSession.expiresAt && action !== "clock_out") {
-    const enrolled = await sequelize.query(
-      `SELECT h."user_Id" FROM "User_Hardware" h 
-       JOIN "User" u ON h."user_Id" = u."user_Id" 
-       WHERE LOWER(h."user_MachipId") = LOWER(:uid) AND u."deletedAt" IS NULL LIMIT 1`,
-      { replacements: { uid }, type: QueryTypes.SELECT }
-    );
-
-    if (enrolled.length === 0) {
-      console.log(`[RFID] Captured UID for legacy capture session: ${uid}`);
-      captureSession.scannedUid = uid;
-      captureSession.isCapturing = false;
-      return res.status(200).json({ 
-        success: false, 
-        message: "UID Captured!",
-        isCapture: true 
-      });
-    }
   }
 
   // If action is auto_detect but not capturing, it's a normal clock_in/out
@@ -605,6 +583,7 @@ exports.scanRFID = async (req, res) => {
 exports.generateRfid = async (req, res) => {
   const { userId } = req.query;
   const targetUserId = userId || "temp_registration";
+  console.log(`[RFID-ADMIN] >>> STARTING RFID capture for User: ${targetUserId}`);
   
   captureSession = { 
     isCapturing: true, 
@@ -614,26 +593,39 @@ exports.generateRfid = async (req, res) => {
   };
   
   const startTime = Date.now();
+  let attempts = 0;
   const checkInterval = setInterval(() => {
+    attempts++;
     if (captureSession.scannedUid) {
       const uid = captureSession.scannedUid;
+      console.log(`[RFID-ADMIN] Detected UID: ${uid} after ${attempts} checks.`);
       captureSession.scannedUid = null;
       captureSession.isCapturing = false;
       clearInterval(checkInterval);
+      
       User.findOne({ 
         include: [{
-          model: sequelize.models.User_Hardware,
+          model: User_Hardware,
           as: 'hardware',
           where: { user_MachipId: uid }
         }],
         where: { deletedAt: null } 
       }).then(user => {
-        if (user) return res.status(400).json({ error: "MaChip ID is already assigned to another user.", rfid: uid });
+        if (user) {
+          console.log(`[RFID-ADMIN] UID ${uid} is ALREADY assigned to user ${user.user_Id}`);
+          return res.status(400).json({ error: "MaChip ID is already assigned to another user.", rfid: uid });
+        }
+        console.log(`[RFID-ADMIN] UID ${uid} is available for assignment.`);
         return res.status(200).json({ rfid: uid });
-      }).catch(err => res.status(500).json({ error: "Internal Server Error" }));
+      }).catch(err => {
+        console.error("[RFID-ADMIN] DB Error during duplicate check:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+      });
       return;
     }
+
     if (Date.now() - startTime > 25000) {
+      console.log(`[RFID-ADMIN] Capture TIMEOUT after 25s.`);
       clearInterval(checkInterval);
       captureSession.isCapturing = false;
       return res.status(408).json({ error: "Scan timeout. Please try again." });
@@ -712,6 +704,27 @@ exports.generateFingerprint = async (req, res) => {
 };
 
 // ESP32 Endpoints
+exports.factoryResetHardware = async (req, res) => {
+  try {
+    // Initialize a special session type for clearing all fingerprints
+    fpCaptureSession = { 
+      isCapturing: true, 
+      scannedSlot: 0, 
+      userId: "SYSTEM_RESET",
+      expiresAt: Date.now() + 30000, // 30s timeout
+      success: false,
+      template: null,
+      type: "CLEAR_ALL"
+    };
+
+    console.log(`[HARDWARE] Factory reset session initialized. Waiting for ESP32 polling...`);
+    
+    res.status(200).json({ message: "Hardware reset command queued. Ensure the ESP32 is online." });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to initialize hardware reset." });
+  }
+};
+
 exports.getFingerprintSession = async (req, res) => {
   // Update heartbeat
   const now = Date.now();
@@ -742,6 +755,30 @@ exports.getFingerprintSession = async (req, res) => {
 
   // 2. Check Database session (Proxy Scan via Registration Modal)
   try {
+    // 2.1 Check for System-wide Hardware Reset Signal (from db:reset)
+    const resetSignal = await System_State.findOne({ where: { key: 'HARDWARE_RESET_SIGNAL' } });
+    if (resetSignal) {
+      await System_State.destroy({ where: { key: 'HARDWARE_RESET_SIGNAL' } });
+      
+      fpCaptureSession = { 
+        isCapturing: true, 
+        scannedSlot: 0, 
+        userId: "SYSTEM_RESET",
+        expiresAt: Date.now() + 30000,
+        success: false,
+        template: null,
+        type: "CLEAR_ALL"
+      };
+      
+      console.log(`[HARDWARE] DB-RESET Signal detected. Triggering CLEAR_ALL on next poll.`);
+      return res.status(200).json({
+        active: true,
+        slotId: 0,
+        userId: "SYSTEM_RESET",
+        type: "CLEAR_ALL"
+      });
+    }
+
     const regSession = await System_State.findOne({ where: { key: 'REGISTRATION_SESSION' } });
     if (regSession) {
       const sessionData = JSON.parse(regSession.value);
@@ -952,10 +989,15 @@ exports.getFingerprintTemplate = async (req, res) => {
 
     console.log(`[FP DOWNLOAD] User found. Template length: ${user.user_FingerprintTemplate ? user.user_FingerprintTemplate.length : "EMPTY/NULL"}`);
 
+    let finalTemplate = null;
+    if (user.user_FingerprintTemplate) {
+      finalTemplate = decrypt(user.user_FingerprintTemplate);
+    }
+
     // Return 200 even if template is null, so ESP32 knows the user exists but has no 2FA template
     return res.status(200).json({ 
       success: true, 
-      template: user.user_FingerprintTemplate || null 
+      template: finalTemplate 
     });
   } catch (error) {
     console.error("[FP DOWNLOAD ERROR]:", error);

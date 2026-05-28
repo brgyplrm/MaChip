@@ -475,7 +475,7 @@ const ThirteenthMonth = () => {
             <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs font-bold text-blue-600 uppercase">Formula: Total / 12</span>
-                <span className="text-lg font-bold text-blue-800">{formatCurrency(selectedBreakdown?.computedAmount)}</span>
+                <span className="text-lg font-bold text-blue-800">{formatCurrency(selectedBreakdown?.computedAmount || selectedBreakdown?.amount)}</span>
               </div>
               <p className="text-[10px] text-blue-500 italic">
                 *Based on Presidential Decree No. 851. Includes all basic remunerations paid for services rendered.

@@ -47,7 +47,8 @@ const allowedOrigins = [
   "http://192.168.254.120:5173",
   "http://192.168.1.18:5173",
   "http://localhost:5173",
-  "http://192.168.1.18:5173"
+  "http://192.168.1.18:5173",
+  "http://192.168.0.101:5173"
 ];
 
 app.use(
@@ -126,6 +127,7 @@ const payrollRoutes = require("./routes/payroll.routes.js");
 const notificationRoutes = require("./routes/notification.routes.js");
 const systemRoutes = require("./routes/system.routes.js");
 const positionRoutes = require("./routes/position.routes.js");
+const hardwareRoutes = require("./routes/hardware.routes.js");
 
 app.use("/api/users", userRoutes);
 app.use("/api/attendance", attendanceRoutes);
@@ -134,6 +136,7 @@ app.use("/api/payroll", payrollRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/positions", positionRoutes);
+app.use("/api/hardware", hardwareRoutes);
 
 // New route for testing database queries (now protected)
 app.get("/test-query", async (req, res) => {

@@ -45,7 +45,7 @@ const Maxicare = () => {
   const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card"
   
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const isAdmin = userData?.user_RoleId === 4 || 1;
+  const isAdmin = [1, 4].includes(userData?.user_RoleId);
 
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [isEditing, setIsEditing] = useState(false);
@@ -164,6 +164,9 @@ const Maxicare = () => {
 
   const generateExpectedDates = (startDateStr, months) => {
     if (!startDateStr || !months) return [];
+    // Only proceed if the date looks like a full YYYY-MM-DD
+    if (startDateStr.length < 10) return [];
+
     const dates = [];
     const start = new Date(startDateStr);
     if (isNaN(start.getTime())) return [];
@@ -200,6 +203,7 @@ const Maxicare = () => {
     }
     return dates;
   };
+
 
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 

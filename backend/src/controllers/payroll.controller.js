@@ -950,17 +950,19 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
           await saveFileToArchive(payslipBuffer, `Payslip_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
           await saveFileToArchive(dtrBuffer, `DTR_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
 
-          // Skip email for seed/internal runs if needed, but here we just try
-          await sendPayrollEmail({
-            email: emp.user_Email,
-            name: `${emp.user_FirstName} ${emp.user_LastName}`,
-            period: `${period_Start} to ${period_End}`,
-            netPay: fullStats.netPay,
-            attachments: [
-              { filename: `Payslip_${emp.user_LastName}.pdf`, content: payslipBuffer },
-              { filename: `DTR_${emp.user_LastName}.pdf`, content: dtrBuffer }
-            ]
-          });
+          // Skip email for seed/internal runs if needed
+          if (!process.env.SKIP_EMAILS) {
+            await sendPayrollEmail({
+              email: emp.user_Email,
+              name: `${emp.user_FirstName} ${emp.user_LastName}`,
+              period: `${period_Start} to ${period_End}`,
+              netPay: fullStats.netPay,
+              attachments: [
+                { filename: `Payslip_${emp.user_LastName}.pdf`, content: payslipBuffer },
+                { filename: `DTR_${emp.user_LastName}.pdf`, content: dtrBuffer }
+              ]
+            });
+          }
         } catch (emailErr) {
           console.error(`[INTERNAL BATCH ERROR] for ${item.emp.user_Email}:`, emailErr.message);
         }
@@ -3339,14 +3341,11 @@ exports.getLoanById = async (req, res) => {
     if (dT === 'sss_loan') govType = 'SSS';
     else if (dT === 'sss_emergency') govType = 'SSS Emergency';
     else if (dT === 'sss_conso') govType = 'SSS Conso Loan';
-    else if (dT === 'hdmf_loan') govType = 'Pag-IBIG MPL';
-    else if (dT === 'hdmf_calamity') govType = 'Pag-IBIG Calamity';
-    else if (dT === 'calamity') {
-       if (loan.provider === 'Pag-IBIG') govType = 'Pag-IBIG Calamity';
-       else govType = 'SSS Calamity';
-    }
+    else if (dT === 'hdmf_loan') govType = 'Pag-IBIG';
+    else if (dT === 'hdmf_calamity') govType = 'Calamity'; // Map both to the generic 'Calamity' enum
+    else if (dT === 'calamity') govType = 'Calamity';
     else if (dT === 'multipurpose') govType = 'Multi-Purpose';
-    else if (loan.provider === 'Pag-IBIG') govType = 'Pag-IBIG MPL'; 
+    else if (loan.provider === 'Pag-IBIG') govType = 'Pag-IBIG';
     else if (loan.provider === 'SSS') govType = 'SSS';
     else if (loan.provider === 'Company') govType = 'Company';
 

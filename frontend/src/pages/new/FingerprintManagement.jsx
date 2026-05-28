@@ -30,6 +30,7 @@ const FingerprintManagement = () => {
   const [biometricList, setBiometricList] = useState([]);
   const [unassignedEmployees, setUnassignedEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingUnassigned, setLoadingUnassigned] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   
@@ -40,6 +41,8 @@ const FingerprintManagement = () => {
   const [scannedTemplate, setScannedTemplate] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [fingerprintError, setFingerprintError] = useState("");
+  const [localScannedId, setLocalScannedId] = useState(null); // Added for polling state
+  const [localScannedTemplate, setLocalScannedTemplate] = useState(null);
 
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
@@ -47,7 +50,6 @@ const FingerprintManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Fetch biometric records registry
   const fetchBiometricData = useCallback(async () => {
     setLoading(true);
     try {
@@ -57,14 +59,15 @@ const FingerprintManagement = () => {
         setBiometricList(data);
       }
     } catch (err) {
-      console.error("Error connecting to hardware database:", err);
+      console.error("Error fetching biometric data:", err);
+      setToast({ message: "Failed to load biometric registry.", type: "error" });
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Fetch employees without assigned fingerprint IDs
   const fetchUnassignedEmployees = useCallback(async () => {
+    setLoadingUnassigned(true);
     try {
       const response = await fetchWithAuth("/api/users/unassigned-hardware?type=fingerprint");
       if (response.ok) {
@@ -72,7 +75,9 @@ const FingerprintManagement = () => {
         setUnassignedEmployees(data);
       }
     } catch (err) {
-      console.error("Error loading unassigned users:", err);
+      console.error("Error fetching unassigned employees:", err);
+    } finally {
+      setLoadingUnassigned(false);
     }
   }, []);
 
@@ -81,11 +86,20 @@ const FingerprintManagement = () => {
     fetchUnassignedEmployees();
   }, [fetchBiometricData, fetchUnassignedEmployees]);
 
+  // Refresh unassigned list when modal opens to ensure latest data
+  useEffect(() => {
+    if (showAssignModal) {
+      fetchUnassignedEmployees();
+    }
+  }, [showAssignModal, fetchUnassignedEmployees]);
+
   // Step 1: Open Scanner Module & Initialize Registration Session
   const handleStartFingerprintScan = async () => {
     setShowScanModal(true);
     setScannedSlotId("");
     setFingerprintError("");
+    setLocalScannedId(null);
+    setLocalScannedTemplate(null);
     
     try {
       await fetchWithAuth("/api/system/reg-session", {
@@ -93,21 +107,33 @@ const FingerprintManagement = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: "temp_reg", type: 'FP' })
       });
+
+      // Poll/Wait for hardware scan
+      const response = await fetchWithAuth("/api/users/generateFingerprint");
+      const data = await response.json();
+
+      if (response.ok && data.fingerprintId) {
+        setLocalScannedId(data.fingerprintId);
+        setLocalScannedTemplate(data.template);
+      } else if (response.status === 400 && data.error) {
+        setFingerprintError(data.error);
+        await fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
+        await fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
+      } else {
+        setFingerprintError(data.error || "Failed to scan Fingerprint. Please try again.");
+      }
     } catch (err) {
       console.error("Failed to establish biometric handshake session:", err);
+      setFingerprintError("An error occurred while communicating with the hardware.");
     }
   };
 
-  // Step 2: Triggered on successful capture from the AS608 peripheral sensor module
-  const handleFingerprintScanned = async (data) => {
-    // If the scanner passes an object containing index variables
-    const slotId = data?.fingerprintId || data;
-    const templateData = data?.template || "";
+  // Step 2: Transition from success modal to assign modal
+  const handleFingerprintConfirm = async () => {
+    const slotId = localScannedId;
+    const templateData = localScannedTemplate;
 
-    if (!slotId) {
-      setFingerprintError("Invalid slot response received from terminal.");
-      return;
-    }
+    if (!slotId) return;
 
     // Clean active tracking hardware hook sessions
     await fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
@@ -122,7 +148,7 @@ const FingerprintManagement = () => {
       setToast({ message: `Slot Address #${slotId} is already held by ${existingTemplate.userName}.`, type: "error" });
       setSearchQuery(`Slot #${slotId}`);
     } else {
-      // Transition to assignment overlay modal form matching reference card
+      // Transition to assignment overlay modal form
       setScannedSlotId(slotId);
       setScannedTemplate(templateData);
       setSelectedUserId("");
@@ -189,7 +215,7 @@ const FingerprintManagement = () => {
   const stats = useMemo(() => {
     return {
       registered: biometricList.filter(b => b.fingerprintIndex !== null).length,
-      availableSlots: 127 - biometricList.length // AS608 flash memory constraints up to 127 templates
+      availableSlots: 1000 - biometricList.length // R307 flash memory supports up to 1,000 templates
     };
   }, [biometricList]);
 
@@ -348,7 +374,9 @@ const FingerprintManagement = () => {
       <RfidScanModal 
         isOpen={showScanModal} 
         onClose={closeFingerprintModal} 
-        onScanSuccess={handleFingerprintScanned}
+        onConfirm={handleFingerprintConfirm}
+        onRescan={handleStartFingerprintScan}
+        scannedId={localScannedId}
         error={fingerprintError}
         title="Fingerprint Scanner"
       />
@@ -385,7 +413,11 @@ const FingerprintManagement = () => {
                   <SelectValue placeholder="Select an unassigned employee..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[220px]">
-                  {unassignedEmployees.length > 0 ? (
+                  {loadingUnassigned ? (
+                    <div className="p-4 text-center text-xs text-slate-400 italic animate-pulse">
+                      Searching for unassigned profiles...
+                    </div>
+                  ) : unassignedEmployees.length > 0 ? (
                     unassignedEmployees.map((emp) => (
                       <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
                         {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)})

@@ -39,8 +39,9 @@ const {
   Onfield_Work,
   LogCorrection_Request,
   Statutory_Leave,
+  Loan_Request,
   Leave_Balance,
-} = require("../models/request.model")(sequelize, DataTypes);
+} = require("../models/request.model.js")(sequelize, DataTypes);
 
 const {
   Payroll,
@@ -331,6 +332,7 @@ module.exports = {
   Onfield_Work,
   LogCorrection_Request,
   Statutory_Leave,
+  Loan_Request,
   Leave_Balance,
   Payroll_status,
   Payroll_Earnings,

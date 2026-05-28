@@ -190,8 +190,6 @@ exports.updateSystemSettings = async (req, res) => {
     payroll // Standing for statutory rates like SSS, Philhealth, etc.
   } = req.body;
 
-  console.log("[DEBUG] Controller 'updateSystemSettings' triggered.");
-
   try {
     const settings = await SystemSettings.findOne();
     let oldSettings = null;
@@ -210,13 +208,34 @@ exports.updateSystemSettings = async (req, res) => {
       statutoryConstants: payroll || {}
     };
 
+    // Sanitize Maxicare Dates if present
+    let sanitizedMaxicareDates = maxicareDates;
+    if (maxicareDates && Array.isArray(maxicareDates.dates)) {
+      sanitizedMaxicareDates = {
+        ...maxicareDates,
+        dates: maxicareDates.dates.filter(d => {
+          if (!d || typeof d !== 'string') return false;
+          // Ensure YYYY-MM-DD format with 10 characters
+          const parts = d.split('-');
+          return parts.length === 3 && parts[0].length === 4 && d.length === 10;
+        }).sort()
+      };
+    } else if (Array.isArray(maxicareDates)) {
+      // Handle legacy array-only format
+      sanitizedMaxicareDates = maxicareDates.filter(d => {
+        if (!d || typeof d !== 'string') return false;
+        const parts = d.split('-');
+        return parts.length === 3 && parts[0].length === 4 && d.length === 10;
+      }).sort();
+    }
+
     const updateData = { 
       mockTimeEnabled: finalMockEnabled, 
       mockTimeValue: finalMockValue, 
       maxicareTotalGross, 
       maxicareMonthsToPay, 
       maxicareCycleStartDate,
-      maxicareDates,
+      maxicareDates: sanitizedMaxicareDates,
       vlRate,
       slRate,
       storageRootPath,
@@ -427,10 +446,12 @@ exports.getTransactionLogs = async (req, res) => {
 
 exports.setRegistrationSession = async (req, res) => {
   const { userId, type } = req.body; // type: 'RFID' or 'FP'
+  const upperType = type ? type.toUpperCase() : null;
+
   try {
     const [session, created] = await System_State.findOrCreate({
       where: { key: 'REGISTRATION_SESSION' },
-      defaults: { value: JSON.stringify({ userId, type }) }
+      defaults: { value: JSON.stringify({ userId, type: upperType }) }
     });
 
     if (!session) {
@@ -438,7 +459,7 @@ exports.setRegistrationSession = async (req, res) => {
     }
 
     if (!created) {
-      await session.update({ value: JSON.stringify({ userId, type }) });
+      await session.update({ value: JSON.stringify({ userId, type: upperType }) });
     }
 
     res.status(200).json({ success: true, message: "Registration session started" });

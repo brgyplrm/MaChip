@@ -20,6 +20,9 @@ router.get("/fingerprint/session/status", authMiddleware, rfidController.getSess
 // Called by UI to check hardware connection status
 router.get("/status", authMiddleware, rfidController.getHardwareStatus);
 
+// Factory Reset Hardware (Clear all fingerprints)
+router.post("/factory-reset", authMiddleware, rfidController.factoryResetHardware);
+
 // Called by ESP32 to confirm enrollment success/fail and upload template
 router.post("/fingerprint/confirm", espValidator, rfidController.confirmFingerprintEnroll);
 router.post("/fingerprint/enroll-confirm", espValidator, rfidController.confirmFingerprintEnroll);

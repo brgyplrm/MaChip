@@ -149,12 +149,17 @@ const AdminRequests = () => {
     if (name.includes("vacation")) return "VL";
     if (name.includes("sick")) return "SL";
     if (name.includes("overtime")) return "OT";
-    if (name.includes("onfield")) return "OW";
+    if (name.includes("onfield") || name.includes("field")) return "OW";
     if (name.includes("correction")) return "LC";
     if (name.includes("emergency")) return "EL";
-    if (name.includes("half-day")) return "HD";
-    if (name.includes("certification")) return "LCERT";
-    if (name.includes("enrollment")) return "LENRL";
+    if (name.includes("half-day") || name.includes("half")) return "HD";
+    if (name.includes("maternity")) return "MAT";
+    if (name.includes("paternity")) return "PAT";
+    if (name.includes("solo parent")) return "SP";
+    if (name.includes("vawc")) return "VAW";
+    if (name.includes("special leave") || name.includes("special")) return "SPC";
+    if (name.includes("certification") || name.includes("loan cert")) return "LCERT";
+    if (name.includes("enrollment") || name.includes("loan enroll")) return "LENRL";
     return "REQ";
   };
 
@@ -194,7 +199,9 @@ const AdminRequests = () => {
       // Search Name or ID
       const matchesSearch = 
         req.userName?.toLowerCase().includes(query) || 
-        req.emp_reqId?.toString().includes(query);
+        req.emp_reqId?.toString().includes(query) ||
+        (req.user_Id && formatUserId(req.user_Id).toLowerCase().includes(query)) ||
+        req.user_Id?.toString().includes(query);
       
       const shortType = getShortType(req.reqTypeName);
       const matchesType = typeFilter === "All" || shortType === typeFilter;
@@ -393,8 +400,18 @@ const AdminRequests = () => {
                       <SelectItem value="All">All Types</SelectItem>
                       <SelectItem value="VL">Vacation</SelectItem>
                       <SelectItem value="SL">Sick</SelectItem>
+                      <SelectItem value="EL">Emergency</SelectItem>
+                      <SelectItem value="HD">Half-Day</SelectItem>
                       <SelectItem value="OT">Overtime</SelectItem>
                       <SelectItem value="OW">Field Work</SelectItem>
+                      <SelectItem value="LC">Log Correct</SelectItem>
+                      <SelectItem value="SP">Solo Parent</SelectItem>
+                      <SelectItem value="MAT">Maternity</SelectItem>
+                      <SelectItem value="PAT">Paternity</SelectItem>
+                      <SelectItem value="VAW">VAWC</SelectItem>
+                      <SelectItem value="SPC">Special Leave</SelectItem>
+                      <SelectItem value="LCERT">Loan Cert</SelectItem>
+                      <SelectItem value="LENRL">Loan Enroll</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

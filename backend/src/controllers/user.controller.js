@@ -294,6 +294,12 @@ exports.registerUser = async (req, res) => {
       );
 
       // 4. Insert Hardware Info
+      const { encrypt } = require("../utils/encryption.js");
+      let encryptedTemplate = req.body.user_FingerprintTemplate || null;
+      if (encryptedTemplate) {
+        encryptedTemplate = encrypt(encryptedTemplate);
+      }
+
       await sequelize.query(
         `INSERT INTO "User_Hardware" (
           "user_Id", "user_MachipId", "user_FingerprintId", "user_FingerprintTemplate", "createdAt", "updatedAt"
@@ -303,7 +309,7 @@ exports.registerUser = async (req, res) => {
             user_Id,
             user_MachipId: req.body.user_MachipId || null,
             user_FingerprintId: req.body.user_FingerprintId || null,
-            user_FingerprintTemplate: req.body.user_FingerprintTemplate || null,
+            user_FingerprintTemplate: encryptedTemplate,
             now: nowStr
           },
           type: QueryTypes.INSERT,
@@ -886,7 +892,8 @@ exports.updateUser = async (req, res) => {
 
       // Only update template if provided and not empty
       if (req.body.user_FingerprintTemplate && req.body.user_FingerprintTemplate.trim() !== "") {
-        replacements.fingerprintTemplate = req.body.user_FingerprintTemplate;
+        const { encrypt } = require("../utils/encryption.js");
+        replacements.fingerprintTemplate = encrypt(req.body.user_FingerprintTemplate);
       }
 
       if (user_Password && user_Password.trim() !== "") {
@@ -1578,7 +1585,7 @@ exports.batchRegisterUsers = async (req, res) => {
     }
 
     // Clean up uploaded file
-    fs.unlinkSync(filePath);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
     res.status(200).json({
       message: `Processed ${lines.length - 1} rows. ${results.success} succeeded, ${results.failed} failed.`,
@@ -1589,5 +1596,39 @@ exports.batchRegisterUsers = async (req, res) => {
     console.error("[BATCH REGISTER ERROR]:", error);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getUnassignedHardwareUsers = async (req, res) => {
+  const { type } = req.query; // 'rfid' or 'fingerprint'
+  console.log(`[USER-CONTROLLER] Fetching unassigned hardware users. Type: ${type || 'ALL'}`);
+
+  try {
+    let sql = `
+      SELECT u."user_Id", u."user_FirstName", u."user_LastName"
+      FROM "User" u
+      WHERE u."deletedAt" IS NULL
+    `;
+
+    if (type === 'rfid') {
+      sql += ` AND u."user_Id" NOT IN (
+        SELECT "user_Id" FROM "User_Hardware" 
+        WHERE "user_MachipId" IS NOT NULL AND "user_MachipId" != ''
+      )`;
+    } else if (type === 'fingerprint') {
+      sql += ` AND u."user_Id" NOT IN (
+        SELECT "user_Id" FROM "User_Hardware" 
+        WHERE "user_FingerprintId" IS NOT NULL
+      )`;
+    }
+
+    sql += ` ORDER BY u."user_LastName" ASC`;
+
+    const users = await sequelize.query(sql, { type: QueryTypes.SELECT });
+    console.log(`[USER-CONTROLLER] Found ${users.length} unassigned users.`);
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("[USER-CONTROLLER] Error fetching unassigned hardware users:", error);
+    res.status(500).json({ error: "Failed to fetch unassigned employees." });
   }
 };

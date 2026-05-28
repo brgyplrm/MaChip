@@ -183,21 +183,30 @@ const RequestSummary = () => {
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50">
-                    <SelectValue placeholder="All Request Types" />
+                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50">
+                    <SelectValue placeholder="Type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="All Types">All Types</SelectItem>
                     <SelectItem value="Vacation Leave">Vacation Leave</SelectItem>
                     <SelectItem value="Sick Leave">Sick Leave</SelectItem>
+                    <SelectItem value="Emergency Leave">Emergency Leave</SelectItem>
+                    <SelectItem value="Half-day Request">Half-Day</SelectItem>
                     <SelectItem value="Overtime">Overtime</SelectItem>
-                    <SelectItem value="OnField Work">OnField Work</SelectItem>
-                    <SelectItem value="Log Correction">Log Correction</SelectItem>
+                    <SelectItem value="Onfield Work">Field Work</SelectItem>
+                    <SelectItem value="Log Correction">Log Correct</SelectItem>
+                    <SelectItem value="Solo Parent Leave">Solo Parent</SelectItem>
+                    <SelectItem value="Maternity Leave">Maternity</SelectItem>
+                    <SelectItem value="Paternity Leave">Paternity</SelectItem>
+                    <SelectItem value="VAWC Leave">VAWC</SelectItem>
+                    <SelectItem value="Special Leave for Women">Special Leave</SelectItem>
+                    <SelectItem value="Loan Certification">Loan Cert</SelectItem>
+                    <SelectItem value="Loan Enrollment">Loan Enroll</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+                </div>
 
-              <div className="flex items-center w-full sm:w-auto">
+                <div className="flex items-center w-full sm:w-auto">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50">
                     <SelectValue placeholder="All Statuses" />

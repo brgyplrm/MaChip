@@ -30,14 +30,17 @@ const RfidManagement = () => {
   const [rfidList, setRfidList] = useState([]);
   const [unassignedEmployees, setUnassignedEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingUnassigned, setLoadingUnassigned] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
-  
+
   // Modal Workflow States
   const [showScanModal, setShowScanModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [scannedUid, setScannedUid] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [rfidError, setRfidError] = useState("");
+  const [localScannedId, setLocalScannedId] = useState(null);
 
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
@@ -45,7 +48,6 @@ const RfidManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Fetch active registry
   const fetchRfidData = useCallback(async () => {
     setLoading(true);
     try {
@@ -55,22 +57,30 @@ const RfidManagement = () => {
         setRfidList(data);
       }
     } catch (err) {
-      console.error("Error fetching RFID registry:", err);
+      console.error("Error fetching RFID data:", err);
+      setToast({ message: "Failed to load RFID registry.", type: "error" });
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Fetch users without a card assigned
   const fetchUnassignedEmployees = useCallback(async () => {
+    setLoadingUnassigned(true);
     try {
       const response = await fetchWithAuth("/api/users/unassigned-hardware?type=rfid");
       if (response.ok) {
         const data = await response.json();
         setUnassignedEmployees(data);
+      } else {
+        const errText = await response.text();
+        console.error("API Error fetching unassigned employees:", response.status, errText);
+        setToast({ message: `Access Error (${response.status}): You may need to restart the backend server for permission changes to apply.`, type: "error" });
       }
     } catch (err) {
-      console.error("Error loading unassigned users:", err);
+      console.error("Error fetching unassigned employees:", err);
+      setToast({ message: "Network error fetching unassigned employees.", type: "error" });
+    } finally {
+      setLoadingUnassigned(false);
     }
   }, []);
 
@@ -79,19 +89,67 @@ const RfidManagement = () => {
     fetchUnassignedEmployees();
   }, [fetchRfidData, fetchUnassignedEmployees]);
 
-  // Handle step-transition from Scan capture to Assignment form
-  const handleRfidScanned = (uid) => {
-    setShowScanModal(false);
-    if (!uid) return;
+  // Refresh unassigned list when modal opens to ensure latest data
+  useEffect(() => {
+    if (showAssignModal) {
+      fetchUnassignedEmployees();
+    }
+  }, [showAssignModal, fetchUnassignedEmployees]);
 
+  const handleScanRFID = async () => {
+    setRfidError("");
+    setLocalScannedId(null);
+    setShowScanModal(true);
+    
+    try {
+      // 1. Initiate capture session on server
+      await fetchWithAuth("/api/system/reg-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "rfid" })
+      });
+
+      // 2. Poll/Wait for hardware scan
+      const response = await fetchWithAuth("/api/users/generateRfid");
+      const data = await response.json();
+
+      if (response.ok && data.rfid) {
+        setLocalScannedId(data.rfid);
+      } else if (response.status === 400 && data.rfid) {
+        // Handle duplicate card case
+        setLocalScannedId(data.rfid);
+        setRfidError(data.error || "This card is already assigned to another user.");
+      } else {
+        setRfidError(data.error || "Failed to scan RFID. Please try again.");
+        if (data.rfid) setLocalScannedId(data.rfid);
+      }
+    } catch (err) {
+      console.error("RFID Scan Error:", err);
+      setRfidError("An error occurred while scanning.");
+    }
+  };
+
+  const handleCloseScanModal = () => {
+    setShowScanModal(false);
+    // Non-blocking cleanup
+    fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
+  };
+
+  // Handle step-transition from Scan capture to Assignment form
+  const handleRfidScannedConfirm = () => {
+    if (!localScannedId) return;
+
+    setShowScanModal(false);
+    
     // Check if card is already registered
+    const uid = localScannedId;
     const existingCard = rfidList.find(r => r.machip_id?.toLowerCase() === uid.toLowerCase());
 
     if (existingCard) {
       setToast({ message: `Card ${uid} is already linked to ${existingCard.userName}.`, type: "error" });
       setSearchQuery(uid); // Filter table to show item
     } else {
-      // Advance to target mapping screen from screenshot layout
+      // Advance to target mapping screen
       setScannedUid(uid);
       setSelectedUserId("");
       setShowAssignModal(true);
@@ -145,7 +203,7 @@ const RfidManagement = () => {
   // Stats
   const stats = useMemo(() => {
     return {
-      total: rfidList.length,
+      total: rfidList.filter(r => r.machip_id).length,
       active: rfidList.filter(r => r.hardwareStatus === "Active").length
     };
   }, [rfidList]);
@@ -214,7 +272,7 @@ const RfidManagement = () => {
             </div>
           </div>
           
-          <Button onClick={() => setShowScanModal(true)} className="bg-[#2A174E] hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
+          <Button onClick={handleScanRFID} className="bg-[#2A174E] hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
             <ScanLine className="h-4 w-4 text-white" />
             <span>Scan RFID</span>
           </Button>
@@ -285,15 +343,31 @@ const RfidManagement = () => {
                     <TableRow key={row.user_Id} className="border-b-slate-100 hover:bg-slate-50/50">
                       <TableCell className="px-6 py-4"><p className="font-bold text-[#2A174E] text-sm">{row.userName}</p><p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p></TableCell>
                       <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.machip_id || "—"}</TableCell>
-                      <TableCell><Badge variant="secondary" className={row.hardwareStatus === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>{row.hardwareStatus || "Unknown"}</Badge></TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className={
+                          row.hardwareStatus === "Active" ? "bg-green-100 text-green-800" : 
+                          row.hardwareStatus === "Unassigned" ? "bg-slate-100 text-slate-500" :
+                          "bg-red-100 text-red-800"
+                        }>
+                          {row.hardwareStatus || "Unknown"}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-slate-600 text-sm">{row.dateAligned || "—"}</TableCell>
                       <TableCell className="text-slate-600 text-sm">{row.lastScanned || "—"}</TableCell>
-                      <TableCell className="text-right pr-6"><Button variant="outline" size="sm" onClick={() => handleRevokeCard(row.user_Id)} className="border-red-200 text-red-600 hover:bg-red-50"><BlockIcon className="h-3.5 w-3.5 mr-1" /> Unlink</Button></TableCell>
+                      <TableCell className="text-right pr-6">
+                        {row.machip_id ? (
+                          <Button variant="outline" size="sm" onClick={() => handleRevokeCard(row.user_Id)} className="border-red-200 text-red-600 hover:bg-red-50">
+                            <BlockIcon className="h-3.5 w-3.5 mr-1" /> Unlink
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">No card linked</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow><TableCell colSpan={6} className="p-6 border-0">
-                    <EmptyState icon={<CreditCardIcon className="h-8 w-8 text-slate-300" />} title="No RFID cards mapped" description="No secure hardware entries found matching your configuration filters." /></TableCell></TableRow>
+                    <EmptyState icon={<CreditCardIcon className="h-8 w-8 text-slate-300" />} title="No employees found" description="No employees match your search criteria." /></TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -314,7 +388,14 @@ const RfidManagement = () => {
         </div>
 
       {/* STEP 1: Core Scan Sensor Interceptor Modal */}
-      <RfidScanModal isOpen={showScanModal} onClose={() => setShowScanModal(false)} onScanSuccess={handleRfidScanned} />
+      <RfidScanModal 
+        isOpen={showScanModal} 
+        onClose={handleCloseScanModal} 
+        onRescan={handleScanRFID}
+        onConfirm={handleRfidScannedConfirm}
+        scannedId={localScannedId}
+        error={rfidError}
+      />
 
       {/* STEP 2: Assign Scanned Token Modal Layout (Matches Uploaded Reference Design) */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
@@ -342,21 +423,37 @@ const RfidManagement = () => {
 
             {/* Target Variable Dropdown Assignment Field */}
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Assign Target Employee Profile</Label>
+              <div className="flex justify-between items-end">
+                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                  Assign Target Employee Profile {unassignedEmployees.length > 0 && `(${unassignedEmployees.length} Found)`}
+                </Label>
+                <button 
+                  onClick={fetchUnassignedEmployees} 
+                  className="text-[10px] text-purple-600 hover:text-purple-800 font-bold uppercase tracking-tight underline"
+                  disabled={loadingUnassigned}
+                >
+                  {loadingUnassigned ? "Refreshing..." : "Refresh List"}
+                </button>
+              </div>
+              
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
                 <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-[#2A174E]">
                   <SelectValue placeholder="Select an unassigned employee..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[220px]">
-                  {unassignedEmployees.length > 0 ? (
+                  {loadingUnassigned ? (
+                    <div className="p-4 text-center text-xs text-slate-400 italic">
+                      Updating employee registry...
+                    </div>
+                  ) : unassignedEmployees.length > 0 ? (
                     unassignedEmployees.map((emp) => (
-                      <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
+                      <SelectItem key={emp.user_Id} value={emp.user_Id.toString()} className="cursor-pointer">
                         {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)})
                       </SelectItem>
                     ))
                   ) : (
                     <div className="p-4 text-center text-xs text-slate-400 italic">
-                      All employees currently hold assigned card mappings.
+                      No unassigned employees found. Check the registry list below.
                     </div>
                   )}
                 </SelectContent>

@@ -482,14 +482,37 @@ void loop() {
       deserializeJson(doc, http.getString());
       
       if (doc["active"] | false) {
-        enrollmentMode = true;
-        enrollmentUserId = doc["userId"].as<String>();
-        enrollmentSlotId = doc["slotId"] | 1;
-        enrollmentType = doc["type"] | "FP";
-        
-        provideFeedback(WAITING_SCAN);
-        updateFrontDisplay("ENROLL ACTIVE", "ID: " + enrollmentUserId + " | Mode: " + enrollmentType, ST77XX_ORANGE);
-        updateBackDisplay("LOCKED", "Admin Management");
+        String type = doc["type"] | "FP";
+
+        if (type == "CLEAR_ALL") {
+          updateFrontDisplay("HARDWARE RESET", "Clearing sensor memory...", ST77XX_RED);
+          Serial.println(F("[FP] EXECUTING FACTORY RESET..."));
+          
+          if (finger.emptyDatabase() == FINGERPRINT_OK) {
+            updateFrontDisplay("SUCCESS", "Sensor memory wiped.", ST77XX_GREEN);
+            provideFeedback(SUCCESS_OK);
+          } else {
+            updateFrontDisplay("ERROR", "Failed to clear sensor.", ST77XX_RED);
+            provideFeedback(ERROR_FAIL);
+          }
+          
+          delay(2000);
+          HTTPClient clearHttp;
+          clearHttp.begin(currentFpUrl + "/session/clear");
+          clearHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+          clearHttp.GET(); clearHttp.end();
+          updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+        }
+        else {
+          enrollmentMode = true;
+          enrollmentUserId = doc["userId"].as<String>();
+          enrollmentSlotId = doc["slotId"] | 1;
+          enrollmentType = type;
+          
+          provideFeedback(WAITING_SCAN);
+          updateFrontDisplay("ENROLL ACTIVE", "ID: " + enrollmentUserId + " | Mode: " + enrollmentType, ST77XX_ORANGE);
+          updateBackDisplay("LOCKED", "Admin Management");
+        }
       }
     }
     http.end();
