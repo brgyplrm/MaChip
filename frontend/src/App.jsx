@@ -10,6 +10,7 @@ import RfidManagement from "./pages/new/RfidManagement";
 import Edit from "./pages/editUser/Edit";
 import EditAttendance from "./pages/editAttendance/EditAttendance";
 import Logs from "./pages/logs-management/Logs";
+import VisitorLogs from "./pages/logs-management/VisitorLogs";
 import AdminRequests from "./pages/admin_Requests/AdminRequests";
 import RequestSummary from "./pages/admin_Requests/RequestSummary";
 import RequestDetails from "./pages/request_Details/RequestDetails";
@@ -418,6 +419,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 2, 4]}>
               <Logs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="visitorLogs"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 4]}>
+              <VisitorLogs />
             </ProtectedRoute>
           }
         />

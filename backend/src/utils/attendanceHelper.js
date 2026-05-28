@@ -277,7 +277,8 @@ async function ensureAbsentsMarked(dateOverride = null) {
     const employees = await User.findAll({ 
       where: { 
         user_RoleId: [1, 2, 3, 4], 
-        deletedAt: null 
+        deletedAt: null,
+        user_Id: { [sequelize.Sequelize.Op.ne]: 999 }
       } 
     });
     if (employees.length === 0) return;

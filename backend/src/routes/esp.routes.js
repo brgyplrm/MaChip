@@ -30,4 +30,8 @@ router.post("/fingerprint/enroll-confirm", espValidator, rfidController.confirmF
 // Called by ESP32 to download a template for 2FA verification
 router.get("/fingerprint/download/:uid", espValidator, rfidController.getFingerprintTemplate);
 
+// Visitor Access Routes
+router.post("/visitor-access", authMiddleware, rfidController.triggerVisitorAccess);
+router.post("/visitor-access/confirm", espValidator, rfidController.confirmVisitorAccess);
+
 module.exports = router;

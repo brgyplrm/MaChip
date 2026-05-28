@@ -35,6 +35,13 @@ let fpCaptureSession = {
   type: "FP"
 };
 
+// Global state for Visitor Access
+let visitorAccessSession = {
+  isPending: false,
+  expiresAt: null,
+  adminId: null
+};
+
 // Heartbeat state to track ESP32 connectivity
 let lastEsp32Heartbeat = null;
 
@@ -69,6 +76,11 @@ exports.clearFingerprintSession = async (req, res) => {
   captureSession.isCapturing = false;
   captureSession.scannedUid = null;
   captureSession.expiresAt = null;
+
+  // Clear in-memory Visitor session
+  visitorAccessSession.isPending = false;
+  visitorAccessSession.expiresAt = null;
+  visitorAccessSession.adminId = null;
 
   // Clear database registration session
   try {
@@ -733,6 +745,19 @@ exports.getFingerprintSession = async (req, res) => {
   }
   lastEsp32Heartbeat = now;
 
+  // 0. Check Visitor Access (High Priority)
+  if (visitorAccessSession.isPending && Date.now() < visitorAccessSession.expiresAt) {
+    // Consume the trigger immediately so it doesn't loop
+    visitorAccessSession.isPending = false;
+    
+    return res.status(200).json({
+      active: true,
+      slotId: 0,
+      userId: 999,
+      type: "VISITOR_OPEN"
+    });
+  }
+
   // 1. Check in-memory session (Direct Scan via generateFingerprint)
   if (fpCaptureSession.isCapturing && Date.now() < fpCaptureSession.expiresAt) {
     return res.status(200).json({
@@ -1001,6 +1026,78 @@ exports.getFingerprintTemplate = async (req, res) => {
     });
   } catch (error) {
     console.error("[FP DOWNLOAD ERROR]:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+exports.triggerVisitorAccess = async (req, res) => {
+  const adminId = req.user?.user_Id || 1; 
+  
+  console.log(`[VISITOR] Triggered by Admin: ${adminId}`);
+  
+  visitorAccessSession = {
+    isPending: true,
+    expiresAt: Date.now() + 30000, 
+    adminId: adminId
+  };
+
+  try {
+    const now = await getSystemTime();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const timeStr = now.toTimeString().split(" ")[0];
+
+    await sequelize.query(
+      `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId")
+       VALUES (999, :log_Date, :time_Logged, 8)`,
+      {
+        replacements: { log_Date: todayStart, time_Logged: timeStr },
+        type: QueryTypes.INSERT
+      }
+    );
+
+    const io = getIO();
+    io.emit("OPEN_DOOR", { type: "VISITOR", adminId });
+    io.emit("NEW_ATTENDANCE_LOG", { userId: 999, status: "Visitor Access: Opening" });
+
+    res.status(200).json({ success: true, message: "Visitor access triggered" });
+  } catch (error) {
+    console.error("[VISITOR ERROR]:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+exports.confirmVisitorAccess = async (req, res) => {
+  console.log(`[VISITOR] Hardware confirmed door closed`);
+  
+  if (!visitorAccessSession.isPending) {
+    // If it was already cleared by timeout, we still allow logging if it's within a reasonable window
+    // but for simplicity, let's just log it.
+  }
+
+  visitorAccessSession.isPending = false;
+
+  try {
+    const now = await getSystemTime();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const timeStr = now.toTimeString().split(" ")[0];
+
+    await sequelize.query(
+      `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId")
+       VALUES (999, :log_Date, :time_Logged, 9)`,
+      {
+        replacements: { log_Date: todayStart, time_Logged: timeStr },
+        type: QueryTypes.INSERT
+      }
+    );
+
+    const io = getIO();
+    io.emit("NEW_ATTENDANCE_LOG", { userId: 999, status: "Visitor Access: Door Closed" });
+
+    res.status(200).json({ success: true, message: "Visitor access completed" });
+  } catch (error) {
+    console.error("[VISITOR CONFIRM ERROR]:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };

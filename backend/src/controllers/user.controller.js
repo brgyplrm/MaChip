@@ -389,6 +389,7 @@ exports.viewAllUsers = async (req, res) => {
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
        WHERE u."deletedAt" IS NULL
+       AND u."user_Id" != 999
        ORDER BY u."user_Id" ASC`,
       { type: QueryTypes.SELECT },
     );
@@ -1115,6 +1116,7 @@ exports.getMasterlist = async (req, res) => {
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id"            = d."user_Id"
        LEFT JOIN "User_Hardware"    h  ON u."user_Id"                 = h."user_Id"
        WHERE u."deletedAt" IS NULL
+       AND u."user_Id" != 999
        ORDER BY u."user_Id" ASC`,
       { type: QueryTypes.SELECT },
     );
@@ -1608,6 +1610,7 @@ exports.getUnassignedHardwareUsers = async (req, res) => {
       SELECT u."user_Id", u."user_FirstName", u."user_LastName"
       FROM "User" u
       WHERE u."deletedAt" IS NULL
+      AND u."user_Id" != 999
     `;
 
     if (type === 'rfid') {

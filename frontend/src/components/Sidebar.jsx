@@ -73,6 +73,7 @@ const routeLabels = {
   "employeeHome" : "Home",
   "employeeCalendar" : "calendar",
   "accessLogs" : "Access Logs",
+  "visitorLogs" : "Visitor Access",
   "logs/edit/:userId/:date" : "Edit Attendance",
 };
 
@@ -379,6 +380,22 @@ const Sidebar = ({ children }) => {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+
+                {/* Visitor Access (Management Only) */}
+                {isManagement && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive("/visitorLogs")}
+                      className={menuButtonClass(isActive("/visitorLogs"))}
+                    >
+                      <Link to="/visitorLogs">
+                        <HistoryIcon className="!text-[22px] shrink-0 text-amber-600" />
+                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Visitor Access</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
 
                 {/* Requests Link */}
                 <SidebarMenuItem>

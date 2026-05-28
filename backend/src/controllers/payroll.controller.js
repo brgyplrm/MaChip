@@ -755,7 +755,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
      FROM "User" u
      LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
      LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
-     WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
+     WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0 AND u."user_Id" != 999
      ORDER BY u."user_Id" ASC`, 
     { type: QueryTypes.SELECT }
   );
@@ -1330,7 +1330,7 @@ exports.generatePayroll = async (req, res) => {
 exports.getEligibleEmployeesCount = async (req, res) => {
   try {
     const result = await sequelize.query(
-      `SELECT COUNT(*) as count FROM "User" WHERE "deletedAt" IS NULL AND "dailyRate" > 0`, 
+      `SELECT COUNT(*) as count FROM "User" WHERE "deletedAt" IS NULL AND "dailyRate" > 0 AND "user_Id" != 999`, 
       { type: QueryTypes.SELECT }
     );
     res.status(200).json({ count: parseInt(result[0].count) });

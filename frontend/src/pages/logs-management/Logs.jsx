@@ -35,9 +35,9 @@ const formatDateStr = (dateStr) => {
 
 const Logs = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialView = searchParams.get("view") === "day" ? "day" : "raw";
+  const initialView = searchParams.get("view") === "day" ? "day" : (searchParams.get("view") === "visitor" ? "visitor" : "raw");
   const { systemToday } = useSystemTime();
-  const [viewMode, setViewMode] = useState(initialView); // "raw" or "day"
+  const [viewMode, setViewMode] = useState(initialView); // "raw", "day", or "visitor"
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   

@@ -503,6 +503,33 @@ void loop() {
           clearHttp.GET(); clearHttp.end();
           updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
         }
+        else if (type == "VISITOR_OPEN") {
+          Serial.println(F("[VISITOR] REMOTE UNLOCK TRIGGERED"));
+          updateFrontDisplay("VISITOR ACCESS", "Authorized Remote Open\nWelcome!", ST77XX_CYAN);
+          updateBackDisplay("VISITOR", "Remote Authorized");
+          
+          provideFeedback(SUCCESS_OK);
+          solenoidUnlock();
+          
+          // Wait for solenoid duration + small buffer
+          delay(SOLENOID_DURATION + 500);
+          
+          // Notify backend that door is closed/completed
+          HTTPClient confirmHttp;
+          confirmHttp.begin(currentFpUrl + "/visitor-access/confirm");
+          confirmHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+          confirmHttp.POST("{}"); 
+          confirmHttp.end();
+
+          // Clear session explicitly
+          HTTPClient clearHttp;
+          clearHttp.begin(currentFpUrl + "/session/clear");
+          clearHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+          clearHttp.GET(); clearHttp.end();
+
+          updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+          updateBackDisplay("READY", "Scan Card Out");
+        }
         else {
           enrollmentMode = true;
           enrollmentUserId = doc["userId"].as<String>();

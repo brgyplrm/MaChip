@@ -465,12 +465,21 @@ exports.viewUserLogs = async (req, res) => {
 
 // ── View All Attendance ───────────────────────────────────────────────────────
 exports.viewAllAttendance = async (req, res) => {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate, user_Id } = req.query;
   try {
     const whereClause = {};
     if (startDate && endDate) {
       whereClause.log_Date = {
         [sequelize.Sequelize.Op.between]: [startDate, `${endDate} 23:59:59`]
+      };
+    }
+
+    if (user_Id) {
+      whereClause.user_id = user_Id;
+    } else {
+      // Exclude Visitor system user (999) from general raw logs
+      whereClause.user_id = {
+        [sequelize.Sequelize.Op.ne]: 999
       };
     }
 
@@ -645,6 +654,7 @@ exports.getOverallAttendanceStats = async (req, res) => {
          "log_Date"
        FROM "employee_Logging_report"
        WHERE "log_Date" > :now::date - interval '7 days'
+       AND "user_id" != 999
        AND EXTRACT(DOW FROM "log_Date") != 0 -- Exclude Sundays
        GROUP BY name, "log_Date"
        ORDER BY "log_Date" ASC`,
@@ -672,6 +682,7 @@ exports.getOverallAttendanceStats = async (req, res) => {
          EXTRACT(MONTH FROM "log_Date") as month_num
        FROM "employee_Logging_report"
        WHERE EXTRACT(YEAR FROM "log_Date") = :currentYear
+       AND "user_id" != 999
        AND EXTRACT(MONTH FROM "log_Date") BETWEEN :startMonth AND :endMonth
        AND EXTRACT(DOW FROM "log_Date") != 0 -- Exclude Sundays
        GROUP BY name, month_num
@@ -694,7 +705,8 @@ exports.getOverallAttendanceStats = async (req, res) => {
          COUNT(*) as total,
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent
        FROM "employee_Logging_report"
-       WHERE EXTRACT(DOW FROM "log_Date") != 0 -- Exclude Sundays
+       WHERE "user_id" != 999
+       AND EXTRACT(DOW FROM "log_Date") != 0 -- Exclude Sundays
        GROUP BY name
        ORDER BY name ASC
        LIMIT 5`,
@@ -729,6 +741,7 @@ exports.getMonthlyAttendanceStats = async (req, res) => {
          EXTRACT(MONTH FROM "log_Date") as month_num
        FROM "employee_Logging_report"
        WHERE EXTRACT(YEAR FROM "log_Date") = :currentYear
+       AND "user_id" != 999
        GROUP BY name, month_num
        ORDER BY month_num ASC`,
       { replacements: { currentYear }, type: QueryTypes.SELECT }
@@ -921,7 +934,7 @@ exports.getDashboardStats = async (req, res) => {
     const yesterdayStr = formatDateLocal(yesterday);
 
     const userCountResult = await sequelize.query(
-      `SELECT COUNT(*) as total FROM "User" WHERE "deletedAt" IS NULL`,
+      `SELECT COUNT(*) as total FROM "User" WHERE "deletedAt" IS NULL AND "user_Id" != 999`,
       { type: QueryTypes.SELECT }
     );
     const totalEmployees = parseInt(userCountResult[0].total);
@@ -938,7 +951,8 @@ exports.getDashboardStats = async (req, res) => {
          COUNT(*) FILTER (WHERE "time_Logged_inArr" <> '[]') AS "enteredCount",
          COUNT(*) FILTER (WHERE "time_Logged_outArr" <> '[]') AS "exitedCount"
        FROM "employee_Logging_report"
-       WHERE "log_Date" = :todayStr`,
+       WHERE "log_Date" = :todayStr
+       AND "user_id" != 999`,
       { replacements: { todayStr }, type: QueryTypes.SELECT },
     );
 
@@ -947,7 +961,8 @@ exports.getDashboardStats = async (req, res) => {
          COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5, 6)) AS "onTimeCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount"
        FROM "employee_Logging_report"
-       WHERE "log_Date" = :yesterdayStr`,
+       WHERE "log_Date" = :yesterdayStr
+       AND "user_id" != 999`,
       { replacements: { yesterdayStr }, type: QueryTypes.SELECT },
     );
 
@@ -1064,7 +1079,8 @@ exports.getOfficeOccupancy = async (req, res) => {
        FROM "employee_Logging_report" r
        LEFT JOIN "User" u ON u."user_Id" = r."user_id"
        WHERE r."log_Date" = :todayStr
-       AND r."logged_StatusId" = 1`,
+       AND r."logged_StatusId" = 1
+       AND r."user_id" != 999`,
       { replacements: { todayStr }, type: QueryTypes.SELECT },
     );
 
@@ -1118,6 +1134,9 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
   if (user_Id && user_Id !== "All Employees") {
     query += ` AND r."user_id" = :user_Id`;
     replacements.user_Id = user_Id;
+  } else {
+    // Exclude Visitor system user (999) from general reports
+    query += ` AND r."user_id" != 999`;
   }
 
   query += ` ORDER BY r."log_Date" DESC, u."user_LastName" ASC`;
