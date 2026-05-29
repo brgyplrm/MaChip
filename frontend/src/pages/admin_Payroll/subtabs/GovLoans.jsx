@@ -875,7 +875,7 @@ const GovLoans = () => {
                 <div className="flex flex-wrap gap-2">
                   {isAdmin && (
                     <>
-                      <Button 
+                      {/* <Button 
                         variant="outline" 
                         size="sm"
                         onClick={() => {
@@ -885,15 +885,15 @@ const GovLoans = () => {
                         className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
                       >
                         <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
-                      </Button>
-                      <Button 
+                      </Button> */}
+                      {/* <Button 
                         variant="outline" 
                         size="sm"
                         onClick={() => setIsEditingTable(!isEditingTable)}
                         className={`h-9 ${isEditingTable ? "bg-green-500 hover:bg-green-600 text-white border-transparent" : "border-[#2A174E] text-[#2A174E] hover:bg-slate-50"}`}
                       >
                         {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Matrix</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Matrix</>}
-                      </Button>
+                      </Button> */}
                     </>
                   )}
                 </div>

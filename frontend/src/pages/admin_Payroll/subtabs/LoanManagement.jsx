@@ -98,9 +98,9 @@ export default function LoanManagement() {
               </Link>
             </Button>
           
-          <Button onClick={() => setShowLoanModal(true)} className="bg-[#2A174E] hover:bg-[#7A52B5]">
+          {/* <Button onClick={() => setShowLoanModal(true)} className="bg-[#2A174E] hover:bg-[#7A52B5]">
             <Plus className="mr-2 h-4 w-4" /> Create Custom Loan
-          </Button>
+          </Button> */}
         </div>
       </div>
 

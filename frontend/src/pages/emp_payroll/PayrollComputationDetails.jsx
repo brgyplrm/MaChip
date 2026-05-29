@@ -50,7 +50,7 @@ const PayrollComputationDetails = () => {
     return new Intl.NumberFormat("en-PH", {
       style: "currency",
       currency: "PHP",
-    }).format(amount || 0);
+    }).format(Math.max(0, parseFloat(amount) || 0));
   };
 
   if (loading) {

@@ -83,7 +83,7 @@ exports.generatePayslipPDF = async (payroll, password = null) => {
     headers.forEach((h, i) => doc.text(h, colStarts[i] + 2, tableTop + 6));
 
     let rowY = tableTop + 20;
-    const formatCurrency = (val) => parseFloat(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
+    const formatCurrency = (val) => Math.max(0, parseFloat(val || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 });
 
     const rows = [
       { eL: "Pay this period", eH: payroll.NoHrs_Worked, eA: formatCurrency(payroll.basicPay), dL: "Absences", dH: payroll.absence_Hrs, dA: formatCurrency(payroll.absence_Amnt) },

@@ -882,7 +882,7 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
           {/* Right Side Grouping: Admin Controls */}
           {isAdmin && (
             <div className="flex flex-wrap items-center gap-2 md:ml-auto w-full md:w-auto justify-start md:justify-end">
-              <Button 
+              {/* <Button 
                 variant="outline" 
                 size="sm"
                 onClick={() => {
@@ -892,7 +892,7 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
                 className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
               >
                 <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
-              </Button>
+              </Button> */}
               {/* <Button 
                 variant="outline" 
                 size="sm"
