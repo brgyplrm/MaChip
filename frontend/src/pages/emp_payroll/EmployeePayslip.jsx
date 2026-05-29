@@ -106,10 +106,10 @@ const EmployeePayslip = () => {
               <Printer className="h-4 w-4" />
               Print
             </Button> */}
-            <Button size="sm" className="gap-2 bg-[#2A174E] hover:bg-[#3d2270]">
+            {/* <Button size="sm" className="gap-2 bg-[#2A174E] hover:bg-[#3d2270]">
               <Download className="h-4 w-4" />
               Download PDF
-            </Button>
+            </Button> */}
           </div>
         </div>
 
