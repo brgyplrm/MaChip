@@ -876,6 +876,7 @@ const Maxicare = () => {
 
   const downloadTemplate = () => {
     const templateId = "MAXICARE_HMO_TEMPLATE";
+    // emp.id already contains "MACJ-", so we just add the "#"
     const headers = [templateId, ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
     const headerLine = headers.join(",");
 
@@ -909,12 +910,22 @@ const Maxicare = () => {
         const lines = text.split("\n").filter(line => line.trim() !== "");
         if (lines.length < 2) throw new Error("File is empty or missing data.");
 
-        const headers = lines[0].split(",");
+        // Auto-detect delimiter (comma, tab, or semicolon)
+        let delimiter = ",";
+        if (lines[0].includes("\t")) delimiter = "\t";
+        else if (lines[0].includes(";")) delimiter = ";";
+
+        console.log("[BATCH-DEBUG] Detected Delimiter:", delimiter === "\t" ? "TAB" : delimiter);
+        console.log("[BATCH-DEBUG] Raw Lines Count:", lines.length);
+
+        const headers = lines[0].split(delimiter);
+        console.log("[BATCH-DEBUG] Extracted Headers:", headers);
         const templateId = headers[0]?.trim();
 
-        if (templateId !== "MAXICARE_HMO_TEMPLATE") {
+        if (!templateId.includes("MAXICARE_HMO_TEMPLATE")) {
+          console.error("[BATCH-DEBUG] Template ID Mismatch. Found:", templateId);
           setToast({ 
-            message: `Invalid template. You are trying to upload a file for "${templateId.replace(/_/g, ' ')}" into the Maxicare HMO section. Please download the latest template.`, 
+            message: `Invalid template format. Please download the latest template.`, 
             type: "error" 
           });
           setLoading(false);
@@ -925,31 +936,72 @@ const Maxicare = () => {
 
         for (let i = 1; i < headers.length; i++) {
           const header = headers[i];
-          const match = header.match(/#MACJ-(\d+)/i);
+          // Robustly find the ID: look for the last group of numbers in the header
+          const match = header.match(/(\d+)\s*$/);
           if (match) {
-            empMappings.push({ colIndex: i, user_Id: parseInt(match[1]) });
+            const userId = parseInt(match[1]);
+            empMappings.push({ colIndex: i, user_Id: userId });
+            console.log(`[BATCH-DEBUG] Mapped Header "${header}" to User ID: ${userId}`);
+          } else {
+            console.warn(`[BATCH-DEBUG] Skipping header (no ID found): "${header}"`);
           }
         }
 
         const updates = [];
         for (let i = 1; i < lines.length; i++) {
-          const columns = lines[i].split(",");
-          const date = columns[0]?.trim();
-          if (!date) continue;
+          const columns = lines[i].split(delimiter);
+          const rawDate = columns[0]?.trim();
+          if (!rawDate) continue;
+
+          // Philippine Date Parsing (Prioritize DD/MM/YYYY)
+          let date = rawDate;
+          if (rawDate.includes("/")) {
+            const parts = rawDate.split("/");
+            if (parts.length === 3) {
+              const p0 = parts[0].padStart(2, '0');
+              const p1 = parts[1].padStart(2, '0');
+              const p2 = parts[2].trim();
+              
+              // If the first part is > 12, it is definitely DD/MM/YYYY
+              // If the middle part is > 12, it is definitely MM/DD/YYYY
+              // Default to DD/MM/YYYY for PH context if ambiguous
+              if (parseInt(p0) > 12) {
+                date = `${p2}-${p1}-${p0}`;
+              } else if (parseInt(p1) > 12) {
+                date = `${p2}-${p0}-${p1}`;
+              } else {
+                // Ambiguous (e.g. 05/06/2025). Assume DD/MM/YYYY (June 5)
+                date = `${p2}-${p1}-${p0}`;
+              }
+            }
+          }
+
+          const parsedDate = new Date(date);
+          const isValidDate = !isNaN(parsedDate.getTime());
+
+          if (!isValidDate) {
+            console.error(`[BATCH-DEBUG] Row ${i}: Cannot parse date "${rawDate}". Expected DD/MM/YYYY.`);
+            continue;
+          }
+
+          // Use the standardized YYYY-MM-DD for the update payload
+          const finalDateStr = date.includes("-") && date.length === 10 ? date : formatDateLocal(parsedDate);
 
           empMappings.forEach(mapping => {
-            const amount = parseFloat(columns[mapping.colIndex]?.trim() || 0);
-            const isValidDate = !isNaN(new Date(date).getTime());
+            const valStr = columns[mapping.colIndex]?.trim() || "0";
+            const amount = parseFloat(valStr.replace(/[^\d.-]/g, ''));
 
-            if (amount > 0 && isValidDate) {
+            if (amount > 0) {
               updates.push({
-                date,
+                date: finalDateStr,
                 user_Id: mapping.user_Id,
                 amount
               });
             }
           });
         }
+
+        console.log("[BATCH-DEBUG] Final Updates to Sync:", updates);
 
         if (updates.length === 0) {
           setToast({ message: "No non-zero amounts found in CSV", type: "error" });

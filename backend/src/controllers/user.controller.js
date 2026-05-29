@@ -317,6 +317,7 @@ exports.registerUser = async (req, res) => {
       );
 
       await transaction.commit();
+      console.log(`[DATABASE SUCCESS] User ${req.body.user_FirstName} ${req.body.user_LastName} (ID: ${user_Id}) has been successfully saved to the database.`);
     } catch (err) {
       await transaction.rollback();
       throw err;
@@ -1563,6 +1564,7 @@ exports.batchRegisterUsers = async (req, res) => {
           );
 
           await trans.commit();
+          console.log(`[DATABASE SUCCESS] Batch Row ${i + 1}: User ${userData.user_FirstName} ${userData.user_LastName} (ID: ${nextId}) has been successfully saved to the database.`);
           results.success++;
         } catch (innerErr) {
           await trans.rollback();

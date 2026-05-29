@@ -1434,6 +1434,7 @@ exports.UpdateStatusRequest = async (req, res) => {
   try {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
+    const todayStr = formatDateLocal(now);
 
     // Fetch the request and the roles of both the requester and processor
     const detailsResult = await sequelize.query(
@@ -1728,8 +1729,8 @@ exports.UpdateStatusRequest = async (req, res) => {
           amortizationStartMonth, totalOutstandingBalance
         } = loanDetails[0];
         
-        const totalAmount = parseFloat(amountRequested || totalOutstandingBalance);
-        const months = parseInt(monthsToPay || totalLoanTerm || 12);
+        const totalAmount = parseFloat(amountRequested) || parseFloat(totalOutstandingBalance) || 0;
+        const months = parseInt(monthsToPay) || parseInt(totalLoanTerm) || 12;
         
         // --- HIGH ACCURACY FINANCIAL MATH ---
         // 1. Determine Rates

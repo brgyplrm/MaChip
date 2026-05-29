@@ -572,7 +572,7 @@ exports.scanRFID = async (req, res) => {
 
     // 6. Log Transaction
     const method = action === "fingerprint_scan" ? "Fingerprint" : "RFID";
-    const isIrregularEvent = isLateNightFirstIn || isUnauthorizedReEntry || isPastOTEntry;
+    const isIrregularEvent = isIrregular; // Use the isIrregular flag defined earlier
     
     if (isIrregularEvent) {
       await logTransaction(target_user_Id, null, "IRREGULAR_LOG", `Irregular ${statusLabels[nextStatus]} at ${timeStr}`, { 
@@ -583,7 +583,7 @@ exports.scanRFID = async (req, res) => {
       }, req);
     } else {
       await logTransaction(target_user_Id, null, `${method.toUpperCase()}_SCAN`, `${statusLabels[nextStatus]} via ${method}`, { 
-        uid: action === "fingerprint_scan" ? `Slot ${uid}` : maskUid(uid, true),
+        uid: action === "fingerprint_scan" ? `Slot ${uid}` : maskUid(rfidUid, true),
         status: statusLabels[nextStatus], 
         time: timeStr,
         role: "Employee",
@@ -604,8 +604,14 @@ exports.scanRFID = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("[SCAN ERROR]:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    console.error("[SCAN ERROR - CRITICAL]:", error);
+    // Log the stack trace for debugging
+    if (error.stack) console.error(error.stack);
+    res.status(500).json({ 
+      success: false, 
+      message: "Internal Server Error",
+      error: error.message 
+    });
   }
 };
 

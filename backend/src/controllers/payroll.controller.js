@@ -610,26 +610,30 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const incentives = parseFloat(customIncentives || 0); 
   const allowance = parseFloat(customAllowance || 0);
 
-  // Actual Basic Pay = Potential - Absences - Unpaid Leaves
+  // 4. Actual Earnings & Adjustments
+  // "Gross Earnings" should be the potential pay + premiums before ANY deductions (absences/tardiness)
+  // This ensures the math (Gross - Total Deductions = Net) is transparent on the payslip.
+  let grossEarnings = potentialBasicPay + legalHol_Amnt + nightDiff_Amnt + OT_Amnt + nightOT_Amnt + incentives;
+  if (isNaN(grossEarnings) || grossEarnings < 0) grossEarnings = 0;
+
+  // Actual Basic Pay for internal record (Potential - Absences)
   const basicPay = potentialBasicPay - absence_Amnt - unpaidLeave_Amnt;
 
-  let totalEarnings = basicPay + legalHol_Amnt + nightDiff_Amnt + OT_Amnt + nightOT_Amnt + incentives - specialHol_Adj;
-  if (isNaN(totalEarnings) || totalEarnings < 0) totalEarnings = 0;
-
   // 5. Government Deductions
-  const govtTotal = totalEarnings > 0 ? (parseFloat(sss_Share || 0) + parseFloat(philhealth_Share || 0) + parseFloat(hdmf_Share || 0)) : 0;
+  const govtTotal = grossEarnings > 0 ? (parseFloat(sss_Share || 0) + parseFloat(philhealth_Share || 0) + parseFloat(hdmf_Share || 0)) : 0;
   
   // 6. Other Deductions
   const personalLoanCombined = parseFloat(advAmnt || 0) + parseFloat(ewLoan || 0);
-  const otherTotal = totalEarnings > 0 ? (parseFloat(hCard || 0) + parseFloat(sLoan || 0) + parseFloat(hLoan || 0) + parseFloat(cLoan || 0) + personalLoanCombined + parseFloat(gDed || 0) + parseFloat(mpSave || 0)) : 0;
+  const otherTotal = grossEarnings > 0 ? (parseFloat(hCard || 0) + parseFloat(sLoan || 0) + parseFloat(hLoan || 0) + parseFloat(cLoan || 0) + personalLoanCombined + parseFloat(gDed || 0) + parseFloat(mpSave || 0)) : 0;
 
-  const Tax_Ded_Final = totalEarnings > 0 ? (parseFloat(tax_Share || 0) || 0) : 0; 
+  const Tax_Ded_Final = grossEarnings > 0 ? (parseFloat(tax_Share || 0) || 0) : 0; 
 
-  const taxableIncome = totalEarnings - (tardiness_Amnt) - govtTotal;
-  let netPay = taxableIncome - (otherTotal + Tax_Ded_Final) + allowance;
-  if (isNaN(netPay)) netPay = 0;
-
+  // Total Deductions includes everything: Absences, Tardiness, Gov't, and Loans
   const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded_Final;
+
+  // Final Net Pay calculation: (Gross - Total Deductions) + Non-taxable Allowance
+  let netPay = (grossEarnings - totalDeductions) + allowance;
+  if (isNaN(netPay) || netPay < 0) netPay = 0;
 
   return {
     ...stats,
@@ -638,8 +642,10 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     dailyRate,
     previousDailyRate,
     ratePerHr,
-    basicPay: basicPay, // Updated: Show Actual Basic Pay for the period
-    actualBasicPay: basicPay,     // Internal/Audit
+    basicPay: basicPay, 
+    actualBasicPay: basicPay,
+    grossEarnings: grossEarnings, // The full potential amount
+    totalEarnings: grossEarnings, // For backward compatibility with some reports
     legalHol_Amnt,
     specialHol_Amnt,
     specialHol_Adj,
@@ -672,7 +678,6 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     eastwest_Loan: personalLoanCombined, // COMBINED FIELD FOR UI
     multiPurposeSavings: mpSave,
     Tax_Ded: tax_Share,
-    totalEarnings,
     totalDeductions,
     netPay
   };

@@ -1067,7 +1067,8 @@ exports.getDashboardStats = async (req, res) => {
       ) as projected 
       FROM "User" u
       LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
-      WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0`,
+      WHERE u."deletedAt" IS NULL AND u."user_Id" != 999
+ AND u."dailyRate" > 0`,
       { replacements: { workDaysInMonth }, type: QueryTypes.SELECT }
     );
     const projectedPayroll = Math.round(parseFloat(payrollResult[0].projected || 0));

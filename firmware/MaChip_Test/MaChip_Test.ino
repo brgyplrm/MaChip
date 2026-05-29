@@ -807,9 +807,13 @@ void loop() {
         if (httpCode == 200) {
           JsonDocument resDoc;
           deserializeJson(resDoc, http.getString());
-          if (resDoc["success"] | false) {
+          bool isSuccess = resDoc["success"] | false;
+          http.end(); // End session immediately before power dip
+
+          if (isSuccess) {
             updateBackDisplay("APPROVED", "Goodbye!");
             provideFeedback(SUCCESS_OK);
+            delay(100); // Allow display update before solenoid draw
             solenoidUnlock();
           } else {
             String errMsg = resDoc["message"] | "Rejected";
@@ -819,8 +823,8 @@ void loop() {
         } else {
           updateBackDisplay("NET ERROR", "Code: " + String(httpCode));
           provideFeedback(ERROR_FAIL);
+          http.end();
         }
-        http.end();
       } else {
         updateBackDisplay("OFFLINE", "Local Denied");
         provideFeedback(ERROR_FAIL);

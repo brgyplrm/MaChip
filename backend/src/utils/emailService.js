@@ -34,7 +34,7 @@ const enqueueEmail = async (data) => {
     if (!exists) {
       queue.push({ ...data, attempts: 0, createdAt: new Date() });
       fs.writeFileSync(QUEUE_FILE, JSON.stringify(queue, null, 2));
-      console.log(`[EMAIL QUEUE] Enqueued email for ${data.email}`);
+      console.log(`[EMAIL QUEUE] System is likely OFFLINE. Enqueued welcome email for ${data.email} (ID: ${data.displayId}). It will be sent automatically once online.`);
     }
   } catch (err) {
     console.error("[EMAIL QUEUE ERROR]:", err.message);
