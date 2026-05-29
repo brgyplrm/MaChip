@@ -40,15 +40,16 @@ const Chart = ({ aspect, title, userId }) => {
   }, [userId]);
 
   return (
-    <div className="chart">
+    <div className="chart h-full flex flex-col !bg-transparent !shadow-none !border-none">
       <div className="title">{title}</div>
-      <ResponsiveContainer width="100%" aspect={aspect || (2 / 1)}>
-        <AreaChart
-          width={730}
-          height={250}
-          data={data}
-          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-        >
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%" aspect={aspect}>
+          <AreaChart
+            width={730}
+            height={250}
+            data={data}
+            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+          >
           <defs>
             <linearGradient id="colorOnTime" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8} />
@@ -91,6 +92,7 @@ const Chart = ({ aspect, title, userId }) => {
           />
         </AreaChart>
       </ResponsiveContainer>
+    </div>
     </div>
   );
 };

@@ -10,6 +10,7 @@ import ArchiveIcon from '@mui/icons-material/Archive';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
+import SensorsIcon from '@mui/icons-material/Sensors';
 import { CreditCardIcon } from "lucide-react";
 import { FingerprintIcon } from "lucide-react";
 import { EyeIcon} from "lucide-react";  
@@ -106,11 +107,13 @@ const Datatable = () => {
 
   // Apply Filters
   const filteredData = data.filter(user => {
+    const formattedId = formatUserId(user.user_Id);
     const matchesSearch = (
       user.user_FirstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.user_LastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.user_Email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.user_Id?.toString().includes(searchTerm)
+      user.user_Id?.toString().includes(searchTerm) ||
+      formattedId.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const matchesRole = roleFilter === "All Roles" || 
@@ -168,19 +171,12 @@ const toggleMachipVisibility = (userId) => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           {/* Left side: Biometric Infrastructure (Tertiary) */}
           <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              asChild 
+            <Button
+              variant="ghost"
+              asChild
               className="text-slate-600 hover:text-[#2A174E] hover:bg-slate-100"
             >
-              <Link to="/users/rfid"><CreditCardIcon className="mr-2 h-4 w-4"/> Cards</Link>
-            </Button>
-            <Button 
-              variant="ghost" 
-              asChild 
-              className="text-slate-600 hover:text-[#2A174E] hover:bg-slate-100"
-            >
-              <Link to="/users/fingerprint"><FingerprintIcon className="mr-2 h-4 w-4"/> Slots</Link>
+              <Link to="/users/hardware"><SensorsIcon className="mr-2 h-4 w-4"/> Hardware Registry</Link>
             </Button>
           </div>
 
@@ -289,7 +285,6 @@ const toggleMachipVisibility = (userId) => {
                 <SelectContent>
                   <SelectItem value="All Statuses">All Statuses</SelectItem>
                   <SelectItem value="Regular">Regular</SelectItem>
-                  <SelectItem value="Part-time">Part-time</SelectItem>
                   <SelectItem value="Intern / OJT">Intern / OJT</SelectItem>
                 </SelectContent>
               </Select>

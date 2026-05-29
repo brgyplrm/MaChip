@@ -617,13 +617,13 @@ const toggleMachipVisibility = (rowId) => {
                       <CloseIcon className="h-4 w-4 mr-1" /> Clear All
                     </Button>
                   )}
-                  <Button
+                  {/* <Button
                     className="bg-[#B91C1C] text-white hover:bg-[#991B1B] h-9 px-4 text-xs font-bold uppercase"
                     onClick={() => handleGenerateLogs(2)}
                     disabled={loading}
                   >
                     {loading ? "..." : "Manual Out"}
-                  </Button>
+                  </Button> */}
                 </div>
               </div>
             </CardContent>

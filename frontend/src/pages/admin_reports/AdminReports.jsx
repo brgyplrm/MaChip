@@ -98,17 +98,20 @@ const AdminReports = () => {
     return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const fetchAllRequestsData = useCallback(async () => {
+  const fetchRequestsReport = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetchWithAuth("/api/request/all");
-      if (res.ok) {
-        const data = await res.json();
+      const response = await fetchWithAuth(`/api/request/all?startDate=${startDate}&endDate=${endDate}`);
+      if (response.ok) {
+        const data = await response.json();
         setRequests(data);
       }
-    } catch (err) {
-      console.error("Failed to populate statistics summary rows:", err);
+    } catch (error) {
+      console.error("Error fetching requests report:", error);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [startDate, endDate]);
 
   const fetchPayrollPeriods = useCallback(async () => {
     try {
@@ -193,14 +196,21 @@ const AdminReports = () => {
   useEffect(() => {
     fetchEmployees();
     fetchPayrollPeriods();
-    fetchAllRequestsData();
-  }, [fetchEmployees, fetchPayrollPeriods, fetchAllRequestsData]);
+  }, [fetchEmployees, fetchPayrollPeriods]);
 
   useEffect(() => {
     if (activeReport === "attendance") fetchAttendanceReport();
     else if (activeReport === "payroll") fetchPayrollReport();
     else if (activeReport === "calendar") fetchCalendarReport();
-  }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport]);
+    else if (activeReport === "requests") fetchRequestsReport();
+  }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport, fetchRequestsReport]);
+
+  useEffect(() => {
+    // Ensure one date only for requests tab
+    if (activeReport === "requests" && startDate !== endDate) {
+      setEndDate(startDate);
+    }
+  }, [activeReport, startDate, endDate]);
 
   useEffect(() => {
     if (location.state?.activeTab) {
@@ -301,6 +311,17 @@ const AdminReports = () => {
     } else if (activeReport === "calendar") {
       headers = ["Type", "Date", "Name/Employee", "Details"];
       dataToExport = filteredCalendarData.map(r => [r.type, r.date, r.name, r.details]);
+    } else if (activeReport === "requests") {
+      orientation = "l";
+      headers = ["REQ ID", "Employee", "Type", "Filed", "Status", "Processed By"];
+      dataToExport = filteredRequests.map(req => [
+        `REQ-${req.emp_reqId}`,
+        `${req.userName} (${formatUserId(req.user_Id)})`,
+        req.reqTypeName,
+        req.date_Filed,
+        req.status,
+        req.approverName || "—"
+      ]);
     }
 
     exportToPDF(title, headers, dataToExport, filename, { orientation });
@@ -598,6 +619,18 @@ const AdminReports = () => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-9 h-9 border-slate-200 focus-visible:ring-[#2A174E] w-full bg-slate-50"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      type="date" 
+                      value={startDate} 
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setEndDate(e.target.value);
+                      }} 
+                      className="w-full sm:w-[150px] h-9 border-slate-200 bg-slate-50 text-slate-700 font-medium" 
                     />
                   </div>
 

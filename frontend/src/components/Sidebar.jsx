@@ -54,8 +54,7 @@ import { fetchWithAuth } from "../utils/api";
 
 const routeLabels = {
   "loanManagement": "Government Loans",
-  "rfid" : "RFIDs",
-  "fingerprint" : "Biometrics",
+  "hardware" : "Hardware Registry",
   "newUser" : "New User",
   "adminRequests" : "Requests",
   "payroll" : "Payroll Management",
@@ -84,6 +83,11 @@ const Sidebar = ({ children }) => {
 
   // Dropdown states for submenus - initialized based on the current URL
   const [isUsersOpen, setIsUsersOpen] = useState(() => location.pathname.startsWith("/users"));
+  const [isAccessLogsOpen, setIsAccessLogsOpen] = useState(() => 
+    location.pathname.startsWith("/logs") || 
+    location.pathname.startsWith("/accessLogs") || 
+    location.pathname.startsWith("/visitorLogs")
+  );
   const [isRequestsOpen, setIsRequestsOpen] = useState(() => 
     location.pathname.startsWith("/requests") || location.pathname.startsWith("/adminRequests")
   );
@@ -236,9 +240,9 @@ const Sidebar = ({ children }) => {
   const showNotifMenu = isNotifHovered || isNotifLocked;
 
   const menuButtonClass = (active) => cn(
-    "transition-all duration-200",
+    "flex items-center w-full transition-all duration-200",
     active ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500",
-    "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:!px-0"
+    "group-data-[collapsible=icon]:!flex group-data-[collapsible=icon]:!items-center group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!px-0"
   );
 
   return (
@@ -304,22 +308,19 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       onClick={() => setIsUsersOpen(!isUsersOpen)}
-                      className={cn(
-                        menuButtonClass(location.pathname.startsWith("/users")),
-                        "justify-start"
-                      )}
+                      className={menuButtonClass(location.pathname.startsWith("/users"))}
                     >
                       <PersonOutlineIcon className="!text-[22px] shrink-0" />
                       <span className="flex-1 ms-3 text-left text-[14px] group-data-[collapsible=icon]:hidden">
                         Users
                       </span>
                       <KeyboardArrowDownIcon className={cn(
-                        "!text-[18px] transition-transform duration-300 group-data-[collapsible=icon]:hidden",
+                        "!text-[18px] transition-transform duration-300 group-data-[collapsible=icon]:!hidden",
                         isUsersOpen ? "rotate-180" : ""
                       )} />
                     </SidebarMenuButton>
                     {isUsersOpen && (
-                      <SidebarMenuSub>
+                      <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/users")}>
                             <Link to="/users" className={isActive("/users") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
@@ -367,35 +368,42 @@ const Sidebar = ({ children }) => {
                 </SidebarMenuItem>
                 )}
 
-                {/* Access Logs */}
+                {/* Access Logs (Dropdown) */}
                 <SidebarMenuItem>
                   <SidebarMenuButton 
-                    asChild 
-                    isActive={isActive("/logs") || isActive("/accessLogs")}
-                    className={menuButtonClass(isActive("/logs") || isActive("/accessLogs"))}
+                    onClick={() => setIsAccessLogsOpen(!isAccessLogsOpen)}
+                    className={menuButtonClass(location.pathname.startsWith("/logs") || location.pathname.startsWith("/accessLogs") || location.pathname.startsWith("/visitorLogs"))}
                   >
-                    <Link to={isManagement || isSupervisor ? "/logs" : "/accessLogs"}>
-                      <HistoryIcon className="!text-[22px] shrink-0" />
-                      <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Access Logs</span>
-                    </Link>
+                    <HistoryIcon className="!text-[22px] shrink-0" />
+                    <span className="flex-1 ms-3 text-left text-[14px] group-data-[collapsible=icon]:hidden">
+                      Access Logs
+                    </span>
+                    <KeyboardArrowDownIcon className={cn(
+                      "!text-[18px] transition-transform duration-300 group-data-[collapsible=icon]:!hidden",
+                      isAccessLogsOpen ? "rotate-180" : ""
+                    )} />
                   </SidebarMenuButton>
+                  {isAccessLogsOpen && (
+                    <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/logs") || isActive("/accessLogs")}>
+                          <Link to={isManagement || isSupervisor ? "/logs" : "/accessLogs"} className={isActive("/logs") || isActive("/accessLogs") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                            Employee Logs
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      {isManagement && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/visitorLogs")}>
+                            <Link to="/visitorLogs" className={isActive("/visitorLogs") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              Visitor Access
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
+                    </SidebarMenuSub>
+                  )}
                 </SidebarMenuItem>
-
-                {/* Visitor Access (Management Only) */}
-                {isManagement && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isActive("/visitorLogs")}
-                      className={menuButtonClass(isActive("/visitorLogs"))}
-                    >
-                      <Link to="/visitorLogs">
-                        <HistoryIcon className="!text-[22px] shrink-0 text-amber-600" />
-                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Visitor Access</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
 
                 {/* Requests Link */}
                 <SidebarMenuItem>
@@ -425,26 +433,23 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       onClick={() => setIsPayrollOpen(!isPayrollOpen)}
-                      className={cn(
-                        menuButtonClass(
-                          location.pathname.startsWith("/payroll") || 
-                          location.pathname.startsWith("/maxicare") || 
-                          location.pathname.startsWith("/eastwestloan") || 
-                          location.pathname.startsWith("/loanManagement") ||
-                          location.pathname.startsWith("/laborBenefits")
-                        ),
-                        "justify-start"
+                      className={menuButtonClass(
+                        location.pathname.startsWith("/payroll") || 
+                        location.pathname.startsWith("/maxicare") || 
+                        location.pathname.startsWith("/eastwestloan") || 
+                        location.pathname.startsWith("/loanManagement") ||
+                        location.pathname.startsWith("/laborBenefits")
                       )}
                     >
                       <CreditCardIcon className="!text-[22px] shrink-0" />
                       <span className="flex-1 ms-3 text-left text-[14px] group-data-[collapsible=icon]:hidden">Payroll</span>
                       <KeyboardArrowDownIcon className={cn(
-                        "!text-[18px] transition-transform duration-300 group-data-[collapsible=icon]:hidden",
+                        "!text-[18px] transition-transform duration-300 group-data-[collapsible=icon]:!hidden",
                         isPayrollOpen ? "rotate-180" : ""
                       )} />
                     </SidebarMenuButton>
                     {isPayrollOpen && (
-                      <SidebarMenuSub>
+                      <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/payroll")}>
                             <Link to="/payroll" className={isActive("/payroll") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
@@ -548,7 +553,7 @@ const Sidebar = ({ children }) => {
               </SidebarMenuButton>
 
               {isSettingsOpen && (
-                <SidebarMenuSub>
+                <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
                   {isMaster && (
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/auditLogs")}>
@@ -575,16 +580,18 @@ const Sidebar = ({ children }) => {
                     </SidebarMenuSubItem>
                   )}
 
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/settings")}>
-                      <Link 
-                        to="/settings" 
-                        className={location.pathname.startsWith("/settings") ? "text-[#2A174E] font-bold" : "text-gray-500"}
-                      >
-                        <TuneIcon className="!text-[18px] mr-2" /> Configuration
-                      </Link>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
+                  {isManagement && (
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/settings")}>
+                        <Link 
+                          to="/settings" 
+                          className={location.pathname.startsWith("/settings") ? "text-[#2A174E] font-bold" : "text-gray-500"}
+                        >
+                          <TuneIcon className="!text-[18px] mr-2" /> Configuration
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  )}
 
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/faq")}>
@@ -784,6 +791,69 @@ const Sidebar = ({ children }) => {
           </div>
         </SidebarInset>
       )}
+      {/* Absolute centering force for collapsed mode */}
+      <style dangerouslySetInnerHTML={{__html: `
+        /* Force center alignment for collapsed sidebar icons across the whole hierarchy */
+        [data-collapsible=icon] [data-sidebar="content"],
+        [data-collapsible=icon] [data-sidebar="group"],
+        [data-collapsible=icon] [data-sidebar="group-content"],
+        [data-collapsible=icon] [data-sidebar="menu"] {
+          padding: 0 !important;
+          margin: 0 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          width: 100% !important;
+          gap: 0 !important;
+        }
+
+        [data-collapsible=icon] [data-sidebar="menu-item"] {
+          padding: 0 !important;
+          margin: 0 !important;
+          display: flex !important;
+          justify-content: center !important;
+          width: 100% !important;
+          height: auto !important;
+        }
+
+        [data-collapsible=icon] [data-sidebar="menu-button"] {
+          width: 40px !important;
+          height: 40px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          padding: 0 !important;
+          margin: 4px 0 !important;
+          border-radius: 8px !important;
+          position: relative !important;
+          flex-shrink: 0 !important;
+        }
+
+        [data-collapsible=icon] [data-sidebar="menu-button"] > * {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 100% !important;
+          height: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        [data-collapsible=icon] [data-sidebar="menu-button"] svg {
+          margin: 0 !important;
+          flex-shrink: 0 !important;
+          display: block !important;
+          font-size: 24px !important;
+          width: 24px !important;
+          height: 24px !important;
+        }
+
+        /* Specifically target and hide any element that is not the primary icon/first child */
+        [data-collapsible=icon] [data-sidebar="menu-button"] span:not(.MuiTouchRipple-root),
+        [data-collapsible=icon] [data-sidebar="menu-button"] svg:last-child:not(:first-child) {
+          display: none !important;
+        }
+      `}} />
     </SidebarProvider>
   );
 };

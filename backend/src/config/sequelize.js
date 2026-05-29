@@ -289,7 +289,8 @@ const connectDB = async () => {
       INSERT INTO "attendance_status" ("statusId", "statusName")
       VALUES 
         (6, 'Exempt'),
-        (7, 'Incidental Visit')
+        (7, 'Incidental Visit'),
+        (8, 'Irregular')
       ON CONFLICT ("statusId") DO NOTHING;
     `);
 

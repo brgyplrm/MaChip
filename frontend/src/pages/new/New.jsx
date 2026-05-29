@@ -8,6 +8,7 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
+import BatchUploadReviewModal from "../../components/BatchUploadReviewModal";
 import CheckIcon from "@mui/icons-material/Check";
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import WorkIcon from '@mui/icons-material/Work';
@@ -88,7 +89,7 @@ const New = ({ inputs = [], title }) => {
     user_Gender: "",
     civil_status: "Single",
     is_solo_parent: false,
-    user_ShiftId: 1,
+    // user_ShiftId: 1,
     user_EmploymentStatus: "Regular",
     user_EmploymentStatusId: 1,
     user_Role: "Employee",
@@ -113,6 +114,8 @@ const New = ({ inputs = [], title }) => {
   // Batch Upload State
   const [csvFile, setCsvFile] = useState(null);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [reviewData, setReviewData] = useState(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -384,34 +387,63 @@ const New = ({ inputs = [], title }) => {
     document.body.removeChild(link);
   };
 
-  const handleCsvChange = (e) => {
+  const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
-    if (selectedFile && (selectedFile.type === "text/csv" || selectedFile.name.endsWith('.csv'))) {
-      setCsvFile(selectedFile);
-    } else {
-      setToast({ message: "Please upload a valid CSV file.", type: "error" });
-      e.target.value = null;
-      setCsvFile(null);
-    }
-  };
+    if (!selectedFile) return;
 
-  const handleBatchSubmit = async () => {
-    if (!csvFile) {
-      setToast({ message: "Please select a CSV file first.", type: "error" });
+    if (!(selectedFile.type === "text/csv" || selectedFile.name.endsWith('.csv'))) {
+      setToast({ message: "Please upload a valid CSV file.", type: "error" });
       return;
     }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+      if (lines.length < 2) {
+        setToast({ message: "CSV file is empty or missing data rows.", type: "error" });
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim());
+      const data = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim());
+        const obj = {};
+        headers.forEach((header, index) => {
+          obj[header] = values[index] || "";
+        });
+        return obj;
+      });
+
+      setReviewData(data);
+      setIsReviewModalOpen(true);
+    };
+    reader.readAsText(selectedFile);
+  };
+
+  const handleConfirmReview = async (finalData) => {
     setBatchLoading(true);
-    const uploadData = new FormData();
-    uploadData.append("csvFile", csvFile);
+    
+    // Convert back to CSV
+    const headers = Object.keys(finalData[0]).join(',');
+    const rows = finalData.map(item => Object.values(item).join(',')).join('\n');
+    const csvContent = headers + '\n' + rows;
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const file = new File([blob], "batch_users.csv", { type: 'text/csv' });
+
+    const formData = new FormData();
+    formData.append("csvFile", file);
 
     try {
       const response = await fetchWithAuth("/api/users/batch-register", {
         method: "POST",
-        body: uploadData,
+        body: formData,
       });
+
       if (response.ok) {
         setToast({ message: "Batch upload successful!", type: "success" });
-        setCsvFile(null);
+        setIsReviewModalOpen(false);
         setTimeout(() => navigate("/users"), 1500);
       } else {
         const err = await response.json();
@@ -433,15 +465,14 @@ const New = ({ inputs = [], title }) => {
 
   // Helper to render dynamic inputs from your original structure
   const renderDynamicInput = (input) => (
-    <div key={input.id} className="space-y-2">
-      <Label className="text-slate-600 font-semibold">{input.label} <span className="text-red-500">*</span></Label>
-      <div className="h-1"></div>
+    <div key={input.id} className="space-y-1.5">
+      <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{input.label} <span className="text-red-500 ml-0.5">*</span></Label>
       {input.type === "select" ? (
         <Select 
           value={formData[input.id] || ""} 
           onValueChange={(val) => handleInput({ target: { id: input.id, value: val } })}
         >
-          <SelectTrigger className={`bg-white w-full ${errors[input.id] ? "border-red-500" : ""}`}>
+          <SelectTrigger className={`bg-white h-11 w-full ${errors[input.id] ? "border-red-500" : "border-slate-200"}`}>
             <SelectValue placeholder={`Select ${input.label}`} />
           </SelectTrigger>
           <SelectContent>
@@ -481,7 +512,7 @@ const New = ({ inputs = [], title }) => {
               onChange={handleInput}
               onBlur={input.id === "user_Id" ? handleIdBlur : undefined}
               readOnly={input.label === "MaChip ID" || input.label === "Fingerprint ID"}
-              className={`bg-white ${input.id === "user_Password" ? "pr-10" : ""} ${errors[input.id] ? "border-red-500" : ""} ${input.label === "MaChip ID" || input.label === "Fingerprint ID" ? "bg-slate-100 text-slate-500" : ""}`}
+              className={`bg-white h-11 ${input.id === "user_Password" ? "pr-10" : ""} ${errors[input.id] ? "border-red-500" : "border-slate-200"} ${input.label === "MaChip ID" || input.label === "Fingerprint ID" ? "bg-slate-50 text-slate-500" : ""}`}
             />
             {/* Visibility Toggles */}
             {input.id === "user_Password" && (
@@ -492,14 +523,14 @@ const New = ({ inputs = [], title }) => {
           </div>
           {/* Scan Buttons */}
           {input.label === "MaChip ID" && (
-            <Button type="button" variant="secondary" className="shrink-0 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanRFID}>SCAN</Button>
+            <Button type="button" variant="secondary" className="shrink-0 h-11 px-4 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanRFID}>SCAN</Button>
           )}
           {input.label === "Fingerprint ID" && (
-            <Button type="button" variant="secondary" className="shrink-0 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanFingerprint}>SCAN</Button>
+            <Button type="button" variant="secondary" className="shrink-0 h-11 px-4 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanFingerprint}>SCAN</Button>
           )}
         </div>
       )}
-      {errors[input.id] && <span className="text-xs text-red-500 block">{errors[input.id]}</span>}
+      {errors[input.id] && <span className="text-[10px] text-red-500 block font-medium">{errors[input.id]}</span>}
     </div>
   );
 
@@ -650,32 +681,33 @@ const New = ({ inputs = [], title }) => {
                         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                           <div className="space-y-4">
                             <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 block">Personal Details</Label>
+                            
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                              <div className="space-y-1">
-                                <Label className="text-xs text-slate-500">First Name <span className="text-red-500">*</span></Label>
-                                <Input id="user_FirstName" placeholder="Juan" value={formData.user_FirstName} onChange={handleInput} className={errors.user_FirstName ? "border-red-500" : ""} />
-                                {errors.user_FirstName && <span className="text-xs text-red-500">{errors.user_FirstName}</span>}
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">First Name <span className="text-red-500 ml-0.5">*</span></Label>
+                                <Input id="user_FirstName" placeholder="Juan" value={formData.user_FirstName} onChange={handleInput} className={`h-11 ${errors.user_FirstName ? "border-red-500" : "border-slate-200"}`} />
+                                {errors.user_FirstName && <span className="text-[10px] text-red-500 font-medium">{errors.user_FirstName}</span>}
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-slate-500">Middle Name</Label>
-                                <Input id="user_MiddleName" placeholder="Perez" value={formData.user_MiddleName} onChange={handleInput} />
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Middle Name</Label>
+                                <Input id="user_MiddleName" placeholder="Perez" value={formData.user_MiddleName} onChange={handleInput} className="h-11 border-slate-200" />
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-slate-500">Last Name <span className="text-red-500">*</span></Label>
-                                <Input id="user_LastName" placeholder="Dela Cruz" value={formData.user_LastName} onChange={handleInput} className={errors.user_LastName ? "border-red-500" : ""} />
-                                {errors.user_LastName && <span className="text-xs text-red-500">{errors.user_LastName}</span>}
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Last Name <span className="text-red-500 ml-0.5">*</span></Label>
+                                <Input id="user_LastName" placeholder="Dela Cruz" value={formData.user_LastName} onChange={handleInput} className={`h-11 ${errors.user_LastName ? "border-red-500" : "border-slate-200"}`} />
+                                {errors.user_LastName && <span className="text-[10px] text-red-500 font-medium">{errors.user_LastName}</span>}
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-4">
-                              <div className="space-y-1">
-                                <Label className="text-xs text-slate-500">Phone Number <span className="text-red-500">*</span></Label>
-                                <Input id="user_Phone" placeholder="09123456789" value={formData.user_Phone} onChange={handleInput} />
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-4">
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Phone Number <span className="text-red-500 ml-0.5">*</span></Label>
+                                <Input id="user_Phone" placeholder="09123456789" value={formData.user_Phone} onChange={handleInput} className="h-11 border-slate-200" />
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-slate-500">Gender</Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gender</Label>
                                 <Select value={formData.user_Gender} onValueChange={(val) => handleInput({ target: { id: "user_Gender", value: val } })}>
-                                  <SelectTrigger className="bg-white">
+                                  <SelectTrigger className="bg-white h-11.5! border-slate-200">
                                     <SelectValue placeholder="Select Gender" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -685,37 +717,41 @@ const New = ({ inputs = [], title }) => {
                                   </SelectContent>
                                 </Select>
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-slate-500">Civil Status</Label>
-                                <Select value={formData.civil_status} onValueChange={(val) => handleInput({ target: { id: "civil_status", value: val } })}>
-                                  <SelectTrigger className="bg-white">
-                                    <SelectValue placeholder="Select Status" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="Single">Single</SelectItem>
-                                    <SelectItem value="Married">Married</SelectItem>
-                                    <SelectItem value="Widowed">Widowed</SelectItem>
-                                    <SelectItem value="Separated">Separated</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Civil Status</Label>
+                                <div className="flex items-center gap-4">
+                                  <div className="flex-1">
+                                    <Select value={formData.civil_status} onValueChange={(val) => handleInput({ target: { id: "civil_status", value: val } })}>
+                                      <SelectTrigger className="bg-white h-11 border-slate-200">
+                                        <SelectValue placeholder="Select Status" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Single">Single</SelectItem>
+                                        <SelectItem value="Married">Married</SelectItem>
+                                        <SelectItem value="Widowed">Widowed</SelectItem>
+                                        <SelectItem value="Separated">Separated</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <input 
+                                      type="checkbox" 
+                                      id="is_solo_parent" 
+                                      checked={formData.is_solo_parent} 
+                                      onChange={(e) => handleInput({ target: { id: "is_solo_parent", value: e.target.checked } })}
+                                      className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded cursor-pointer"
+                                    />
+                                    <Label htmlFor="is_solo_parent" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer whitespace-nowrap">Solo Parent?</Label>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="space-y-1 flex items-center gap-3 pt-6">
-                                <input 
-                                  type="checkbox" 
-                                  id="is_solo_parent" 
-                                  checked={formData.is_solo_parent} 
-                                  onChange={(e) => handleInput({ target: { id: "is_solo_parent", value: e.target.checked } })}
-                                  className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded"
-                                />
-                                <Label htmlFor="is_solo_parent" className="text-xs text-slate-500 cursor-pointer">Solo Parent?</Label>
+                              <div className="space-y-1.5 sm:col-span-2">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500 ml-0.5">*</span></Label>
+                                <Input id="user_Address" placeholder="123 Main St, Manila" value={formData.user_Address} onChange={handleInput} className="h-11 border-slate-200" />
                               </div>
-                              <div className="space-y-1 sm:col-span-3">
-                                <Label className="text-xs text-slate-500">Home Address <span className="text-red-500">*</span></Label>
-                                <Input id="user_Address" placeholder="123 Main St, Manila" value={formData.user_Address} onChange={handleInput} />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-slate-500">Date of Birth</Label>
-                                <Input id="user_DOB" type="date" value={formData.user_DOB} onChange={handleInput} />
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Date of Birth</Label>
+                                <Input id="user_DOB" type="date" value={formData.user_DOB} onChange={handleInput} className="h-11 border-slate-200" />
                               </div>
                             </div>
                           </div>
@@ -741,8 +777,8 @@ const New = ({ inputs = [], title }) => {
                               {inputs.filter(i => ["user_Role", "user_EmploymentStatus"].includes(i.id)).map(renderDynamicInput)}
 
                               {/* Updated Department Dropdown */}
-                                <div className="space-y-2">
-                                  <Label className="text-slate-600 font-semibold">Department <span className="text-red-500">*</span></Label>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Department <span className="text-red-500 ml-0.5">*</span></Label>
                                   <Select 
                                     value={formData.department} 
                                     onValueChange={(val) => {
@@ -751,7 +787,7 @@ const New = ({ inputs = [], title }) => {
                                       setFormData(prev => ({ ...prev, position: "", position_id: "" }));
                                     }}
                                   >
-                                    <SelectTrigger className={`bg-white w-full ${errors.department ? "border-red-500" : ""}`}>
+                                    <SelectTrigger className={`bg-white h-11 w-full ${errors.department ? "border-red-500" : "border-slate-200"}`}>
                                       <SelectValue placeholder="Select Department" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -761,12 +797,12 @@ const New = ({ inputs = [], title }) => {
                                       {positions.length === 0 && <SelectItem disabled value="none">No departments found</SelectItem>}
                                     </SelectContent>
                                   </Select>
-                                  {errors.department && <span className="text-xs text-red-500 block">{errors.department}</span>}
+                                  {errors.department && <span className="text-[10px] text-red-500 block font-medium">{errors.department}</span>}
                                 </div>
 
                                 {/* Updated Position Dropdown (Conditional) */}
-                                <div className="space-y-2">
-                                  <Label className="text-slate-600 font-semibold">Position <span className="text-red-500">*</span></Label>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Position <span className="text-red-500 ml-0.5">*</span></Label>
                                   <Select 
                                     value={formData.position_id?.toString()} 
                                     onValueChange={(val) => {
@@ -782,7 +818,7 @@ const New = ({ inputs = [], title }) => {
                                     }}
                                     disabled={!formData.department} 
                                   >
-                                    <SelectTrigger className={`bg-white w-full ${errors.position ? "border-red-500" : ""}`}>
+                                    <SelectTrigger className={`bg-white h-11 w-full ${errors.position ? "border-red-500" : "border-slate-200"}`}>
                                       <SelectValue placeholder={formData.department ? "Select Position" : "Select Department first"} />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -794,17 +830,17 @@ const New = ({ inputs = [], title }) => {
                                       }
                                     </SelectContent>
                                   </Select>
-                                  {errors.position && <span className="text-xs text-red-500 block">{errors.position}</span>}
+                                  {errors.position && <span className="text-[10px] text-red-500 block font-medium">{errors.position}</span>}
                                 </div>
 
                               {/* Tax Status Selection */}
-                              <div className="space-y-2">
-                                <Label className="text-slate-600 font-semibold">Tax Status (S/M) <span className="text-red-500">*</span></Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tax Status (S/M) <span className="text-red-500 ml-0.5">*</span></Label>
                                 <Select 
                                   value={formData.taxStatus} 
                                   onValueChange={(val) => handleInput({ target: { id: "taxStatus", value: val } })}
                                 >
-                                  <SelectTrigger className={`bg-white w-full ${errors.taxStatus ? "border-red-500" : ""}`}>
+                                  <SelectTrigger className={`bg-white h-11 w-full ${errors.taxStatus ? "border-red-500" : "border-slate-200"}`}>
                                     <SelectValue placeholder="Select Status" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -812,29 +848,12 @@ const New = ({ inputs = [], title }) => {
                                     <SelectItem value="M">Married (M)</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                {errors.taxStatus && <span className="text-xs text-red-500 block">{errors.taxStatus}</span>}
-                              </div>
-
-                              {/* Shift Schedule Selection */}
-                              <div className="space-y-2">
-                                <Label className="text-slate-600 font-semibold">Shift Schedule <span className="text-red-500">*</span></Label>
-                                <Select 
-                                  value={formData.user_ShiftId?.toString()} 
-                                  onValueChange={(val) => handleInput({ target: { id: "user_ShiftId", value: parseInt(val) } })}
-                                >
-                                  <SelectTrigger className="bg-white w-full">
-                                    <SelectValue placeholder="Select Shift" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="1">Morning Shift (8:30 AM - 5:30 PM)</SelectItem>
-                                    <SelectItem value="2">Evening Shift (8:30 PM - 5:30 AM)</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                                {errors.taxStatus && <span className="text-[10px] text-red-500 block font-medium">{errors.taxStatus}</span>}
                               </div>
 
                               {/* Daily Rate Input */}
-                              <div className="space-y-2">
-                                <Label className="text-slate-600 font-semibold">Base Daily Rate (₱) <span className="text-red-500">*</span></Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Base Daily Rate (₱) <span className="text-red-500 ml-0.5">*</span></Label>
                                 <Input 
                                   id="dailyRate" 
                                   type="number" 
@@ -842,9 +861,9 @@ const New = ({ inputs = [], title }) => {
                                   placeholder="0.00" 
                                   value={formData.dailyRate} 
                                   onChange={handleInput} 
-                                  className={`bg-white ${errors.dailyRate ? "border-red-500" : ""}`}
+                                  className={`bg-white h-11 ${errors.dailyRate ? "border-red-500" : "border-slate-200"}`}
                                 />
-                                {errors.dailyRate && <span className="text-xs text-red-500 block">{errors.dailyRate}</span>}
+                                {errors.dailyRate && <span className="text-[10px] text-red-500 block font-medium">{errors.dailyRate}</span>}
                               </div>
                             </div>
                           </div>
@@ -856,10 +875,10 @@ const New = ({ inputs = [], title }) => {
                             </Label>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               
-                              <div className="space-y-2">
-                                <Label className="text-slate-600 font-semibold">Bank Company <span className="text-red-500">*</span></Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Bank Company <span className="text-red-500 ml-0.5">*</span></Label>
                                 <Select value={formData.bank_Company} onValueChange={(val) => handleInput({ target: { id: "bank_Company", value: val } })}>
-                                  <SelectTrigger className={`bg-white w-full ${errors.bank_Company ? "border-red-500" : ""}`}>
+                                  <SelectTrigger className={`bg-white h-11 w-full ${errors.bank_Company ? "border-red-500" : "border-slate-200"}`}>
                                     <SelectValue placeholder="Select Bank" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -868,23 +887,23 @@ const New = ({ inputs = [], title }) => {
                                     ))}
                                   </SelectContent>
                                 </Select>
-                                {errors.bank_Company && <span className="text-xs text-red-500 block">{errors.bank_Company}</span>}
+                                {errors.bank_Company && <span className="text-[10px] text-red-500 block font-medium">{errors.bank_Company}</span>}
                               </div>
 
-                              <div className="space-y-2">
-                                <Label className="text-slate-600 font-semibold">Account Name <span className="text-red-500">*</span></Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Account Name <span className="text-red-500 ml-0.5">*</span></Label>
                                 <Input 
                                   id="bank_AccountName" 
                                   placeholder="Juan Dela Cruz" 
                                   value={formData.bank_AccountName} 
                                   onChange={handleInput} 
-                                  className={errors.bank_AccountName ? "border-red-500" : ""} 
+                                  className={`h-11 ${errors.bank_AccountName ? "border-red-500" : "border-slate-200"}`} 
                                 />
-                                {errors.bank_AccountName && <span className="text-xs text-red-500 block">{errors.bank_AccountName}</span>}
+                                {errors.bank_AccountName && <span className="text-[10px] text-red-500 block font-medium">{errors.bank_AccountName}</span>}
                               </div>
 
-                              <div className="space-y-2 md:col-span-2">
-                                <Label className="text-slate-600 font-semibold">Account Number <span className="text-red-500">*</span></Label>
+                              <div className="space-y-1.5 md:col-span-2">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Account Number <span className="text-red-500 ml-0.5">*</span></Label>
                                 <div className="relative">
                                   <Input 
                                     id="account_Number" 
@@ -892,13 +911,13 @@ const New = ({ inputs = [], title }) => {
                                     placeholder="e.g. 00123456789" 
                                     value={formData.account_Number} 
                                     onChange={handleInput} 
-                                    className={`bg-white pr-10 ${errors.account_Number ? "border-red-500" : ""}`} 
+                                    className={`bg-white h-11 pr-10 ${errors.account_Number ? "border-red-500" : "border-slate-200"}`} 
                                   />
                                   <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowAccountNumber(!showAccountNumber)}>
                                     {showAccountNumber ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
                                   </button>
                                 </div>
-                                {errors.account_Number && <span className="text-xs text-red-500 block">{errors.account_Number}</span>}
+                                {errors.account_Number && <span className="text-[10px] text-red-500 block font-medium">{errors.account_Number}</span>}
                               </div>
 
                             </div>
@@ -975,28 +994,13 @@ const New = ({ inputs = [], title }) => {
                       <Input 
                         type="file" 
                         accept=".csv" 
-                        onChange={handleCsvChange} 
+                        onChange={handleFileChange} 
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
                       />
                       <div className="pointer-events-none">
-                        {csvFile ? (
-                          <p className="text-green-600 font-semibold flex items-center justify-center gap-2">
-                            <span className="truncate max-w-[200px]">{csvFile.name}</span> selected
-                          </p>
-                        ) : (
-                          <p className="text-slate-500 font-medium">Click to browse or drag and drop a .csv file here</p>
-                        )}
+                        <p className="text-slate-500 font-medium">Click to browse or drag and drop a .csv file here</p>
                       </div>
                     </div>
-
-                    <Button 
-                      onClick={handleBatchSubmit} 
-                      disabled={batchLoading || !csvFile} 
-                      className="w-full h-12 bg-[#2A174E] hover:bg-[#1a0e30] text-white font-semibold shadow-sm mt-2"
-                    >
-                      {batchLoading ? "Processing..." : "Upload and Register Users"}
-                    </Button>
-
                   </div>
                 </CardContent>
               </Card>
@@ -1004,6 +1008,13 @@ const New = ({ inputs = [], title }) => {
       </Tabs>
 
         {/* Modals */}
+        <BatchUploadReviewModal 
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          data={reviewData}
+          type="User Registration"
+          onConfirm={handleConfirmReview}
+        />
         <RfidScanModal 
           isOpen={showRfidModal} 
           onClose={closeRfidModal}

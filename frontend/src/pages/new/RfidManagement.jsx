@@ -13,7 +13,7 @@ import { fetchWithAuth } from "../../utils/api";
 import EmptyState from "../../components/EmptyState";
 import { Link } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { ScanLine } from "lucide-react";
+import { ScanLine, AlertTriangle } from "lucide-react";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
 
 // shadcn/ui components
@@ -42,9 +42,15 @@ const RfidManagement = () => {
   const [rfidError, setRfidError] = useState("");
   const [localScannedId, setLocalScannedId] = useState(null);
 
+  // Revoke Confirmation States
+  const [showRevokeModal, setShowRevokeModal] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState(null);
+  const [revoking, setRevoking] = useState(false);
+
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [selectedDate, setSelectedDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -95,6 +101,11 @@ const RfidManagement = () => {
       fetchUnassignedEmployees();
     }
   }, [showAssignModal, fetchUnassignedEmployees]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, selectedDate]);
 
   const handleScanRFID = async () => {
     setRfidError("");
@@ -186,17 +197,30 @@ const RfidManagement = () => {
     }
   };
 
-  const handleRevokeCard = async (userId) => {
-    if (!window.confirm("Are you sure you want to revoke this RFID card alignment?")) return;
+  const handleRevokeCard = (user) => {
+    setRevokeTarget(user);
+    setShowRevokeModal(true);
+  };
+
+  const confirmRevokeCard = async () => {
+    if (!revokeTarget) return;
+    setRevoking(true);
     try {
-      const response = await fetchWithAuth(`/api/hardware/rfid/revoke/${userId}`, { method: "PUT" });
+      const response = await fetchWithAuth(`/api/hardware/rfid/revoke/${revokeTarget.user_Id}`, { method: "PUT" });
       if (response.ok) {
         setToast({ message: "RFID card access unlinked successfully.", type: "success" });
+        setShowRevokeModal(false);
+        setRevokeTarget(null);
         fetchRfidData();
         fetchUnassignedEmployees();
+      } else {
+        setToast({ message: "Failed to revoke card access.", type: "error" });
       }
     } catch (err) {
+      console.error("Revoke Error:", err);
       setToast({ message: "Failed to update hardware credentials.", type: "error" });
+    } finally {
+      setRevoking(false);
     }
   };
 
@@ -218,9 +242,26 @@ const RfidManagement = () => {
         formatUserId(item.user_Id).toLowerCase().includes(query);
 
       const matchesStatus = statusFilter === "All" || item.hardwareStatus === statusFilter;
-      return matchesSearch && matchesStatus;
+
+      // Date Filtering Logic
+      let matchesDate = true;
+      if (selectedDate) {
+        const alignedDateRaw = item.dateAligned;
+        if (alignedDateRaw) {
+          try {
+            const alignedDate = new Date(alignedDateRaw).toISOString().split('T')[0];
+            matchesDate = alignedDate === selectedDate;
+          } catch (e) {
+            matchesDate = false;
+          }
+        } else {
+          matchesDate = false;
+        }
+      }
+
+      return matchesSearch && matchesStatus && matchesDate;
     });
-  }, [rfidList, searchQuery, statusFilter]);
+  }, [rfidList, searchQuery, statusFilter, selectedDate]);
 
   // Pagination
   const totalItems = filteredData.length;
@@ -229,7 +270,7 @@ const RfidManagement = () => {
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentData = filteredData.slice(startIndex, endIndex);
 
-  const isFiltering = searchQuery !== "" || statusFilter !== "All";
+  const isFiltering = searchQuery !== "" || statusFilter !== "All" || selectedDate !== "";
 
   const PageSkeleton = () => (
   <div className="space-y-6 w-full h-screen"> {/* Added h-screen */}
@@ -292,18 +333,18 @@ const RfidManagement = () => {
             </CardContent>
           </Card>
           
-          {/* Card 2 */}
-          <Card className="border-t-5 border-green-600 bg-white py-0">
+          {/* Card 2: Unassigned Employees */}
+          <Card className="border-t-5 border-orange-600 bg-white py-0">
             <CardContent className="px-5 py-5 flex justify-between items-center">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Active Credentials</p>
-                <p className="text-3xl font-bold text-green-700">{stats.active}</p>
-                <p className="text-[10px] text-slate-400 mt-2 italic">Tokens authorized for immediate building access.</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Unassigned Employees</p>
+                <p className="text-3xl font-bold text-orange-700">{unassignedEmployees.length}</p>
+                <p className="text-[10px] text-slate-400 mt-2 italic">Employees pending rfid token alignment.</p>
               </div>
-              <div className="bg-green-50 text-green-600 p-3 rounded-lg"><ContactlessIcon /></div>
+              <div className="bg-orange-50 text-orange-600 p-3 rounded-lg"><SensorsIcon /></div>
             </CardContent>
-          </Card>
-        </div>
+            </Card>
+          </div>
 
         {/* Filters Card */}
         <Card className="shadow-sm border-0 bg-white mb-6 py-0">
@@ -314,11 +355,21 @@ const RfidManagement = () => {
             </div>
             <div className="flex gap-3 w-full xl:w-auto items-center">
               <FilterListIcon className="text-slate-400 hidden sm:block" />
+              
+              <div className="flex items-center gap-2">
+                <Input 
+                  type="date" 
+                  value={selectedDate} 
+                  onChange={(e) => setSelectedDate(e.target.value)} 
+                  className="w-full sm:w-[160px] h-9 border-slate-200 bg-slate-50 text-slate-700 font-medium" 
+                />
+              </div>
+
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[160px] bg-slate-50"><SelectValue placeholder="Status" /></SelectTrigger>
-                <SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Active">Active</SelectItem><SelectItem value="Suspended">Suspended</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Active">Active</SelectItem><SelectItem value="Unassigned">Unassigned</SelectItem></SelectContent>
               </Select>
-              {isFiltering && <Button variant="ghost" onClick={() => { setSearchQuery(""); setStatusFilter("All"); }} className="text-slate-500 hover:text-red-600"><CloseIcon className="h-4 w-4 mr-1" /> Clear</Button>}
+              {isFiltering && <Button variant="ghost" onClick={() => { setSearchQuery(""); setStatusFilter("All"); setSelectedDate(""); }} className="text-slate-500 hover:text-red-600"><CloseIcon className="h-4 w-4 mr-1" /> Clear</Button>}
             </div>
           </CardContent>
         </Card>
@@ -352,11 +403,13 @@ const RfidManagement = () => {
                           {row.hardwareStatus || "Unknown"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-slate-600 text-sm">{row.dateAligned || "—"}</TableCell>
+                      <TableCell className="text-slate-600 text-sm">
+                        {row.dateAligned ? new Date(row.dateAligned).toLocaleDateString() : "—"}
+                      </TableCell>
                       <TableCell className="text-slate-600 text-sm">{row.lastScanned || "—"}</TableCell>
                       <TableCell className="text-right pr-6">
                         {row.machip_id ? (
-                          <Button variant="outline" size="sm" onClick={() => handleRevokeCard(row.user_Id)} className="border-red-200 text-red-600 hover:bg-red-50">
+                          <Button variant="outline" size="sm" onClick={() => handleRevokeCard(row)} className="border-red-200 text-red-600 hover:bg-red-50">
                             <BlockIcon className="h-3.5 w-3.5 mr-1" /> Unlink
                           </Button>
                         ) : (
@@ -473,6 +526,37 @@ const RfidManagement = () => {
                 {assigning ? "Linking Identity..." : "Assign Hardware Link"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke Confirmation Dialog */}
+      <Dialog open={showRevokeModal} onOpenChange={setShowRevokeModal}>
+        <DialogContent className="sm:max-w-[400px] p-0 border-0 overflow-hidden bg-white rounded-2xl shadow-2xl">
+          <div className="p-6 text-center">
+            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="h-8 w-8" />
+            </div>
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-[#2A174E] text-center">Revoke Access Card?</DialogTitle>
+              <DialogDescription className="text-slate-500 text-sm mt-2 text-center">
+                You are about to unlink the RFID card from <b className="text-slate-900">{revokeTarget?.userName}</b>. 
+                This employee will no longer be able to use this card for attendance.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="p-6 bg-slate-50 flex gap-3">
+            <Button variant="outline" className="flex-1 h-11 border-slate-200 text-slate-500 rounded-lg font-bold" onClick={() => setShowRevokeModal(false)}>
+              Keep Linked
+            </Button>
+            <Button 
+              onClick={confirmRevokeCard}
+              disabled={revoking}
+              className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-md"
+            >
+              {revoking ? "Unlinking..." : "Yes, Unlink Card"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

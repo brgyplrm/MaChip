@@ -158,15 +158,35 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
     const settings = await SystemSettings.findOne();
     const holidays = await Holiday.findAll();
     const [dayOT] = await sequelize.query(`SELECT ot.* FROM "Overtime_Request" ot JOIN "emp_Request" er ON ot."emp_reqId" = er."emp_reqId" WHERE er."user_Id" = :userId AND er."emp_reqTypeId" = 1 AND er."emp_reqStatusId" = 2 AND ot."OT_DateOf" = :logDate`, { replacements: { userId, logDate }, type: QueryTypes.SELECT });
+    
+    // Determine regular work window
+    const mStart = settings?.morningShiftStart?.substring(0, 5) || "08:30";
+    const mEnd   = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
+    
+    // MIXED LOG LOGIC: Check if we should upgrade from Irregular (8) to a regular status
+    if (report.attendance_StatusId === 8) {
+      const firstRegularIn = inArr.find(t => t.substring(0, 5) >= "06:30" && t.substring(0, 5) < "17:30");
+      if (firstRegularIn) {
+        const graceTimeStr = settings?.gracePeriod || "08:35:00";
+        const graceTime = graceTimeStr.substring(0, 5);
+        const newStatus = (firstRegularIn.substring(0, 5) <= graceTime) ? 1 : 2;
+        await report.update({ attendance_StatusId: newStatus });
+        report.attendance_StatusId = newStatus;
+      }
+    }
+
     let firstIn = inArr[0], lastOut = outArr[outArr.length - 1];
     const shiftStart = (user?.user_ShiftId === 2) ? (settings?.eveningShiftStart || "20:30:00") : (settings?.morningShiftStart || "08:30:00");
     const shiftEnd = (user?.user_ShiftId === 2) ? (settings?.eveningShiftEnd || "05:30:00") : (settings?.morningShiftEnd || "17:30:00");
+    
+    // Clamp to shift boundaries for REGULAR hours calculation
     if (firstIn && firstIn < shiftStart && user?.user_ShiftId !== 2) firstIn = shiftStart;
     if (!dayOT && lastOut && lastOut > shiftEnd && user?.user_ShiftId !== 2) lastOut = shiftEnd;
+    
     const stats = await calculateMultiBucketHours(firstIn, lastOut, logDate, user?.user_ShiftId, settings, holidays);
     
-    // If status is Incidental Visit (7), zero out the payable hours
-    if (report.attendance_StatusId === 7) {
+    // If status is Incidental Visit (7) or Irregular (8), zero out the payable hours
+    if (report.attendance_StatusId === 7 || report.attendance_StatusId === 8) {
       stats.reg_hrs = 0;
       stats.nd_hrs = 0;
       stats.ot_hrs = 0;
@@ -183,16 +203,23 @@ function mapLogsToBuckets(inArr, outArr, settings, otStartTime = null) {
   let ins = (inArr || []).map(t => t.substring(0, 5)).filter(t => t && t !== "—" && t !== "00:00").sort();
   let outs = (outArr || []).map(t => t.substring(0, 5)).filter(t => t && t !== "—" && t !== "00:00").sort();
   
-  // Define the boundary: Either the Approved OT start, 
-  // or a fallback (Shift End + 60 mins buffer) to keep regular buckets clean.
-  const shiftEnd = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
-  const softBoundaryMins = timeToMins(shiftEnd) + 60; // 6:30 PM default buffer
-  
-  const boundaryMins = otStartTime ? timeToMins(otStartTime) : softBoundaryMins;
+  // Define thresholds
+  const irregularStart = "17:30";
+  const irregularEnd = "06:30";
 
-  // Filter logs to stay within the "Regular" work window
-  ins = ins.filter(t => timeToMins(t) < boundaryMins);
-  outs = outs.filter(t => timeToMins(t) <= boundaryMins);
+  // Filter Ins: Must be within regular window OR approved OT
+  ins = ins.filter(time => {
+    if (otStartTime && time >= otStartTime) return true;
+    const mins = timeToMins(time);
+    return mins >= timeToMins(irregularEnd) && mins < timeToMins(irregularStart);
+  });
+
+  // Filter Outs: More lenient. Allow anything after the earliest possible shift start.
+  // This allows the 5:30 PM clock-out and even late clock-outs (e.g., 6:00 PM) to show up.
+  outs = outs.filter(time => {
+    const mins = timeToMins(time);
+    return mins >= timeToMins(irregularEnd);
+  });
 
   if (ins.length === 0 && outs.length === 0) return { morning_In: "—", morning_Out: "—", afternoon_In: "—", afternoon_Out: "—" };
 
@@ -317,7 +344,15 @@ async function ensureAbsentsMarked(dateOverride = null) {
         continue;
       }
 
-      if (existingReport) continue;
+      if (existingReport) {
+        // EXCEPTION: If the existing report is just "Irregular" (Status 8), we don't skip.
+        // We want these users to be marked as Absent (Status 3) at the end of the day.
+        if (existingReport.attendance_StatusId === 8) {
+           await existingReport.update({ attendance_StatusId: 3 });
+           console.log(`[ABSENT-AUTO] User ${userId} flagged as Absent (Only Irregular logs found) on ${todayStr}`);
+        }
+        continue;
+      }
 
       // THRESHOLD CHECK: Use dynamic threshold from settings (default to 4 if not found)
       const threshold = settings?.workHourThreshold || 4.0;

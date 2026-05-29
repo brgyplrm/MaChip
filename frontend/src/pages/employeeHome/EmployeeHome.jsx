@@ -126,7 +126,7 @@ const EmployeeHome = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             
             {/* On-Time Card */}
-            <Card className="border-none shadow-sm bg-gradient-to-br from-green-500 to-green-600 text-white">
+            <Card className="border-none shadow-sm bg-gradient-to-br from-[#2A174E] to-[#2A174E]/80 text-white">
               <CardContent className=" flex justify-between items-center">
                 <div>
                   <p className="text-green-50 text-xs font-bold uppercase tracking-wider">On-Time</p>
@@ -140,7 +140,7 @@ const EmployeeHome = () => {
             </Card>
 
             {/* Late Card */}
-            <Card className="border-none shadow-sm bg-gradient-to-br from-amber-500 to-amber-600 text-white">
+            <Card className="border-none shadow-sm bg-gradient-to-br from-[#3B4E17] to-[#5A6F2A] text-white">
               <CardContent className=" flex justify-between items-center">
                 <div>
                   <p className="text-amber-50 text-xs font-bold uppercase tracking-wider">Late</p>
@@ -154,7 +154,7 @@ const EmployeeHome = () => {
             </Card>
 
             {/* Absent Card */}
-            <Card className="border-none shadow-sm bg-gradient-to-br from-red-500 to-red-600 text-white">
+            <Card className="border-none shadow-sm bg-gradient-to-br from-[#B06E16] to-[#D4AF37] text-white">
               <CardContent className=" flex justify-between items-center">
                 <div>
                   <p className="text-red-50 text-xs font-bold uppercase tracking-wider">Absent</p>
@@ -173,25 +173,25 @@ const EmployeeHome = () => {
 
             {/* Row 1: Quick Stats & Leave Balances (12 Columns) */}
             <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <Card className="border-t-4 border-green-500 shadow-sm bg-green-50/50 p-6 flex flex-col justify-center items-center text-center">
-                <Clock className="h-10 w-10 text-green-600 mb-2" />
-                <p className="text-sm font-bold text-green-900">Today's Log-In</p>
+              <Card className="border-t-4 border-[#2A174E] shadow-sm bg-[#FAF2FF]/30 p-6 flex flex-col justify-center items-center text-center">
+                <Clock className="h-10 w-10 text-[#2A174E] mb-2" />
+                <p className="text-sm font-bold text-[#2A174E]/50">Today's Log-In</p>
                 {/* Assuming you have a 'tok
                 dayIn' property in your dashboardStats */}
-                <p className="text-lg font-black text-green-950 mt-1">
+                <p className="text-lg font-black text-[#2A174E]/90 mt-1">
                   {dashboardStats.todayIn || "--:-- AM"}
                 </p>
               </Card>
-              <Card className="shadow-sm border-t-4 border-amber-500 bg-white p-6">
-                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Leave Balances</h3>
+              <Card className="shadow-sm border-t-4 border-[#3B4E17] p-6">
+                <h3 className="text-base font-semibold">Leave Balances</h3>
                 <div className="space-y-6">
                   <div>
                     <div className="flex justify-between text-xs font-bold mb-1"><span>Vacation (VL)</span><span>{balance.VL_balance} / {balance.VL_total}</span></div>
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-[#2A174E]" style={{width: `${(balance.VL_used/balance.VL_total)*100}%`}}></div></div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-[#8DB552]" style={{width: `${(balance.VL_used/balance.VL_total)*100}%`}}></div></div>
                   </div>
                   <div>
                     <div className="flex justify-between text-xs font-bold mb-1"><span>Sick (SL)</span><span>{balance.SL_balance} / {balance.SL_total}</span></div>
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-[#7451f8]" style={{width: `${(balance.SL_used/balance.SL_total)*100}%`}}></div></div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-[#C0E990]" style={{width: `${(balance.SL_used/balance.SL_total)*100}%`}}></div></div>
                   </div>
                 </div>
               </Card>
@@ -199,12 +199,12 @@ const EmployeeHome = () => {
 
             {/* Row 1: Actions (4 Columns) */}
             <div className="md:col-span-4">
-              <Card className="shadow-sm border-t-4 border-red-500 h-full">
+              <Card className="shadow-sm border-t-4 border-[#B06E16] h-full">
                 <CardHeader><CardTitle className="text-base">Quick Actions</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
-                  <Button className="w-full justify-start" variant="outline" asChild><Link to="/requests"><FileText className="mr-2 h-4 w-4"/> File Requests</Link></Button>
-                  <Button className="w-full justify-start" variant="outline" asChild><Link to="/payroll"><CreditCardIcon className="mr-2 h-4 w-4"/> View Payslips</Link></Button>
-                  <Button className="w-full justify-start" variant="outline" asChild><Link to="/profile"><UserCheck className="mr-2 h-4 w-4"/> Update Profile</Link></Button>
+                  <Button className="hover:bg-amber-50! w-full justify-start" variant="outline" asChild><Link to="/requests"><FileText className="mr-2 h-4 w-4"/> File Requests</Link></Button>
+                  <Button className="hover:bg-amber-50! w-full justify-start" variant="outline" asChild><Link to="/payroll"><CreditCardIcon className="mr-2 h-4 w-4"/> View Payslips</Link></Button>
+                  <Button className="hover:bg-amber-50! w-full justify-start" variant="outline" asChild><Link to="/profile"><UserCheck className="mr-2 h-4 w-4"/> Update Profile</Link></Button>
                 </CardContent>
               </Card>
             </div>

@@ -193,30 +193,30 @@ exports.getCalendarReport = async (req, res) => {
     const replacements = { startDate, endDate };
     let userFilter = "";
 
-    if (user_Id && user_Id !== "All Employees" && user_Id !== "undefined" && user_Id !== "null") {
+    if (user_Id && user_Id !== "All Employees" && user_Id !== "undefined" && user_Id !== "null" && user_Id !== "") {
       userFilter = ` AND er."user_Id" = :user_Id`;
       replacements.user_Id = user_Id;
     }
 
-    // 1. Fetch Holidays
+    // 1. Fetch Holidays (Holidays are global)
     const holidays = await sequelize.query(
       `SELECT "holidayId" as "id", 'Holiday' as "type", "date", "name", "type" as "details", NULL as "endDate"
        FROM "Holiday"
        WHERE "date" BETWEEN :startDate AND :endDate`,
-      { replacements, type: QueryTypes.SELECT }
+      { replacements: { startDate, endDate }, type: QueryTypes.SELECT }
     );
 
-    // 1.5 Fetch Due Dates
+    // 1.5 Fetch Due Dates (Due dates are global)
     const dueDates = await sequelize.query(
       `SELECT "dueDateId" as "id", 'Due Date' as "type", "date", "name", "details", NULL as "endDate"
        FROM "DueDate"
        WHERE "date" BETWEEN :startDate AND :endDate`,
-      { replacements, type: QueryTypes.SELECT }
+      { replacements: { startDate, endDate }, type: QueryTypes.SELECT }
     );
 
     // 2. Fetch Field Work
     const fieldWorks = await sequelize.query(
-      `SELECT er."emp_reqId" as "id", 'Field Work' as "type", ow."DateonField" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", ow."destination" as "details", NULL as "endDate"
+      `SELECT er."emp_reqId" as "id", 'Field Work' as "type", ow."DateonField" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", ow."destination" as "details", NULL as "endDate", ow."NoHrs" as "hours"
        FROM "Onfield_Work" ow
        JOIN "emp_Request" er ON ow."emp_reqId" = er."emp_reqId"
        JOIN "User" u ON er."user_Id" = u."user_Id"
@@ -228,7 +228,7 @@ exports.getCalendarReport = async (req, res) => {
 
     // 3. Fetch Vacation Leaves
     const vacationLeaves = await sequelize.query(
-      `SELECT er."emp_reqId" as "id", 'Leave' as "type", vl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Vacation Leave' as "details", vl."EndDate" as "endDate"
+      `SELECT er."emp_reqId" as "id", 'Leave' as "type", vl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Vacation Leave' as "details", vl."EndDate" as "endDate", vl."NoDays" as "hours"
        FROM "Vacation_Leave" vl
        JOIN "emp_Request" er ON vl."emp_reqId" = er."emp_reqId"
        JOIN "User" u ON er."user_Id" = u."user_Id"
@@ -240,7 +240,7 @@ exports.getCalendarReport = async (req, res) => {
 
     // 4. Fetch Sick Leaves
     const sickLeaves = await sequelize.query(
-      `SELECT er."emp_reqId" as "id", 'Leave' as "type", sl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Sick Leave' as "details", sl."EndDate" as "endDate"
+      `SELECT er."emp_reqId" as "id", 'Leave' as "type", sl."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Sick Leave' as "details", sl."EndDate" as "endDate", sl."NoDays" as "hours"
        FROM "Sick_Leave" sl
        JOIN "emp_Request" er ON sl."emp_reqId" = er."emp_reqId"
        JOIN "User" u ON er."user_Id" = u."user_Id"
@@ -252,7 +252,7 @@ exports.getCalendarReport = async (req, res) => {
 
     // 5. Fetch Overtime
     const overtime = await sequelize.query(
-      `SELECT er."emp_reqId" as "id", 'Overtime' as "type", ot."OT_DateOf" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", CAST(ot."Total_Hrs" AS VARCHAR) || ' hrs OT' as "details", NULL as "endDate"
+      `SELECT er."emp_reqId" as "id", 'Overtime' as "type", ot."OT_DateOf" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", CAST(ot."Total_Hrs" AS TEXT) || ' hrs OT' as "details", NULL as "endDate", ot."Total_Hrs" as "hours"
        FROM "Overtime_Request" ot
        JOIN "emp_Request" er ON ot."emp_reqId" = er."emp_reqId"
        JOIN "User" u ON er."user_Id" = u."user_Id"
@@ -1293,9 +1293,19 @@ exports.GetUserRequests = async (req, res) => {
 };
 
 exports.GetAllRequests = async (req, res) => {
+  const { startDate, endDate } = req.query;
   try {
     const now = await getSystemTime();
     const currentYear = now.getFullYear();
+
+    let dateFilter = "";
+    const replacements = { currentYear };
+
+    if (startDate && endDate) {
+      dateFilter = ` AND er."date_Filed"::date BETWEEN :startDate AND :endDate`;
+      replacements.startDate = startDate;
+      replacements.endDate = endDate;
+    }
 
     const requests = await sequelize.query(
       `SELECT
@@ -1399,9 +1409,10 @@ exports.GetAllRequests = async (req, res) => {
       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
       LEFT JOIN "Loan_Request" lr ON er."emp_reqId" = lr."emp_reqId"
       LEFT JOIN "Leave_Balance" lb ON er."user_Id" = lb."user_Id" AND lb."year" = :currentYear
+      WHERE 1=1 ${dateFilter}
       ORDER BY er."createdAt" DESC`,
       {
-        replacements: { currentYear },
+        replacements,
         type: QueryTypes.SELECT,
       },
     );

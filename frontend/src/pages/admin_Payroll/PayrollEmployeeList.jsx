@@ -36,6 +36,7 @@ const PayrollEmployeeList = () => {
   const [savingId, setSavingId] = useState(null);
   const [toast, setToast] = useState(null);
   const [visibleAccounts, setVisibleAccounts] = useState(new Set());
+  const [showInfo, setShowInfo] = useState(true);
   const isEditing = editingEmployee !== null;
 
   // Filter & Pagination States
@@ -223,16 +224,25 @@ const PayrollEmployeeList = () => {
         <div className="h-2"></div>
 
         {/* Info Alert */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
-          <div className="flex items-center gap-2 text-blue-800 font-bold mb-2">
-            <InfoOutlinedIcon className="h-5 w-5" /> 
-            <h3 className="text-base m-0">Employee Payroll Processing</h3>
+        {showInfo && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6 relative group/info">
+            <button 
+              onClick={() => setShowInfo(false)}
+              className="absolute top-4 right-4 text-blue-400 hover:text-blue-600 transition-colors p-1"
+              title="Dismiss information"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+            <div className="flex items-center gap-2 text-blue-800 font-bold mb-2">
+              <InfoOutlinedIcon className="h-5 w-5" /> 
+              <h3 className="text-base m-0">Employee Payroll Processing</h3>
+            </div>
+            <p className="text-blue-700 text-sm leading-relaxed m-0 pr-8">
+              Provide a daily rate to automatically calculate payroll for each employee. 
+              Employees without a daily rate will be excluded from payroll calculations.
+            </p>
           </div>
-          <p className="text-blue-700 text-sm leading-relaxed m-0">
-            Provide a daily rate to automatically calculate payroll for each employee. 
-            Employees without a daily rate will be excluded from payroll calculations.
-          </p>
-        </div>
+        )}
 
         {/* Dashboard-Style Widgets Row */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">

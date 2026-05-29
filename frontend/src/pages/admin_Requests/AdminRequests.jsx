@@ -3,6 +3,7 @@ import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import ReplyIcon from "@mui/icons-material/Reply";
+import InfoIcon from "@mui/icons-material/Info";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import AttachmentIcon from "@mui/icons-material/Attachment";
 import SearchIcon from "@mui/icons-material/Search";
@@ -39,6 +40,7 @@ const AdminRequests = () => {
   const [adminNote, setAdminNote] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("2"); 
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [showHistoryBanner, setShowHistoryBanner] = useState(true);
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -85,6 +87,7 @@ const AdminRequests = () => {
     setPaymentStatus("2"); 
     setCurrentPage(1);
     setSelectedReqId(null);
+    if (activeTab === "completed") setShowHistoryBanner(true);
   }, [activeTab, searchQuery, typeFilter, statusFilter]);
 
   const formatTime = (time) => {
@@ -194,6 +197,12 @@ const AdminRequests = () => {
     // }
 
     if (activeTab === "completed") {
+      // Baseline History Filter: Only show current and previous month (total of 4 payroll periods)
+      const filedDate = new Date(req.date_Filed);
+      const today = new Date();
+      const cutoff = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      if (filedDate < cutoff) return false;
+
       const query = searchQuery.toLowerCase();
       
       // Search Name or ID
@@ -361,6 +370,27 @@ const AdminRequests = () => {
               </CardContent>
             </Card>
           </div>
+
+        {/* History Info Banner */}
+        {activeTab === "completed" && showHistoryBanner && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-start gap-3 text-blue-800 animate-in fade-in slide-in-from-top-2 duration-300 shadow-sm relative">
+            <InfoIcon className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+            <div className="space-y-1 pr-8">
+              <p className="text-sm font-bold">History Baseline Notice</p>
+              <p className="text-xs leading-relaxed opacity-90">
+                The listing below is limited to the <b>current and previous month</b> (approx. 4 payroll periods) to ensure optimal system performance. 
+                For comprehensive historical data, please refer to the <Link to="/adminReports" state={{ activeTab: "requests" }} className="underline font-bold hover:text-blue-900 transition-colors">Request Reports</Link>.
+              </p>
+            </div>
+            {/* Close Button */}
+            <button 
+              onClick={() => setShowHistoryBanner(false)}
+              className="absolute top-4 right-4 text-blue-400 hover:text-blue-600 transition-colors p-1"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Filters Card (Only visible when viewing History) */}
         {activeTab === "completed" && (

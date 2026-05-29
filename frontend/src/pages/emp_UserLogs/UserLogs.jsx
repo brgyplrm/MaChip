@@ -322,6 +322,124 @@ const UserLogs = () => {
     printWindow.document.close();
   };
 
+  const handleDownloadRawLogs = () => {
+    const empName = `${userData?.user_FirstName} ${userData?.user_LastName}`;
+    const empId = formatUserId(userData?.user_Id);
+    
+    let rowsHTML = "";
+    filteredScans.forEach((log) => {
+      const date = log.log_Date ? new Date(log.log_Date).toLocaleDateString() : "—";
+      const time = log.time_Logged ? formatTime12h(log.time_Logged) : "—";
+      const type = log.loggedStatusName || "—";
+      const action = log.attendanceStatusName || "—";
+      
+      rowsHTML += `
+        <tr>
+          <td>${date}</td>
+          <td>${time}</td>
+          <td>${type}</td>
+          <td>${action}</td>
+        </tr>`;
+    });
+
+    const totalScans = filteredScans.length;
+    const inCount = filteredScans.filter(s => (s.loggedStatusName || "").toLowerCase().includes("in")).length;
+    const outCount = filteredScans.filter(s => (s.loggedStatusName || "").toLowerCase().includes("out")).length;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>Raw Access Logs - ${empName}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 20mm; }
+  .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2A174E; padding-bottom: 10px; }
+  .header h1 { font-size: 20px; color: #2A174E; text-transform: uppercase; margin-bottom: 5px; }
+  .header p { color: #666; font-size: 10px; }
+  .info-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; margin-bottom: 30px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+  .info-item { display: flex; flex-direction: column; gap: 4px; }
+  .info-label { font-size: 9px; font-bold: true; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+  .info-value { font-size: 13px; font-weight: bold; color: #1e293b; }
+  .stats-row { display: flex; gap: 20px; margin-bottom: 20px; }
+  .stat-card { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center; }
+  .stat-card.blue { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+  .stat-card.green { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+  .stat-card.amber { background: #fffbeb; border-color: #fef3c7; color: #92400e; }
+  .stat-title { font-size: 9px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px; }
+  .stat-value { font-size: 18px; font-weight: 800; }
+  table { width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+  thead th { background-color: #2A174E; color: white; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; }
+  tbody tr:nth-child(even) { background-color: #f8fafc; }
+  .footer { margin-top: 40px; font-style: italic; font-size: 9px; text-align: center; color: #94a3b8; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>Raw Access Logs Report</h1>
+    <p>MAC-J Int'l Forwarding Ltd., Co. • System Generated Document</p>
+  </div>
+  <div class="info-grid">
+    <div class="info-item">
+      <span class="info-label">Employee Name</span>
+      <span class="info-value">${empName}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Employee ID</span>
+      <span class="info-value">${empId}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Payroll Period</span>
+      <span class="info-value">${payEndingLabel}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Generated Date</span>
+      <span class="info-value">${new Date().toLocaleString()}</span>
+    </div>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card blue">
+      <p class="stat-title">Total Scans</p>
+      <p class="stat-value">${totalScans}</p>
+    </div>
+    <div class="stat-card green">
+      <p class="stat-title">Clock-In Count</p>
+      <p class="stat-value">${inCount}</p>
+    </div>
+    <div class="stat-card amber">
+      <p class="stat-title">Clock-Out Count</p>
+      <p class="stat-value">${outCount}</p>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Time Scanned</th>
+        <th>Scan Type</th>
+        <th>System Action</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHTML}</tbody>
+  </table>
+  <div class="footer">
+    This report contains raw data captured directly from biometric/RFID hardware sensors. 
+    Final attendance calculations may differ based on shift rules and administrative adjustments.
+  </div>
+  <script>window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; };</script>
+</body>
+</html>`;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setToast({ message: "Popup blocked — please allow popups for this site.", type: "error" });
+      return;
+    }
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
   // ── Helper for Status Badges ─────────────────────────────────────────────
   const getBadgeStyle = (status) => {
     const s = (status || "").toLowerCase().replace(/[- ]/g, "");
@@ -385,35 +503,34 @@ const UserLogs = () => {
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">My Attendance & Logs</h1>
             <span className="text-sm text-slate-500 mt-1 block">View your official Daily Time Record and complete raw access logs.</span>
           </div>
-          {activeTab === "dtr" && (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
-              <div className="flex items-center gap-2 pl-0 md:pl-4 md:border-l border-slate-200">
-                <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider shrink-0">Period:</span>
-                <Select value={selectedPeriodId} onValueChange={handlePeriodChange}>
-                  <SelectTrigger className="w-[180px] bg-white border-slate-200 font-bold text-[#2A174E]">
-                    <SelectValue placeholder="Select Period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="current">Current Period</SelectItem>
-                    {payrollPeriods.map((p) => (
-                      <SelectItem key={p.periodId} value={p.periodId.toString()}>{p.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button 
-                onClick={handleDownloadDTR}
-                className="w-full sm:w-auto bg-green-600 text-white hover:bg-green-700 shadow-sm"
-              >
-                <FileDownloadIcon className="mr-2 h-4 w-4" /> Download PDF
-              </Button>
+          
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
+            <div className="flex items-center gap-2 pl-0 md:pl-4 md:border-l border-slate-200">
+              <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider shrink-0">Period:</span>
+              <Select value={selectedPeriodId} onValueChange={handlePeriodChange}>
+                <SelectTrigger className="w-[180px] bg-white border-slate-200 font-bold text-[#2A174E]">
+                  <SelectValue placeholder="Select Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="current">Current Period</SelectItem>
+                  {payrollPeriods.map((p) => (
+                    <SelectItem key={p.periodId} value={p.periodId.toString()}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          )}
+            <Button 
+              onClick={activeTab === "dtr" ? handleDownloadDTR : handleDownloadRawLogs}
+              className="w-full sm:w-auto bg-green-600 text-white hover:bg-green-700 shadow-sm"
+            >
+              <FileDownloadIcon className="mr-2 h-4 w-4" /> Download PDF
+            </Button>
+          </div>
         </div>
 
         {/* Tabs Navigation */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full sm:w-[400px] grid-cols-2 h-11 bg-slate-200/60 p-1 rounded-lg mb-6">
+          <TabsList className="grid w-full sm:w-[400px] grid-cols-2 h-11 bg-slate-200/60 rounded-lg mb-6 p-0.5">
             <TabsTrigger value="dtr" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
               <ReceiptLongIcon className="mr-2 h-4 w-4" /> DTR View
             </TabsTrigger>

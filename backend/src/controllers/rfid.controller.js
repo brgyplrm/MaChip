@@ -469,8 +469,18 @@ exports.scanRFID = async (req, res) => {
       const graceTimeStr = settings?.gracePeriod || "08:35:00";
       const graceTime = new Date(`${workDate}T${graceTimeStr}`);
       
-      if (now <= graceTime) attendanceVal = 1; // On-Time
-      else if (now > graceTime && now < fivePMThirty) attendanceVal = 2; // Late
+      // IRREGULAR CHECK: If within the 5:30 PM - 6:30 AM window and no approved OT
+      const hour = now.getHours();
+      const mins = now.getMinutes();
+      const isIrregular = (hour >= 17 && mins >= 30) || (hour < 6) || (hour === 6 && mins < 30);
+
+      if (isIrregular && !isWithinOTWindow) {
+        attendanceVal = 8; // Irregular
+      } else if (now <= graceTime) {
+        attendanceVal = 1; // On-Time
+      } else if (now > graceTime && now < fivePMThirty) {
+        attendanceVal = 2; // Late
+      }
     } 
 
 

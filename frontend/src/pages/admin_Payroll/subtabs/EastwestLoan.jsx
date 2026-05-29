@@ -741,9 +741,9 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
   
         {/* Header Text Group */}
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Loan Management</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Company Loan Management</h1>
           <span className="text-sm text-slate-500 mt-1 block">
-            Manage employee personal loan deductions, track repayments, and configure matrix schedules.
+            Manage employee company loan deductions, track repayments, and configure matrix schedules.
           </span>
         </div>
 
@@ -893,14 +893,14 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
               >
                 <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
               </Button>
-              <Button 
+              {/* <Button 
                 variant="outline" 
                 size="sm"
                 onClick={() => setIsEditingTable(!isEditingTable)}
                 className={`h-9 ${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
               >
                 {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Matrix</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Matrix</>}
-              </Button>
+              </Button> */}
             </div>
           )}
         </div>

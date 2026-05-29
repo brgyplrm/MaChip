@@ -95,17 +95,20 @@ const VisitorLogs = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
-          <Card className="border-t-4 border-[#2A174E] shadow-sm">
+          <Card className="border-t-4 border-[#2A174E] shadow-sm py-0">
             <CardContent className="p-6">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Today's Total Entries</p>
               <div className="flex items-baseline gap-2 mt-2">
                 <p className="text-4xl font-black text-[#2A174E]">{todayVisits}</p>
                 <span className="text-slate-400 text-sm font-medium">visitors</span>
               </div>
+              <p className="italic text-[11px] text-slate-400 mt-3 leading-relaxed">
+                Displays the total number of entries recorded for the current day.
+              </p>
             </CardContent>
           </Card>
           
-          <Card className="border-t-4 border-green-500 shadow-sm">
+          <Card className="border-t-4 border-green-500 shadow-sm py-0">
             <CardContent className="p-6">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Last Entry Detected</p>
               <div className="flex items-baseline gap-2 mt-2">
@@ -114,15 +117,21 @@ const VisitorLogs = () => {
                 </p>
                 <span className="text-slate-400 text-sm font-medium">local time</span>
               </div>
+              <p className="italic text-[11px] text-slate-400 mt-3 leading-relaxed">
+                Shows the precise time of the most recent authorized visitor access event.
+              </p>
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-amber-500 shadow-sm hidden md:block">
+          <Card className="border-t-4 border-amber-500 shadow-sm hidden md:block py-0">
             <CardContent className="p-6">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">System User</p>
               <div className="flex items-baseline gap-2 mt-2">
                 <p className="text-2xl font-black text-amber-600">VISITOR-999</p>
               </div>
+              <p className="italic text-[11px] text-slate-400 mt-3 leading-relaxed">
+                The dedicated system account used to categorize and store all anonymous visitor logs.
+              </p>
             </CardContent>
           </Card>
         </div>

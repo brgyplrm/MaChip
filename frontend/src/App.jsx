@@ -5,8 +5,7 @@ import Login from "./pages/login/Login";
 import List from "./pages/list/List";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
-import FingerprintManagement from "./pages/new/FingerprintManagement";
-import RfidManagement from "./pages/new/RfidManagement";
+import HardwareManagement from "./pages/new/HardwareManagement";
 import Edit from "./pages/editUser/Edit";
 import EditAttendance from "./pages/editAttendance/EditAttendance";
 import Logs from "./pages/logs-management/Logs";
@@ -388,18 +387,10 @@ function App() {
             }
           />
           <Route
-            path="fingerprint"
+            path="hardware"
             element={
               <ProtectedRoute allowedRoles={[1, 2, 4]}>
-                <FingerprintManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="rfid"
-            element={
-              <ProtectedRoute allowedRoles={[1, 2, 4]}>
-                <RfidManagement />
+                <HardwareManagement />
               </ProtectedRoute>
             }
           />

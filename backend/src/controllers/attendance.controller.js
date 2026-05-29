@@ -210,8 +210,19 @@ exports.markAttendance = async (req, res) => {
     } else if (nextStatus === 1) {
       const graceTimeStr = settings?.gracePeriod || "08:35:00";
       const graceTime = new Date(`${todayStr}T${graceTimeStr}`);
-      if (now <= graceTime) attendanceVal = 1; // On-Time
-      else if (now > graceTime && now < fivePMThirty) attendanceVal = 2; // Late
+      
+      // IRREGULAR CHECK: If within the 5:30 PM - 6:30 AM window and no approved OT
+      const hour = now.getHours();
+      const mins = now.getMinutes();
+      const isIrregular = (hour >= 17 && mins >= 30) || (hour < 6) || (hour === 6 && mins < 30);
+      
+      if (isIrregular && !isWithinOTWindow) {
+        attendanceVal = 8; // Irregular
+      } else if (now <= graceTime) {
+        attendanceVal = 1; // On-Time
+      } else if (now > graceTime && now < fivePMThirty) {
+        attendanceVal = 2; // Late
+      }
     }
 
     const newLogResult = await sequelize.query(`INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId") VALUES (:target_user_Id, :log_Date, :time_Logged, :logged_StatusId, :attendance_StatusId) RETURNING *`, { replacements: { target_user_Id, log_Date: todayStart, time_Logged: timeStr, logged_StatusId: nextStatus, attendance_StatusId: attendanceVal }, type: QueryTypes.INSERT });
@@ -336,23 +347,7 @@ exports.viewUserLogs = async (req, res) => {
       } catch (e) { return []; }
     };
 
-    const dailyRows = await Promise.all(reports
-      .filter((r) => {
-        const dateStr = formatDateOnly(r.log_Date);
-        const inArr = parseLogs(r.time_Logged_inArr);
-        const outArr = parseLogs(r.time_Logged_outArr);
-        
-        const hasValidLog = [...inArr, ...outArr].length > 0;
-        const hasRequest = approvedRequests.some(req => {
-          if (Number(req.emp_reqTypeId) === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
-          if (Number(req.emp_reqTypeId) === 2) return formatDateOnly(req.DateonField) === dateStr;
-          if (Number(req.emp_reqTypeId) === 3) return formatDateOnly(req.vStart) <= dateStr && formatDateOnly(req.vEnd) >= dateStr;
-          if (Number(req.emp_reqTypeId) === 4) return formatDateOnly(req.sStart) <= dateStr && formatDateOnly(req.sEnd) >= dateStr;
-          return false;
-        });
-
-        return hasValidLog || hasRequest || Number(r.attendance_StatusId) === 3;
-      })
+    const dailyRows = (await Promise.all(reports
       .map(async (report) => {
         const inArr = parseLogs(report.time_Logged_inArr);
         const outArr = parseLogs(report.time_Logged_outArr);
@@ -361,12 +356,34 @@ exports.viewUserLogs = async (req, res) => {
         const dayOT = approvedRequests.find(req => Number(req.emp_reqTypeId) === 1 && formatDateOnly(req.OT_DateOf) === dateStr);
         const isOnField = approvedRequests.some(req => Number(req.emp_reqTypeId) === 2 && formatDateOnly(req.DateonField) === dateStr);
         
-        const ot_In = (dayOT && dayOT.HrFrom) ? dayOT.HrFrom.substring(0, 5) : "—";
+        // Refined OT Mapping: Look for the actual tap in inArr that matches or follows the OT start
+        let ot_In = "—";
+        if (dayOT && dayOT.HrFrom) {
+          const reqStart = dayOT.HrFrom.substring(0, 5);
+          const actualTap = inArr.find(t => t.substring(0, 5) >= reqStart);
+          ot_In = actualTap ? actualTap.substring(0, 5) : reqStart;
+        }
+
         const ot_Out = (dayOT && dayOT.HrFrom && outArr.length > 0 && outArr[outArr.length-1] && outArr[outArr.length-1].substring(0,5) > dayOT.HrFrom.substring(0,5)) ? outArr[outArr.length-1].substring(0,5) : "—";
       
         const otStartTime = (dayOT && dayOT.HrFrom) ? dayOT.HrFrom.substring(0, 5) : null;
-        let { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings, otStartTime);
+        const { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings, otStartTime);
         
+        // MIXED LOG/FILTER LOGIC: Only show the row if there's regular work OR a valid request OR explicitly absent
+        const hasRegularWork = morning_In !== "—" || afternoon_Out !== "—" || (dayOT && outArr.length > 0);
+        const hasRequest = approvedRequests.some(req => {
+          if (Number(req.emp_reqTypeId) === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
+          if (Number(req.emp_reqTypeId) === 2) return formatDateOnly(req.DateonField) === dateStr;
+          if (Number(req.emp_reqTypeId) === 3) return formatDateOnly(req.vStart) <= dateStr && formatDateOnly(req.vEnd) >= dateStr;
+          if (Number(req.emp_reqTypeId) === 4) return formatDateOnly(req.sStart) <= dateStr && formatDateOnly(req.sEnd) >= dateStr;
+          return false;
+        });
+
+        const isAbsent = Number(report.attendance_StatusId) === 3;
+        
+        // Return null if this row should be hidden (Irregular only, no work, no request)
+        if (!hasRegularWork && !hasRequest && !isAbsent) return null;
+
         const mStart = settings?.morningShiftStart?.substring(0, 5) || "08:30";
         const mEnd   = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
         const lStart = settings?.lunchStartThreshold?.substring(0, 5) || "12:00";
@@ -454,7 +471,7 @@ exports.viewUserLogs = async (req, res) => {
           attendanceStatus: (report.attendanceStatusName === "Exempt" ? "On Time" : (report.attendanceStatusName || (stats.totalPayableHours > 0 ? "Present" : "No Record"))),
           systemGenerated: report.logged_StatusId === 7 || isOnField
         };
-      }));
+      }))).filter(row => row !== null);
 
     res.status(200).json(dailyRows);
   } catch (error) {
@@ -1194,24 +1211,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
     return `${YYYY}-${MM}-${DD}`;
   };
 
-  const results = await Promise.all(reports
-    .filter((r) => {
-      const dateStr = formatDateOnly(r.log_Date);
-      const inArr = parseLogs(r.time_Logged_inArr);
-      const outArr = parseLogs(r.time_Logged_outArr);
-      
-      const hasValidLog = [...inArr, ...outArr].length > 0;
-      const userReqs = allApprovedRequests.filter(req => Number(req.user_Id) === Number(r.user_id));
-      const hasRequest = userReqs.some(req => {
-        if (Number(req.emp_reqTypeId) === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
-        if (Number(req.emp_reqTypeId) === 2) return formatDateOnly(req.DateonField) === dateStr;
-        if (Number(req.emp_reqTypeId) === 3) return formatDateOnly(req.vStart) <= dateStr && formatDateOnly(req.vEnd) >= dateStr;
-        if (Number(req.emp_reqTypeId) === 4) return formatDateOnly(req.sStart) <= dateStr && formatDateOnly(req.sEnd) >= dateStr;
-        return false;
-      });
-
-      return hasValidLog || hasRequest || Number(r.attendance_StatusId) === 3;
-    })
+  const results = (await Promise.all(reports
     .map(async (r) => {
       const inArr = parseLogs(r.time_Logged_inArr);
       const outArr = parseLogs(r.time_Logged_outArr);
@@ -1229,6 +1229,19 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       const otStartTime = dayOT ? dayOT.HrFrom.substring(0, 5) : null;
       let { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings, otStartTime);
       
+      // MIXED LOG/FILTER LOGIC: Only show the row if there's regular work OR a valid request OR explicitly absent
+      const hasRegularWork = morning_In !== "—" || afternoon_Out !== "—" || (dayOT && outArr.length > 0);
+      const hasRequest = userReqs.some(req => {
+        if (Number(req.emp_reqTypeId) === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
+        if (Number(req.emp_reqTypeId) === 2) return formatDateOnly(req.DateonField) === dateStr;
+        if (Number(req.emp_reqTypeId) === 3) return formatDateOnly(req.vStart) <= dateStr && formatDateOnly(req.vEnd) >= dateStr;
+        if (Number(req.emp_reqTypeId) === 4) return formatDateOnly(req.sStart) <= dateStr && formatDateOnly(req.sEnd) >= dateStr;
+        return false;
+      });
+
+      const isAbsent = Number(r.attendance_StatusId) === 3;
+      if (!hasRegularWork && !hasRequest && !isAbsent) return null;
+
       // Final fallback for time_Out: pick the absolute last out if bucketed ones are missing
       const absoluteLastOut = outArr.length > 0 ? outArr[outArr.length - 1].substring(0, 5) : "—";
       let effectiveOut = (afternoon_Out !== "—" ? afternoon_Out : (morning_Out !== "—" ? morning_Out : absoluteLastOut));
@@ -1250,12 +1263,11 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         hoursObj.formatted = "8h 0m"; 
       }
 
-      // ── INCIDENTAL VISIT OVERRIDE (Status 7) ──
-      if (parseInt(r.attendance_StatusId) === 7) {
-        // ... (keep logic below)
-
+      // ── INCIDENTAL VISIT (7) OR IRREGULAR (8) OVERRIDE ──
+      if (parseInt(r.attendance_StatusId) === 7 || parseInt(r.attendance_StatusId) === 8) {
         morning_In = "—"; morning_Out = "—"; afternoon_In = "—"; afternoon_Out = "—";
         hoursObj.totalPayableHours = 0;
+        hoursObj.reg_hrs = 0;
       }
       
       // Add Overtime manually if approved (apply multiplier from settings)
@@ -1289,7 +1301,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         buckets: hoursObj.buckets,
         systemGenerated: r.logged_StatusId === 7
       };
-    }));
+    }))).filter(row => row !== null);
 
   return results;
 };

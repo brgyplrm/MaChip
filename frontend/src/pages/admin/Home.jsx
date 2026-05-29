@@ -453,7 +453,7 @@ const Home = () => {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-[#033A55]/80 font-medium">Next Payroll Run</h2>
-                  <Link to="/adminRequests" className="text-xs text-[#B06E16]/60 font-semibold hover:underline hover:text-[#B06E16]/80">View All</Link>
+                  <Link to="/payroll" className="text-xs text-[#B06E16]/60 font-semibold hover:underline hover:text-[#B06E16]/80">View All</Link>
                 </div>
                 <div className="text-5xl font-bold mb-3 truncate h-13">
                   {daysRemaining > 0 ? `${daysRemaining} Days Left` : "Processing..."}

@@ -41,7 +41,7 @@ exports.getAllRfidCards = async (req, res) => {
 
       return {
         ...row,
-        dateAligned: row.machip_id && row.dateAligned ? new Date(row.dateAligned).toLocaleDateString() : "—",
+        dateAligned: row.machip_id && row.dateAligned ? row.dateAligned : null,
         lastScanned: lastScannedStr
       };
     });
