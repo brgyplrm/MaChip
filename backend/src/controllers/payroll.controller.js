@@ -17,6 +17,7 @@ const { getAttendanceReportInternal } = require("./attendance.controller");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { computeMonthlyShares, computePeriodTax } = require("../utils/govtDeductions");
 const { generatePayrollSummaryPDF } = require("../utils/payrollSummaryGenerator");
+const { generateGovLoanReportPDF, generateIndividualLoanPDF } = require("../utils/loanReportGenerator");
 const archiver = require("archiver");
 archiver.registerFormat("zip-encryptable", require("archiver-zip-encryptable"));
 
@@ -547,9 +548,9 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
       sLoan = 0; hLoan = 0; cLoan = 0; mpSave = 0;
       govLoanRecords.forEach(record => {
         const type = record.government_type;
-        if (type === 'SSS' || type === 'SSS Salary') sLoan += record.amount;
+        if (type === 'SSS' || type === 'SSS Salary' || type === 'SSS Conso Loan') sLoan += record.amount;
         else if (type === 'Pag-IBIG' || type === 'Pag-IBIG MPL') hLoan += record.amount;
-        else if (type === 'Calamity' || type === 'SSS Calamity' || type === 'Pag-IBIG Calamity') cLoan += record.amount;
+        else if (type === 'Calamity' || type === 'SSS Calamity' || type === 'Pag-IBIG Calamity' || type === 'SSS Emergency') cLoan += record.amount;
         else if (type === 'Multi-Purpose') mpSave += record.amount;
       });
     }
@@ -619,16 +620,16 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const govtTotal = totalEarnings > 0 ? (parseFloat(sss_Share || 0) + parseFloat(philhealth_Share || 0) + parseFloat(hdmf_Share || 0)) : 0;
   
   // 6. Other Deductions
-  const otherTotal = totalEarnings > 0 ? (parseFloat(hCard || 0) + parseFloat(sLoan || 0) + parseFloat(hLoan || 0) + parseFloat(cLoan || 0) + parseFloat(advAmnt || 0) + parseFloat(gDed || 0) + parseFloat(mpSave || 0)) : 0;
+  const personalLoanCombined = parseFloat(advAmnt || 0) + parseFloat(ewLoan || 0);
+  const otherTotal = totalEarnings > 0 ? (parseFloat(hCard || 0) + parseFloat(sLoan || 0) + parseFloat(hLoan || 0) + parseFloat(cLoan || 0) + personalLoanCombined + parseFloat(gDed || 0) + parseFloat(mpSave || 0)) : 0;
 
   const Tax_Ded_Final = totalEarnings > 0 ? (parseFloat(tax_Share || 0) || 0) : 0; 
 
   const taxableIncome = totalEarnings - (tardiness_Amnt) - govtTotal;
-  let netPay = taxableIncome - (otherTotal + Tax_Ded_Final + parseFloat(ewLoan || 0)) + allowance;
+  let netPay = taxableIncome - (otherTotal + Tax_Ded_Final) + allowance;
   if (isNaN(netPay)) netPay = 0;
 
-
-  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded_Final + parseFloat(ewLoan || 0);
+  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded_Final;
 
   return {
     ...stats,
@@ -668,7 +669,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     calamityLoan_Amnt: cLoan,
     advances_Amnt: advAmnt,
     globe_Deduction: gDed,
-    eastwest_Loan: ewLoan,
+    eastwest_Loan: personalLoanCombined, // COMBINED FIELD FOR UI
     multiPurposeSavings: mpSave,
     Tax_Ded: tax_Share,
     totalEarnings,
@@ -750,12 +751,16 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
   const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
 
   let employeeQuery = `
-    SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_Email", u."dailyRate", 
-            d."sss_Share", d."philhealth_Share", d."hdmf_Share", b."account_Number" 
+    SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_Email", u."dailyRate",
+           d."sss_Share", d."philhealth_Share", d."hdmf_Share", b."account_Number"
      FROM "User" u
      LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
      LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
-     WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0 AND u."user_Id" != 999
+     WHERE (u."deletedAt" IS NULL OR u."deletedAt" >= :period_Start)
+       AND u."dailyRate" > 0
+       AND u."user_Id" != 999
+       AND u."user_EmploymentStatusId" != 3
+
   `;
   
   const replacements = { period_Start, period_End, periodId: periodId || -1 };
@@ -891,17 +896,17 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
 
       // Update Master Balances & History
       const loanMappings = [
-        { amount: fullStats.SSS_Loan, type: 'sss_loan', label: 'SSS Loan' },
-        { amount: fullStats.HDMF_Loan, type: 'hdmf_loan', label: 'Pag-IBIG Loan' },
-        { amount: fullStats.calamityLoan_Amnt, type: 'calamity', label: 'Calamity Loan' }
+        { amount: fullStats.SSS_Loan, types: ['sss_loan', 'sss_conso'], label: 'SSS Loan' },
+        { amount: fullStats.HDMF_Loan, types: ['hdmf_loan'], label: 'Pag-IBIG Loan' },
+        { amount: fullStats.calamityLoan_Amnt, types: ['calamity', 'sss_emergency', 'hdmf_calamity'], label: 'Calamity Loan' }
       ];
 
       for (const m of loanMappings) {
         if (m.amount > 0) {
           const activeLoan = await sequelize.query(
             `SELECT id, "remainingBalance" FROM "Loan_Deductions" 
-             WHERE "userId" = :user_Id AND "deductionType" = :type AND "status" = 'active' LIMIT 1`,
-            { replacements: { user_Id: emp.user_Id, type: m.type }, type: QueryTypes.SELECT }
+             WHERE "userId" = :user_Id AND "deductionType" IN (:types) AND "status" = 'active' LIMIT 1`,
+            { replacements: { user_Id: emp.user_Id, types: m.types }, type: QueryTypes.SELECT }
           );
           if (activeLoan.length > 0) {
             const loanId = activeLoan[0].id;
@@ -929,6 +934,13 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
     // 2. Cash Advance Link
     await sequelize.query(
       `UPDATE "Payroll_Cash_Advances" SET "payrollId" = :payrollId
+       WHERE "user_Id" = :user_Id AND "date" = :period_End`,
+      { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
+    );
+
+    // 2.5 Eastwest / Company Loan Link
+    await sequelize.query(
+      `UPDATE "Payroll_Eastwest" SET "payrollId" = :payrollId
        WHERE "user_Id" = :user_Id AND "date" = :period_End`,
       { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
     );
@@ -1373,17 +1385,17 @@ exports.generatePayroll = async (req, res) => {
 
       // Update Master Balances & History
       const loanMappings = [
-        { amount: fullStats.SSS_Loan, type: 'sss_loan', label: 'SSS Loan' },
-        { amount: fullStats.HDMF_Loan, type: 'hdmf_loan', label: 'Pag-IBIG Loan' },
-        { amount: fullStats.calamityLoan_Amnt, type: 'calamity', label: 'Calamity Loan' }
+        { amount: fullStats.SSS_Loan, types: ['sss_loan', 'sss_conso'], label: 'SSS Loan' },
+        { amount: fullStats.HDMF_Loan, types: ['hdmf_loan'], label: 'Pag-IBIG Loan' },
+        { amount: fullStats.calamityLoan_Amnt, types: ['calamity', 'sss_emergency', 'hdmf_calamity'], label: 'Calamity Loan' }
       ];
 
       for (const m of loanMappings) {
         if (m.amount > 0) {
           const activeLoan = await sequelize.query(
             `SELECT id, "remainingBalance" FROM "Loan_Deductions" 
-             WHERE "userId" = :user_Id AND "deductionType" = :type AND "status" = 'active' LIMIT 1`,
-            { replacements: { user_Id, type: m.type }, type: QueryTypes.SELECT }
+             WHERE "userId" = :user_Id AND "deductionType" IN (:types) AND "status" = 'active' LIMIT 1`,
+            { replacements: { user_Id, types: m.types }, type: QueryTypes.SELECT }
           );
           if (activeLoan.length > 0) {
             const loanId = activeLoan[0].id;
@@ -1831,9 +1843,11 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
          LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
          LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
          LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
-         WHERE u."dailyRate" > 0 AND u."deletedAt" IS NULL
+         WHERE (u."deletedAt" IS NULL OR u."deletedAt" >= :period_Start)
+           AND u."dailyRate" > 0
+           AND u."user_Id" != 999
          ORDER BY u."user_Id" ASC`,
-        { type: QueryTypes.SELECT }
+        { replacements: { period_Start }, type: QueryTypes.SELECT }
       );
 
       const { decrypt } = require("../utils/encryption");
@@ -2135,16 +2149,18 @@ exports.getLoanHistory = async (req, res) => {
     // 1. Dedicated Ledger Tables
     if (type === "Cash Advance") {
       const history = await sequelize.query(
-        `SELECT "date", "user_Id", "amount" FROM "Payroll_Cash_Advances" ORDER BY "date" ASC`,
+        `SELECT "date", "user_Id", "amount", "payrollId" FROM "Payroll_Cash_Advances" ORDER BY "date" ASC`,
         { type: QueryTypes.SELECT }
       );
-      console.log(`[DEBUG_LOAN_HISTORY] Returning ${history.length} CA records. First record:`, history[0]);
       return res.status(200).json(history);
     }
 
     if (type === "Eastwest Loan") {
       const history = await sequelize.query(
-        `SELECT "date", "user_Id", "amount" FROM "Payroll_Eastwest" ORDER BY "date" ASC`,
+        `SELECT "date", "user_Id", "amount", "payrollId", 'Eastwest' as "source" FROM "Payroll_Eastwest"
+         UNION ALL
+         SELECT "date", "user_Id", "amount", "payrollId", 'CashAdvance' as "source" FROM "Payroll_Cash_Advances"
+         ORDER BY "date" ASC`,
         { type: QueryTypes.SELECT }
       );
       return res.status(200).json(history);
@@ -2890,6 +2906,17 @@ exports.releaseSeparationPay = async (req, res) => {
       { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
     );
 
+    // 5. Void all Pending (1) or Recommended (4) requests
+    await sequelize.query(
+      `UPDATE "emp_Request" 
+       SET "emp_reqStatusId" = 3, 
+           "admin_remarks" = 'Voided automatically due to employee separation.',
+           "date_Processed" = :now,
+           "updatedAt" = :now
+       WHERE "user_Id" = :user_Id AND "emp_reqStatusId" IN (1, 4)`,
+      { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+    );
+
     await t.commit();
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
@@ -3268,7 +3295,18 @@ exports.releaseRetirementPay = async (req, res) => {
         { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
       );
 
-      // 5. Log Transaction
+      // 5. Void all Pending (1) or Recommended (4) requests
+      await sequelize.query(
+        `UPDATE "emp_Request" 
+         SET "emp_reqStatusId" = 3, 
+             "admin_remarks" = 'Voided automatically due to employee retirement.',
+             "date_Processed" = :now,
+             "updatedAt" = :now
+         WHERE "user_Id" = :user_Id AND "emp_reqStatusId" IN (1, 4)`,
+        { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+      );
+
+      // 6. Log Transaction
       const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
       await logTransaction(null, currentAdminId, "RETIREMENT_RELEASE", `Released retirement pay ID ${retirementId} and archived user ${user_Id}`, { retirementId, user_Id }, req);
     });
@@ -3376,7 +3414,7 @@ exports.getActiveLoans = async (req, res) => {
           WHEN ld."deductionType" = 'hdmf_loan' THEN 'Pag-IBIG MPL'
           WHEN ld."deductionType" = 'hdmf_calamity' THEN 'Pag-IBIG Calamity'
           WHEN ld."deductionType" = 'calamity' THEN 'SSS Calamity'
-          WHEN ld."deductionType" = 'cash_advance' THEN 'Cash Advance'
+          WHEN ld."deductionType" = 'cash_advance' OR ld."provider" = 'Company' THEN 'Company'
           WHEN ld."deductionType" = 'multipurpose' THEN 'Multi-Purpose'
           ELSE ld."deductionType"
         END as "govtype",        u."user_FirstName" || ' ' || u."user_LastName" as "employee",
@@ -3467,8 +3505,9 @@ exports.getLoanById = async (req, res) => {
       `SELECT 
         "govern_Id" as "id",
         "date" as "dueDate",
-        "amount" as "principal",
         "amount" as "total",
+        "principalPaid" as "principal",
+        "interestPaid" as "interest",
         "payrollId",
         CASE WHEN "payrollId" IS NOT NULL THEN 'PAID' ELSE 'PENDING' END as "status"
        FROM "Payroll_GovernmentLoans"
@@ -3674,6 +3713,126 @@ exports.getMyRetirementPay = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT }
     );
     res.status(200).json(records);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets aggregated history for all government loans.
+ */
+exports.getGovLoanHistoryAll = async (req, res) => {
+  try {
+    const history = await sequelize.query(
+      `SELECT 
+        pgl."govern_Id" as id,
+        pgl."date",
+        pgl."amount",
+        pgl."government_type" as type,
+        pgl."user_Id",
+        u."user_FirstName" || ' ' || u."user_LastName" as "userName"
+       FROM "Payroll_GovernmentLoans" pgl
+       JOIN "User" u ON pgl."user_Id" = u."user_Id"
+       ORDER BY pgl."date" DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.status(200).json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Downloads a PDF report of government loan remittances.
+ */
+exports.downloadGovLoanReportPDF = async (req, res) => {
+  const { year, type } = req.query;
+  try {
+    let query = `
+      SELECT 
+        pgl."date",
+        pgl."amount",
+        pgl."government_type" as type,
+        pgl."user_Id",
+        u."user_FirstName" || ' ' || u."user_LastName" as "userName"
+       FROM "Payroll_GovernmentLoans" pgl
+       JOIN "User" u ON pgl."user_Id" = u."user_Id"
+       WHERE 1=1
+    `;
+    const replacements = {};
+
+    if (year && year !== "All Years") {
+      query += ` AND EXTRACT(YEAR FROM pgl."date") = :year`;
+      replacements.year = parseInt(year);
+    }
+    if (type && type !== "All Types") {
+      query += ` AND pgl."government_type"::text = :type`;
+      replacements.type = type;
+    }
+
+    query += ` ORDER BY pgl."date" DESC`;
+
+    const history = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
+
+    const pdfBuffer = await generateGovLoanReportPDF(history, { year, type });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Gov_Loan_Report_${year || 'All'}.pdf"`);
+    res.end(pdfBuffer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Downloads an individual loan ledger PDF.
+ */
+exports.downloadIndividualLoanPDF = async (req, res) => {
+  const { id } = req.params;
+  try {
+    // We can reuse getLoanById internal logic or call it
+    const loanResult = await sequelize.query(
+      "SELECT ld.*, u.\"user_FirstName\" || ' ' || u.\"user_LastName\" as \"employeeName\" FROM \"Loan_Deductions\" ld JOIN \"User\" u ON ld.\"userId\" = u.\"user_Id\" WHERE ld.\"id\" = :id",
+      { replacements: { id }, type: QueryTypes.SELECT }
+    );
+
+    if (loanResult.length === 0) return res.status(404).json({ error: "Loan not found." });
+    const loan = loanResult[0];
+
+    // Map for ledger lookup
+    let govType = 'SSS';
+    const dT = loan.deductionType;
+    if (dT === 'sss_loan') govType = 'SSS';
+    else if (dT === 'sss_emergency') govType = 'SSS Emergency';
+    else if (dT === 'sss_conso') govType = 'SSS Conso Loan';
+    else if (dT === 'hdmf_loan') govType = 'Pag-IBIG MPL';
+    else if (dT === 'hdmf_calamity') govType = 'Pag-IBIG Calamity';
+    else if (dT === 'calamity') govType = 'SSS Calamity';
+    else if (dT === 'multipurpose') govType = 'Multi-Purpose';
+
+    const ledger = await sequelize.query(
+      `SELECT 
+        "date" as "dueDate",
+        "amount" as "total",
+        CASE WHEN "payrollId" IS NOT NULL THEN 'PAID' ELSE 'PENDING' END as "status"
+       FROM "Payroll_GovernmentLoans"
+       WHERE "user_Id" = :userId AND "government_type"::text = :govType
+       ORDER BY "date" ASC`,
+      { replacements: { userId: loan.userId, govType }, type: QueryTypes.SELECT }
+    );
+
+    let runningBalance = parseFloat(loan.totalAmount || 0);
+    const schedule = ledger.map((item) => {
+      const currentAmt = parseFloat(item.total || 0);
+      runningBalance -= currentAmt;
+      return { ...item, remaining: Math.max(0, runningBalance) };
+    });
+
+    const pdfBuffer = await generateIndividualLoanPDF(loan, schedule);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Loan_Ledger_${loan.id}.pdf"`);
+    res.end(pdfBuffer);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

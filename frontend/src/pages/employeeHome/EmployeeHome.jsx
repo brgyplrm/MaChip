@@ -284,39 +284,41 @@ const EmployeeHome = () => {
                 </Card>
 
                 {/* Recent Payslips */}
-                <Card className="shadow-sm border-t-4 border-[#2A174E]">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-base text-[#2A174E]">Recent Payslips</CardTitle>
-                    <Receipt className="h-4 w-4 text-slate-400" />
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {loading ? (
-                      <Skeleton className="h-20 w-full rounded-xl" />
-                    ) : payrolls.length > 0 ? (
-                      payrolls.map((p) => (
-                        <div key={p.payrollId} className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-2 group hover:border-[#2A174E]/30 transition-all">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="text-[10px] font-bold text-slate-500 uppercase">Period End</p>
-                              <p className="text-xs font-bold text-slate-800">{new Date(p.period_End).toLocaleDateString()}</p>
+                {userData?.user_EmploymentStatusId !== 3 && (
+                  <Card className="shadow-sm border-t-4 border-[#2A174E]">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle className="text-base text-[#2A174E]">Recent Payslips</CardTitle>
+                      <Receipt className="h-4 w-4 text-slate-400" />
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {loading ? (
+                        <Skeleton className="h-20 w-full rounded-xl" />
+                      ) : payrolls.length > 0 ? (
+                        payrolls.map((p) => (
+                          <div key={p.payrollId} className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-2 group hover:border-[#2A174E]/30 transition-all">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase">Period End</p>
+                                <p className="text-xs font-bold text-slate-800">{new Date(p.period_End).toLocaleDateString()}</p>
+                              </div>
+                              <Badge className="bg-green-100 text-green-700 text-[9px] border-none">Released</Badge>
                             </div>
-                            <Badge className="bg-green-100 text-green-700 text-[9px] border-none">Released</Badge>
+                            <div className="flex justify-between items-center">
+                              <p className="text-sm font-black text-[#2A174E]">{formatCurrency(p.netPay)}</p>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-full" asChild>
+                                <Link to={`/employee/payslip/${p.payrollId}`}>
+                                  <ChevronRight className="h-4 w-4" />
+                                </Link>
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <p className="text-sm font-black text-[#2A174E]">{formatCurrency(p.netPay)}</p>
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-full" asChild>
-                              <Link to={`/employee/payslip/${p.payrollId}`}>
-                                <ChevronRight className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-4 text-slate-400 text-xs italic">No released payslips yet.</div>
-                    )}
-                  </CardContent>
-                </Card>
+                        ))
+                      ) : (
+                        <div className="text-center py-4 text-slate-400 text-xs italic">No released payslips yet.</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
             </div>

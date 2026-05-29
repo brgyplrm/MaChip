@@ -205,7 +205,11 @@ module.exports = (sequelize, DataTypes) => {
         unique: 'user_gov_date_type_unique'
       },
       government_type: {
-        type: DataTypes.ENUM("SSS", "Pag-IBIG", "Calamity", "Multi-Purpose"),
+        type: DataTypes.ENUM(
+          "SSS", "Pag-IBIG", "Calamity", "Multi-Purpose", 
+          "SSS Calamity", "SSS Emergency", "SSS Conso Loan", 
+          "Pag-IBIG MPL", "Pag-IBIG Calamity", "Company"
+        ),
         defaultValue: "SSS",
         allowNull: false,
         unique: 'user_gov_date_type_unique'
@@ -217,6 +221,8 @@ module.exports = (sequelize, DataTypes) => {
       },
       amount: { type: DataTypes.FLOAT, defaultValue: 0 },
       payrollId: { type: DataTypes.INTEGER, allowNull: true },
+      principalPaid: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+      interestPaid: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
     },
     { timestamps: true, freezeTableName: true },
   );
@@ -283,6 +289,8 @@ module.exports = (sequelize, DataTypes) => {
       backPay_LeaveConversion: { type: DataTypes.FLOAT, defaultValue: 0 },
       finalWorkedSalary: { type: DataTypes.FLOAT, defaultValue: 0 },
       backPay_Total: { type: DataTypes.FLOAT, defaultValue: 0 },
+      loanDeductions: { type: DataTypes.FLOAT, defaultValue: 0 },
+      netAmount: { type: DataTypes.FLOAT, defaultValue: 0 },
       isTaxExempt: { type: DataTypes.BOOLEAN, defaultValue: true },
       status: { 
         type: DataTypes.ENUM("Draft", "Notice Served", "Released"),
@@ -314,6 +322,8 @@ module.exports = (sequelize, DataTypes) => {
       backPay_LeaveConversion: { type: DataTypes.FLOAT, defaultValue: 0 },
       finalWorkedSalary: { type: DataTypes.FLOAT, defaultValue: 0 },
       backPay_Total: { type: DataTypes.FLOAT, defaultValue: 0 },
+      loanDeductions: { type: DataTypes.FLOAT, defaultValue: 0 },
+      netAmount: { type: DataTypes.FLOAT, defaultValue: 0 },
       isTaxExempt: { type: DataTypes.BOOLEAN, defaultValue: false },
       status: { 
         type: DataTypes.ENUM("Draft", "Released"),

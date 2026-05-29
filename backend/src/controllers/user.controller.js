@@ -294,7 +294,6 @@ exports.registerUser = async (req, res) => {
       );
 
       // 4. Insert Hardware Info
-      const { encrypt } = require("../utils/encryption.js");
       let encryptedTemplate = req.body.user_FingerprintTemplate || null;
       if (encryptedTemplate) {
         encryptedTemplate = encrypt(encryptedTemplate);

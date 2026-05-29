@@ -301,13 +301,19 @@ async function ensureAbsentsMarked(dateOverride = null) {
     if (isHoliday) return;
 
     // 3. Get all active staff (Roles: 1-Admin, 2-Supervisor, 3-Employee, 4-Accountant)
-    const employees = await User.findAll({ 
-      where: { 
-        user_RoleId: [1, 2, 3, 4], 
-        deletedAt: null,
-        user_Id: { [sequelize.Sequelize.Op.ne]: 999 }
-      } 
+    // Also include staff that were archived ON or AFTER today (to catch final day logs)
+    const employees = await User.findAll({
+      where: {
+        user_RoleId: [1, 2, 3, 4],
+        user_Id: { [sequelize.Sequelize.Op.ne]: 999 },
+        [sequelize.Sequelize.Op.or]: [
+          { deletedAt: null },
+          { deletedAt: { [sequelize.Sequelize.Op.gte]: todayStr } }
+        ]
+      },
+      paranoid: false // Required to see soft-deleted users
     });
+
     if (employees.length === 0) return;
 
     for (const emp of employees) {

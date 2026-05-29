@@ -1,48 +1,66 @@
 const nodemailer = require("nodemailer");
 const dns = require("dns").promises;
 const path = require("path");
+const fs = require("fs");
 require("dotenv").config({ path: path.join(__dirname, "../../.env") });
 
 /**
- * Validates if the email format is correct and if the domain has MX records.
+ * Validates if the email format is correct.
+ * DNS MX lookup is removed to ensure instant registration speed.
  */
 exports.validateEmailActive = async (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     throw new Error("Invalid email format.");
   }
-
-  const domain = email.split("@")[1];
-  try {
-    const mxRecords = await dns.resolveMx(domain);
-    if (!mxRecords || mxRecords.length === 0) {
-      throw new Error("Email domain does not have valid MX records.");
-    }
-  } catch (error) {
-    throw new Error(`Email domain "${domain}" is invalid or unreachable.`);
-  }
   return true;
+};
+
+// JSON Queue Path
+const QUEUE_FILE = path.join(__dirname, "../../email_queue.json");
+
+/**
+ * Enqueues a failed email to a JSON file.
+ */
+const enqueueEmail = async (data) => {
+  try {
+    let queue = [];
+    if (fs.existsSync(QUEUE_FILE)) {
+      const content = fs.readFileSync(QUEUE_FILE, "utf8");
+      queue = JSON.parse(content || "[]");
+    }
+    // Add unique entry (avoid duplicates for the same user/type)
+    const exists = queue.find(item => item.email === data.email && item.displayId === data.displayId);
+    if (!exists) {
+      queue.push({ ...data, attempts: 0, createdAt: new Date() });
+      fs.writeFileSync(QUEUE_FILE, JSON.stringify(queue, null, 2));
+      console.log(`[EMAIL QUEUE] Enqueued email for ${data.email}`);
+    }
+  } catch (err) {
+    console.error("[EMAIL QUEUE ERROR]:", err.message);
+  }
+};
+
+/**
+ * Internal helper to send emails without enqueuing on failure.
+ */
+const sendEmailInternal = async (mailOptions) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+  if (!EMAIL_USER || !EMAIL_PASS) throw new Error("Email credentials missing.");
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  });
+
+  return transporter.sendMail(mailOptions);
 };
 
 /**
  * Sends a welcome email with account details.
  */
 exports.sendWelcomeEmail = async ({ email, password, name, displayId }) => {
-  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
-
-  if (!EMAIL_USER || !EMAIL_PASS) {
-    console.error("[EMAIL CONFIG ERROR]: Missing EMAIL_USER or EMAIL_PASS in .env file.");
-    throw new Error("Server email configuration is missing. Please contact admin.");
-  }
-
-  const transporter = nodemailer.createTransport({
-    service: EMAIL_SERVICE || "gmail",
-    auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASS,
-    },
-  });
-
+  const { EMAIL_USER } = process.env;
   const mailOptions = {
     from: `"MaChip System" <${EMAIL_USER}>`,
     to: email,
@@ -66,11 +84,72 @@ exports.sendWelcomeEmail = async ({ email, password, name, displayId }) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmailInternal(mailOptions);
     console.log(`[EMAIL SENT] Welcome email sent to ${email}`);
   } catch (error) {
     console.error("[NODEMAILER ERROR]:", error.message);
-    throw new Error(`Failed to send welcome email: ${error.message}`);
+    await enqueueEmail({ type: "WELCOME", email, password, name, displayId });
+  }
+};
+
+/**
+ * Periodically processes the email queue.
+ */
+exports.processEmailQueue = async () => {
+  if (!fs.existsSync(QUEUE_FILE)) return;
+
+  try {
+    const content = fs.readFileSync(QUEUE_FILE, "utf8");
+    let queue = JSON.parse(content || "[]");
+    if (queue.length === 0) return;
+
+    console.log(`[EMAIL QUEUE] Processing ${queue.length} pending emails...`);
+    const remaining = [];
+    const { EMAIL_USER } = process.env;
+
+    for (const item of queue) {
+      try {
+        if (item.type === "WELCOME") {
+          const mailOptions = {
+            from: `"MaChip System" <${EMAIL_USER}>`,
+            to: item.email,
+            subject: "Welcome to MaChip - Your Account Details",
+            html: `
+              <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #2c3e50;">Welcome to MaChip, ${item.name}!</h2>
+                <p>Your account has been successfully created. Here are your login details:</p>
+                <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #eee;">
+                  <p style="margin: 5px 0;"><strong>User ID:</strong> ${item.displayId}</p>
+                  <p style="margin: 5px 0;"><strong>Name:</strong> ${item.name}</p>
+                  <p style="margin: 5px 0;"><strong>Email:</strong> ${item.email}</p>
+                  <p style="margin: 5px 0;"><strong>Password:</strong> <span style="color: #e74c3c;">${item.password}</span></p>
+                </div>
+                <p style="margin-top: 20px;">Please login to your account using these credentials.</p>
+                <p style="font-size: 0.9em; color: #7f8c8d;"><em>Note: For security reasons, please change your password after your first login.</em></p>
+                <br/>
+                <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
+              </div>
+            `,
+          };
+          await sendEmailInternal(mailOptions);
+          console.log(`[EMAIL QUEUE] Successfully sent pending email to ${item.email}`);
+        }
+      } catch (err) {
+        console.error(`[EMAIL QUEUE] Failed to send to ${item.email}: ${err.message}`);
+        item.attempts = (item.attempts || 0) + 1;
+        if (item.attempts < 10) {
+          remaining.push(item);
+        } else {
+          console.error(`[EMAIL QUEUE] Abandoning email for ${item.email} after 10 attempts.`);
+        }
+      }
+    }
+
+    if (remaining.length !== queue.length) {
+      fs.writeFileSync(QUEUE_FILE, JSON.stringify(remaining, null, 2));
+    }
+  } catch (err) {
+    console.error("[EMAIL QUEUE PROCESS ERROR]:", err.message);
   }
 };
 

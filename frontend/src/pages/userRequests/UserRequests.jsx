@@ -381,29 +381,58 @@ const UserRequests = () => {
       }
     }
 
-    // Auto-calculate for Pag-IBIG MPL and Calamity
-    if (formData.agency === "Pag-IBIG" && (formData.loanType === "Multi-Purpose Loan (MPL)" || formData.loanType === "Calamity Loan")) {
-      const isPrincipalField = name === "amountRequested";
-      const isTermField = name === "monthsToPay";
+    // --- HIGH ACCURACY FINANCIAL CALCULATIONS ---
+    const isLoanField = ["amountRequested", "monthsToPay", "loanApprovalDate"].includes(name);
+    if (isLoanField && (formData.agency === "SSS" || formData.agency === "Pag-IBIG" || formData.agency === "Company")) {
+      const principal = name === "amountRequested" ? parseFloat(value) : parseFloat(formData.amountRequested || 0);
+      const term = name === "monthsToPay" ? parseInt(value) : parseInt(formData.monthsToPay || 0);
+      const approvalDate = name === "loanApprovalDate" ? value : formData.loanApprovalDate;
+      const agency = formData.agency;
+      const loanType = formData.loanType;
 
-      if (isPrincipalField || isTermField) {
-        const principal = isPrincipalField ? parseFloat(value) : parseFloat(formData.amountRequested || 0);
-        const term = isTermField ? parseInt(value) : parseInt(formData.monthsToPay || 0);
-        
-        if (principal > 0 && term > 0) {
-           // Pag-IBIG Rates: MPL (10.5%), Calamity (5.95%)
-           const annualRate = formData.loanType === "Calamity Loan" ? 0.0595 : 0.105;
-           const monthlyRate = annualRate / 12;
-           const factor = Math.pow(1 + monthlyRate, term);
-           const monthlyAmort = (principal * monthlyRate * factor) / (factor - 1);
-           
-           setFormData(prev => ({ 
-             ...prev, 
-             [name]: newValue,
-             monthlyAmortization: Math.round(monthlyAmort)
-           }));
-           return;
+      if (principal > 0 && term > 0) {
+        // 1. Determine Interest Rate
+        let annualRate = 0;
+        if (agency === 'SSS') {
+          annualRate = (loanType === 'Calamity Loan') ? 0.06 : 0.10;
+        } else if (agency === 'Pag-IBIG') {
+          annualRate = (loanType === "Calamity Loan") ? 0.0595 : 0.105;
+        } else if (agency === 'Company') {
+          annualRate = 0;
         }
+
+        // 2. Monthly Amortization Formula (Standard Annuity)
+        let monthlyAmort = 0;
+        if (annualRate > 0) {
+          const monthlyRate = annualRate / 12;
+          const factor = Math.pow(1 + monthlyRate, term);
+          monthlyAmort = (principal * monthlyRate * factor) / (factor - 1);
+        } else {
+          monthlyAmort = principal / term;
+        }
+
+        // 3. Upfront Fees (SSS Specific)
+        let serviceFeeVal = 0;
+        let proRatedVal = 0;
+        if (agency === 'SSS' && approvalDate) {
+          serviceFeeVal = principal * 0.01;
+          const dObj = new Date(approvalDate);
+          const daysInMonth = new Date(dObj.getFullYear(), dObj.getMonth() + 1, 0).getDate();
+          const daysLeft = daysInMonth - dObj.getDate();
+          proRatedVal = (principal * annualRate * daysLeft) / 365;
+        }
+
+        const netProceeds = principal - serviceFeeVal - proRatedVal;
+
+        setFormData(prev => ({
+          ...prev,
+          [name]: newValue,
+          monthlyAmortization: Math.round(monthlyAmort * 100) / 100,
+          serviceFeeAmount: Math.round(serviceFeeVal * 100) / 100,
+          proRatedInterest: Math.round(proRatedVal * 100) / 100,
+          netDisbursement: Math.round(netProceeds * 100) / 100
+        }));
+        return;
       }
     }
 
@@ -1187,6 +1216,53 @@ const UserRequests = () => {
                           </Select>
                         </div>
                       </div>
+
+                      {/* NEW: HIGH ACCURACY FINANCIAL SUMMARY CARD */}
+                      {formData.netDisbursement > 0 && (
+                        <div className="bg-[#2A174E] text-white p-5 rounded-2xl border border-indigo-900/50 space-y-4 my-6 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
+                          <div className="flex justify-between items-center">
+                            <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em]">Matrix Financial Disclosure</h4>
+                            <Badge className="bg-yellow-400 text-blue-900 font-black border-0">SSS/HDMF STANDARDS</Badge>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-1">
+                              <p className="text-[10px] text-indigo-300 font-bold uppercase">Requested Principal</p>
+                              <p className="text-2xl font-black tracking-tight">₱{parseFloat(formData.amountRequested || formData.totalOutstandingBalance || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</p>
+                            </div>
+                            <div className="text-right space-y-1">
+                              <p className="text-[10px] text-indigo-300 font-bold uppercase">Monthly Amortization</p>
+                              <p className="text-2xl font-black text-yellow-400 tracking-tight">₱{parseFloat(formData.monthlyAmortization || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</p>
+                              <p className="text-[8px] text-indigo-200 italic font-medium">Split across 2 cutoffs (₱{(parseFloat(formData.monthlyAmortization || 0) / 2).toLocaleString()}/ea)</p>
+                            </div>
+                          </div>
+
+                          <div className="bg-black/20 p-4 rounded-xl space-y-2 border border-white/5">
+                            <div className="flex justify-between text-[11px] font-medium">
+                              <span className="text-indigo-200">Processing/Service Fee (1%)</span>
+                              <span className="font-mono">- ₱{parseFloat(formData.serviceFeeAmount || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                            </div>
+                            <div className="flex justify-between text-[11px] font-medium">
+                              <span className="text-indigo-200">Advanced Pro-rated Interest</span>
+                              <span className="font-mono">- ₱{parseFloat(formData.proRatedInterest || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                            </div>
+                            <div className="pt-3 mt-2 border-t border-white/10 flex justify-between items-end">
+                              <div className="space-y-0.5">
+                                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block">Net Cash to Receive</span>
+                                <span className="text-sm text-indigo-200/60 leading-none font-medium italic">Estimated proceeds via check/bank</span>
+                              </div>
+                              <span className="text-3xl font-black text-emerald-400 tracking-tighter">
+                                ₱{parseFloat(formData.netDisbursement || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <p className="text-[9px] text-indigo-300/70 text-center font-medium italic">
+                             Calculated using the Diminishing Principal Balance Method. Final amounts may vary based on exact SSS/HDMF release dates.
+                          </p>
+                        </div>
+                      )}
+
                       {formData.emp_reqTypeId === "14" && (
                         <div className="space-y-4">
                           {formData.agency === "SSS" && formData.loanType === "Salary Loan" ? (

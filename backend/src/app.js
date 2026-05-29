@@ -159,6 +159,8 @@ const { getSystemTime } = require("./utils/systemTime");
 const { checkAndTriggerArchival } = require("./utils/archiveService");
 const { initializeStorageStructure } = require("./utils/fileStorage");
 const { initializeAnnualLeaveBalances } = require("./utils/leaveBalanceHelper");
+const { processEmailQueue } = require("./utils/emailService");
+const { processAutoSeparations } = require("./utils/separationTask");
 
 // ── Database Connection and Background Tasks ──────────────────────────────────
 connectDB().then(async () => {
@@ -267,6 +269,8 @@ connectDB().then(async () => {
       }
 
       checkPendingRequests();
+      processEmailQueue();
+      processAutoSeparations();
     } catch (err) {
       console.error("[SCHEDULED] Task error:", err.message);
     }

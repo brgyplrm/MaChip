@@ -18,6 +18,9 @@ router.get("/summary-preview", requireAdmin, payrollController.getPayrollSummary
 router.get("/maxicare/history", requireAdmin, payrollController.getMaxicareHistory);
 router.post("/maxicare/sync", requireAdmin, payrollController.syncMaxicareHistory);
 router.get("/loans/history", requireAdmin, payrollController.getLoanHistory);
+router.get("/loans/history/all-gov", requireAdmin, payrollController.getGovLoanHistoryAll);
+router.get("/loans/history/all-gov-pdf", requireAdmin, payrollController.downloadGovLoanReportPDF);
+router.get("/loans/details/:id/pdf", requireAdmin, payrollController.downloadIndividualLoanPDF);
 router.post("/loans/sync", requireAdmin, payrollController.syncLoanHistory);
 router.get("/loans/active", requireAdmin, payrollController.getActiveLoans);
 router.get("/loans/details/:id", requireAdmin, payrollController.getLoanById);

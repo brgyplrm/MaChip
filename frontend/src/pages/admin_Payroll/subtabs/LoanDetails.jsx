@@ -131,6 +131,27 @@ export default function LoanDetailsPage() {
     const installmentsPaid = loan.history?.length || 0;
     const totalInstallments = loan.schedule?.length || 0;
 
+    const handleExportPDF = async () => {
+        try {
+            const response = await fetchWithAuth(`/api/payroll/loans/details/${id}/pdf`);
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Loan_Ledger_${loan.employeeName.replace(/ /g, '_')}_${id}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } else {
+                alert("Failed to generate PDF ledger.");
+            }
+        } catch (err) {
+            console.error("Export PDF error:", err);
+        }
+    };
+
     return (
         <div className="flex flex-col w-full min-h-screen bg-slate-50">
             <Sidebar>
@@ -149,7 +170,11 @@ export default function LoanDetailsPage() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <Button variant="outline" className="border-[#2A174E]/20 text-[#2A174E] font-bold h-9 text-xs">
+                            <Button 
+                                onClick={handleExportPDF}
+                                variant="outline" 
+                                className="border-[#2A174E]/20 text-[#2A174E] font-bold h-9 text-xs"
+                            >
                               <Download className="mr-2 h-4 w-4" /> Export Ledger
                             </Button>
                         </div>
@@ -274,6 +299,7 @@ export default function LoanDetailsPage() {
                                                 <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-left">#</TableHead>
                                                 <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-left">Due Date</TableHead>
                                                 <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-right">Principal</TableHead>
+                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-right">Interest</TableHead>
                                                 <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-right">Total Pay</TableHead>
                                                 <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-right pr-8">Balance</TableHead>
                                                 <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-center">Status</TableHead>
@@ -285,6 +311,7 @@ export default function LoanDetailsPage() {
                                                     <TableCell className="font-bold text-slate-300 text-xs text-left">{row.number}</TableCell>
                                                     <TableCell className="font-bold text-slate-700 text-xs text-left">{formatDate(row.dueDate)}</TableCell>
                                                     <TableCell className="text-right font-medium text-slate-500 text-xs">{formatCurrency(row.principal)}</TableCell>
+                                                    <TableCell className="text-right font-medium text-amber-600 text-xs">{formatCurrency(row.interest)}</TableCell>
                                                     <TableCell className="text-right text-emerald-600 font-black text-xs">{formatCurrency(row.total)}</TableCell>
                                                     <TableCell className="text-right pr-8 font-mono text-xs font-bold text-slate-400">{formatCurrency(row.remaining)}</TableCell>
                                                     <TableCell className="text-center">
@@ -295,7 +322,7 @@ export default function LoanDetailsPage() {
                                                 </TableRow>
                                             )) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={6} className="h-48 text-center py-12">
+                                                    <TableCell colSpan={7} className="h-48 text-center py-12">
                                                       <div className="flex flex-col items-center gap-3">
                                                         <div className="h-12 w-12 bg-slate-50 rounded-full flex items-center justify-center">
                                                           <FileText className="h-6 w-6 text-slate-200" />

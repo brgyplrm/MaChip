@@ -406,7 +406,7 @@ const Sidebar = ({ children }) => {
                 </SidebarMenuItem>
 
                 {/* My Payroll - Employee Only */}
-                {viewMode === "employee" && (
+                {viewMode === "employee" && userData?.user_EmploymentStatusId !== 3 && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 

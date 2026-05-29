@@ -105,6 +105,32 @@ const GovLoansHistory = () => {
     return years.sort((a, b) => b - a);
   }, [history]);
 
+  const handleExportPDF = async () => {
+    try {
+      const queryParams = new URLSearchParams({
+        year: yearFilter,
+        type: typeFilter
+      }).toString();
+      
+      const response = await fetchWithAuth(`/api/payroll/loans/history/all-gov-pdf?${queryParams}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Gov_Loan_Report_${yearFilter}_${typeFilter.replace(/ /g, '_')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert("Failed to generate PDF report.");
+      }
+    } catch (err) {
+      console.error("Export PDF error:", err);
+    }
+  };
+
   return (
     <Sidebar>
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
@@ -118,12 +144,15 @@ const GovLoansHistory = () => {
               >
             <ArrowBackIcon className="h-6 w-6" />
           </Link>
-          <div className="flex justify-between gap-[370px]">
+          <div className="flex justify-between w-full">
             <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Governmental Loan History</h1>
             <span className="text-sm text-slate-500 mt-1 block">Audit and track all government-mandated loan repayments.</span>
           </div>
-          <Button className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-sm">
+          <Button 
+            onClick={handleExportPDF}
+            className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-sm"
+          >
             <DownloadIcon className="mr-2 h-4 w-4" /> Export Gov Report (PDF)
           </Button>
           </div>

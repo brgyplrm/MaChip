@@ -252,6 +252,10 @@ module.exports = (sequelize, DataTypes) => {
       avgMSC: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
       consoDP: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
       pagibigTAV: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
+      interestRate: { type: DataTypes.DOUBLE, defaultValue: 0.10 },
+      serviceFee: { type: DataTypes.DOUBLE, defaultValue: 0.01 },
+      proRatedInterest: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+      netDisbursement: { type: DataTypes.DECIMAL(12, 2) },
     },
     { timestamps: true, freezeTableName: true },
   );

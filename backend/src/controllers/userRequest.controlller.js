@@ -10,6 +10,7 @@ const {
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
 const { Notification, User } = require("../config/sequelize.js");
+const { calculateAmortization, generateSchedule, calculateSSSRatedInterest } = require("../utils/financialHelper");
 
 // ── Notify Supervisor (Escalation) ───────────────────────────────────────────
 exports.notifySupervisor = async (req, res) => {
@@ -1730,75 +1731,76 @@ exports.UpdateStatusRequest = async (req, res) => {
         const totalAmount = parseFloat(amountRequested || totalOutstandingBalance);
         const months = parseInt(monthsToPay || totalLoanTerm || 12);
         
-        // AUTO-CALCULATE PER CUTOFF (Total Amount / (Months * 2))
-        // This ensures math integrity regardless of manual entry errors
-        const perCutoff = totalAmount / (months * 2);
+        // --- HIGH ACCURACY FINANCIAL MATH ---
+        // 1. Determine Rates
+        let annualRate = 0;
+        let feeRate = 0;
+
+        if (agency === 'SSS') {
+          annualRate = (loanType === 'Calamity Loan') ? 0.06 : 0.10;
+          feeRate = 0.01;
+        } else if (agency === 'Pag-IBIG') {
+          annualRate = (loanType === "Calamity Loan") ? 0.0595 : 0.105;
+          feeRate = 0;
+        } else if (agency === 'Company') {
+          annualRate = 0;
+          feeRate = 0;
+        }
+
+        // 2. Calculate Upfront Deductions (SSS)
+        const serviceFeeAmount = totalAmount * feeRate;
+        const proRatedInterest = (agency === 'SSS') 
+          ? calculateSSSRatedInterest(totalAmount, annualRate, loanApprovalDate || todayStr) 
+          : 0;
+        const netDisbursement = totalAmount - serviceFeeAmount - proRatedInterest;
+
+        // 3. Generate Amortization Schedule
+        const schedule = generateSchedule(totalAmount, annualRate, months);
+        const amortMonthly = schedule[0]?.totalPayment || (totalAmount / months);
+        const perCutoff = amortMonthly / 2;
 
         // Map agency/type to deductionType enum
         let dedType = 'multipurpose';
-        let govDbType = 'Multi-Purpose'; // for Payroll_GovernmentLoans
+        let govDbType = 'Multi-Purpose'; 
         
         if (agency === 'SSS') {
-          if (loanType === 'Calamity Loan') {
-            dedType = 'calamity';
-            govDbType = 'SSS Calamity';
-          } else if (loanType === 'Emergency Loan') {
-            dedType = 'sss_emergency';
-            govDbType = 'SSS Emergency';
-          } else if (loanType === 'SSS Conso Loan') {
-            dedType = 'sss_conso';
-            govDbType = 'SSS Conso Loan';
-          } else {
-            dedType = 'sss_loan';
-            govDbType = 'SSS'; // Keeping SSS as Salary Loan for backwards compatibility
-          }
+          if (loanType === 'Calamity Loan') { dedType = 'calamity'; govDbType = 'SSS Calamity'; }
+          else if (loanType === 'Emergency Loan') { dedType = 'sss_emergency'; govDbType = 'SSS Emergency'; }
+          else if (loanType === 'SSS Conso Loan') { dedType = 'sss_conso'; govDbType = 'SSS Conso Loan'; }
+          else { dedType = 'sss_loan'; govDbType = 'SSS'; }
         }
         else if (agency === 'Pag-IBIG') {
-          if (loanType === 'Calamity Loan') {
-            dedType = 'hdmf_calamity';
-            govDbType = 'Pag-IBIG Calamity';
-          }
-          else {
-            dedType = 'hdmf_loan';
-            govDbType = 'Pag-IBIG MPL';
-          }
+          if (loanType === 'Calamity Loan') { dedType = 'hdmf_calamity'; govDbType = 'Pag-IBIG Calamity'; }
+          else { dedType = 'hdmf_loan'; govDbType = 'Pag-IBIG MPL'; }
         }
         else if (agency === 'Company') {
-          dedType = 'cash_advance';
+          dedType = 'eastwest';
           govDbType = 'Company'; 
-
-          // 1.5 Auto-record into Payroll_Cash_Advances ledger for one-time deduction
-          // Logic: Set the date to the exact upcoming cutoff date (15th or end of month)
+          // (Cash advance logic remains flat/one-time)
           const today = new Date();
-          const year = today.getFullYear();
-          const month = today.getMonth();
-          let targetDateStr;
-          
-          if (today.getDate() <= 15) {
-            // If approved between 1st and 15th, deduct on the current month's 15th
-            targetDateStr = `${year}-${String(month + 1).padStart(2, '0')}-15`;
-          } else {
-            // If approved after the 15th, deduct on the current month's last day (e.g. 30th/31st)
-            const lastDay = new Date(year, month + 1, 0).getDate();
-            targetDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-          }
+          const targetDateStr = today.getDate() <= 15 
+            ? `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-15`
+            : `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
 
-          console.log(`[DEBUG_CASH_ADVANCE] Scheduling CA deduction for user ${requesterId} on ${targetDateStr} for amount ${totalAmount}`);
-
-          try {
-            await sequelize.query(
-              `INSERT INTO "Payroll_Cash_Advances" ("user_Id", "date", "amount", "createdAt", "updatedAt")
-               VALUES (:userId, :date, :amount, :now, :now)
-               ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = "Payroll_Cash_Advances"."amount" + EXCLUDED."amount", "updatedAt" = EXCLUDED."updatedAt"`,
-              { replacements: { userId: requesterId, date: targetDateStr, amount: totalAmount, now: nowStr } }
-            );
-            console.log(`[DEBUG_CASH_ADVANCE] Successfully inserted CA into ledger.`);
-          } catch (caErr) {
-            console.error(`[DEBUG_CASH_ADVANCE_ERROR]:`, caErr.message);
-          }
+          await sequelize.query(
+            `INSERT INTO "Payroll_Eastwest" ("user_Id", "date", "amount", "createdAt", "updatedAt")
+             VALUES (:userId, :date, :amount, :now, :now)
+             ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = "Payroll_Eastwest"."amount" + EXCLUDED."amount"`,
+            { replacements: { userId: requesterId, date: targetDateStr, amount: totalAmount, now: nowStr } }
+          );
         }
 
-        // 1. Insert into master Loan_Deductions table
+        // 4. Update Loan_Request with finalized math
+        await sequelize.query(
+          `UPDATE "Loan_Request" SET 
+            "interestRate" = :rate, "serviceFee" = :fee, 
+            "proRatedInterest" = :proRated, "netDisbursement" = :net,
+            "monthlyAmortization" = :amort
+           WHERE "emp_reqId" = :emp_reqId`,
+          { replacements: { rate: annualRate, fee: feeRate, proRated: proRatedInterest, net: netDisbursement, amort: amortMonthly, emp_reqId } }
+        );
+
+        // 5. Insert into master Loan_Deductions table
         await sequelize.query(
           `INSERT INTO "Loan_Deductions" 
             ("userId", "deductionType", "status", "contractDate", "monthsToPay", "deductionPerCutoff", "totalAmount", "remainingBalance", "provider", "reference", "notes", "createdBy", "createdAt", "updatedAt")
@@ -1806,80 +1808,77 @@ exports.UpdateStatusRequest = async (req, res) => {
             (:userId, :dedType, 'active', :contractDate, :months, :perCutoff, :total, :balance, :agency, :reference, :notes, :adminId, :now, :now)`,
           {
             replacements: {
-              userId: requesterId,
-              dedType,
+              userId: requesterId, dedType,
               contractDate: loanApprovalDate || nowStr.split(' ')[0],
-              months,
-              perCutoff,
-              total: totalAmount,
-              balance: totalAmount,
-              agency,
-              reference: loanReferenceNo || null,
+              months, perCutoff, total: totalAmount, balance: totalAmount,
+              agency, reference: loanReferenceNo || null,
               notes: `${agency} ${loanType} via Request #${emp_reqId}`,
-              adminId: operatorId,
-              now: nowStr
+              adminId: operatorId, now: nowStr
             },
             type: QueryTypes.INSERT
           }
         );
 
-        // 2. Generate ledger records in Payroll_GovernmentLoans to show in the matrix
+        // --- CONSOLIDATION LOGIC FOR SSS ---
+        if (loanType === 'SSS Conso Loan') {
+          console.log(`[CONSO-DEBUG] Processing SSS Consolidation for User ${requesterId}...`);
+          
+          // 1. Mark old active SSS loans as completed
+          const oldSSSLoanTypes = ['sss_loan', 'calamity', 'sss_emergency'];
+          await sequelize.query(
+            `UPDATE "Loan_Deductions" 
+             SET "status" = 'completed', 
+                 "notes" = CONCAT("notes", ' | Consolidated into Conso Loan via Req#', :emp_reqId),
+                 "updatedAt" = :now
+             WHERE "userId" = :userId 
+               AND "deductionType" IN (:types)
+               AND "status" = 'active'`,
+            { replacements: { userId: requesterId, types: oldSSSLoanTypes, emp_reqId, now: nowStr }, type: QueryTypes.UPDATE }
+          );
+
+          // 2. Remove future ledger records for old SSS loans
+          const oldSSSGovTypes = ['SSS', 'SSS Salary', 'SSS Calamity', 'SSS Emergency'];
+          await sequelize.query(
+            `DELETE FROM "Payroll_GovernmentLoans"
+             WHERE "user_Id" = :userId
+               AND "government_type" IN (:govTypes)
+               AND "date" > :nowDate`,
+            { replacements: { userId: requesterId, govTypes: oldSSSGovTypes, nowDate: nowStr.split(' ')[0] }, type: QueryTypes.DELETE }
+          );
+          
+          console.log(`[CONSO-DEBUG] SSS Consolidation complete for User ${requesterId}.`);
+        }
+
+        // 6. Generate detailed ledger records
         if (agency === 'SSS' || agency === 'Pag-IBIG') {
           try {
             let currentYear, currentMonth;
-            
             if (agency === 'SSS') {
-              if (loanType === 'Emergency Loan') {
-                // ENFORCE SSS EMERGENCY START RULE: 6-month moratorium
-                // Example: Approved May -> Skip June-Nov -> Starts December (7 months later)
-                const startTarget = new Date(now.getFullYear(), now.getMonth() + 7, 1);
-                currentYear = startTarget.getFullYear();
-                currentMonth = startTarget.getMonth();
-              } else {
-                // ENFORCE SSS START RULE: 2nd month following approval (Applies to Salary, Calamity, Conso Loan)
-                // Example: Approved May -> Starts July
-                const startTarget = new Date(now.getFullYear(), now.getMonth() + 2, 1);
-                currentYear = startTarget.getFullYear();
-                currentMonth = startTarget.getMonth();
-              }
+              const startTarget = new Date(now.getFullYear(), now.getMonth() + (loanType === 'Emergency Loan' ? 7 : 2), 1);
+              currentYear = startTarget.getFullYear(); currentMonth = startTarget.getMonth();
             } else {
-              if (loanType === 'Calamity Loan') {
-                // ENFORCE PAG-IBIG CALAMITY START RULE: 3-month grace period
-                // Example: Approved May -> Skip June-Aug -> Starts September (4 months later)
-                const startTarget = new Date(now.getFullYear(), now.getMonth() + 4, 1);
-                currentYear = startTarget.getFullYear();
-                currentMonth = startTarget.getMonth();
-              } else {
-                // Pag-IBIG MPL typically starts the following month
-                const startTarget = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                currentYear = startTarget.getFullYear();
-                currentMonth = startTarget.getMonth();
-              }
+              // Pag-IBIG: 2-month grace period (starts on the 3rd month)
+              const startTarget = new Date(now.getFullYear(), now.getMonth() + 3, 1);
+              currentYear = startTarget.getFullYear(); currentMonth = startTarget.getMonth();
             }
 
-            const totalTermMonths = months;
-            for (let i = 0; i < totalTermMonths; i++) {
+            for (let i = 0; i < months; i++) {
+              const monthData = schedule[i];
               const loopDate = new Date(currentYear, currentMonth + i, 1);
-              const year = loopDate.getFullYear();
-              const month = loopDate.getMonth();
-
+              const year = loopDate.getFullYear(); const month = loopDate.getMonth();
               const d15 = `${year}-${String(month + 1).padStart(2, '0')}-15`;
-              const dEnd = new Date(year, month + 1, 0);
-              const dEndStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dEnd.getDate()).padStart(2, '0')}`;
+              const dEnd = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
 
-              const scheduleDates = [d15, dEndStr];
-
-              for (const sDate of scheduleDates) {
+              for (const sDate of [d15, dEnd]) {
                 await sequelize.query(
-                  `INSERT INTO "Payroll_GovernmentLoans" ("user_Id", "government_type", "date", "amount", "createdAt", "updatedAt")
-                   VALUES (:userId, :govType, :date, :amount, :now, :now)
+                  `INSERT INTO "Payroll_GovernmentLoans" 
+                    ("user_Id", "government_type", "date", "amount", "principalPaid", "interestPaid", "createdAt", "updatedAt")
+                   VALUES (:userId, :govType, :date, :amount, :pPaid, :iPaid, :now, :now)
                    ON CONFLICT ("user_Id", "date", "government_type") DO NOTHING`,
                   {
                     replacements: {
-                      userId: requesterId,
-                      govType: govDbType,
-                      date: sDate,
-                      amount: perCutoff,
+                      userId: requesterId, govType: govDbType, date: sDate, 
+                      amount: perCutoff, pPaid: monthData.principalPortion / 2, iPaid: monthData.interestPortion / 2, 
                       now: nowStr
                     },
                     type: QueryTypes.INSERT
@@ -1891,7 +1890,6 @@ exports.UpdateStatusRequest = async (req, res) => {
             console.error("[LOAN_SCHEDULE_GEN_ERROR]:", schedErr.message);
           }
         }
-
         await logTransaction(requesterId, operatorId, "LOAN_ENROLLED", `${agency} loan enrolled for ${totalAmount} via approved request #${emp_reqId}`, { agency, totalAmount });
       }
     }

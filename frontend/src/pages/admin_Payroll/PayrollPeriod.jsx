@@ -114,7 +114,7 @@ const PayrollPeriod = () => {
       const livePayrolls = [];
       let totalNet = 0, totalEarn = 0, totalDed = 0;
 
-      for (const emp of employees.filter(e => e.dailyRate > 0)) {
+      for (const emp of employees.filter(e => e.dailyRate > 0 && e.user_EmploymentStatusId !== 3)) {
         const prevRes = await fetchWithAuth(`/api/payroll/preview?user_Id=${emp.user_Id}&period_Start=${period.startDate}&period_End=${period.endDate}`);
         const preview = await prevRes.json();
 

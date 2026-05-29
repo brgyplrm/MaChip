@@ -91,8 +91,7 @@ const GovLoans = () => {
     { id: "sss_emergency", label: "SSS Emergency Loan", dbType: "SSS Emergency" },
     { id: "sss_conso", label: "SSS Conso Loan", dbType: "SSS Conso Loan" },
     { id: "pagibig_mpl", label: "Pag-IBIG MPL", dbType: "Pag-IBIG MPL" },
-    { id: "pagibig_calamity", label: "Pag-IBIG Calamity", dbType: "Pag-IBIG Calamity" },
-    { id: "multipurpose", label: "Multipurpose Savings", dbType: "Multi-Purpose" }
+    { id: "pagibig_calamity", label: "Pag-IBIG Calamity", dbType: "Pag-IBIG Calamity" }
   ];
 
   const fetchCutoffDates = () => {
@@ -477,7 +476,6 @@ const GovLoans = () => {
           <Button variant="link" onClick={() => {
             if (typeObj.id.startsWith("sss")) setActiveMainTab("sss");
             else if (typeObj.id.startsWith("pagibig")) setActiveMainTab("pagibig");
-            else setActiveMainTab("multipurpose");
             setActiveTab(typeObj.id);
           }} className="text-blue-500 font-bold uppercase text-[11px] hover:underline">View Details</Button>
         </CardHeader>
@@ -749,17 +747,10 @@ const GovLoans = () => {
           >
             <AccountBalanceIcon className="mr-2 h-4 w-4" /> Pag-IBIG
           </Button>
-          <Button
-            variant="ghost"
-            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "multipurpose" ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
-            onClick={() => {setActiveMainTab("multipurpose"); setActiveTab("multipurpose"); setIsEditingTable(false);}}
-          >
-            <AccountBalanceIcon className="mr-2 h-4 w-4" /> Multipurpose Savings
-          </Button>
         </div>
 
         {/* Sub Tab Navigation */}
-        {activeMainTab !== "summary" && activeMainTab !== "multipurpose" && (
+        {activeMainTab !== "summary" && (
           <div className="flex flex-wrap gap-2 mb-6 border-b border-slate-200 pb-4">
             {activeMainTab === "sss" && (
               <>
@@ -813,7 +804,7 @@ const GovLoans = () => {
             )}
           </div>
         )}
-        {(activeMainTab === "summary" || activeMainTab === "multipurpose") && (
+        {activeMainTab === "summary" && (
           <div className="mb-6 border-b border-slate-200 pb-4"></div>
         )}
 

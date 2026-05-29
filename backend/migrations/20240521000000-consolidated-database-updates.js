@@ -172,7 +172,15 @@ module.exports = {
       await queryInterface.createTable('Payroll_GovernmentLoans', {
         govern_Id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
         user_Id: { type: Sequelize.SMALLINT, allowNull: false },
-        government_type: { type: Sequelize.ENUM("SSS", "Pag-IBIG", "Calamity", "Multi-Purpose"), defaultValue: "SSS", allowNull: false },
+        government_type: { 
+          type: Sequelize.ENUM(
+            "SSS", "Pag-IBIG", "Calamity", "Multi-Purpose", 
+            "SSS Calamity", "SSS Emergency", "SSS Conso Loan", 
+            "Pag-IBIG MPL", "Pag-IBIG Calamity", "Company"
+          ), 
+          defaultValue: "SSS", 
+          allowNull: false 
+        },
         date: { type: Sequelize.DATEONLY, allowNull: false },
         amount: { type: Sequelize.FLOAT, defaultValue: 0 },
         payrollId: { type: Sequelize.INTEGER, allowNull: true },
@@ -217,7 +225,7 @@ module.exports = {
         reason: { type: Sequelize.STRING, allowNull: false },
         causeType: { type: Sequelize.ENUM("Retrenchment/Closure/Disease (1/2 Month)", "Redundancy/Installation of Devices (1 Month)"), allowNull: false },
         isTaxExempt: { type: Sequelize.BOOLEAN, defaultValue: true },
-        status: { type: Sequelize.ENUM("Draft", "Released"), defaultValue: "Draft" },
+        status: { type: Sequelize.ENUM("Draft", "Notice Served", "Released"), defaultValue: "Draft" },
         releasedAt: { type: Sequelize.DATE, allowNull: true },
         createdAt: { type: Sequelize.DATE, allowNull: false },
         updatedAt: { type: Sequelize.DATE, allowNull: false },
@@ -450,5 +458,12 @@ module.exports = {
     await queryInterface.dropTable('User_Hardware');
     await queryInterface.dropTable('User_Deduction_Profile');
     await queryInterface.dropTable('User_Banking');
+
+    // Drop ENUM types to ensure a clean slate
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Payroll_GovernmentLoans_government_type";');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Payroll_maxicare_maxi_status";');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Payroll_ThirteenthMonth_status";');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Payroll_Separation_status";');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Payroll_Retirement_status";');
   }
 };
