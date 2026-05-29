@@ -107,6 +107,21 @@ const EmployeeHome = () => {
     }).format(amount || 0);
   };
 
+  // Dynamic Greeting Logic (Match Admin)
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  };
+
+  const currentDate = new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    month: 'long', 
+    day: 'numeric', 
+    year: 'numeric' 
+  });
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
@@ -117,212 +132,284 @@ const EmployeeHome = () => {
             onClose={() => setToast({ ...toast, message: "" })} 
           />
           
-          {/* Header Section */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Dashboard</h1>
-              <span className="text-sm text-slate-500 mt-1 block">Overview of your attendance, leaves, and recent activity.</span>
+          {loading ? (
+            <div className="space-y-6">
+              <div className="mb-6">
+                <Skeleton className="h-10 w-64 mb-2" />
+                <Skeleton className="h-6 w-48" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="h-[140px] border-none shadow-sm">
+                    <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+                      <Skeleton className="h-4 w-24 mb-2" />
+                      <Skeleton className="h-10 w-20" />
+                      <Skeleton className="h-4 w-full mt-4" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
-            <Button asChild className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm h-10 px-6">
-              <Link to="/requests">
-                Apply for a leave <ChevronRightOutlinedIcon className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
+          ) : (
+            <>
+              <div className="h-2"></div>
 
-          <div className="animate-in fade-in zoom-in-95 duration-300 space-y-6">
-            
-            {/* Top Section: Attendance Overview */}
-            <Card className="shadow-sm border-0 bg-white">
-              <CardHeader className="border-b border-slate-100 pb-4 bg-slate-50/50 rounded-t-xl">
-                <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
-                  <DashboardIcon className="h-5 w-5 text-slate-400" />
-                  Attendance Overview <span className="text-slate-400 font-medium ml-1">({att.monthName || "Current Month"})</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 md:p-8">
-                {loading ? (
-                  <Skeleton className="h-32 w-full rounded-xl" />
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                    <div className="lg:col-span-2 flex justify-around sm:justify-center sm:gap-8 flex-wrap items-center bg-slate-50 p-6 rounded-xl border border-slate-100 shadow-inner">
+              {/* Greeting Banner */}
+              <div className="rounded-xl p-0 md:p-0 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-white w-full">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-extrabold mb-1 tracking-tight text-[#2A174E]">
+                    {getGreeting()}, {userData?.user_FirstName || "User"}!
+                  </h1>
+                  <p className="text-[#2A174E]/80 text-sm md:text-base font-medium">
+                    Here is your personal overview for {currentDate}.
+                  </p>
+                </div>
+                
+                <div className="shadow-sm hidden md:flex bg-white/10 px-5 py-3 rounded-lg backdrop-blur-sm border border-white/10 flex-col gap-1 items-start">
+                  <p className="text-[10px] font-bold text-[#2A174E]/60 uppercase tracking-widest mb-0.5">Employee Portal</p>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)] animate-pulse"></span>
+                    <span className="text-sm font-semibold tracking-wide text-[#2A174E]">Active & Synced</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Border Top Widget Cards (Match Admin Style) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+                <Card className="bg-gradient-to-t from-[#2A174E] to-[#4A2C7D] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none">
+                  <div className="absolute right-1 top-4 opacity-10">
+                    <Clock size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
+                  </div>
+                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative z-10">
+                    <div>
+                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Today's Log-In</p>
+                      <p className="text-4xl font-bold text-white">{dashboardStats.todayIn || "--:-- AM"}</p>
+                    </div>
+                    <p className="text-xs font-semibold text-white/70 italic mt-4">Your first recorded punch today</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-t from-[#3B4E17] to-[#5A6F2A] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none">
+                  <div className="absolute right-1 top-4 opacity-10">
+                    <FileText size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
+                  </div>
+                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative z-10">
+                    <div>
+                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Available Leaves</p>
+                      <p className="text-4xl font-bold text-white">
+                        {(balance.VL_balance || 0) + (balance.SL_balance || 0)} <span className="text-xl opacity-80 font-medium">Days</span>
+                      </p>
+                    </div>
+                    <p className="text-xs font-semibold text-white/70 italic mt-4">VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance}</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-t from-[#B06E16] to-[#D4AF37] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none">
+                  <div className="absolute right-1 top-4 opacity-10">
+                    <CreditCardIcon sx={{ fontSize: 160 }} className="text-white absolute -right-2 -top-2" />
+                  </div>
+                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative z-10">
+                    <div>
+                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Latest Net Pay</p>
+                      <p className="text-4xl font-bold text-white">
+                        {payrolls.length > 0 ? formatCurrency(payrolls[0].netPay) : "₱0.00"}
+                      </p>
+                    </div>
+                    <p className="text-xs font-semibold text-white/70 italic mt-4">From your most recent released payslip</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="h-4"></div>
+
+              {/* Small Summary Section (Match Admin 3-column Layout) */}
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-2 w-full">
+                
+                {/* Column 1: Attendance Breakdown */}
+                <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col border-t-4 border-[#2A174E] h-[420px] min-w-0">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-gray-500 font-medium">Arrival Breakdown <span className="text-xs opacity-70">({att.monthName || "Month"})</span></h2>
+                  </div>
+                  <div className="flex-1 flex flex-col items-center justify-between gap-4 mt-2">
+                    <div className="flex justify-around w-full px-2">
                       <div className="w-20 md:w-24 text-center space-y-3">
                         <CircularProgressbar value={att.absent} maxValue={20} text={`${att.absent}`} styles={buildStyles({ pathColor: `#ef4444`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} />
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Absent</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Absent</span>
                       </div>
                       <div className="w-20 md:w-24 text-center space-y-3">
                         <CircularProgressbar value={att.late} maxValue={20} text={`${att.late}`} styles={buildStyles({ pathColor: `#f59e0b`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} />
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Late</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Late</span>
                       </div>
-                      <div className="w-20 md:w-24 text-center space-y-3 mt-4 sm:mt-0">
+                      <div className="w-20 md:w-24 text-center space-y-3">
                         <CircularProgressbar value={att.onTime} maxValue={20} text={`${att.onTime}`} styles={buildStyles({ pathColor: `#22c55e`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} />
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">On-Time</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">On-Time</span>
                       </div>
                     </div>
-
-                    <div className="lg:col-span-3 flex flex-col justify-center space-y-6 px-2">
+                    
+                    <div className="w-full space-y-3 mt-auto">
                       {[
                         { label: "Absent", val: att.absent, color: "bg-red-500" },
                         { label: "Late Arrivals", val: att.late, color: "bg-amber-500" },
                         { label: "On-Time / On-Field", val: att.onTime, color: "bg-green-500" }
                       ].map((item, i) => (
-                        <div key={i} className="space-y-2">
-                          <div className="flex justify-between text-sm font-bold text-slate-700">
-                            <span className="uppercase tracking-wider text-xs">{item.label}</span>
-                            <span className="text-slate-500">{item.val} day(s)</span>
+                        <div key={i} className="space-y-1.5">
+                          <div className="flex justify-between text-xs font-bold text-slate-700">
+                            <span className="uppercase tracking-wider text-[10px]">{item.label}</span>
+                            <span className="text-slate-500">{item.val} d</span>
                           </div>
-                          <div className="h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                            <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${(item.val / totalTrackedDays) * 100}%`, backgroundColor: item.color.replace('bg-', '') }}></div>
-                            <div className={`h-full ${item.color} rounded-full`} style={{ width: `${(item.val / totalTrackedDays) * 100}%` }}></div>
+                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                            <div className={`h-full ${item.color} rounded-full transition-all duration-1000 ease-out`} style={{ width: `${(item.val / totalTrackedDays) * 100}%` }}></div>
                           </div>
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              
-              {/* Left Column: Recent Attendance & Leave Balances */}
-              <div className="lg:col-span-8 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Attendance Timeline */}
-                  <Card className="shadow-sm border-0 h-full flex flex-col border-t-4 border-[#2A174E]">
-                    <CardHeader className="pb-4 flex flex-row items-center justify-between">
-                      <CardTitle className="text-[#2A174E] text-base font-bold uppercase tracking-wider">Attendance Timeline</CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-6 pb-6">
-                      <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                        {dashboardStats.recentLogs.map((log, idx) => {
-                          const isGood = log.status?.toLowerCase().includes('time') || log.status?.toLowerCase().includes('field');
-                          return (
-                            <div key={idx} className={`flex justify-between items-center p-3 border rounded-lg transition-all ${isGood ? "bg-green-50 border-green-100" : "bg-red-50 border-red-100"}`}>
-                              <div className="flex items-center gap-3">
-                                <History className={`h-4 w-4 ${isGood ? "text-green-600" : "text-red-600"}`} />
-                                <div>
-                                  <p className="text-xs font-bold text-slate-800">{new Date(log.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</p>
-                                  <p className="text-[10px] text-slate-500 font-medium">{log.timeIn} - {log.timeOut}</p>
-                                </div>
-                              </div>
-                              <Badge variant="outline" className={`text-[10px] uppercase border-0 ${isGood ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                                {log.status}
-                              </Badge>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Leave Balances */}
-                  <Card className="shadow-sm border-t-4 border-[#3B4E17] p-6">
-                    <h3 className="text-base font-semibold mb-4 text-[#3B4E17]">Leave Balances</h3>
-                    <div className="space-y-6">
-                      {[
-                        { label: "Vacation (VL)", bal: balance.VL_balance, total: balance.VL_total, color: "bg-[#8DB552]" },
-                        { label: "Sick (SL)", bal: balance.SL_balance, total: balance.SL_total, color: "bg-[#C0E990]" }
-                      ].map((item, i) => (
-                        <div key={i}>
-                          <div className="flex justify-between text-xs font-bold mb-1"><span>{item.label}</span><span>{item.bal} / {item.total}</span></div>
-                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div className={`h-full ${item.color}`} style={{ width: `${((item.total - item.bal) / item.total) * 100}%` }}></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
                 </div>
 
-                {/* Recent Requests */}
-                <Card className="shadow-sm border-0 border-t-4 border-[#3B4E17]">
-                  <CardHeader className="flex flex-row items-center justify-between pb-4">
-                    <CardTitle className="text-[#3B4E17] text-base font-bold uppercase tracking-wider">Recent Requests</CardTitle>
-                    <Button variant="link" size="sm" asChild className="text-[#3B4E17] text-[11px] font-bold uppercase p-0 h-auto">
-                      <Link to="/requests">View All <ChevronRight className="h-3 w-3 ml-1" /></Link>
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="px-6 pb-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {recentRequests.map(req => {
+                {/* Column 2: Recent Requests */}
+                <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col border-t-4 border-[#3B4E17] h-[420px] min-w-0">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-gray-500 font-medium">Recent Requests</h2>
+                    <Link to="/requests" className="text-xs text-[#3B4E17]/60 font-semibold hover:underline hover:text-[#3B4E17]/80">View All</Link>
+                  </div>
+                  <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2">
+                    {recentRequests.length > 0 ? (
+                      recentRequests.map(req => {
                         const isApproved = req.status?.toLowerCase().includes("approve");
-                        const boxStyle = isApproved ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100";
+                        const boxStyle = isApproved ? "border-green-500" : "border-[#D4AF37]";
                         return (
-                          <div key={req.emp_reqId} className={`flex items-center gap-3 p-3 rounded-lg border ${boxStyle}`}>
+                          <div key={req.emp_reqId} className={`flex items-center gap-3 p-3.5 rounded-lg hover:bg-slate-100 transition-colors border-l-4 ${boxStyle} bg-slate-50/70 min-w-0`}>
                             <div className="flex-1 min-w-0">
-                              <p className="font-bold text-[#2A174E] truncate text-xs">{req.reqTypeName}</p>
-                              <p className="text-[10px] font-semibold text-slate-500 truncate">{req.remarks || "No description"}</p>
+                              <p className="text-sm font-bold text-[#2A174E] truncate">{req.reqTypeName}</p>
+                              <p className="text-[10px] text-gray-500 font-medium truncate">{req.remarks || "No description provided"}</p>
                             </div>
-                            <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0.5 ${isApproved ? "bg-green-500" : "bg-amber-500"}`}>
+                            <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0 border-0 ${isApproved ? "bg-green-500 text-white" : "bg-amber-500 text-white"}`}>
                               {req.status}
                             </Badge>
                           </div>
                         );
+                      })
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                        <FileText className="h-10 w-10 mb-3" />
+                        <p className="text-xs font-medium">No recent requests found.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Column 3: Recent Payslips & Actions */}
+                <div className="bg-white p-6 rounded-xl shadow-sm text-[#B06E16] flex flex-col border-t-4 border-[#B06E16] h-[420px] min-w-0">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-[#033A55]/80 font-medium">Recent Payslips</h2>
+                    <Link to="/employee/payroll" className="text-xs text-[#B06E16]/60 font-semibold hover:underline hover:text-[#B06E16]/80">View All</Link>
+                  </div>
+                  <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2">
+                    {payrolls.length > 0 ? (
+                      payrolls.map((p) => (
+                        <div key={p.payrollId} className="flex justify-between items-center p-3.5 bg-slate-50 rounded-lg border border-slate-100 hover:border-[#2A174E]/30 transition-all">
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Period End</p>
+                            <p className="text-xs font-bold text-slate-800">{new Date(p.period_End).toLocaleDateString()}</p>
+                          </div>
+                          <div className="text-right flex flex-col items-end">
+                            <p className="text-sm font-black text-[#2A174E]">{formatCurrency(p.netPay)}</p>
+                            <Link to={`/employee/payslip/${p.payrollId}`} className="text-[9px] font-bold text-blue-500 hover:underline mt-0.5">VIEW SLIP</Link>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                         <Receipt className="h-10 w-10 mb-3" />
+                         <p className="text-xs font-medium">No released payslips.</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mt-4 pt-4 border-t border-slate-100 shrink-0">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Actions</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="w-full text-xs hover:bg-[#3B4E17] hover:text-white hover:border-[#3B4E17] transition-colors" asChild>
+                        <Link to="/requests">File Leave</Link>
+                      </Button>
+                      <Button size="sm" variant="outline" className="w-full text-xs hover:bg-[#2A174E] hover:text-white hover:border-[#2A174E] transition-colors" asChild>
+                        <Link to="/profile">My Profile</Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <div className="h-6"></div>
+
+              {/* Bottom Section: Timeline & Leave Balances */}
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full mb-8">
+                
+                {/* Attendance Timeline */}
+                <Card className="xl:col-span-2 shadow-sm border-0 border-t-4 border-[#2A174E] bg-white h-[420px] flex flex-col">
+                  <CardHeader className="pb-4 border-b border-slate-50 shrink-0">
+                    <CardTitle className="text-[#2A174E] text-base font-bold uppercase tracking-wider flex items-center gap-2">
+                      <HistoryIcon className="h-5 w-5" /> Attendance Timeline
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 flex-1 overflow-hidden flex flex-col">
+                    <div className="space-y-3 overflow-y-auto custom-scrollbar pr-2 flex-1">
+                      {dashboardStats.recentLogs.map((log, idx) => {
+                        const isGood = log.status?.toLowerCase().includes('time') || log.status?.toLowerCase().includes('field');
+                        return (
+                          <div key={idx} className={`flex justify-between items-center p-4 border rounded-lg transition-all ${isGood ? "bg-green-50/50 border-green-100" : "bg-amber-50/50 border-amber-100"}`}>
+                            <div className="flex items-center gap-4">
+                              <div className={`p-2.5 rounded-full ${isGood ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"}`}>
+                                <History className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-slate-800">{new Date(log.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                                <p className="text-[11px] text-slate-500 font-medium mt-0.5">{log.timeIn} &nbsp;—&nbsp; {log.timeOut}</p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className={`text-[10px] uppercase border-0 font-bold px-2 py-1 ${isGood ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                              {log.status}
+                            </Badge>
+                          </div>
+                        );
                       })}
+                      {dashboardStats.recentLogs.length === 0 && (
+                        <div className="text-center py-12 text-slate-400 italic text-sm h-full flex items-center justify-center">No recent logs found.</div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
-              </div>
 
-              {/* Right Column: Quick Actions & Recent Payslips */}
-              <div className="lg:col-span-4 space-y-6">
-                {/* Today's Log-In */}
-                <Card className="border-t-4 border-[#2A174E] shadow-sm bg-[#FAF2FF]/30 p-6 flex flex-col justify-center items-center text-center">
-                  <Clock className="h-10 w-10 text-[#2A174E] mb-2" />
-                  <p className="text-sm font-bold text-[#2A174E]/50">Today's Log-In</p>
-                  <p className="text-lg font-black text-[#2A174E]/90 mt-1">{dashboardStats.todayIn || "--:-- AM"}</p>
-                </Card>
-
-                {/* Quick Actions */}
-                <Card className="shadow-sm border-t-4 border-[#B06E16]">
-                  <CardHeader><CardTitle className="text-base text-[#B06E16]">Quick Actions</CardTitle></CardHeader>
-                  <CardContent className="space-y-2">
-                    <Button className="w-full justify-start hover:bg-amber-50" variant="outline" asChild><Link to="/requests"><FileText className="mr-2 h-4 w-4"/> File Requests</Link></Button>
-                    <Button className="w-full justify-start hover:bg-amber-50" variant="outline" asChild><Link to="/profile"><UserCheck className="mr-2 h-4 w-4"/> Update Profile</Link></Button>
+                {/* Detailed Leave Balances */}
+                <Card className="shadow-sm border-0 border-t-4 border-[#3B4E17] bg-white flex flex-col h-[420px]">
+                  <CardHeader className="pb-4 border-b border-slate-50 shrink-0">
+                    <CardTitle className="text-[#3B4E17] text-base font-bold uppercase tracking-wider flex items-center gap-2">
+                      <FileText className="h-5 w-5" /> Leave Balances
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 flex-1 flex flex-col justify-center gap-6">
+                    {[
+                      { label: "Vacation Leave (VL)", bal: balance.VL_balance, total: balance.VL_total, color: "bg-[#8DB552]", light: "bg-[#8DB552]/20" },
+                      { label: "Sick Leave (SL)", bal: balance.SL_balance, total: balance.SL_total, color: "bg-[#C0E990]", light: "bg-[#C0E990]/30" }
+                    ].map((item, i) => (
+                      <div key={i} className="bg-slate-50 p-5 rounded-xl border border-slate-100">
+                        <div className="flex justify-between items-end mb-3">
+                          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{item.label}</span>
+                          <span className="text-2xl font-black text-slate-800">{item.bal} <span className="text-sm font-semibold text-slate-400">/ {item.total}</span></span>
+                        </div>
+                        <div className={`h-3 ${item.light} rounded-full overflow-hidden`}>
+                          <div className={`h-full ${item.color} rounded-full transition-all duration-1000`} style={{ width: `${((item.total - item.bal) / (item.total || 1)) * 100}%` }}></div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-2 font-medium text-right">{item.total - item.bal} days used</p>
+                      </div>
+                    ))}
                   </CardContent>
                 </Card>
-
-                {/* Recent Payslips */}
-                {userData?.user_EmploymentStatusId !== 3 && (
-                  <Card className="shadow-sm border-t-4 border-[#2A174E]">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                      <CardTitle className="text-base text-[#2A174E]">Recent Payslips</CardTitle>
-                      <Receipt className="h-4 w-4 text-slate-400" />
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {loading ? (
-                        <Skeleton className="h-20 w-full rounded-xl" />
-                      ) : payrolls.length > 0 ? (
-                        payrolls.map((p) => (
-                          <div key={p.payrollId} className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-2 group hover:border-[#2A174E]/30 transition-all">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase">Period End</p>
-                                <p className="text-xs font-bold text-slate-800">{new Date(p.period_End).toLocaleDateString()}</p>
-                              </div>
-                              <Badge className="bg-green-100 text-green-700 text-[9px] border-none">Released</Badge>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <p className="text-sm font-black text-[#2A174E]">{formatCurrency(p.netPay)}</p>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-full" asChild>
-                                <Link to={`/employee/payslip/${p.payrollId}`}>
-                                  <ChevronRight className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-4 text-slate-400 text-xs italic">No released payslips yet.</div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
               </div>
 
-            </div>
-          </div>
+            </>
+          )}
 
           <style dangerouslySetInnerHTML={{__html: `
             .custom-scrollbar::-webkit-scrollbar { width: 6px; }
