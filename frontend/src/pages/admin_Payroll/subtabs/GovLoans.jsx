@@ -79,6 +79,7 @@ const GovLoans = () => {
   const [employeeList, setEmployeeList] = useState([]);
   const [expectedDates, setExpectedDates] = useState([]);
   const [allData, setAllData] = useState({}); 
+  const [activeLoans, setActiveLoans] = useState([]);
   
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
@@ -121,6 +122,11 @@ const GovLoans = () => {
         key: emp.user_Id.toString(),
       }));
       setEmployeeList(activeEmps);
+
+      const activeLoansRes = await fetchWithAuth("/api/payroll/loans/active");
+      if (activeLoansRes.ok) {
+        setActiveLoans(await activeLoansRes.json());
+      }
 
       const combinedData = {};
       for (const type of govTypes) {

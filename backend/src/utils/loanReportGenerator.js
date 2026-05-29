@@ -135,7 +135,20 @@ exports.generateIndividualLoanPDF = async (loan, ledger) => {
     doc.font("Helvetica").fontSize(8);
 
     ledger.forEach((item, idx) => {
-      doc.text(idx + 1, colStarts[0], rowY + 6);
+      // Page break check
+      if (rowY > 750) {
+        doc.addPage({ margin: 40, size: "A4" });
+        rowY = 50;
+        
+        // Re-draw headers on new page
+        doc.rect(60, rowY, 480, 20).fill("#f1f5f9");
+        doc.fillColor("#475569").font("Helvetica-Bold").fontSize(8);
+        headers.forEach((h, i) => doc.text(h, colStarts[i], rowY + 6));
+        rowY += 20;
+        doc.font("Helvetica").fontSize(8);
+      }
+
+      doc.fillColor("black").text(idx + 1, colStarts[0], rowY + 6);
       doc.text(new Date(item.dueDate).toLocaleDateString(), colStarts[1], rowY + 6);
       doc.text(`P${parseFloat(item.total).toLocaleString()}`, colStarts[2], rowY + 6);
       doc.text(`P${parseFloat(item.remaining).toLocaleString()}`, colStarts[3], rowY + 6);
