@@ -111,6 +111,19 @@ const LeaveSummary = () => {
                 })}
               </SelectContent>
             </Select>
+            <Select value={activeTab} onValueChange={setActiveTab}>
+              <SelectTrigger className="w-full sm:w-[160px] bg-white border-slate-200 font-semibold text-[#2A174E]">
+                <SelectValue placeholder="Report Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Summary Overview</SelectItem>
+                <SelectItem value="vl">Vacation Leaves</SelectItem>
+                <SelectItem value="sl">Sick Leaves</SelectItem>
+                <SelectItem value="ot">Overtime (h)</SelectItem>
+                <SelectItem value="lates">Tardiness (m)</SelectItem>
+                <SelectItem value="absences">Absences (d)</SelectItem>
+              </SelectContent>
+            </Select>
             <Button 
               className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors"
               onClick={() => exportLeaveSummaryPDF(data, months, year, activeTab, rates)}

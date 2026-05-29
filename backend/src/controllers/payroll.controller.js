@@ -1838,6 +1838,12 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
       { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
     );
 
+    const { decrypt } = require("../utils/encryption");
+    payrollRows = payrollRows.map(row => ({
+      ...row,
+      accountNo: decrypt(row.accountNo)
+    }));
+
     // 2. If no saved records (Draft mode), perform live calculations for PDF
     if (payrollRows.length === 0) {
       const employees = await sequelize.query(
@@ -1936,6 +1942,12 @@ exports.getPayrollSummaryPreview = async (req, res) => {
        ORDER BY u."user_Id" ASC`,
       { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
     );
+
+    const { decrypt } = require("../utils/encryption");
+    payrollRows = payrollRows.map(row => ({
+      ...row,
+      accountNo: decrypt(row.accountNo)
+    }));
 
     // 2. If no saved records (Draft mode), perform live calculations for preview
     if (payrollRows.length === 0) {

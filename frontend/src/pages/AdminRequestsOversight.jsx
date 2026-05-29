@@ -39,7 +39,10 @@ const AdminRequestsOversight = () => {
       const data = await response.json();
       if (response.ok) {
         // For oversight, we primarily care about pending items (Status 1 & 4)
-        setRequests(data.filter(r => r.emp_reqStatusId === 1 || r.emp_reqStatusId === 4));
+        setRequests(data.filter(r => {
+          const s = Number(r.emp_reqStatusId);
+          return s === 1 || s === 4;
+        }));
       }
     } catch (error) {
       console.error("Error fetching requests:", error);

@@ -5,8 +5,7 @@ const { formatDuration } = require("./systemTime.js");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const peso = (val) => {
-  const v = parseFloat(val);
-  if (isNaN(v)) return "0.00";
+  const v = Math.max(0, parseFloat(val) || 0);
   return v.toLocaleString("en-PH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -14,8 +13,7 @@ const peso = (val) => {
 };
 
 const thousandths = (val) => {
-  const v = parseFloat(val);
-  if (isNaN(v)) return "0.000";
+  const v = Math.max(0, parseFloat(val) || 0);
   return v.toLocaleString("en-PH", {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,

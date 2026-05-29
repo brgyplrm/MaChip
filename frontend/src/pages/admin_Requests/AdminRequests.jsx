@@ -167,24 +167,32 @@ const AdminRequests = () => {
   };
 
   const filteredRequests = requests.filter((req) => {
-    const isPending = req.emp_reqStatusId === 1;
-    const isRecommended = req.emp_reqStatusId === 4;
-    const isCompleted = req.emp_reqStatusId === 2 || req.emp_reqStatusId === 3;
+    const userRole = Number(userData?.user_RoleId);
+    const reqStatus = Number(req.emp_reqStatusId);
+    const reqUserRole = Number(req.user_RoleId);
+    const requesterId = Number(req.user_Id);
+    const currentUserId = Number(userData?.user_Id);
+
+    const isPending = reqStatus === 1;
+    const isRecommended = reqStatus === 4;
+    const isCompleted = reqStatus === 2 || reqStatus === 3;
+    const isReturned = reqStatus === 5;
 
     let matchesTab = false;
     if (activeTab === "pending") {
-      if (userData?.user_RoleId === 1) { 
+      if (userRole === 1) { 
         // Admins see everything pending, including Supervisor self-requests
-        matchesTab = isPending || isRecommended;
-      } else if (userData?.user_RoleId === 2) {
-        // Supervisors see pending requests from Employees (Role 3) AND Admins (Role 1),
-        // but NOT their own requests (those go to Admin)
-        matchesTab = isPending && req.user_Id !== userData.user_Id && (req.user_RoleId === 3 || req.user_RoleId === 1);
+        matchesTab = isPending || isRecommended || isReturned;
+      } else if (userRole === 2 || userRole === 4) {
+        // Supervisors and Accountants see pending requests from others
+        // Matches backend GetPendingCount logic for Supervisors
+        matchesTab = isPending && requesterId !== currentUserId;
       }
     } else { 
-      if (userData?.user_RoleId === 1) {
+      if (userRole === 1) {
         matchesTab = isCompleted;
       } else { 
+        // Supervisors and Accountants see completed/recommended requests
         matchesTab = isRecommended || isCompleted;
       }
     }
@@ -611,10 +619,10 @@ const AdminRequests = () => {
                         {/* Completed / Approved / Rejected Request Badges */}
                         {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || current.emp_reqStatusId === 4) && (
                           <div className="flex flex-col items-end gap-1">
-                            <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(current.emp_reqStatusId)}`}>
+                            <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(Number(current.emp_reqStatusId))}`}>
                               {current.status}
                             </Badge>
-                            {current.emp_reqStatusId === 4 && userData?.user_RoleId === 2 && (
+                            {Number(current.emp_reqStatusId) === 4 && Number(userData?.user_RoleId) === 2 && (
                               <span className="text-[10px] font-bold text-blue-600 uppercase italic">Awaiting Admin Final Action</span>
                             )}
                           </div>
