@@ -246,7 +246,7 @@ export default function LoanDetailsPage() {
                                         }
 
                                         return [
-                                            { label: "Loan Enrolled", date: loan.createdAt },
+                                            { label: "Loan Enrolled", date: loan.contractDate || loan.createdAt },
                                             { label: "1st Deduction", date: firstDeduction },
                                             { label: "Final Expected", date: finalDate }
                                         ].map((item, index) => (

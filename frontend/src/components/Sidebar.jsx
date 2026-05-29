@@ -405,6 +405,22 @@ const Sidebar = ({ children }) => {
                   )}
                 </SidebarMenuItem>
 
+                {/* My Payroll - Employee Only */}
+                {viewMode === "employee" && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={location.pathname.startsWith("/employee/payroll")}
+                      className={menuButtonClass(location.pathname.startsWith("/employee/payroll"))}
+                    >
+                      <Link to="/employee/payroll">
+                        <CreditCardIcon className="!text-[22px] shrink-0" />
+                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">My Payroll</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+
                 {/* Requests Link */}
                 <SidebarMenuItem>
                   <SidebarMenuButton 

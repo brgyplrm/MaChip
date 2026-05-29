@@ -738,7 +738,7 @@ exports.getPayrollPreview = async (req, res) => {
 };
 
 // ── Generate Batch Payroll (Internal) ───────────────────────────────────────
-async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = true, customDailyRate = null) {
+async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = true, customDailyRate = null, targetUserId = null) {
   const now = await getSystemTime();
   const nowStr = formatForSQL(now);
 
@@ -749,16 +749,23 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
   );
   const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
 
-  const employees = await sequelize.query(
-    `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_Email", u."dailyRate", 
+  let employeeQuery = `
+    SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_Email", u."dailyRate", 
             d."sss_Share", d."philhealth_Share", d."hdmf_Share", b."account_Number" 
      FROM "User" u
      LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
      LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
      WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0 AND u."user_Id" != 999
-     ORDER BY u."user_Id" ASC`, 
-    { type: QueryTypes.SELECT }
-  );
+  `;
+  
+  const replacements = { period_Start, period_End, periodId: periodId || -1 };
+  if (targetUserId) {
+    employeeQuery += ` AND u."user_Id" = :targetUserId`;
+    replacements.targetUserId = targetUserId;
+  }
+  employeeQuery += ` ORDER BY u."user_Id" ASC`;
+
+  const employees = await sequelize.query(employeeQuery, { replacements, type: QueryTypes.SELECT });
 
   let processedCount = 0;
   let skippedCount = 0;
@@ -872,7 +879,61 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
       }
     );
 
-    // ── Auto-record to Maxicare Table ─────────────────────────────────────
+    // ── Auto-record/link to Ledger Tables ─────────────────────────────────
+    // 1. Government Loans Link & Balance Update
+    if (fullStats.SSS_Loan > 0 || fullStats.HDMF_Loan > 0 || fullStats.calamityLoan_Amnt > 0) {
+      // Link Ledger
+      await sequelize.query(
+        `UPDATE "Payroll_GovernmentLoans" SET "payrollId" = :payrollId
+         WHERE "user_Id" = :user_Id AND "date" = :period_End`,
+        { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
+      );
+
+      // Update Master Balances & History
+      const loanMappings = [
+        { amount: fullStats.SSS_Loan, type: 'sss_loan', label: 'SSS Loan' },
+        { amount: fullStats.HDMF_Loan, type: 'hdmf_loan', label: 'Pag-IBIG Loan' },
+        { amount: fullStats.calamityLoan_Amnt, type: 'calamity', label: 'Calamity Loan' }
+      ];
+
+      for (const m of loanMappings) {
+        if (m.amount > 0) {
+          const activeLoan = await sequelize.query(
+            `SELECT id, "remainingBalance" FROM "Loan_Deductions" 
+             WHERE "userId" = :user_Id AND "deductionType" = :type AND "status" = 'active' LIMIT 1`,
+            { replacements: { user_Id: emp.user_Id, type: m.type }, type: QueryTypes.SELECT }
+          );
+          if (activeLoan.length > 0) {
+            const loanId = activeLoan[0].id;
+            const newBalance = Math.max(0, parseFloat(activeLoan[0].remainingBalance) - m.amount);
+            const status = newBalance <= 0 ? 'completed' : 'active';
+
+            await sequelize.query(
+              `UPDATE "Loan_Deductions" SET "remainingBalance" = :newBalance, "status" = :status, "updatedAt" = :now
+               WHERE id = :loanId`,
+              { replacements: { newBalance, status, loanId, now: nowStr }, type: QueryTypes.UPDATE }
+            );
+
+            console.log(`[DEBUG LOAN] User ${emp.user_Id}: Deducted ${m.amount} for ${m.label}. New Balance: ${newBalance}`);
+
+            await sequelize.query(
+              `INSERT INTO "Loan_Deduction_History" ("loanDeductionId", "payrollId", "amountDeducted", "balanceAfter", "deductionDate", "createdAt")
+               VALUES (:loanId, :payrollId, :amount, :balanceAfter, :date, :now)`,
+              { replacements: { loanId, payrollId, amount: m.amount, balanceAfter: newBalance, date: period_End, now: nowStr }, type: QueryTypes.INSERT }
+            );
+          }
+        }
+      }
+    }
+
+    // 2. Cash Advance Link
+    await sequelize.query(
+      `UPDATE "Payroll_Cash_Advances" SET "payrollId" = :payrollId
+       WHERE "user_Id" = :user_Id AND "date" = :period_End`,
+      { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
+    );
+
+    // 3. Maxicare Auto-record
     if (fullStats.healthCard_Amnt > 0) {
       await sequelize.query(
         `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
@@ -908,7 +969,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
   }
 
   // Handle background tasks (emails, archival) - strictly for non-interactive use
-  if (newPayrollsForEmail.length > 0 && shouldRelease) {
+  if (newPayrollsForEmail.length > 0 && shouldRelease && process.env.SKIP_EMAILS !== 'true') {
     (async () => {
       for (const item of newPayrollsForEmail) {
         try {
@@ -1301,14 +1362,60 @@ exports.generatePayroll = async (req, res) => {
     // ──────────────────────────────────────────────────────────────────────
 
     // ── Auto-record/link to Ledger Tables ─────────────────────────────────
-    // 1. Cash Advance Link
+    // 1. Government Loans Link & Balance Update
+    if (fullStats.SSS_Loan > 0 || fullStats.HDMF_Loan > 0 || fullStats.calamityLoan_Amnt > 0) {
+      // Link Ledger
+      await sequelize.query(
+        `UPDATE "Payroll_GovernmentLoans" SET "payrollId" = :payrollId
+         WHERE "user_Id" = :user_Id AND "date" = :period_End`,
+        { replacements: { payrollId, user_Id, period_End }, type: QueryTypes.UPDATE }
+      );
+
+      // Update Master Balances & History
+      const loanMappings = [
+        { amount: fullStats.SSS_Loan, type: 'sss_loan', label: 'SSS Loan' },
+        { amount: fullStats.HDMF_Loan, type: 'hdmf_loan', label: 'Pag-IBIG Loan' },
+        { amount: fullStats.calamityLoan_Amnt, type: 'calamity', label: 'Calamity Loan' }
+      ];
+
+      for (const m of loanMappings) {
+        if (m.amount > 0) {
+          const activeLoan = await sequelize.query(
+            `SELECT id, "remainingBalance" FROM "Loan_Deductions" 
+             WHERE "userId" = :user_Id AND "deductionType" = :type AND "status" = 'active' LIMIT 1`,
+            { replacements: { user_Id, type: m.type }, type: QueryTypes.SELECT }
+          );
+          if (activeLoan.length > 0) {
+            const loanId = activeLoan[0].id;
+            const newBalance = Math.max(0, parseFloat(activeLoan[0].remainingBalance) - m.amount);
+            const status = newBalance <= 0 ? 'completed' : 'active';
+
+            await sequelize.query(
+              `UPDATE "Loan_Deductions" SET "remainingBalance" = :newBalance, "status" = :status, "updatedAt" = :now
+               WHERE id = :loanId`,
+              { replacements: { newBalance, status, loanId, now: nowStr }, type: QueryTypes.UPDATE }
+            );
+
+            console.log(`[DEBUG LOAN] User ${user_Id}: Deducted ${m.amount} for ${m.label}. New Balance: ${newBalance}`);
+
+            await sequelize.query(
+              `INSERT INTO "Loan_Deduction_History" ("loanDeductionId", "payrollId", "amountDeducted", "balanceAfter", "deductionDate", "createdAt")
+               VALUES (:loanId, :payrollId, :amount, :balanceAfter, :date, :now)`,
+              { replacements: { loanId, payrollId, amount: m.amount, balanceAfter: newBalance, date: period_End, now: nowStr }, type: QueryTypes.INSERT }
+            );
+          }
+        }
+      }
+    }
+
+    // 2. Cash Advance Link
     await sequelize.query(
       `UPDATE "Payroll_Cash_Advances" SET "payrollId" = :payrollId
        WHERE "user_Id" = :user_Id AND "date" = :period_End`,
       { replacements: { payrollId, user_Id, period_End }, type: QueryTypes.UPDATE }
     );
 
-    // 2. Maxicare Auto-record
+    // 3. Maxicare Auto-record
     if (fullStats.healthCard_Amnt > 0) {
       await sequelize.query(
         `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
@@ -2046,7 +2153,7 @@ exports.getLoanHistory = async (req, res) => {
     // 2. Government Loan Ledger
     if (config.govType) {
       const history = await sequelize.query(
-        `SELECT "date", "user_Id", "amount", "payrollId" FROM "Payroll_GovernmentLoans" WHERE "government_type" = :govType ORDER BY "date" ASC`,
+        `SELECT "date", "user_Id", "amount", "payrollId" FROM "Payroll_GovernmentLoans" WHERE "government_type"::text = :govType ORDER BY "date" ASC`,
         { replacements: { govType: config.govType }, type: QueryTypes.SELECT }
       );
 
@@ -2067,6 +2174,7 @@ exports.getLoanHistory = async (req, res) => {
 
     return res.status(400).json({ error: "Loan type not supported by ledger." });
   } catch (error) {
+    console.error(`[ERROR getLoanHistory] type=${type}:`, error.message);
     res.status(500).json({ error: error.message });
   }
 };
@@ -3335,18 +3443,23 @@ exports.getLoanById = async (req, res) => {
     const loan = loanResult[0];
     const targetUserId = loan.requesterId || loan.empId;
 
-    // Map govType for ledger lookup
+    // Map govType for ledger lookup (Must match govDbType used in userRequest.controller)
     let govType = 'SSS';
     const dT = loan.deductionType;
     if (dT === 'sss_loan') govType = 'SSS';
     else if (dT === 'sss_emergency') govType = 'SSS Emergency';
     else if (dT === 'sss_conso') govType = 'SSS Conso Loan';
-    else if (dT === 'hdmf_loan') govType = 'Pag-IBIG';
-    else if (dT === 'hdmf_calamity') govType = 'Calamity'; // Map both to the generic 'Calamity' enum
-    else if (dT === 'calamity') govType = 'Calamity';
+    else if (dT === 'hdmf_loan') govType = 'Pag-IBIG MPL';
+    else if (dT === 'hdmf_calamity') govType = 'Pag-IBIG Calamity';
+    else if (dT === 'calamity') govType = 'SSS Calamity';
     else if (dT === 'multipurpose') govType = 'Multi-Purpose';
-    else if (loan.provider === 'Pag-IBIG') govType = 'Pag-IBIG';
-    else if (loan.provider === 'SSS') govType = 'SSS';
+    else if (loan.provider === 'Pag-IBIG') {
+       // Fallback for cases where deductionType might be generic
+       govType = dT === 'hdmf_calamity' ? 'Pag-IBIG Calamity' : 'Pag-IBIG MPL';
+    }
+    else if (loan.provider === 'SSS') {
+       govType = dT === 'calamity' ? 'SSS Calamity' : 'SSS';
+    }
     else if (loan.provider === 'Company') govType = 'Company';
 
     // Fetch Ledger (Amortization + History)
@@ -3359,7 +3472,7 @@ exports.getLoanById = async (req, res) => {
         "payrollId",
         CASE WHEN "payrollId" IS NOT NULL THEN 'PAID' ELSE 'PENDING' END as "status"
        FROM "Payroll_GovernmentLoans"
-       WHERE "user_Id" = :userId AND "government_type" = :govType
+       WHERE "user_Id" = :userId AND "government_type"::text = :govType
        ORDER BY "date" ASC`,
       { replacements: { userId: targetUserId, govType }, type: QueryTypes.SELECT }
     );
@@ -3413,6 +3526,154 @@ exports.getRetirementPayHistory = async (req, res) => {
       { type: QueryTypes.SELECT }
     );
     res.status(200).json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Employee Side Endpoints ───────────────────────────────────────────────────
+
+/**
+ * Gets the payroll history for the logged-in employee.
+ * Only returns released payrolls (status = 2).
+ */
+exports.getMyPayrollHistory = async (req, res) => {
+  const user_Id = req.user.user_Id;
+  try {
+    const payrolls = await sequelize.query(
+      `SELECT
+         p.*,
+         ps."PaystatusName",
+         pp."label" AS "period_Label"
+       FROM "Payroll" p
+       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
+       LEFT JOIN "PayrollPeriod" pp ON pp."periodId" = p."periodId"
+       WHERE p."user_Id" = :user_Id AND p."status" = 2
+       ORDER BY p."period_Start" DESC`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT },
+    );
+    res.status(200).json(payrolls);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets a specific payroll record for the logged-in employee.
+ * Only allows viewing if it belongs to them and is released.
+ */
+exports.getMyPayrollById = async (req, res) => {
+  const { payrollId } = req.params;
+  const user_Id = req.user.user_Id;
+
+  if (isNaN(parseInt(payrollId))) return res.status(400).json({ error: "Invalid ID" });
+
+  try {
+    const payroll = await sequelize.query(
+      `SELECT
+         p.*,
+         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt",
+         e."nightOT_Hrs", e."nightOT_Amnt",
+         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
+         e."specialHol_Adj", e."incentives", e."allowance",
+         d."absence_Hrs", d."absence_Amnt", d."tardiness_Mins", d."tardiness_Amnt",
+         d."unpaidLeave_Days", d."unpaidLeave_Amnt", d."paidLeave_Days",
+         d."SSS_Ded", d."Philhealth_Ded", d."HDMF_Ded", 
+         d."SSS_Ded_ER", d."Philhealth_Ded_ER", d."HDMF_Ded_ER", 
+         d."Tax_Ded", d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", 
+         d."calamityLoan_Amnt", d."multiPurposeSavings", d."advances_Amnt", 
+         d."globe_Deduction", d."eastwest_Loan",
+         (COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
+          COALESCE(d."globe_Deduction",0) +
+          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
+         u."user_FirstName", u."user_LastName", u."position" AS "user_Position",
+         ps."PaystatusName"
+       FROM "Payroll" p
+       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
+       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
+       WHERE p."payrollId" = :payrollId AND p."user_Id" = :user_Id AND p."status" = 2
+       LIMIT 1`,
+      { replacements: { payrollId, user_Id }, type: QueryTypes.SELECT },
+    );
+
+    if (payroll.length === 0) return res.status(404).json({ error: "Payroll not found or access denied." });
+
+    res.status(200).json(payroll[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets 13th month history for the logged-in employee.
+ * Includes a monthly breakdown of basic pay used in computation.
+ */
+exports.getMyThirteenthMonthHistory = async (req, res) => {
+  const user_Id = req.user.user_Id;
+  try {
+    const history = await sequelize.query(
+      `SELECT tm.*,
+      (
+        SELECT COALESCE(json_agg(m), '[]'::json)
+        FROM (
+          SELECT 
+            EXTRACT(MONTH FROM p2."period_Start") as month_num,
+            TRIM(TO_CHAR(p2."period_Start", 'Month')) as month_name,
+            SUM(p2."basicPay") as monthly_basic
+          FROM "Payroll" p2
+          WHERE p2."user_Id" = :user_Id 
+            AND EXTRACT(YEAR FROM p2."period_Start") = tm."year"
+            AND p2."status" = 2
+          GROUP BY month_num, month_name
+          ORDER BY month_num
+        ) m
+      ) as "breakdown"
+       FROM "Payroll_ThirteenthMonth" tm
+       WHERE tm."user_Id" = :user_Id 
+       ORDER BY tm."year" DESC`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    res.status(200).json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets separation pay record for the logged-in employee.
+ */
+exports.getMySeparationPay = async (req, res) => {
+  const user_Id = req.user.user_Id;
+  try {
+    const records = await sequelize.query(
+      `SELECT s.*, c."causeName"
+       FROM "Payroll_Separation" s
+       JOIN "Separation_Cause" c ON s."causeId" = c."causeId"
+       WHERE s."user_Id" = :user_Id AND s."status" = 'Released'
+       ORDER BY s."separationDate" DESC`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    res.status(200).json(records);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets retirement pay record for the logged-in employee.
+ */
+exports.getMyRetirementPay = async (req, res) => {
+  const user_Id = req.user.user_Id;
+  try {
+    const records = await sequelize.query(
+      `SELECT * FROM "Payroll_Retirement"
+       WHERE "user_Id" = :user_Id AND "status" = 'Released'
+       ORDER BY "retirementDate" DESC`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    res.status(200).json(records);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

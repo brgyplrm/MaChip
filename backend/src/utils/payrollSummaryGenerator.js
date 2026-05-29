@@ -592,7 +592,7 @@ exports.generatePayrollSummaryPDF = async (payrollRows, periodLabel, signatures 
   const html = buildReportHTML(payrollRows, periodLabel, signatures);
   const browser = await puppeteer.launch({
     headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
   });
   try {
     const page = await browser.newPage();

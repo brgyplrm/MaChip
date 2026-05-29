@@ -750,7 +750,7 @@ const UserRequests = () => {
         {/* Dashboard-Style Statistics Cards */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6 mb-6 w-full">
           {/* Card 1: Pending */}
-          <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-[#2A174E] py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
@@ -765,7 +765,7 @@ const UserRequests = () => {
           </Card>
 
           {/* Card 4: Returned */}
-          <Card className="shadow-sm border-0 bg-blue-50 py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-blue-500  py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
@@ -780,7 +780,7 @@ const UserRequests = () => {
           </Card>
 
           {/* Card 2: Approved */}
-          <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-[#3B4E17] py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
@@ -795,7 +795,7 @@ const UserRequests = () => {
           </Card>
 
           {/* Card 3: Rejected */}
-          <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-[#BB8B26] py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>

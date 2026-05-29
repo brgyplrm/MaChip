@@ -28,6 +28,10 @@ import CashAdvancesHistory from "./pages/admin_Payroll/subtabs/CashAdvanceHistor
 import LoanModule from "./pages/admin_Payroll/subtabs/LoanModule";
 import LeaveSummary from "./pages/admin_Payroll/subtabs/LeaveSummary";
 import EmployeeCalendar from "./pages/emp_Calendar/EmployeeCalendar"; 
+import EmployeePayslip from "./pages/emp_payroll/EmployeePayslip";
+import EmployeePayrollHistory from "./pages/emp_payroll/EmployeePayrollHistory";
+import ThirteenthMonthDetails from "./pages/emp_payroll/ThirteenthMonthDetails";
+import PayrollComputationDetails from "./pages/emp_payroll/PayrollComputationDetails";
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
 import Settings from "./pages/settings/Settings";
@@ -338,6 +342,42 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
               <EmployeeCalendar />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employee/payroll"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <EmployeePayrollHistory />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employee/payslip/:id"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <EmployeePayslip />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employee/13th-month/:year"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <ThirteenthMonthDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employee/payroll-details/:id"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <PayrollComputationDetails />
             </ProtectedRoute>
           }
         />

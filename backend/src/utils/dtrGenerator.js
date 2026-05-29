@@ -360,7 +360,7 @@ const generateDTRPDF = async ({ employee, dtrData, period_Start, period_End, ful
 
   const browser = await puppeteer.launch({
     headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
   });
 
   try {

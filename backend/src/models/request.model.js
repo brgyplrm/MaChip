@@ -248,6 +248,10 @@ module.exports = (sequelize, DataTypes) => {
       calamityArea: { type: DataTypes.STRING(255), allowNull: true },
       damageProof_File: { type: DataTypes.STRING(255), allowNull: true },
       netPaySufficient: { type: DataTypes.BOOLEAN, defaultValue: false, allowNull: true },
+      mscCount: { type: DataTypes.STRING(20), allowNull: true },
+      avgMSC: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
+      consoDP: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
+      pagibigTAV: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
     },
     { timestamps: true, freezeTableName: true },
   );

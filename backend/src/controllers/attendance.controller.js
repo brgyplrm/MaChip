@@ -891,7 +891,26 @@ exports.getEmployeeDashboardStats = async (req, res) => {
       }
     };
 
+    const todayStr = formatDateLocal(now);
+    const [todayReport] = await sequelize.query(
+      `SELECT "time_Logged_inArr" FROM "employee_Logging_report" WHERE "user_id" = :user_Id AND "log_Date" = :todayStr`,
+      { replacements: { user_Id, todayStr }, type: QueryTypes.SELECT }
+    );
+
+    let todayIn = "--:-- AM";
+    if (todayReport) {
+      const inArr = safeParseArray(todayReport.time_Logged_inArr);
+      if (inArr.length > 0) {
+        const [h, m] = inArr[0].split(":");
+        const hr = parseInt(h);
+        const ampm = hr >= 12 ? "PM" : "AM";
+        const h12 = hr % 12 || 12;
+        todayIn = `${h12}:${m} ${ampm}`;
+      }
+    }
+
     res.status(200).json({
+      todayIn,
       attendance: {
         absent: parseInt(attendanceStats[0]?.absentCount || 0),
         onTime: parseInt(attendanceStats[0]?.onTimeCount || 0),
