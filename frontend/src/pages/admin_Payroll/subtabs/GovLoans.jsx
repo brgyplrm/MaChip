@@ -465,13 +465,41 @@ const GovLoans = () => {
   const activeStats = activeTab === "summary" ? { subscribers: 0, totalPaid: 0 } : getSummaryStats(activeTab);
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const currentTypeName = govTypes.find(t => t.id === activeTab)?.label || "";
+  const currentTypeName = govTypes.find(t => t.id === activeTab)?.label || "Government Loans";
   const typeDataForStats = activeTab !== "summary" ? (allData[activeTab] || []) : [];
   const totalAllTime = typeDataForStats.reduce((acc, item) => {
     // Only count loans that have a payrollId
     const deductedInThisPeriod = Object.values(item.values).reduce((sum, v) => sum + (v.payrollId ? (v.amount || 0) : 0), 0);
     return acc + deductedInThisPeriod;
   }, 0);
+
+  // --- Map and Calculate Active Loan Statistics ---
+  const getMappedGovType = (tabId) => {
+    switch (tabId) {
+      case "sss_salary": return "SSS";
+      case "sss_calamity": return "SSS Calamity";
+      case "sss_emergency": return "SSS Emergency";
+      case "sss_conso": return "SSS Conso Loan";
+      case "pagibig_mpl": return "Pag-IBIG MPL";
+      case "pagibig_calamity": return "Pag-IBIG Calamity";
+      default: return "ALL";
+    }
+  };
+
+  const currentFilter = getMappedGovType(activeTab);
+  const filteredActiveLoans = activeLoans.filter(l => {
+    if (currentFilter === "ALL") {
+       return ["SSS", "SSS Calamity", "SSS Emergency", "SSS Conso Loan", "Pag-IBIG MPL", "Pag-IBIG Calamity"].includes(l.govtype);
+    }
+    return l.govtype === currentFilter;
+  });
+
+  const activeLoanStats = {
+    totalLoans: filteredActiveLoans.length,
+    totalDisbursed: filteredActiveLoans.reduce((sum, l) => sum + parseFloat(l.principal || 0), 0),
+    totalCollected: filteredActiveLoans.reduce((sum, l) => sum + parseFloat(l.paid || 0), 0),
+    outstanding: filteredActiveLoans.reduce((sum, l) => sum + parseFloat(l.outstanding || 0), 0),
+  };
 
   const renderSummaryTable = (typeObj) => {
     const typeData = allData[typeObj.id] || [];
@@ -814,58 +842,58 @@ const GovLoans = () => {
           <div className="mb-6 border-b border-slate-200 pb-4"></div>
         )}
 
-        {/* Conditional Dashboard Stats for Specific Loans */}
-        {activeTab !== "summary" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans animate-in fade-in zoom-in-95 duration-200">
-            
-            {/* Card 1: Total Repaid This Year */}
-            <div className="md:col-span-2 border border-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-full max-w-xs">
-                  <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Total Repaid ({selectedYear})</p>
-                  <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(activeStats.totalPaid)}</p>
-                </div>
-                <div className="text-right bg-green-50 px-3 py-1.5 rounded-md border border-green-100 flex items-center gap-1">
-                  <AccountBalanceIcon className="text-green-600 !text-sm" />
-                  <p className="text-sm font-semibold text-green-700">{currentTypeName}</p>
-                </div>
+        {/* Loan Statistics Dashboard (Unified with LoanManagement) */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-8 w-full animate-in fade-in zoom-in-95 duration-200 text-left">
+          {/* Card 1: Total Loans */}
+          <Card className="border-t-[5px] border-[#2A174E] bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Loans</p>
+                <p className="text-4xl font-bold text-[#2A174E]">{loading ? "..." : activeLoanStats.totalLoans}</p>
               </div>
-              <div className="flex flex-col md:flex-row gap-4 mt-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 w-fit">
-                  <EventIcon className="text-slate-400 !text-base" />
-                  <span>Fiscal Year: <span className="text-slate-900 font-semibold ml-1">{selectedYear}</span></span>
-                </div>
-              </div>
-            </div>
+              <p className="text-xs text-[#2A174E]/70 italic mt-4">Active & completed agreements</p>
+            </CardContent>
+          </Card>
 
-            {/* Card 2: Active Borrowers */}
-            <div className="border border-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-center items-center text-center">
-              <div className="h-12 w-12 bg-indigo-50 rounded-full flex items-center justify-center mb-4 border border-indigo-100">
-                <GroupIcon className="text-indigo-600" />
+          {/* Card 2: Total Disbursed */}
+          <Card className="border-t-[5px] border-[#BB8B26] bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Disbursed</p>
+                <p className="text-4xl font-bold text-[#BB8B26]">
+                  {loading ? "₱0.00" : peso(activeLoanStats.totalDisbursed)}
+                </p>
               </div>
-              <p className="text-5xl font-extrabold text-slate-900">{activeStats.subscribers}</p>
-              <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mt-2">Active Deductions</p>
-              <p className="text-xs text-slate-400 mt-1">({selectedYear} Cohort)</p>
-            </div>
+              <p className="text-xs text-[#BB8B26]/70 italic mt-4">Cumulative loan principal</p>
+            </CardContent>
+          </Card>
 
-            {/* Card 3: All-Time Stats */}
-            <div className="md:col-span-3 border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <AccountBalanceWalletIcon style={{ fontSize: '100px' }} />
+          {/* Card 3: Total Collected */}
+          <Card className="border-t-[5px] border-[#174e4e] bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#174e4e] uppercase tracking-wider mb-2">Total Collected</p>
+                <p className="text-4xl font-bold text-[#174e4e]">
+                  {loading ? "₱0.00" : peso(activeLoanStats.totalCollected)}
+                </p>
               </div>
-              <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 w-full">
-                <div className="bg-[#2A174E] p-4 rounded-lg border border-[#7A52B5]/30 flex-1 w-full">
-                  <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Total Collections (All-Time)</p>
-                  <p className="text-3xl font-bold text-white tracking-tight">{peso(totalAllTime)}</p>
-                </div>
-                <div className="bg-[#2A174E] p-4 rounded-lg border border-[#7A52B5]/30 flex-1 w-full">
-                  <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Collections ({selectedYear})</p>
-                  <p className="text-3xl font-bold text-white tracking-tight">{peso(activeStats.totalPaid)}</p>
-                </div>
+              <p className="text-xs text-[#174e4e]/70 italic mt-4">Total payments received</p>
+            </CardContent>
+          </Card>
+
+          {/* Card 4: Outstanding */}
+          <Card className="border-t-[5px] border-[#a12626] bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <p className="text-xs font-bold text-[#a12626] uppercase tracking-wider mb-2">Outstanding</p>
+                <p className="text-4xl font-bold text-[#a12626]">
+                  {loading ? "₱0.00" : peso(activeLoanStats.outstanding)}
+                </p>
               </div>
-            </div>
-          </div>
-        )}
+              <p className="text-xs text-[#a12626]/70 italic mt-4">Remaining balance to collect</p>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Matrix / Summary Content */}
         <div className="w-full">

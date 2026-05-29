@@ -406,7 +406,7 @@ const Sidebar = ({ children }) => {
                 </SidebarMenuItem>
 
                 {/* My Payroll - Employee Only */}
-                {viewMode === "employee" && userData?.user_EmploymentStatusId !== 3 && (
+                {(viewMode === "employee" || Number(roleId) === 3) && userData?.user_EmploymentStatusId !== 3 && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
@@ -422,6 +422,7 @@ const Sidebar = ({ children }) => {
                 )}
 
                 {/* Requests Link */}
+
                 <SidebarMenuItem>
                   <SidebarMenuButton 
                     asChild 
