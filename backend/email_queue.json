@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "type": "WELCOME",
+    "email": "admin2@machip.com",
+    "password": "admin1",
+    "name": "Trecia Mae Morales",
+    "displayId": "MACJ-1002",
+    "attempts": 0,
+    "createdAt": "2026-05-30T03:58:50.894Z"
+  }
+]
