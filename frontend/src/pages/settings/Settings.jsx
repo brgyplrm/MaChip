@@ -18,7 +18,9 @@ import PayrollConfiguration from "@/components/PayrollConfiguration";
 import AttendanceConfiguration from "@/components/AttendanceConfiguration";
 import NotificationConfiguration from "@/components/NotificationConfiguration";
 import PositionManagement from "@/components/PositionManagement";
-import { Clock, Coffee, ShieldAlert, CheckCircle, Info, Edit3, Save } from 'lucide-react';
+import ReferenceDataManagement from "@/components/ReferenceDataManagement";
+import { Clock, Coffee, ShieldAlert, CheckCircle, Info, Edit3, Save, Layers } from 'lucide-react';
+
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -256,21 +258,24 @@ const Settings = () => {
           {/* Integrated Tabbed Navigation controls */}
           <Tabs value={activeSettingsTab} onValueChange={setActiveSettingsTab} className="w-full">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
-              <TabsList className="grid grid-cols-2 lg:grid-cols-5 w-full sm:w-auto h-[55px]! bg-slate-200/60 p-1 rounded-lg">
-                <TabsTrigger value="simulation" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
+              <TabsList className="flex flex-row overflow-x-auto w-full sm:w-auto h-auto bg-slate-200/60 pt-1 px-1 pb-2 md:pb-1.5 rounded-lg gap-1 whitespace-nowrap custom-scrollbar">
+                <TabsTrigger value="simulation" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
                   <SettingsSuggestIcon className="mr-2 h-4 w-4" /> System Variables
                 </TabsTrigger>
-                <TabsTrigger value="payroll" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
+                <TabsTrigger value="payroll" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
                   <CurrencyExchangeIcon className="mr-2 h-4 w-4" /> Payroll Formulas
                 </TabsTrigger>
-                <TabsTrigger value="attendance" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
+                <TabsTrigger value="attendance" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
                     <AccessTimeIcon className="mr-2 h-4 w-4" /> Attendance
                 </TabsTrigger>
-                <TabsTrigger value="notification" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
+                <TabsTrigger value="notification" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
                     <AccessTimeIcon className="mr-2 h-4 w-4" /> Notification
                 </TabsTrigger>
-                <TabsTrigger value="positions" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2.5">
+                <TabsTrigger value="positions" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
                     <AssuredWorkloadIcon className="mr-2 h-4 w-4" /> Salary Grades
+                </TabsTrigger>
+                <TabsTrigger value="referenceTables" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
+                    <Layers className="mr-2 h-4 w-4" /> Ref Tables
                 </TabsTrigger>
               </TabsList>
 
@@ -502,6 +507,11 @@ const Settings = () => {
                     mandatedWageEffectiveDate={mandatedWageEffectiveDate}
                     setMandatedWageEffectiveDate={setMandatedWageEffectiveDate}
                   />
+                </TabsContent>
+
+                {/* Tab 6: Reference Tables Management */}
+                <TabsContent value="referenceTables" className=" mt-0 animate-in fade-in-50 duration-200">
+                  <ReferenceDataManagement />
                 </TabsContent>
                 </div>
               </>

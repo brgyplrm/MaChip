@@ -21,6 +21,11 @@ router.delete("/due-dates/:dueDateId", requireRole(1, 4, "Admin Manager", "Admin
 
 router.post("/batch-calendar", requireRole(1, 4, "Admin Manager", "Admin Accountant"), upload.single("csvFile"), systemController.batchCalendar);
 
+// Reference Tables Routes
+router.get("/reference-data/:tableType", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.getReferenceTableData);
+router.post("/reference-data/upload/:tableType", requireRole(1, 4, "Admin Manager", "Admin Accountant"), upload.single("csvFile"), systemController.uploadReferenceTable);
+router.put("/reference-data/toggle/:tableType", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.toggleReferenceTableVersion);
+
 router.get("/browse", requireAdmin, systemController.browseDirectories);
 router.post("/create-folder", requireAdmin, systemController.createDirectory);
 

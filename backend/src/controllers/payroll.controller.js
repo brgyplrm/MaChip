@@ -407,7 +407,8 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   
   // ── "Both Relation" Matrix Synchronization Logic ────────────────────────────
   const { computeMonthlySharesAsync } = require("../utils/govtDeductions");
-  const dynamicShares = await computeMonthlySharesAsync(dailyRate);
+  const dynamicShares = await computeMonthlySharesAsync(dailyRate, period_End);
+
 
   // Check if period ends on 15th for government deductions
   // Use string splitting to be robust against timezone shifts
@@ -626,7 +627,16 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const personalLoanCombined = parseFloat(advAmnt || 0) + parseFloat(ewLoan || 0);
   const otherTotal = grossEarnings > 0 ? (parseFloat(hCard || 0) + parseFloat(sLoan || 0) + parseFloat(hLoan || 0) + parseFloat(cLoan || 0) + personalLoanCombined + parseFloat(gDed || 0) + parseFloat(mpSave || 0)) : 0;
 
-  const Tax_Ded_Final = grossEarnings > 0 ? (parseFloat(tax_Share || 0) || 0) : 0; 
+  let Tax_Ded_Final = 0;
+  if (grossEarnings > 0) {
+    if (parseFloat(tax_Share || 0) > 0) {
+      Tax_Ded_Final = parseFloat(tax_Share);
+    } else {
+      const { computePeriodTaxAsync } = require("../utils/govtDeductions");
+      Tax_Ded_Final = await computePeriodTaxAsync(grossEarnings, govtTotal, period_End, period_Start);
+    }
+  }
+ 
 
   // Total Deductions includes everything: Absences, Tardiness, Gov't, and Loans
   const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded_Final;
@@ -677,7 +687,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     globe_Deduction: gDed,
     eastwest_Loan: personalLoanCombined, // COMBINED FIELD FOR UI
     multiPurposeSavings: mpSave,
-    Tax_Ded: tax_Share,
+    Tax_Ded: Tax_Ded_Final,
     totalDeductions,
     netPay
   };

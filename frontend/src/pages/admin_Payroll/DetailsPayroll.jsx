@@ -20,6 +20,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import InfoIcon from "@mui/icons-material/Info";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const PayrollDetails = () => {
   const navigate = useNavigate();
@@ -487,6 +489,76 @@ const PayrollDetails = () => {
                   <div className="flex justify-between items-center p-4 bg-slate-50 rounded-xl mt-4 border border-slate-200">
                     <span className="font-bold text-slate-800">Total ER Share</span>
                     <span className="font-bold text-slate-700 text-lg">₱{(erSSS + erPH + erHD).toLocaleString()}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Withholding Tax Breakdown */}
+              <Card className="border-0 shadow-sm bg-white py-0 h-full lg:col-span-2">
+                <CardHeader className="border-b border-slate-50 py-4 bg-purple-700">
+                  <CardTitle className="text-base flex items-center gap-2 text-white">
+                    <AccountBalanceIcon className="text-purple-100 h-5 w-5" /> Withholding Tax Calculation (BIR)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6 pb-6">
+                  <TooltipProvider>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="flex flex-col justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-purple-200 transition-all">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Basic Pay (Gross)</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center justify-center cursor-pointer">
+                                <InfoIcon className="text-slate-400 hover:text-purple-600 h-4 w-4" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">Total gross earnings before any government deductions are applied.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="font-bold text-[#2A174E] text-xl">₱{parseFloat(payroll.totalEarnings || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                      </div>
+
+                      <div className="flex flex-col justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-purple-200 transition-all">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Gov't Deductions</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center justify-center cursor-pointer">
+                                <InfoIcon className="text-slate-400 hover:text-purple-600 h-4 w-4" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">Sum of SSS, PhilHealth, and Pag-IBIG employee contributions: ₱{eeSSS.toLocaleString(undefined, {minimumFractionDigits: 2})} + ₱{eePH.toLocaleString(undefined, {minimumFractionDigits: 2})} + ₱{eeHD.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="font-bold text-red-600 text-xl">₱{(eeSSS + eePH + eeHD).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                      </div>
+
+                      <div className="flex flex-col justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-purple-200 transition-all">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Taxable Income</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center justify-center cursor-pointer">
+                                <InfoIcon className="text-slate-400 hover:text-purple-600 h-4 w-4" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">The taxable income base used to calculate BIR withholding tax: (Total Gross - Total Gov't Deductions)</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="font-bold text-emerald-600 text-xl">₱{Math.max(0, parseFloat(payroll.totalEarnings || 0) - (eeSSS + eePH + eeHD)).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                      </div>
+                    </div>
+                  </TooltipProvider>
+
+                  <div className="flex justify-between items-center p-4 bg-purple-50 rounded-xl mt-6 border border-purple-100">
+                    <span className="font-bold text-purple-800">Final Withholding Tax Deducted</span>
+                    <span className="font-bold text-purple-700 text-lg">₱{eeTax.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                   </div>
                 </CardContent>
               </Card>

@@ -655,3 +655,252 @@ exports.deleteDueDate = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.getReferenceTableData = async (req, res) => {
+  const { tableType } = req.params;
+  try {
+    const { SSS_ContributionTable, Philhealth_ContributionTable, PagIBIG_ContributionTable, WithholdingTax_Table, ReferenceTable_Audit, sequelize } = require("../config/sequelize.js");
+    let model;
+    let dbTableName;
+    if (tableType === "sss") { model = SSS_ContributionTable; dbTableName = "SSS_ContributionTable"; }
+    else if (tableType === "philhealth") { model = Philhealth_ContributionTable; dbTableName = "Philhealth_ContributionTable"; }
+    else if (tableType === "pagibig") { model = PagIBIG_ContributionTable; dbTableName = "PagIBIG_ContributionTable"; }
+    else if (tableType === "tax") { model = WithholdingTax_Table; dbTableName = "WithholdingTax_Table"; }
+    else {
+      return res.status(400).json({ error: "Invalid reference table type." });
+    }
+
+    // Get all records sorted
+    const records = await model.findAll({
+      order: [["effectiveDate", "DESC"], ["range_Min", "ASC"]]
+    });
+
+    // Get audit logs
+    const auditLogs = await ReferenceTable_Audit.findAll({
+      where: { tableName: dbTableName },
+      order: [["uploadDate", "DESC"]]
+    });
+
+    // Query active audit IDs (those having active rows in the main table)
+    const activeAudits = await model.findAll({
+      attributes: [[sequelize.fn('DISTINCT', sequelize.col('auditId')), 'auditId']],
+      where: { isActive: true }
+    });
+    
+    const activeAuditIds = activeAudits.map(a => a.auditId).filter(id => id !== null && id !== undefined);
+
+    res.status(200).json({ records, auditLogs, activeAuditIds });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.uploadReferenceTable = async (req, res) => {
+  const { tableType } = req.params;
+  const { effectiveDate, periodType } = req.body;
+
+  if (!req.file) {
+    return res.status(400).json({ error: "CSV file is required." });
+  }
+  if (!effectiveDate) {
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "Effective date is required." });
+  }
+
+  try {
+    const { sequelize, SSS_ContributionTable, Philhealth_ContributionTable, PagIBIG_ContributionTable, WithholdingTax_Table, ReferenceTable_Audit } = require("../config/sequelize.js");
+    const { parseCSV } = require("../utils/csvParser");
+    
+    let model;
+    let dbTableName;
+    let requiredFields = [];
+
+    if (tableType === "sss") {
+      model = SSS_ContributionTable;
+      dbTableName = "SSS_ContributionTable";
+      requiredFields = ["range_Min", "range_Max", "monthlySalaryCredit", "er_SS", "ee_SS"];
+    } else if (tableType === "philhealth") {
+      model = Philhealth_ContributionTable;
+      dbTableName = "Philhealth_ContributionTable";
+      requiredFields = ["range_Min", "range_Max", "rate", "employeeShareRatio"];
+    } else if (tableType === "pagibig") {
+      model = PagIBIG_ContributionTable;
+      dbTableName = "PagIBIG_ContributionTable";
+      requiredFields = ["range_Min", "range_Max", "ee_Rate", "er_Rate", "contributionCeiling"];
+    } else if (tableType === "tax") {
+      model = WithholdingTax_Table;
+      dbTableName = "WithholdingTax_Table";
+      requiredFields = ["range_Min", "range_Max", "baseTax", "excessRate", "excessOver"];
+    } else {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "Invalid reference table type." });
+    }
+
+    const csvContent = fs.readFileSync(req.file.path, "utf8");
+    const parsedRows = parseCSV(csvContent);
+
+    if (parsedRows.length === 0) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "The uploaded CSV file is empty or malformed." });
+    }
+
+    // Validate headers/fields in each row
+    for (let i = 0; i < parsedRows.length; i++) {
+      const row = parsedRows[i];
+      for (const field of requiredFields) {
+        if (row[field] === undefined || row[field] === null || isNaN(Number(row[field]))) {
+          if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+          return res.status(400).json({ error: `Validation failed at row ${i + 1}: field "${field}" is missing or not a valid number.` });
+        }
+      }
+    }
+
+    // Sort rows by range_Min
+    parsedRows.sort((a, b) => a.range_Min - b.range_Min);
+
+    // Validate boundaries and continuity
+    for (let i = 0; i < parsedRows.length; i++) {
+      const row = parsedRows[i];
+      if (row.range_Min < 0 || row.range_Max <= row.range_Min) {
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: `Validation failed at row ${i + 1}: range_Min must be >= 0 and range_Max must be > range_Min.` });
+      }
+
+      // Check continuity with next row
+      if (i < parsedRows.length - 1) {
+        const nextRow = parsedRows[i + 1];
+        if (nextRow.range_Min - row.range_Max > 1.05) {
+          if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+          return res.status(400).json({ 
+            error: `Gap detected between row ${i + 1} and ${i + 2}. Brackets must be continuous. (range_Max: ${row.range_Max}, next range_Min: ${nextRow.range_Min})`
+          });
+        }
+      }
+    }
+
+    // Run DB transaction
+    await sequelize.transaction(async (transaction) => {
+      // 1. Deactivate existing uploads for this effective date & periodType
+      const whereClause = { effectiveDate };
+      if (tableType === "tax") {
+        whereClause.periodType = periodType || "semi-monthly";
+      }
+      await model.update(
+        { isActive: false },
+        { where: whereClause, transaction }
+      );
+
+      // 2. Create audit log entry
+      const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+      const auditRecord = await ReferenceTable_Audit.create({
+        tableName: dbTableName,
+        uploadedBy: currentAdminId,
+        uploadDate: new Date(),
+        effectiveDate,
+        fileName: req.file.originalname,
+        rowCount: parsedRows.length,
+        periodType: tableType === "tax" ? (periodType || "semi-monthly") : null
+      }, { transaction });
+
+      const auditId = auditRecord.auditId;
+
+      // 3. Prepare payload with auditId and periodType
+      const recordsToInsert = parsedRows.map(row => ({
+        ...row,
+        effectiveDate,
+        isActive: true,
+        auditId,
+        periodType: tableType === "tax" ? (periodType || "semi-monthly") : undefined
+      }));
+
+      // 4. Bulk create new records
+      await model.bulkCreate(recordsToInsert, { transaction });
+
+      // Log to system audit logs as well
+      await logAudit(req, currentAdminId, "System Settings", "UPLOAD_REF_TABLE", dbTableName, null, null, {
+        fileName: req.file.originalname,
+        rowCount: recordsToInsert.length,
+        effectiveDate,
+        auditId
+      });
+    });
+
+    // Cleanup CSV from disk
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    res.status(200).json({ success: true, count: parsedRows.length, message: `${dbTableName} uploaded successfully. ${parsedRows.length} rows inserted. Effective from ${effectiveDate}.` });
+  } catch (error) {
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    console.error("Reference table upload error:", error);
+    res.status(500).json({ error: "Failed to process upload: " + error.message });
+  }
+};
+
+exports.toggleReferenceTableVersion = async (req, res) => {
+  const { tableType } = req.params;
+  const { auditId, isActive } = req.body;
+
+  if (!auditId || isActive === undefined) {
+    return res.status(400).json({ error: "auditId and isActive status are required." });
+  }
+
+  try {
+    const { sequelize, SSS_ContributionTable, Philhealth_ContributionTable, PagIBIG_ContributionTable, WithholdingTax_Table, ReferenceTable_Audit } = require("../config/sequelize.js");
+    const { Op } = require("sequelize");
+    let model;
+    let dbTableName;
+
+    if (tableType === "sss") { model = SSS_ContributionTable; dbTableName = "SSS_ContributionTable"; }
+    else if (tableType === "philhealth") { model = Philhealth_ContributionTable; dbTableName = "Philhealth_ContributionTable"; }
+    else if (tableType === "pagibig") { model = PagIBIG_ContributionTable; dbTableName = "PagIBIG_ContributionTable"; }
+    else if (tableType === "tax") { model = WithholdingTax_Table; dbTableName = "WithholdingTax_Table"; }
+    else {
+      return res.status(400).json({ error: "Invalid reference table type." });
+    }
+
+    // Run transaction to update status
+    await sequelize.transaction(async (transaction) => {
+      if (isActive) {
+        // If activating, we ensure only this version is active for its effective date & periodType.
+        // First, find the effective date for the target version
+        const audit = await ReferenceTable_Audit.findByPk(parseInt(auditId), { transaction });
+        if (audit) {
+          // 1. Deactivate ALL versions for this effective date & periodType (handles any legacy or null auditId versions)
+          const whereClause = { effectiveDate: audit.effectiveDate };
+          if (tableType === "tax") {
+            whereClause.periodType = audit.periodType || "semi-monthly";
+          }
+          await model.update(
+            { isActive: false },
+            { where: whereClause, transaction }
+          );
+        }
+        // 2. Activate the specific version
+        await model.update(
+          { isActive: true },
+          { where: { auditId: parseInt(auditId) }, transaction }
+        );
+      } else {
+        // If deactivating, simply deactivate the target version
+        await model.update(
+          { isActive: false },
+          { where: { auditId: parseInt(auditId) }, transaction }
+        );
+      }
+    });
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "System Settings", "TOGGLE_REF_TABLE", dbTableName, null, null, {
+      auditId: parseInt(auditId),
+      isActive: !!isActive
+    });
+
+    res.status(200).json({ success: true, message: `Successfully updated active status for version #${auditId} to ${!!isActive}.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

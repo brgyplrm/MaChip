@@ -78,6 +78,15 @@ const {
 const { Loan_Deductions, Loan_Deduction_History, Loan_Deduction_Schedules } =
   require("../models/loanDeductions.model")(sequelize, DataTypes);
 
+const {
+  SSS_ContributionTable,
+  Philhealth_ContributionTable,
+  PagIBIG_ContributionTable,
+  WithholdingTax_Table,
+  ReferenceTable_Audit,
+} = require("../models/referenceTables.model")(sequelize, DataTypes);
+
+
 // ── Associations ──────────────────────────────────────────────────────────────
 
 // User ↔ user_logging
@@ -215,6 +224,14 @@ Audit_Log.belongsTo(User, {
   targetKey: "user_Id",
   as: "user",
 });
+
+User.hasMany(ReferenceTable_Audit, { foreignKey: "uploadedBy", sourceKey: "user_Id" });
+ReferenceTable_Audit.belongsTo(User, {
+  foreignKey: "uploadedBy",
+  targetKey: "user_Id",
+  as: "uploader",
+});
+
 
 // User ↔ Loan_Deductions
 User.hasMany(Loan_Deductions, { foreignKey: "userId", sourceKey: "user_Id" });
@@ -359,4 +376,10 @@ module.exports = {
   Payroll_Separation,
   Separation_Cause,
   Payroll_Retirement,
+  SSS_ContributionTable,
+  Philhealth_ContributionTable,
+  PagIBIG_ContributionTable,
+  WithholdingTax_Table,
+  ReferenceTable_Audit,
 };
+
