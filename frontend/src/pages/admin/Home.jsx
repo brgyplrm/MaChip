@@ -300,7 +300,7 @@ const Home = () => {
 
                 <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative">
                   <div>
-                    <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Office Occupancy</p>
+                    <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Employees Present</p>
                     <p className="text-4xl font-bold text-white">{statsLoading ? "..." : stats.officeOccupancy}</p>
                   </div>
                   <p className="text-xs font-semibold text-white/70 italic mt-4">{statsLoading ? "Loading logs..." : `${stats.enteredCount || 0} entered, and ${stats.exitedCount || 0} exited`}</p>
@@ -315,7 +315,7 @@ const Home = () => {
                 </div>
                 <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative">
                   <div>
-                    <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Pending Approvals</p>
+                    <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Pending Requests</p>
                     <p className="text-4xl font-bold text-white">{statsLoading ? "..." : stats.pendingCount}</p>
                   </div>
                   <p className="text-xs font-semibold text-white/70 italic mt-4">Pending requests awaiting action</p>
@@ -456,7 +456,7 @@ const Home = () => {
                   <Link to="/payroll" className="text-xs text-[#B06E16]/60 font-semibold hover:underline hover:text-[#B06E16]/80">View All</Link>
                 </div>
                 <div className="text-5xl font-bold mb-3 truncate h-13">
-                  {daysRemaining > 0 ? `${daysRemaining} Days Left` : "Processing..."}
+                  {daysRemaining > 0 ? `${daysRemaining} Day${daysRemaining === 1 ? "" : "s"} Left` : "Processing..."}
                 </div>
                 <div className="h-3"></div>
                 <p className="text-[#033A55]/60 text-xs italic">Period: {nextPayroll?.label || "Calculating..."}</p>

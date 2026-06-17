@@ -221,9 +221,9 @@ const PayrollDetails = () => {
               onClick={() => setActiveTab("other")}
               className={activeTab === "other" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E] hover:bg-[#2A174E]/5"}
             >
-              Other Deductions
+              Deductions
             </Button>
-          </div>
+          </div>  
 
           {/* View Payslip (Right) */}
           <Button 

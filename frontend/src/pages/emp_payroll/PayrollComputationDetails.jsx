@@ -87,18 +87,28 @@ const PayrollComputationDetails = () => {
     <Sidebar>
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <Button asChild variant="ghost" className="text-slate-500 hover:text-slate-800 p-0 h-auto mb-2">
-              <Link to={`/employee/payslip/${id}`} className="flex items-center gap-1 text-sm">
-                <ChevronLeft className="h-4 w-4" />
-                Back to Payslip
-              </Link>
-            </Button>
-            <h1 className="text-2xl font-bold text-slate-800">Computation Details</h1>
-            <p className="text-slate-500 text-sm">
-              Breakdown of earnings and deductions for {new Date(payroll.period_Start).toLocaleDateString()} - {new Date(payroll.period_End).toLocaleDateString()}
-            </p>
+        <div className="group flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-0">
+            {/* Animated Back Button */}
+            <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+              <Button 
+                asChild 
+                variant="ghost" 
+                size="icon" 
+                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+              >
+                <Link to={`/employee/payslip/${id}`}>
+                  <ChevronLeft className="h-6 w-6" />
+                </Link>
+              </Button>
+            </div>
+
+            <div className="space-y-1 transition-all duration-300 ease-in-out group-hover:pl-2">
+              <h1 className="text-2xl font-bold text-slate-800">Computation Details</h1>
+              <p className="text-slate-500 text-sm">
+                Breakdown of earnings and deductions for {new Date(payroll.period_Start).toLocaleDateString()} - {new Date(payroll.period_End).toLocaleDateString()}
+              </p>
+            </div>
           </div>
           <div className="bg-[#2A174E] text-white p-4 rounded-xl shadow-lg flex flex-col items-end">
             <span className="text-xs text-slate-300 uppercase font-semibold">Net Take Home</span>

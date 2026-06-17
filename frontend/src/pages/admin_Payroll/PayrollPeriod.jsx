@@ -418,7 +418,7 @@ const PayrollPeriod = () => {
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
                     <TableHead className="font-semibold text-white py-4">BASIC PAY</TableHead>
-                    <TableHead className="font-semibold text-white py-4">EARNINGS</TableHead>
+                    <TableHead className="font-semibold text-white py-4">GROSS PAY</TableHead>
                     <TableHead className="font-semibold text-white py-4">DEDUCTIONS</TableHead>
                     <TableHead className="font-semibold text-white py-4">NET PAY</TableHead>
                     <TableHead className="font-semibold text-white py-4">STATUS</TableHead>

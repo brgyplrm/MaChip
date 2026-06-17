@@ -4,6 +4,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import ContactSupportIcon from '@mui/icons-material/ContactSupport';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ContactSupportModal from "./ContactSupportModal";
 
 // shadcn/ui components
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 
 const FAQ = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
   const faqData = [
     {
@@ -128,10 +130,18 @@ const FAQ = () => {
           <ContactSupportIcon className="text-[#2A174E] mb-4" fontSize="large" />
           <h3 className="text-xl font-bold text-[#2A174E] mb-2">Still have questions?</h3>
           <p className="text-slate-500 mb-6 text-sm">Our support team is here to help with any technical issues or payroll concerns.</p>
-          <Button className="bg-[#2A174E] hover:bg-[#1a0e30] px-8">
+          <Button 
+            className="bg-[#2A174E] hover:bg-[#1a0e30] px-8"
+            onClick={() => setIsSupportModalOpen(true)}
+          >
             Contact Support
           </Button>
         </div>
+
+        <ContactSupportModal 
+          isOpen={isSupportModalOpen} 
+          onClose={() => setIsSupportModalOpen(false)} 
+        />
       </div>
     </Sidebar>
   );

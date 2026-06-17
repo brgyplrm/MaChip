@@ -257,27 +257,46 @@ const Settings = () => {
 
           {/* Integrated Tabbed Navigation controls */}
           <Tabs value={activeSettingsTab} onValueChange={setActiveSettingsTab} className="w-full">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
-              <TabsList className="flex flex-row overflow-x-auto w-full sm:w-auto h-auto bg-slate-200/60 pt-1 px-1 pb-2 md:pb-1.5 rounded-lg gap-1 whitespace-nowrap custom-scrollbar">
-                <TabsTrigger value="simulation" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
-                  <SettingsSuggestIcon className="mr-2 h-4 w-4" /> System Variables
-                </TabsTrigger>
-                <TabsTrigger value="payroll" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
-                  <CurrencyExchangeIcon className="mr-2 h-4 w-4" /> Payroll Formulas
-                </TabsTrigger>
-                <TabsTrigger value="attendance" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
-                    <AccessTimeIcon className="mr-2 h-4 w-4" /> Attendance
-                </TabsTrigger>
-                <TabsTrigger value="notification" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
-                    <AccessTimeIcon className="mr-2 h-4 w-4" /> Notification
-                </TabsTrigger>
-                <TabsTrigger value="positions" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
-                    <AssuredWorkloadIcon className="mr-2 h-4 w-4" /> Salary Grades
-                </TabsTrigger>
-                <TabsTrigger value="referenceTables" className="flex-shrink-0 px-4 py-2.5 text-xs md:text-sm data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md flex items-center">
-                    <Layers className="mr-2 h-4 w-4" /> Ref Tables
-                </TabsTrigger>
-              </TabsList>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+              <div className="w-full sm:w-auto">
+                <Select value={activeSettingsTab} onValueChange={setActiveSettingsTab}>
+                  <SelectTrigger className="w-full sm:w-[320px] h-12 bg-white border-slate-200 shadow-sm text-slate-700 font-bold text-base rounded-xl hover:bg-slate-50/80 transition-all">
+                    <SelectValue placeholder="Navigate Configurations" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-slate-200 shadow-lg">
+                    <SelectItem value="simulation" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
+                      <div className="flex items-center font-semibold text-slate-700">
+                        <SettingsSuggestIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> System Variables
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="payroll" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
+                      <div className="flex items-center font-semibold text-slate-700">
+                        <CurrencyExchangeIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> Payroll Formulas
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="attendance" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
+                      <div className="flex items-center font-semibold text-slate-700">
+                        <AccessTimeIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> Attendance
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="notification" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
+                      <div className="flex items-center font-semibold text-slate-700">
+                        <AccessTimeIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> Notification
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="positions" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
+                      <div className="flex items-center font-semibold text-slate-700">
+                        <AssuredWorkloadIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> Salary Grades
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="referenceTables" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
+                      <div className="flex items-center font-semibold text-slate-700">
+                        <Layers className="mr-3 h-5 w-5 text-[#2A174E]" /> Ref Tables
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
               {isAdmin && (
                 <Button 

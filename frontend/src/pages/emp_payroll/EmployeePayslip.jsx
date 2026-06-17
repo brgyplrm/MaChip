@@ -93,23 +93,31 @@ const EmployeePayslip = () => {
   return (
     <Sidebar>
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto space-y-6">
-        {/* Breadcrumbs / Back button */}
-        <div className="flex items-center justify-between">
-          <Button asChild variant="ghost" className="text-slate-500 hover:text-slate-800">
-            <Link to="/employee/payroll" className="flex items-center gap-2">
-              <ChevronLeft className="h-4 w-4" />
-              Back to History
-            </Link>
-          </Button>
+        {/* Header Section */}
+        <div className="group flex items-center justify-between gap-4">
+          <div className="flex items-center gap-0">
+            {/* Animated Back Button */}
+            <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+              <Button 
+                asChild 
+                variant="ghost" 
+                size="icon" 
+                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+              >
+                <Link to="/employee/payroll">
+                  <ChevronLeft className="h-6 w-6" />
+                </Link>
+              </Button>
+            </div>
+
+            <div className="space-y-1 transition-all duration-300 ease-in-out group-hover:pl-2">
+              <h1 className="text-2xl font-bold text-slate-800">Payslip Details</h1>
+              <p className="text-slate-500 text-sm">Review your statement of earnings and deductions.</p>
+            </div>
+          </div>
+          
           <div className="flex gap-2">
-            {/* <Button variant="outline" size="sm" className="gap-2">
-              <Printer className="h-4 w-4" />
-              Print
-            </Button> */}
-            {/* <Button size="sm" className="gap-2 bg-[#2A174E] hover:bg-[#3d2270]">
-              <Download className="h-4 w-4" />
-              Download PDF
-            </Button> */}
+            {/* Optional action buttons could go here */}
           </div>
         </div>
 

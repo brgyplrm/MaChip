@@ -328,7 +328,7 @@ const EmployeeHome = () => {
                   
                   <div className="mt-4 pt-4 border-t border-slate-100 shrink-0">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Actions</p>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <Button size="sm" variant="outline" className="w-full text-xs hover:bg-[#3B4E17] hover:text-white hover:border-[#3B4E17] transition-colors" asChild>
                         <Link to="/requests">File Leave</Link>
                       </Button>
