@@ -49,10 +49,10 @@ const ReferenceDataManagement = () => {
 
     if (activeSubTab === "sss") {
       filename = "SSS_Contribution_Template.csv";
-      headers = ",Range of Compensation,,MONTHLY SALARY CREDIT ,,,Employee,,,,Employee,,,,Total\n" +
+      headers = ",Range of Compensation,,MONTHLY SALARY CREDIT ,,,Employer,,,,Employee,,,,Total\n" +
                 ",Range1,Range2,Regular SS/ EC,MPF,Total,Regular SS,MPF,EC,Total,Regular SS,MPF,EC,Total,\n";
       sampleData = 
-        "1,\"Below 5,250\",,5000,,5000,500,,10,510,250,,,250,760\n" +
+        "1,0.00,5249.99,5000,,5000,500,,10,510,250,,,250,760\n" +
         "2,5250,5749.99,5500,,5500,550,,10,560,275,,,275,835\n" +
         "34,21250,21749.99,20000,1500,21500,1900,150,30,2080,1000,75,,1075,3155\n" +
         "53,34750,Over,20000,15000,35000,2000,1500,30,3530,1000,750,,1750,5280\n";
