@@ -15,6 +15,7 @@ import { CreditCardIcon } from "lucide-react";
 import { FingerprintIcon } from "lucide-react";
 import { EyeIcon} from "lucide-react";  
 import { Archive, ArchiveRestore, ArchiveX } from "lucide-react";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const Datatable = () => {
   const [data, setData] = useState([]);
@@ -159,8 +161,9 @@ const toggleMachipVisibility = (userId) => {
 };
 
   return (
-    <div className="flex flex-col w-full h-full p-4 md:p-4">
-      <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
+    <TooltipProvider>
+      <div className="flex flex-col w-full h-full p-4 md:p-4">
+        <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
       
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
@@ -171,28 +174,42 @@ const toggleMachipVisibility = (userId) => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           {/* Left side: Biometric Infrastructure (Tertiary) */}
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              asChild
-              className="text-slate-600 hover:text-[#2A174E] hover:bg-slate-100"
-            >
-              <Link to="/users/hardware"><SensorsIcon className="mr-2 h-4 w-4"/> Hardware Registry</Link>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  asChild
+                  className="text-slate-600 hover:text-[#2A174E] hover:bg-slate-100"
+                >
+                  <Link to="/users/hardware"><SensorsIcon className="mr-2 h-4 w-4"/> Hardware Registry</Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                Configure biometric/RFID readers, fingerprint templates, and ESP32 device endpoints.
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Right side: User Management (Primary & Secondary) */}
           {isAdminOrAccountant && (
             <div className="flex gap-2 w-full sm:w-auto">
               {/* Secondary Action */}
-              <Button 
-                variant="outline" 
-                asChild 
-                className="flex-1 sm:flex-none border-slate-300 text-slate-700 hover:bg-slate-50"
-              >
-                <Link to="/users/archived">
-                  <ArchiveIcon className="h-4 w-4 mr-1" /> Archived
-                </Link>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    asChild 
+                    className="flex-1 sm:flex-none border-slate-300 text-slate-700 hover:bg-slate-50"
+                  >
+                    <Link to="/users/archived">
+                      <ArchiveIcon className="h-4 w-4 mr-1" /> Archived
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                  View and restore soft-deleted employee profiles.
+                </TooltipContent>
+              </Tooltip>
 
               {/* Primary Action */}
               <Button 
@@ -214,7 +231,17 @@ const toggleMachipVisibility = (userId) => {
         <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
           <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
             <div>
-              <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Active Users</p>
+              <div className="flex items-center gap-1.5 mb-2">
+                <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Total Active Users</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    Active employee and administrator records currently in the system database.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
             </div>
             <p className="text-xs font-semibold text-[#2A174E]/70 italic mt-4">Total registered active accounts</p>
@@ -225,7 +252,17 @@ const toggleMachipVisibility = (userId) => {
         <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
           <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
             <div>
-              <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Employees</p>
+              <div className="flex items-center gap-1.5 mb-2">
+                <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Employees</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    Active standard staff records (eligible for shift logs, request filings, and payroll).
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <p className="text-4xl font-bold text-[#3B4E17]">{stats.employees}</p>
             </div>
             <p className="text-xs font-semibold text-[#3B4E17]/70 italic mt-4">Active standard staff records</p>
@@ -236,7 +273,17 @@ const toggleMachipVisibility = (userId) => {
         <Card className="border-t-5 border-[#B06E16] bg-white py-0 h-full">
           <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
             <div>
-              <p className="text-xs font-bold text-[#B06E16] uppercase tracking-wider mb-2">Admin & Supervisor</p>
+              <div className="flex items-center gap-1.5 mb-2">
+                <p className="text-xs font-bold text-[#B06E16] uppercase tracking-wider">Admin & Supervisor</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#B06E16]/60 hover:text-[#B06E16] cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    Accounts with management privileges (overseeing attendance logs, requests, and payroll periods).
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <p className="text-4xl font-bold text-[#B06E16]">{stats.admins}</p>
             </div>
             <p className="text-xs font-semibold text-[#B06E16]/70 italic mt-4">Active management records</p>
@@ -317,7 +364,19 @@ const toggleMachipVisibility = (userId) => {
                   <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider ">Full Name</TableHead>
                   <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider ">Role</TableHead>
                   <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Status</TableHead>
-                  <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wide hidden md:table-cell">MaChip ID</TableHead>
+                  <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wide hidden md:table-cell">
+                    <div className="flex items-center gap-1">
+                      MaChip ID
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          The unique hardware RFID card identifier mapped to this employee.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TableHead>
                   <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wide hidden md:table-cell">Email</TableHead>
                   <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider text-right pr-6">Actions</TableHead>
                 </TableRow>
@@ -396,23 +455,43 @@ const toggleMachipVisibility = (userId) => {
                         </TableCell>
                       <TableCell className="text-right pr-6 py-4">
                         <div className="flex justify-end items-center gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            asChild 
-                            className=" border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors"
-                          >
-                            <Link to={`/users/${user.user_Id}`}>
-                            <EyeIcon className="h-4 w-4" /></Link>
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-block">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  asChild 
+                                  className=" border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors"
+                                >
+                                  <Link to={`/users/${user.user_Id}`}>
+                                    <EyeIcon className="h-4 w-4" />
+                                  </Link>
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                              View Profile
+                            </TooltipContent>
+                          </Tooltip>
                           {isAdminOrAccountant && currentUser?.user_Id !== user.user_Id && (
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors" 
-                              onClick={() => initiateArchive(user.user_Id)}>
-                                <Archive className="h-4 w-4" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-block">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors" 
+                                    onClick={() => initiateArchive(user.user_Id)}
+                                  >
+                                    <Archive className="h-4 w-4" />
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                Archive User
+                              </TooltipContent>
+                            </Tooltip>
                           )}
                         </div>
                       </TableCell>
@@ -501,6 +580,7 @@ const toggleMachipVisibility = (userId) => {
         message="Are you sure you want to archive this user? They will be moved to the Archived Users list."
       />
     </div>
+    </TooltipProvider>
   );
 };
 

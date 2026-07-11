@@ -144,7 +144,8 @@ const PayrollDetails = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header Section */}
         <div className="group flex items-center justify-between gap-4 mb-8">
@@ -152,19 +153,28 @@ const PayrollDetails = () => {
       <div className="flex items-center gap-2">
         {/* Animated Back Button */}
         <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            asChild 
-            className="opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-          >
-            <Link 
-              to={periodId ? `/payroll/payrollPeriod?periodId=${periodId}` : "/payroll/payrollPeriod"}
-              className="flex items-center justify-center rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-all hover:scale-110"
-            >
-              <ArrowBackIcon className="h-6 w-6" />
-            </Link>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-block">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  asChild 
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                >
+                  <Link 
+                    to={periodId ? `/payroll/payrollPeriod?periodId=${periodId}` : "/payroll/payrollPeriod"}
+                    className="flex items-center justify-center rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-all hover:scale-110"
+                  >
+                    <ArrowBackIcon className="h-6 w-6" />
+                  </Link>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+              Back to Payroll Period
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Title & Subtitle */}
@@ -226,14 +236,23 @@ const PayrollDetails = () => {
           </div>  
 
           {/* View Payslip (Right) */}
-          <Button 
-            variant="outline" 
-            onClick={() => setIsModalOpen(true)}
-            className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-all shadow-sm flex items-center gap-2"
-          >
-            <ReceiptLongIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">View Payslip</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-block">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsModalOpen(true)}
+                  className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-all shadow-sm flex items-center gap-2"
+                >
+                  <ReceiptLongIcon className="h-4 w-4" />
+                  <span className="hidden sm:inline">View Payslip</span>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+              View and print employee payslip receipt
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Info Cards Grid */}
@@ -501,7 +520,6 @@ const PayrollDetails = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6 pb-6">
-                  <TooltipProvider>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="flex flex-col justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-purple-200 transition-all">
                         <div className="flex items-center gap-1.5 mb-2">
@@ -554,7 +572,6 @@ const PayrollDetails = () => {
                         <p className="font-bold text-emerald-600 text-xl">₱{Math.max(0, parseFloat(payroll.totalEarnings || 0) - (eeSSS + eePH + eeHD)).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                       </div>
                     </div>
-                  </TooltipProvider>
 
                   <div className="flex justify-between items-center p-4 bg-purple-50 rounded-xl mt-6 border border-purple-100">
                     <span className="font-bold text-purple-800">Final Withholding Tax Deducted</span>
@@ -644,7 +661,8 @@ const PayrollDetails = () => {
             <p className="text-sm text-slate-600">{new Date(payroll.updatedAt).toLocaleString()}</p>
           </div>
         </div>
-      </div>
+        </div>
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

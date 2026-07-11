@@ -18,6 +18,8 @@ import { Link } from "react-router-dom";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { fetchWithAuth } from "../../utils/api";
 import { Edit2, Edit2Icon } from "lucide-react";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -196,22 +198,32 @@ const PayrollEmployeeList = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header */}
         <div className="group flex items-start md:items-center gap-0 mb-6 transition-all">
               {/* Back Button: Hidden by default, slides and fades in on hover */}
               <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  asChild 
-                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
-                >
-                  <Link to="/payroll">
-                    <ArrowBackIcon className="h-6 w-6" />
-                  </Link>
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        asChild 
+                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                      >
+                        <Link to="/payroll">
+                          <ArrowBackIcon className="h-6 w-6" />
+                        </Link>
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    Back to Payroll Management
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
               {/* Title: Adds left padding when hovered */}
@@ -251,7 +263,17 @@ const PayrollEmployeeList = () => {
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Employees</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Total Employees</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Total count of active employees registered in the database.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#2A174E]">{employees.length}</p>
                 </div>
                 <p className="text-xs text-[#2A174E]/70 italic mt-4">Active masterlist records</p>
@@ -267,15 +289,25 @@ const PayrollEmployeeList = () => {
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className={`text-xs font-bold uppercase tracking-wider mb-2 transition-colors ${changedCount > 0 ? "text-white" : "text-[slate-500]"}`}>
-                    Rate Changes
-                  </p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className={`text-xs font-bold uppercase tracking-wider transition-colors ${changedCount > 0 ? "text-white" : "text-slate-500"}`}>
+                      Rate Changes
+                    </p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className={`${changedCount > 0 ? "text-white/60 hover:text-white" : "text-slate-400 hover:text-slate-600"} cursor-help`} />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Number of employees whose live daily rates differ from their previous daily rate record.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className={`text-4xl font-bold transition-colors ${changedCount > 0 ? "text-white" : "text-slate-700"}`}>
                     {changedCount}
                   </p>
                 </div>
                 <p className={`text-xs italic mt-4 transition-colors ${changedCount > 0 ? "text-white/80" : "text-slate-400"}`}>
-                  Adjustments made this session
+                  Profiles with rate modifications
                 </p>
               </div>
               <div className={`p-3 rounded-lg flex items-center justify-center shrink-0 self-start transition-colors ${changedCount > 0 ? "bg-white/20 text-white" : "bg-slate-300/50 text-slate-500"}`}>
@@ -401,15 +433,21 @@ const PayrollEmployeeList = () => {
                                     : maskAccountNumber(emp.account_Number)}
                                 </span>
                                 {emp.account_Number && (
-                                  <button 
-                                    onClick={() => toggleAccountVisibility(emp.user_Id)}
-                                    className="text-slate-400 hover:text-[#2A174E] transition-colors"
-                                    title={visibleAccounts.has(emp.user_Id) ? "Hide Account Number" : "Show Account Number"}
-                                  >
-                                    {visibleAccounts.has(emp.user_Id) 
-                                      ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> 
-                                      : <VisibilityIcon sx={{ fontSize: 16 }} />}
-                                  </button>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button 
+                                        onClick={() => toggleAccountVisibility(emp.user_Id)}
+                                        className="text-slate-400 hover:text-[#2A174E] transition-colors"
+                                      >
+                                        {visibleAccounts.has(emp.user_Id) 
+                                          ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> 
+                                          : <VisibilityIcon sx={{ fontSize: 16 }} />}
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                                      {visibleAccounts.has(emp.user_Id) ? "Hide Account Number" : "Show Account Number"}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 )}
                               </div>
                             </TableCell>
@@ -455,15 +493,23 @@ const PayrollEmployeeList = () => {
                             </TableCell>
 
                             <TableCell className="text-right pr-6 py-4">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(emp)}
-                                className="border-[#B8551F]/40 text-[#B8551F] hover:bg-[#FEE0C0] hover:border-[#E18C52]"
-                                title="Edit daily rate"
-                              >
-                                <Edit2Icon className="h- w-4" />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-block">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleEdit(emp)}
+                                      className="border-[#B8551F]/40 text-[#B8551F] hover:bg-[#FEE0C0] hover:border-[#E18C52]"
+                                    >
+                                      <Edit2Icon className="h-4 w-4" />
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                                  Edit daily rate and deductions
+                                </TooltipContent>
+                              </Tooltip>
                             </TableCell>
                           </TableRow>
                         );
@@ -555,6 +601,7 @@ const PayrollEmployeeList = () => {
           {toast.message}
         </div>
       )}
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

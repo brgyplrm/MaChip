@@ -18,6 +18,8 @@ import { Link } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { ScanLine, AlertTriangle } from "lucide-react";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -60,7 +62,7 @@ const HardwareManagement = () => {
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [sensorFilter, setSensorFilter] = useState("All");
+  const [memoryIdFilter, setMemoryIdFilter] = useState("All");
   const [selectedDate, setSelectedDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -129,7 +131,7 @@ const HardwareManagement = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, sensorFilter, selectedDate, activeTab]);
+  }, [searchQuery, statusFilter, memoryIdFilter, selectedDate, activeTab]);
 
   // ── Hardware Operations ──────────────────────────────────────────────────
 
@@ -289,6 +291,13 @@ const HardwareManagement = () => {
 
   // ── Filtering & Stats ────────────────────────────────────────────────────
 
+  const uniqueMemoryIds = useMemo(() => {
+    const ids = biometricList
+      .map(b => b.fingerprintIndex)
+      .filter(id => id !== null && id !== undefined);
+    return [...new Set(ids)].sort((a, b) => a - b);
+  }, [biometricList]);
+
   const filteredData = useMemo(() => {
     const list = activeTab === 'rfid' ? rfidList : biometricList;
     return list.filter(item => {
@@ -312,11 +321,11 @@ const HardwareManagement = () => {
         }
         return matchesSearch && matchesStatus && matchesDate;
       } else {
-        const matchesSensor = sensorFilter === "All" || item.sensorNode === sensorFilter;
-        return matchesSearch && matchesSensor;
+        const matchesMemoryId = memoryIdFilter === "All" || (item.fingerprintIndex !== null && item.fingerprintIndex !== undefined && item.fingerprintIndex.toString() === memoryIdFilter);
+        return matchesSearch && matchesMemoryId;
       }
     });
-  }, [activeTab, rfidList, biometricList, searchQuery, statusFilter, sensorFilter, selectedDate]);
+  }, [activeTab, rfidList, biometricList, searchQuery, statusFilter, memoryIdFilter, selectedDate]);
 
   const stats = useMemo(() => {
     if (activeTab === 'rfid') {
@@ -342,7 +351,7 @@ const HardwareManagement = () => {
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentData = filteredData.slice(startIndex, endIndex);
 
-  const isFiltering = searchQuery !== "" || statusFilter !== "All" || sensorFilter !== "All" || selectedDate !== "";
+  const isFiltering = searchQuery !== "" || statusFilter !== "All" || memoryIdFilter !== "All" || selectedDate !== "";
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -360,8 +369,9 @@ const HardwareManagement = () => {
 
   return (
     <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
+      <TooltipProvider>
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+          <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         
         {loading && currentData.length === 0 ? <PageSkeleton /> : (
           <>
@@ -369,9 +379,18 @@ const HardwareManagement = () => {
             <div className="group flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 transition-all">
               <div className="flex items-center gap-0">
                 <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
-                  <Button variant="ghost" size="icon" asChild className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]">
-                    <Link to="/users"><ArrowBackIcon className="h-6 w-6" /></Link>
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-block">
+                        <Button variant="ghost" size="icon" asChild className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]">
+                          <Link to="/users"><ArrowBackIcon className="h-6 w-6" /></Link>
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                      Back to User Management
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
                   <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Hardware Registry</h1>
@@ -400,9 +419,21 @@ const HardwareManagement = () => {
                 <Card className={`border-t-5 ${stats.color} bg-white py-0`}>
                   <CardContent className="px-5 py-5 flex justify-between items-center">
                     <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-                        {activeTab === 'rfid' ? 'Total Paired Cards' : 'Enrolled Templates'}
-                      </p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                          {activeTab === 'rfid' ? 'Total Paired Cards' : 'Enrolled Templates'}
+                        </p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                            {activeTab === 'rfid' 
+                              ? 'The number of active RFID cards linked to employee profiles.' 
+                              : 'The number of active fingerprint slots registered in the biometric module memory.'}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                       <p className="text-3xl font-bold text-[#2A174E]">{stats.total}</p>
                       <p className="text-[10px] text-slate-400 mt-2 italic">
                         {activeTab === 'rfid' ? 'Registered RFID tokens in the system.' : 'Biometric slot maps active in module memory.'}
@@ -414,7 +445,17 @@ const HardwareManagement = () => {
                 <Card className="border-t-5 border-orange-600 bg-white py-0">
                   <CardContent className="px-5 py-5 flex justify-between items-center">
                     <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Unassigned Employees</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Unassigned Employees</p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                            Employees who currently do not have a linked RFID card (in RFID tab) or fingerprint signature (in Biometrics tab).
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                       <p className="text-3xl font-bold text-orange-700">{stats.unassigned}</p>
                       <p className="text-[10px] text-slate-400 mt-2 italic">Employees pending hardware alignment.</p>
                     </div>
@@ -446,12 +487,17 @@ const HardwareManagement = () => {
                         </Select>
                       </>
                     ) : (
-                      <Select value={sensorFilter} onValueChange={setSensorFilter}>
-                        <SelectTrigger className="w-[160px] bg-slate-50"><SelectValue placeholder="Sensor Node" /></SelectTrigger>
-                        <SelectContent><SelectItem value="All">All Nodes</SelectItem><SelectItem value="Node 01">Secure Node 01</SelectItem></SelectContent>
+                      <Select value={memoryIdFilter} onValueChange={setMemoryIdFilter}>
+                        <SelectTrigger className="w-[160px] bg-slate-50"><SelectValue placeholder="Memory ID" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="All">All Slots</SelectItem>
+                          {uniqueMemoryIds.map(id => (
+                            <SelectItem key={id} value={id.toString()}>Slot #{id}</SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     )}
-                    {isFiltering && <Button variant="ghost" onClick={() => { setSearchQuery(""); setStatusFilter("All"); setSensorFilter("All"); setSelectedDate(""); }} className="text-slate-500 hover:text-red-600"><CloseIcon className="h-4 w-4 mr-1" /> Clear</Button>}
+                    {isFiltering && <Button variant="ghost" onClick={() => { setSearchQuery(""); setStatusFilter("All"); setMemoryIdFilter("All"); setSelectedDate(""); }} className="text-slate-500 hover:text-red-600"><CloseIcon className="h-4 w-4 mr-1" /> Clear</Button>}
                   </div>
                 </CardContent>
               </Card>
@@ -463,9 +509,51 @@ const HardwareManagement = () => {
                     <TableHeader className="bg-[#2A174E]">
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="text-white font-bold py-4 px-6 uppercase text-xs tracking-wider">Employee</TableHead>
-                        <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">{activeTab === 'rfid' ? 'MaChip Card UID' : 'Module Memory ID'}</TableHead>
-                        <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">{activeTab === 'rfid' ? 'Status' : 'Endpoint Node'}</TableHead>
-                        <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">{activeTab === 'rfid' ? 'Synchronized' : 'Handshake'}</TableHead>
+                        <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
+                          <div className="flex items-center gap-1">
+                            {activeTab === 'rfid' ? 'MaChip Card UID' : 'Module Memory ID'}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                {activeTab === 'rfid' 
+                                  ? 'Unique identifier read from the MFRC522 RFID chip.' 
+                                  : 'The slot index where the fingerprint template is stored in the optical sensor\'s flash memory.'}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableHead>
+                        {activeTab === 'rfid' && (
+                          <>
+                            <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
+                              <div className="flex items-center gap-1">
+                                Status
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                    Alignment status of the RFID card.
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                            </TableHead>
+                            <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
+                              <div className="flex items-center gap-1">
+                                Synchronized
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                    The date when the RFID card was mapped to the employee record.
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                            </TableHead>
+                          </>
+                        )}
                         <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Action</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -480,31 +568,35 @@ const HardwareManagement = () => {
                             <TableCell className="font-mono text-xs font-semibold text-slate-700">
                               {activeTab === 'rfid' ? (row.machip_id || "—") : `Slot #${row.fingerprintIndex ?? "—"}`}
                             </TableCell>
-                            <TableCell>
-                              {activeTab === 'rfid' ? (
-                                <Badge variant="secondary" className={
-                                  row.hardwareStatus === "Active" ? "bg-green-100 text-green-800" : 
-                                  row.hardwareStatus === "Unassigned" ? "bg-slate-100 text-slate-500" : "bg-red-100 text-red-800"
-                                }>
-                                  {row.hardwareStatus || "Unknown"}
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-100 flex items-center w-max gap-1">
-                                  <CheckShieldIcon className="h-3 w-3" /> Secure Node 01
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-slate-600 text-sm">
-                              {activeTab === 'rfid' 
-                                ? (row.dateAligned ? new Date(row.dateAligned).toLocaleDateString() : "—")
-                                : <span className="text-[10px] uppercase font-bold text-slate-400">Verified</span>
-                              }
-                            </TableCell>
+                            {activeTab === 'rfid' && (
+                              <>
+                                <TableCell>
+                                  <Badge variant="secondary" className={
+                                    row.hardwareStatus === "Active" ? "bg-green-100 text-green-800" : 
+                                    row.hardwareStatus === "Unassigned" ? "bg-slate-100 text-slate-500" : "bg-red-100 text-red-800"
+                                  }>
+                                    {row.hardwareStatus || "Unknown"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-slate-600 text-sm">
+                                  {row.dateAligned ? new Date(row.dateAligned).toLocaleDateString() : "—"}
+                                </TableCell>
+                              </>
+                            )}
                             <TableCell className="text-right pr-6">
                               {(activeTab === 'rfid' ? row.machip_id : row.fingerprintIndex !== null) ? (
-                                <Button variant="outline" size="sm" onClick={() => handleRevokeClick(row)} className="border-red-200 text-red-600 hover:bg-red-50">
-                                  <BlockIcon className="h-3.5 w-3.5 mr-1" /> {activeTab === 'rfid' ? 'Unlink' : 'Wipe Slot'}
-                                </Button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-block">
+                                      <Button variant="outline" size="sm" onClick={() => handleRevokeClick(row)} className="border-red-200 text-red-600 hover:bg-red-50">
+                                        <BlockIcon className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                    {activeTab === 'rfid' ? 'Unlink RFID Card' : 'Wipe Fingerprint Slot'}
+                                  </TooltipContent>
+                                </Tooltip>
                               ) : (
                                 <span className="text-xs text-slate-400 italic">No hardware linked</span>
                               )}
@@ -512,7 +604,7 @@ const HardwareManagement = () => {
                           </TableRow>
                         ))
                       ) : (
-                        <TableRow><TableCell colSpan={5} className="p-6 border-0">
+                        <TableRow><TableCell colSpan={activeTab === 'rfid' ? 5 : 3} className="p-6 border-0">
                           <EmptyState icon={activeTab === 'rfid' ? <CreditCardIcon className="h-8 w-8 text-slate-300" /> : <FingerprintIcon className="h-8 w-8 text-slate-300" />} title="No mappings active" description="No registered nodes currently reside within hardware configuration filters." />
                         </TableCell></TableRow>
                       )}
@@ -615,6 +707,7 @@ const HardwareManagement = () => {
           </div>
         </DialogContent>
       </Dialog>
+      </TooltipProvider>
     </Sidebar>
   );
 };

@@ -34,11 +34,13 @@ import SearchOffIcon from '@mui/icons-material/SearchOff';
 import EmptyState from "../../components/EmptyState";
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 
 // shadcn/ui components
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const Home = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
@@ -207,12 +209,13 @@ const Home = () => {
 
   return (
     <Sidebar>
-      <Toast 
-        message={toast.message} 
-        type={toast.type} 
-        onClose={() => setToast({ ...toast, message: "" })} 
-        duration={5000}
-      />
+      <TooltipProvider>
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast({ ...toast, message: "" })} 
+          duration={5000}
+        />
       {/* Dashboard Skeleton Loading UI */}
       {loading ? (
         <div className="p-2 md:p-4 w-full max-w-6xl mx-auto space-y-6">
@@ -280,13 +283,13 @@ const Home = () => {
               </p>
             </div>
             
-            <div className="shadow-sm hidden md:flex bg-white/10 px-5 py-3 rounded-lg backdrop-blur-sm border border-white/10 flex-col gap-1 items-start">
+            {/* <div className="shadow-sm hidden md:flex bg-white/10 px-5 py-3 rounded-lg backdrop-blur-sm border border-white/10 flex-col gap-1 items-start">
               <p className="text-[10px] font-bold text-[#2A174E]/60 uppercase tracking-widest mb-0.5">System Status</p>
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)] animate-pulse"></span>
                 <span className="text-sm font-semibold tracking-wide text-[#2A174E]">All systems operational</span>
               </div>
-            </div>
+            </div> */}
           </div>
 
           {/* Border Top Widget Cards */}
@@ -300,10 +303,29 @@ const Home = () => {
 
                 <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative">
                   <div>
-                    <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Employees Present</p>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-white uppercase tracking-wider">Employees Present</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/70 hover:text-white cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                          Number of employees currently inside the office, based on active RFID or biometric logs.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <p className="text-4xl font-bold text-white">{statsLoading ? "..." : stats.officeOccupancy}</p>
                   </div>
-                  <p className="text-xs font-semibold text-white/70 italic mt-4">{statsLoading ? "Loading logs..." : `${stats.enteredCount || 0} entered, and ${stats.exitedCount || 0} exited`}</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <p className="text-xs font-semibold text-white/70 italic mt-4 cursor-help inline-block">
+                        {statsLoading ? "Loading logs..." : `${stats.enteredCount || 0} entered, and ${stats.exitedCount || 0} exited`}
+                      </p>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                      Daily cumulative count of successful physical entries and exits recorded at the gate reader.
+                    </TooltipContent>
+                  </Tooltip>
                 </CardContent>
               </Card>
             </Link>
@@ -315,7 +337,17 @@ const Home = () => {
                 </div>
                 <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative">
                   <div>
-                    <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Pending Requests</p>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-white uppercase tracking-wider">Pending Requests</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/70 hover:text-white cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                          Total number of employee submissions (leaves, overtime, field-work logs) currently awaiting review or action by management.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <p className="text-4xl font-bold text-white">{statsLoading ? "..." : stats.pendingCount}</p>
                   </div>
                   <p className="text-xs font-semibold text-white/70 italic mt-4">Pending requests awaiting action</p>
@@ -330,7 +362,17 @@ const Home = () => {
                 </div>
                 <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative">
                   <div>
-                    <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Projected Monthly Payroll</p>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-white uppercase tracking-wider">Projected Monthly Payroll</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/70 hover:text-white cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                          Estimated net payout for the current month. Includes government deductions (SSS, PhilHealth, Pag-IBIG) and tax withholdings.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <p className="text-4xl font-bold text-white">{statsLoading ? "..." : `₱${(stats.projectedPayroll || 0).toLocaleString()}`}</p>
                   </div>
                   <p className="text-xs font-semibold text-white/70 italic mt-4">Estimated net payout after deductions</p>
@@ -345,15 +387,39 @@ const Home = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-2 w-full">
             {/* Donut Chart Card */}
             <div className="bg-white p-5 rounded-xl shadow-sm flex flex-col border-t-4 border-[#2A174E] min-w-0">
-              <h2 className="text-gray-500 font-medium mb-1">Arrival Breakdown</h2>
+              <div className="flex items-center gap-1.5 mb-1">
+                <h2 className="text-gray-500 font-medium">Arrival Breakdown</h2>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-gray-400 hover:text-gray-600 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    Visual distribution of daily attendance records, showing on-time versus late employee arrivals.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               {isEmptyDonut ? (
-                <div className="flex-1 flex flex-col items-center justify-center">
-                  <EmptyState 
-                    className="h-full flex-1 min-h-[220px] border-0 bg-transparent hover:bg-transparent shadow-none p-2" 
-                    icon={<AccessTimeIcon className="w-8 h-8 text-slate-300" />}
-                    title="No Arrivals Yet"
-                    description="Attendance will appear once logs are recorded."
-                  />    
+                <div className="flex-1 flex flex-col items-center justify-center gap-4 py-2">
+                  <div className="relative w-32 h-32 flex items-center justify-center">
+                    {/* Ring Skeleton */}
+                    <div className="w-full h-full rounded-full border-[14px] border-muted/80 animate-pulse"></div>
+                    {/* Inner Text Placeholder */}
+                    <div className="absolute flex flex-col items-center justify-center">
+                      <span className="text-[10px] font-bold text-[#2A174E]/40 uppercase tracking-wider">No Data</span>
+                      <span className="text-xl font-extrabold text-[#2A174E]/30">0%</span>
+                    </div>
+                  </div>
+                  {/* Legend Skeleton */}
+                  <div className="flex justify-center gap-4 text-xs font-medium mt-2 w-full">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-[#4DE189]/30 animate-pulse"></div>
+                      <div className="w-12 h-3 bg-muted rounded animate-pulse"></div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-[#ECC04B]/30 animate-pulse"></div>
+                      <div className="w-16 h-3 bg-muted rounded animate-pulse"></div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -438,12 +504,20 @@ const Home = () => {
                     );
                   })
                 ) : (
-                  <EmptyState 
-                    className="h-full flex-1 min-h-[220px] border-slate-100 bg-white hover:bg-slate-50/50" 
-                    icon={<TaskAltIcon className="w-7 h-7 text-slate-300" />}
-                    title="All Caught Up!"
-                    description="You have reviewed all pending requests."
-                  />
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center gap-3 p-2 rounded-lg border-l-4 border-muted/60 min-w-0">
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <Skeleton className="h-4 w-[60%]" />
+                          <Skeleton className="h-3 w-[40%]" />
+                        </div>
+                        <Skeleton className="h-8 w-8 rounded-md shrink-0" />
+                      </div>
+                    ))}
+                    <div className="text-center text-xs text-slate-400/80 font-medium pt-2">
+                      All caught up! No pending requests.
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -452,8 +526,18 @@ const Home = () => {
             <div className="bg-white p-5 rounded-xl shadow-sm text-[#B06E16] flex flex-col justify-between border-t-4 border-[#B06E16] min-w-0">
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-[#033A55]/80 font-medium">Next Payroll Run</h2>
-                  <Link to="/payroll" className="text-xs text-[#B06E16]/60 font-semibold hover:underline hover:text-[#B06E16]/80">View All</Link>
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="text-[#033A55]/80 font-medium">Next Payroll Run</h2>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#033A55]/60 hover:text-[#033A55]/80 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                        Countdown and details for the upcoming payroll payout.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <Link to="/payroll" className="text-xs text-[#B06E16]/60 font-semibold hover:underline hover:text-[#B06E16]/80">View All</Link> 
                 </div>
                 <div className="text-5xl font-bold mb-3 truncate h-13">
                   {daysRemaining > 0 ? `${daysRemaining} Day${daysRemaining === 1 ? "" : "s"} Left` : "Processing..."}
@@ -488,7 +572,17 @@ const Home = () => {
             <Tabs defaultValue="weekly" className="w-full">
               <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
                 <div>
-                  <CardTitle className="text-xl font-bold text-[#2A174E]">Overall Attendance</CardTitle>
+                  <CardTitle className="text-xl font-bold text-[#2A174E] flex items-center gap-1.5">
+                    Overall Attendance
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 16 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                        Comparison of average attendance percentages over the selected interval (weekly, quarterly, or yearly).
+                      </TooltipContent>
+                    </Tooltip>
+                  </CardTitle>
                   <CardDescription>Comparison of attendance rates over time</CardDescription>
                 </div>
                 
@@ -551,12 +645,26 @@ const Home = () => {
           <div className="h-4"></div>
 
           {/* Occupancy List Section */}
-          <div className="w-full overflow-x-auto min-w-0 mt-3 shadow-sm rounded-xl">
-            <OccupancyList />
+          <div className="w-full mt-3">
+            <div className="flex items-center gap-1.5 mb-2 px-1">
+              <h2 className="text-gray-500 font-medium">Today's Office Presence</h2>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-gray-400 hover:text-gray-600 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                  Real-time list of employees who have scanned their RFID/fingerprint today, with their check-in and check-out timestamps.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="w-full overflow-x-auto min-w-0 shadow-sm rounded-xl">
+              <OccupancyList />
+            </div>
           </div>
           <div className="h-6"></div>
         </div>
       )}
+      </TooltipProvider>
     </Sidebar>
   );
 };

@@ -26,6 +26,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "recharts";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const formatDateStr = (dateStr) => {
   if (!dateStr) return "—";
@@ -207,6 +209,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
       };
     } else {
       fetchDayLogs();
+      fetchLogs(); // Pre-load raw logs to calculate system-generated counts
       const interval = setInterval(fetchDayLogs, 30000); 
       window.addEventListener("dataRefresh", handleRefresh);
       return () => {
@@ -395,6 +398,7 @@ const sortedAndFilteredDayLogs = useMemo(() => {
     metric2: viewMode === "raw"
       ? logData.filter(l => l.log_type?.toLowerCase().includes("out")).length
       : dayLogsData.filter(l => l.status && !["On Time", "On-Field", "On-time"].includes(l.status)).length,
+    systemGenerated: logData.filter(l => l.log_type === "System Generated").length,
   };
 
   // State tracking visibility masking state mapped to log identifiers
@@ -409,10 +413,11 @@ const toggleMachipVisibility = (rowId) => {
 
   return (
     <Sidebar>
-      <div className="flex flex-col w-full min-h-screen">
-        <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
-        
-        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+      <TooltipProvider>
+        <div className="flex flex-col w-full min-h-screen">
+          <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
+          
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
           
           {/* Header section with Actions & Tabs */}
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-6">
@@ -459,18 +464,27 @@ const toggleMachipVisibility = (rowId) => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">
-                      {viewMode === "raw" ? "Total Log Events" : "Total Day Records"}
-                    </p>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">
+                        {viewMode === "raw" ? "Total Log Events" : "Total Day Records"}
+                      </p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          {viewMode === "raw" 
+                            ? "Total clock-in/out logging events registered in this pay period." 
+                            : "Total day summary listings registered in this pay period."}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
                   </div>
                   <p className="text-xs text-[#2A174E]/70 italic mt-4">
                     {viewMode === "raw" ? "Total events captured in this period" : "All captured records for context"}
                   </p>
                 </div>
-                {/* <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                  <FormatListBulletedIcon className="h-6 w-6" />
-                </div> */}
               </CardContent>
             </Card>
 
@@ -479,18 +493,27 @@ const toggleMachipVisibility = (rowId) => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">
-                      {viewMode === "raw" ? "Clock In Events" : "On Time Days"}
-                    </p>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">
+                        {viewMode === "raw" ? "Clock In Events" : "On Time Days"}
+                      </p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          {viewMode === "raw" 
+                            ? "Total entry scans recorded in this period." 
+                            : "Total employee days arriving on or before the 8:00 AM shift start."}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <p className="text-4xl font-bold text-[#3B4E17]">{stats.metric1}</p>
                   </div>
                   <p className="text-xs text-[#3B4E17]/70 italic mt-4">
                     {viewMode === "raw" ? "Entry scans recorded in this period" : "Employees arriving on or before 8:00 AM"}
                   </p>
                 </div>
-                {/* <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                  <AccessTimeIcon className="h-6 w-6" />
-                </div> */}
               </CardContent>
             </Card>
 
@@ -499,18 +522,54 @@ const toggleMachipVisibility = (rowId) => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#B06E16] uppercase tracking-wider mb-2">
-                      {viewMode === "raw" ? "Clock Out Events" : "Late & Absent"}
-                    </p>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-[#B06E16] uppercase tracking-wider">
+                        {viewMode === "raw" ? "Clock Out Events" : "Late & Absent"}
+                      </p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#B06E16]/60 hover:text-[#B06E16] cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          {viewMode === "raw" 
+                            ? "Total exit scans recorded in this period." 
+                            : "Total day records containing a Late or Absent infraction."}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <p className="text-4xl font-bold text-[#B06E16]">{stats.metric2}</p>
                   </div>
                   <p className="text-xs text-[#B06E16]/70 italic mt-4">
                     {viewMode === "raw" ? "Exit scans recorded in this period" : "Days recorded with infractions"}
                   </p>
                 </div>
-                {/* <div className="bg-[#B06E16]/20 text-[#B06E16] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                  <AssignmentLateIcon className="h-6 w-6" />
-                </div> */}
+              </CardContent>
+            </Card>
+
+            {/* Card 4: System Generated Logs */}
+            <Card className="border-t-5 border-[#E11D48] bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-[#E11D48] uppercase tracking-wider">
+                        System Generated
+                      </p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#E11D48]/60 hover:text-[#E11D48] cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          Logs created automatically by the MAChip system (such as automated absence flags).
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <p className="text-4xl font-bold text-[#E11D48]">{stats.systemGenerated}</p>
+                  </div>
+                  <p className="text-xs text-[#E11D48]/70 italic mt-4">
+                    Automatic system markers in this period
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -641,7 +700,19 @@ const toggleMachipVisibility = (rowId) => {
                           <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">User ID</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Full Name</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Type</TableHead>
-                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider hidden sm:table-cell">MaChip ID</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider hidden sm:table-cell">
+                            <div className="flex items-center gap-1">
+                              MaChip ID
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                  Unique serial token read from the physical card.
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Date</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Time</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider text-right pr-6">Action</TableHead>
@@ -704,11 +775,20 @@ const toggleMachipVisibility = (rowId) => {
                                 <TableCell className="text-slate-600 py-4">{row.log_Date}</TableCell>
                                 <TableCell className="text-slate-600 py-4">{row.time}</TableCell>
                                 <TableCell className="py-4 text-right pr-6">
-                                  <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
-                                    <Link to={`/users/${row.user_Id}`}>
-                                    <EyeIcon className="h-4 w-4" />
-                                    </Link>
-                                  </Button>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="inline-block">
+                                        <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
+                                          <Link to={`/users/${row.user_Id}`}>
+                                            <EyeIcon className="h-4 w-4" />
+                                          </Link>
+                                        </Button>
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                      View Profile
+                                    </TooltipContent>
+                                  </Tooltip>
                                 </TableCell>
                               </TableRow>
                             );
@@ -739,11 +819,35 @@ const toggleMachipVisibility = (rowId) => {
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider cursor-pointer hover:bg-[#3B206D] transition-colors" onClick={() => handleSort('log_Date')}>
                             Date {sortConfig.key === 'log_Date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                           </TableHead>
-                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">AM In</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">
+                            <div className="flex items-center gap-0.5">
+                              AM In
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <HelpOutlineIcon sx={{ fontSize: 11 }} className="text-white/60 hover:text-white cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                  Morning Entry Clock-in (Default: 8:00 AM shift start).
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">AM Out</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">PM In</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">PM Out</TableHead>
-                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">OT In</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">
+                            <div className="flex items-center gap-0.5">
+                              OT In
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <HelpOutlineIcon sx={{ fontSize: 11 }} className="text-white/60 hover:text-white cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                  Overtime shift start mapping.
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">OT Out</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider cursor-pointer hover:bg-[#3B206D] transition-colors" onClick={() => handleSort('status')}>
                             Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
@@ -786,15 +890,33 @@ const toggleMachipVisibility = (rowId) => {
                                 </TableCell>
                                 <TableCell className="text-right py-4 pr-6">
                                   {isAdminOrAccountant ? (
-                                    <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
-                                      <Link to={`/logs/edit/${row.user_Id}/${row.log_Date.split('T')[0]}?from=logs`}>
-                                        <SquarePen className="h-4 w-4" />
-                                      </Link>
-                                    </Button>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-block">
+                                          <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
+                                            <Link to={`/logs/edit/${row.user_Id}/${row.log_Date.split('T')[0]}?from=logs`}>
+                                              <SquarePen className="h-4 w-4" />
+                                            </Link>
+                                          </Button>
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                        Edit Log Times
+                                      </TooltipContent>
+                                    </Tooltip>
                                   ) : (
-                                    <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-                                      <Link to={`/users/${row.user_Id}`}>View</Link>
-                                    </Button>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-block">
+                                          <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+                                            <Link to={`/users/${row.user_Id}`}>View</Link>
+                                          </Button>
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                        View Profile
+                                      </TooltipContent>
+                                    </Tooltip>
                                   )}
                                 </TableCell>
                               </TableRow>
@@ -875,6 +997,7 @@ const toggleMachipVisibility = (rowId) => {
           </Card>
         </div>
       </div>
+      </TooltipProvider>
     </Sidebar>
   );
 };

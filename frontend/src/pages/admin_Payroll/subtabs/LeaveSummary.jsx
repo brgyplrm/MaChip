@@ -10,6 +10,8 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -82,7 +84,8 @@ const LeaveSummary = () => {
 
   return (
     <Sidebar>
-      <div className="p-4 md:p-4 w-full max-w-6xl mx-auto space-y-6">
+      <TooltipProvider>
+        <div className="p-4 md:p-4 w-full max-w-6xl mx-auto space-y-6">
         
         {/* Header Section */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 pb-6">
@@ -124,13 +127,22 @@ const LeaveSummary = () => {
                 <SelectItem value="absences">Absences (d)</SelectItem>
               </SelectContent>
             </Select>
-            <Button 
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors"
-              onClick={() => exportLeaveSummaryPDF(data, months, year, activeTab, rates)}
-              disabled={loading || data.length === 0}
-            >
-              <DownloadIcon className="mr-2 h-4 w-4" /> Export PDF
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block w-full sm:w-auto">
+                  <Button 
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors"
+                    onClick={() => exportLeaveSummaryPDF(data, months, year, activeTab, rates)}
+                    disabled={loading || data.length === 0}
+                  >
+                    <DownloadIcon className="mr-2 h-4 w-4" /> Export PDF
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                Export leave conversion report as PDF.
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -185,9 +197,18 @@ const LeaveSummary = () => {
                     {/* --- SHEET DRAWER FOR DETAILED BREAKDOWN MATRIX --- */}
                     <Sheet>
                       <SheetTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0">
-                          <OpenInNewIcon fontSize="small" />
-                        </Button>
+                        <span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0">
+                                <OpenInNewIcon fontSize="small" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                              View monthly history and detailed ledger.
+                            </TooltipContent>
+                          </Tooltip>
+                        </span>
                       </SheetTrigger>
                       <SheetContent className="w-full sm:max-w-2xl bg-white overflow-y-auto custom-scrollbar p-6">
                         <SheetHeader className="pb-4 border-b border-slate-100">
@@ -307,6 +328,14 @@ const LeaveSummary = () => {
                       <div className="flex items-center gap-1.5 min-w-0">
                         <AccountBalanceWalletIcon className="text-emerald-600 shrink-0" fontSize="small" />
                         <span className="text-[11px] font-semibold text-emerald-800 truncate">Total Leave Conversion</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help ml-1" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Combined cash value of remaining vacation and sick leave days.
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                       <span className="text-sm font-extrabold text-emerald-700 shrink-0">
                         ₱{totalCombinedConversion.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -358,6 +387,7 @@ const LeaveSummary = () => {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}} />
       
+      </TooltipProvider>
     </Sidebar>
   );
 };

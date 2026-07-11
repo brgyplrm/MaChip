@@ -15,6 +15,8 @@ import WorkIcon from '@mui/icons-material/Work';
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { fetchWithAuth } from "../../utils/api";
 import { Link } from "react-router-dom";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -466,7 +468,22 @@ const New = ({ inputs = [], title }) => {
   // Helper to render dynamic inputs from your original structure
   const renderDynamicInput = (input) => (
     <div key={input.id} className="space-y-1.5">
-      <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{input.label} <span className="text-red-500 ml-0.5">*</span></Label>
+      <div className="flex items-center gap-1.5">
+        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{input.label} <span className="text-red-500 ml-0.5">*</span></Label>
+        {(input.label === "MaChip ID" || input.label === "Fingerprint ID" || input.id === "user_Role" || input.id === "user_EmploymentStatus") && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+              {input.label === "MaChip ID" && "Unique RFID serial token read from the physical card."}
+              {input.label === "Fingerprint ID" && "Biometric slot number mapped to the physical scanner node."}
+              {input.id === "user_Role" && "The permissions and access control role assigned in the MAChip system."}
+              {input.id === "user_EmploymentStatus" && "The employee's official company position/employment classification status."}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
       {input.type === "select" ? (
         <Select 
           value={formData[input.id] || ""} 
@@ -523,10 +540,28 @@ const New = ({ inputs = [], title }) => {
           </div>
           {/* Scan Buttons */}
           {input.label === "MaChip ID" && (
-            <Button type="button" variant="secondary" className="shrink-0 h-11 px-4 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanRFID}>SCAN</Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button type="button" variant="secondary" className="shrink-0 h-11 px-4 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanRFID}>SCAN</Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                Scan RFID tag from active terminal sensor.
+              </TooltipContent>
+            </Tooltip>
           )}
           {input.label === "Fingerprint ID" && (
-            <Button type="button" variant="secondary" className="shrink-0 h-11 px-4 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanFingerprint}>SCAN</Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button type="button" variant="secondary" className="shrink-0 h-11 px-4 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanFingerprint}>SCAN</Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                Register fingerprint template from optical biometric scanner.
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       )}
@@ -537,8 +572,9 @@ const New = ({ inputs = [], title }) => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <Toast message={toast.message} type={toast.type} onClose={dismissToast} />  
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+      <TooltipProvider>
+        <Toast message={toast.message} type={toast.type} onClose={dismissToast} />  
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
   
       <Tabs defaultValue="single" className="w-full">
         {/* Header & Tabs Row */}
@@ -548,16 +584,25 @@ const New = ({ inputs = [], title }) => {
           <div className="group flex items-center gap-0 transition-all">
             {/* Back Button: Slides in on hover */}
             <div className="w-0 overflow-hidden group-hover:w-12 transition-all duration-300 ease-in-out">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                asChild 
-                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
-              >
-                <Link to="/users">
-                  <ArrowBackIcon className="h-6 w-6" />
-                </Link>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      asChild 
+                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                    >
+                      <Link to="/users">
+                        <ArrowBackIcon className="h-6 w-6" />
+                      </Link>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                  Back to User Management
+                </TooltipContent>
+              </Tooltip>
             </div>
 
             {/* Title Area: Adds padding when button appears */}
@@ -741,7 +786,17 @@ const New = ({ inputs = [], title }) => {
                                       onChange={(e) => handleInput({ target: { id: "is_solo_parent", value: e.target.checked } })}
                                       className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded cursor-pointer"
                                     />
-                                    <Label htmlFor="is_solo_parent" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer whitespace-nowrap">Solo Parent?</Label>
+                                    <Label htmlFor="is_solo_parent" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer whitespace-nowrap flex items-center gap-1">
+                                      Solo Parent?
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                          Solo parent identification status for tax/holiday benefit calculations.
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </Label>
                                   </div>
                                 </div>
                               </div>
@@ -835,7 +890,17 @@ const New = ({ inputs = [], title }) => {
 
                               {/* Tax Status Selection */}
                               <div className="space-y-1.5">
-                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tax Status (S/M) <span className="text-red-500 ml-0.5">*</span></Label>
+                                <div className="flex items-center gap-1.5">
+                                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tax Status (S/M) <span className="text-red-500 ml-0.5">*</span></Label>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                      Philippine tax computation baseline: Single (S) vs. Married (M).
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
                                 <Select 
                                   value={formData.taxStatus} 
                                   onValueChange={(val) => handleInput({ target: { id: "taxStatus", value: val } })}
@@ -853,7 +918,17 @@ const New = ({ inputs = [], title }) => {
 
                               {/* Daily Rate Input */}
                               <div className="space-y-1.5">
-                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Base Daily Rate (₱) <span className="text-red-500 ml-0.5">*</span></Label>
+                                <div className="flex items-center gap-1.5">
+                                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Base Daily Rate (₱) <span className="text-red-500 ml-0.5">*</span></Label>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                      The base daily compensation rate.
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
                                 <Input 
                                   id="dailyRate" 
                                   type="number" 
@@ -903,7 +978,17 @@ const New = ({ inputs = [], title }) => {
                               </div>
 
                               <div className="space-y-1.5 md:col-span-2">
-                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Account Number <span className="text-red-500 ml-0.5">*</span></Label>
+                                <div className="flex items-center gap-1.5">
+                                  <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Account Number <span className="text-red-500 ml-0.5">*</span></Label>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                      Must be a valid bank account number consisting of exactly 12 or 15 digits.
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
                                 <div className="relative">
                                   <Input 
                                     id="account_Number" 
@@ -1096,6 +1181,7 @@ const New = ({ inputs = [], title }) => {
           </div>
         )}
       </div>
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

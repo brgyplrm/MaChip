@@ -4,6 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Import your existing components
 import ThirteenthMonth from "./subtabs/ThirteenthMonth";
@@ -14,22 +15,32 @@ const LaborBenefits = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
-          {/* Main Page Header */}
-          <div className="group flex items-start md:items-center gap-0 mb-6 transition-all">
-            {/* Back Button: Hidden by default, slides and fades in on hover */}
-            <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                asChild 
-                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
-              >
-                <Link to="/payroll">
-                  <ArrowBackIcon className="h-6 w-6" />
-                </Link>
-              </Button>
-            </div>
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+            {/* Main Page Header */}
+            <div className="group flex items-start md:items-center gap-0 mb-6 transition-all">
+              {/* Back Button: Hidden by default, slides and fades in on hover */}
+              <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        asChild 
+                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                      >
+                        <Link to="/payroll">
+                          <ArrowBackIcon className="h-6 w-6" />
+                        </Link>
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    Back to Payroll Management
+                  </TooltipContent>
+                </Tooltip>
+              </div>
 
             {/* Title: Adds left padding when hovered */}
             <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
@@ -58,7 +69,8 @@ const LaborBenefits = () => {
               <RetirementPay />
             </TabsContent>
           </Tabs>
-        </div>
+          </div>
+        </TooltipProvider>
       </Sidebar>
     </div>
   );

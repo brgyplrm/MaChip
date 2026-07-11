@@ -26,6 +26,8 @@ import HistoryIcon from "@mui/icons-material/History";
 import { Link, useSearchParams } from "react-router-dom";
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -1409,7 +1411,8 @@ const Maxicare = () => {
       </Dialog>
 
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={dismissToast} />}
         
@@ -1421,18 +1424,27 @@ const Maxicare = () => {
               Manage employee health insurance deductions, track employer/employee shares, and configure the billing cycle.
             </span>
           </div>
-          <Button 
-            variant="outline" 
-            asChild
-            className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
-          >
-            <Link 
-              to="/maxicare/history" 
-              state={{ activeTab: "requests" }}
-            >
-            <HistoryIcon className="mr-1 h-4 w-4" /> View History
-            </Link>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-block w-full md:w-auto">
+                <Button 
+                  variant="outline" 
+                  asChild
+                  className="w-full border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+                >
+                  <Link 
+                    to="/maxicare/history" 
+                    state={{ activeTab: "requests" }}
+                  >
+                  <HistoryIcon className="mr-1 h-4 w-4" /> View History
+                  </Link>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+              View HMO deduction history and archive records
+            </TooltipContent>
+          </Tooltip>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-tight">Policy Cycle</span>
             {queryYear && parseInt(queryYear) !== currentCycleYear ? (
@@ -1469,7 +1481,17 @@ const Maxicare = () => {
           <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden border-t-5 border-[#2A174E] border-x border-x-slate-200">
             <div className="flex justify-between items-start mb-6">
               <div className="w-full max-w-xs">
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Total Gross Premium</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Total Gross Premium</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                      Total gross health insurance premium amount for the policy term.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(config.totalGross)}</p>
               </div>
               <div className={`text-right px-3 py-1.5 rounded-md border flex items-center gap-1 ${isUnconfigured ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
@@ -1501,7 +1523,17 @@ const Maxicare = () => {
               <GroupIcon className="text-[#2A174E]" />
             </div>
             <p className="text-5xl font-extrabold text-slate-900">{activeSubscribers}</p>
-            <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mt-2">Active Subscribers</p>
+            <div className="flex items-center gap-1.5 mt-2">
+              <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Active Subscribers</p>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                  Count of employees currently covered under Maxicare.
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <p className="text-xs text-slate-400 mt-1">({getCycleLabel()})</p>
           </div>
 
@@ -1512,7 +1544,17 @@ const Maxicare = () => {
             </div>
             <div className="relative z-10 h-full flex flex-col justify-between">
               <div>
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Cut-off Deduction</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Cut-off Deduction</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                      The recurring deduction amount applied to each employee's payroll cutoff.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-3xl font-bold text-white tracking-tight">{peso(deductionCutoff)}</p>
               </div>
               <div className="mt-6 pt-4 border-t border-slate-700/50">
@@ -1855,22 +1897,28 @@ const Maxicare = () => {
                                 ) : isSyncing ? (
                                   <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
                                 ) : (
-                                  <>
-                                    {isEditingTable && amount > 0 && (
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleCellSave(dateStr, emp.key, 0);
-                                        }}
-                                        className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-rose-700"
-                                        title="Clear this cell"
-                                      >
-                                        <DeleteIcon className="!text-[10px]" />
-                                      </button>
-                                    )}
-                                    {amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
-                                    {isProjection && amount > 0 && <span className="absolute top-[2px] right-[2px] text-[8px] font-black bg-slate-200 text-slate-500 px-0.5 rounded leading-none not-italic">EST</span>}
-                                  </>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="block w-full h-full">
+                                        {isEditingTable && amount > 0 && (
+                                          <button 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleCellSave(dateStr, emp.key, 0);
+                                            }}
+                                            className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-rose-700"
+                                          >
+                                            <DeleteIcon className="!text-[10px]" />
+                                          </button>
+                                        )}
+                                        {amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                                        {isProjection && amount > 0 && <span className="absolute top-[2px] right-[2px] text-[8px] font-black bg-slate-200 text-slate-500 px-0.5 rounded leading-none not-italic">EST</span>}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                      Double-click cell to edit payment
+                                    </TooltipContent>
+                                  </Tooltip>
                                 )}
                               </td>
                             );
@@ -2203,7 +2251,8 @@ const Maxicare = () => {
             )}
           </div>
         )}
-      </div>
+        </div>
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

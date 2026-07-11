@@ -18,6 +18,8 @@ import { useState, useEffect } from "react";
 import { formatUserId } from "../../utils/formatUserId";
 import EmptyState from "@/components/EmptyState";
 import BatchUploadReviewModal from "../../components/BatchUploadReviewModal";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 // shadcn/ui components
@@ -463,8 +465,9 @@ const CalendarManagement = () => {
 
   return (
     <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
+      <TooltipProvider>
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+          <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         
         {/* Header & Actions */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -492,24 +495,71 @@ const CalendarManagement = () => {
         {/* Sleek Legend Banner */}
         <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 bg-white border border-slate-200 rounded-lg p-3 px-5 shadow-sm">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Legend</span>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-red-400 ring-4 ring-red-50" /> Regular Holiday
-          </div>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-purple-400 ring-4 ring-purple-50" /> Special Holiday
-          </div>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-teal-400 ring-4 ring-teal-50" /> Due Date
-          </div>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-orange-400 ring-4 ring-orange-50" /> Field Work
-          </div>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-green-400 ring-4 ring-green-50" /> Approved Leave
-          </div>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-blue-400 ring-4 ring-blue-50" /> Overtime
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-red-400 ring-4 ring-red-50" /> Regular Holiday
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+              Paid at 200% of daily rate if worked; 100% if unworked.
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-purple-400 ring-4 ring-purple-50" /> Special Holiday
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+              Paid at 130% of daily rate if worked; 0% if unworked.
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-teal-400 ring-4 ring-teal-50" /> Due Date
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+              Crucial payroll cutoff or compliance deadline.
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-orange-400 ring-4 ring-orange-50" /> Field Work
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+              Official out-of-office assignment (100% paid).
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-green-400 ring-4 ring-green-50" /> Approved Leave
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+              Excused absences (leaves processed for payroll).
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-blue-400 ring-4 ring-blue-50" /> Overtime
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+              Approved extra hours paid at overtime premium rates.
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Main Layout Split */}
@@ -623,7 +673,17 @@ const CalendarManagement = () => {
             
             <Card className="shadow-sm border-0 h-[500px] border-t-4 border-[#2A174E] py-0 overflow-hidden">
               <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-[#2A174E]">Holidays</CardTitle>
+                <CardTitle className="text-lg text-[#2A174E] flex items-center gap-1.5">
+                  Holidays
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-gray-400 hover:text-gray-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                      List of national and company holidays declared for this period.
+                    </TooltipContent>
+                  </Tooltip>
+                </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 h-[440px] overflow-y-auto custom-scrollbar">
                 {getUpcomingHolidays().length > 0 ? (
@@ -689,7 +749,17 @@ const CalendarManagement = () => {
 
             <Card className="shadow-sm border-0 h-[500px] border-t-4 border-green-600 py-0 overflow-hidden">
               <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-green-700">Personnel Actions</CardTitle>
+                <CardTitle className="text-lg text-green-700 flex items-center gap-1.5">
+                  Personnel Actions
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-green-600 hover:text-green-800 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                      Approved employee leaves and overtime (OT) hours registered on the calendar.
+                    </TooltipContent>
+                  </Tooltip>
+                </CardTitle>
               </CardHeader>
               <CardContent className="h-[440px] pt-0 px-0">
                 <Tabs defaultValue="leave" className="w-full h-full flex flex-col">
@@ -740,7 +810,17 @@ const CalendarManagement = () => {
 
             <Card className="shadow-sm border-0 h-[500px] border-t-4 border-orange-500 py-0 overflow-hidden">
               <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-orange-700">Operational Tasks</CardTitle>
+                <CardTitle className="text-lg text-orange-700 flex items-center gap-1.5">
+                  Operational Tasks
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-orange-500 hover:text-orange-700 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                      Assigned out-of-office field work assignments and compliance due dates.
+                    </TooltipContent>
+                  </Tooltip>
+                </CardTitle>
               </CardHeader>
               <CardContent className="h-[440px] pt-0 px-0">
                 <Tabs defaultValue="field" className="w-full h-full flex flex-col">
@@ -1252,7 +1332,8 @@ const CalendarManagement = () => {
   .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 `}} />
-      </div>
+        </div>
+      </TooltipProvider>
     </Sidebar>
   );
 };

@@ -36,9 +36,11 @@ import {
   Bar, 
   XAxis, 
   YAxis, 
-  Tooltip, 
-  ResponsiveContainer // <--- Add this here
+  Tooltip as RechartsTooltip, 
+  ResponsiveContainer
 } from 'recharts';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const EastwestLoan = () => {
   const { systemToday } = useSystemTime();
@@ -480,7 +482,7 @@ const EastwestLoan = () => {
               <BarChart data={employeeData}>
                 <XAxis dataKey="date" />
                 <YAxis />
-                <Tooltip />
+                <RechartsTooltip />
                 <Bar dataKey="amount" fill="#2A174E" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -733,7 +735,8 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
       </Dialog>
 
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({message:"", type:"success"})} />}
         
@@ -749,18 +752,27 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
 
         {/* Control Group: View History + Fiscal Year Dropdown */}
         <div className="flex flex-wrap items-center gap-3">
-          <Button 
-            variant="outline" 
-            asChild
-            className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
-          >
-            <Link 
-              to="/eastwestloan/history" 
-              state={{ activeTab: "requests" }}
-            >
-            <HistoryIcon className="mr-2 h-4 w-4" /> View History
-            </Link>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-block w-full md:w-auto">
+                <Button 
+                  variant="outline" 
+                  asChild
+                  className="w-full border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+                >
+                  <Link 
+                    to="/eastwestloan/history" 
+                    state={{ activeTab: "requests" }}
+                  >
+                  <HistoryIcon className="mr-2 h-4 w-4" /> View History
+                  </Link>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+              View loan history and archive records
+            </TooltipContent>
+          </Tooltip>
 
           <div className="flex items-center gap-2">
             <Select value={selectedYear} onValueChange={setSelectedYear}>
@@ -784,7 +796,17 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
           <div className="md:col-span-2 border-t-5 border-[#2A174E]  bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden">
             <div className="flex justify-between items-start mb-6">
               <div className="w-full max-w-xs">
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Total Repaid ({selectedYear})</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Total Repaid ({selectedYear})</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                      Total amount collected for Eastwest loans in the current fiscal year.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(stats.totalPaid)}</p>
               </div>
               <div className="text-right bg-green-50 px-3 py-1.5 rounded-md border border-green-100 flex items-center gap-1">
@@ -806,7 +828,17 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
               <GroupIcon className="text-indigo-600" />
             </div>
             <p className="text-5xl font-extrabold text-slate-900">{stats.subscribers}</p>
-            <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mt-2">Active Borrowers</p>
+            <div className="flex items-center gap-1.5 mt-2">
+              <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Active Borrowers</p>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                  Count of employees currently repaying Eastwest loans.
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <p className="text-xs text-slate-400 mt-1">({selectedYear} Cohort)</p>
           </div>
 
@@ -1019,7 +1051,16 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
                                   ) : isSyncing ? (
                                     <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
                                   ) : (
-                                    amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span>
+                                          {amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                        Double-click cell to edit payment
+                                      </TooltipContent>
+                                    </Tooltip>
                                   )}
                                 </td>
                               );
@@ -1298,6 +1339,7 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
           background: #94a3b8; 
         }
       `}} />
+        </TooltipProvider>
       </Sidebar>
     </div>
   );

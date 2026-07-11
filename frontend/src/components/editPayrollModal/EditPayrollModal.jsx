@@ -183,39 +183,93 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
               <div className="inputGrid">
                 <div className="field highlightField">
                   <label>Withholding Tax</label>
-                  <input type="text" name="Tax_Ded" value={formData.Tax_Ded} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="Tax_Ded" 
+                    value={formData.Tax_Ded} 
+                    disabled 
+                    title="Calculated automatically based on taxable income"
+                  />
                 </div>
                 <div className="field">
                   <label>Health Card</label>
-                  <input type="text" name="healthCard_Amnt" value={formData.healthCard_Amnt} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="healthCard_Amnt" 
+                    value={formData.healthCard_Amnt} 
+                    disabled 
+                    title="Managed in the Maxicare HMO module"
+                  />
                 </div>
                 <div className="field">
                   <label>SSS Loan</label>
-                  <input type="text" name="SSS_Loan" value={formData.SSS_Loan} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="SSS_Loan" 
+                    value={formData.SSS_Loan} 
+                    disabled 
+                    title="Managed in the Loan Management Hub"
+                  />
                 </div>
                 <div className="field">
                   <label>HDMF Loan</label>
-                  <input type="text" name="HDMF_Loan" value={formData.HDMF_Loan} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="HDMF_Loan" 
+                    value={formData.HDMF_Loan} 
+                    disabled 
+                    title="Managed in the Loan Management Hub"
+                  />
                 </div>
                 <div className="field">
                   <label>Calamity Loan</label>
-                  <input type="text" name="calamityLoan_Amnt" value={formData.calamityLoan_Amnt} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="calamityLoan_Amnt" 
+                    value={formData.calamityLoan_Amnt} 
+                    disabled 
+                    title="Managed in the Loan Management Hub"
+                  />
                 </div>
                 <div className="field">
                   <label>Advances</label>
-                  <input type="text" name="advances_Amnt" value={formData.advances_Amnt} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="advances_Amnt" 
+                    value={formData.advances_Amnt} 
+                    disabled 
+                    title="Managed in the Employee Loans module"
+                  />
                 </div>
                 <div className="field">
                   <label>Globe</label>
-                  <input type="text" name="globe_Deduction" value={formData.globe_Deduction} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="globe_Deduction" 
+                    value={formData.globe_Deduction} 
+                    disabled 
+                    title="Managed in the User Profile / Edit Employee page"
+                  />
                 </div>
-                <div className="field">
+                {/* <div className="field">
                   <label>Eastwest</label>
-                  <input type="text" name="eastwest_Loan" value={formData.eastwest_Loan} onChange={handleChange} />
-                </div>
+                  <input 
+                    type="text" 
+                    name="eastwest_Loan" 
+                    value={formData.eastwest_Loan} 
+                    disabled 
+                    title="Managed in the Eastwest Loan module"
+                  />
+                </div> */}
                 <div className="field">
                   <label>Multi-Purpose</label>
-                  <input type="text" name="multiPurposeSavings" value={formData.multiPurposeSavings} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="multiPurposeSavings" 
+                    value={formData.multiPurposeSavings} 
+                    disabled 
+                    title="Managed in the User Profile / Edit Employee page"
+                  />
                 </div>
               </div>
             </section>

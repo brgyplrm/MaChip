@@ -20,6 +20,8 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import { useSystemTime } from "../../context/SystemTimeContext";
 import SummarizeOutlinedIcon from '@mui/icons-material/SummarizeOutlined';
 import { EyeIcon } from "lucide-react";  
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -28,6 +30,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const PayrollPeriod = () => {
   const { systemToday } = useSystemTime();
@@ -253,7 +256,8 @@ const PayrollPeriod = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header section with back button */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -261,16 +265,25 @@ const PayrollPeriod = () => {
         <div className="group flex items-start md:items-center gap-0transition-all">
           {/* Back Button: Hidden by default, slides and fades in on hover */}
           <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              asChild 
-              className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
-            >
-              <Link to="/payroll">
-                <ArrowBackIcon className="h-6 w-6" />
-              </Link>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    asChild 
+                    className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                  >
+                    <Link to="/payroll">
+                      <ArrowBackIcon className="h-6 w-6" />
+                    </Link>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                Back to Payroll Management
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Title: Adds left padding when hovered */}
@@ -284,32 +297,51 @@ const PayrollPeriod = () => {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0">
-            <Button 
-              className="w-full sm:w-auto bg-[#f8fafc] hover:text-[#2A174E] text-[#2A174E]/70 border border-slate-200 hover:bg-slate-100" 
-              onClick={handlePreviewSummary}
-              disabled={loading || payrolls.length === 0}
-            >
-              <SummarizeOutlinedIcon className="mr-2 h-4 w-4" /> Summary View
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block w-full sm:w-auto">
+                  <Button 
+                    className="w-full bg-[#f8fafc] hover:text-[#2A174E] text-[#2A174E]/70 border border-slate-200 hover:bg-slate-100" 
+                    onClick={handlePreviewSummary}
+                    disabled={loading || payrolls.length === 0}
+                  >
+                    <SummarizeOutlinedIcon className="mr-2 h-4 w-4" /> Summary View
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                Generate and preview overall payroll summary report.
+              </TooltipContent>
+            </Tooltip>
+
             {/* Updated Process Batch Button */}
-            <Button 
-              className={`w-full sm:w-auto bg-[#2A174E] text-white border hover:bg-[#7A52B5] ${
-                (selectedPeriod?.status !== 'Draft' || !isProcessingWindow) ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              onClick={() => setIsConfirmOpen(true)}
-              disabled={selectedPeriod?.status !== 'Draft' || !isProcessingWindow}
-              title={
-                selectedPeriod?.status !== 'Draft' ? "Already Processed" :
-                !isProcessingWindow ? `Processing is available only from ${new Date(selectedPeriod?.endDate).toLocaleDateString()} to ${(() => {
-                  const d = new Date(selectedPeriod?.endDate);
-                  d.setDate(d.getDate() + 2);
-                  return d.toLocaleDateString();
-                })()}` : ""
-              }
-            >
-              <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> 
-              {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block w-full sm:w-auto">
+                  <Button 
+                    className={`w-full bg-[#2A174E] text-white border hover:bg-[#7A52B5] ${
+                      (selectedPeriod?.status !== 'Draft' || !isProcessingWindow) ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    onClick={() => setIsConfirmOpen(true)}
+                    disabled={selectedPeriod?.status !== 'Draft' || !isProcessingWindow}
+                    title={
+                      selectedPeriod?.status !== 'Draft' ? "Already Processed" :
+                      !isProcessingWindow ? `Processing is available only from ${new Date(selectedPeriod?.endDate).toLocaleDateString()} to ${(() => {
+                        const d = new Date(selectedPeriod?.endDate);
+                        d.setDate(d.getDate() + 2);
+                        return d.toLocaleDateString();
+                      })()}` : ""
+                    }
+                  >
+                    <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> 
+                    {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                {selectedPeriod?.status === 'Draft' ? "Recalculate, lock, and archive payroll for all active employees." : "This payroll period is locked/processed."}
+              </TooltipContent>
+            </Tooltip>
         </div>
         </div>
 
@@ -319,40 +351,64 @@ const PayrollPeriod = () => {
             <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
-                <div>
-                  <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Net Pay</p>
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Net Pay</p>
+                    {/* <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Estimated total net payout amount for the selected draft cycle.
+                      </TooltipContent>
+                    </Tooltip> */}
+                  </div>
                   <p className="text-3xl font-bold text-[#2A174E]">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
                 <p className="text-xs text-[#2A174E]/70 italic mt-4">Calculated total distribution amount</p>
               </div>
-              {/* <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <PaymentsIcon className="h-6 w-6" />
-              </div> */}
               </CardContent>
             </Card>
-
+ 
             {/* Card 2: Employees */}
             <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                  <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Earnings</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Total Earnings</p>
+                    {/* <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Gross pay including OT and allowances.
+                      </TooltipContent>
+                    </Tooltip> */}
+                  </div>
                   <p className="text-3xl font-bold text-[#3B4E17]">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
                 <p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross pay including OT and allowances</p>
               </div>
-              {/* <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <KeyboardDoubleArrowUpIcon className="h-6 w-6" />
-              </div> */}
               </CardContent>
             </Card>
-
+ 
             {/* Card 3: Admins & Supervisors */}
             <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Deductions</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Total Deductions</p>
+                    {/* <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Withholdings including taxes and loans.
+                      </TooltipContent>
+                    </Tooltip> */}
+                  </div>
                   <p className="text-3xl font-bold text-[#BB8B26]">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
                 <p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings including taxes and loans</p>
@@ -411,16 +467,130 @@ const PayrollPeriod = () => {
         <Card className="shadow-sm border-0 bg-white py-0">
           <CardContent className="p-0 overflow-x-auto">
             {loading ? (
-              <div className="p-12 text-center text-slate-400 italic">Loading payroll records...</div>
+              <Table className="min-w-[800px]">
+                <TableHeader className="bg-[#2B174F]">
+                  <TableRow className="hover:bg-transparent border-b-slate-200">
+                    <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
+                    <TableHead className="font-semibold text-white py-4">BASIC PAY</TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        GROSS PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Base pay plus overtime earnings, allowance differentials, and other taxable additions.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        DEDUCTIONS
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Withholdings including tax contributions, advances, and government or company loan repayments.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        NET PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            The actual take-home salary after subtracting all active deductions from gross earnings.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">STATUS</TableHead>
+                    <TableHead className="font-semibold text-white py-4 text-right pr-6">ACTIONS</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[...Array(5)].map((_, i) => (
+                    <TableRow key={i} className="border-b-slate-100">
+                      <TableCell className="py-4 px-6">
+                        <Skeleton className="h-4 w-32 bg-slate-200" />
+                        <Skeleton className="h-3 w-16 bg-slate-200 mt-2" />
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Skeleton className="h-4 w-20 bg-slate-200" />
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Skeleton className="h-4 w-20 bg-slate-200" />
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Skeleton className="h-4 w-20 bg-slate-200" />
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Skeleton className="h-4 w-20 bg-slate-200" />
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Skeleton className="h-6 w-16 bg-slate-200 rounded" />
+                      </TableCell>
+                      <TableCell className="py-4 text-right pr-6">
+                        <div className="flex justify-end">
+                          <Skeleton className="h-8 w-8 bg-slate-200 rounded" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             ) : (
               <Table className="min-w-[800px]">
                 <TableHeader className="bg-[#2B174F]">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
                     <TableHead className="font-semibold text-white py-4">BASIC PAY</TableHead>
-                    <TableHead className="font-semibold text-white py-4">GROSS PAY</TableHead>
-                    <TableHead className="font-semibold text-white py-4">DEDUCTIONS</TableHead>
-                    <TableHead className="font-semibold text-white py-4">NET PAY</TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        GROSS PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Base pay plus overtime earnings, allowance differentials, and other taxable additions.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        DEDUCTIONS
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Withholdings including tax contributions, advances, and government or company loan repayments.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        NET PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            The actual take-home salary after subtracting all active deductions from gross earnings.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
                     <TableHead className="font-semibold text-white py-4">STATUS</TableHead>
                     <TableHead className="font-semibold text-white py-4 text-right pr-6">ACTIONS</TableHead>
                   </TableRow>
@@ -450,11 +620,20 @@ const PayrollPeriod = () => {
                             </Badge>
                           </TableCell>
                           <TableCell className="py-4 text-right pr-6">
-                            <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
-                              <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}&periodId=${selectedPeriod.periodId}`}>
-                                <EyeIcon className="h-4 w-4" />
-                              </Link>
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-block">
+                                  <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
+                                    <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}&periodId=${selectedPeriod.periodId}`}>
+                                      <EyeIcon className="h-4 w-4" />
+                                    </Link>
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                View Details
+                              </TooltipContent>
+                            </Tooltip>
                           </TableCell>
                         </TableRow>
                       );
@@ -577,6 +756,7 @@ const PayrollPeriod = () => {
           background: #94a3b8; 
         }
       `}} />
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

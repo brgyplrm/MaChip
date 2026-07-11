@@ -18,6 +18,8 @@ import { fetchWithAuth } from "../../utils/api";
 import { useNavigate, Link } from "react-router-dom";
 import AssessmentIcon  from "@mui/icons-material/Assessment";
 import EditIcon from "@mui/icons-material/Edit";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -301,8 +303,9 @@ const AdminRequests = () => {
 
   return (
     <Sidebar>
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+      <TooltipProvider>
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
 
         {/* Header Section */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-6">
@@ -335,7 +338,17 @@ const AdminRequests = () => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Pending Requests</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Pending Requests</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Requests waiting for supervisor recommendation or final admin approval.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#2A174E]">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
                 </div>
                 <p className="text-xs text-[#2A174E]/70 italic mt-4">Awaiting review and approval</p>
@@ -351,7 +364,17 @@ const AdminRequests = () => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Approved Total</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Approved Total</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Total number of employee requests approved in this system cycle.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#3B4E17]">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
                 </div>
                 <p className="text-xs text-[#3B4E17]/70 italic mt-4">Processed and approved requests</p>
@@ -367,7 +390,17 @@ const AdminRequests = () => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Rejected Total</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Rejected Total</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Total number of employee requests rejected or declined.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#BB8B26]">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
                 </div>
                 <p className="text-xs text-[#BB8B26]/70 italic mt-4">Declined and unapproved requests</p>
@@ -602,15 +635,44 @@ const AdminRequests = () => {
                               <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-slate-100 text-slate-500 italic">View Only</Badge>
                             ) : (
                               <div className="flex gap-2 w-full flex-wrap">
-                                <Button className="flex-1 min-w-[120px] bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
-                                  <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
-                                </Button>
-                                <Button className="flex-1 min-w-[120px] bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
-                                  <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
-                                </Button>
-                                <Button className="flex-1 min-w-[120px] bg-orange-500 hover:bg-orange-600 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 5)}>
-                                  <ReplyIcon className="mr-2 h-4 w-4" /> Return
-                                </Button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex-1 min-w-[120px]">
+                                      <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
+                                        <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                    Approve this request
+                                  </TooltipContent>
+                                </Tooltip>
+                                
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex-1 min-w-[120px]">
+                                      <Button className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
+                                        <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                    Reject this request
+                                  </TooltipContent>
+                                </Tooltip>
+
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex-1 min-w-[120px]">
+                                      <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 5)}>
+                                        <ReplyIcon className="mr-2 h-4 w-4" /> Return
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                    Return to employee for corrections
+                                  </TooltipContent>
+                                </Tooltip>
                               </div>
                             )}
                           </>
@@ -631,14 +693,23 @@ const AdminRequests = () => {
 
                       {/* Edit Button: Placed immediately next to the active badges inside the root right-group flex wrapper */}
                       {activeTab === "completed" && userData?.user_RoleId === 1 && (
-                        <Button 
-                          variant="outline" 
-                          size="icon"
-                          className="text-[#2A174E]/70 border-transparent! hover:text-[#2A174E] font-bold h-9 w-9 shrink-0"
-                          onClick={() => handleEditClick(current)}
-                        >
-                          <EditIcon className="h-4 w-4" />
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-block">
+                              <Button 
+                                variant="outline" 
+                                size="icon"
+                                className="text-[#2A174E]/70 border-transparent! hover:text-[#2A174E] font-bold h-9 w-9 shrink-0"
+                                onClick={() => handleEditClick(current)}
+                              >
+                                <EditIcon className="h-4 w-4" />
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                            Edit request details
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
                   </div>
@@ -987,6 +1058,7 @@ const AdminRequests = () => {
         fileUrl={viewingFileUrl}
         fileName={viewingFileName}
       />
+      </TooltipProvider>
     </Sidebar>
   );
 };

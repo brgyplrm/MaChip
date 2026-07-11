@@ -15,6 +15,8 @@ import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import AssessmentIcon  from "@mui/icons-material/Assessment";
 import { fetchWithAuth } from "../../../utils/api";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function LoanManagement() {
   const navigate = useNavigate();
@@ -75,7 +77,8 @@ export default function LoanManagement() {
 
   return (
     <Sidebar>
-      <div className="p-2 md:p-4  min-h-screen w-full max-w-6xl mx-auto">
+      <TooltipProvider>
+        <div className="p-2 md:p-4  min-h-screen w-full max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         {/* Header Text Group */}
         <div>
@@ -85,18 +88,27 @@ export default function LoanManagement() {
 
         {/* Button Group: These will now stay together on the right */}
         <div className="flex items-center gap-2">
-          <Button 
-              variant="outline" 
-              asChild
-              className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
-            >
-              <Link 
-                to="/govloans" 
-                state={{ activeTab: "requests" }}
-              >
-              <AssessmentIcon className="mr-2 h-4 w-4" /> View Summary
-              </Link>
-            </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-block w-full md:w-auto">
+                <Button 
+                  variant="outline" 
+                  asChild
+                  className="w-full border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+                >
+                  <Link 
+                    to="/govloans" 
+                    state={{ activeTab: "requests" }}
+                  >
+                  <AssessmentIcon className="mr-2 h-4 w-4" /> View Summary
+                  </Link>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800">
+              View consolidated loan statistics and request history
+            </TooltipContent>
+          </Tooltip>
           
           {/* <Button onClick={() => setShowLoanModal(true)} className="bg-[#2A174E] hover:bg-[#7A52B5]">
             <Plus className="mr-2 h-4 w-4" /> Create Custom Loan
@@ -111,7 +123,17 @@ export default function LoanManagement() {
           <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
-                <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Loans</p>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Total Loans</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                      Total number of active loan contracts.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-4xl font-bold text-[#2A174E]">{loading ? "..." : stats.totalLoans}</p>
               </div>
               <p className="text-xs text-[#2A174E]/70 italic mt-4">Total loan agreements created</p>
@@ -123,7 +145,17 @@ export default function LoanManagement() {
           <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
-                <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Disbursed</p>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Total Disbursed</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                      Cumulative initial principal amount lent to employees.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-4xl font-bold text-[#BB8B26]">
                   {loading ? "₱0.00" : `₱${stats.totalDisbursed.toLocaleString()}`}
                 </p>
@@ -136,7 +168,17 @@ export default function LoanManagement() {
           <Card className="border-t-5 border-[#174e4e] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
-                <p className="text-xs font-bold text-[#174e4e] uppercase tracking-wider mb-2">Total Collected</p>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-bold text-[#174e4e] uppercase tracking-wider">Total Collected</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#174e4e]/60 hover:text-[#174e4e] cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                      Total cumulative repayments collected from employees.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-4xl font-bold text-[#174e4e]">
                   {loading ? "₱0.00" : `₱${stats.totalCollected.toLocaleString()}`}
                 </p>
@@ -149,7 +191,17 @@ export default function LoanManagement() {
           <Card className="border-t-5 border-[#a12626] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
-                <p className="text-xs font-bold text-[#a12626] uppercase tracking-wider mb-2">Outstanding</p>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-bold text-[#a12626] uppercase tracking-wider">Outstanding</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#a12626]/60 hover:text-[#a12626] cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                      Remaining unpaid loan balance.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-4xl font-bold text-[#a12626]">
                   {loading ? "₱0.00" : `₱${stats.outstanding.toLocaleString()}`}
                 </p>
@@ -297,18 +349,36 @@ export default function LoanManagement() {
                           </Badge>
                         </TableCell>
                         <TableCell className="flex gap-1 text-muted-foreground justify-center">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => navigate(`/loanDetails/${loan.id}`)}
-                            className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
-                            title="View Ledger"
-                            >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => setShowEditModal(true)} className="border-[#B8551F]/40 text-[#B8551F] hover:bg-[#FEE0C0] hover:border-[#E18C52]">
-                              <Edit2 className="h-4 w-4" />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-block">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => navigate(`/loanDetails/${loan.id}`)}
+                                  className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
+                                  >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                              View Ledger
+                            </TooltipContent>
+                          </Tooltip>
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-block">
+                                <Button variant="ghost" size="icon" onClick={() => setShowEditModal(true)} className="border-[#B8551F]/40 text-[#B8551F] hover:bg-[#FEE0C0] hover:border-[#E18C52]">
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                              Adjust Loan
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     ))
@@ -373,15 +443,23 @@ export default function LoanManagement() {
                 </div>
 
                 {/* Main Upper Right Action Trigger */}
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => navigate(`/loanDetails/${loan.id}`)}
-                  className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0"
-                  title="View Ledger"
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => navigate(`/loanDetails/${loan.id}`)}
+                        className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                    View Ledger
+                  </TooltipContent>
+                </Tooltip>
               </CardHeader>
 
               {/* Card Body Core Parameters */}
@@ -513,7 +591,8 @@ export default function LoanManagement() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+        </div>
+      </TooltipProvider>
     </Sidebar>
   );
 }
