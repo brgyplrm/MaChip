@@ -125,6 +125,7 @@ const EastwestLoan = () => {
         name: `${emp.user_LastName}, ${emp.user_FirstName}`,
         id: `MACJ-${String(emp.user_Id).padStart(3, "0")}`,
         key: emp.user_Id.toString(),
+        eastwest_Loan: parseFloat(emp.eastwest_Loan || 0),
       }));
       setEmployeeList(activeEmps);
 
@@ -430,6 +431,7 @@ const EastwestLoan = () => {
   };
 
   const stats = getSummaryStats();
+  const expectedTotal = employeeList.reduce((sum, emp) => sum + (parseFloat(emp.eastwest_Loan) || 0), 0) * expectedDates.length;
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const getRowTotal = (dateStr) => {
@@ -554,7 +556,7 @@ const HeatmapLoanMatrix = ({ data, employeeList, expectedDates, isInSamePeriod }
   );
 };
 
-const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card"
+const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
   const [selectedSheetMonth, setSelectedSheetMonth] = useState("ALL");
   
   // Card View Controls
@@ -744,7 +746,7 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
   
         {/* Header Text Group */}
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Company Loan Management</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Personal Loan Management</h1>
           <span className="text-sm text-slate-500 mt-1 block">
             Manage employee company loan deductions, track repayments, and configure matrix schedules.
           </span>
@@ -793,75 +795,76 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans">
           
           {/* Card 1: Total Repaid This Year */}
-          <div className="md:col-span-2 border-t-5 border-[#2A174E]  bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden">
-            <div className="flex justify-between items-start mb-6">
-              <div className="w-full max-w-xs">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Total Repaid ({selectedYear})</p>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                      Total amount collected for Eastwest loans in the current fiscal year.
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(stats.totalPaid)}</p>
+          <div className="border-t-5 border-[#2A174E] bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4 relative overflow-hidden">
+            <div className="text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Total Repaid ({selectedYear})</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Total amount collected/repaid for Eastwest loans in the selected fiscal year.
+                  </TooltipContent>
+                </Tooltip>
               </div>
-              <div className="text-right bg-green-50 px-3 py-1.5 rounded-md border border-green-100 flex items-center gap-1">
-                <AccountBalanceIcon className="text-green-600 !text-sm" />
-                <p className="text-sm font-semibold text-green-700">Eastwest Bank Partner</p>
-              </div>
-            </div>
-            <div className="flex flex-col md:flex-row gap-4 mt-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 w-fit">
-                <EventIcon className="text-slate-400 !text-base" />
-                <span>Fiscal Year: <span className="text-slate-900 font-semibold ml-1">{selectedYear}</span></span>
+              <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(stats.totalPaid)}</p>
+              <div className="mt-2 text-right bg-green-50 px-2 py-0.5 rounded-md border border-green-100 flex items-center gap-1 w-fit">
+                <AccountBalanceIcon className="text-green-600 !text-[11px]" />
+                <p className="text-[10px] font-semibold text-green-700">Eastwest Partner</p>
               </div>
             </div>
           </div>
 
           {/* Card 2: Active Borrowers */}
-          <div className="border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-center items-center text-center">
-            <div className="h-12 w-12 bg-[#2A174E]/5 rounded-full flex items-center justify-center mb-4 border border-[#2A174E]/50">
+          <div className="border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4">
+            <div className="text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">
+                  {stats.subscribers <= 1 ? "Active Borrower" : "Active Borrowers"}
+                </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Count of employees currently repaying Eastwest loans.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{stats.subscribers}</p>
+              <p className="text-[10px] text-slate-400 mt-2">({selectedYear} Cohort)</p>
+            </div>
+            <div className="h-12 w-12 bg-[#2A174E]/5 rounded-full flex items-center justify-center border border-[#2A174E]/50 shrink-0">
               <GroupIcon className="text-indigo-600" />
             </div>
-            <p className="text-5xl font-extrabold text-slate-900">{stats.subscribers}</p>
-            <div className="flex items-center gap-1.5 mt-2">
-              <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Active Borrowers</p>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                  Count of employees currently repaying Eastwest loans.
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">({selectedYear} Cohort)</p>
           </div>
 
-          {/* Card 3: All-Time Stats */}
-          <div className="md:col-span-3 border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
-             <div className="absolute top-0 right-0 p-4 opacity-10">
-              <AccountBalanceWalletIcon style={{ fontSize: '100px' }} />
+          {/* Card 3: Total Expected Collections (selectedYear) */}
+          <div className="border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-row items-center justify-between gap-4">
+            <div className="absolute top-0 right-0 p-3 opacity-10">
+              <AccountBalanceWalletIcon style={{ fontSize: '70px' }} />
             </div>
-            <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 w-full">
-               <div className="[#2A174E]/50 p-4 rounded-lg border border-[#7A52B5]/30 flex-1 w-full">
-                 <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Total Collections (All-Time)</p>
-                 <p className="text-3xl font-bold text-white tracking-tight">{peso(totalAllTime)}</p>
-               </div>
-               <div className="[#2A174E]/50 p-4 rounded-lg border border-[#7A52B5]/30 flex-1 w-full">
-                 <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Collections ({selectedYear})</p>
-                 <p className="text-3xl font-bold text-white tracking-tight">{peso(stats.totalPaid)}</p>
-               </div>
+            <div className="relative z-10 text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs font-bold text-purple-200 tracking-wider uppercase">Total Expected ({selectedYear})</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-purple-300 hover:text-white cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Total amount expected to be collected from employees for their Eastwest loans in the selected fiscal year.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <p className="text-4xl font-extrabold text-white tracking-tight">{peso(expectedTotal)}</p>
+              <p className="text-[10px] text-purple-200 mt-2">Expected Collections</p>
             </div>
           </div>
         </div>
 
         {/* Matrix Table Toolbar Section */}
-        <h3 className="text-xl font-bold text-[#2A174E] mb-4">Employee Deduction History ({selectedYear})</h3>
+        <h3 className="text-xl font-bold text-[#2A174E] mb-4">Employee Deduction ({selectedYear})</h3>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full mt-4 mb-6">
           
           {/* Left Side Grouping: Layout Switcher + Search Field stacked vertically */}
@@ -871,16 +874,6 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
               <Button
                 size="sm"
-                variant={displayLayout === "table" ? "default" : "ghost"}
-                onClick={() => setDisplayLayout("table")}
-                className={`h-7 text-xs font-bold transition-all ${
-                  displayLayout === "table" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
-                }`}
-              >
-                Matrix Table
-              </Button>
-              <Button
-                size="sm"
                 variant={displayLayout === "card" ? "default" : "ghost"}
                 onClick={() => setDisplayLayout("card")}
                 className={`h-7 text-xs font-bold transition-all ${
@@ -888,6 +881,16 @@ const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card
                 }`}
               >
                 Employee Cards
+              </Button>
+              <Button
+                size="sm"
+                variant={displayLayout === "table" ? "default" : "ghost"}
+                onClick={() => setDisplayLayout("table")}
+                className={`h-7 text-xs font-bold transition-all ${
+                  displayLayout === "table" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
+                }`}
+              >
+                Matrix Table
               </Button>
             </div>
             {/* Conditional Cards Search Input Box */}

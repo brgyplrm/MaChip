@@ -9,6 +9,8 @@ import Sidebar from "../../../components/Sidebar";
 import { Link, useParams } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { fetchWithAuth } from "../../../utils/api";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function LoanDetailsPage() {
     const { id } = useParams();
@@ -45,12 +47,32 @@ export default function LoanDetailsPage() {
       "indigo-500": "border-indigo-500"
     };
 
+    const metricTooltipMap = {
+        "Initial Principal": "Total disbursed loan amount before repayments.",
+        "Amount Collected": "Sum of all repayments processed via payroll deductions.",
+        "Outstanding": "Remaining unpaid balance of the loan agreement.",
+        "Monthly Amort": "Fixed monthly deduction rate applied across payroll runs.",
+        "Progress": "Repayment completion percentage."
+    };
+
     function MetricCard({ label, value, color, description }) {
         return (
             <Card className={`border-t-4 ${colorMap[color] || 'border-slate-200'} bg-white py-0 h-full shadow-sm`}>
                 <CardContent className="px-5 p-5 flex flex-col justify-between h-full text-left">
                     <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{label}</p>
+                        <div className="flex items-center gap-1.5 mb-2">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+                            {metricTooltipMap[label] && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-[10px]">
+                                        {metricTooltipMap[label]}
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
+                        </div>
                         <p className="text-2xl font-black text-[#2A174E]">{value}</p>
                     </div>
                     <p className="text-[10px] text-slate-500 italic mt-4">{description}</p>
@@ -155,14 +177,24 @@ export default function LoanDetailsPage() {
     return (
         <div className="flex flex-col w-full min-h-screen bg-slate-50">
             <Sidebar>
-                <div className="p-2 md:p-6 overflow-x-hidden w-full max-w-6xl mx-auto gap-6 flex flex-col">
+                <TooltipProvider>
+                    <div className="p-2 md:p-6 overflow-x-hidden w-full max-w-6xl mx-auto gap-6 flex flex-col">
                     {/* Header Actions */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-left">
                         <div className="group flex items-center gap-0">
                             <div className="w-0 overflow-hidden group-hover:w-10 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out">
-                                <Button variant="ghost" size="icon" asChild className="text-[#2A174E]">
-                                    <Link to="/loanManagement"><ArrowBackIcon className="h-6 w-6" /></Link>
-                                </Button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="inline-block">
+                                            <Button variant="ghost" size="icon" asChild className="text-[#2A174E]">
+                                                <Link to="/loanManagement"><ArrowBackIcon className="h-6 w-6" /></Link>
+                                            </Button>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                        Back to Government Loans
+                                    </TooltipContent>
+                                </Tooltip>
                             </div>
                             <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out text-left">
                                 <h1 className="text-2xl font-black text-[#2A174E] tracking-tight uppercase">{loan.notes || 'Loan Details'}</h1>
@@ -170,13 +202,22 @@ export default function LoanDetailsPage() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <Button 
-                                onClick={handleExportPDF}
-                                variant="outline" 
-                                className="border-[#2A174E]/20 text-[#2A174E] font-bold h-9 text-xs"
-                            >
-                              <Download className="mr-2 h-4 w-4" /> Export Ledger
-                            </Button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span>
+                                        <Button 
+                                            onClick={handleExportPDF}
+                                            variant="outline" 
+                                            className="border-[#2A174E]/20 text-[#2A174E] font-bold h-9 text-xs"
+                                        >
+                                          <Download className="mr-2 h-4 w-4" /> Export Ledger
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                    Download full amortization ledger as PDF
+                                </TooltipContent>
+                            </Tooltip>
                         </div>
                     </div>
 
@@ -247,7 +288,7 @@ export default function LoanDetailsPage() {
                     <Tabs defaultValue="overview" className="w-full">
                         <TabsList className="bg-slate-200/50 p-1 rounded-xl">
                             <TabsTrigger value="overview" className="rounded-lg font-bold text-xs uppercase px-6">Overview</TabsTrigger>
-                            <TabsTrigger value="amortization" className="rounded-lg font-bold text-xs uppercase px-6">Full Ledger</TabsTrigger>
+                            {/* <TabsTrigger value="amortization" className="rounded-lg font-bold text-xs uppercase px-6">Full Ledger</TabsTrigger> */}
                             <TabsTrigger value="history" className="rounded-lg font-bold text-xs uppercase px-6">Paid History</TabsTrigger>
                         </TabsList>
 
@@ -404,7 +445,8 @@ export default function LoanDetailsPage() {
                             </Card>
                         </TabsContent>
                     </Tabs>
-                </div>
+                    </div>
+                </TooltipProvider>
             </Sidebar>
         </div>
     );

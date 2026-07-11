@@ -13,15 +13,17 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import Toast from "../../../components/toast/Toast";
 import { Link, useNavigate } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import HmoCalculatorModal from "../../../components/HmoCalculatorModal";
+import EmptyState from "../../../components/EmptyState";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const MaxicareHistory = () => {
   const { systemToday } = useSystemTime();
@@ -30,15 +32,7 @@ const MaxicareHistory = () => {
   const [configs, setConfigs] = useState({});
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ message: "", type: "success" });
-  const [showCalculator, setShowCalculator] = useState(false);
-  
-  // New Config State
-  const [newConfig, setNewConfig] = useState({
-    totalGross: 0,
-    monthsToPay: 12,
-    cycleStartDate: "",
-    employerShare: 50
-  });
+
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -145,110 +139,90 @@ const MaxicareHistory = () => {
 
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 
-  const handleSaveNewConfig = async () => {
-    try {
-      setLoading(true);
-      const year = new Date(newConfig.cycleStartDate).getFullYear();
-      if (isNaN(year)) {
-        setToast({ message: "Invalid start date", type: "error" });
-        return;
-      }
-
-      const updatedConfigs = {
-        ...configs,
-        [year]: {
-          totalGross: newConfig.totalGross,
-          monthsToPay: newConfig.monthsToPay,
-          cycleStartDate: newConfig.cycleStartDate
-        }
-      };
-
-      // We need to fetch the existing dates to keep them
-      const settingsRes = await fetchWithAuth("/api/system/settings");
-      const settingsData = await settingsRes.json();
-      const existingDates = settingsData.maxicareDates?.dates || [];
-
-      const saveRes = await fetchWithAuth("/api/system/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          maxicareDates: {
-            dates: existingDates,
-            configs: updatedConfigs
-          }
-        })
-      });
-
-      if (saveRes.ok) {
-        setToast({ message: `Configuration for Cycle ${year} saved!`, type: "success" });
-        setShowCalculator(false);
-        fetchData();
-      } else {
-        setToast({ message: "Failed to save configuration", type: "error" });
-      }
-    } catch (err) {
-      setToast({ message: "Error saving configuration", type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+      <TooltipProvider>
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         
-        <Dialog open={showCalculator} onOpenChange={setShowCalculator}>
-          <DialogContent className="max-w-4xl! p-0 overflow-hidden border-none bg-transparent shadow-none">
-            <HmoCalculatorModal 
-              premium={newConfig.totalGross}
-              setPremium={(val) => setNewConfig(prev => ({ ...prev, totalGross: val }))}
-              cutoffs={newConfig.monthsToPay * 2}
-              setCutoffs={(val) => setNewConfig(prev => ({ ...prev, monthsToPay: val / 2 }))}
-              employerShare={newConfig.employerShare}
-              setEmployerShare={(val) => setNewConfig(prev => ({ ...prev, employerShare: val }))}
-              cycleStartDate={newConfig.cycleStartDate}
-              setCycleStartDate={(date) => setNewConfig(prev => ({ ...prev, cycleStartDate: date }))}
-            />
-            <div className="flex justify-center pb-6">
-              <Button 
-                onClick={handleSaveNewConfig}
-                className="bg-[#2A174E] text-white px-8 py-3 rounded-lg font-bold hover:bg-[#1a0e30] transition-colors shadow-lg"
-              >
-                Save New Configuration
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-4">
-            <Link 
-              to="/maxicare" 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-200 text-[#2A174E] transition-colors"
-            >
-              <ArrowBackIcon className="h-6 w-6" />
-            </Link>
-            <div>
+          <div className="group flex items-center gap-0 w-full md:w-auto">
+            
+            {/* Back Button Container: Slides out from 0 width */}
+            <div className="w-0 overflow-hidden group-hover:w-10 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      asChild 
+                      className="text-[#2A174E]"
+                    >
+                      <Link to="/maxicare">
+                        <ArrowBackIcon className="h-6 w-6" />
+                      </Link>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                  Back to Maxicare HMO Dashboard
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
+            {/* Title Group: Moves to the right via ml-2 when hovered */}
+            <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out flex-1 text-left">
               <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Maxicare Deduction History</h1>
               <span className="text-sm text-slate-500 mt-1 block">Overview of all health insurance cycles and premiums.</span>
             </div>
           </div>
-          <Button 
-            onClick={() => setShowCalculator(true)}
-            className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold"
-          >
-            <AddIcon className="mr-2 h-4 w-4" /> Add Config
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-tight shrink-0">Policy Cycle</span>
+            <Select 
+              onValueChange={(val) => {
+                navigate(`/maxicare?year=${val}`);
+              }}
+            >
+              <SelectTrigger className="w-[150px] h-9 bg-white font-bold text-slate-700">
+                <SelectValue placeholder="Select Cycle" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.keys(configs).sort((a, b) => b - a).map(yearStr => {
+                  const year = parseInt(yearStr);
+                  const isCurrent = year === currentCycleYear;
+                  const config = configs[yearStr];
+                  const endYear = year + Math.max(1, Math.ceil((config.monthsToPay || 12) / 12));
+                  return (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year} - {endYear} {isCurrent ? "(Current)" : ""}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="border-t-4 border-[#2A174E] shadow-sm">
+          <Card className="border-t-4 border-[#2A174E] shadow-sm py-0">
             <CardContent className="flex justify-between items-center p-6">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Cycles</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Cycles</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Total number of historical and active Maxicare cycle groups.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-3xl font-bold text-[#2A174E]">{stats.totalCycles}</p>
               </div>
               <div className="bg-[#2A174E]/10 p-3 rounded-xl text-[#2A174E]">
@@ -257,10 +231,20 @@ const MaxicareHistory = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-blue-500 shadow-sm">
+          <Card className="border-t-4 border-blue-500 shadow-sm py-0">
             <CardContent className="flex justify-between items-center p-6">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Lifetime Subscribers</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Lifetime Subscribers</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Total number of unique employees enrolled in any Maxicare cycle.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-3xl font-bold text-blue-700">{new Set(history.map(h => h.user_Id)).size}</p>
               </div>
               <div className="bg-blue-50 p-3 rounded-xl text-blue-600">
@@ -269,10 +253,20 @@ const MaxicareHistory = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-emerald-500 shadow-sm">
+          <Card className="border-t-4 border-emerald-500 shadow-sm py-0">
             <CardContent className="flex justify-between items-center p-6">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Lifetime Billed</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Lifetime Billed</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Total premium amount billed to the company for all subscribers across all cycles.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-3xl font-bold text-emerald-700">{peso(stats.totalBilled)}</p>
               </div>
               <div className="bg-emerald-50 p-3 rounded-xl text-emerald-600">
@@ -283,7 +277,7 @@ const MaxicareHistory = () => {
         </div>
 
         {/* Cycle History Table */}
-        <Card className="shadow-sm border-0 bg-white overflow-hidden">
+        <Card className="shadow-sm border-0 bg-white overflow-hidden py-0">
           <CardContent className="p-0">
             <Table>
               <TableHeader className="bg-[#2A174E]">
@@ -321,20 +315,35 @@ const MaxicareHistory = () => {
                         {summary.totalSubscribers} Employees
                       </TableCell>
                       <TableCell className="text-right pr-6">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => navigate(`/maxicare?year=${summary.year}`)}
-                          className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white"
-                        >
-                          <VisibilityIcon className="mr-2 h-4 w-4" /> View
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => navigate(`/maxicare?year=${summary.year}`)}
+                                className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white"
+                              >
+                                <VisibilityIcon className="mr-2 h-4 w-4" /> View
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal text-xs">
+                            Inspect detailed ledger for this cycle
+                          </TooltipContent>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-slate-400 italic">No historical cycles found.</TableCell>
+                    <TableCell colSpan={5} className="h-32 text-center text-slate-400 italic p-6">
+                      <EmptyState 
+                        icon={<HistoryIcon className="h-8 w-8 text-slate-400" />}
+                        title="No historical cycles found."
+                        description="HMO cycle history will appear after the first cycle is archived or processed."
+                      />
+                    </TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -342,6 +351,7 @@ const MaxicareHistory = () => {
           </CardContent>
         </Card>
       </div>
+      </TooltipProvider>
     </Sidebar>
   );
 };

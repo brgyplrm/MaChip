@@ -23,6 +23,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const EastwestLoanHistory = () => {
   const { systemToday } = useSystemTime();
@@ -101,49 +103,79 @@ const EastwestLoanHistory = () => {
 
   return (
     <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-        
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-1 mb-8">
-  
-        {/* Group container for the sliding animation */}
-        <div className="group flex items-center gap-0 w-full md:w-auto">
+      <TooltipProvider>
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+          <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
           
-          {/* Back Button Container: Slides out from 0 width */}
-          <div className="w-0 overflow-hidden group-hover:w-10 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              asChild 
-              className="text-[#2A174E]"
-            >
-              <Link to="/eastwestloan">
-                <ArrowBackIcon className="h-6 w-6" />
-              </Link>
-            </Button>
+          {/* Header Section */}
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
+    
+          {/* Group container for the sliding animation */}
+          <div className="group flex items-center gap-0 w-full md:w-auto">
+            
+            {/* Back Button Container: Slides out from 0 width */}
+            <div className="w-0 overflow-hidden group-hover:w-10 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      asChild 
+                      className="text-[#2A174E]"
+                    >
+                      <Link to="/eastwestloan">
+                        <ArrowBackIcon className="h-6 w-6" />
+                      </Link>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                  Back to Eastwest Loan Dashboard
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
+            {/* Title Group: Moves to the right via ml-2 when hovered */}
+            <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out flex-1">
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Loan Records</h1>
+              <span className="text-sm text-slate-500 mt-1 block">Complete historical log of employee bank loan repayments via payroll.</span>
+            </div>
           </div>
 
-          {/* Title Group: Moves to the right via ml-2 when hovered */}
-          <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out flex-1">
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Loan Records</h1>
-            <span className="text-sm text-slate-500 mt-1 block">Complete historical log of employee bank loan repayments via payroll.</span>
+          {/* Right Action: PDF Export */}
+          <div className="shrink-0 mt-4 md:mt-0 w-full md:w-auto text-right">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-sm w-full md:w-auto">
+                    <DownloadIcon className="mr-2 h-4 w-4" /> Export History (PDF)
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                Download complete repayment history report as PDF
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
-
-        {/* Right Action: PDF Export */}
-        {/* Added 'md:ml-auto' to push this button to the far right on desktop */}
-        <Button className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-sm md:ml-auto shrink-0 mt-4 md:mt-0">
-          <DownloadIcon className="mr-2 h-4 w-4" /> Export History (PDF)
-        </Button>
-      </div>
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className="border-t-4 border-[#2A174E] shadow-sm">
             <CardContent className="flex justify-between items-start">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Lifetime Remittance</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Lifetime Remittance</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Total cumulative payments collected from employees for Eastwest loans across all cycles.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-3xl font-bold text-[#2A174E]">{peso(stats.totalDeducted)}</p>
               </div>
               <div className="bg-[#2A174E]/10 p-2 rounded-lg text-[#2A174E]">
@@ -155,7 +187,17 @@ const EastwestLoanHistory = () => {
           <Card className="border-t-4 border-indigo-500 shadow-sm">
             <CardContent className=" flex justify-between items-start">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Borrowers</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Borrowers</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Total number of unique employees with Eastwest loan deductions.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-3xl font-bold text-indigo-700">{stats.totalBorrowers}</p>
               </div>
               <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">
@@ -167,7 +209,17 @@ const EastwestLoanHistory = () => {
           <Card className="border-t-4 border-emerald-500 shadow-sm">
             <CardContent className="flex justify-between items-start">
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Average Deduction</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Average Deduction</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Average repayment amount collected per transaction.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-3xl font-bold text-emerald-700">{peso(stats.avgPerTransaction)}</p>
               </div>
               <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
@@ -272,6 +324,7 @@ const EastwestLoanHistory = () => {
           </CardContent>
         </Card>
       </div>
+      </TooltipProvider>
     </Sidebar>
   );
 };

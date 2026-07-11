@@ -727,7 +727,7 @@ const GovLoans = () => {
 
           {/* Title Group: Adds margin-left only when hovered */}
           <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out">
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Governmental Loans</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Gov Loans Summary</h1>
             <span className="text-sm text-slate-500 mt-1 block">
               Manage statutory loans like SSS, Pag-IBIG, and other government deductions.
             </span>

@@ -35,6 +35,7 @@ const SeparationPay = () => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [showGuideline, setShowGuideline] = useState(true);
   const [causes, setCauses] = useState([]);
   const [selectedCauseId, setSelectedCauseId] = useState("");
   const [reason, setReason] = useState("");
@@ -206,21 +207,29 @@ const SeparationPay = () => {
         <div className=" overflow-x-hidden w-full max-w-6xl mx-auto p-1">
           {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: "", type: "success" })} />}
 
-          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-4">
-            <Card className="bg-blue-50 border-blue-200 shadow-none mb-4 w-full py-0">
-              <CardContent className="flex items-start gap-4 p-4">
-                <div className="bg-blue-100 p-2 rounded-lg mt-0.5">
-                  <InfoOutlinedIcon className="h-5 w-5 text-[#005a9c]" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-[#005a9c] text-sm">Policy Guideline</h3>
-                  <p className="text-sm text-blue-900/80 mt-0.5">
-                    Calculate and process statutory separation pay according to DOLE Articles 298-299.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          {showGuideline && (
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-4 w-full">
+              <Card className="bg-blue-50 border-blue-200 shadow-none mb-4 w-full py-0 relative">
+                <CardContent className="flex items-start gap-4 p-4 pr-12">
+                  <div className="bg-blue-100 p-2 rounded-lg mt-0.5">
+                    <InfoOutlinedIcon className="h-5 w-5 text-[#005a9c]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#005a9c] text-sm">Policy Guideline</h3>
+                    <p className="text-sm text-blue-900/80 mt-0.5">
+                      Calculate and process statutory separation pay according to DOLE Articles 298-299.
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setShowGuideline(false)}
+                    className="absolute top-4 right-4 text-blue-900/40 hover:text-blue-900/80 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           <Tabs defaultValue="calculator" className="w-full">
             <TabsList className="mb-6">
@@ -553,14 +562,19 @@ const SeparationPay = () => {
                   </Table>
                   {filteredHistory.length > 0 && (
                     <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 gap-4">
-                      <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
-                        <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5">5</SelectItem>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="20">20</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-3">
+                        <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
+                          <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5">5</SelectItem>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <span className="text-xs font-semibold text-slate-500">
+                          Showing {paginatedHistory.length} of {filteredHistory.length} employees
+                        </span>
+                      </div>
 
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>

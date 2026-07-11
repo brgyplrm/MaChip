@@ -12,6 +12,9 @@ import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
+import HistoryIcon from '@mui/icons-material/History';
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import AddIcon from '@mui/icons-material/Add';
 import HmoCalculatorModal from "../../../components/HmoCalculatorModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -19,10 +22,10 @@ import SecurityIcon from '@mui/icons-material/Security';
 import GroupIcon from '@mui/icons-material/Group';
 import PieChartIcon from '@mui/icons-material/PieChart';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import InfoIcon from '@mui/icons-material/Info';
 import EventIcon from '@mui/icons-material/Event';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined';
-import HistoryIcon from "@mui/icons-material/History";
 import { Link, useSearchParams } from "react-router-dom";
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -44,7 +47,7 @@ const Maxicare = () => {
   const [searchParams] = useSearchParams();
   const queryYear = searchParams.get("year");
 
-  const [displayLayout, setDisplayLayout] = useState("table"); // "table" or "card"
+  const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
   
   const userData = JSON.parse(localStorage.getItem("userData"));
   const isAdmin = [1, 4].includes(userData?.user_RoleId);
@@ -52,6 +55,15 @@ const Maxicare = () => {
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [isEditing, setIsEditing] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [showAddCalculator, setShowAddCalculator] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [showPolicyDetails, setShowPolicyDetails] = useState(false);
+  const [newConfig, setNewConfig] = useState({
+    totalGross: 0,
+    monthsToPay: 12,
+    cycleStartDate: "",
+    employerShare: 50
+  });
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [selectedYear, setSelectedYear] = useState(queryYear ? parseInt(queryYear) : new Date().getFullYear());
   const [file, setFile] = useState(null);
@@ -1258,7 +1270,7 @@ const Maxicare = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Dialog open={showCalculator} onOpenChange={setShowCalculator}>
-        <DialogContent className="max-w-4xl! p-0 overflow-hidden border-none bg-transparent shadow-none">
+        <DialogContent className="max-w-4xl! p-0 overflow-y-auto max-h-[95vh] border-none bg-transparent shadow-none custom-scrollbar">
           <HmoCalculatorModal 
             premium={config.totalGross}
             setPremium={setPremium}
@@ -1274,18 +1286,27 @@ const Maxicare = () => {
                 if (!isNaN(year)) setSelectedYear(year);
               }
             }}
+            onSave={saveSettings}
+            onSuccess={fetchData}
+            onClose={() => setShowCalculator(false)}
           />
-          <div className="flex justify-center pb-6">
-            <button 
-              onClick={async () => {
-                await saveSettings();
-                setShowCalculator(false);
-              }}
-              className="bg-[#2A174E] text-white px-8 py-3 rounded-lg font-bold hover:bg-[#1a0e30] transition-colors shadow-lg"
-            >
-              Continue to Maxicare Management
-            </button>
-          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddCalculator} onOpenChange={setShowAddCalculator}>
+        <DialogContent className="max-w-4xl! p-0 overflow-y-auto max-h-[95vh] border-none bg-transparent shadow-none custom-scrollbar">
+          <HmoCalculatorModal 
+            premium={newConfig.totalGross}
+            setPremium={(val) => setNewConfig(prev => ({ ...prev, totalGross: val }))}
+            cutoffs={newConfig.monthsToPay * 2}
+            setCutoffs={(val) => setNewConfig(prev => ({ ...prev, monthsToPay: val / 2 }))}
+            employerShare={newConfig.employerShare}
+            setEmployerShare={(val) => setNewConfig(prev => ({ ...prev, employerShare: val }))}
+            cycleStartDate={newConfig.cycleStartDate}
+            setCycleStartDate={(date) => setNewConfig(prev => ({ ...prev, cycleStartDate: date }))}
+            onSuccess={fetchData}
+            onClose={() => setShowAddCalculator(false)}
+          />
         </DialogContent>
       </Dialog>
 
@@ -1421,191 +1442,189 @@ const Maxicare = () => {
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">HMO Management</h1>
             <span className="text-sm text-slate-500 mt-1 block">
-              Manage employee health insurance deductions, track employer/employee shares, and configure the billing cycle.
+              Manage employee health insurance deductions, track employer/employee shares, <br/>and configure the billing cycle.
             </span>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-block w-full md:w-auto">
-                <Button 
-                  variant="outline" 
-                  asChild
-                  className="w-full border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
-                >
-                  <Link 
-                    to="/maxicare/history" 
-                    state={{ activeTab: "requests" }}
+
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto xl:justify-end">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block w-full sm:w-auto">
+                  <Button 
+                    variant="outline" 
+                    asChild
+                    className="w-full border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
                   >
-                  <HistoryIcon className="mr-1 h-4 w-4" /> View History
-                  </Link>
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="bg-slate-900 text-white border-slate-800">
-              View HMO deduction history and archive records
-            </TooltipContent>
-          </Tooltip>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-tight">Policy Cycle</span>
-            {queryYear && parseInt(queryYear) !== currentCycleYear ? (
-              <div className="flex items-center gap-2 bg-[#2A174E] text-white px-4 py-1.5 rounded-lg font-bold shadow-sm">
-                <HistoryIcon className="h-4 w-4 text-yellow-400" />
-                <span>Cycle {selectedYear} - {selectedYear + Math.max(1, Math.ceil((config.monthsToPay || 12) / 12))}</span>
-                <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded ml-1 uppercase">Historical View</span>
-              </div>
-            ) : (
-              <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
-                <SelectTrigger className="w-[200px] h-9 bg-white font-bold text-slate-700">
-                  <SelectValue placeholder="Select Cycle" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 5 }, (_, i) => Math.min(new Date().getFullYear(), currentCycleYear) + i).map(year => {
-                    const isCurrent = year === currentCycleYear;
-                    const endYear = year + Math.max(1, Math.ceil((config.monthsToPay || 12) / 12));
-                    return (
-                      <SelectItem key={year} value={year.toString()}>
-                        Cycle {year} - {endYear} {isCurrent ? "(Current)" : ""}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </div>
-
-        {/* Main Grid Architecture */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6 w-full text-left font-sans">
-          
-          {/* Domain A: Policy Overview */}
-          <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden border-t-5 border-[#2A174E] border-x border-x-slate-200">
-            <div className="flex justify-between items-start mb-6">
-              <div className="w-full max-w-xs">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Total Gross Premium</p>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                      Total gross health insurance premium amount for the policy term.
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(config.totalGross)}</p>
-              </div>
-              <div className={`text-right px-3 py-1.5 rounded-md border flex items-center gap-1 ${isUnconfigured ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
-                <SecurityIcon className={isUnconfigured ? 'text-amber-600 !text-sm' : 'text-blue-600 !text-sm'} />
-                <p className={`text-sm font-semibold ${isUnconfigured ? 'text-amber-700' : 'text-blue-700'}`}>
-                  {isUnconfigured ? 'Plan Preview' : 'Active Policy'}
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex flex-col md:flex-row gap-4 mt-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 w-fit">
-                <EventIcon className="text-slate-400 !text-base" />
-                <span>Cycle Start: 
-                  <span className="text-slate-900 font-semibold ml-1">
-                    {config.cycleStartDate ? new Date(config.cycleStartDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not Set'}
-                  </span>
+                    <Link 
+                      to="/maxicare/history" 
+                      state={{ activeTab: "requests" }}
+                    >
+                    <HistoryIcon className="mr-1 h-4 w-4" /> View History
+                    </Link>
+                  </Button>
                 </span>
-              </div>
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 w-fit">
-                <span>Renewal Period: <span className="text-slate-900 font-semibold">{getRenewalPeriod()}</span></span>
-              </div>
-            </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                View HMO deduction history and archive records
+              </TooltipContent>
+            </Tooltip>
           </div>
-
-          {/* Domain A.2: Active Subscribers */}
-          <div className="border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-center items-center text-center">
-            <div className="h-12 w-12 bg-[#2A174E]/5 rounded-full flex items-center justify-center mb-4 border border-[#2A174E]/50">
-              <GroupIcon className="text-[#2A174E]" />
-            </div>
-            <p className="text-5xl font-extrabold text-slate-900">{activeSubscribers}</p>
-            <div className="flex items-center gap-1.5 mt-2">
-              <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Active Subscribers</p>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                  Count of employees currently covered under Maxicare.
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">({getCycleLabel()})</p>
-          </div>
-
-          {/* Domain C: Amortization Details */}
-          <div className="border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <AccountBalanceWalletIcon style={{ fontSize: '100px' }} />
-            </div>
-            <div className="relative z-10 h-full flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Cut-off Deduction</p>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                      The recurring deduction amount applied to each employee's payroll cutoff.
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <p className="text-3xl font-bold text-white tracking-tight">{peso(deductionCutoff)}</p>
-              </div>
-              <div className="mt-6 pt-4 border-t border-slate-700/50">
-                <div className="text-sm text-slate-300 flex items-center gap-2">
-                  Amortized over: 
-                  <span className="text-white font-semibold">{config.monthsToPay}</span>
-                  Months
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Domain B: Financial Split */}
-          <div className="md:col-span-2 border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white rounded-xl shadow-sm flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 h-full">
-            <div className="flex-1 p-6 flex flex-col justify-center">
-              <div className="flex items-center gap-2 mb-2">
-                <PieChartIcon className="text-emerald-500 !text-base" />
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Employer Share ({employerShare}%)</p>
-              </div>
-              <p className="text-3xl font-bold text-slate-800">{peso(employerShareAmount)}</p>
-            </div>
-            <div className="flex-1 p-6 flex flex-col justify-center">
-              <div className="flex items-center gap-2 mb-2">
-                <PieChartIcon className="text-orange-500 !text-base" />
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Employee Share ({100 - employerShare}%)</p>
-              </div>
-              <p className="text-3xl font-bold text-slate-800">{peso(employeeShareAmount)}</p>
-            </div>
-          </div>
-
-          {/* Domain D: YTD Tracking */}
-         <div className="md:col-span-2 border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm h-full">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <TrendingUpIcon className="text-slate-400 !text-lg" />
-                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Cycle Tracking ({getCycleLabel()})</h2>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Annual Premium Billed</p>
-                <p className="text-2xl font-bold text-slate-800">{peso(annualPremiumTotal)}</p>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Total Collected via Payroll</p>
-                <p className="text-2xl font-bold text-slate-800">{peso(stats.totalPaid)}</p>
-              </div>
-            </div>
-          </div>
-
         </div>
+
+        {/* Dashboard-Style Stats Grid matching EastwestLoan.jsx */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans">
+          
+          {/* Card 1: Total Gross Premium */}
+          <div className="border-t-5 border-[#2A174E] bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4 relative overflow-hidden">
+            <div className="text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Total Gross Premium</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Total gross health insurance premium amount for the policy term.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(config.totalGross)}</p>
+              <div className={`mt-2 text-right px-2 py-0.5 rounded-md border flex items-center gap-1 w-fit ${isUnconfigured ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
+                <SecurityIcon className={`!text-[11px] ${isUnconfigured ? 'text-amber-600' : 'text-blue-600'}`} />
+                <p className="text-[10px] font-semibold">{isUnconfigured ? 'Plan Preview' : 'Active Policy'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Active Subscribers */}
+          <div className="border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4">
+            <div className="text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">
+                  {activeSubscribers <= 1 ? "Active Subscriber" : "Active Subscribers"}
+                </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Count of employees currently covered under Maxicare.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{activeSubscribers}</p>
+              <p className="text-[10px] text-slate-400 mt-2">({getCycleLabel()})</p>
+            </div>
+            <div className="h-12 w-12 bg-[#2A174E]/5 rounded-full flex items-center justify-center border border-[#2A174E]/50 shrink-0">
+              <GroupIcon className="text-indigo-600" />
+            </div>
+          </div>
+
+          {/* Card 3: Total Billed YTD */}
+          <div className="border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-row items-center justify-between gap-4">
+            <div className="absolute top-0 right-0 p-3 opacity-10">
+              <AccountBalanceWalletIcon style={{ fontSize: '70px' }} />
+            </div>
+            <div className="relative z-10 text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs font-bold text-purple-200 tracking-wider uppercase">Annual Billed YTD</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-purple-300 hover:text-white cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Total premium billed from payroll in this cycle.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <p className="text-4xl font-extrabold text-white tracking-tight">{peso(annualPremiumTotal)}</p>
+              <p className="text-[10px] text-purple-200 mt-2">Collected: {peso(stats.totalPaid)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Dialog for Policy Specs and Splits */}
+        <Dialog open={showPolicyDetails} onOpenChange={setShowPolicyDetails}>
+          <DialogContent className="max-w-md bg-white p-6 rounded-xl shadow-2xl text-left border border-slate-100">
+            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
+              <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E]">
+                <InfoIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-[#2A174E]">Policy Specs & Splits</h3>
+                <p className="text-xs text-slate-500 font-medium">Detailed schedule configuration</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Sec 1: Deduction */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Deduction Details</span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Cut-off Deduction:</span>
+                    <span className="font-bold text-[#2A174E]">{peso(deductionCutoff)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Amortization Months:</span>
+                    <span className="font-bold text-slate-800">{config.monthsToPay} Months</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sec 2: Splits */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Premium Splits</span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Employer Share ({employerShare}%):</span>
+                    <span className="font-bold text-emerald-600">{peso(employerShareAmount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Employee Share ({100 - employerShare}%):</span>
+                    <span className="font-bold text-orange-600">{peso(employeeShareAmount)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sec 3: Schedule */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Schedule Periods</span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Cycle Start Date:</span>
+                    <span className="font-bold text-slate-800">
+                      {config.cycleStartDate ? new Date(config.cycleStartDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not Set'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Renewal Term:</span>
+                    <span className="font-bold text-slate-800">{getRenewalPeriod()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sec 4: Summary */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Premium & Collection Summary</span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Annual Premium Billed:</span>
+                    <span className="font-bold text-slate-800">{peso(annualPremiumTotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Total Collected via Payroll:</span>
+                    <span className="font-bold text-slate-800">{peso(stats.totalPaid)}</span>
+                  </div>
+                  <div className="flex justify-between pt-1.5 border-t border-slate-200 font-bold">
+                    <span className="text-slate-700">Remaining Balance:</span>
+                    <span className="text-rose-600">{peso(Math.max(0, annualPremiumTotal - stats.totalPaid))}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Matrix Table Section */}
         <h3 className="text-xl font-bold text-[#2A174E]">Employee Deduction History ({getCycleLabel()})</h3>
@@ -1616,16 +1635,7 @@ const Maxicare = () => {
           
           {/* Left Side: Layout View Switcher */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
-            <Button
-              size="sm"
-              variant={displayLayout === "table" ? "default" : "ghost"}
-              onClick={() => setDisplayLayout("table")}
-              className={`h-7 text-xs font-bold transition-all ${
-                displayLayout === "table" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
-              }`}
-            >
-              Matrix Table
-            </Button>
+            
             <Button
               size="sm"
               variant={displayLayout === "card" ? "default" : "ghost"}
@@ -1635,6 +1645,16 @@ const Maxicare = () => {
               }`}
             >
               Employee Cards
+            </Button>
+            <Button
+              size="sm"
+              variant={displayLayout === "table" ? "default" : "ghost"}
+              onClick={() => setDisplayLayout("table")}
+              className={`h-7 text-xs font-bold transition-all ${
+                displayLayout === "table" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
+              }`}
+            >
+              Matrix Table
             </Button>
           </div>
 
@@ -1662,77 +1682,89 @@ const Maxicare = () => {
             </>
           )}
 
-          {/* Right Side: Admin Action Buttons */}
-          {isAdmin && (
-            <div className="flex flex-wrap items-center gap-2 md:ml-auto">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => {
-                  setIsEditing(true);
-                  setShowCalculator(true);
-                }}
-                className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
-                disabled={loading}
-              >
-                <EditIcon className="mr-1 h-4 w-4" /> Edit
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => {
-                  setBatchForm(prev => ({ 
-                    ...prev, 
-                    dates: [],
-                    amount: deductionCutoff > 0 ? deductionCutoff.toFixed(2) : "" 
-                  }));
-                  setShowBatchModal(true);
-                }}
-                className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
-                disabled={loading || displayDates.length === 0}
-              >
-                <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch
-              </Button>
-              
-              {displayLayout === "table" && (
+          {/* Right Side: Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowPolicyDetails(true)}
+              className="border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all h-9"
+              disabled={loading}
+            >
+              <InfoIcon className="mr-1 h-4 w-4 text-[#2A174E]" /> Policy Specs
+            </Button>
+            
+            {isAdmin && (
+              <>
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => {
-                    if (isEditingTable) {
-                      saveSettings();
-                    } else {
-                      setIsEditingTable(true);
-                    }
+                    setIsEditing(true);
+                    setShowCalculator(true);
                   }}
-                  className={`h-9 ${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
+                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
+                  disabled={loading}
                 >
-                  {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Table</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Table</>}
+                  <EditIcon className="mr-1 h-4 w-4" /> Edit
                 </Button>
-              )}
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setBatchForm(prev => ({ 
+                      ...prev, 
+                      dates: [],
+                      amount: deductionCutoff > 0 ? deductionCutoff.toFixed(2) : "" 
+                    }));
+                    setShowBatchModal(true);
+                  }}
+                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
+                  disabled={loading || displayDates.length === 0}
+                >
+                  <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch
+                </Button>
+                
+                {displayLayout === "table" && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      if (isEditingTable) {
+                        saveSettings();
+                      } else {
+                        setIsEditingTable(true);
+                      }
+                    }}
+                    className={`h-9 ${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
+                  >
+                    {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Table</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Table</>}
+                  </Button>
+                )}
 
-              {isEditingTable && displayLayout === "table" && (
-                <>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={addPeriod}
-                    className="border-blue-600 text-blue-600 hover:bg-blue-50 h-9"
-                  >
-                    Add Period
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={clearYearTemplate}
-                    className="border-rose-600 text-rose-600 hover:bg-rose-50 h-9"
-                  >
-                    Empty Months
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
+                {isEditingTable && displayLayout === "table" && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={addPeriod}
+                      className="border-blue-600 text-blue-600 hover:bg-blue-50 h-9"
+                    >
+                      Add Period
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={clearYearTemplate}
+                      className="border-rose-600 text-rose-600 hover:bg-rose-50 h-9"
+                    >
+                      Empty Months
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
           </div>
         </div>
 
