@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
+import { useSystemTime } from "../../context/SystemTimeContext";
 import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import HistoryIcon from '@mui/icons-material/History';
+import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
 import Toast from "../../components/toast/Toast";
 import { Link } from "react-router-dom";
 import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
@@ -28,9 +30,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const EmployeeHome = () => {
+  const { systemToday, isMockTime } = useSystemTime();
   const [userData, setUserData] = useState(() => JSON.parse(localStorage.getItem("userData")));
+  
+  const formattedTime = systemToday.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+
   const [dashboardStats, setDashboardStats] = useState({
     todayIn: "--:-- AM",
     attendance: { absent: 0, onTime: 0, late: 0, monthName: "" },
@@ -125,12 +137,13 @@ const EmployeeHome = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
-          <Toast 
-            message={toast.message} 
-            type={toast.type} 
-            onClose={() => setToast({ ...toast, message: "" })} 
-          />
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+            <Toast 
+              message={toast.message} 
+              type={toast.type} 
+              onClose={() => setToast({ ...toast, message: "" })} 
+            />
           
           {loading ? (
             <div className="space-y-6">
@@ -165,59 +178,99 @@ const EmployeeHome = () => {
                   </p>
                 </div>
                 
-                <div className="shadow-sm hidden md:flex bg-white/10 px-5 py-3 rounded-lg backdrop-blur-sm border border-white/10 flex-col gap-1 items-start">
-                  <p className="text-[10px] font-bold text-[#2A174E]/60 uppercase tracking-widest mb-0.5">Employee Portal</p>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)] animate-pulse"></span>
-                    <span className="text-sm font-semibold tracking-wide text-[#2A174E]">Active & Synced</span>
-                  </div>
-                </div>
+                 <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="shadow-sm flex bg-white border border-slate-200 px-5 py-3 rounded-xl flex-col gap-1 items-start min-w-[200px] transition-all duration-200 hover:shadow-md cursor-help">
+                      <p className="text-[10px] font-bold text-[#2A174E]/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
+                        <Clock size={12} className="text-[#2A174E]/60" />
+                        <span>System Time</span>
+                        <span className={`w-2 h-2 rounded-full ${isMockTime ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" : "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"}`}></span>
+                      </p>
+                      <div className="flex flex-col">
+                        <span className="text-2xl font-black tracking-tight text-[#2A174E] font-mono leading-none">
+                          {formattedTime}
+                        </span>
+                        {isMockTime && (
+                          <span className="text-[9px] text-amber-600 font-bold uppercase tracking-wider mt-1 animate-pulse">
+                            ⚠️ Mock Mode Active
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                    {isMockTime 
+                      ? "System time is running in Mock Mode (for demonstration/testing purposes)." 
+                      : "System time is synchronized with the company attendance server."}
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
               {/* Border Top Widget Cards (Match Admin Style) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
-                <Card className="bg-gradient-to-t from-[#2A174E] to-[#4A2C7D] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none">
-                  <div className="absolute right-1 top-4 opacity-10">
-                    <Clock size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
-                  </div>
-                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative z-10">
-                    <div>
-                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Today's Log-In</p>
-                      <p className="text-4xl font-bold text-white">{dashboardStats.todayIn || "--:-- AM"}</p>
-                    </div>
-                    <p className="text-xs font-semibold text-white/70 italic mt-4">Your first recorded punch today</p>
-                  </CardContent>
-                </Card>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Card className="bg-gradient-to-t from-[#2A174E] to-[#4A2C7D] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
+                      <div className="absolute right-1 top-4 opacity-10">
+                        <Clock size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
+                      </div>
+                      <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative z-10">
+                        <div>
+                          <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Today's Log-In</p>
+                          <p className="text-4xl font-bold text-white">{dashboardStats.todayIn || "--:-- AM"}</p>
+                        </div>
+                        <p className="text-xs font-semibold text-white/70 italic mt-4">Your first recorded punch today</p>
+                      </CardContent>
+                    </Card>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                    Your first clock-in recorded by the RFID/biometric terminal today.
+                  </TooltipContent>
+                </Tooltip>
 
-                <Card className="bg-gradient-to-t from-[#3B4E17] to-[#5A6F2A] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none">
-                  <div className="absolute right-1 top-4 opacity-10">
-                    <FileText size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
-                  </div>
-                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative z-10">
-                    <div>
-                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Available Leaves</p>
-                      <p className="text-4xl font-bold text-white">
-                        {(balance.VL_balance || 0) + (balance.SL_balance || 0)} <span className="text-xl opacity-80 font-medium">Days</span>
-                      </p>
-                    </div>
-                    <p className="text-xs font-semibold text-white/70 italic mt-4">VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance}</p>
-                  </CardContent>
-                </Card>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Card className="bg-gradient-to-t from-[#3B4E17] to-[#5A6F2A] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
+                      <div className="absolute right-1 top-4 opacity-10">
+                        <FileText size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
+                      </div>
+                      <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative z-10">
+                        <div>
+                          <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Available Leaves</p>
+                          <p className="text-4xl font-bold text-white">
+                            {(balance.VL_balance || 0) + (balance.SL_balance || 0)} <span className="text-xl opacity-80 font-medium">Days</span>
+                          </p>
+                        </div>
+                        <p className="text-xs font-semibold text-white/70 italic mt-4">VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance}</p>
+                      </CardContent>
+                    </Card>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                    Sum of remaining Vacation Leave (VL) and Sick Leave (SL) credits.
+                  </TooltipContent>
+                </Tooltip>
 
-                <Card className="bg-gradient-to-t from-[#B06E16] to-[#D4AF37] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none">
-                  <div className="absolute right-1 top-4 opacity-10">
-                    <CreditCardIcon sx={{ fontSize: 160 }} className="text-white absolute -right-2 -top-2" />
-                  </div>
-                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative z-10">
-                    <div>
-                      <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Latest Net Pay</p>
-                      <p className="text-4xl font-bold text-white">
-                        {payrolls.length > 0 ? formatCurrency(payrolls[0].netPay) : "₱0.00"}
-                      </p>
-                    </div>
-                    <p className="text-xs font-semibold text-white/70 italic mt-4">From your most recent released payslip</p>
-                  </CardContent>
-                </Card>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Card className="bg-gradient-to-t from-[#B06E16] to-[#D4AF37] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
+                      <div className="absolute right-1 top-4 opacity-10">
+                        <CreditCardIcon sx={{ fontSize: 160 }} className="text-white absolute -right-2 -top-2" />
+                      </div>
+                      <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative z-10">
+                        <div>
+                          <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Latest Net Pay</p>
+                          <p className="text-4xl font-bold text-white">
+                            {payrolls.length > 0 ? formatCurrency(payrolls[0].netPay) : "₱0.00"}
+                          </p>
+                        </div>
+                        <p className="text-xs font-semibold text-white/70 italic mt-4">From your most recent released payslip</p>
+                      </CardContent>
+                    </Card>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                    Take-home pay for the most recent cutoff period (excluding government deductions).
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
               <div className="h-4"></div>
@@ -228,7 +281,18 @@ const EmployeeHome = () => {
                 {/* Column 1: Attendance Breakdown */}
                 <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col border-t-4 border-[#2A174E] h-[420px] min-w-0">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-gray-500 font-medium">Arrival Breakdown <span className="text-xs opacity-70">({att.monthName || "Month"})</span></h2>
+                    <h2 className="text-gray-500 font-medium flex items-center gap-1.5">
+                      <span>Arrival Breakdown</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlinedIcon className="text-slate-400 hover:text-slate-600 cursor-pointer !text-[14px] transition-colors" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                          Summary of your attendance punches (Absences, Latenesses, and On-Time arrivals) for this month.
+                        </TooltipContent>
+                      </Tooltip>
+                      <span className="text-xs opacity-70">({att.monthName || "Month"})</span>
+                    </h2>
                   </div>
                   <div className="flex-1 flex flex-col items-center justify-between gap-4 mt-2">
                     <div className="flex justify-around w-full px-2">
@@ -269,7 +333,17 @@ const EmployeeHome = () => {
                 {/* Column 2: Recent Requests */}
                 <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col border-t-4 border-[#3B4E17] h-[420px] min-w-0">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-gray-500 font-medium">Recent Requests</h2>
+                    <h2 className="text-gray-500 font-medium flex items-center gap-1.5">
+                      <span>Recent Requests</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlinedIcon className="text-slate-400 hover:text-slate-600 cursor-pointer !text-[14px] transition-colors" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                          Your most recently filed leave, overtime, or schedule adjustment requests and their approval statuses.
+                        </TooltipContent>
+                      </Tooltip>
+                    </h2>
                     <Link to="/requests" className="text-xs text-[#3B4E17]/60 font-semibold hover:underline hover:text-[#3B4E17]/80">View All</Link>
                   </div>
                   <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2">
@@ -301,7 +375,17 @@ const EmployeeHome = () => {
                 {/* Column 3: Recent Payslips & Actions */}
                 <div className="bg-white p-6 rounded-xl shadow-sm text-[#B06E16] flex flex-col border-t-4 border-[#B06E16] h-[420px] min-w-0">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-[#033A55]/80 font-medium">Recent Payslips</h2>
+                    <h2 className="text-[#033A55]/80 font-medium flex items-center gap-1.5">
+                      <span>Recent Payslips</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlinedIcon className="text-slate-400 hover:text-slate-600 cursor-pointer !text-[14px] transition-colors" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                          Your released payslips for the recent cutoff periods. Click "VIEW SLIP" to open a detailed breakdown.
+                        </TooltipContent>
+                      </Tooltip>
+                    </h2>
                     <Link to="/employee/payroll" className="text-xs text-[#B06E16]/60 font-semibold hover:underline hover:text-[#B06E16]/80">View All</Link>
                   </div>
                   <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2">
@@ -349,8 +433,19 @@ const EmployeeHome = () => {
                 {/* Attendance Timeline */}
                 <Card className="xl:col-span-2 shadow-sm border-0 border-t-4 border-[#2A174E] bg-white h-[420px] flex flex-col">
                   <CardHeader className="pb-4 border-b border-slate-50 shrink-0">
-                    <CardTitle className="text-[#2A174E] text-base font-bold uppercase tracking-wider flex items-center gap-2">
-                      <HistoryIcon className="h-5 w-5" /> Attendance Timeline
+                    <CardTitle className="text-[#2A174E] text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <HistoryIcon className="h-5 w-5" />
+                        <span>Attendance Timeline</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlinedIcon className="text-slate-400 hover:text-[#2A174E] cursor-pointer !text-[16px] transition-colors" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                            Timeline of your daily RFID/biometric logs showing Time In, Time Out, and recorded attendance status.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 flex-1 overflow-hidden flex flex-col">
@@ -384,8 +479,19 @@ const EmployeeHome = () => {
                 {/* Detailed Leave Balances */}
                 <Card className="shadow-sm border-0 border-t-4 border-[#3B4E17] bg-white flex flex-col h-[420px]">
                   <CardHeader className="pb-4 border-b border-slate-50 shrink-0">
-                    <CardTitle className="text-[#3B4E17] text-base font-bold uppercase tracking-wider flex items-center gap-2">
-                      <FileText className="h-5 w-5" /> Leave Balances
+                    <CardTitle className="text-[#3B4E17] text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        <span>Leave Balances</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlinedIcon className="text-slate-400 hover:text-[#3B4E17] cursor-pointer !text-[16px] transition-colors" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                            Your remaining and used Vacation Leave (VL) and Sick Leave (SL) credits for the calendar year.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 flex-1 flex flex-col justify-center gap-6">
@@ -418,8 +524,9 @@ const EmployeeHome = () => {
             .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
           `}} />
         </div>
-      </Sidebar>
-    </div>
+      </TooltipProvider>
+    </Sidebar>
+  </div>
   );
 };
 

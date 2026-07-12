@@ -79,7 +79,12 @@ const routeLabels = {
 const Sidebar = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(() => 
+    location.pathname.startsWith("/auditLogs") || 
+    location.pathname.startsWith("/transactionLog") || 
+    location.pathname.startsWith("/settings") || 
+    location.pathname.startsWith("/faq")
+  );
 
   // Dropdown states for submenus - initialized based on the current URL
   const [isUsersOpen, setIsUsersOpen] = useState(() => location.pathname.startsWith("/users"));
@@ -93,13 +98,19 @@ const Sidebar = ({ children }) => {
   );
   const [isPayrollOpen, setIsPayrollOpen] = useState(() => 
     location.pathname.startsWith("/payroll") || 
+    location.pathname.startsWith("/payrollDetails") ||
     location.pathname.startsWith("/maxicare") || 
     location.pathname.startsWith("/eastwestloan") || 
     location.pathname.startsWith("/govloans") || 
     location.pathname.startsWith("/cashadvances") ||
-    location.pathname.startsWith("/laborBenefits")  ||
+    location.pathname.startsWith("/laborBenefits") ||
+    location.pathname.startsWith("/thirteenth-month") ||
+    location.pathname.startsWith("/separation-pay") ||
+    location.pathname.startsWith("/retirement-pay") ||
     location.pathname.startsWith("/loanManagement") ||
-    location.pathname.startsWith("/loanmod")
+    location.pathname.startsWith("/loanmod") ||
+    location.pathname.startsWith("/loanDetails") ||
+    location.pathname.startsWith("/loanManagementHub")
   );
   
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
@@ -240,10 +251,38 @@ const Sidebar = ({ children }) => {
   const showNotifMenu = isNotifHovered || isNotifLocked;
 
   const menuButtonClass = (active) => cn(
-    "flex items-center w-full transition-all duration-200",
-    active ? "bg-[#f0ebfa] text-[#2A174E] font-bold" : "text-gray-500",
+    "flex items-center w-full transition-all duration-200 text-gray-500",
     "group-data-[collapsible=icon]:!flex group-data-[collapsible=icon]:!items-center group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!px-0"
   );
+
+  const subMenuButtonClass = (active) => cn(
+    "transition-all duration-200 !h-8 px-3 rounded-md flex items-center w-full text-gray-500 hover:bg-[#f7f2fe] hover:text-[#2A174E]",
+    active ? "bg-[#f0ebfa] text-[#2A174E]" : ""
+  );
+
+  // Users active state variables
+  const isViewAllUsersActive = location.pathname === "/users" || (location.pathname.startsWith("/users/") && !location.pathname.includes("newUser") && !location.pathname.includes("archived") && !location.pathname.includes("hardware"));
+  const isNewUserActive = location.pathname === "/users/newUser";
+  const isArchivedUsersActive = location.pathname === "/users/archived";
+
+  // Access Logs active state variables
+  const isEmployeeLogsActive = location.pathname === "/logs" || location.pathname.startsWith("/logs/edit/") || location.pathname === "/accessLogs";
+  const isVisitorLogsActive = location.pathname === "/visitorLogs";
+
+  // Payroll active state variables
+  const isPayrollMgmtActive = location.pathname === "/payroll" || location.pathname.startsWith("/payrollDetails") || location.pathname === "/payroll/payrollPeriod";
+  const isEmployeeListActive = location.pathname === "/payroll/employeeList";
+  const isGovLoansActive = location.pathname === "/loanManagement" || location.pathname.startsWith("/loanDetails/") || location.pathname === "/loanmod" || location.pathname === "/loanManagementHub" || location.pathname.startsWith("/govloans");
+  const isEmpLoansActive = location.pathname.startsWith("/eastwestloan") || location.pathname.startsWith("/cashadvances");
+  const isHmoActive = location.pathname.startsWith("/maxicare");
+  const isLaborBenefitsActive = location.pathname === "/laborBenefits" || location.pathname === "/thirteenth-month" || location.pathname === "/separation-pay" || location.pathname === "/retirement-pay";
+  const isLeaveSummaryActive = location.pathname === "/payroll/leave-summary";
+
+  // Settings active state variables
+  const isAuditLogActive = location.pathname === "/auditLogs";
+  const isTransactionLogActive = location.pathname === "/transactionLog";
+  const isConfigActive = location.pathname === "/settings";
+  const isFaqActive = location.pathname === "/faq";
 
   return (
     <SidebarProvider>
@@ -308,6 +347,7 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       onClick={() => setIsUsersOpen(!isUsersOpen)}
+                      isActive={location.pathname.startsWith("/users")}
                       className={menuButtonClass(location.pathname.startsWith("/users"))}
                     >
                       <PersonOutlineIcon className="!text-[22px] shrink-0" />
@@ -322,8 +362,8 @@ const Sidebar = ({ children }) => {
                     {isUsersOpen && (
                       <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/users")}>
-                            <Link to="/users" className={isActive("/users") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                          <SidebarMenuSubButton asChild isActive={isViewAllUsersActive} className={subMenuButtonClass(isViewAllUsersActive)}>
+                            <Link to="/users" className={cn("text-inherit font-medium", isViewAllUsersActive ? "font-bold" : "")}>
                               View All Users
                             </Link>
                           </SidebarMenuSubButton>
@@ -331,15 +371,15 @@ const Sidebar = ({ children }) => {
                         {isManagement && (
                           <>
                             <SidebarMenuSubItem>
-                              <SidebarMenuSubButton asChild isActive={isActive("/users/newUser")}>
-                                <Link to="/users/newUser" className={isActive("/users/newUser") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              <SidebarMenuSubButton asChild isActive={isNewUserActive} className={subMenuButtonClass(isNewUserActive)}>
+                                <Link to="/users/newUser" className={cn("text-inherit font-medium", isNewUserActive ? "font-bold" : "")}>
                                   Add New User
                                 </Link>
                               </SidebarMenuSubButton>
                             </SidebarMenuSubItem>
                             <SidebarMenuSubItem>
-                              <SidebarMenuSubButton asChild isActive={isActive("/users/archived")}>
-                                <Link to="/users/archived" className={isActive("/users/archived") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                              <SidebarMenuSubButton asChild isActive={isArchivedUsersActive} className={subMenuButtonClass(isArchivedUsersActive)}>
+                                <Link to="/users/archived" className={cn("text-inherit font-medium", isArchivedUsersActive ? "font-bold" : "")}>
                                   View Archived
                                 </Link>
                               </SidebarMenuSubButton>
@@ -354,8 +394,8 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                   <SidebarMenuButton 
                     asChild 
-                    isActive={isActive("/users")}
-                    className={menuButtonClass(isActive("/users"))}
+                    isActive={location.pathname.startsWith("/users")}
+                    className={menuButtonClass(location.pathname.startsWith("/users"))}
                   >
                     <Link to="/users">
                       <PersonOutlineIcon 
@@ -372,6 +412,7 @@ const Sidebar = ({ children }) => {
                 <SidebarMenuItem>
                   <SidebarMenuButton 
                     onClick={() => setIsAccessLogsOpen(!isAccessLogsOpen)}
+                    isActive={location.pathname.startsWith("/logs") || location.pathname.startsWith("/accessLogs") || location.pathname.startsWith("/visitorLogs")}
                     className={menuButtonClass(location.pathname.startsWith("/logs") || location.pathname.startsWith("/accessLogs") || location.pathname.startsWith("/visitorLogs"))}
                   >
                     <HistoryIcon className="!text-[22px] shrink-0" />
@@ -386,16 +427,16 @@ const Sidebar = ({ children }) => {
                   {isAccessLogsOpen && (
                     <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/logs") || isActive("/accessLogs")}>
-                          <Link to={isManagement || isSupervisor ? "/logs" : "/accessLogs"} className={isActive("/logs") || isActive("/accessLogs") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                        <SidebarMenuSubButton asChild isActive={isEmployeeLogsActive} className={subMenuButtonClass(isEmployeeLogsActive)}>
+                          <Link to={isManagement || isSupervisor ? "/logs" : "/accessLogs"} className={cn("text-inherit font-medium", isEmployeeLogsActive ? "font-bold" : "")}>
                             Employee Logs
                           </Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       {isManagement && (
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/visitorLogs")}>
-                            <Link to="/visitorLogs" className={isActive("/visitorLogs") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                          <SidebarMenuSubButton asChild isActive={isVisitorLogsActive} className={subMenuButtonClass(isVisitorLogsActive)}>
+                            <Link to="/visitorLogs" className={cn("text-inherit font-medium", isVisitorLogsActive ? "font-bold" : "")}>
                               Visitor Access
                             </Link>
                           </SidebarMenuSubButton>
@@ -426,8 +467,8 @@ const Sidebar = ({ children }) => {
                 <SidebarMenuItem>
                   <SidebarMenuButton 
                     asChild 
-                    isActive={isActive("/requests") || isActive("/adminRequests") || isActive("/adminoversight")}
-                    className={menuButtonClass(isActive("/requests") || isActive("/adminRequests") || isActive("/adminoversight"))}
+                    isActive={location.pathname.startsWith("/requests") || location.pathname.startsWith("/adminRequests") || location.pathname.startsWith("/requestSum") || location.pathname.startsWith("/adminoversight")}
+                    className={menuButtonClass(location.pathname.startsWith("/requests") || location.pathname.startsWith("/adminRequests") || location.pathname.startsWith("/requestSum") || location.pathname.startsWith("/adminoversight"))}
                   >
                     <Link 
                       to={
@@ -450,12 +491,37 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       onClick={() => setIsPayrollOpen(!isPayrollOpen)}
-                      className={menuButtonClass(
+                      isActive={
                         location.pathname.startsWith("/payroll") || 
+                        location.pathname.startsWith("/payrollDetails") ||
                         location.pathname.startsWith("/maxicare") || 
                         location.pathname.startsWith("/eastwestloan") || 
+                        location.pathname.startsWith("/govloans") || 
+                        location.pathname.startsWith("/cashadvances") ||
+                        location.pathname.startsWith("/laborBenefits") ||
+                        location.pathname.startsWith("/thirteenth-month") ||
+                        location.pathname.startsWith("/separation-pay") ||
+                        location.pathname.startsWith("/retirement-pay") ||
                         location.pathname.startsWith("/loanManagement") ||
-                        location.pathname.startsWith("/laborBenefits")
+                        location.pathname.startsWith("/loanmod") ||
+                        location.pathname.startsWith("/loanDetails") ||
+                        location.pathname.startsWith("/loanManagementHub")
+                      }
+                      className={menuButtonClass(
+                        location.pathname.startsWith("/payroll") || 
+                        location.pathname.startsWith("/payrollDetails") ||
+                        location.pathname.startsWith("/maxicare") || 
+                        location.pathname.startsWith("/eastwestloan") || 
+                        location.pathname.startsWith("/govloans") || 
+                        location.pathname.startsWith("/cashadvances") ||
+                        location.pathname.startsWith("/laborBenefits") ||
+                        location.pathname.startsWith("/thirteenth-month") ||
+                        location.pathname.startsWith("/separation-pay") ||
+                        location.pathname.startsWith("/retirement-pay") ||
+                        location.pathname.startsWith("/loanManagement") ||
+                        location.pathname.startsWith("/loanmod") ||
+                        location.pathname.startsWith("/loanDetails") ||
+                        location.pathname.startsWith("/loanManagementHub")
                       )}
                     >
                       <CreditCardIcon className="!text-[22px] shrink-0" />
@@ -468,54 +534,54 @@ const Sidebar = ({ children }) => {
                     {isPayrollOpen && (
                       <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/payroll")}>
-                            <Link to="/payroll" className={isActive("/payroll") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                          <SidebarMenuSubButton asChild isActive={isPayrollMgmtActive} className={subMenuButtonClass(isPayrollMgmtActive)}>
+                            <Link to="/payroll" className={cn("text-inherit font-medium", isPayrollMgmtActive ? "font-bold" : "")}>
                               Payroll Management
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/payroll/employeeList")}>
-                            <Link to="/payroll/employeeList" className={isActive("/payroll/employeeList") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                          <SidebarMenuSubButton asChild isActive={isEmployeeListActive} className={subMenuButtonClass(isEmployeeListActive)}>
+                            <Link to="/payroll/employeeList" className={cn("text-inherit font-medium", isEmployeeListActive ? "font-bold" : "")}>
                               Employee List
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
 
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/loanManagement")}>
-                            <Link to="/loanManagement" className={isActive("/loanManagement") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                          <SidebarMenuSubButton asChild isActive={isGovLoansActive} className={subMenuButtonClass(isGovLoansActive)}>
+                            <Link to="/loanManagement" className={cn("text-inherit font-medium", isGovLoansActive ? "font-bold" : "")}>
                               Government Loans
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
 
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/eastwestloan")}>
-                            <Link to="/eastwestloan" className={isActive("/eastwestloan") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                          <SidebarMenuSubButton asChild isActive={isEmpLoansActive} className={subMenuButtonClass(isEmpLoansActive)}>
+                            <Link to="/eastwestloan" className={cn("text-inherit font-medium", isEmpLoansActive ? "font-bold" : "")}>
                               Employee Loan
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/maxicare")}>
-                            <Link to="/maxicare" className={isActive("/maxicare") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                          <SidebarMenuSubButton asChild isActive={isHmoActive} className={subMenuButtonClass(isHmoActive)}>
+                            <Link to="/maxicare" className={cn("text-inherit font-medium", isHmoActive ? "font-bold" : "")}>
                               HMO Management
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
 
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/laborBenefits")}>
-                            <Link to="/laborBenefits" className={isActive("/laborBenefits") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                          <SidebarMenuSubButton asChild isActive={isLaborBenefitsActive} className={subMenuButtonClass(isLaborBenefitsActive)}>
+                            <Link to="/laborBenefits" className={cn("text-inherit font-medium", isLaborBenefitsActive ? "font-bold" : "")}>
                               Labor Benefits
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem> 
 
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/payroll/leave-summary")}>
-                            <Link to="/payroll/leave-summary" className={isActive("/payroll/leave-summary") ? "text-[#2A174E] font-bold" : "text-gray-500"}>
+                          <SidebarMenuSubButton asChild isActive={isLeaveSummaryActive} className={subMenuButtonClass(isLeaveSummaryActive)}>
+                            <Link to="/payroll/leave-summary" className={cn("text-inherit font-medium", isLeaveSummaryActive ? "font-bold" : "")}>
                               Leave Summary
                             </Link>
                           </SidebarMenuSubButton>
@@ -530,8 +596,8 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
-                      isActive={isActive("/adminReports")}
-                      className={menuButtonClass(isActive("/adminReports"))}
+                      isActive={location.pathname.startsWith("/adminReports")}
+                      className={menuButtonClass(location.pathname.startsWith("/adminReports"))}
                     >
                       <Link to="/adminReports">
                         <AssessmentIcon className="!text-[22px] shrink-0" />
@@ -551,6 +617,12 @@ const Sidebar = ({ children }) => {
             <SidebarMenuItem>
               <SidebarMenuButton 
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                isActive={
+                  location.pathname.startsWith("/auditLogs") || 
+                  location.pathname.startsWith("/transactionLog") || 
+                  location.pathname.startsWith("/settings") || 
+                  location.pathname.startsWith("/faq")
+                }
                 className={cn(
                   menuButtonClass(
                     location.pathname.startsWith("/auditLogs") || 
@@ -573,10 +645,10 @@ const Sidebar = ({ children }) => {
                 <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
                   {isMaster && (
                     <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/auditLogs")}>
+                      <SidebarMenuSubButton asChild isActive={isAuditLogActive} className={subMenuButtonClass(isAuditLogActive)}>
                         <Link 
                           to="/auditLogs" 
-                          className={location.pathname.startsWith("/auditLogs") ? "text-[#2A174E] font-bold" : "text-gray-500"}
+                          className={cn("text-inherit font-medium flex items-center", isAuditLogActive ? "font-bold" : "")}
                         >
                           <ListAltIcon className="!text-[18px] mr-2" /> Audit
                         </Link>
@@ -586,10 +658,10 @@ const Sidebar = ({ children }) => {
 
                   {isMaster && (
                     <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/transactionLog")}>
+                      <SidebarMenuSubButton asChild isActive={isTransactionLogActive} className={subMenuButtonClass(isTransactionLogActive)}>
                         <Link 
                           to="/transactionLog" 
-                          className={location.pathname.startsWith("/transactionLog") ? "text-[#2A174E] font-bold" : "text-gray-500"}
+                          className={cn("text-inherit font-medium flex items-center", isTransactionLogActive ? "font-bold" : "")}
                         >
                           <ReceiptLongIcon className="!text-[18px] mr-2" /> Transaction
                         </Link>
@@ -599,10 +671,10 @@ const Sidebar = ({ children }) => {
 
                   {isManagement && (
                     <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/settings")}>
+                      <SidebarMenuSubButton asChild isActive={isConfigActive} className={subMenuButtonClass(isConfigActive)}>
                         <Link 
                           to="/settings" 
-                          className={location.pathname.startsWith("/settings") ? "text-[#2A174E] font-bold" : "text-gray-500"}
+                          className={cn("text-inherit font-medium flex items-center", isConfigActive ? "font-bold" : "")}
                         >
                           <TuneIcon className="!text-[18px] mr-2" /> Configuration
                         </Link>
@@ -611,10 +683,10 @@ const Sidebar = ({ children }) => {
                   )}
 
                   <SidebarMenuSubItem>
-                    <SidebarMenuSubButton asChild isActive={location.pathname.startsWith("/faq")}>
+                    <SidebarMenuSubButton asChild isActive={isFaqActive} className={subMenuButtonClass(isFaqActive)}>
                       <Link 
                         to="/faq" 
-                        className={location.pathname.startsWith("/faq") ? "text-[#2A174E] font-bold" : "text-gray-500"}
+                        className={cn("text-inherit font-medium flex items-center", isFaqActive ? "font-bold" : "")}
                       >
                         <HelpOutlinedIcon className="!text-[18px] mr-2" /> Help & Support
                       </Link>

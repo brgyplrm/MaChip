@@ -8,6 +8,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
 import EmptyState from "@/components/EmptyState";
+import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const EmployeeCalendar = () => {
   const { systemToday } = useSystemTime();
@@ -138,7 +140,8 @@ const EmployeeCalendar = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 mt-2">
@@ -153,24 +156,71 @@ const EmployeeCalendar = () => {
         {/* Sleek Legend Banner */}
         <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 bg-white border border-slate-200 rounded-lg p-3 px-5 shadow-sm">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Legend</span>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-red-400 ring-4 ring-red-50" /> Regular Holiday
-          </div>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-purple-400 ring-4 ring-purple-50" /> Special Holiday
-          </div>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-teal-400 ring-4 ring-teal-50" /> Due Date
-          </div>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-orange-400 ring-4 ring-orange-50" /> Field Work
-          </div>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-green-400 ring-4 ring-green-50" /> Approved Leave
-          </div>
-          <div className="flex items-center text-sm font-medium text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full mr-2 bg-blue-400 ring-4 ring-blue-50" /> Overtime
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-red-400 ring-4 ring-red-50" /> Regular Holiday
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+              Paid non-working days declared nationwide.
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-purple-400 ring-4 ring-purple-50" /> Special Holiday
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+              Special non-working days or local holidays.
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-teal-400 ring-4 ring-teal-50" /> Due Date
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+              Deadlines, payroll runs, or system cutoffs.
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-orange-400 ring-4 ring-orange-50" /> Field Work
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+              Assigned on-field assignments credited as 8 duty hours.
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-green-400 ring-4 ring-green-50" /> Approved Leave
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+              Your approved Vacation, Sick, or Emergency Leave days.
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-blue-400 ring-4 ring-blue-50" /> Overtime
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+              Approved overtime hours filed for rendering.
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Main Layout Stack */}
@@ -186,10 +236,17 @@ const EmployeeCalendar = () => {
                 <div 
                   className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity select-none group"
                   onClick={() => setIsDatePickerOpen(true)}
-                  title="Jump to a specific date"
                 >
                   <h2 className="text-lg md:text-xl font-bold">{`${monthName} ${year}`}</h2>
                   <CalendarMonthIcon className="h-5 w-5 opacity-70 group-hover:opacity-100 transition-opacity" />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlinedIcon className="text-white/60 hover:text-white cursor-pointer !text-[16px] transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                      Click to jump to a specific month and year.
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
 
                 <ChevronRightIcon className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => changeMonth(1)} />
@@ -290,7 +347,17 @@ const EmployeeCalendar = () => {
             {/* Holidays List Card */}
             <Card className="shadow-sm border-0 h-[500px] border-t-4 border-[#2A174E] py-0 overflow-hidden">
               <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-[#2A174E]">Holidays</CardTitle>
+                <CardTitle className="text-lg text-[#2A174E] flex items-center gap-1.5">
+                  <span>Holidays</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlinedIcon className="text-slate-400 hover:text-[#2A174E] cursor-pointer !text-[16px] transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                      Upcoming regular and special non-working holidays in the Philippines.
+                    </TooltipContent>
+                  </Tooltip>
+                </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 h-[440px] overflow-y-auto custom-scrollbar">
                 {getUpcomingHolidays().length > 0 ? (
@@ -335,7 +402,17 @@ const EmployeeCalendar = () => {
             {/* Personnel Actions Card (Leaves & Overtime) */}
             <Card className="shadow-sm border-0 h-[500px] border-t-4 border-green-600 py-0 overflow-hidden">
               <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-green-700">My Actions</CardTitle>
+                <CardTitle className="text-lg text-green-700 flex items-center gap-1.5">
+                  <span>My Actions</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlinedIcon className="text-slate-400 hover:text-green-700 cursor-pointer !text-[16px] transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                      Records of your approved leaves and scheduled overtime logs.
+                    </TooltipContent>
+                  </Tooltip>
+                </CardTitle>
               </CardHeader>
               <CardContent className="h-[440px] pt-0 px-0">
                 <Tabs defaultValue="leave" className="w-full h-full flex flex-col">
@@ -394,7 +471,17 @@ const EmployeeCalendar = () => {
             {/* Operational Tasks Card (Field Work & Due Dates) */}
             <Card className="shadow-sm border-0 h-[500px] border-t-4 border-orange-500 py-0 overflow-hidden">
               <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-orange-700">My Tasks</CardTitle>
+                <CardTitle className="text-lg text-orange-700 flex items-center gap-1.5">
+                  <span>My Tasks</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlinedIcon className="text-slate-400 hover:text-orange-700 cursor-pointer !text-[16px] transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                      Operational tasks assigned to you, including field work logs and due dates.
+                    </TooltipContent>
+                  </Tooltip>
+                </CardTitle>
               </CardHeader>
               <CardContent className="h-[440px] pt-0 px-0">
                 <Tabs defaultValue="field" className="w-full h-full flex flex-col">
@@ -573,6 +660,7 @@ const EmployeeCalendar = () => {
         `}} />
 
       </div>
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

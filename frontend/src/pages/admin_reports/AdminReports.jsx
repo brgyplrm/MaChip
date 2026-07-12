@@ -35,6 +35,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import ShieldIcon from '@mui/icons-material/Shield';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const AdminReports = () => {
   // Constant Baseline Fallback Variable References
@@ -420,28 +422,43 @@ const AdminReports = () => {
 
   return (
     <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
-          
-          {/* Header */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Reports & Analytics</h1>
-              <span className="text-sm text-slate-500 mt-1 block">Generate, analyze, and export system attendance and payroll data.</span>
+      <TooltipProvider>
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+            
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Reports & Analytics</h1>
+                <span className="text-sm text-slate-500 mt-1 block">Generate, analyze, and export system attendance and payroll data.</span>
+              </div>
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                {/* <Button onClick={handleCSVExport} variant="outline" className="w-full md:w-auto border-slate-200 text-slate-700 bg-white hover:bg-slate-50 shadow-sm">
+                  <FileInput className="mr-2 h-4 w-4 text-slate-500" /> Export CSV
+                </Button> */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button onClick={handlePDFExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
+                      <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                    Export current report data to PDF format
+                  </TooltipContent>
+                </Tooltip>
+                {activeReport === "payroll" && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button onClick={handleBatchExport} disabled={payrollData.length === 0 || loading} className="w-full md:w-auto bg-green-600 text-white hover:bg-green-700 shadow-sm">
+                        <ReceiptLongIcon className="mr-2 h-4 w-4" /> Batch ZIP Payslips
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                      Batch download protected employee payslips in a ZIP archive
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              {/* <Button onClick={handleCSVExport} variant="outline" className="w-full md:w-auto border-slate-200 text-slate-700 bg-white hover:bg-slate-50 shadow-sm">
-                <FileInput className="mr-2 h-4 w-4 text-slate-500" /> Export CSV
-              </Button> */}
-              <Button onClick={handlePDFExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
-                <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
-              </Button>
-              {activeReport === "payroll" && (
-                <Button onClick={handleBatchExport} disabled={payrollData.length === 0 || loading} className="w-full md:w-auto bg-green-600 text-white hover:bg-green-700 shadow-sm">
-                  <ReceiptLongIcon className="mr-2 h-4 w-4" /> Batch ZIP Payslips
-                </Button>
-              )}
-            </div>
-          </div>
 
           {/* Navigation Tabs */}
           <Tabs value={activeReport} onValueChange={(val) => setActiveReport(val)} className="w-full mb-6">
@@ -499,32 +516,281 @@ const AdminReports = () => {
           <div className="w-full animate-in fade-in zoom-in-95 duration-200">
             {activeReport === "attendance" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Present</p><p className="text-4xl font-bold text-[#2A174E]">{attStats.present}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Total present records</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><CheckCircleOutlineIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Hours</p><p className="text-4xl font-bold text-[#3B4E17]">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p></div><p className="text-xs text-[#3B4E17]/70 italic mt-4">Total working hours</p></div><div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AccessTimeIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Lates / Absences</p><p className="text-4xl font-bold text-[#BB8B26]">{attStats.late + attStats.absent}</p></div><p className="text-xs text-[#BB8B26]/70 italic mt-4">Recorded schedule infractions</p></div><div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AssignmentLateIcon /></div></CardContent></Card>
+                {/* Card 1: Total Present */}
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Present</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total count of attendance records marked as On-Time or Late.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#2A174E]">{attStats.present}</p>
+                      </div>
+                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Total present records</p>
+                    </div>
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><CheckCircleOutlineIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 2: Total Hours */}
+                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Total Hours</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Sum of all working hours recorded within the selected period.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#3B4E17]">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p>
+                      </div>
+                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Total working hours</p>
+                    </div>
+                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AccessTimeIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 3: Lates / Absences */}
+                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Lates / Absences</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total number of recorded schedule infractions (Late arrivals and Absent records).
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#BB8B26]">{attStats.late + attStats.absent}</p>
+                      </div>
+                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Recorded schedule infractions</p>
+                    </div>
+                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AssignmentLateIcon /></div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
             {activeReport === "payroll" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Net Pay</p><p className="text-4xl font-bold text-[#2A174E]">{peso(payStats.net)}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Distribution payload volume</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><PaymentsIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Earnings</p><p className="text-4xl font-bold text-[#3B4E17]">{peso(payStats.earn)}</p></div><p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross operational pay index</p></div><div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowUpIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Deductions</p><p className="text-4xl font-bold text-[#BB8B26]">{peso(payStats.ded)}</p></div><p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings ledger volume</p></div><div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowDownIcon /></div></CardContent></Card>
+                {/* Card 1: Total Net Pay */}
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Net Pay</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Sum of all employees' net take-home pay after deductions.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#2A174E]">{peso(payStats.net)}</p>
+                      </div>
+                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Distribution payload volume</p>
+                    </div>
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><PaymentsIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 2: Total Earnings */}
+                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Total Earnings</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Sum of gross wages (including Basic, OT, Night Differential, and Holiday pay) before deductions.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#3B4E17]">{peso(payStats.earn)}</p>
+                      </div>
+                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross operational pay index</p>
+                    </div>
+                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowUpIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 3: Total Deductions */}
+                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Total Deductions</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Sum of all employee deductions, excluding standard government-mandated taxes.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#BB8B26]">{peso(payStats.ded)}</p>
+                      </div>
+                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings ledger volume</p>
+                    </div>
+                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowDownIcon /></div>
+                  </CardContent>
+                </Card>
               </div> 
             )}
 
             {activeReport === "calendar" && (
               <div className="grid grid-cols-1 mb-6 w-full">
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Logged Events</p><p className="text-4xl font-bold text-[#2A174E]">{filteredCalendarData.length}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Holidays and leave logs active in window</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><EventNoteIcon /></div></CardContent></Card>
+                {/* Card 1: Total Logged Events */}
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Logged Events</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Count of holidays and employee leave records active in the current date range.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#2A174E]">{filteredCalendarData.length}</p>
+                      </div>
+                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Holidays and leave logs active in window</p>
+                    </div>
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><EventNoteIcon /></div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
             {activeReport === "requests" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6 w-full">
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-1">Queue Total</p><p className="text-4xl font-extrabold text-[#2A174E]">{requestStats.pending}</p></div><p className="text-xs text-[#2A174E]/70 font-medium italic mt-2">Pending review entries</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0"><AccessTimeIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-1">Approved History</p><p className="text-4xl font-extrabold text-[#3B4E17]">{requestStats.approved}</p></div><p className="text-xs text-[#3B4E17]/70 font-medium italic mt-2">Accepted historical logs</p></div><div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0"><CheckCircleOutlineIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-1">Rejected Records</p><p className="text-4xl font-extrabold text-[#BB8B26]">{requestStats.rejected}</p></div><p className="text-xs text-[#BB8B26]/70 font-medium italic mt-2">Declined system entries</p></div><div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0"><AssignmentLateIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#475569] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1">Gross Logs Filed</p><p className="text-4xl font-extrabold text-slate-700">{requestStats.total}</p></div><p className="text-xs text-slate-400 font-medium italic mt-2">Operational ledger history volume</p></div><div className="bg-slate-100 text-slate-600 p-3 rounded-lg flex items-center justify-center shrink-0"><AssessmentIcon /></div></CardContent></Card>
+                {/* Card 1: Queue Total */}
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Queue Total</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total number of requests currently pending or recommended for approval.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-extrabold text-[#2A174E]">{requestStats.pending}</p>
+                      </div>
+                      <p className="text-xs text-[#2A174E]/70 font-medium italic mt-2">Pending review entries</p>
+                    </div>
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0"><AccessTimeIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 2: Approved History */}
+                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Approved History</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total number of approved employee requests.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-extrabold text-[#3B4E17]">{requestStats.approved}</p>
+                      </div>
+                      <p className="text-xs text-[#3B4E17]/70 font-medium italic mt-2">Accepted historical logs</p>
+                    </div>
+                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0"><CheckCircleOutlineIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 3: Rejected Records */}
+                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Rejected Records</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total number of rejected or declined employee requests.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-extrabold text-[#BB8B26]">{requestStats.rejected}</p>
+                      </div>
+                      <p className="text-xs text-[#BB8B26]/70 font-medium italic mt-2">Declined system entries</p>
+                    </div>
+                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0"><AssignmentLateIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 4: Gross Logs Filed */}
+                <Card className="border-t-5 border-[#475569] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Gross Logs Filed</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Sum total of all requests filed in the system (pending, approved, and rejected).
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-extrabold text-slate-700">{requestStats.total}</p>
+                      </div>
+                      <p className="text-xs text-slate-400 font-medium italic mt-2">Operational ledger history volume</p>
+                    </div>
+                    <div className="bg-slate-100 text-slate-600 p-3 rounded-lg flex items-center justify-center shrink-0"><AssessmentIcon /></div>
+                  </CardContent>
+                </Card>
               </div>
             )}
           </div>
@@ -765,11 +1031,18 @@ const AdminReports = () => {
                                 <Badge variant="secondary" className={badgeStyle}>{r.statusName}</Badge>
                               </TableCell>
                               <TableCell className="text-right pr-6 py-4">
-                                <Button variant="ghost" size="icon" asChild className="text-[#2A174E] hover:bg-[#f0ebfa]">
-                                  <Link title="View Payslip" to={`/adminReports/payslip/${r.payrollId}`} state={{ fromTab: activeReport }}>
-                                    <ReceiptLongIcon className="h-5 w-5" />
-                                  </Link>
-                                </Button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" asChild className="text-[#2A174E] hover:bg-[#f0ebfa]">
+                                      <Link to={`/adminReports/payslip/${r.payrollId}`} state={{ fromTab: activeReport }}>
+                                        <ReceiptLongIcon className="h-5 w-5" />
+                                      </Link>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                    View Payslip details
+                                  </TooltipContent>
+                                </Tooltip>
                               </TableCell>
                             </TableRow>
                           );
@@ -924,9 +1197,16 @@ const AdminReports = () => {
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">File Encryption Password</p>
                 <div className="flex items-center justify-between gap-4 bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
                   <code className="text-lg font-black text-[#2A174E] tracking-tight">{zipPassword}</code>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5" onClick={() => navigator.clipboard.writeText(zipPassword)}>
-                    <ContentCopyIcon className="h-4 w-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5" onClick={() => navigator.clipboard.writeText(zipPassword)}>
+                        <ContentCopyIcon className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                      Copy password to clipboard
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
 
@@ -960,6 +1240,7 @@ const AdminReports = () => {
             background: #94a3b8; 
           }
         `}} />
+      </TooltipProvider>
     </Sidebar>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
+import { useSystemTime } from "../../context/SystemTimeContext";
 import Featured from "../../components/featured/Featured";
 import Chart from "../../components/chart/Chart";
 import OccupancyList from "../../components/occupancy/OccupancyList";
@@ -43,9 +44,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const Home = () => {
+  const { systemToday, isMockTime } = useSystemTime();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const viewMode = localStorage.getItem("viewMode") || "management";
   const [loading, setLoading] = useState(false);
+
+  const formattedTime = systemToday.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [stats, setStats] = useState({
     totalEmployees: 0,
@@ -283,13 +292,23 @@ const Home = () => {
               </p>
             </div>
             
-            {/* <div className="shadow-sm hidden md:flex bg-white/10 px-5 py-3 rounded-lg backdrop-blur-sm border border-white/10 flex-col gap-1 items-start">
-              <p className="text-[10px] font-bold text-[#2A174E]/60 uppercase tracking-widest mb-0.5">System Status</p>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)] animate-pulse"></span>
-                <span className="text-sm font-semibold tracking-wide text-[#2A174E]">All systems operational</span>
+            <div className="shadow-sm flex bg-white border border-slate-200 px-5 py-3 rounded-xl flex-col gap-1 items-start min-w-[200px] transition-all duration-200 hover:shadow-md">
+              <p className="text-[10px] font-bold text-[#2A174E]/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
+                <AccessTimeIcon sx={{ fontSize: 12 }} />
+                <span>System Time</span>
+                <span className={`w-2 h-2 rounded-full ${isMockTime ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" : "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"}`}></span>
+              </p>
+              <div className="flex flex-col">
+                <span className="text-2xl font-black tracking-tight text-[#2A174E] font-mono leading-none">
+                  {formattedTime}
+                </span>
+                {isMockTime && (
+                  <span className="text-[9px] text-amber-600 font-bold uppercase tracking-wider mt-1 animate-pulse">
+                    ⚠️ Mock Mode Active
+                  </span>
+                )}
               </div>
-            </div> */}
+            </div>
           </div>
 
           {/* Border Top Widget Cards */}

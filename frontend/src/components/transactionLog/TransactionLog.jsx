@@ -23,6 +23,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const TransactionLog = () => {
   const [transactions, setTransactions] = useState([]);
@@ -181,27 +183,45 @@ const TransactionLog = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Transaction Log</h1>
-            <span className="text-sm text-slate-500 mt-1 block">View and track all financial events, batch runs, and system anomalies.</span>
+      <TooltipProvider>
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+          
+          {/* Header */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Transaction Log</h1>
+              <span className="text-sm text-slate-500 mt-1 block">View and track all financial events, batch runs, and system anomalies.</span>
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={handleExportPDF}>
+                  <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                Export transaction logs to PDF format
+              </TooltipContent>
+            </Tooltip>
           </div>
-          <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={handleExportPDF}>
-            <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
-          </Button>
-        </div>
 
          {/* Statistics Cards */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-          {/* Card 1: Total Active Users */}
+          {/* Card 1: Total Events */}
           <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Events</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Events</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                        Total count of transactional logs, access warnings, and batch operations recorded.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
                 </div>
                 <p className="text-xs text-[#2A174E]/70 italic mt-4">All recorded transactions</p>
@@ -212,12 +232,22 @@ const TransactionLog = () => {
             </CardContent>
           </Card>
 
-          {/* Card 2: Employees */}
+          {/* Card 2: Payroll Releases */}
           <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Payroll Releases</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Payroll Releases</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                        Total count of processed and released payroll disbursements.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#3B4E17]">{stats.payrollReleases}</p>
                 </div>
                 <p className="text-xs text-[#3B4E17]/70 italic mt-4">Successful fund disbursements</p>
@@ -228,12 +258,22 @@ const TransactionLog = () => {
             </CardContent>
           </Card>
 
-          {/* Card 3: Admins & Supervisors */}
+          {/* Card 3: Batch Runs */}
           <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Batch Runs</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Batch Runs</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                        Count of bulk operations (such as batch payroll generation) initiated by administrators.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#BB8B26]">{stats.batchRuns}</p>
                 </div>
                 <p className="text-xs text-[#BB8B26]/70 italic mt-4">Automated bulk generations</p>
@@ -244,12 +284,22 @@ const TransactionLog = () => {
             </CardContent>
           </Card>
 
-          {/* Card 4: Security Alerts */}
+          {/* Card 4: Anomalies */}
           <Card className="border-t-5 border-[#991b1b] bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-[13px] font-bold text-[#991b1b] uppercase tracking-wider mb-2">Anomalies</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-[#991b1b] uppercase tracking-wider">Anomalies</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                        Unrecognized scans, unauthorized access attempts, and system logging irregularities.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#991b1b]">{stats.unauthorizedScans}</p>
                 </div>
                 <p className="text-xs text-[#991b1b]/70 italic mt-4">Unauthorized or failed scans</p>
@@ -340,9 +390,16 @@ const TransactionLog = () => {
                           <TableCell className="text-slate-500 text-sm max-w-[300px] truncate py-4" title={t.description}>{maskDescription(t.description, t.event_Type)}</TableCell>
                           <TableCell className="text-slate-400 font-mono text-xs py-4">{t.ip_Address || t.metadata?.deviceIp || "Local"}</TableCell>
                           <TableCell className="text-right pr-6 py-4">
-                            <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]">
-                              <EyeIcon className=" h-4 w-4"/>
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]">
+                                  <EyeIcon className=" h-4 w-4"/>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                View transaction details and metadata
+                              </TooltipContent>
+                            </Tooltip>
                           </TableCell>
                         </TableRow>
                       );
@@ -427,6 +484,7 @@ const TransactionLog = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </TooltipProvider>
       </Sidebar>
     </div>
   );
