@@ -19,12 +19,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const EmployeeCalendar = () => {
   const { systemToday } = useSystemTime();
   const [currentDate, setCurrentDate] = useState(new Date(systemToday.getFullYear(), systemToday.getMonth(), 1));
   const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [selectedDayDetails, setSelectedDayDetails] = useState(null);
   const [selectedHolidayDetails, setSelectedHolidayDetails] = useState(null);
@@ -143,402 +144,482 @@ const EmployeeCalendar = () => {
         <TooltipProvider>
           <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 mt-2">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">My Calendar</h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              View upcoming holidays, your approved leaves, and scheduled field work assignments.
-            </p>
-          </div>
-        </div>
-
-        {/* Sleek Legend Banner */}
-        <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 bg-white border border-slate-200 rounded-lg p-3 px-5 shadow-sm">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Legend</span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
-                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-red-400 ring-4 ring-red-50" /> Regular Holiday
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-              Paid non-working days declared nationwide.
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
-                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-purple-400 ring-4 ring-purple-50" /> Special Holiday
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-              Special non-working days or local holidays.
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
-                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-teal-400 ring-4 ring-teal-50" /> Due Date
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-              Deadlines, payroll runs, or system cutoffs.
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
-                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-orange-400 ring-4 ring-orange-50" /> Field Work
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-              Assigned on-field assignments credited as 8 duty hours.
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
-                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-green-400 ring-4 ring-green-50" /> Approved Leave
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-              Your approved Vacation, Sick, or Emergency Leave days.
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
-                <span className="w-2.5 h-2.5 rounded-full mr-2 bg-blue-400 ring-4 ring-blue-50" /> Overtime
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-              Approved overtime hours filed for rendering.
-            </TooltipContent>
-          </Tooltip>
-        </div>
-
-        {/* Main Layout Stack */}
-        <div className="grid grid-cols-1">
-          
-          {/* Full-Width Calendar */}
-          <div className="w-full">
-            <Card className="py-0 overflow-hidden border-0 shadow-sm bg-white">
-              <div className="bg-[#2A174E] text-white flex justify-between items-center p-3 md:p-4 rounded-t-xl">
-                <ChevronLeftIcon className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => changeMonth(-1)} />
-                
-                {/* Clickable Header for Date Picker */}
-                <div 
-                  className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity select-none group"
-                  onClick={() => setIsDatePickerOpen(true)}
-                >
-                  <h2 className="text-lg md:text-xl font-bold">{`${monthName} ${year}`}</h2>
-                  <CalendarMonthIcon className="h-5 w-5 opacity-70 group-hover:opacity-100 transition-opacity" />
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpOutlinedIcon className="text-white/60 hover:text-white cursor-pointer !text-[16px] transition-colors" />
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                      Click to jump to a specific month and year.
-                    </TooltipContent>
-                  </Tooltip>
+          {loading ? (
+            <div className="space-y-6">
+              {/* Header Skeleton */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 mt-2">
+                <div className="space-y-2">
+                  <Skeleton className="h-9 w-48" />
+                  <Skeleton className="h-5 w-96 max-w-full" />
                 </div>
-
-                <ChevronRightIcon className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => changeMonth(1)} />
               </div>
-              
-              <div className="bg-slate-100 p-[1px]">
-                <div className="grid grid-cols-7 gap-[1px] mb-[1px]">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, idx) => (
-                    <div key={idx} className="p-2 md:p-4 text-center font-semibold text-sm text-slate-600 bg-white">
-                      {day}
+
+              {/* Legend Banner Skeleton */}
+              <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 bg-white border border-slate-200 rounded-lg p-4 px-5 shadow-sm">
+                <Skeleton className="h-3 w-12" />
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Skeleton className="w-2.5 h-2.5 rounded-full animate-pulse" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar Card Skeleton */}
+              <Card className="py-0 overflow-hidden border-0 shadow-sm bg-white">
+                <div className="bg-[#2A174E]/10 p-4 flex justify-between items-center rounded-t-xl">
+                  <Skeleton className="h-6 w-6 rounded" />
+                  <Skeleton className="h-6 w-44 rounded" />
+                  <Skeleton className="h-6 w-6 rounded" />
+                </div>
+                <div className="bg-slate-100 p-[1px]">
+                  <div className="grid grid-cols-7 gap-[1px]">
+                    {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                      <div key={i} className="p-4 bg-white text-center">
+                        <Skeleton className="h-4 w-8 mx-auto" />
+                      </div>
+                    ))}
+                    {Array.from({ length: 35 }).map((_, i) => (
+                      <div key={i} className="min-h-[100px] bg-white p-2 flex flex-col justify-between">
+                        <Skeleton className="h-4 w-6" />
+                        {i % 5 === 0 && <Skeleton className="h-4 w-full rounded mt-2" />}
+                        {i % 7 === 1 && <Skeleton className="h-4 w-5/6 rounded mt-2" />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+
+              {/* Bottom Cards Skeletons */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3].map((cardIdx) => (
+                  <Card key={cardIdx} className="shadow-sm border-none h-[500px] py-0 overflow-hidden bg-white">
+                    <div className="p-6 pb-4 border-b border-slate-50 flex items-center justify-between">
+                      <Skeleton className="h-6 w-28" />
                     </div>
-                  ))}
-                </div>
-                
-                <div className="grid grid-cols-7 gap-[1px]">
-                  {blanks.map(b => (
-                    <div key={`blank-${b}`} className="min-h-[80px] md:min-h-[120px] bg-slate-50/30 p-2" />
-                  ))}
-                  {days.map(d => {
-                    const dayEvents = getEventsForDay(d);
-                    const hasLeave = dayEvents.some(e => e.type === "Leave");
-                    const hasField = dayEvents.some(e => e.type === "Field Work");
-                    const hasOt = dayEvents.some(e => e.type === "Overtime");
-                    const hasHoliday = dayEvents.some(e => e.type === "Holiday");
-                    const hasDueDate = dayEvents.some(e => e.type === "Due Date");
-
-                    const isToday = 
-                      d === systemToday.getDate() && 
-                      monthIndex === systemToday.getMonth() && 
-                      year === systemToday.getFullYear();
-
-                    let bgClass = "bg-white hover:bg-slate-50";
-                    if (hasLeave) bgClass = "bg-green-50/60 hover:bg-green-50";
-                    else if (hasField) bgClass = "bg-orange-50/60 hover:bg-orange-50";
-                    else if (hasOt) bgClass = "bg-blue-50/60 hover:bg-blue-50";
-                    else if (hasHoliday) bgClass = "bg-red-50/60 hover:bg-red-50";
-                    else if (hasDueDate) bgClass = "bg-teal-50/60 hover:bg-teal-50";
-                    
-                    if (isToday) {
-                      bgClass = "bg-[#2A174E]/30 hover:bg-[#2A174E]/100 ring-2 ring-[#BA90E9] ring-inset z-10 label";
-                    }
-
-                    return (
-                      <div 
-                        key={d} 
-                        className={`min-h-[80px] md:min-h-[120px] p-1 md:p-2 transition-colors cursor-pointer overflow-y-auto overflow-x-hidden flex flex-col relative ${bgClass}`}
-                        onClick={() => handleDayClick(d)}
-                      >
-                        <div className={`text-xs md:text-sm font-semibold mb-1 shrink-0 text-center md:text-left ${
-                          isToday ? "bg-[#BA90E9] text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto md:mx-0" : "text-slate-700"
-                        }`}>
-                          {d}
+                    {cardIdx > 1 && (
+                      <div className="px-6 py-2">
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-lg">
+                          <Skeleton className="h-8 w-full rounded-md" />
+                          <Skeleton className="h-8 w-full rounded-md" />
                         </div>
+                      </div>
+                    )}
+                    <div className="p-6 space-y-4">
+                      {[1, 2, 3, 4].map((itemIdx) => (
+                        <div key={itemIdx} className="flex justify-between items-center p-3 border border-slate-100 rounded-lg bg-slate-50/50">
+                          <div className="space-y-2 flex-1 mr-4">
+                            <Skeleton className="h-4 w-3/4" />
+                            <Skeleton className="h-3 w-1/2" />
+                          </div>
+                          <Skeleton className="h-5 w-14 rounded" />
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 mt-2">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">My Calendar</h1>
+                  <p className="text-muted-foreground text-sm mt-1">
+                    View upcoming holidays, your approved leaves, and scheduled field work assignments.
+                  </p>
+                </div>
+              </div>
 
-                        {dayEvents.slice(0, 2).map((e, i) => {
-                          let typeClass = "bg-red-100 text-red-800"; 
-                          if (e.type === "Holiday") {
-                            typeClass = e.details?.toLowerCase().includes("special") ? "bg-purple-100 text-purple-800" : "bg-red-100 text-red-800";
-                          } else if (e.type === "Leave") {
-                            typeClass = "bg-green-100 text-green-800";
-                          } else if (e.type === "Field Work") {
-                            typeClass = "bg-orange-100 text-orange-800";
-                          } else if (e.type === "Overtime") {
-                            typeClass = "bg-blue-100 text-blue-800";
-                          } else if (e.type === "Due Date") {
-                            typeClass = "bg-teal-100 text-teal-800";
-                          }
+              {/* Sleek Legend Banner */}
+              <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 bg-white border border-slate-200 rounded-lg p-3 px-5 shadow-sm">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Legend</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                      <span className="w-2.5 h-2.5 rounded-full mr-2 bg-red-400 ring-4 ring-red-50" /> Regular Holiday
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                    Paid non-working days declared nationwide.
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                      <span className="w-2.5 h-2.5 rounded-full mr-2 bg-purple-400 ring-4 ring-purple-50" /> Special Holiday
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                    Special non-working days or local holidays.
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                      <span className="w-2.5 h-2.5 rounded-full mr-2 bg-teal-400 ring-4 ring-teal-50" /> Due Date
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                    Deadlines, payroll runs, or system cutoffs.
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                      <span className="w-2.5 h-2.5 rounded-full mr-2 bg-orange-400 ring-4 ring-orange-50" /> Field Work
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                    Assigned on-field assignments credited as 8 duty hours.
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                      <span className="w-2.5 h-2.5 rounded-full mr-2 bg-green-400 ring-4 ring-green-50" /> Approved Leave
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                    Your approved Vacation, Sick, or Emergency Leave days.
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center text-sm font-medium text-slate-700 cursor-help">
+                      <span className="w-2.5 h-2.5 rounded-full mr-2 bg-blue-400 ring-4 ring-blue-50" /> Overtime
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                    Approved overtime hours filed for rendering.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+
+              {/* Main Layout Stack */}
+              <div className="grid grid-cols-1">
+                
+                {/* Full-Width Calendar */}
+                <div className="w-full">
+                  <Card className="py-0 overflow-hidden border-0 shadow-sm bg-white">
+                    <div className="bg-[#2A174E] text-white flex justify-between items-center p-3 md:p-4 rounded-t-xl">
+                      <ChevronLeftIcon className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => changeMonth(-1)} />
+                      
+                      {/* Clickable Header for Date Picker */}
+                      <div 
+                        className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity select-none group"
+                        onClick={() => setIsDatePickerOpen(true)}
+                      >
+                        <h2 className="text-lg md:text-xl font-bold">{`${monthName} ${year}`}</h2>
+                        <CalendarMonthIcon className="h-5 w-5 opacity-70 group-hover:opacity-100 transition-opacity" />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlinedIcon className="text-white/60 hover:text-white cursor-pointer !text-[16px] transition-colors" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                            Click to jump to a specific month and year.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+
+                      <ChevronRightIcon className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => changeMonth(1)} />
+                    </div>
+                    
+                    <div className="bg-slate-100 p-[1px]">
+                      <div className="grid grid-cols-7 gap-[1px] mb-[1px]">
+                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, idx) => (
+                          <div key={idx} className="p-2 md:p-4 text-center font-semibold text-sm text-slate-600 bg-white">
+                            {day}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="grid grid-cols-7 gap-[1px]">
+                        {blanks.map(b => (
+                          <div key={`blank-${b}`} className="min-h-[80px] md:min-h-[120px] bg-slate-50/30 p-2" />
+                        ))}
+                        {days.map(d => {
+                          const dayEvents = getEventsForDay(d);
+                          const hasLeave = dayEvents.some(e => e.type === "Leave");
+                          const hasField = dayEvents.some(e => e.type === "Field Work");
+                          const hasOt = dayEvents.some(e => e.type === "Overtime");
+                          const hasHoliday = dayEvents.some(e => e.type === "Holiday");
+                          const hasDueDate = dayEvents.some(e => e.type === "Due Date");
+
+                          const isToday = 
+                            d === systemToday.getDate() && 
+                            monthIndex === systemToday.getMonth() && 
+                            year === systemToday.getFullYear();
+
+                          let bgClass = "bg-white hover:bg-slate-50";
+                          if (hasLeave) bgClass = "bg-green-50/60 hover:bg-green-50";
+                          else if (hasField) bgClass = "bg-orange-50/60 hover:bg-orange-50";
+                          else if (hasOt) bgClass = "bg-blue-50/60 hover:bg-blue-50";
+                          else if (hasHoliday) bgClass = "bg-red-50/60 hover:bg-red-50";
+                          else if (hasDueDate) bgClass = "bg-teal-50/60 hover:bg-teal-50";
                           
+                          if (isToday) {
+                            bgClass = "bg-[#2A174E]/30 hover:bg-[#2A174E]/100 ring-2 ring-[#BA90E9] ring-inset z-10 label";
+                          }
+
                           return (
                             <div 
-                              key={i} 
-                              className={`text-[9px] md:text-[10px] p-1 rounded mt-1 shrink-0 truncate w-full font-medium ${typeClass}`} 
-                              title={e.name || e.details}
+                              key={d} 
+                              className={`min-h-[80px] md:min-h-[120px] p-1 md:p-2 transition-colors cursor-pointer overflow-y-auto overflow-x-hidden flex flex-col relative ${bgClass}`}
+                              onClick={() => handleDayClick(d)}
                             >
-                              {e.name || e.details}
+                              <div className={`text-xs md:text-sm font-semibold mb-1 shrink-0 text-center md:text-left ${
+                                isToday ? "bg-[#BA90E9] text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto md:mx-0" : "text-slate-700"
+                              }`}>
+                                {d}
+                              </div>
+
+                              {dayEvents.slice(0, 2).map((e, i) => {
+                                let typeClass = "bg-red-100 text-red-800"; 
+                                if (e.type === "Holiday") {
+                                  typeClass = e.details?.toLowerCase().includes("special") ? "bg-purple-100 text-purple-800" : "bg-red-100 text-red-800";
+                                } else if (e.type === "Leave") {
+                                  typeClass = "bg-green-100 text-green-800";
+                                } else if (e.type === "Field Work") {
+                                  typeClass = "bg-orange-100 text-orange-800";
+                                } else if (e.type === "Overtime") {
+                                  typeClass = "bg-blue-100 text-blue-800";
+                                } else if (e.type === "Due Date") {
+                                  typeClass = "bg-teal-100 text-teal-800";
+                                }
+                                
+                                return (
+                                  <div 
+                                    key={i} 
+                                    className={`text-[9px] md:text-[10px] p-1 rounded mt-1 shrink-0 truncate w-full font-medium ${typeClass}`} 
+                                    title={e.name || e.details}
+                                  >
+                                    {e.name || e.details}
+                                  </div>
+                                );
+                              })}
+                              {/* "More" indicator */}
+                              {dayEvents.length > 2 && (
+                                <div className="text-[9px] font-bold text-slate-500 mt-1 pl-1 cursor-pointer hover:text-[#2A174E]">
+                                  +{dayEvents.length - 2} more
+                                </div>
+                              )}
                             </div>
                           );
                         })}
-                        {/* "More" indicator */}
-                        {dayEvents.length > 2 && (
-                          <div className="text-[9px] font-bold text-slate-500 mt-1 pl-1 cursor-pointer hover:text-[#2A174E]">
-                            +{dayEvents.length - 2} more
-                          </div>
-                        )}
                       </div>
-                    );
-                  })}
+                    </div>
+                  </Card>
+                </div>
+
+                <div className="h-6" /> {/* Spacer */}
+
+                {/* Bottom Grid Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  
+                  {/* Holidays List Card */}
+                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-[#2A174E] py-0 overflow-hidden">
+                    <CardHeader className="pb-0 pt-5">
+                      <CardTitle className="text-lg text-[#2A174E] flex items-center gap-1.5">
+                        <span>Holidays</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlinedIcon className="text-slate-400 hover:text-[#2A174E] cursor-pointer !text-[16px] transition-colors" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                            Upcoming regular and special non-working holidays in the Philippines.
+                          </TooltipContent>
+                        </Tooltip>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 h-[440px] overflow-y-auto custom-scrollbar">
+                      {getUpcomingHolidays().length > 0 ? (
+                        <div className="space-y-2 mt-2">
+                          {getUpcomingHolidays().map((holiday, idx) => {
+                            const isSpecial = holiday.type?.toLowerCase().includes("special") || holiday.details?.toLowerCase().includes("special");
+                            
+                            return (
+                              <div 
+                                className="group relative cursor-pointer transition-all flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100 hover:bg-slate-50" 
+                                key={idx} 
+                              >
+                                <div className="flex flex-col min-w-0">
+                                  <p className="font-bold text-sm text-slate-800 truncate">{holiday.name}</p>
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    {new Date(holiday.date).toLocaleDateString('en-US', { 
+                                      month: 'long', day: 'numeric', year: 'numeric' 
+                                    })}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Badge variant="secondary" className={`text-[9px] ${isSpecial ? "bg-purple-100 text-purple-700" : "bg-red-100 text-red-700"}`}>
+                                    {isSpecial ? "SPECIAL" : "REGULAR"}
+                                  </Badge>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <EmptyState 
+                          className="min-h-0 h-full w-full border-0 bg-transparent shadow-none p-0"
+                          icon={<EventAvailableIcon sx={{ fontSize: 32 }} className="text-slate-300" />}
+                          title="No Holidays"
+                          description="None registered for this period."
+                        />
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Personnel Actions Card (Leaves & Overtime) */}
+                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-green-600 py-0 overflow-hidden">
+                    <CardHeader className="pb-0 pt-5">
+                      <CardTitle className="text-lg text-green-700 flex items-center gap-1.5">
+                        <span>My Actions</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlinedIcon className="text-slate-400 hover:text-green-700 cursor-pointer !text-[16px] transition-colors" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                            Records of your approved leaves and scheduled overtime logs.
+                          </TooltipContent>
+                        </Tooltip>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="h-[440px] pt-0 px-0">
+                      <Tabs defaultValue="leave" className="w-full h-full flex flex-col">
+                        <TabsList className="grid w-[90%] mx-auto grid-cols-2 mb-4">
+                          <TabsTrigger value="leave">Leaves</TabsTrigger>
+                          <TabsTrigger value="ot">Overtime</TabsTrigger>
+                        </TabsList>
+                        
+                        <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
+                          <TabsContent value="leave" className="mt-0 space-y-2">
+                            {events.filter(e => e.type === "Leave").length > 0 ? (
+                              events.filter(e => e.type === "Leave").map((item, i) => (
+                                <div 
+                                  key={i} 
+                                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-green-50/50 transition-colors"
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-slate-800">{item.name}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                  </div>
+                                  <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">LEAVE</Badge>
+                                </div>
+                              ))
+                            ) : (
+                              <EmptyState className="h-20 border-0" title="No Leaves" />
+                            )}
+                          </TabsContent>
+                          
+                          <TabsContent value="ot" className="mt-0 space-y-2">
+                            {events.filter(e => e.type === "Overtime").length > 0 ? (
+                              events.filter(e => e.type === "Overtime").map((item, i) => (
+                                <div 
+                                  key={i} 
+                                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-blue-50/50 transition-colors"
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-slate-800">{item.name}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                  </div>
+                                  <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700">OT</Badge>
+                                </div>
+                              ))
+                            ) : (
+                              <EmptyState className="h-20 border-0" title="No Overtime" />
+                            )}
+                          </TabsContent>
+                        </div>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+
+                  {/* Operational Tasks Card (Field Work & Due Dates) */}
+                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-orange-500 py-0 overflow-hidden">
+                    <CardHeader className="pb-0 pt-5">
+                      <CardTitle className="text-lg text-orange-700 flex items-center gap-1.5">
+                        <span>My Tasks</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlinedIcon className="text-slate-400 hover:text-orange-700 cursor-pointer !text-[16px] transition-colors" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                            Operational tasks assigned to you, including field work logs and due dates.
+                          </TooltipContent>
+                        </Tooltip>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="h-[440px] pt-0 px-0">
+                      <Tabs defaultValue="field" className="w-full h-full flex flex-col">
+                        <TabsList className="grid w-[90%] mx-auto grid-cols-2 mb-2">
+                          <TabsTrigger value="field">Field Work</TabsTrigger>
+                          <TabsTrigger value="due">Due Dates</TabsTrigger>
+                        </TabsList>
+                        
+                        <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
+                          <TabsContent value="field" className="mt-0 space-y-2">
+                            {events.filter(e => e.type === "Field Work").length > 0 ? (
+                              events.filter(e => e.type === "Field Work").map((item, idx) => (
+                                <div 
+                                  key={idx} 
+                                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-orange-50/50 transition-colors"
+                                >
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                  </div>
+                                  <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-700">FIELD</Badge>
+                                </div>
+                              ))
+                            ) : (
+                              <EmptyState className="h-20 border-0" title="No Field Work" />
+                            )}
+                          </TabsContent>
+
+                          <TabsContent value="due" className="mt-0 space-y-2">
+                            {events.filter(e => e.type === "Due Date").length > 0 ? (
+                              events.filter(e => e.type === "Due Date").map((item, idx) => (
+                                <div 
+                                  key={idx} 
+                                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-teal-50/50 transition-colors"
+                                >
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-sm font-bold text-slate-800 truncate">{item.name}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                  </div>
+                                  <Badge variant="secondary" className="text-[10px] bg-teal-100 text-teal-700">DUE</Badge>
+                                </div>
+                              ))
+                            ) : (
+                              <EmptyState className="h-20 border-0" title="No Due Dates" />
+                            )}
+                          </TabsContent>
+                        </div>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+
                 </div>
               </div>
-            </Card>
-          </div>
-
-          <div className="h-6" /> {/* Spacer */}
-
-          {/* Bottom Grid Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            
-            {/* Holidays List Card */}
-            <Card className="shadow-sm border-0 h-[500px] border-t-4 border-[#2A174E] py-0 overflow-hidden">
-              <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-[#2A174E] flex items-center gap-1.5">
-                  <span>Holidays</span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpOutlinedIcon className="text-slate-400 hover:text-[#2A174E] cursor-pointer !text-[16px] transition-colors" />
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                      Upcoming regular and special non-working holidays in the Philippines.
-                    </TooltipContent>
-                  </Tooltip>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 h-[440px] overflow-y-auto custom-scrollbar">
-                {getUpcomingHolidays().length > 0 ? (
-                  <div className="space-y-2 mt-2">
-                    {getUpcomingHolidays().map((holiday, idx) => {
-                      const isSpecial = holiday.type?.toLowerCase().includes("special") || holiday.details?.toLowerCase().includes("special");
-                      
-                      return (
-                        <div 
-                          className="group relative cursor-pointer transition-all flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100 hover:bg-slate-50" 
-                          key={idx} 
-                        >
-                          <div className="flex flex-col min-w-0">
-                            <p className="font-bold text-sm text-slate-800 truncate">{holiday.name}</p>
-                            <span className="text-[10px] text-slate-400 font-medium">
-                              {new Date(holiday.date).toLocaleDateString('en-US', { 
-                                month: 'long', day: 'numeric', year: 'numeric' 
-                              })}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Badge variant="secondary" className={`text-[9px] ${isSpecial ? "bg-purple-100 text-purple-700" : "bg-red-100 text-red-700"}`}>
-                              {isSpecial ? "SPECIAL" : "REGULAR"}
-                            </Badge>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <EmptyState 
-                    className="min-h-0 h-full w-full border-0 bg-transparent shadow-none p-0"
-                    icon={<EventAvailableIcon sx={{ fontSize: 32 }} className="text-slate-300" />}
-                    title="No Holidays"
-                    description="None registered for this period."
-                  />
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Personnel Actions Card (Leaves & Overtime) */}
-            <Card className="shadow-sm border-0 h-[500px] border-t-4 border-green-600 py-0 overflow-hidden">
-              <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-green-700 flex items-center gap-1.5">
-                  <span>My Actions</span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpOutlinedIcon className="text-slate-400 hover:text-green-700 cursor-pointer !text-[16px] transition-colors" />
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                      Records of your approved leaves and scheduled overtime logs.
-                    </TooltipContent>
-                  </Tooltip>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="h-[440px] pt-0 px-0">
-                <Tabs defaultValue="leave" className="w-full h-full flex flex-col">
-                  <TabsList className="grid w-[90%] mx-auto grid-cols-2 mb-4">
-                    <TabsTrigger value="leave">Leaves</TabsTrigger>
-                    <TabsTrigger value="ot">Overtime</TabsTrigger>
-                  </TabsList>
-                  
-                  <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
-                    <TabsContent value="leave" className="mt-0 space-y-2">
-                      {events.filter(e => e.type === "Leave").length > 0 ? (
-                        events.filter(e => e.type === "Leave").map((item, i) => (
-                          <div 
-                            key={i} 
-                            className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-green-50/50 transition-colors"
-                          >
-                            <div className="flex flex-col">
-                              <span className="text-sm font-bold text-slate-800">{item.name}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">
-                                {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                              </span>
-                            </div>
-                            <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">LEAVE</Badge>
-                          </div>
-                        ))
-                      ) : (
-                        <EmptyState className="h-20 border-0" title="No Leaves" />
-                      )}
-                    </TabsContent>
-                    
-                    <TabsContent value="ot" className="mt-0 space-y-2">
-                      {events.filter(e => e.type === "Overtime").length > 0 ? (
-                        events.filter(e => e.type === "Overtime").map((item, i) => (
-                          <div 
-                            key={i} 
-                            className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-blue-50/50 transition-colors"
-                          >
-                            <div className="flex flex-col">
-                              <span className="text-sm font-bold text-slate-800">{item.name}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">
-                                {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                              </span>
-                            </div>
-                            <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700">OT</Badge>
-                          </div>
-                        ))
-                      ) : (
-                        <EmptyState className="h-20 border-0" title="No Overtime" />
-                      )}
-                    </TabsContent>
-                  </div>
-                </Tabs>
-              </CardContent>
-            </Card>
-
-            {/* Operational Tasks Card (Field Work & Due Dates) */}
-            <Card className="shadow-sm border-0 h-[500px] border-t-4 border-orange-500 py-0 overflow-hidden">
-              <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-orange-700 flex items-center gap-1.5">
-                  <span>My Tasks</span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpOutlinedIcon className="text-slate-400 hover:text-orange-700 cursor-pointer !text-[16px] transition-colors" />
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                      Operational tasks assigned to you, including field work logs and due dates.
-                    </TooltipContent>
-                  </Tooltip>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="h-[440px] pt-0 px-0">
-                <Tabs defaultValue="field" className="w-full h-full flex flex-col">
-                  <TabsList className="grid w-[90%] mx-auto grid-cols-2 mb-2">
-                    <TabsTrigger value="field">Field Work</TabsTrigger>
-                    <TabsTrigger value="due">Due Dates</TabsTrigger>
-                  </TabsList>
-                  
-                  <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
-                    <TabsContent value="field" className="mt-0 space-y-2">
-                      {events.filter(e => e.type === "Field Work").length > 0 ? (
-                        events.filter(e => e.type === "Field Work").map((item, idx) => (
-                          <div 
-                            key={idx} 
-                            className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-orange-50/50 transition-colors"
-                          >
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">
-                                {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                              </span>
-                            </div>
-                            <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-700">FIELD</Badge>
-                          </div>
-                        ))
-                      ) : (
-                        <EmptyState className="h-20 border-0" title="No Field Work" />
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="due" className="mt-0 space-y-2">
-                      {events.filter(e => e.type === "Due Date").length > 0 ? (
-                        events.filter(e => e.type === "Due Date").map((item, idx) => (
-                          <div 
-                            key={idx} 
-                            className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-teal-50/50 transition-colors"
-                          >
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-slate-800 truncate">{item.name}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">
-                                {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                              </span>
-                            </div>
-                            <Badge variant="secondary" className="text-[10px] bg-teal-100 text-teal-700">DUE</Badge>
-                          </div>
-                        ))
-                      ) : (
-                        <EmptyState className="h-20 border-0" title="No Due Dates" />
-                      )}
-                    </TabsContent>
-                  </div>
-                </Tabs>
-              </CardContent>
-            </Card>
-
-          </div>
-        </div>
+            </>
+          )}
 
         {/* DATE PICKER DIALOG */}
         <Dialog open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>

@@ -13,6 +13,7 @@ import EditRequestModal from "../../components/EditRequestModal";
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Toast from "../../components/toast/Toast";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { formatUserId } from "../../utils/formatUserId";
 import { formatDateTime, calculateDays } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
@@ -25,6 +26,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const UserRequests = () => {
   const { systemToday } = useSystemTime();
@@ -765,8 +767,9 @@ const UserRequests = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
 
         {/* Header Section */}
         <div className="mb-6">
@@ -783,7 +786,17 @@ const UserRequests = () => {
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Pending</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Pending</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                        Requests currently submitted and awaiting action from your supervisor or administrator.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#2A174E]">{stats.pending}</p>
                 </div>
               </div>
@@ -792,13 +805,23 @@ const UserRequests = () => {
               </div>
             </CardContent>
           </Card>
-
+ 
           {/* Card 4: Returned */}
           <Card className="shadow-sm border-t-4 border-blue-500  py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Returned</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-blue-800 uppercase tracking-wider">Returned</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                        Requests returned by the administrator requiring revision, corrections, or additional attachments.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-blue-800">{stats.returned}</p>
                 </div>
               </div>
@@ -807,13 +830,23 @@ const UserRequests = () => {
               </div>
             </CardContent>
           </Card>
-
+ 
           {/* Card 2: Approved */}
           <Card className="shadow-sm border-t-4 border-[#3B4E17] py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Approved</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Approved</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                        Requests that have been reviewed and approved by management.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#3B4E17]">{stats.approved}</p>
                 </div>
               </div>
@@ -822,13 +855,23 @@ const UserRequests = () => {
               </div>
             </CardContent>
           </Card>
-
+ 
           {/* Card 3: Rejected */}
           <Card className="shadow-sm border-t-4 border-[#BB8B26] py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Rejected</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Rejected</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                        Requests that have been disapproved by management.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#BB8B26]">{stats.rejected}</p>
                 </div>
               </div>
@@ -845,18 +888,32 @@ const UserRequests = () => {
           {/* Left: Request Queue or Guidelines */}
           <Card className="w-full lg:w-1/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-0">
             <div className="flex border-b border-slate-100 bg-slate-50/50 shrink-0">
-              <button
-                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "submit" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
-                onClick={() => setActiveTab("submit")}
-              >
-                <AddCircleOutlineIcon className="h-4 w-4 mr-1 mb-0.5" /> Submit Request
-              </button>
-              <button
-                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "history" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
-                onClick={() => setActiveTab("history")}
-              >
-                <HistoryIcon className="h-4 w-4 mr-1 mb-0.5" /> History
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "submit" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                    onClick={() => setActiveTab("submit")}
+                  >
+                    <AddCircleOutlineIcon className="h-4 w-4 mr-1 mb-0.5" /> Submit Request
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                  Submit a new leave, overtime, or log correction request
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "history" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                    onClick={() => setActiveTab("history")}
+                  >
+                    <HistoryIcon className="h-4 w-4 mr-1 mb-0.5" /> History
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                  View your request submission history and status updates
+                </TooltipContent>
+              </Tooltip>
             </div>
             
             {activeTab === "submit" ? (
@@ -895,15 +952,29 @@ const UserRequests = () => {
               <div className="flex-1 flex flex-col overflow-hidden py-0">
                 {/* Sub-tabs for History */}
                 <div className="flex bg-slate-100/50 p-1 m-2 rounded-lg gap-1">
-                   {["pending", "returned", "past"].map(t => (
-                     <button
-                       key={t}
-                       onClick={() => { setHistoryTab(t); setCurrentPage(1); setSelectedReqId(null); }}
-                       className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${historyTab === t ? "bg-white text-[#2A174E] shadow-sm" : "text-slate-500 hover:bg-white/50"}`}
-                     >
-                       {t}
-                     </button>
-                   ))}
+                   {["pending", "returned", "past"].map(t => {
+                     const getSubTabTooltip = (tabName) => {
+                       if (tabName === "pending") return "Awaiting administrator or supervisor review";
+                       if (tabName === "returned") return "Returned by admin for revisions or clarifications";
+                       if (tabName === "past") return "Completed, approved, or rejected requests";
+                       return "";
+                     };
+                     return (
+                       <Tooltip key={t}>
+                         <TooltipTrigger asChild>
+                           <button
+                             onClick={() => { setHistoryTab(t); setCurrentPage(1); setSelectedReqId(null); }}
+                             className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${historyTab === t ? "bg-white text-[#2A174E] shadow-sm" : "text-slate-500 hover:bg-white/50"}`}
+                           >
+                             {t}
+                           </button>
+                         </TooltipTrigger>
+                         <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                           {getSubTabTooltip(t)}
+                         </TooltipContent>
+                       </Tooltip>
+                     );
+                   })}
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 pt-0 custom-scrollbar">
@@ -945,27 +1016,41 @@ const UserRequests = () => {
                 {/* Queue Pagination Footer */}
                 {totalItems > itemsPerPage && (
                   <div className="flex items-center justify-between py-4 shrink-0 px-4 border-t border-slate-100">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                      disabled={currentPage === 1}
-                      className="h-8 px-2"
-                    >
-                      <ChevronLeftIcon className="h-4 w-4 text-slate-500" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                          disabled={currentPage === 1}
+                          className="h-8 px-2"
+                        >
+                          <ChevronLeftIcon className="h-4 w-4 text-slate-500" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Previous page
+                      </TooltipContent>
+                    </Tooltip>
                     <span className="text-xs font-semibold text-slate-500">
                       Page {currentPage} of {totalPages}
                     </span>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                      disabled={currentPage === totalPages}
-                      className="h-8 px-2"
-                    >
-                      <ChevronRightIcon className="h-4 w-4 text-slate-500" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                          disabled={currentPage === totalPages}
+                          className="h-8 px-2"
+                        >
+                          <ChevronRightIcon className="h-4 w-4 text-slate-500" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Next page
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 )}
 
@@ -1748,7 +1833,14 @@ const UserRequests = () => {
                   </div>
 
                   <div className="pt-4 border-t border-slate-100 flex justify-end">
-                    <Button type="submit" className="bg-[#2A174E] text-white hover:bg-[#1a0e30] w-full sm:w-auto px-8">Submit Request</Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button type="submit" className="bg-[#2A174E] text-white hover:bg-[#1a0e30] w-full sm:w-auto px-8">Submit Request</Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Submit this request for review
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </form>
 
@@ -1764,12 +1856,19 @@ const UserRequests = () => {
                       </div>
                       <div className="flex flex-col sm:flex-row items-end gap-3">
                         {currentReq.emp_reqStatusId === 5 && (
-                          <Button 
-                            className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-md"
-                            onClick={() => handleEditReturned(currentReq)}
-                          >
-                            <EditIcon className="mr-2 h-4 w-4" /> Edit & Resubmit
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-md"
+                                onClick={() => handleEditReturned(currentReq)}
+                              >
+                                <EditIcon className="mr-2 h-4 w-4" /> Edit & Resubmit
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                              Revise request details and resubmit to admin
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                         <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(currentReq.emp_reqStatusId)}`}>
                           {currentReq.status}
@@ -2040,6 +2139,7 @@ const UserRequests = () => {
           }
         `}} />
       </div>
+      </TooltipProvider>
       </Sidebar>
 
       <EditRequestModal 

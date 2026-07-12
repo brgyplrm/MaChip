@@ -408,43 +408,60 @@ const Sidebar = ({ children }) => {
                 </SidebarMenuItem>
                 )}
 
-                {/* Access Logs (Dropdown) */}
-                <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    onClick={() => setIsAccessLogsOpen(!isAccessLogsOpen)}
-                    isActive={location.pathname.startsWith("/logs") || location.pathname.startsWith("/accessLogs") || location.pathname.startsWith("/visitorLogs")}
-                    className={menuButtonClass(location.pathname.startsWith("/logs") || location.pathname.startsWith("/accessLogs") || location.pathname.startsWith("/visitorLogs"))}
-                  >
-                    <HistoryIcon className="!text-[22px] shrink-0" />
-                    <span className="flex-1 ms-3 text-left text-[14px] group-data-[collapsible=icon]:hidden">
-                      Access Logs
-                    </span>
-                    <KeyboardArrowDownIcon className={cn(
-                      "!text-[18px] transition-transform duration-300 group-data-[collapsible=icon]:!hidden",
-                      isAccessLogsOpen ? "rotate-180" : ""
-                    )} />
-                  </SidebarMenuButton>
-                  {isAccessLogsOpen && (
-                    <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isEmployeeLogsActive} className={subMenuButtonClass(isEmployeeLogsActive)}>
-                          <Link to={isManagement || isSupervisor ? "/logs" : "/accessLogs"} className={cn("text-inherit font-medium", isEmployeeLogsActive ? "font-bold" : "")}>
-                            Employee Logs
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      {isManagement && (
+                {/* Access Logs (Dropdown for Management/Supervisor, Direct Link for Employee) */}
+                {isManagement || isSupervisor ? (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      onClick={() => setIsAccessLogsOpen(!isAccessLogsOpen)}
+                      isActive={location.pathname.startsWith("/logs") || location.pathname.startsWith("/accessLogs") || location.pathname.startsWith("/visitorLogs")}
+                      className={menuButtonClass(location.pathname.startsWith("/logs") || location.pathname.startsWith("/accessLogs") || location.pathname.startsWith("/visitorLogs"))}
+                    >
+                      <HistoryIcon className="!text-[22px] shrink-0" />
+                      <span className="flex-1 ms-3 text-left text-[14px] group-data-[collapsible=icon]:hidden">
+                        Access Logs
+                      </span>
+                      <KeyboardArrowDownIcon className={cn(
+                        "!text-[18px] transition-transform duration-300 group-data-[collapsible=icon]:!hidden",
+                        isAccessLogsOpen ? "rotate-180" : ""
+                      )} />
+                    </SidebarMenuButton>
+                    {isAccessLogsOpen && (
+                      <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isVisitorLogsActive} className={subMenuButtonClass(isVisitorLogsActive)}>
-                            <Link to="/visitorLogs" className={cn("text-inherit font-medium", isVisitorLogsActive ? "font-bold" : "")}>
-                              Visitor Access
+                          <SidebarMenuSubButton asChild isActive={isEmployeeLogsActive} className={subMenuButtonClass(isEmployeeLogsActive)}>
+                            <Link to="/logs" className={cn("text-inherit font-medium", isEmployeeLogsActive ? "font-bold" : "")}>
+                              Employee Logs
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                      )}
-                    </SidebarMenuSub>
-                  )}
-                </SidebarMenuItem>
+                        {isManagement && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isVisitorLogsActive} className={subMenuButtonClass(isVisitorLogsActive)}>
+                              <Link to="/visitorLogs" className={cn("text-inherit font-medium", isVisitorLogsActive ? "font-bold" : "")}>
+                                Visitor Access
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                      </SidebarMenuSub>
+                    )}
+                  </SidebarMenuItem>
+                ) : (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={location.pathname === "/accessLogs"}
+                      className={menuButtonClass(location.pathname === "/accessLogs")}
+                    >
+                      <Link to="/accessLogs">
+                        <HistoryIcon className="!text-[22px] shrink-0" />
+                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">
+                          Access Logs
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
 
                 {/* My Payroll - Employee Only */}
                 {(viewMode === "employee" || Number(roleId) === 3) && userData?.user_EmploymentStatusId !== 3 && (

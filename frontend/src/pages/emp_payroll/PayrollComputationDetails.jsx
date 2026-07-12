@@ -85,36 +85,51 @@ const PayrollComputationDetails = () => {
 
   return (
     <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="group flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-0">
-            {/* Animated Back Button */}
-            <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
-              <Button 
-                asChild 
-                variant="ghost" 
-                size="icon" 
-                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
-              >
-                <Link to={`/employee/payslip/${id}`}>
-                  <ChevronLeft className="h-6 w-6" />
-                </Link>
-              </Button>
+      <TooltipProvider>
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="group flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-0">
+              {/* Animated Back Button */}
+              <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      asChild 
+                      variant="ghost" 
+                      size="icon" 
+                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                    >
+                      <Link to={`/employee/payslip/${id}`}>
+                        <ChevronLeft className="h-6 w-6" />
+                      </Link>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                    Back to payslip preview
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+  
+              <div className="space-y-1 transition-all duration-300 ease-in-out group-hover:pl-2">
+                <h1 className="text-2xl font-bold text-slate-800">Computation Details</h1>
+                <p className="text-slate-500 text-sm">
+                  Breakdown of earnings and deductions for {new Date(payroll.period_Start).toLocaleDateString()} - {new Date(payroll.period_End).toLocaleDateString()}
+                </p>
+              </div>
             </div>
-
-            <div className="space-y-1 transition-all duration-300 ease-in-out group-hover:pl-2">
-              <h1 className="text-2xl font-bold text-slate-800">Computation Details</h1>
-              <p className="text-slate-500 text-sm">
-                Breakdown of earnings and deductions for {new Date(payroll.period_Start).toLocaleDateString()} - {new Date(payroll.period_End).toLocaleDateString()}
-              </p>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="bg-[#2A174E] text-white p-4 rounded-xl shadow-lg flex flex-col items-end cursor-help">
+                  <span className="text-xs text-slate-300 uppercase font-semibold">Net Take Home</span>
+                  <span className="text-2xl font-bold">{formatCurrency(payroll.netPay)}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                Final net pay deposited to your account
+              </TooltipContent>
+            </Tooltip>
           </div>
-          <div className="bg-[#2A174E] text-white p-4 rounded-xl shadow-lg flex flex-col items-end">
-            <span className="text-xs text-slate-300 uppercase font-semibold">Net Take Home</span>
-            <span className="text-2xl font-bold">{formatCurrency(payroll.netPay)}</span>
-          </div>
-        </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           {/* EARNINGS COLUMN */}
@@ -134,12 +149,12 @@ const PayrollComputationDetails = () => {
                 <div className="flex justify-between items-center group">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-700">Basic Pay</span>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300" /></TooltipTrigger>
-                        <TooltipContent><p>Calculated as Daily Rate × Scheduled Days - Absences</p></TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Calculated as Daily Rate × Scheduled Days - Absences
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.basicPay)}</span>
                 </div>
@@ -156,24 +171,64 @@ const PayrollComputationDetails = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Regular Overtime ({payroll.OT_Hrs} hrs)</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">Regular Overtime ({payroll.OT_Hrs} hrs)</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Regular Overtime: hour-based compensation for work exceeding 8 hours (1.25x hourly rate)
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.OT_Amnt)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Night Differential ({payroll.nightDiff_Hrs} hrs)</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">Night Differential ({payroll.nightDiff_Hrs} hrs)</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Night Differential: 10% premium for work hours between 10:00 PM and 6:00 AM
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.nightDiff_Amnt)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Night OT ({payroll.nightOT_Hrs} hrs)</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">Night OT ({payroll.nightOT_Hrs} hrs)</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Night Overtime: hour-based compensation for overtime worked during night hours (1.375x hourly rate)
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.nightOT_Amnt)}</span>
                 </div>
                 <Separator className="bg-slate-50" />
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Legal Holiday Pay</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">Legal Holiday Pay</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Legal Holiday: 100% premium (Double Pay) for working on regular national holidays
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.legalHol_Amnt)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Special Holiday Pay</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">Special Holiday Pay</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Special Holiday: 30% premium for working on special non-working days
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.specialHol_Amnt)}</span>
                 </div>
               </CardContent>
@@ -216,19 +271,51 @@ const PayrollComputationDetails = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">SSS Contribution</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">SSS Contribution</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Social Security System employee contribution share
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.SSS_Ded)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">PhilHealth Contribution</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">PhilHealth Contribution</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Philippine Health Insurance Corporation employee share
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.Philhealth_Ded)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Pag-IBIG Contribution</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">Pag-IBIG Contribution</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Home Development Mutual Fund (HDMF) employee share
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.HDMF_Ded)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Withholding Tax</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">Withholding Tax</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Withholding Tax: Tax contribution computed using official BIR TRAIN law tables
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.Tax_Ded)}</span>
                 </div>
               </CardContent>
@@ -240,15 +327,39 @@ const PayrollComputationDetails = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Absences ({payroll.absence_Hrs / 8} days)</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">Absences ({payroll.absence_Hrs / 8} days)</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Absence: Unworked scheduled days subtracted from base compensation
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-red-500">-{formatCurrency(payroll.absence_Amnt)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Tardiness ({payroll.tardiness_Mins} mins)</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">Tardiness ({payroll.tardiness_Mins} mins)</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Tardiness: Deductions calculated based on total late minutes logged
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-red-500">-{formatCurrency(payroll.tardiness_Amnt)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Unpaid Leaves ({payroll.unpaidLeave_Days} days)</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700">Unpaid Leaves ({payroll.unpaidLeave_Days} days)</span>
+                    <Tooltip>
+                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                        Unpaid Leaves: Salary deductions for days off taken without leave credits
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <span className="font-semibold text-red-500">-{formatCurrency(payroll.unpaidLeave_Amnt)}</span>
                 </div>
               </CardContent>
@@ -302,6 +413,7 @@ const PayrollComputationDetails = () => {
           </CardContent>
         </Card>
       </div>
+     </TooltipProvider>
     </Sidebar>
   );
 };
