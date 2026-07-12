@@ -11,6 +11,8 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import HistoryIcon from "@mui/icons-material/History";
 import EmptyState from "../../../components/EmptyState";
 import {useMemo} from "react";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -220,12 +222,19 @@ const SeparationPay = () => {
                       Calculate and process statutory separation pay according to DOLE Articles 298-299.
                     </p>
                   </div>
-                  <button 
-                    onClick={() => setShowGuideline(false)}
-                    className="absolute top-4 right-4 text-blue-900/40 hover:text-blue-900/80 transition-colors"
-                  >
-                    ✕
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button 
+                        onClick={() => setShowGuideline(false)}
+                        className="absolute top-4 right-4 text-blue-900/40 hover:text-blue-900/80 transition-colors"
+                      >
+                        ✕
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                      Dismiss Policy Guideline
+                    </TooltipContent>
+                  </Tooltip>
                 </CardContent>
               </Card>
             </div>

@@ -29,6 +29,14 @@ import {
   SheetTrigger 
 } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
 
 const LeaveSummary = () => {
   const [year, setYear] = useState(new Date().getFullYear());
@@ -49,6 +57,26 @@ const LeaveSummary = () => {
   
   // Track active tab for the PDF export requirement
   const [activeTab, setActiveTab] = useState("all");
+
+  // PDF Export Modal states
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportScope, setExportScope] = useState("all");
+  const [exportEmployeeId, setExportEmployeeId] = useState("");
+  const [exportCategory, setExportCategory] = useState("all");
+
+  const handleExport = () => {
+    let targetData = data;
+    if (exportScope === "single") {
+      const selected = data.find(emp => emp.user_Id.toString() === exportEmployeeId);
+      if (!selected) {
+        alert("Please select a specific employee.");
+        return;
+      }
+      targetData = [selected];
+    }
+    exportLeaveSummaryPDF(targetData, months, year, exportCategory, rates);
+    setShowExportModal(false);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -114,33 +142,25 @@ const LeaveSummary = () => {
                 })}
               </SelectContent>
             </Select>
-            <Select value={activeTab} onValueChange={setActiveTab}>
-              <SelectTrigger className="w-full sm:w-[160px] bg-white border-slate-200 font-semibold text-[#2A174E]">
-                <SelectValue placeholder="Report Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Summary Overview</SelectItem>
-                <SelectItem value="vl">Vacation Leaves</SelectItem>
-                <SelectItem value="sl">Sick Leaves</SelectItem>
-                <SelectItem value="ot">Overtime (h)</SelectItem>
-                <SelectItem value="lates">Tardiness (m)</SelectItem>
-                <SelectItem value="absences">Absences (d)</SelectItem>
-              </SelectContent>
-            </Select>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
                   <Button 
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors"
-                    onClick={() => exportLeaveSummaryPDF(data, months, year, activeTab, rates)}
+                    onClick={() => {
+                      if (data.length > 0 && !exportEmployeeId) {
+                        setExportEmployeeId(data[0].user_Id.toString());
+                      }
+                      setShowExportModal(true);
+                    }}
                     disabled={loading || data.length === 0}
                   >
                     <DownloadIcon className="mr-2 h-4 w-4" /> Export PDF
                   </Button>
                 </span>
               </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 text-white border-slate-800">
-                Export leave conversion report as PDF.
+              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                Open report export options dialog.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -272,7 +292,17 @@ const LeaveSummary = () => {
                     <div className="space-y-2.5">
                       <div className="space-y-1">
                         <div className="flex justify-between text-xs font-medium">
-                          <span className="text-slate-500">Vacation Leaves Used</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-500">Vacation Leaves Used</span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                                Total vacation leave days taken by the employee.
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
                           <span className="text-slate-800 font-bold">{totalVl > 0 ? `${totalVl} Days` : "—"} <span className="text-slate-400 font-normal">({row.vlRemaining} Left)</span></span>
                         </div>
                         <Progress value={(totalVl / 7) * 100} className="h-1.5 bg-slate-100" />
@@ -280,7 +310,17 @@ const LeaveSummary = () => {
 
                       <div className="space-y-1">
                         <div className="flex justify-between text-xs font-medium">
-                          <span className="text-slate-500">Sick Leaves Used</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-500">Sick Leaves Used</span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                                Total sick leave days taken by the employee.
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
                           <span className="text-slate-800 font-bold">{totalSl > 0 ? `${totalSl} Days` : "—"} <span className="text-slate-400 font-normal">({row.slRemaining} Left)</span></span>
                         </div>
                         <Progress value={(totalSl / 7) * 100} className="h-1.5 bg-slate-100" />
@@ -293,6 +333,14 @@ const LeaveSummary = () => {
                         <div className="flex items-center gap-1 text-amber-600 mb-1">
                           <AccessTimeIcon className="text-xs shrink-0" fontSize="inherit" />
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Overtime</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 10 }} className="text-slate-400 hover:text-slate-600 cursor-help ml-auto shrink-0" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total approved overtime hours.
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                         <div className="truncate">
                           <span className="text-xs font-bold text-slate-800 block truncate">{totalOt ? `${(totalOt * 60)} m` : "—"}</span>
@@ -304,6 +352,14 @@ const LeaveSummary = () => {
                         <div className="flex items-center gap-1 text-rose-500 mb-1">
                           <CalendarTodayIcon className="text-xs shrink-0" fontSize="inherit" />
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Lates</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 10 }} className="text-slate-400 hover:text-slate-600 cursor-help ml-auto shrink-0" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total cumulative tardiness duration.
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                         <div className="truncate">
                           <span className="text-xs font-bold text-slate-800 block truncate">{totalLates ? `${totalLates} m` : "—"}</span>
@@ -315,6 +371,14 @@ const LeaveSummary = () => {
                         <div className="flex items-center gap-1 text-slate-500 mb-1">
                           <RemoveCircleOutlineIcon className="text-xs shrink-0" fontSize="inherit" />
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Absences</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 10 }} className="text-slate-400 hover:text-slate-600 cursor-help ml-auto shrink-0" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total absent days converted to minutes and hours.
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                         <div className="truncate">
                           <span className="text-xs font-bold text-slate-800 block truncate">{totalAbsences ? `${(totalAbsences * 8 * 60)} m` : "—"}</span>
@@ -379,6 +443,91 @@ const LeaveSummary = () => {
           </div>
         )}
       </div>
+
+      {/* Export Report Configuration Dialog Modal */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="sm:max-w-[425px] bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-[#2A174E] font-bold text-lg">Export PDF Report</DialogTitle>
+            <DialogDescription className="text-slate-500 text-xs">
+              Configure scope and category parameters for the generated PDF document.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 text-sm">
+            {/* Scope Selection */}
+            <div className="grid gap-2">
+              <label className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Report Scope</label>
+              <Select value={exportScope} onValueChange={(val) => {
+                setExportScope(val);
+                if (val === "single" && data.length > 0 && !exportEmployeeId) {
+                  setExportEmployeeId(data[0].user_Id.toString());
+                }
+              }}>
+                <SelectTrigger className="w-full bg-white border-slate-200 font-medium text-slate-700">
+                  <SelectValue placeholder="Select Scope" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="all">All Employees</SelectItem>
+                  <SelectItem value="single">Specific Employee</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Employee Selector (Conditional) */}
+            {exportScope === "single" && (
+              <div className="grid gap-2">
+                <label className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Select Employee</label>
+                <Select value={exportEmployeeId} onValueChange={setExportEmployeeId}>
+                  <SelectTrigger className="w-full bg-white border-slate-200 font-medium text-slate-700">
+                    <SelectValue placeholder="Choose employee..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[200px] overflow-y-auto bg-white">
+                    {data.map((emp) => (
+                      <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
+                        {emp.name} ({formatUserId(emp.user_Id)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Report Type Category Selector */}
+            <div className="grid gap-2">
+              <label className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Report Type</label>
+              <Select value={exportCategory} onValueChange={setExportCategory}>
+                <SelectTrigger className="w-full bg-white border-slate-200 font-medium text-slate-700">
+                  <SelectValue placeholder="Select Type" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="all">Summary Overview</SelectItem>
+                  <SelectItem value="vl">Vacation Leaves</SelectItem>
+                  <SelectItem value="sl">Sick Leaves</SelectItem>
+                  <SelectItem value="ot">Overtime (h)</SelectItem>
+                  <SelectItem value="lates">Tardiness (m)</SelectItem>
+                  <SelectItem value="absences">Absences (d)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowExportModal(false)}
+              className="border-slate-200 text-slate-500 hover:bg-slate-50 font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleExport}
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+            >
+              Generate & Export
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }

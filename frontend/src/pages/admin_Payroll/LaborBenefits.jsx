@@ -51,10 +51,39 @@ const LaborBenefits = () => {
 
           {/* Unified Tab Structure */}
           <Tabs defaultValue="13th-month" className="w-full">
-            <TabsList className="mb-2 grid w-full grid-cols-3 md:w-auto md:inline-flex">
-              <TabsTrigger value="13th-month">13th Month Pay</TabsTrigger>
-              <TabsTrigger value="separation">Separation Pay</TabsTrigger>
-              <TabsTrigger value="retirement">Retirement Pay</TabsTrigger>
+            <TabsList className="mb-4 grid w-full grid-cols-3 md:w-auto md:inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200/50">
+              <TabsTrigger value="13th-month" className="font-bold text-xs uppercase px-6">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-full h-full block">13th Month Pay</span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Manage annual statutory 13th-month bonus distributions
+                  </TooltipContent>
+                </Tooltip>
+              </TabsTrigger>
+
+              <TabsTrigger value="separation" className="font-bold text-xs uppercase px-6">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-full h-full block">Separation Pay</span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Manage statutory separation payout computations
+                  </TooltipContent>
+                </Tooltip>
+              </TabsTrigger>
+
+              <TabsTrigger value="retirement" className="font-bold text-xs uppercase px-6">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-full h-full block">Retirement Pay</span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Manage statutory retirement benefit payouts
+                  </TooltipContent>
+                </Tooltip>
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="13th-month">

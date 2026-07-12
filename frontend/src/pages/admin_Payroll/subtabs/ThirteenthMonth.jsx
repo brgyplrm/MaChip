@@ -14,6 +14,8 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import EmptyState from "../../../components/EmptyState";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import SearchIcon from "@mui/icons-material/Search";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -216,12 +218,19 @@ const ThirteenthMonth = () => {
                       Calculate and process annual 13th-month bonuses based on Basic Salary according to Presidential Decree No. 851.
                     </p>
                   </div>
-                  <button 
-                    onClick={() => setShowGuideline(false)}
-                    className="absolute top-4 right-4 text-blue-900/40 hover:text-blue-900/80 transition-colors"
-                  >
-                    ✕
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button 
+                        onClick={() => setShowGuideline(false)}
+                        className="absolute top-4 right-4 text-blue-900/40 hover:text-blue-900/80 transition-colors"
+                      >
+                        ✕
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                      Dismiss Policy Guideline
+                    </TooltipContent>
+                  </Tooltip>
                 </CardContent>
               </Card>
             </div>
@@ -235,10 +244,75 @@ const ThirteenthMonth = () => {
 
             <TabsContent value="preview">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
-                    <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">YEARLY BASIS</p><p className="text-4xl font-bold text-[#2A174E]">{currentYear}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Calculation Period.</p></div></CardContent></Card>
-                    <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">ELIGIBLE EMPLOYEES</p><p className="text-4xl font-bold text-[#3B4E17]">{previewData.filter(i => i.totalBasicEarned > 0).length}</p></div><p className="text-xs text-[#3B4E17]/70 italic mt-4">Employees eligible for payout.</p></div></CardContent></Card>
-                    <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">TOTAL DISBURSEMENT</p><p className="text-4xl font-bold text-[#BB8B26]">{formatCurrency(previewData.reduce((acc, curr) => acc + (curr.computedAmount || 0), 0))}</p></div><p className="text-xs text-[#BB8B26]/70 italic mt-4">Total projected payout.</p></div></CardContent></Card>
-                  </div>
+                  {/* Card 1: Yearly Basis */}
+                  <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                    <CardContent className="px-5 py-5 flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Yearly Basis</p>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                                The fiscal year basis for 13th-month payroll computation.
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <p className="text-4xl font-bold text-[#2A174E]">{currentYear}</p>
+                        </div>
+                        <p className="text-xs text-[#2A174E]/70 italic mt-4">Calculation Period.</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Card 2: Eligible Employees */}
+                  <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                    <CardContent className="px-5 py-5 flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Eligible Employees</p>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                                Total count of employees eligible for payouts.
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <p className="text-4xl font-bold text-[#3B4E17]">{previewData.filter(i => i.totalBasicEarned > 0).length}</p>
+                        </div>
+                        <p className="text-xs text-[#3B4E17]/70 italic mt-4">Employees eligible for payout.</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Card 3: Total Disbursement */}
+                  <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                    <CardContent className="px-5 py-5 flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Total Disbursement</p>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                                Sum of all calculated 13th-month bonus payout drafts.
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <p className="text-4xl font-bold text-[#BB8B26]">{formatCurrency(previewData.reduce((acc, curr) => acc + (curr.computedAmount || 0), 0))}</p>
+                        </div>
+                        <p className="text-xs text-[#BB8B26]/70 italic mt-4">Total projected payout.</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
 
                   <Card className="mb-6 p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
                     <div className="relative w-full sm:w-80">
