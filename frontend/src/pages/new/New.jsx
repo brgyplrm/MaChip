@@ -172,7 +172,7 @@ const New = ({ inputs = [], title }) => {
 
       // Map employment status name to ID
       if (id === "user_EmploymentStatus") {
-        const statusMap = { "Regular": 1, "Part-time": 2, "Intern / OJT": 3 };
+        const statusMap = { "Regular": 1, "Probationary": 2 };
         updated.user_EmploymentStatusId = statusMap[value] || 1;
       }
 
@@ -496,8 +496,7 @@ const New = ({ inputs = [], title }) => {
             {input.id === "user_EmploymentStatus" && (
               <>
                 <SelectItem value="Regular">Regular</SelectItem>
-                <SelectItem value="Part-time">Part-time</SelectItem>
-                <SelectItem value="Intern / OJT">Intern / OJT</SelectItem>
+                <SelectItem value="Probationary">Probationary</SelectItem>
               </>
             )}
             {input.id === "user_Role" && (

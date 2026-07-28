@@ -154,22 +154,40 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
               <div className="sectionTitle">
                 <span className="dot blue"></span>
                 <h3>GOVT DEDUCTIONS</h3>
-                <button type="button" className="calcBtn" onClick={handleCalculateGovt} disabled={loading}>
+                {/* <button type="button" className="calcBtn" onClick={handleCalculateGovt} disabled={loading}>
                   <CalculateIcon sx={{ fontSize: 16 }} /> {loading ? "..." : "Auto-Compute"}
-                </button>
+                </button> */}
               </div>
               <div className="inputGrid">
                 <div className="field">
                   <label>SSS</label>
-                  <input type="text" name="SSS_Ded" value={formData.SSS_Ded} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="SSS_Ded" 
+                    value={formData.SSS_Ded} 
+                    disabled 
+                    title="Calculated automatically based on system rules"
+                  />
                 </div>
                 <div className="field">
                   <label>PhilHealth</label>
-                  <input type="text" name="Philhealth_Ded" value={formData.Philhealth_Ded} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="Philhealth_Ded" 
+                    value={formData.Philhealth_Ded} 
+                    disabled 
+                    title="Calculated automatically based on system rules"
+                  />
                 </div>
                 <div className="field">
                   <label>HDMF (Pag-IBIG)</label>
-                  <input type="text" name="HDMF_Ded" value={formData.HDMF_Ded} onChange={handleChange} />
+                  <input 
+                    type="text" 
+                    name="HDMF_Ded" 
+                    value={formData.HDMF_Ded} 
+                    disabled 
+                    title="Calculated automatically based on system rules"
+                  />
                 </div>
               </div>
             </section>

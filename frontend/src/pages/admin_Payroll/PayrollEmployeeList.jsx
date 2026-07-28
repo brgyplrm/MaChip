@@ -43,8 +43,8 @@ const PayrollEmployeeList = () => {
 
   // Filter & Pagination States
   const [search, setSearch] = useState("");
-  const [filterRole, setFilterRole] = useState("All Roles");
-  const [statusFilter, setStatusFilter] = useState("All Statuses");
+  const [filterDepartment, setFilterDepartment] = useState("All Departments");
+  const [filterRateRange, setFilterRateRange] = useState("All Rates");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -59,8 +59,10 @@ const PayrollEmployeeList = () => {
 
   const maskAccountNumber = (acc) => {
     if (!acc) return "—";
-    if (acc.length <= 4) return acc;
-    return `**** ${acc.slice(-4)}`;
+    const str = String(acc).trim();
+    if (!str) return "—";
+    if (str.length <= 4) return str;
+    return `•••• •••• ${str.slice(-4)}`;
   };
 
   const fetchEmployees = async (isRefresh = false) => {
@@ -85,7 +87,7 @@ const PayrollEmployeeList = () => {
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filterRole, statusFilter, itemsPerPage]);
+  }, [search, filterDepartment, filterRateRange, itemsPerPage]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -167,21 +169,45 @@ const PayrollEmployeeList = () => {
 
   const handleClearFilters = () => {
     setSearch("");
-    setFilterRole("All Roles");
-    setStatusFilter("All Statuses");
+    setFilterDepartment("All Departments");
+    setFilterRateRange("All Rates");
     setCurrentPage(1);
   };
 
-  const isFiltering = search !== "" || filterRole !== "All Roles" || statusFilter !== "All Statuses";
+  const isFiltering = search !== "" || filterDepartment !== "All Departments" || filterRateRange !== "All Rates";
+
+  // Extract unique departments dynamically from employee dataset
+  const departmentsList = Array.from(
+    new Set(
+      employees
+        .map((e) => (e.positionDepartment || e.department || "").trim())
+        .filter(Boolean)
+    )
+  ).sort();
 
   // Filtering Logic
   const filtered = employees.filter((e) => {
     const fullName = `${e.user_FirstName} ${e.user_LastName}`.toLowerCase();
     const matchesSearch = fullName.includes(search.toLowerCase()) || String(formatUserId(e.user_Id)).includes(search);
-    const matchesRole = filterRole === "All Roles" || e.user_Role === filterRole;
-    const matchesStatus = statusFilter === "All Statuses" || e.user_EmploymentStatus === statusFilter;
 
-    return matchesSearch && matchesRole && matchesStatus;
+    const empDept = (e.positionDepartment || e.department || "").trim();
+    const matchesDepartment = filterDepartment === "All Departments" || empDept === filterDepartment;
+
+    const rate = parseFloat(e.dailyRate || 0);
+    let matchesRate = true;
+    if (filterRateRange === "0") {
+      matchesRate = rate === 0;
+    } else if (filterRateRange === "1-500") {
+      matchesRate = rate > 0 && rate <= 500;
+    } else if (filterRateRange === "501-1000") {
+      matchesRate = rate > 500 && rate <= 1000;
+    } else if (filterRateRange === "1001-1500") {
+      matchesRate = rate > 1000 && rate <= 1500;
+    } else if (filterRateRange === "1501+") {
+      matchesRate = rate > 1500;
+    }
+
+    return matchesSearch && matchesDepartment && matchesRate;
   });
 
   const changedCount = employees.filter(
@@ -333,32 +359,37 @@ const PayrollEmployeeList = () => {
             </div>
             
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+              {/* Department Filter */}
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
-                <Select value={filterRole} onValueChange={setFilterRole}>
-                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                    <SelectValue placeholder="Filter by Role" />
+                <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+                  <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectValue placeholder="Filter by Department" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All Roles">All Roles</SelectItem>
-                    <SelectItem value="Employee">Employee</SelectItem>
-                    <SelectItem value="Supervisor">Supervisor</SelectItem>
-                    <SelectItem value="Admin Manager">Admin Manager</SelectItem>
-                    <SelectItem value="Admin Accountant">Admin Accountant</SelectItem>
+                    <SelectItem value="All Departments">All Departments</SelectItem>
+                    {departmentsList.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
+              {/* Daily Rate Range Filter */}
               <div className="flex items-center w-full sm:w-auto">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                    <SelectValue placeholder="Filter by Status" />
+                <Select value={filterRateRange} onValueChange={setFilterRateRange}>
+                  <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectValue placeholder="Filter by Daily Rate" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All Statuses">All Statuses</SelectItem>
-                    <SelectItem value="Regular">Regular</SelectItem>
-                    <SelectItem value="Part-time">Part-time</SelectItem>
-                    <SelectItem value="Intern / OJT">Intern / OJT</SelectItem>
+                    <SelectItem value="All Rates">All Rates</SelectItem>
+                    <SelectItem value="0">No Rate (₱0)</SelectItem>
+                    <SelectItem value="1-500">₱1 - ₱500</SelectItem>
+                    <SelectItem value="501-1000">₱501 - ₱1,000</SelectItem>
+                    <SelectItem value="1001-1500">₱1,001 - ₱1,500</SelectItem>
+                    <SelectItem value="1501+">₱1,501+</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -454,9 +485,13 @@ const PayrollEmployeeList = () => {
 
                             <TableCell className="text-slate-600 text-sm py-4">
                               <div className="flex flex-col">
-                                <span className="font-semibold text-slate-700">{emp.positionTitle || "—"}</span>
-                                {emp.positionDepartment && (
-                                  <span className="text-[10px] text-slate-400 uppercase font-bold">{emp.positionDepartment}</span>
+                                <span className="font-semibold text-slate-700">
+                                  {emp.positionTitle || emp.position || emp.user_Role || "—"}
+                                </span>
+                                {(emp.positionDepartment || emp.department) && (
+                                  <span className="text-[10px] text-slate-400 uppercase font-bold">
+                                    {emp.positionDepartment || emp.department}
+                                  </span>
                                 )}
                               </div>
                             </TableCell>
