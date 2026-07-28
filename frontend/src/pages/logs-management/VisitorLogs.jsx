@@ -130,7 +130,7 @@ const VisitorLogs = () => {
             </CardContent>
           </Card>
           
-          <Card className="border-t-4 border-green-500 shadow-sm py-0">
+          <Card className="border-t-4 border-[#3B4E17] shadow-sm py-0">
             <CardContent className="p-6">
               <div className="flex items-center gap-1.5 mb-2">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Last Entry Detected</p>
@@ -144,7 +144,7 @@ const VisitorLogs = () => {
                 </Tooltip>
               </div>
               <div className="flex items-baseline gap-2 mt-2">
-                <p className="text-3xl font-black text-green-600">
+                <p className="text-3xl font-black text-[#3B4E17]">
                   {logs.find(l => l.loggedStatusName.includes("Opening"))?.time || "--:--"}
                 </p>
                 <span className="text-slate-400 text-sm font-medium">local time</span>
@@ -155,7 +155,7 @@ const VisitorLogs = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-amber-500 shadow-sm hidden md:block py-0">
+          <Card className="border-t-4 border-[#B06E16] shadow-sm hidden md:block py-0">
             <CardContent className="p-6">
               <div className="flex items-center gap-1.5 mb-2">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">System User</p>
@@ -169,7 +169,7 @@ const VisitorLogs = () => {
                 </Tooltip>
               </div>
               <div className="flex items-baseline gap-2 mt-2">
-                <p className="text-2xl font-black text-amber-600">VISITOR-999</p>
+                <p className="text-2xl font-black text-[#B06E16]">VISITOR-999</p>
               </div>
               {/* <p className="italic text-[11px] text-slate-400 mt-3 leading-relaxed">
                 The dedicated system account used to categorize and store all anonymous visitor logs.
@@ -178,7 +178,7 @@ const VisitorLogs = () => {
           </Card>
         </div>
 
-        <Card className="shadow-xl border-0 bg-white rounded-2xl overflow-hidden">
+        <Card className="shadow-sm border-0 bg-white rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-slate-50 border-b">

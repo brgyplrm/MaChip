@@ -347,7 +347,57 @@ const PayrollPeriod = () => {
 
          {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-            {/* Card 1: Total Active Users */}
+            {/* Card 1: Total Gross Pay */}
+            <Card className="border-t-5 border-green-600 bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                 <div className="flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-green-600 uppercase tracking-wider">Total Earnings</p>
+                    {/* <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Gross pay including OT and allowances.
+                      </TooltipContent>
+                    </Tooltip> */}
+                  </div>
+                  <p className="text-3xl font-bold text-green-600">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                </div>
+                <p className="text-xs text-green-600/70 italic mt-4">Gross pay including OT and allowances</p>
+              </div>
+              </CardContent>
+            </Card>
+            
+ 
+            {/* Card 2: Total Deductions */}
+            <Card className="border-t-5 border-red-500 bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                <div className="flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-red-500 uppercase tracking-wider">Total Deductions</p>
+                    {/* <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Withholdings including taxes and loans.
+                      </TooltipContent>
+                    </Tooltip> */}
+                  </div>
+                  <p className="text-3xl font-bold text-red-500">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                </div>
+                <p className="text-xs text-red-500/70 italic mt-4">Withholdings including taxes and loans</p>
+              </div>
+              {/* <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
+              </div> */}
+              </CardContent>
+            </Card>
+ 
+            {/* Card 3: Total Net Pay */}
             <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
@@ -369,55 +419,7 @@ const PayrollPeriod = () => {
               </div>
               </CardContent>
             </Card>
- 
-            {/* Card 2: Employees */}
-            <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
-              <CardContent className="px-5 py-5 flex justify-between h-full">
-                 <div className="flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Total Earnings</p>
-                    {/* <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                        Gross pay including OT and allowances.
-                      </TooltipContent>
-                    </Tooltip> */}
-                  </div>
-                  <p className="text-3xl font-bold text-[#3B4E17]">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                </div>
-                <p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross pay including OT and allowances</p>
-              </div>
-              </CardContent>
-            </Card>
- 
-            {/* Card 3: Admins & Supervisors */}
-            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
-              <CardContent className="px-5 py-5 flex justify-between h-full">
-                <div className="flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Total Deductions</p>
-                    {/* <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                        Withholdings including taxes and loans.
-                      </TooltipContent>
-                    </Tooltip> */}
-                  </div>
-                  <p className="text-3xl font-bold text-[#BB8B26]">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                </div>
-                <p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings including taxes and loans</p>
-              </div>
-              {/* <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
-              </div> */}
-              </CardContent>
-            </Card>
+            
           </div>
 
         {/* Filters Card */}
