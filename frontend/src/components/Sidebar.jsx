@@ -5,6 +5,7 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
+import NotificationsIcon from "@mui/icons-material/Notifications";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import HistoryIcon from '@mui/icons-material/History';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -70,10 +71,17 @@ const routeLabels = {
   "settings" : "Configurations",
   "faq" : "Help & Support",
   "employeeHome" : "Home",
-  "employeeCalendar" : "calendar",
+  "employeeCalendar" : "Calendar",
   "accessLogs" : "Access Logs",
   "visitorLogs" : "Visitor Access",
   "logs/edit/:userId/:date" : "Edit Attendance",
+  "employee": "My Payroll",
+  "payslip": "Payslip Details",
+  "13th-month": "13th Month Details",
+  "payroll-details": "Computation Details",
+  "requests": "Requests Hub",
+  "profile": "My Profile",
+  "notifications": "Notifications"
 };
 
 const Sidebar = ({ children }) => {
@@ -278,6 +286,18 @@ const Sidebar = ({ children }) => {
   const isLaborBenefitsActive = location.pathname === "/laborBenefits" || location.pathname === "/thirteenth-month" || location.pathname === "/separation-pay" || location.pathname === "/retirement-pay";
   const isLeaveSummaryActive = location.pathname === "/payroll/leave-summary";
 
+  // Employee active state variables
+  const isMyPayrollActive = 
+    location.pathname.startsWith("/employee/payroll") ||
+    location.pathname.startsWith("/employee/payslip") ||
+    location.pathname.startsWith("/employee/13th-month") ||
+    location.pathname.startsWith("/employee/payroll-details");
+
+  const isAccessLogsLinkActive = 
+    location.pathname === "/accessLogs" || 
+    location.pathname.startsWith("/accessLogs") || 
+    location.pathname === "/logs";
+
   // Settings active state variables
   const isAuditLogActive = location.pathname === "/auditLogs";
   const isTransactionLogActive = location.pathname === "/transactionLog";
@@ -450,8 +470,8 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
-                      isActive={location.pathname === "/accessLogs"}
-                      className={menuButtonClass(location.pathname === "/accessLogs")}
+                      isActive={isAccessLogsLinkActive}
+                      className={menuButtonClass(isAccessLogsLinkActive)}
                     >
                       <Link to="/accessLogs">
                         <HistoryIcon className="!text-[22px] shrink-0" />
@@ -468,8 +488,8 @@ const Sidebar = ({ children }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
-                      isActive={location.pathname.startsWith("/employee/payroll")}
-                      className={menuButtonClass(location.pathname.startsWith("/employee/payroll"))}
+                      isActive={isMyPayrollActive}
+                      className={menuButtonClass(isMyPayrollActive)}
                     >
                       <Link to="/employee/payroll">
                         <CreditCardIcon className="!text-[22px] shrink-0" />
@@ -764,7 +784,11 @@ const Sidebar = ({ children }) => {
                   onClick={() => setIsNotifLocked(!isNotifLocked)}
                   className="relative p-2 text-gray-500 hover:text-[#2A174E] transition-colors block focus:outline-none"
                 >
-                  <NotificationsNoneIcon className="!text-[26px] hover:animate-bell-shake" />
+                  {location.pathname === "/notifications" ? (
+                    <NotificationsIcon className="!text-[26px] text-[#2A174E]" />
+                  ) : (
+                    <NotificationsNoneIcon className="!text-[26px] hover:animate-bell-shake" />
+                  )}
                   {unreadCount > 0 && (
                     <span className="absolute top-1 right-1 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-600 rounded-full">
                       {unreadCount}
@@ -843,10 +867,15 @@ const Sidebar = ({ children }) => {
               >
                 <button 
                   onClick={() => setIsProfileLocked(!isProfileLocked)}
-                  className="flex text-sm bg-gray-800 rounded-full focus:ring-2 focus:ring-gray-300 transition-transform active:scale-95"
+                  className={cn(
+                    "flex text-sm rounded-full transition-all duration-300 active:scale-95 relative",
+                    location.pathname === "/profile"
+                      ? "p-[2.5px] bg-gradient-to-r from-[#2A174E] via-[#7A52B5] to-[#2A174E] shadow-[0_0_15px_rgba(122,82,181,0.75)] animate-pulse"
+                      : "bg-gray-800 focus:ring-2 focus:ring-gray-300"
+                  )}
                 >
                   <img 
-                    className="w-8 h-8 rounded-full object-cover" 
+                    className="w-8 h-8 rounded-full object-cover border border-white" 
                     src={userData?.user_ProfilePic ? `/api/uploads/${userData.user_ProfilePic}` : "/avatar.webp"} 
                     alt="user" 
                   />

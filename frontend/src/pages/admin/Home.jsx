@@ -278,7 +278,7 @@ const Home = () => {
           </Card>
         </div>
       ) : (
-        <div className=" p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-3 duration-500 ease-out">
           <div className="h-2"></div>
 
           {/* Greeting Banner */}

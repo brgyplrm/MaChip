@@ -218,7 +218,7 @@ const EmployeePayrollHistory = () => {
             </div>
           </div>
   
-          <Card className="border-none shadow-sm overflow-hidden">
+          <Card className="border-none shadow-sm overflow-hidden pt-1">
             <CardHeader className="bg-white border-b border-slate-100 p-4">
               <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                 <div className="relative flex-1">

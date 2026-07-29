@@ -226,14 +226,13 @@ const Profile = () => {
               </div>
 
               {/* Chart Section */}
-              <Card className="border-0 shadow-sm bg-white mb-6">
+              <Card className="bg-gradient-to-r from-[#F8FAFC] to-[#FAF2FF] border border-slate-200/80 shadow-sm mb-6 overflow-hidden">
                 <CardHeader className="border-b border-slate-100 pb-4">
-                  <CardTitle className="text-lg font-bold text-slate-800">Attendance Consistency (Last 6 Months)</CardTitle>
+                  <CardTitle className="text-lg font-bold text-[#2A174E]">Attendance Consistency (Last 6 Months)</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6 overflow-x-auto">
-                  <div className="min-w-[700px]">
+                <CardContent className="pt-6 pb-4 overflow-x-auto overflow-y-hidden">
+                  <div className="w-full h-[260px] min-w-[600px] overflow-hidden">
                     <Chart
-                      aspect={4 / 1}
                       title=""
                       userId={user.user_Id}
                     />
@@ -242,15 +241,23 @@ const Profile = () => {
               </Card>
 
               {/* Table Section */}
-              <Card className="border-0 shadow-sm bg-white mb-6">
-                <CardHeader className="border-b border-slate-100 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <CardTitle className="text-lg font-bold text-slate-800">Personal Attendance Logs</CardTitle>
-                  <div className="flex gap-2 w-full sm:w-auto">
+              <Card className="border border-slate-200/80 shadow-sm bg-white mb-6 overflow-hidden">
+                <CardHeader className="border-b border-slate-100 py-4 px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
+                      <BadgeOutlinedIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg font-bold text-[#2A174E]">Personal Attendance Logs</CardTitle>
+                      <p className="text-xs text-slate-400 font-medium">Historical records of daily time ins, time outs, and attendance status</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
                     <div className="relative w-full sm:w-64">
                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                       <Input 
-                        placeholder="Search logs..." 
-                        className="pl-9 h-9 text-sm"
+                        placeholder="Search date or status..." 
+                        className="pl-9 h-9 text-xs bg-white border-slate-200 focus-visible:ring-[#2A174E]"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)} 
                       />
@@ -258,46 +265,76 @@ const Profile = () => {
                   </div>
                 </CardHeader>
                 
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
+                <CardContent className="p-0 flex flex-col justify-between min-h-[460px]">
+                  <div className="overflow-x-auto flex-1">
                     <Table>
-                      <TableHeader className="bg-slate-50">
-                        <TableRow>
-                          <TableHead className="font-bold">Date</TableHead>
-                          <TableHead className="font-bold">Time In</TableHead>
-                          <TableHead className="font-bold">Time Out</TableHead>
-                          <TableHead className="font-bold">Status</TableHead>
-                          <TableHead className="font-bold">Attendance</TableHead>
+                      <TableHeader className="bg-[#2A174E]">
+                        <TableRow className="h-11 hover:bg-transparent border-b-0">
+                          <TableHead className="font-bold text-white uppercase text-[10px] tracking-wider py-3.5 px-6">Date</TableHead>
+                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5">Time In</TableHead>
+                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5">Time Out</TableHead>
+                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5">Log Type</TableHead>
+                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5 px-6">Attendance Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {paginatedLogs.length > 0 ? (
-                          paginatedLogs.map((log, index) => (
-                            <TableRow key={log.sessionId || index}>
-                              <TableCell className="text-xs text-slate-500">
-                                {log.log_Date ? new Date(log.log_Date).toLocaleDateString() : "—"}
-                              </TableCell>
-                              <TableCell className="font-mono text-xs">
-                                {formatTime12h(log.time_In)}
-                              </TableCell>
-                              <TableCell className="font-mono text-xs">
-                                {formatTime12h(log.time_Out)}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={getLogStatusVariant(log.logStatus)} className="font-semibold text-[10px] uppercase">
-                                  {log.logStatus || "—"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={getAttendanceVariant(log.attendanceStatus)} className="font-semibold text-[10px] uppercase">
-                                  {log.attendanceStatus !== "—" ? log.attendanceStatus : "—"}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))
+                          paginatedLogs.map((log, index) => {
+                            const rawStatus = (log.attendanceStatus || "").toLowerCase();
+                            const isPresent = rawStatus.includes("present") || rawStatus.includes("on time");
+                            const isLate = rawStatus.includes("late");
+                            const isAbsent = rawStatus.includes("absent");
+
+                            return (
+                              <TableRow key={log.sessionId || index} className="h-12 border-b border-slate-100 hover:bg-slate-50/70 transition-colors">
+                                <TableCell className="py-2.5 px-6">
+                                  <span className="font-bold text-[#2A174E] text-xs block">
+                                    {log.log_Date ? new Date(log.log_Date).toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" }) : "—"}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center py-2.5">
+                                  <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50/90 border border-emerald-200/80 px-2.5 py-1 rounded-md inline-block">
+                                    {formatTime12h(log.time_In)}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center py-2.5">
+                                  <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100/80 border border-slate-200/80 px-2.5 py-1 rounded-md inline-block">
+                                    {formatTime12h(log.time_Out)}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center py-2.5">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
+                                    log.logStatus?.includes("In")
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      : log.logStatus?.includes("Out")
+                                      ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                      : "bg-slate-100 text-slate-600 border-slate-200"
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                      log.logStatus?.includes("In") ? "bg-emerald-500" : log.logStatus?.includes("Out") ? "bg-indigo-500" : "bg-slate-400"
+                                    }`} />
+                                    {log.logStatus || "—"}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center py-2.5 px-6">
+                                  <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wide shadow-2xs ${
+                                    isPresent
+                                      ? "bg-emerald-500 text-white"
+                                      : isLate
+                                      ? "bg-amber-400 text-slate-950"
+                                      : isAbsent
+                                      ? "bg-rose-500 text-white"
+                                      : "bg-slate-100 text-slate-600 border border-slate-200"
+                                  }`}>
+                                    {log.attendanceStatus !== "—" ? log.attendanceStatus : "—"}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
                         ) : (
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-center py-10 text-slate-400 italic">
+                          <TableRow className="h-48">
+                            <TableCell colSpan={5} className="text-center py-12 text-slate-400 italic">
                               No attendance records found.
                             </TableCell>
                           </TableRow>

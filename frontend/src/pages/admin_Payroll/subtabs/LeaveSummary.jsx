@@ -146,7 +146,7 @@ const LeaveSummary = () => {
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
                   <Button 
-                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors"
+                    className="w-full bg-[#2A174E] hover:bg-[#2A174E]/80 text-white font-semibold transition-colors"
                     onClick={() => {
                       if (data.length > 0 && !exportEmployeeId) {
                         setExportEmployeeId(data[0].user_Id.toString());
@@ -230,7 +230,7 @@ const LeaveSummary = () => {
                           </Tooltip>
                         </span>
                       </SheetTrigger>
-                      <SheetContent className="w-full sm:max-w-2xl bg-white overflow-y-auto custom-scrollbar p-6">
+                      <SheetContent className="w-full sm:max-w-xl! max-w-full bg-white overflow-y-auto custom-scrollbar p-6 md:p-8">
                         <SheetHeader className="pb-4 border-b border-slate-100">
                           <SheetTitle className="text-xl font-bold text-[#2A174E]">{row.name}'s History</SheetTitle>
                           <SheetDescription className="text-xs text-slate-400 font-mono">
@@ -252,6 +252,36 @@ const LeaveSummary = () => {
                           </div>
                         </div>
 
+                        {/* Column Abbreviations Legend Box */}
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-2.5 my-4">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-[#2A174E] uppercase tracking-wider">
+                            <HelpOutlineIcon className="!text-sm text-[#2A174E]" />
+                            <span>Column Legend & Abbreviation Key</span>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                            <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 shadow-2xs">
+                              <span className="font-mono font-bold text-xs bg-purple-100 text-[#2A174E] px-1.5 py-0.5 rounded">VL</span>
+                              <span className="text-slate-600 text-[11px] font-medium">Vacation Leave (Days)</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 shadow-2xs">
+                              <span className="font-mono font-bold text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">SL</span>
+                              <span className="text-slate-600 text-[11px] font-medium">Sick Leave (Days)</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 shadow-2xs">
+                              <span className="font-mono font-bold text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">OT (h)</span>
+                              <span className="text-slate-600 text-[11px] font-medium">Overtime (Hours)</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 shadow-2xs">
+                              <span className="font-mono font-bold text-xs bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded">Late (m)</span>
+                              <span className="text-slate-600 text-[11px] font-medium">Tardiness (Minutes)</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 shadow-2xs col-span-2 sm:col-span-1">
+                              <span className="font-mono font-bold text-xs bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">Abs (d)</span>
+                              <span className="text-slate-600 text-[11px] font-medium">Absences (Days)</span>
+                            </div>
+                          </div>
+                        </div>
+
                         {/* Month-by-Month Matrix Table */}
                         <div className="space-y-4">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">12-Month Distributed Log Matrix</h3>
@@ -260,11 +290,56 @@ const LeaveSummary = () => {
                               <TableHeader className="bg-[#2B174F]">
                                 <TableRow className="hover:bg-transparent border-b-0">
                                   <TableHead className="font-semibold text-white uppercase text-[10px] tracking-wider py-3 px-4">Month</TableHead>
-                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">VL</TableHead>
-                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">SL</TableHead>
-                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">OT (h)</TableHead>
-                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">Late (m)</TableHead>
-                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">Abs (d)</TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-help underline decoration-dotted underline-offset-2">VL</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                        Vacation Leave (Days)
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-help underline decoration-dotted underline-offset-2">SL</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                        Sick Leave (Days)
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-help underline decoration-dotted underline-offset-2">OT (h)</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                        Overtime (Hours)
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-help underline decoration-dotted underline-offset-2">Late (m)</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                        Tardiness / Lates (Minutes)
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-help underline decoration-dotted underline-offset-2">Abs (d)</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                        Absences (Days)
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>

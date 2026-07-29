@@ -1105,7 +1105,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                                             : "bg-slate-100 text-slate-300"
                                         }`}
                                       >
-                                        {m.mAmount > 0 ? `₱${(m.mAmount / 1000).toFixed(m.mAmount % 1000 === 0 ? 0 : 1)}k` : "—"}
+                                        {m.mAmount > 0 ? peso(m.mAmount) : "—"}
                                       </div>
                                     </TooltipTrigger>
                                     <TooltipContent className="bg-slate-900 text-white text-xs border-slate-800">
@@ -1157,7 +1157,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
 
                           return (
                             <td key={mIdx} className="p-1.5 text-center font-mono text-xs font-black text-[#2A174E] border-r border-slate-200">
-                              {monthSum > 0 ? `₱${(monthSum / 1000).toFixed(1)}k` : "—"}
+                              {monthSum > 0 ? peso(monthSum) : "—"}
                             </td>
                           );
                         })}
