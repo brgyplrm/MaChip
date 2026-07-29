@@ -31,6 +31,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { User } from "lucide-react";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,15 @@ const Maxicare = () => {
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [editingCell, setEditingCell] = useState(null); 
   const [editValue, setEditValue] = useState("");
+
+  // Table View Controls
+  const [tableSearchQuery, setTableSearchQuery] = useState("");
+  const [tableCurrentPage, setTableCurrentPage] = useState(1);
+  const [tableItemsPerPage, setTableItemsPerPage] = useState(10);
+
+  useEffect(() => {
+    setTableCurrentPage(1);
+  }, [tableSearchQuery, tableItemsPerPage]);
   const [syncingCell, setSyncingCell] = useState(null); 
 
   const emptyColumn = async (empKey) => {
@@ -1267,6 +1277,22 @@ const Maxicare = () => {
     return filteredCardEmployees.slice(cardStartIndex, cardStartIndex + cardItemsPerPage);
   }, [filteredCardEmployees, cardStartIndex]);
 
+  // Handle local searching and pagination inside the Table Matrix Layout
+  const filteredTableEmployees = useMemo(() => {
+    return employeeList.filter(emp => 
+      emp.name.toLowerCase().includes(tableSearchQuery.toLowerCase()) ||
+      emp.id.toLowerCase().includes(tableSearchQuery.toLowerCase())
+    );
+  }, [employeeList, tableSearchQuery]);
+
+  const totalTablePages = Math.ceil(filteredTableEmployees.length / tableItemsPerPage) || 1;
+  const tableStartIndex = (tableCurrentPage - 1) * tableItemsPerPage;
+  const tableEndIndex = Math.min(tableStartIndex + tableItemsPerPage, filteredTableEmployees.length);
+
+  const paginatedTableEmployees = useMemo(() => {
+    return filteredTableEmployees.slice(tableStartIndex, tableStartIndex + tableItemsPerPage);
+  }, [filteredTableEmployees, tableStartIndex, tableItemsPerPage]);
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Dialog open={showCalculator} onOpenChange={setShowCalculator}>
@@ -1682,6 +1708,26 @@ const Maxicare = () => {
             </>
           )}
 
+          {/* Conditional Table Search Input Box */}
+          {displayLayout === "table" && (
+            <div className="relative w-full sm:w-[320px] animate-in fade-in slide-in-from-top-1 duration-200">
+              <Input
+                placeholder="Search matrix table employee..."
+                value={tableSearchQuery}
+                onChange={(e) => setTableSearchQuery(e.target.value)}
+                className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E] pr-8 pl-3 h-9 text-xs shadow-sm"
+              />
+              {tableSearchQuery && (
+                <button 
+                  onClick={() => setTableSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-rose-500 font-semibold transition-colors"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Right Side: Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 md:ml-auto">
             <Button 
@@ -1769,278 +1815,244 @@ const Maxicare = () => {
         </div>
 
         {displayLayout === "table" ? (
-          <>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-0">
-            <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-xl">
-              <table className="w-full min-w-max border-collapse text-sm">
-                <thead className="sticky top-0 z-[50] shadow-sm">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-[#2A174E]">
+                  12-Month Matrix Visual Table ({getCycleLabel()})
+                </h3>
+                <span className="text-xs text-slate-500 font-mono">
+                  Compact 12-month bird's-eye view for all covered employees. Hover over month chips for cutoff details.
+                </span>
+              </div>
+              <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-md border border-slate-200">
+                {employeeList.length} Covered Employees
+              </span>
+            </div>
+
+            <div className="w-full bg-white overflow-x-auto">
+              <table className="w-full min-w-max border-collapse text-xs">
+                <thead className="bg-[#2A174E] text-white">
                   <tr>
-                    <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-[#2A174E] p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                    <div className="flex flex-col leading-tight">
-                      <span className="text-[9px] font-black uppercase opacity-90">{getCycleLabel()}</span>
-                      <span className="text-xs text-white font-bold">MONTHS / DATE</span>
-                    </div>
-                  </th>
-                  {employeeList.map((emp) => (
-                    <th key={emp.key} className="sticky top-0 z-[50] bg-[#2A174E] text-white border-x border-b-2 border-[#3d2270] min-w-[140px] p-3 text-center align-middle">
-                      <div className="flex flex-col leading-tight items-center relative group">
-                        <span className="text-[11px] font-bold uppercase">{emp.name.split(',')[0]}</span>
-                        <span className="text-[9px] text-white/70 font-mono">{emp.id}</span>
-                        
-                        {isEditingTable && (
-                          <div className="flex gap-1 mt-2">
-                            <button 
-                              onClick={() => emptyColumn(emp.key)}
-                              className="bg-amber-500 hover:bg-amber-600 text-white p-1 rounded-sm transition-colors"
-                              title="Empty this column"
-                            >
-                              <FilterListIcon className="!text-[10px]" />
-                            </button>
-                            <button 
-                              onClick={() => deleteColumn(emp.key)}
-                              className="bg-rose-500 hover:bg-rose-600 text-white p-1 rounded-sm transition-colors"
-                              title="Delete this column"
-                            >
-                              <DeleteIcon className="!text-[10px]" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                    <th className="sticky left-0 top-0 z-[50] bg-[#1e1136] text-yellow-400 border-r border-b border-[#2A174E] p-2.5 text-left min-w-[170px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                      EMPLOYEE
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
-                      Loading Maxicare data...
-                    </td>
+                    <th className="text-white font-bold text-xs uppercase text-right p-2.5 min-w-[100px]">
+                      CUTOFF RATE
+                    </th>
+                    {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map(m => (
+                      <th key={m} className="text-white font-bold text-xs uppercase text-center p-2 min-w-[65px]">
+                        {m}
+                      </th>
+                    ))}
+                    <th className="text-white font-bold text-xs uppercase text-right p-2.5 min-w-[110px]">
+                      YTD PAID ({selectedYear})
+                    </th>
+                    <th className="text-white font-bold text-xs uppercase text-center p-2.5 min-w-[90px]">
+                      PROGRESS
+                    </th>
                   </tr>
-                ) : error ? (
-                  <tr>
-                    <td colSpan={employeeList.length + 1} className="h-32 text-center text-red-500 p-6">
-                      <p>Error: {error}</p>
-                      <Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
-                    </td>
-                  </tr>
-                ) : displayDates.length > 0 ? (
-                  <>
-                    {displayDates.map((dateStr, i) => {
-                      const dateObj = new Date(dateStr);
-                      const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'short' });
-                      const dayLabel = dateObj.getDate();
-                      const isCurrentRow = dateStr === currentCutoffDate;
-                      
-                      return (
-                        <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
-                          <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-[#2A174E] p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                            {isEditingTable && expectedDates.includes(dateStr) ? (
-                              <Input 
-                                type="date" 
-                                value={dateStr}
-                                onChange={(e) => handleHeaderChange(expectedDates.indexOf(dateStr), e.target.value)}
-                                className="h-8 text-xs font-bold text-[#2A174E] focus-visible:ring-blue-500"
-                              />
-                            ) : (
-                              <div className="flex flex-col">
-                                <div className="flex justify-between items-start">
-                                  <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel} ({dateObj.getFullYear()})</span>
-                                  {isEditingTable && (
-                                    <button 
-                                      onClick={() => removePeriod(dateStr)}
-                                      className="text-rose-500 hover:text-rose-700 p-0.5 -mt-1"
-                                      title="Remove this row"
-                                    >
-                                      <DeleteIcon className="!text-sm" />
-                                    </button>
-                                  )}
-                                </div>
-                                <span className="text-[10px] font-semibold text-slate-500">{dayLabel}</span>
-                                {isCurrentRow && <span className="bg-yellow-400 text-[#2A174E] text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
-                              </div>
-                            )}
-                          </td>
-                          {employeeList.map((emp) => {
+                </thead>
+
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={16} className="h-32 text-center text-slate-500 italic p-6">
+                        Loading Maxicare 12-month matrix visual data...
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={16} className="h-32 text-center text-red-500 p-6">
+                        <p>Error: {error}</p>
+                        <Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
+                      </td>
+                    </tr>
+                  ) : filteredTableEmployees.length > 0 ? (
+                    <>
+                      {paginatedTableEmployees.map((emp) => {
+                        const monthlyData = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((mName, mIdx) => {
+                          const mDates = displayDates.filter(dStr => new Date(dStr).getMonth() === mIdx);
+                          let mAmount = 0;
+                          let cutoffsPaid = 0;
+                          mDates.forEach(dateStr => {
                             const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
-                            let amount = 0;
-                            let status = "unpaid";
-                            let isProjection = false;
-
-                            const userRate = parseFloat(emp.expectedDeduction) || 0;
-                            const todayStr = systemToday ? formatDateLocal(systemToday) : "";
-
-                            if (actualRecord && actualRecord.values[emp.key]) {
-                              const record = actualRecord.values[emp.key];
-                              if (record.status === 'paid' && record.amount > 0) {
-                                amount = record.amount;
-                                status = 'paid';
-                              } else if (record.amount === 0) {
-                                amount = 0;
-                                status = 'removed';
-                              } else if (!isUnconfigured) {
-                                amount = userRate;
-                                status = 'estimated';
-                                isProjection = true;
-                              }
-                            } else {
-                              if (!isUnconfigured && dateStr >= todayStr) {
-                                amount = userRate;
-                                status = 'estimated';
-                                isProjection = true;
-                              } else {
-                                amount = 0;
-                                status = 'unpaid';
-                              }
+                            const amt = actualRecord?.values[emp.key]?.amount || 0;
+                            if (amt > 0) {
+                              mAmount += amt;
+                              cutoffsPaid += 1;
                             }
+                          });
+                          return { monthIndex: mIdx, monthName: mName, mAmount, cutoffsPaid };
+                        });
 
-                            const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
-                            const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
+                        const empYtdPaid = displayDates.reduce((acc, dateStr) => {
+                          const period = data.find(d => isInSamePeriod(d.date, dateStr));
+                          return acc + ((period && period.values[emp.key]) ? period.values[emp.key].amount : 0);
+                        }, 0);
 
-                            let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer group ";
-                            if (isEditing) cellClass += "bg-white p-0 ";
-                            else if (isSyncing) cellClass += "bg-yellow-50 ";
-                            else if (status === 'paid') cellClass += "text-green-800 font-bold ";
-                            else if (status === 'estimated') cellClass += "text-slate-400 italic ";
-                            else if (status === 'removed') cellClass += "text-red-600 font-semibold opacity-80 ";
-                            else cellClass += "text-slate-300 ";
+                        const userRate = parseFloat(emp.expectedDeduction) || 0;
+                        const empExpectedAnnual = userRate * (displayDates.length || 24);
+                        const completionPercent = empExpectedAnnual > 0 ? Math.min(100, (empYtdPaid / empExpectedAnnual) * 100) : 0;
+                        const targetMonthlyFull = userRate * 2;
 
-                            return (
-                              <td 
-                                key={emp.key} 
-                                className={cellClass}
-                                onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
-                              >
-                                {isEditing ? (
-                                  <input
-                                    type="text"
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    onBlur={() => handleCellSave(dateStr, emp.key)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        handleCellSave(dateStr, emp.key);
-                                      }
-                                    }}
-                                    autoFocus
-                                    className="w-full h-10 border-2 border-[#2A174E] bg-white text-center font-mono text-[13px] text-black font-bold outline-none"
-                                  />
-                                ) : isSyncing ? (
-                                  <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
-                                ) : (
+                        return (
+                          <tr key={emp.key} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                            {/* Sticky Left Employee Info */}
+                            <td className="sticky left-0 z-[40] bg-white border-r border-b border-slate-200 p-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                              <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-[#2A174E]/10 text-[#2A174E] rounded-md shrink-0">
+                                  <User className="h-3.5 w-3.5" />
+                                </div>
+                                <div className="text-left truncate">
+                                  <span className="font-bold text-[#2A174E] text-xs block truncate">{emp.name}</span>
+                                  <span className="text-[10px] font-mono text-slate-400">{emp.id}</span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Monthly Cutoff Rate */}
+                            <td className="p-2 text-right font-mono font-bold text-slate-700 border-r border-slate-100">
+                              {peso(userRate)}
+                            </td>
+
+                            {/* 12 Month Status Pills */}
+                            {monthlyData.map((m) => {
+                              const isFullMonth = targetMonthlyFull > 0 && m.mAmount >= targetMonthlyFull;
+                              const isPartialMonth = m.mAmount > 0 && !isFullMonth;
+
+                              return (
+                                <td key={m.monthIndex} className="p-1 text-center font-mono border-r border-slate-100 align-middle">
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span className="block w-full h-full">
-                                        {isEditingTable && amount > 0 && (
-                                          <button 
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleCellSave(dateStr, emp.key, 0);
-                                            }}
-                                            className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-rose-700"
-                                          >
-                                            <DeleteIcon className="!text-[10px]" />
-                                          </button>
-                                        )}
-                                        {amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
-                                        {isProjection && amount > 0 && <span className="absolute top-[2px] right-[2px] text-[8px] font-black bg-slate-200 text-slate-500 px-0.5 rounded leading-none not-italic">EST</span>}
-                                      </span>
+                                      <div
+                                        className={`py-1 px-1 rounded text-[10px] font-mono font-bold transition-all cursor-help ${
+                                          isFullMonth
+                                            ? "bg-emerald-500 text-white shadow-2xs"
+                                            : isPartialMonth
+                                            ? "bg-amber-400 text-slate-900 shadow-2xs"
+                                            : "bg-slate-100 text-slate-300"
+                                        }`}
+                                      >
+                                        {m.mAmount > 0 ? `₱${(m.mAmount / 1000).toFixed(m.mAmount % 1000 === 0 ? 0 : 1)}k` : "—"}
+                                      </div>
                                     </TooltipTrigger>
-                                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-                                      Double-click cell to edit payment
+                                    <TooltipContent className="bg-slate-900 text-white text-xs border-slate-800">
+                                      <p className="font-bold">{m.monthName} {selectedYear}</p>
+                                      <p>Total Collected: {peso(m.mAmount)}</p>
+                                      <p>Paid Cutoffs: {m.cutoffsPaid} / 2</p>
                                     </TooltipContent>
                                   </Tooltip>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </>
-                ) : (
-                  <tr>
-                    <td colSpan={employeeList.length + 1} className="h-64 text-center p-12">
-                      <div className="flex flex-col items-center justify-center space-y-4">
-                        <div className="bg-slate-100 p-4 rounded-full">
-                           <EventIcon className="h-8 w-8 text-slate-400" />
-                        </div>
-                        <div className="max-w-md">
-                          <p className="text-slate-800 font-bold text-lg">No configuration found for {getCycleLabel()}</p>
-                          <p className="text-slate-500 text-sm mt-1">
-                            This renewal cycle has no planned periods or deduction history. You can initialize it using the 
-                            <span className="font-bold text-[#2A174E]"> Edit Config</span> button above, or manually add periods by clicking 
-                            <span className="font-bold text-[#2A174E]"> Edit Table</span>.
-                          </p>
-                        </div>
-                        <Button 
-                          onClick={() => setShowCalculator(true)}
-                          className="bg-[#2A174E] text-white hover:bg-[#1a0e30]"
-                        >
-                          Initialize Cycle
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
+                                </td>
+                              );
+                            })}
 
-              {/* Footer Rows */}
-              {displayDates.length > 0 && !loading && !error && (
-                <tfoot className="sticky bottom-0 z-[50] shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
-                  {/* Subtotal Row */}
-                  <tr className="bg-slate-100 border-b border-slate-300">
-                    <td className="sticky left-0 z-[60] bg-slate-100 border-r-2 border-t-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                      <span className="text-[11px] font-black tracking-wider text-[#2A174E]">CYCLE TOTAL</span>
-                    </td>
-                    {employeeList.map((emp) => {
-                      const historicalDates = displayDates.filter(d => !currentCutoffDate || d < currentCutoffDate);
-                      const empSubtotal = historicalDates.reduce((acc, dateStr) => {
-                        const period = data.find(d => isInSamePeriod(d.date, dateStr));
-                        const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
-                        return acc + val;
-                      }, 0);
-                      return (
-                        <td key={emp.key} className="border-r border-t-2 border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
-                          {parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {/* YTD Total Paid */}
+                            <td className="p-2 text-right font-mono font-bold text-xs text-emerald-700 bg-emerald-50/40 border-r border-slate-100">
+                              {peso(empYtdPaid)}
+                            </td>
+
+                            {/* Completion Progress Bar */}
+                            <td className="p-2 text-center align-middle">
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-[10px] font-bold text-[#2A174E]">
+                                  {completionPercent.toFixed(0)}%
+                                </span>
+                                <div className="w-14 bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                  <div
+                                    className="bg-emerald-500 h-full rounded-full"
+                                    style={{ width: `${completionPercent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {/* Footer Row (Monthly Totals for All Employees) */}
+                      <tr className="bg-slate-100 font-bold border-t-2 border-[#2A174E]">
+                        <td className="sticky left-0 z-[40] bg-slate-100 border-r border-[#2A174E] p-2.5 text-left font-black text-[#2A174E] text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                          TOTAL PAID ({selectedYear})
                         </td>
-                      );
-                    })}
-                  </tr>
+                        <td className="p-2.5 text-right font-mono text-xs text-slate-500">—</td>
+                        {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((_, mIdx) => {
+                          const mDates = displayDates.filter(dStr => new Date(dStr).getMonth() === mIdx);
+                          const monthSum = mDates.reduce((sum, dStr) => {
+                            const actualRecord = data.find(d => isInSamePeriod(d.date, dStr));
+                            if (!actualRecord) return sum;
+                            return sum + Object.values(actualRecord.values).reduce((acc, v) => acc + (v.amount || 0), 0);
+                          }, 0);
 
-                  {/* Balance Row */}
-                  <tr className="bg-slate-50">
-                    <td className="sticky left-0 z-[60] bg-slate-50 border-r-2 border-t border-slate-300 p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                      <span className="text-[11px] font-black tracking-wider text-[#2A174E]">BALANCE</span>
-                    </td>
-                    {employeeList.map((emp) => {
-                      const historicalDates = displayDates.filter(d => !currentCutoffDate || d < currentCutoffDate);
-                      const empSubtotal = historicalDates.reduce((acc, dateStr) => {
-                        const period = data.find(d => isInSamePeriod(d.date, dateStr));
-                        const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
-                        return acc + val;
-                      }, 0);
-                      
-                      const isSubscriber = (parseFloat(emp.expectedDeduction) || 0) > 0 || empSubtotal > 0;
-                      // Balance is usually against the whole cycle, but here we show it per year view.
-                      // For simplicity, we'll keep the logic consistent with current view.
-                      const balance = isSubscriber ? (employeeShareAmount - empSubtotal) : 0;
-
-                      return (
-                        <td key={emp.key} className={`border-r border-t border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-black ${balance < 0 ? 'text-rose-600' : 'text-green-600'}`}>
-                          {parseFloat(balance).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          return (
+                            <td key={mIdx} className="p-1.5 text-center font-mono text-xs font-black text-[#2A174E] border-r border-slate-200">
+                              {monthSum > 0 ? `₱${(monthSum / 1000).toFixed(1)}k` : "—"}
+                            </td>
+                          );
+                        })}
+                        <td className="p-2.5 text-right font-mono text-xs font-black text-emerald-800 bg-emerald-100/60 border-r border-slate-200">
+                          {peso(stats.totalPaid)}
                         </td>
-                      );
-                    })}
-                  </tr>
-                </tfoot>
-              )}
+                        <td className="p-2.5 text-center text-[10px] text-slate-400 font-bold">ANNUAL</td>
+                      </tr>
+                    </>
+                  ) : (
+                    <tr>
+                      <td colSpan={16} className="h-32 text-center text-slate-500 italic p-6">
+                        No periods defined.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-            </table>
+            {/* Matrix Table Pagination Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-slate-100 border-t border-slate-200 gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 font-medium">
+                  Showing <strong className="text-slate-800">{filteredTableEmployees.length > 0 ? tableStartIndex + 1 : 0}</strong> to{" "}
+                  <strong className="text-slate-800">{tableEndIndex}</strong> of{" "}
+                  <strong className="text-slate-800">{filteredTableEmployees.length}</strong> employees
+                </span>
+
+                <Select value={tableItemsPerPage.toString()} onValueChange={(val) => setTableItemsPerPage(parseInt(val))}>
+                  <SelectTrigger className="w-[85px] h-7 text-xs bg-white border-slate-300 font-bold">
+                    <SelectValue placeholder="Per page" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / pg</SelectItem>
+                    <SelectItem value="25">25 / pg</SelectItem>
+                    <SelectItem value="50">50 / pg</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setTableCurrentPage(p => Math.max(1, p - 1))} 
+                  disabled={tableCurrentPage === 1}
+                  className="h-8 text-xs font-semibold px-3"
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-[#2A174E] bg-[#2A174E]/10 rounded-md px-2">
+                  {tableCurrentPage} / {totalTablePages}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setTableCurrentPage(p => Math.min(totalTablePages, p + 1))} 
+                  disabled={tableCurrentPage >= totalTablePages}
+                  className="h-8 text-xs font-semibold px-3"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </div>
-        </div>
-        </>
         ) : (
           /* Employee-First Cards View Framework Container */
           <div className="space-y-4 mt-4 animate-in fade-in duration-200">
