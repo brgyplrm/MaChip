@@ -20,6 +20,7 @@ import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
 import { useSystemTime } from "../context/SystemTimeContext";
 import { Badge } from "./ui/badge";
 import TuneIcon from '@mui/icons-material/Tune';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { cn } from "../lib/utils";
 
 import {
@@ -81,7 +82,8 @@ const routeLabels = {
   "payroll-details": "Computation Details",
   "requests": "Requests Hub",
   "profile": "My Profile",
-  "notifications": "Notifications"
+  "notifications": "Notifications",
+  "transitions": "UI Animations Lab"
 };
 
 const Sidebar = ({ children }) => {
@@ -726,6 +728,17 @@ const Sidebar = ({ children }) => {
                         className={cn("text-inherit font-medium flex items-center", isFaqActive ? "font-bold" : "")}
                       >
                         <HelpOutlinedIcon className="!text-[18px] mr-2" /> Help & Support
+                      </Link>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton asChild isActive={location.pathname === "/transitions"} className={subMenuButtonClass(location.pathname === "/transitions")}>
+                      <Link 
+                        to="/transitions" 
+                        className={cn("text-inherit font-medium flex items-center", location.pathname === "/transitions" ? "font-bold" : "")}
+                      >
+                        <AutoAwesomeIcon className="!text-[18px] mr-2 text-purple-600" /> UI Animations Lab
                       </Link>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>

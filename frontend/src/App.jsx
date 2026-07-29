@@ -48,6 +48,7 @@ import ArchivedUsers from "./pages/archivedUsers/ArchivedUsers";
 import AdminRequestsOversight from "./pages/AdminRequestsOversight";
 import FAQ from "./components/FAQ";
 import LoanManagement from "./pages/admin_Payroll/subtabs/LoanManagement";
+import TransitionPlayground from "./pages/admin/TransitionPlayground";
 import LoanManagementHub from "./pages/admin_Payroll/subtabs/LoanManagementHub";
 import LoanDetails from "./pages/admin_Payroll/subtabs/LoanDetails";
 import LoanDetailsPage from "./components/LoanDetailsPage";
@@ -519,6 +520,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
               <FAQ />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="transitions"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <TransitionPlayground />
             </ProtectedRoute>
           }
         />
