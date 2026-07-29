@@ -56,11 +56,13 @@ import ThirteenthMonth from "./pages/admin_Payroll/subtabs/ThirteenthMonth";
 import SeparationPay from "./pages/admin_Payroll/subtabs/SeparationPay";
 import RetirementPay from "./pages/admin_Payroll/subtabs/RetirementPay";
 import LaborBenefits from "./pages/admin_Payroll/LaborBenefits";
+import PageTitle from "./components/PageTitle";
 
 function App() {
 
   return (
     <div className="app w-full">
+      <PageTitle />
       <Routes>
         <Route path="/login" element={<Login />} />
 
