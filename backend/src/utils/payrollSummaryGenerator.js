@@ -156,7 +156,14 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
     </div>
   `;
 
-  const footerSigs = `
+  const footerSigsPages1to6 = `
+    <div class="signature-area">
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-name">${sigs.preparedBy}</div><div class="sig-label">${sigs.preparedByLabel}</div></div>
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-name">${sigs.approvedBy}</div><div class="sig-label">${sigs.approvedByLabel}</div></div>
+    </div>
+  `;
+
+  const footerSigsPage7 = `
     <div class="signature-area">
       <div class="sig-block"><div class="sig-line"></div><div class="sig-name">${sigs.preparedBy}</div><div class="sig-label">${sigs.preparedByLabel}</div></div>
       <div class="sig-block"><div class="sig-line"></div><div class="sig-name">${sigs.approvedBy}</div><div class="sig-label">${sigs.approvedByLabel}</div></div>
@@ -183,7 +190,6 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
             </tr>`).join('')}
         </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(1)}
     </div>
   `;
@@ -213,7 +219,6 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
           <tr class="totals-row"><td colspan="9">TOTAL</td><td class="amt">${peso(totals.basicPay)}</td></tr>
         </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(2)}
     </div>
   `;
@@ -283,7 +288,6 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
           </tr>
         </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(3)}
     </div>
   `;
@@ -343,7 +347,6 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
             </tr>
             </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(4)}
     </div>
   `;
@@ -358,7 +361,6 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
           <tr>
             <th>EMP#</th><th>NAME</th><th>TAX STATUS</th>
             <th>ALLOWANCES</th><th>NET PAY</th>
-            <th style="width:140px">Received by:</th>
             <th>Deduction<br/>EASTWEST Loan</th>
             <th>FOR DEPOSIT</th>
           </tr>
@@ -372,10 +374,8 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
             const other = parseFloat(r.Tax_Ded || 0) + parseFloat(r.healthCard_Amnt || 0) + parseFloat(r.SSS_Loan || 0) + parseFloat(r.HDMF_Loan || 0) + parseFloat(r.multiPurposeSavings || 0) + parseFloat(r.advances_Amnt || 0);
             const formulaNetPay = taxableIncome - other + parseFloat(r.allowance || 0);
             
-            // Received by: mirrors Net Pay column exactly as requested
-            const receivedBy = formulaNetPay;
             // FOR DEPOSIT: Net Pay - EastWest
-            const forDeposit = receivedBy - parseFloat(r.eastwest_Loan || 0);
+            const forDeposit = formulaNetPay - parseFloat(r.eastwest_Loan || 0);
 
             return `
             <tr>
@@ -383,7 +383,6 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
               <td class="center">${r.taxStatus || 'S'}</td>
               <td class="amt">${peso(r.allowance)}</td>
               <td class="amt bold">${peso(formulaNetPay)}</td>
-              <td class="amt">${peso(receivedBy)}</td>
               <td class="amt">${peso(r.eastwest_Loan)}</td>
               <td class="amt bold" style="color:#166534">${peso(forDeposit)}</td>
             </tr>`}).join('')}
@@ -391,13 +390,11 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
             <td colspan="3">TOTAL</td>
             <td class="amt">${peso(totals.allowance)}</td>
             <td class="amt">${peso(totals.totalNetPay)}</td>
-            <td class="amt">${peso(totals.totalNetPay)}</td>
             <td class="amt">${peso(totals.eastwest)}</td>
             <td class="amt">${peso(totals.totalNetPay - totals.eastwest)}</td>
           </tr>
         </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(5)}
     </div>
   `;
@@ -459,7 +456,6 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
           </tr>
         </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(6)}
     </div>
   `;
@@ -494,7 +490,7 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
           </tr>
         </table>
       </div>
-      ${footerSigs}
+      ${footerSigsPage7}
       ${pageNum(7)}
     </div>
   `;

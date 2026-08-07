@@ -372,24 +372,24 @@ const PayrollComputationDetails = () => {
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-700">SSS Loan</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(payroll.SSS_Loan)}</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(payroll.SSS_Loan || 0)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-700">Pag-IBIG Loan</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(payroll.HDMF_Loan)}</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(payroll.HDMF_Loan || 0)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-700">Cash Advance</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(payroll.advances_Amnt)}</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(payroll.advances_Amnt || 0)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-700">Health Card (Maxicare)</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(payroll.healthCard_Amnt)}</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(payroll.healthCard_Amnt || 0)}</span>
                 </div>
-                {payroll.Other_Deductions > 0 && (
+                {parseFloat(payroll.Other_Deductions || 0) > 0 && (
                   <div className="flex justify-between items-center">
                     <span className="text-slate-700">Other Deductions</span>
-                    <span className="font-semibold text-slate-800">{formatCurrency(payroll.Other_Deductions)}</span>
+                    <span className="font-semibold text-slate-800">{formatCurrency(payroll.Other_Deductions || 0)}</span>
                   </div>
                 )}
               </CardContent>

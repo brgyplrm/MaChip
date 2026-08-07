@@ -14,7 +14,12 @@ import {
   TrendingUp,
   Settings,
   Info,
-  Download
+  Download,
+  Shield,
+  ShieldAlert,
+  X,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,12 +39,63 @@ const ReferenceDataManagement = () => {
   const [toggling, setToggling] = useState(null); // stores auditId being toggled
   const [statusMessage, setStatusMessage] = useState(null);
   const [taxPeriodType, setTaxPeriodType] = useState("semi-monthly");
+  const [step, setStep] = useState(0); // 0 = closed, 1 = confirm, 2 = password verification
+  const [adminPassword, setAdminPassword] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [pwdError, setPwdError] = useState("");
 
   const agencyLabels = {
     sss: "SSS Contribution Table",
     philhealth: "PhilHealth Contribution Schedule",
     pagibig: "Pag-IBIG Contribution Rates",
     tax: "BIR Withholding Tax Brackets"
+  };
+
+  const handleUploadClick = (e) => {
+    e.preventDefault();
+    if (!csvFile) return showStatus("Please select a CSV file to upload.", "error");
+    if (!effectiveDate) return showStatus("Please select an effective date.", "error");
+    setPwdError("");
+    setAdminPassword("");
+    setStep(1);
+  };
+
+  const handleProceedToPassword = () => {
+    setStep(2);
+  };
+
+  const [showRefPassword, setShowRefPassword] = useState(false);
+
+  const handleVerifyAndPasswordUpload = async (e) => {
+    e.preventDefault();
+    if (!adminPassword) {
+      setPwdError("Admin password is required.");
+      return;
+    }
+
+    try {
+      setVerifying(true);
+      setPwdError("");
+      const res = await fetch("/api/auth/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password: adminPassword })
+      });
+      const resData = await res.json();
+
+      if (res.ok && resData.success) {
+        setStep(0);
+        setAdminPassword("");
+        await executeUpload();
+      } else {
+        setPwdError(resData.error || "Incorrect password. Verification failed.");
+      }
+    } catch (err) {
+      setPwdError("Error verifying password.");
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const downloadCSVTemplate = () => {
@@ -70,25 +126,15 @@ const ReferenceDataManagement = () => {
         "0.00,1500.00,0.01,0.02,10000.00\n" +
         "1500.01,9999999.00,0.02,0.02,10000.00\n";
     } else if (activeSubTab === "tax") {
-      filename = taxPeriodType === "semi-monthly" ? "BIR_WithholdingTax_SemiMonthly_Template.csv" : "BIR_WithholdingTax_Monthly_Template.csv";
+      filename = "BIR_WithholdingTax_Monthly_Template.csv";
       headers = "Range Min,Range Max,BaseTax,ExcessRate,ExcessOver\n";
-      if (taxPeriodType === "semi-monthly") {
-        sampleData = 
-          "0.00,10417.00,0.00,0.00,0.00\n" +
-          "10417.01,16667.00,0.00,0.20,10417.00\n" +
-          "16667.01,33333.00,1250.00,0.25,16667.00\n" +
-          "33333.01,83333.00,5416.67,0.30,33333.00\n" +
-          "83333.01,333333.00,20416.67,0.32,83333.00\n" +
-          "333333.01,9999999.00,100416.67,0.35,333333.00\n";
-      } else {
-        sampleData = 
-          "0.00,20833.00,0.00,0.00,0.00\n" +
-          "20833.01,33333.00,0.00,0.20,20833.00\n" +
-          "33333.01,66667.00,2500.00,0.25,33333.00\n" +
-          "66667.01,166667.00,10833.33,0.30,66667.00\n" +
-          "166667.01,666667.00,40833.33,0.32,166667.00\n" +
-          "666667.01,9999999.00,200833.33,0.35,666667.00\n";
-      }
+      sampleData = 
+        "0.00,20833.00,0.00,0.00,0.00\n" +
+        "20833.01,33333.00,0.00,0.20,20833.00\n" +
+        "33333.01,66667.00,2500.00,0.25,33333.00\n" +
+        "66667.01,166667.00,10833.33,0.30,66667.00\n" +
+        "166667.01,666667.00,40833.33,0.32,166667.00\n" +
+        "666667.01,9999999.00,200833.33,0.35,666667.00\n";
     }
 
     const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + sampleData);
@@ -140,11 +186,7 @@ const ReferenceDataManagement = () => {
     }
   };
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    if (!csvFile) return showStatus("Please select a CSV file to upload.", "error");
-    if (!effectiveDate) return showStatus("Please select an effective date.", "error");
-
+  const executeUpload = async () => {
     setUploading(true);
     setStatusMessage(null);
 
@@ -293,7 +335,7 @@ const ReferenceDataManagement = () => {
               </div>
             )}
 
-            <form onSubmit={handleUpload} className="space-y-4">
+            <form onSubmit={handleUploadClick} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Effective Date</label>
                 <div className="relative">
@@ -395,32 +437,6 @@ const ReferenceDataManagement = () => {
                 </CardTitle>
                 <CardDescription>Currently parsed active brackets for {agencyLabels[activeSubTab]}.</CardDescription>
               </div>
-              {activeSubTab === "tax" && (
-                <div className="flex gap-1 p-0.5 bg-slate-100 rounded-lg border border-slate-200/50">
-                  <button
-                    type="button"
-                    onClick={() => setTaxPeriodType("semi-monthly")}
-                    className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
-                      taxPeriodType === "semi-monthly"
-                        ? "bg-white text-indigo-950 shadow-sm border border-slate-200/30"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Semi-Monthly
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTaxPeriodType("monthly")}
-                    className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
-                      taxPeriodType === "monthly"
-                        ? "bg-white text-indigo-950 shadow-sm border border-slate-200/30"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Monthly
-                  </button>
-                </div>
-              )}
             </div>
             {activeDate && (
               <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold">
@@ -652,6 +668,131 @@ const ReferenceDataManagement = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* STEP 1: CONFIRMATION MODAL */}
+      {step === 1 && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
+            <div className="flex items-center space-x-3 text-amber-600">
+              <div className="p-3 bg-amber-100 rounded-full">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Upload Statutory Reference Table?</h3>
+                <p className="text-xs text-slate-500">Step 1 of 2: Security Confirmation</p>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
+              <p>
+                Are you sure you want to upload and apply this reference table?
+              </p>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1 font-mono text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Selected Agency:</span>
+                  <span className="font-bold text-indigo-900">{agencyLabels[activeSubTab]}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Effective Date:</span>
+                  <span className="font-bold text-emerald-700">{effectiveDate}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">File Name:</span>
+                  <span className="font-bold text-slate-700 truncate max-w-[180px]">{csvFile?.name}</span>
+                </div>
+              </div>
+              <p className="text-slate-500 text-[11px]">
+                Uploading this file updates statutory contribution/tax brackets for upcoming payroll calculations across all active employees.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setStep(0)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleProceedToPassword}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition shadow-sm"
+              >
+                Proceed to Security Verification →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 2: ADMIN PASSWORD VERIFICATION MODAL */}
+      {step === 2 && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form onSubmit={handleVerifyAndPasswordUpload} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2 text-[#2A1B4E]">
+                <Shield className="w-5 h-5" />
+                <h3 className="text-base font-bold text-slate-900">Admin Security Authorization</h3>
+              </div>
+              <button type="button" onClick={() => setStep(0)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Please enter your <strong>Admin Password</strong> to authorize uploading and updating statutory tax reference data:
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">Admin Password</label>
+              <div className="relative">
+                <input
+                  type={showRefPassword ? "text" : "password"}
+                  required
+                  autoFocus
+                  placeholder="Enter password..."
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowRefPassword(!showRefPassword)}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  title={showRefPassword ? "Hide password" : "Show password"}
+                >
+                  {showRefPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {pwdError && (
+                <p className="text-xs text-rose-600 font-medium pt-1">{pwdError}</p>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setStep(0)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={verifying}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center space-x-1.5"
+              >
+                {verifying ? (
+                  <span>Verifying Password...</span>
+                ) : (
+                  <span>Verify & Apply Table</span>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

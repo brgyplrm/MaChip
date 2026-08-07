@@ -316,81 +316,134 @@ const SeparationPay = () => {
                         </CardContent>
                       </Card>
 
-                      <Card className="shadow-sm border-0 bg-white">
-                        <CardHeader>
-                          <CardTitle className="text-lg font-bold text-[#2A174E]">Final Settlement Breakdown</CardTitle>
-                          <CardDescription>Consolidated components of the final pay package.</CardDescription>
+                      <Card className="shadow-sm border-0 bg-white overflow-hidden text-left">
+                        <CardHeader className="bg-slate-900 text-white py-4">
+                          <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                            <span>Final Settlement Breakdown & Mathematical Basis</span>
+                          </CardTitle>
+                          <CardDescription className="text-slate-300 text-xs mt-0.5">
+                            Itemized mathematical origin for pro-rated 13th month, leave encashment, and final worked days.
+                          </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Pro-rated 13th Month</p>
-                              <div className="flex justify-between items-end">
-                                <div>
-                                  <p className="text-xs text-slate-500">Basis: {formatCurrency(preview.backPay.totalBasicYear)}</p>
-                                  <p className="text-xs text-slate-500">Formula: Basis / 12</p>
-                                </div>
-                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.backPay.prorated13thMonth)}</p>
+                        <CardContent className="p-6 space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                            {/* 1. Pro-rated 13th Month Card */}
+                            <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100 flex flex-col justify-between space-y-3">
+                              <div className="flex justify-between items-start">
+                                <Badge className="bg-indigo-100 text-indigo-700 font-bold text-[10px]">PD 851 Mandate</Badge>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pro-rated 13th Month</span>
+                              </div>
+                              <div>
+                                <p className="text-2xl font-black text-indigo-950">{formatCurrency(preview.backPay.prorated13thMonth)}</p>
+                                <p className="text-[11px] font-semibold text-indigo-700 mt-1">Basis: {formatCurrency(preview.backPay.totalBasicYear)}</p>
+                                <p className="text-[10px] text-slate-500 italic mt-0.5 leading-tight">
+                                  *Origin of Basis: Total basic salary earnings accrued from Jan 1 of current year up to separation date.
+                                </p>
+                              </div>
+                              <div className="pt-2 border-t border-indigo-100 font-mono text-[10px] text-indigo-900 font-medium">
+                                Formula: {formatCurrency(preview.backPay.totalBasicYear)} ÷ 12
                               </div>
                             </div>
-                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Leave Conversion</p>
-                              <div className="flex justify-between items-end">
-                                <div>
-                                  <p className="text-xs text-slate-500">VL: {preview.backPay.vlBalance} | SL: {preview.backPay.slBalance}</p>
-                                  <p className="text-xs text-slate-500">Formula: Credits x Daily Rate</p>
-                                </div>
-                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.backPay.leaveConversion)}</p>
+
+                            {/* 2. Leave Conversion Card */}
+                            <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100 flex flex-col justify-between space-y-3">
+                              <div className="flex justify-between items-start">
+                                <Badge className="bg-emerald-100 text-emerald-700 font-bold text-[10px]">SIL / Leave Encashment</Badge>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Conversion</span>
+                              </div>
+                              <div>
+                                <p className="text-2xl font-black text-emerald-950">{formatCurrency(preview.backPay.leaveConversion)}</p>
+                                <p className="text-[11px] font-semibold text-emerald-700 mt-1">
+                                  Total Credits: {parseFloat(preview.backPay.vlBalance || 0) + parseFloat(preview.backPay.slBalance || 0)} Days ({preview.backPay.vlBalance} VL + {preview.backPay.slBalance} SL)
+                                </p>
+                                <p className="text-[10px] text-slate-500 italic mt-0.5 leading-tight">
+                                  *Origin of Basis: Remaining Vacation & Sick Leave credits multiplied by live Daily Rate ({formatCurrency(preview.dailyRate || (preview.baseSalary / 26))}).
+                                </p>
+                              </div>
+                              <div className="pt-2 border-t border-emerald-100 font-mono text-[10px] text-emerald-900 font-medium">
+                                Formula: {parseFloat(preview.backPay.vlBalance || 0) + parseFloat(preview.backPay.slBalance || 0)} Credits × {formatCurrency(preview.dailyRate || (preview.baseSalary / 26))}
                               </div>
                             </div>
-                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Final Worked Days</p>
-                              <div className="flex justify-between items-end">
-                                <div>
-                                  <p className="text-xs text-slate-500">Days: {preview.backPay.workedDaysCount}</p>
-                                  <p className="text-xs text-slate-500 font-medium text-rose-500 uppercase text-[9px] tracking-tight">Since Last Payroll</p>
-                                </div>
-                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.backPay.finalWorkedSalary)}</p>
+
+                            {/* 3. Final Worked Days Card */}
+                            <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-100 flex flex-col justify-between space-y-3">
+                              <div className="flex justify-between items-start">
+                                <Badge className="bg-amber-100 text-amber-700 font-bold text-[10px]">Unbilled Days</Badge>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Final Worked Days</span>
+                              </div>
+                              <div>
+                                <p className="text-2xl font-black text-amber-950">{formatCurrency(preview.backPay.finalWorkedSalary)}</p>
+                                <p className="text-[11px] font-semibold text-amber-700 mt-1">
+                                  Days Worked: {preview.backPay.workedDaysCount} Days
+                                </p>
+                                <p className="text-[10px] text-slate-500 italic mt-0.5 leading-tight">
+                                  *Origin of Basis: Attendance logs rendered after last closed payroll cutoff up to separation date.
+                                </p>
+                              </div>
+                              <div className="pt-2 border-t border-amber-100 font-mono text-[10px] text-amber-900 font-medium">
+                                Formula: {preview.backPay.workedDaysCount} Days × {formatCurrency(preview.dailyRate || (preview.baseSalary / 26))}
                               </div>
                             </div>
                           </div>
 
+                          {/* Outstanding Loan Deduction Banner if any */}
                           {preview.loanDeductions > 0 && (
                             <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl flex justify-between items-center">
                               <div>
-                                <p className="text-[10px] font-bold text-rose-600 uppercase">Outstanding Loan Balance</p>
-                                <p className="text-xs text-rose-500 italic">Mandatory deduction per SSS separation rules.</p>
+                                <p className="text-xs font-bold text-rose-700 uppercase tracking-wide">Outstanding Loan / Advance Balance</p>
+                                <p className="text-[10px] text-rose-500 italic">Mandatory deduction deducted from settlement package per SSS/company rules.</p>
                               </div>
-                              <p className="text-xl font-black text-rose-600">-{formatCurrency(preview.loanDeductions)}</p>
+                              <p className="text-2xl font-black text-rose-600">-{formatCurrency(preview.loanDeductions)}</p>
                             </div>
                           )}
 
-                          <div className="mt-4 p-4 bg-[#2A174E]/5 border border-[#2A174E]/10 rounded-xl">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm font-bold text-[#2A174E]">Gross Back Pay</span>
-                              <span className="text-lg font-bold text-[#2A174E]">
-                                {formatCurrency(
-                                  parseFloat(preview.backPay.prorated13thMonth || 0) + 
-                                  parseFloat(preview.backPay.leaveConversion || 0) + 
-                                  parseFloat(preview.backPay.finalWorkedSalary || 0)
-                                )}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#2A174E]/10">
-                              <div className="flex flex-col">
-                                <span className="text-sm font-black text-[#2A174E] uppercase">Net Benefit (Back Pay Only)</span>
-                                <span className="text-[9px] text-slate-500 italic">*Gross Back Pay minus Outstanding Loans</span>
+                          {/* FINAL PAY COMPUTATION GRAND TOTAL CARD */}
+                          <div className="p-5 bg-gradient-to-br from-[#2A174E] to-indigo-950 text-white rounded-2xl shadow-md border border-indigo-800 space-y-4">
+                            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                              <div>
+                                <p className="text-xs font-bold text-purple-200 uppercase tracking-widest">Final Pay Settlement Package Grand Total</p>
+                                <p className="text-[10px] text-slate-300">Consolidated back pay components + selected separation cause minus outstanding loans</p>
                               </div>
-                              <span className="text-xl font-black text-green-600">
-                                {formatCurrency(
-                                  Math.max(0, 
-                                    (parseFloat(preview.backPay.prorated13thMonth || 0) + 
-                                     parseFloat(preview.backPay.leaveConversion || 0) + 
-                                     parseFloat(preview.backPay.finalWorkedSalary || 0)) - 
-                                    parseFloat(preview.loanDeductions || 0)
-                                  )
-                                )}
-                              </span>
+                              <Badge className="bg-emerald-500 text-white font-bold text-xs">Final Settlement Summary</Badge>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                              <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
+                                <p className="text-[9px] font-bold text-purple-200 uppercase">Gross Back Pay</p>
+                                <p className="font-bold text-white text-sm">
+                                  {formatCurrency(
+                                    parseFloat(preview.backPay.prorated13thMonth || 0) + 
+                                    parseFloat(preview.backPay.leaveConversion || 0) + 
+                                    parseFloat(preview.backPay.finalWorkedSalary || 0)
+                                  )}
+                                </p>
+                              </div>
+                              <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
+                                <p className="text-[9px] font-bold text-purple-200 uppercase">Separation Pay</p>
+                                <p className="font-bold text-amber-300 text-sm">
+                                  {formatCurrency(preview.preview.find(p => p.causeId === selectedCauseId)?.amount || 0)}
+                                </p>
+                              </div>
+                              <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
+                                <p className="text-[9px] font-bold text-purple-200 uppercase">Outstanding Loans</p>
+                                <p className="font-bold text-rose-300 text-sm">
+                                  -{formatCurrency(preview.loanDeductions || 0)}
+                                </p>
+                              </div>
+                              <div className="bg-emerald-500/20 p-2.5 rounded-lg border border-emerald-400/40">
+                                <p className="text-[9px] font-bold text-emerald-300 uppercase">Net Settlement Payable</p>
+                                <p className="font-black text-emerald-400 text-base">
+                                  {formatCurrency(
+                                    Math.max(0, 
+                                      (parseFloat(preview.preview.find(p => p.causeId === selectedCauseId)?.amount || 0) +
+                                       parseFloat(preview.backPay.prorated13thMonth || 0) + 
+                                       parseFloat(preview.backPay.leaveConversion || 0) + 
+                                       parseFloat(preview.backPay.finalWorkedSalary || 0)) - 
+                                      parseFloat(preview.loanDeductions || 0)
+                                    )
+                                  )}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </CardContent>
@@ -424,6 +477,43 @@ const SeparationPay = () => {
                               </div>
                             ))}
                           </div>
+
+                          {/* Comprehensive Separation Pay Formula Breakdown */}
+                          {selectedCauseId && (
+                            <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-3 text-left">
+                              <div className="flex items-center space-x-2 text-indigo-900 font-bold text-xs uppercase tracking-wide">
+                                <InfoOutlinedIcon className="w-4 h-4 text-indigo-600" />
+                                <span>Comprehensive Separation Pay Breakdown Formula</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                <div className="bg-white p-3 rounded-lg border border-indigo-100">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Step 1: Salary Base</p>
+                                  <p className="font-bold text-slate-800">{formatCurrency(preview.baseSalary)}</p>
+                                  <p className="text-[10px] text-slate-500">Monthly Basic (Daily x 26)</p>
+                                </div>
+                                <div className="bg-white p-3 rounded-lg border border-indigo-100">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Step 2: Service Tenure</p>
+                                  <p className="font-bold text-blue-600">{preview.yearsOfService} Years</p>
+                                  <p className="text-[10px] text-slate-500">({preview.diffMonths} months tenure, 6+ mos = 1 yr)</p>
+                                </div>
+                                <div className="bg-white p-3 rounded-lg border border-indigo-100">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Step 3: Cause Factor</p>
+                                  <p className="font-bold text-emerald-600">
+                                    {preview.preview.find(p => p.causeId === selectedCauseId)?.multiplier === 1.0 ? '1.0 Month Pay / Yr' : '0.5 Month Pay / Yr'}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500">Labor Code Art. 298 / 299 Rule</p>
+                                </div>
+                              </div>
+                              <div className="p-3 bg-white border border-indigo-200 rounded-lg text-xs font-mono flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                <span className="text-slate-600">
+                                  Formula: {formatCurrency(preview.baseSalary)} × {preview.yearsOfService} yrs × {preview.preview.find(p => p.causeId === selectedCauseId)?.multiplier || 0.5}
+                                </span>
+                                <span className="font-bold text-indigo-900 text-sm">
+                                  = {formatCurrency(preview.preview.find(p => p.causeId === selectedCauseId)?.amount || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
 
                           <div className="space-y-2">
                             <Label>Specific Reason (Optional)</Label>

@@ -427,7 +427,7 @@ const Edit = () => {
       
       // Sync Employment Status ID
       if (name === "user_EmploymentStatus") {
-        const statusMap = { "Regular": 1, "Part-time": 2, "Intern / OJT": 3 };
+        const statusMap = { "Regular": 1, "Probationary": 2 };
         updated.user_EmploymentStatusId = statusMap[value] || 1;
       }
       

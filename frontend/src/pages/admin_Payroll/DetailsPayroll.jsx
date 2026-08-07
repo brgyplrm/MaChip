@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import InfoIcon from "@mui/icons-material/Info";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const PayrollDetails = () => {
@@ -61,6 +62,7 @@ const PayrollDetails = () => {
               period_End: periodEnd,
               NoDays_Worked: preview.NoDays_Worked,
               NoHrs_Worked: preview.NoHrs_Worked,
+              potentialBasicPay: preview.potentialBasicPay || (preview.totalScheduledDays ? preview.totalScheduledDays * preview.dailyRate : preview.dailyRate * 13),
               basicPay: preview.basicPay,
               OT_Hrs: preview.OT_Hrs,
               OT_Amnt: preview.OT_Amnt,
@@ -332,7 +334,7 @@ const PayrollDetails = () => {
                 <CardContent className="space-y-4  pt-0 pb-6">
                   <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">Basic Pay</span>
-                    <span className="font-semibold text-slate-800">₱{parseFloat(payroll.basicPay).toLocaleString()}</span>
+                    <span className="font-semibold text-slate-800">₱{parseFloat(payroll.potentialBasicPay ?? (payroll.totalScheduledDays && payroll.dailyRate ? payroll.totalScheduledDays * payroll.dailyRate : payroll.basicPay)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                   </div>
                   <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                     <span className="text-sm text-slate-600">Overtime ({payroll.OT_Hrs || 0} hrs)</span>
@@ -444,8 +446,52 @@ const PayrollDetails = () => {
                {/* Net Pay Highlight */}
               <div className="bg-gradient-to-r from-orange-500 to-orange-400 p-8 rounded-2xl text-white flex justify-between items-center relative overflow-hidden mb-4 shadow-md lg:col-span-2">
                 <div className="relative z-10">
-                  <p className="text-sm uppercase tracking-wider font-bold opacity-90 mb-1">Net Pay</p>
-                  <p className="text-4xl md:text-5xl font-extrabold tracking-tight">₱{parseFloat(payroll.netPay).toLocaleString()}</p>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <p className="text-sm uppercase tracking-wider font-bold opacity-90">Net Pay</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center justify-center cursor-pointer">
+                          <HelpOutlineIcon className="text-white/80 hover:text-white h-4 w-4" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 p-3 max-w-sm">
+                        <p className="font-bold text-amber-300 text-xs mb-2 border-b border-slate-700 pb-1">
+                          Net Pay Formula Breakdown:
+                        </p>
+                        <div className="space-y-1 text-xs font-mono">
+                          <div className="flex justify-between gap-4">
+                            <span>Gross Earnings:</span>
+                            <span className="font-semibold text-emerald-400">₱{parseFloat(payroll.totalEarnings || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span>- Absences / Lates:</span>
+                            <span className="font-semibold text-rose-300">₱{(parseFloat(payroll.absence_Amnt || 0) + parseFloat(payroll.tardiness_Amnt || 0) + parseFloat(payroll.unpaidLeave_Amnt || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span>- Gov't Share (SSS/PH/HDMF):</span>
+                            <span className="font-semibold text-rose-300">₱{(eeSSS + eePH + eeHD).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span>- Withholding Tax:</span>
+                            <span className="font-semibold text-rose-300">₱{eeTax.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span>- Loans & Advances:</span>
+                            <span className="font-semibold text-rose-300">₱{(parseFloat(payroll.SSS_Loan || 0) + parseFloat(payroll.HDMF_Loan || 0) + parseFloat(payroll.calamityLoan_Amnt || 0) + parseFloat(payroll.eastwest_Loan || 0) + parseFloat(payroll.advances_Amnt || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span>- Health Card / Misc:</span>
+                            <span className="font-semibold text-rose-300">₱{(parseFloat(payroll.healthCard_Amnt || 0) + parseFloat(payroll.multiPurposeSavings || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between gap-4 pt-1.5 border-t border-slate-700 font-bold text-amber-300 text-sm">
+                            <span>= Net Take-Home Pay:</span>
+                            <span>₱{parseFloat(payroll.netPay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <p className="text-4xl md:text-5xl font-extrabold tracking-tight">₱{parseFloat(payroll.netPay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
                 <AttachMoneyIcon className="absolute -right-4 -bottom-4 text-[150px] opacity-20 transform -rotate-12" />
               </div>
@@ -572,6 +618,90 @@ const PayrollDetails = () => {
                         <p className="font-bold text-emerald-600 text-xl">₱{Math.max(0, parseFloat(payroll.totalEarnings || 0) - (eeSSS + eePH + eeHD)).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                       </div>
                     </div>
+
+                  {/* BIR Withholding Tax Bracket Computation Breakdown Card */}
+                  {(() => {
+                    const taxable = Math.max(0, (parseFloat(payroll.totalEarnings || 0) - (eeSSS + eePH + eeHD)));
+                    
+                    // Check if actual tax matches Mode 2 (Direct Cutoff Evaluation)
+                    let mode2Tax = 0;
+                    if (taxable > 666667) mode2Tax = 200833.33 + (taxable - 666667) * 0.35;
+                    else if (taxable > 166667) mode2Tax = 40833.33 + (taxable - 166667) * 0.32;
+                    else if (taxable > 66667) mode2Tax = 10833.33 + (taxable - 66667) * 0.30;
+                    else if (taxable > 33333) mode2Tax = 2500.00 + (taxable - 33333) * 0.25;
+                    else if (taxable > 20833) mode2Tax = (taxable - 20833) * 0.20;
+
+                    const isDirectMode = Math.abs(eeTax - mode2Tax) < 1.0;
+                    const evalMonthly = isDirectMode ? taxable : (taxable * 2);
+
+                    let bracketLabel = "Bracket 1 (₱20,833 & below - Tax Exempt)";
+                    let rateText = "₱0.00 (Exempt)";
+                    
+                    if (evalMonthly > 666667) {
+                      bracketLabel = "Bracket 6 (₱666,667 & above)";
+                      rateText = "₱200,833.33 + 35%";
+                    } else if (evalMonthly > 166667) {
+                      bracketLabel = "Bracket 5 (₱166,667 - ₱666,666)";
+                      rateText = "₱40,833.33 + 32%";
+                    } else if (evalMonthly > 66667) {
+                      bracketLabel = "Bracket 4 (₱66,667 - ₱166,666)";
+                      rateText = "₱10,833.33 + 30%";
+                    } else if (evalMonthly > 33333) {
+                      bracketLabel = "Bracket 3 (₱33,333 - ₱66,666)";
+                      rateText = "₱2,500.00 + 25%";
+                    } else if (evalMonthly > 20833) {
+                      bracketLabel = "Bracket 2 (₱20,833 - ₱33,332)";
+                      rateText = "₱0.00 + 20%";
+                    }
+
+                    return (
+                      <div className="mt-6 border border-purple-200 bg-purple-50/50 rounded-xl p-4 text-left space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-purple-900 uppercase tracking-wide flex items-center gap-1.5">
+                            <span>🏛️ BIR Tax Withholding Bracket Breakdown</span>
+                          </span>
+                          <Badge className="bg-purple-700 text-white font-bold text-[10px]">
+                            {bracketLabel}
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                          <div className="bg-white p-3 rounded-lg border border-purple-100 shadow-sm">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase">Period Taxable Income</p>
+                            <p className="font-bold text-slate-800 text-sm">
+                              ₱{taxable.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                            </p>
+                            <p className="text-[9px] text-slate-400">Gross - (SSS+PH+HDMF)</p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg border border-purple-100 shadow-sm">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase">Evaluated Tax Base</p>
+                            <p className="font-bold text-purple-700 text-sm">
+                              ₱{evalMonthly.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                            </p>
+                            <p className="text-[9px] text-slate-400">
+                              {isDirectMode ? "Direct Period Evaluation" : "Period Taxable × 2"}
+                            </p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg border border-purple-100 shadow-sm">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase">Base Tax & Excess Rate</p>
+                            <p className="font-bold text-slate-800 text-sm">
+                              {rateText}
+                            </p>
+                            <p className="text-[9px] text-slate-400">Monthly BIR Schedule</p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg border border-purple-100 shadow-sm">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase">Cutoff Tax Deduction</p>
+                            <p className="font-bold text-rose-600 text-sm">
+                              ₱{eeTax.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                            </p>
+                            <p className="text-[9px] text-slate-400">
+                              {isDirectMode ? "Direct Cutoff Assessment" : "Monthly Tax ÷ 2"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex justify-between items-center p-4 bg-purple-50 rounded-xl mt-6 border border-purple-100">
                     <span className="font-bold text-purple-800">Final Withholding Tax Deducted</span>

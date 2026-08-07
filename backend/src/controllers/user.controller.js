@@ -204,7 +204,7 @@ exports.registerUser = async (req, res) => {
     const nowStr = formatForSQL(now);
 
     const dailyRate = parseFloat(req.body.dailyRate) || 0;
-    const shares = computeMonthlyShares(dailyRate);
+    const shares = await computeMonthlyShares(dailyRate);
 
     // Use a transaction for atomic insertion across normalized tables
     const transaction = await sequelize.transaction();
@@ -794,7 +794,7 @@ exports.updateUser = async (req, res) => {
       const rateChanged = Math.abs(parsedDailyRate - oldUser.dailyRate) > 0.01;
 
       // Auto-compute Government Deductions
-      const shares = computeMonthlyShares(parsedDailyRate);
+      const shares = await computeMonthlyShares(parsedDailyRate);
       
       // Logic: Use provided values if they exist, otherwise auto-compute if rate changed or if they are 0
       let finalSSS = parseFloat(SSS_Ded);
@@ -1201,7 +1201,7 @@ exports.updateDailyRate = async (req, res) => {
     const rateChanged = Math.abs(parsed - currentRate) > 0.01;
     
     if (rateChanged || isNaN(finalSSS) || isNaN(finalPH) || isNaN(finalHD)) {
-      const shares = computeMonthlyShares(parsed);
+      const shares = await computeMonthlyShares(parsed);
       
       // If SSS was not provided OR it matches the old rate's SSS, update it to the new one
       if (isNaN(finalSSS) || (rateChanged && finalSSS === parseFloat(existing[0].sss_Share))) {
@@ -1410,7 +1410,7 @@ exports.batchRegisterUsers = async (req, res) => {
 
     // Role and Status Maps
     const roleMap = { "Admin Manager": 1, "Supervisor": 2, "Employee": 3, "Admin Accountant": 4 };
-    const statusMap = { "Regular": 1, "Part-time": 2, "Intern / OJT": 3 };
+    const statusMap = { "Regular": 1, "Probationary": 2 };
 
     // Bank Normalization Map
     const bankMap = {

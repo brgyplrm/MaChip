@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import CloseIcon from "@mui/icons-material/Close";
 import { formatUserId } from "../utils/formatUserId";
 
@@ -94,7 +95,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll }) => {
                 </thead>
                 <tbody>
                   <tr>
-                    <td className="border border-slate-200 p-2">Pay this period</td><td className="border border-slate-200 p-2">{payroll.NoHrs_Worked}</td><td className="border border-slate-200 p-2">{formatCurrency(payroll.basicPay)}</td>
+                    <td className="border border-slate-200 p-2">Pay this period</td><td className="border border-slate-200 p-2">{payroll.NoHrs_Worked}</td><td className="border border-slate-200 p-2">{formatCurrency(payroll.potentialBasicPay ?? (payroll.totalScheduledDays && payroll.dailyRate ? payroll.totalScheduledDays * payroll.dailyRate : (payroll.dailyRate ? payroll.dailyRate * 13 : payroll.basicPay)))}</td>
                     <td className="border border-slate-200 p-2">Absences</td><td className="border border-slate-200 p-2">{payroll.absence_Hrs || "0"}</td><td className="border border-slate-200 p-2">{formatCurrency(payroll.absence_Amnt)}</td>
                   </tr>
                   <tr>
@@ -103,19 +104,31 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll }) => {
                   </tr>
                   <tr>
                     <td className="border border-slate-200 p-2">Restday OT</td><td className="border border-slate-200 p-2">{payroll.restDay_OT_Hrs || "0"}</td><td className="border border-slate-200 p-2">{formatCurrency(payroll.restDay_OT_Amnt)}</td>
-                    <td className="border border-slate-200 p-2">SSS</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(payroll.SSS_Ded)}</td>
+                    <td className="border border-slate-200 p-2">SSS Contribution</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(payroll.SSS_Ded)}</td>
                   </tr>
                   <tr>
-                    <td className="border border-slate-200 p-2">Night Diff</td><td className="border border-slate-200 p-2">{payroll.nightDiff_Hrs || "0"}</td><td className="border border-slate-200 p-2">{formatCurrency(payroll.nightDiff_Amnt)}</td>
+                    <td className="border border-slate-200 p-2">Night Differential</td><td className="border border-slate-200 p-2">{payroll.nightDiff_Hrs || "0"}</td><td className="border border-slate-200 p-2">{formatCurrency(payroll.nightDiff_Amnt)}</td>
                     <td className="border border-slate-200 p-2">Philhealth</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(payroll.Philhealth_Ded)}</td>
                   </tr>
                   <tr>
                     <td className="border border-slate-200 p-2">Holidays</td><td className="border border-slate-200 p-2">{payroll.holidaysTotal || "0"}</td><td className="border border-slate-200 p-2">{formatCurrency(parseFloat(payroll.legalHol_Amnt || 0) + parseFloat(payroll.specialHol_Amnt || 0))}</td>
-                    <td className="border border-slate-200 p-2">HDMF</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(payroll.HDMF_Ded)}</td>
+                    <td className="border border-slate-200 p-2">HDMF (Pag-IBIG)</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(payroll.HDMF_Ded)}</td>
                   </tr>
                   <tr>
                     <td className="border border-slate-200 p-2">Allowance</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(payroll.allowance)}</td>
-                    <td className="border border-slate-200 p-2">Tax</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(payroll.Tax_Ded)}</td>
+                    <td className="border border-slate-200 p-2">Withholding Tax</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(payroll.Tax_Ded)}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-slate-200 p-2">Incentives</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(payroll.incentives)}</td>
+                    <td className="border border-slate-200 p-2">SSS / HDMF Loans</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(parseFloat(payroll.SSS_Loan || 0) + parseFloat(payroll.HDMF_Loan || 0))}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-slate-200 p-2">Others</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">0.00</td>
+                    <td className="border border-slate-200 p-2">Calamity / Personal Loans</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(parseFloat(payroll.calamityLoan_Amnt || 0) + parseFloat(payroll.eastwest_Loan || 0))}</td>
+                  </tr>
+                  <tr>
+                    <td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2"></td>
+                    <td className="border border-slate-200 p-2">Advances / Health Card</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(parseFloat(payroll.advances_Amnt || 0) + parseFloat(payroll.healthCard_Amnt || 0) + parseFloat(payroll.multiPurposeSavings || 0))}</td>
                   </tr>
                   <tr className="bg-slate-50 font-bold">
                     <td className="border border-slate-200 p-2">Total Pay</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2 text-blue-800">{formatCurrency(payroll.totalEarnings)}</td>
@@ -291,21 +304,63 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll }) => {
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                     <tr>
-                      <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Pag-ibig Loan</td>
-                      <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.HDMF_Loan)})</td>
+                      <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Absences & Tardiness</td>
+                      <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(parseFloat(payroll.absence_Amnt || 0) + parseFloat(payroll.tardiness_Amnt || 0) + parseFloat(payroll.unpaidLeave_Amnt || 0))})</td>
                     </tr>
                     <tr>
-                      <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Negative Adjustment (Absences/Tardiness)</td>
-                      <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(parseFloat(payroll.absence_Amnt || 0) + parseFloat(payroll.tardiness_Amnt || 0))})</td>
+                      <td className="p-3 pl-5 border-r border-slate-200 w-1/2">SSS Contribution</td>
+                      <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.SSS_Ded)})</td>
                     </tr>
                     <tr>
-                      <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Philhealth</td>
+                      <td className="p-3 pl-5 border-r border-slate-200 w-1/2">PhilHealth Contribution</td>
                       <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.Philhealth_Ded)})</td>
                     </tr>
                     <tr>
-                      <td className="p-3 pl-5 border-r border-slate-200 w-1/2">SSS</td>
-                      <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.SSS_Ded)})</td>
+                      <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Pag-IBIG (HDMF) Contribution</td>
+                      <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.HDMF_Ded)})</td>
                     </tr>
+                    {parseFloat(payroll.SSS_Loan || 0) > 0 && (
+                      <tr>
+                        <td className="p-3 pl-5 border-r border-slate-200 w-1/2">SSS Salary Loan</td>
+                        <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.SSS_Loan)})</td>
+                      </tr>
+                    )}
+                    {parseFloat(payroll.HDMF_Loan || 0) > 0 && (
+                      <tr>
+                        <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Pag-IBIG (HDMF) Loan</td>
+                        <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.HDMF_Loan)})</td>
+                      </tr>
+                    )}
+                    {parseFloat(payroll.calamityLoan_Amnt || 0) > 0 && (
+                      <tr>
+                        <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Calamity Loan</td>
+                        <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.calamityLoan_Amnt)})</td>
+                      </tr>
+                    )}
+                    {parseFloat(payroll.eastwest_Loan || 0) > 0 && (
+                      <tr>
+                        <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Personal Loan (Eastwest)</td>
+                        <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.eastwest_Loan)})</td>
+                      </tr>
+                    )}
+                    {parseFloat(payroll.advances_Amnt || 0) > 0 && (
+                      <tr>
+                        <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Cash Advances</td>
+                        <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.advances_Amnt)})</td>
+                      </tr>
+                    )}
+                    {parseFloat(payroll.healthCard_Amnt || 0) > 0 && (
+                      <tr>
+                        <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Health Card (HMO)</td>
+                        <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.healthCard_Amnt)})</td>
+                      </tr>
+                    )}
+                    {parseFloat(payroll.multiPurposeSavings || 0) > 0 && (
+                      <tr>
+                        <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Multi-Purpose Savings</td>
+                        <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.multiPurposeSavings)})</td>
+                      </tr>
+                    )}
                     <tr className="bg-slate-50/50 font-bold border-t border-slate-200">
                       <td className="p-3 pl-5 border-r border-slate-200 text-slate-600 uppercase text-[10px]">Total Deductions</td>
                       <td className="p-3 text-right text-rose-700 font-mono">({formatCurrency(parseFloat(payroll.totalDeductions || 0) - parseFloat(payroll.Tax_Ded || 0))})</td>

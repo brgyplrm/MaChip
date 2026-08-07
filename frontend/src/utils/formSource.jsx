@@ -9,7 +9,7 @@ export const userInputs = [
     id: "user_EmploymentStatus",
     label: "Employment Status",
     type: "select",
-    options: ["Regular", "Part-time", "Intern / OJT"], // Updated values
+    options: ["Regular", "Probationary"],
   },
   {
     id: "user_Role", // New ID for Role Status

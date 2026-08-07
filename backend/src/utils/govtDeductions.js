@@ -245,12 +245,33 @@ exports.computeMonthlySharesAsync = async (dailyRate, periodEndDate = null) => {
   };
 };
 
+exports.computeMonthlyShares = async (dailyRate, periodEndDate = null) => {
+  return await exports.computeMonthlySharesAsync(dailyRate, periodEndDate);
+};
+
 /**
- * Computes Withholding Tax dynamically based on the BIR Semi-Monthly or Monthly Tax Table.
+ * Computes Withholding Tax dynamically based on the BIR Monthly Tax Table.
+ * Supports both standard BIR Annualization Projection (Mode 1) and Direct Cutoff Evaluation (Mode 2).
+ * 
+ * -----------------------------------------------------------------------------
+ * CAPSTONE & CLIENT CONFIRMATION OPTIONS:
+ * -----------------------------------------------------------------------------
+ * MODE 1 (USE_MONTHLY_PROJECTION = true) [BIR Standard / TRAIN Law Mandate]:
+ *   - Projected Monthly Taxable Income = Period Taxable Income * 2
+ *   - Evaluated against Official Monthly BIR Tax Brackets.
+ *   - Computed Monthly Tax is divided by 2 for each semi-monthly cutoff (15th & 30th/31st).
+ *   - Prevents tax evasion and ensures accurate annual withholding tax equalization.
+ * 
+ * MODE 2 (USE_MONTHLY_PROJECTION = false) [Direct Cutoff Evaluation]:
+ *   - Period Taxable Income is evaluated directly against Monthly BIR Tax Brackets per cutoff.
+ *   - (If client explicitly requests assessing cutoff income directly against monthly limits).
+ * -----------------------------------------------------------------------------
  */
+const USE_MONTHLY_PROJECTION = true; // Set to false if client confirms Direct Cutoff Evaluation
+
 exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndDate = null, periodStartDate = null) => {
-  const taxableIncome = grossPay - govtDeductionsTotal;
-  if (taxableIncome <= 0) return 0;
+  const periodTaxableIncome = grossPay - govtDeductionsTotal;
+  if (periodTaxableIncome <= 0) return 0;
 
   const dateStr = getCutoffDateStr(periodEndDate);
 
@@ -266,45 +287,74 @@ exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndD
     }
   }
 
+  // Monthly Equivalent Taxable Income (Mode 1 vs Mode 2)
+  const isSemiMonthly = (periodType === "semi-monthly");
+  const monthlyTaxable = (isSemiMonthly && USE_MONTHLY_PROJECTION) 
+    ? (periodTaxableIncome * 2) 
+    : periodTaxableIncome;
+
   try {
     const { WithholdingTax_Table } = require("../config/sequelize.js");
     const { Op } = require("sequelize");
 
-    // Fetch active withholding tax brackets for the specific periodType
-    const brackets = await WithholdingTax_Table.findAll({
+    // Fetch active withholding tax brackets (prefers 'monthly' or latest active table)
+    let brackets = await WithholdingTax_Table.findAll({
       where: {
         effectiveDate: { [Op.lte]: dateStr },
-        isActive: true,
-        periodType
+        isActive: true
       },
       order: [["effectiveDate", "DESC"], ["range_Min", "ASC"]]
     });
 
     if (brackets && brackets.length > 0) {
       const latestEffectiveDate = brackets[0].effectiveDate;
-      const activeBrackets = brackets.filter(b => b.effectiveDate === latestEffectiveDate);
+      let activeBrackets = brackets.filter(b => b.effectiveDate === latestEffectiveDate);
+      
+      // Filter for monthly periodType if present
+      const monthlyBrackets = activeBrackets.filter(b => b.periodType === 'monthly');
+      if (monthlyBrackets.length > 0) {
+        activeBrackets = monthlyBrackets;
+      }
 
-      let match = activeBrackets.find(b => taxableIncome >= b.range_Min && taxableIncome <= b.range_Max);
+      let match = activeBrackets.find(b => monthlyTaxable >= b.range_Min && monthlyTaxable <= b.range_Max);
       if (!match) {
-        // Find the last bracket where taxableIncome is greater than or equal to range_Min (handles integer gaps)
-        match = [...activeBrackets].reverse().find(b => taxableIncome >= b.range_Min);
+        match = [...activeBrackets].reverse().find(b => monthlyTaxable >= b.range_Min);
         if (!match) {
-          // Fallback to the first bracket if below all brackets
           match = activeBrackets[0];
         }
       }
 
-      const tax = match.baseTax + ((taxableIncome - match.excessOver) * match.excessRate);
-      return Math.round(Math.max(0, tax) * 100) / 100;
+      const calculatedTax = match.baseTax + ((monthlyTaxable - match.excessOver) * match.excessRate);
+      const periodTax = (isSemiMonthly && USE_MONTHLY_PROJECTION) ? (calculatedTax / 2) : calculatedTax;
+
+      return Math.round(Math.max(0, periodTax) * 100) / 100;
     }
   } catch (err) {
     console.warn("[DEDUCTIONS] Failed to compute tax from DB, using standard fallback:", err.message);
   }
 
-  // Standard TRAIN Law Semi-Monthly Fallback calculation (2023 onwards)
-  let tax = 0;
-  if (taxableIncome > 10417) {
-    tax = (taxableIncome - 10417) * 0.15;
+  // Standard TRAIN Law 2023+ Monthly Fallback calculation:
+  // Bracket 1: 0 - 20,833 -> 0
+  // Bracket 2: 20,833 - 33,332 -> 20% over 20,833
+  // Bracket 3: 33,333 - 66,666 -> 2,500 + 25% over 33,333
+  // Bracket 4: 66,667 - 166,666 -> 10,833.33 + 30% over 66,667
+  // Bracket 5: 166,667 - 666,666 -> 40,833.33 + 32% over 166,667
+  // Bracket 6: 666,667+ -> 200,833.33 + 35% over 666,667
+  let calculatedTax = 0;
+  if (monthlyTaxable > 666667) {
+    calculatedTax = 200833.33 + (monthlyTaxable - 666667) * 0.35;
+  } else if (monthlyTaxable > 166667) {
+    calculatedTax = 40833.33 + (monthlyTaxable - 166667) * 0.32;
+  } else if (monthlyTaxable > 66667) {
+    calculatedTax = 10833.33 + (monthlyTaxable - 66667) * 0.30;
+  } else if (monthlyTaxable > 33333) {
+    calculatedTax = 2500.00 + (monthlyTaxable - 33333) * 0.25;
+  } else if (monthlyTaxable > 20833) {
+    calculatedTax = (monthlyTaxable - 20833) * 0.20;
+  } else {
+    calculatedTax = 0;
   }
-  return Math.round(tax * 100) / 100;
+
+  const periodTax = (isSemiMonthly && USE_MONTHLY_PROJECTION) ? (calculatedTax / 2) : calculatedTax;
+  return Math.round(Math.max(0, periodTax) * 100) / 100;
 };

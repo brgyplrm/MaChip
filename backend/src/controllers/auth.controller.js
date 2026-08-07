@@ -139,3 +139,39 @@ exports.logoutUser = async (req, res) => {
     return res.status(500).json({ error: "Failed to log logout event." });
   }
 };
+
+exports.verifyPassword = async (req, res) => {
+  const { password } = req.body || {};
+  const userId = req.user ? req.user.user_Id : null;
+
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized session." });
+  }
+  if (!password) {
+    return res.status(400).json({ error: "Password is required." });
+  }
+
+  try {
+    const result = await sequelize.query(
+      `SELECT "user_Password" FROM "User" WHERE "user_Id" = :userId AND "deletedAt" IS NULL`,
+      {
+        replacements: { userId },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!result || result.length === 0) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const isMatch = await bcrypt.compare(password, result[0].user_Password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Incorrect password. Verification failed." });
+    }
+
+    return res.status(200).json({ success: true, message: "Password verified successfully." });
+  } catch (err) {
+    console.error("[VERIFY PASSWORD ERROR]:", err);
+    return res.status(500).json({ error: "Server error verifying password." });
+  }
+};
