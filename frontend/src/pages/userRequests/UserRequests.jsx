@@ -1089,7 +1089,6 @@ const UserRequests = () => {
                         
                         <SelectGroup>
                           <SelectLabel>Loan Notice</SelectLabel>
-                          <SelectItem value="13">Loan Certification (Nudge Admin)</SelectItem>
                           <SelectItem value="14">Loan Enrollment (Payroll Setup)</SelectItem>
                         </SelectGroup>
 

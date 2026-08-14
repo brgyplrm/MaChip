@@ -265,6 +265,7 @@ exports.updateSystemSettings = async (req, res) => {
       regularHolidayRestDayRate: req.body.regularHolidayRestDayRate,
       doubleRegularHolidayRestDayRate: req.body.doubleRegularHolidayRestDayRate,
       mandatedMinimumWage: req.body.mandatedMinimumWage,
+      payrollGracePeriodDays: req.body.payrollGracePeriodDays !== undefined ? parseInt(req.body.payrollGracePeriodDays) : 7,
       payrollRates: consolidatedPayrollRates
     };
 
@@ -670,9 +671,10 @@ exports.getReferenceTableData = async (req, res) => {
       return res.status(400).json({ error: "Invalid reference table type." });
     }
 
-    // Get all records sorted
+    // Get ONLY currently active records sorted by range_Min
     const records = await model.findAll({
-      order: [["effectiveDate", "DESC"], ["range_Min", "ASC"]]
+      where: { isActive: true },
+      order: [["range_Min", "ASC"]]
     });
 
     // Get audit logs
@@ -780,14 +782,10 @@ exports.uploadReferenceTable = async (req, res) => {
 
     // Run DB transaction
     await sequelize.transaction(async (transaction) => {
-      // 1. Deactivate existing uploads for this effective date & periodType
-      const whereClause = { effectiveDate };
-      if (tableType === "tax") {
-        whereClause.periodType = periodType || "semi-monthly";
-      }
+      // 1. Deactivate ALL existing versions across table so only new upload is active
       await model.update(
         { isActive: false },
-        { where: whereClause, transaction }
+        { where: {}, transaction }
       );
 
       // 2. Create audit log entry
@@ -799,7 +797,7 @@ exports.uploadReferenceTable = async (req, res) => {
         effectiveDate,
         fileName: req.file.originalname,
         rowCount: parsedRows.length,
-        periodType: tableType === "tax" ? (periodType || "semi-monthly") : null
+        periodType: tableType === "tax" ? (periodType || "monthly") : null
       }, { transaction });
 
       const auditId = auditRecord.auditId;
@@ -810,7 +808,7 @@ exports.uploadReferenceTable = async (req, res) => {
         effectiveDate,
         isActive: true,
         auditId,
-        periodType: tableType === "tax" ? (periodType || "semi-monthly") : undefined
+        periodType: tableType === "tax" ? (periodType || "monthly") : undefined
       }));
 
       // 4. Bulk create new records
@@ -850,7 +848,6 @@ exports.toggleReferenceTableVersion = async (req, res) => {
 
   try {
     const { sequelize, SSS_ContributionTable, Philhealth_ContributionTable, PagIBIG_ContributionTable, WithholdingTax_Table, ReferenceTable_Audit } = require("../config/sequelize.js");
-    const { Op } = require("sequelize");
     let model;
     let dbTableName;
 
@@ -865,27 +862,18 @@ exports.toggleReferenceTableVersion = async (req, res) => {
     // Run transaction to update status
     await sequelize.transaction(async (transaction) => {
       if (isActive) {
-        // If activating, we ensure only this version is active for its effective date & periodType.
-        // First, find the effective date for the target version
-        const audit = await ReferenceTable_Audit.findByPk(parseInt(auditId), { transaction });
-        if (audit) {
-          // 1. Deactivate ALL versions for this effective date & periodType (handles any legacy or null auditId versions)
-          const whereClause = { effectiveDate: audit.effectiveDate };
-          if (tableType === "tax") {
-            whereClause.periodType = audit.periodType || "semi-monthly";
-          }
-          await model.update(
-            { isActive: false },
-            { where: whereClause, transaction }
-          );
-        }
-        // 2. Activate the specific version
+        // 1. Deactivate ALL versions across table so only one version is active at a time
+        await model.update(
+          { isActive: false },
+          { where: {}, transaction }
+        );
+        // 2. Activate ONLY the selected audit version
         await model.update(
           { isActive: true },
           { where: { auditId: parseInt(auditId) }, transaction }
         );
       } else {
-        // If deactivating, simply deactivate the target version
+        // Deactivate the target version
         await model.update(
           { isActive: false },
           { where: { auditId: parseInt(auditId) }, transaction }

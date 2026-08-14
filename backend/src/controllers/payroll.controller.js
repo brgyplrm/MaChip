@@ -653,6 +653,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     previousDailyRate,
     ratePerHr,
     basicPay: basicPay, 
+    potentialBasicPay: potentialBasicPay,
     actualBasicPay: basicPay,
     grossEarnings: grossEarnings, // The full potential amount
     totalEarnings: grossEarnings, // For backward compatibility with some reports
@@ -754,7 +755,7 @@ exports.getPayrollPreview = async (req, res) => {
 };
 
 // ── Generate Batch Payroll (Internal) ───────────────────────────────────────
-async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = true, customDailyRate = null, targetUserId = null) {
+async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = false, customDailyRate = null, targetUserId = null) {
   const now = await getSystemTime();
   const nowStr = formatForSQL(now);
 
@@ -774,9 +775,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
      WHERE (u."deletedAt" IS NULL OR u."deletedAt" >= :period_Start)
        AND u."dailyRate" > 0
        AND u."user_Id" != 999
-       AND u."user_EmploymentStatusId" != 3
-
-  `;
+   `;
   
   const replacements = { period_Start, period_End, periodId: periodId || -1 };
   if (targetUserId) {
@@ -1796,7 +1795,7 @@ exports.getGovtDeductionsPreview = async (req, res) => {
     // Calculate based on the provided gross pay (assuming it's a monthly estimate for template purposes)
     // For template editing, we assume grossPay is roughly Monthly Salary
     const dailyRate = parseFloat(grossPay) / 26; 
-    const shares = computeMonthlyShares(dailyRate);
+    const shares = await computeMonthlyShares(dailyRate);
 
     // Tax is now manual input ("hardcoded") per user request, but we can suggest 0
     const tax = 0;

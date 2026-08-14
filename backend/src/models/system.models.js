@@ -83,6 +83,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATEONLY,
         defaultValue: '2025-07-18',
       },
+      payrollGracePeriodDays: {
+        type: DataTypes.INTEGER,
+        defaultValue: 7,
+      },
     },
     {
       timestamps: true,

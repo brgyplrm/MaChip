@@ -60,6 +60,8 @@ const PayrollPeriod = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const [gracePeriodDays, setGracePeriodDays] = useState(7);
+
   const isProcessingWindow = useMemo(() => {
     if (!selectedPeriod?.endDate || !systemToday) return false;
     
@@ -70,18 +72,27 @@ const PayrollPeriod = () => {
     const today = new Date(systemToday);
     today.setHours(0, 0, 0, 0);
 
-    // Window starts on endDate and ends 2 days after
+    // 1-week (7 days) post-period grace window after cutoff ends
     const windowEnd = new Date(end);
-    windowEnd.setDate(windowEnd.getDate() + 2);
+    windowEnd.setDate(windowEnd.getDate() + (gracePeriodDays || 7));
 
     return today >= end && today <= windowEnd;
-  }, [selectedPeriod, systemToday]);
+  }, [selectedPeriod, systemToday, gracePeriodDays]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const periodsRes = await fetchWithAuth("/api/system/payroll-periods");
+      const [periodsRes, settingsRes] = await Promise.all([
+        fetchWithAuth("/api/system/payroll-periods"),
+        fetchWithAuth("/api/system/settings")
+      ]);
       const periodsData = await periodsRes.json();
+      if (settingsRes.ok) {
+        const sData = await settingsRes.json();
+        if (sData.payrollGracePeriodDays) {
+          setGracePeriodDays(parseInt(sData.payrollGracePeriodDays));
+        }
+      }
 
       if (periodsRes.ok && periodsData.length > 0) {
         setPeriods(periodsData);
@@ -117,7 +128,7 @@ const PayrollPeriod = () => {
       const livePayrolls = [];
       let totalNet = 0, totalEarn = 0, totalDed = 0;
 
-      for (const emp of employees.filter(e => e.dailyRate > 0 && e.user_EmploymentStatusId !== 3)) {
+      for (const emp of employees.filter(e => e.dailyRate > 0)) {
         const prevRes = await fetchWithAuth(`/api/payroll/preview?user_Id=${emp.user_Id}&period_Start=${period.startDate}&period_End=${period.endDate}`);
         const preview = await prevRes.json();
 
@@ -131,8 +142,11 @@ const PayrollPeriod = () => {
             period_End: period.endDate,
             NoDays_Worked: preview.NoDays_Worked,
             NoHrs_Worked: preview.NoHrs_Worked,
+            totalScheduledDays: preview.totalScheduledDays,
+            potentialBasicPay: preview.potentialBasicPay || (preview.totalScheduledDays ? preview.totalScheduledDays * emp.dailyRate : emp.dailyRate * 13),
             basicPay: preview.basicPay,
             totalEarnings: preview.totalEarnings,
+            grossEarnings: preview.grossEarnings || preview.totalEarnings,
             totalDeductions: preview.totalDeductions,
             netPay: preview.netPay,
             dailyRate: emp.dailyRate,
@@ -326,11 +340,11 @@ const PayrollPeriod = () => {
                     disabled={selectedPeriod?.status !== 'Draft' || !isProcessingWindow}
                     title={
                       selectedPeriod?.status !== 'Draft' ? "Already Processed" :
-                      !isProcessingWindow ? `Processing is available only from ${new Date(selectedPeriod?.endDate).toLocaleDateString()} to ${(() => {
+                      !isProcessingWindow ? `Processing is available from cutoff date (${new Date(selectedPeriod?.endDate).toLocaleDateString()}) up to 1 week after (${(() => {
                         const d = new Date(selectedPeriod?.endDate);
-                        d.setDate(d.getDate() + 2);
+                        d.setDate(d.getDate() + (gracePeriodDays || 7));
                         return d.toLocaleDateString();
-                      })()}` : ""
+                      })()})` : ""
                     }
                   >
                     <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> 
@@ -473,7 +487,19 @@ const PayrollPeriod = () => {
                 <TableHeader className="bg-[#2B174F]">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
-                    <TableHead className="font-semibold text-white py-4">BASIC PAY</TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        BASIC PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Fixed scheduled target base pay for the period (Scheduled Days × Daily Rate), before additions or deductions.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
                     <TableHead className="font-semibold text-white py-4">
                       <div className="flex items-center gap-1">
                         GROSS PAY
@@ -482,7 +508,7 @@ const PayrollPeriod = () => {
                             <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                            Base pay plus overtime earnings, allowance differentials, and other taxable additions.
+                            Basic pay plus overtime earnings, night differential, holiday premiums, and other earned additions.
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -495,7 +521,7 @@ const PayrollPeriod = () => {
                             <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                            Withholdings including tax contributions, advances, and government or company loan repayments.
+                            Withholdings including attendance penalties (absences/lates), government contributions, withholding tax, and loan repayments.
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -508,7 +534,7 @@ const PayrollPeriod = () => {
                             <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                            The actual take-home salary after subtracting all active deductions from gross earnings.
+                            The actual take-home salary after subtracting total deductions from gross earnings.
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -553,7 +579,19 @@ const PayrollPeriod = () => {
                 <TableHeader className="bg-[#2B174F]">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
-                    <TableHead className="font-semibold text-white py-4">BASIC PAY</TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        BASIC PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Fixed scheduled target base pay for the period (Scheduled Days × Daily Rate), before additions or deductions.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
                     <TableHead className="font-semibold text-white py-4">
                       <div className="flex items-center gap-1">
                         GROSS PAY
@@ -562,7 +600,7 @@ const PayrollPeriod = () => {
                             <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                            Base pay plus overtime earnings, allowance differentials, and other taxable additions.
+                            Basic pay plus overtime earnings, night differential, holiday premiums, and other earned additions.
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -575,7 +613,7 @@ const PayrollPeriod = () => {
                             <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                            Withholdings including tax contributions, advances, and government or company loan repayments.
+                            Withholdings including attendance penalties (absences/lates), government contributions, withholding tax, and loan repayments.
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -588,7 +626,7 @@ const PayrollPeriod = () => {
                             <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                            The actual take-home salary after subtracting all active deductions from gross earnings.
+                            The actual take-home salary after subtracting total deductions from gross earnings.
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -606,16 +644,18 @@ const PayrollPeriod = () => {
                         badgeStyle = "bg-green-100 text-green-800 hover:bg-green-200";
                       }
 
+                      const fixedBasic = p.potentialBasicPay ?? (p.totalScheduledDays && p.dailyRate ? p.totalScheduledDays * p.dailyRate : (p.dailyRate ? p.dailyRate * 13 : p.basicPay));
+
                       return (
                         <TableRow key={p.payrollId} className="border-b-slate-100 hover:bg-slate-50/50">
                           <TableCell className="py-4 px-6">
                             <div className="font-semibold text-[#2A174E]">{p.user_FirstName || p.userName} {p.user_LastName || ""}</div>
                             <div className="text-xs text-slate-400 font-mono">ID: {formatUserId(p.user_Id)}</div>
                           </TableCell>
-                          <TableCell className="py-4 text-slate-700">₱{parseFloat(p.basicPay).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
-                          <TableCell className="py-4 text-green-600 font-semibold">+₱{parseFloat(p.totalEarnings).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
-                          <TableCell className="py-4 text-red-500 font-semibold">-₱{parseFloat(p.totalDeductions).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
-                          <TableCell className="py-4 font-bold text-slate-900">₱{parseFloat(p.netPay).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="py-4 text-slate-700">₱{parseFloat(fixedBasic || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="py-4 text-green-600 font-semibold">+₱{parseFloat(p.grossEarnings || p.totalEarnings || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="py-4 text-red-500 font-semibold">-₱{parseFloat(p.totalDeductions || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="py-4 font-bold text-slate-900">₱{parseFloat(p.netPay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
                           <TableCell className="py-4">
                             <Badge variant="secondary" className={`font-semibold uppercase tracking-wide ${badgeStyle}`}>
                               {statusLabel}

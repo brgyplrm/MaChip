@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  User, Shield, Bell, Server, DollarSign, Settings,
-  Clock, Briefcase, FileText, Landmark, Eye, Edit3, Info, Grid, LayoutList, Save, X
+  User, Shield, ShieldAlert, Bell, Server, DollarSign, Settings,
+  Clock, Briefcase, FileText, Landmark, Eye, EyeOff, Edit3, Info, Grid, LayoutList, Save, X
 } from 'lucide-react';
 import ConfigurationPreviewModal from './ConfigurationPreviewModal';
 
@@ -99,6 +99,10 @@ export default function PayrollConfiguration({ data, onUpdate }) {
   const [activeTab, setActiveTab] = useState('labor-rates');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [saveStep, setSaveStep] = useState(0); // 0 = closed, 1 = confirm pop-up, 2 = password modal
+  const [saveAdminPassword, setSaveAdminPassword] = useState("");
+  const [saveVerifying, setSaveVerifying] = useState(false);
+  const [savePwdError, setSavePwdError] = useState("");
   
   // Robust initialization that ensures nested objects exist
   const [localData, setLocalData] = useState(() => {
@@ -130,7 +134,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
     }
   }, [data]);
 
-  const handleSave = () => {
+  const executeSave = () => {
     const sanitize = (val) => {
       if (typeof val === 'string') return parseFloat(val.replace(/,/g, '')) || 0;
       return parseFloat(val) || 0;
@@ -193,11 +197,57 @@ export default function PayrollConfiguration({ data, onUpdate }) {
     };
     onUpdate(backendData);
     setIsEditing(false);
+    setSaveStep(0);
+  };
+
+  const handleSaveClick = () => {
+    setSavePwdError("");
+    setSaveAdminPassword("");
+    setSaveStep(1);
+  };
+
+  const handleProceedToSavePassword = () => {
+    setSaveStep(2);
+  };
+
+  const [showSavePassword, setShowSavePassword] = useState(false);
+
+  const handleVerifyAndExecuteSave = async (e) => {
+    e.preventDefault();
+    if (!saveAdminPassword) {
+      setSavePwdError("Admin password is required.");
+      return;
+    }
+
+    try {
+      setSaveVerifying(true);
+      setSavePwdError("");
+      const res = await fetch("/api/auth/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password: saveAdminPassword })
+      });
+      const resData = await res.json();
+
+      if (res.ok && resData.success) {
+        setSaveStep(0);
+        setSaveAdminPassword("");
+        executeSave();
+      } else {
+        setSavePwdError(resData.error || "Incorrect password. Verification failed.");
+      }
+    } catch (err) {
+      setSavePwdError("Error verifying password.");
+    } finally {
+      setSaveVerifying(false);
+    }
   };
 
   const handleCancel = () => {
     setLocalData(data || DEFAULT_RATES);
     setIsEditing(false);
+    setSaveStep(0);
   };
 
   const updateField = (category, field, value) => {
@@ -281,7 +331,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
                   <X className="w-4 h-4" /> <span>Cancel</span>
                 </button>
                 <button 
-                  onClick={handleSave}
+                  onClick={handleSaveClick}
                   className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium shadow-sm transition"
                 >
                   <Save className="w-4 h-4" /> <span>Save Changes</span>
@@ -378,6 +428,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
               { id: 'eemr', label: 'EEMR Factors', icon: Briefcase },
               { id: 'leave-caps', label: 'Leave Caps', icon: FileText },
               { id: 'gov-taxes', label: 'Government Taxes', icon: Landmark },
+              { id: 'batch-rules', label: 'Batch & Cutoff', icon: Clock },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -424,6 +475,16 @@ export default function PayrollConfiguration({ data, onUpdate }) {
                 onChange={updateStatutory} 
               />
             )}
+            {activeTab === 'batch-rules' && (
+              <BatchRulesView 
+                data={localData.batchRules || { gracePeriodDays: localData.payrollGracePeriodDays || 7 }} 
+                isEditing={isEditing} 
+                onChange={(f, v) => {
+                  updateField('batchRules', f, v);
+                  setLocalData(prev => ({ ...prev, payrollGracePeriodDays: v }));
+                }} 
+              />
+            )}
           </div>
         </div>
 
@@ -431,6 +492,112 @@ export default function PayrollConfiguration({ data, onUpdate }) {
 
       {isPreviewOpen && (
         <ConfigurationPreviewModal data={localData} onClose={() => setIsPreviewOpen(false)} />
+      )}
+
+      {/* STEP 1: SAVE CONFIRMATION MODAL */}
+      {saveStep === 1 && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
+            <div className="flex items-center space-x-3 text-amber-600">
+              <div className="p-3 bg-amber-100 rounded-full">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Save Payroll Configuration?</h3>
+                <p className="text-xs text-slate-500">Step 1 of 2: Security Confirmation</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to save these updated labor rate multipliers and payroll settings? Updating these parameters directly affects batch payroll calculations for all employees across the organization.
+            </p>
+
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSaveStep(0)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleProceedToSavePassword}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-sm"
+              >
+                Proceed to Security Verification →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 2: ADMIN PASSWORD VERIFICATION MODAL FOR SAVE */}
+      {saveStep === 2 && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form onSubmit={handleVerifyAndExecuteSave} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2 text-[#2A1B4E]">
+                <Shield className="w-5 h-5" />
+                <h3 className="text-base font-bold text-slate-900">Admin Security Authorization</h3>
+              </div>
+              <button type="button" onClick={() => setSaveStep(0)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Please enter your <strong>Admin Password</strong> to authorize saving updated labor rates and payroll configuration changes:
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">Admin Password</label>
+              <div className="relative">
+                <input
+                  type={showSavePassword ? "text" : "password"}
+                  required
+                  autoFocus
+                  placeholder="Enter password..."
+                  value={saveAdminPassword}
+                  onChange={(e) => setSaveAdminPassword(e.target.value)}
+                  className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSavePassword(!showSavePassword)}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  title={showSavePassword ? "Hide password" : "Show password"}
+                >
+                  {showSavePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {savePwdError && (
+                <p className="text-xs text-rose-600 font-medium pt-1">{savePwdError}</p>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSaveStep(0)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saveVerifying}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center space-x-1.5"
+              >
+                {saveVerifying ? (
+                  <span>Verifying Password...</span>
+                ) : (
+                  <span>Verify & Save Changes</span>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );
@@ -444,11 +611,26 @@ function LaborRatesView({ data, isEditing, onChange }) {
 
   if (!data) return <div className="p-8 text-center text-slate-400">Loading labor rates...</div>;
 
+  const safeNum = (val) => {
+    const n = parseFloat(val);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const ordinary = safeNum(data.ordinary);
+  const restDay = safeNum(data.restDay);
+  const regularHoliday = safeNum(data.regularHoliday);
+  const doubleHoliday = safeNum(data.doubleHoliday);
+  const doubleSpecialDay = safeNum(data.doubleSpecialDay);
+  const specialDayRestDay = safeNum(data.specialDayRestDay);
+  const regularHolidayRestDay = safeNum(data.regularHolidayRestDay);
+  const doubleHolidayRestDay = safeNum(data.doubleHolidayRestDay);
+  const doubleSpecialDayRestDay = safeNum(data.doubleSpecialDayRestDay);
+
   const compoundLaborData = [
-    { type: "Special Day Combo", day: "Special Day on Rest Day", formula: `Base ${(data.ordinary || 0).toFixed(1)} + 30% + 20% rest shift`, coefficient: data.specialDayRestDay, percentage: `${((data.specialDayRestDay || 0) * 100).toFixed(1)}%` },
-    { type: "Holiday Combo", day: "Regular Holiday on Rest Day", formula: `Base ${(data.regularHoliday || 0).toFixed(1)} × ${(data.restDay || 0).toFixed(2)} rest index`, coefficient: data.regularHolidayRestDay, percentage: `${((data.regularHolidayRestDay || 0) * 100).toFixed(1)}%` },
-    { type: "Holiday Combo", day: "Double Holiday on Rest Day", formula: `Base ${(data.doubleHoliday || 0).toFixed(1)} × ${(data.restDay || 0).toFixed(2)} rest index`, coefficient: data.doubleHolidayRestDay, percentage: `${((data.doubleHolidayRestDay || 0) * 100).toFixed(1)}%` },
-    { type: "Special Day Combo", day: "Double Special Day on Rest Day", formula: `Base ${(data.doubleSpecialDay || 0).toFixed(1)} × ${(data.restDay || 0).toFixed(2)} rest index`, coefficient: data.doubleSpecialDayRestDay, percentage: `${((data.doubleSpecialDayRestDay || 0) * 100).toFixed(1)}%` }
+    { type: "Special Day Combo", day: "Special Day on Rest Day", formula: `Base ${ordinary.toFixed(1)} + 30% + 20% rest shift`, coefficient: specialDayRestDay, percentage: `${(specialDayRestDay * 100).toFixed(1)}%` },
+    { type: "Holiday Combo", day: "Regular Holiday on Rest Day", formula: `Base ${regularHoliday.toFixed(1)} × ${restDay.toFixed(2)} rest index`, coefficient: regularHolidayRestDay, percentage: `${(regularHolidayRestDay * 100).toFixed(1)}%` },
+    { type: "Holiday Combo", day: "Double Holiday on Rest Day", formula: `Base ${doubleHoliday.toFixed(1)} × ${restDay.toFixed(2)} rest index`, coefficient: doubleHolidayRestDay, percentage: `${(doubleHolidayRestDay * 100).toFixed(1)}%` },
+    { type: "Special Day Combo", day: "Double Special Day on Rest Day", formula: `Base ${doubleSpecialDay.toFixed(1)} × ${restDay.toFixed(2)} rest index`, coefficient: doubleSpecialDayRestDay, percentage: `${(doubleSpecialDayRestDay * 100).toFixed(1)}%` }
   ];
 
   return (
@@ -658,46 +840,62 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
 
   if (!data || !laborRates) return <div className="p-8 text-center text-slate-400">Loading OT & Night Shift rates...</div>;
 
-  const nsd = (data.nsdRate || 0) / 100 + 1; // e.g. 1.1
-  const otOrd = (data.ordinaryOT || 0) / 100 + 1; // e.g. 1.25
-  const otPrem = (data.premiumOT || 0) / 100 + 1; // e.g. 1.3
+  const safeNum = (val) => {
+    const n = parseFloat(val);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const nsd = (safeNum(data.nsdRate)) / 100 + 1; // e.g. 1.1
+  const otOrd = (safeNum(data.ordinaryOT)) / 100 + 1; // e.g. 1.25
+  const otPrem = (safeNum(data.premiumOT)) / 100 + 1; // e.g. 1.3
+
+  const ordRate = safeNum(laborRates.ordinary);
+  const restRate = safeNum(laborRates.restDay);
+  const specRate = safeNum(laborRates.specialDay);
+  const specRestRate = safeNum(laborRates.specialDayRestDay);
+  const dblSpecRate = safeNum(laborRates.doubleSpecialDay);
+  const dblSpecRestRate = safeNum(laborRates.doubleSpecialDayRestDay);
+  const regHolRate = safeNum(laborRates.regularHoliday);
+  const regHolRestRate = safeNum(laborRates.regularHolidayRestDay);
+  const dblHolRate = safeNum(laborRates.doubleHoliday);
+  const dblHolRestRate = safeNum(laborRates.doubleHolidayRestDay);
 
   const matrixData = [
     // --- NIGHT SHIFT ONLY (Base × 1.1) ---
-    { type: "Night Shift", day: "Ordinary Day", formula: `${(laborRates.ordinary || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.ordinary || 0) * nsd).toFixed(4), percentage: `${((laborRates.ordinary || 0) * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Rest Day", formula: `${(laborRates.restDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.restDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.restDay || 0) * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Special (Non-Working) Day", formula: `${(laborRates.specialDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.specialDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.specialDay || 0) * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Special (Non-Working) Day on Rest Day", formula: `${(laborRates.specialDayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.specialDayRestDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.specialDayRestDay || 0) * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Double Special (Non-Working) Day", formula: `${(laborRates.doubleSpecialDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.doubleSpecialDay || 0) * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Double Special Day on Rest Day", formula: `${(laborRates.doubleSpecialDayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDayRestDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.doubleSpecialDayRestDay || 0) * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Regular Holiday", formula: `${(laborRates.regularHoliday || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.regularHoliday || 0) * nsd).toFixed(4), percentage: `${((laborRates.regularHoliday || 0) * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Regular Holiday on Rest Day", formula: `${(laborRates.regularHolidayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.regularHolidayRestDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.regularHolidayRestDay || 0) * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Double Regular Holiday", formula: `${(laborRates.doubleHoliday || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.doubleHoliday || 0) * nsd).toFixed(4), percentage: `${((laborRates.doubleHoliday || 0) * nsd * 100).toFixed(1)}%` },
-    { type: "Night Shift", day: "Double Regular Holiday on Rest Day", formula: `${(laborRates.doubleHolidayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: ((laborRates.doubleHolidayRestDay || 0) * nsd).toFixed(4), percentage: `${((laborRates.doubleHolidayRestDay || 0) * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Ordinary Day", formula: `${ordRate.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (ordRate * nsd).toFixed(4), percentage: `${(ordRate * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Rest Day", formula: `${restRate.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (restRate * nsd).toFixed(4), percentage: `${(restRate * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Special (Non-Working) Day", formula: `${specRate.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (specRate * nsd).toFixed(4), percentage: `${(specRate * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Special (Non-Working) Day on Rest Day", formula: `${specRestRate.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (specRestRate * nsd).toFixed(4), percentage: `${(specRestRate * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Double Special (Non-Working) Day", formula: `${dblSpecRate.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (dblSpecRate * nsd).toFixed(4), percentage: `${(dblSpecRate * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Double Special Day on Rest Day", formula: `${dblSpecRestRate.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (dblSpecRestRate * nsd).toFixed(4), percentage: `${(dblSpecRestRate * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Regular Holiday", formula: `${regHolRate.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (regHolRate * nsd).toFixed(4), percentage: `${(regHolRate * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Regular Holiday on Rest Day", formula: `${regHolRestRate.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (regHolRestRate * nsd).toFixed(4), percentage: `${(regHolRestRate * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Double Regular Holiday", formula: `${dblHolRate.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (dblHolRate * nsd).toFixed(4), percentage: `${(dblHolRate * nsd * 100).toFixed(1)}%` },
+    { type: "Night Shift", day: "Double Regular Holiday on Rest Day", formula: `${dblHolRestRate.toFixed(2)} × ${nsd.toFixed(2)}`, coefficient: (dblHolRestRate * nsd).toFixed(4), percentage: `${(dblHolRestRate * nsd * 100).toFixed(1)}%` },
 
     // --- OVERTIME ONLY (Base × 1.25 for Ordinary, Base × 1.3 for Premiums) ---
-    { type: "Overtime (OT)", day: "Ordinary Day", formula: `${(laborRates.ordinary || 0).toFixed(2)} × ${otOrd.toFixed(2)}`, coefficient: ((laborRates.ordinary || 0) * otOrd).toFixed(4), percentage: `${((laborRates.ordinary || 0) * otOrd * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Rest Day", formula: `${(laborRates.restDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.restDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.restDay || 0) * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Special (Non-Working) Day", formula: `${(laborRates.specialDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.specialDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.specialDay || 0) * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Special (Non-Working) Day on Rest Day", formula: `${(laborRates.specialDayRestDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.specialDayRestDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.specialDayRestDay || 0) * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Double Special (Non-Working) Day", formula: `${(laborRates.doubleSpecialDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.doubleSpecialDay || 0) * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Double Special Day on Rest Day", formula: `${(laborRates.doubleSpecialDayRestDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDayRestDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.doubleSpecialDayRestDay || 0) * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Regular Holiday", formula: `${(laborRates.regularHoliday || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.regularHoliday || 0) * otPrem).toFixed(4), percentage: `${((laborRates.regularHoliday || 0) * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Regular Holiday on Rest Day", formula: `${(laborRates.regularHolidayRestDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.regularHolidayRestDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.regularHolidayRestDay || 0) * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Double Regular Holiday", formula: `${(laborRates.doubleHoliday || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleHoliday || 0) * otPrem).toFixed(4), percentage: `${((laborRates.doubleHoliday || 0) * otPrem * 100).toFixed(1)}%` },
-    { type: "Overtime (OT)", day: "Double Regular Holiday on Rest Day", formula: `${(laborRates.doubleHolidayRestDay || 0).toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleHolidayRestDay || 0) * otPrem).toFixed(4), percentage: `${((laborRates.doubleHolidayRestDay || 0) * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Ordinary Day", formula: `${ordRate.toFixed(2)} × ${otOrd.toFixed(2)}`, coefficient: (ordRate * otOrd).toFixed(4), percentage: `${(ordRate * otOrd * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Rest Day", formula: `${restRate.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (restRate * otPrem).toFixed(4), percentage: `${(restRate * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Special (Non-Working) Day", formula: `${specRate.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (specRate * otPrem).toFixed(4), percentage: `${(specRate * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Special (Non-Working) Day on Rest Day", formula: `${specRestRate.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (specRestRate * otPrem).toFixed(4), percentage: `${(specRestRate * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Double Special (Non-Working) Day", formula: `${dblSpecRate.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (dblSpecRate * otPrem).toFixed(4), percentage: `${(dblSpecRate * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Double Special Day on Rest Day", formula: `${dblSpecRestRate.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (dblSpecRestRate * otPrem).toFixed(4), percentage: `${(dblSpecRestRate * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Regular Holiday", formula: `${regHolRate.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (regHolRate * otPrem).toFixed(4), percentage: `${(regHolRate * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Regular Holiday on Rest Day", formula: `${regHolRestRate.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (regHolRestRate * otPrem).toFixed(4), percentage: `${(regHolRestRate * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Double Regular Holiday", formula: `${dblHolRate.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (dblHolRate * otPrem).toFixed(4), percentage: `${(dblHolRate * otPrem * 100).toFixed(1)}%` },
+    { type: "Overtime (OT)", day: "Double Regular Holiday on Rest Day", formula: `${dblHolRestRate.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (dblHolRestRate * otPrem).toFixed(4), percentage: `${(dblHolRestRate * otPrem * 100).toFixed(1)}%` },
 
     // --- COMPOUND NIGHT SHIFT OVERTIME (Base × 1.1 × OT) ---
-    { type: "Night Shift OT", day: "Ordinary Day", formula: `${(laborRates.ordinary || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otOrd.toFixed(2)}`, coefficient: ((laborRates.ordinary || 0) * nsd * otOrd).toFixed(4), percentage: `${((laborRates.ordinary || 0) * nsd * otOrd * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Rest Day", formula: `${(laborRates.restDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.restDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.restDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Special (Non-Working) Day", formula: `${(laborRates.specialDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.specialDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.specialDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Special (Non-Working) Day on Rest Day", formula: `${(laborRates.specialDayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.specialDayRestDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.specialDayRestDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Double Special (Non-Working) Day", formula: `${(laborRates.doubleSpecialDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.doubleSpecialDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Double Special Day on Rest Day", formula: `${(laborRates.doubleSpecialDayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleSpecialDayRestDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.doubleSpecialDayRestDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Regular Holiday", formula: `${(laborRates.regularHoliday || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.regularHoliday || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.regularHoliday || 0) * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Regular Holiday on Rest Day", formula: `${(laborRates.regularHolidayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.regularHolidayRestDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.regularHolidayRestDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Double Regular Holiday", formula: `${(laborRates.doubleHoliday || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleHoliday || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.doubleHoliday || 0) * nsd * otPrem * 100).toFixed(1)}%` },
-    { type: "Night Shift OT", day: "Double Regular Holiday on Rest Day", formula: `${(laborRates.doubleHolidayRestDay || 0).toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: ((laborRates.doubleHolidayRestDay || 0) * nsd * otPrem).toFixed(4), percentage: `${((laborRates.doubleHolidayRestDay || 0) * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Ordinary Day", formula: `${ordRate.toFixed(2)} × ${nsd.toFixed(2)} × ${otOrd.toFixed(2)}`, coefficient: (ordRate * nsd * otOrd).toFixed(4), percentage: `${(ordRate * nsd * otOrd * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Rest Day", formula: `${restRate.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (restRate * nsd * otPrem).toFixed(4), percentage: `${(restRate * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Special (Non-Working) Day", formula: `${specRate.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (specRate * nsd * otPrem).toFixed(4), percentage: `${(specRate * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Special (Non-Working) Day on Rest Day", formula: `${specRestRate.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (specRestRate * nsd * otPrem).toFixed(4), percentage: `${(specRestRate * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Double Special (Non-Working) Day", formula: `${dblSpecRate.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (dblSpecRate * nsd * otPrem).toFixed(4), percentage: `${(dblSpecRate * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Double Special Day on Rest Day", formula: `${dblSpecRestRate.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (dblSpecRestRate * nsd * otPrem).toFixed(4), percentage: `${(dblSpecRestRate * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Regular Holiday", formula: `${regHolRate.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (regHolRate * nsd * otPrem).toFixed(4), percentage: `${(regHolRate * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Regular Holiday on Rest Day", formula: `${regHolRestRate.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (regHolRestRate * nsd * otPrem).toFixed(4), percentage: `${(regHolRestRate * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Double Regular Holiday", formula: `${dblHolRate.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (dblHolRate * nsd * otPrem).toFixed(4), percentage: `${(dblHolRate * nsd * otPrem * 100).toFixed(1)}%` },
+    { type: "Night Shift OT", day: "Double Regular Holiday on Rest Day", formula: `${dblHolRestRate.toFixed(2)} × ${nsd.toFixed(2)} × ${otPrem.toFixed(2)}`, coefficient: (dblHolRestRate * nsd * otPrem).toFixed(4), percentage: `${(dblHolRestRate * nsd * otPrem * 100).toFixed(1)}%` },
   ];
 
   return (
@@ -995,15 +1193,105 @@ function LeaveCapsView() {
   );
 }
 
-{/* =========================================================================
-    TAB PANEL 5: GOVERNMENT TAXES
-========================================================================= */}
 function GovernmentTaxesView({ data, isEditing, onChange }) {
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [step, setStep] = useState(0); // 0 = none, 1 = confirm pop-up, 2 = password pop-up
+  const [adminPassword, setAdminPassword] = useState("");
+  const [showTaxPassword, setShowTaxPassword] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
   if (!data || !data.philhealth || !data.sss || !data.hdmf) return <div className="p-10 text-center text-slate-400">Loading statutory matrix...</div>;
 
+  const handleStartUnlock = () => {
+    setErrorMsg("");
+    setAdminPassword("");
+    setStep(1);
+  };
+
+  const handleProceedToPassword = () => {
+    setStep(2);
+  };
+
+  const handleVerifyPassword = async (e) => {
+    e.preventDefault();
+    if (!adminPassword) {
+      setErrorMsg("Password is required.");
+      return;
+    }
+
+    try {
+      setVerifying(true);
+      setErrorMsg("");
+      const res = await fetch("/api/auth/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password: adminPassword })
+      });
+      const resData = await res.json();
+
+      if (res.ok && resData.success) {
+        setIsUnlocked(true);
+        setStep(0);
+        setAdminPassword("");
+      } else {
+        setErrorMsg(resData.error || "Incorrect password. Verification failed.");
+      }
+    } catch (err) {
+      setErrorMsg("Error verifying password.");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-bold text-slate-900 mb-4">Government Taxes & Deduction Matrices</h3>
+    <div className="space-y-6 text-left">
+      {/* Header and Lock Control */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 border border-slate-200 p-4 rounded-xl">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">Government Taxes & Statutory Deduction Matrices</h3>
+          <p className="text-xs text-slate-500 mt-0.5">PhilHealth, SSS, Pag-IBIG, and BIR Tax configuration fields.</p>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          {isUnlocked ? (
+            <div className="flex items-center space-x-2">
+              <span className="inline-flex items-center space-x-1 px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>UNLOCKED FOR MODIFICATIONS</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsUnlocked(false)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition shadow-xs"
+              >
+                <span>🔒 Lock Parameters</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <span className="inline-flex items-center space-x-1 px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded-full border border-slate-300">
+                <span>🔒 Protected (Locked)</span>
+              </span>
+              <button
+                type="button"
+                onClick={handleStartUnlock}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-xs font-bold transition shadow-xs"
+              >
+                <span>🔓 Unlock Tax Parameters</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {!isUnlocked && (
+        <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-center space-x-2 text-amber-800 text-xs font-medium">
+          <Info className="w-4 h-4 flex-shrink-0 text-amber-600" />
+          <span>Statutory tax inputs are currently locked to prevent accidental edits. Click <strong>"Unlock Tax Parameters"</strong> to authenticate and make changes.</span>
+        </div>
+      )}
 
       {/* PhilHealth */}
       <div className="border border-emerald-100 rounded-xl p-5 space-y-4">
@@ -1016,7 +1304,7 @@ function GovernmentTaxesView({ data, isEditing, onChange }) {
             type="number"
             value={data.philhealth.rate} 
             onChange={(e) => onChange('philhealth', 'rate', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
             subtext="Of Monthly Basic Salary" 
           />
           <FormInput 
@@ -1024,7 +1312,7 @@ function GovernmentTaxesView({ data, isEditing, onChange }) {
             type="number"
             value={data.philhealth.share_ratio} 
             onChange={(e) => onChange('philhealth', 'share_ratio', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
             subtext="Employer matches remaining" 
           />
           <FormInput 
@@ -1032,14 +1320,14 @@ function GovernmentTaxesView({ data, isEditing, onChange }) {
             type="number"
             value={data.philhealth.floor} 
             onChange={(e) => onChange('philhealth', 'floor', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
           />
           <FormInput 
             label="Maximum Salary Cap (₱)" 
             type="number"
             value={data.philhealth.ceiling} 
             onChange={(e) => onChange('philhealth', 'ceiling', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
           />
         </div>
       </div>
@@ -1055,42 +1343,42 @@ function GovernmentTaxesView({ data, isEditing, onChange }) {
             type="number"
             value={data.sss.employer_rate} 
             onChange={(e) => onChange('sss', 'employer_rate', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
           />
           <FormInput 
             label="Employee Share (%)" 
             type="number"
             value={data.sss.employee_rate} 
             onChange={(e) => onChange('sss', 'employee_rate', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
           />
           <FormInput 
             label="Lower MSC Bound (₱)" 
             type="number"
             value={data.sss.msc_floor} 
             onChange={(e) => onChange('sss', 'msc_floor', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
           />
           <FormInput 
             label="Upper MSC Bound (₱)" 
             type="number"
             value={data.sss.msc_ceiling} 
             onChange={(e) => onChange('sss', 'msc_ceiling', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
           />
           <FormInput 
             label="EC Contribution (Below ₱15K)" 
             type="number"
             value={data.sss.ec_low} 
             onChange={(e) => onChange('sss', 'ec_low', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
           />
           <FormInput 
             label="EC Contribution (≥ ₱15K)" 
             type="number"
             value={data.sss.ec_high} 
             onChange={(e) => onChange('sss', 'ec_high', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
           />
         </div>
       </div>
@@ -1106,33 +1394,137 @@ function GovernmentTaxesView({ data, isEditing, onChange }) {
             type="number"
             value={data.hdmf.ee_rate_low} 
             onChange={(e) => onChange('hdmf', 'ee_rate_low', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
           />
           <FormInput 
             label="EE Rate (> ₱1,500) (%)" 
             type="number"
             value={data.hdmf.ee_rate_high} 
             onChange={(e) => onChange('hdmf', 'ee_rate_high', e.target.value)}
-            disabled={!isEditing}
+            disabled={!isEditing || !isUnlocked}
           />
           <FormInput 
-            label="Employer Rate (%)" 
+            label="ER Rate (%)" 
             type="number"
             value={data.hdmf.er_rate} 
             onChange={(e) => onChange('hdmf', 'er_rate', e.target.value)}
-            disabled={!isEditing}
-            subtext="Fixed uniform rate" 
+            disabled={!isEditing || !isUnlocked}
           />
           <FormInput 
-            label="Maximum Fund Salary (₱)" 
+            label="Max Salary Ceiling (₱)" 
             type="number"
             value={data.hdmf.ceiling} 
             onChange={(e) => onChange('hdmf', 'ceiling', e.target.value)}
-            disabled={!isEditing}
-            subtext="Caps computational basis" 
+            disabled={!isEditing || !isUnlocked}
           />
         </div>
       </div>
+
+      {/* --- STEP 1 MODAL: "ARE YOU SURE?" CONFIRMATION POP-UP --- */}
+      {step === 1 && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
+            <div className="flex items-center space-x-3 text-amber-600">
+              <div className="p-3 bg-amber-100 rounded-full">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Modify Tax Parameters?</h3>
+                <p className="text-xs text-slate-500">Step 1 of 2: Security Confirmation</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to unlock statutory tax parameters? Modifying PhilHealth, SSS, Pag-IBIG, or BIR tax parameters directly impacts net pay calculations for all employees across the organization.
+            </p>
+
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setStep(0)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleProceedToPassword}
+                className="px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white text-xs font-bold rounded-lg transition shadow-sm"
+              >
+                Proceed to Security Verification →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- STEP 2 MODAL: ADMIN PASSWORD VERIFICATION POP-UP --- */}
+      {step === 2 && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form onSubmit={handleVerifyPassword} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2 text-[#2A1B4E]">
+                <Shield className="w-5 h-5" />
+                <h3 className="text-base font-bold text-slate-900">Admin Authorization</h3>
+              </div>
+              <button type="button" onClick={() => setStep(0)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Please enter your <strong>Admin Password</strong> to authorize unlocking tax configuration fields:
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">Admin Password</label>
+              <div className="relative">
+                <input
+                  type={showTaxPassword ? "text" : "password"}
+                  required
+                  autoFocus
+                  placeholder="Enter password..."
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowTaxPassword(!showTaxPassword)}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  title={showTaxPassword ? "Hide password" : "Show password"}
+                >
+                  {showTaxPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {errorMsg && (
+                <p className="text-xs text-rose-600 font-medium pt-1">{errorMsg}</p>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setStep(0)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={verifying}
+                className="px-4 py-2 bg-[#2A1B4E] hover:bg-[#3b276d] text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center space-x-1.5"
+              >
+                {verifying ? (
+                  <span>Verifying Password...</span>
+                ) : (
+                  <span>Verify & Unlock</span>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
@@ -1238,6 +1630,84 @@ function FormSwitch({ label, description, defaultChecked }) {
           }`}
         />
       </button>
+    </div>
+  );
+}
+
+{/* =========================================================================
+    TAB PANEL 6: BATCH & CUTOFF RULES
+========================================================================= */}
+function BatchRulesView({ data, isEditing, onChange }) {
+  const graceDays = data?.gracePeriodDays ?? 7;
+
+  return (
+    <div className="space-y-6 text-left">
+      <div className="border-b border-slate-100 pb-4">
+        <h3 className="text-base font-bold text-slate-800">Payroll Batch & Cutoff Processing Rules</h3>
+        <p className="text-xs text-slate-500 mt-1">Configure post-cutoff grace period accessibility for Process Batch button and archival settings.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-purple-100 text-purple-700 rounded-lg">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800">Process Batch Grace Window</h4>
+              <p className="text-xs text-slate-500">Number of days after cutoff end date that Process Batch remains open.</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-slate-700 block">Grace Period Length (Days)</label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="number"
+                min="1"
+                max="30"
+                value={graceDays}
+                disabled={!isEditing}
+                onChange={(e) => onChange('gracePeriodDays', parseInt(e.target.value) || 7)}
+                className={`w-28 px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-sm text-purple-900 ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+              />
+              <span className="text-xs font-medium text-slate-600">Days ({graceDays === 7 ? "1 Week Default" : `${graceDays} Days`})</span>
+            </div>
+            <p className="text-[11px] text-slate-400 italic">Default is 7 days (1 week). During this time, administrators can process late payroll batches without locking issues.</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800">Automated Archival & Security</h4>
+              <p className="text-xs text-slate-500">Security mandates for batch payslips & report zip generation.</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-xs text-slate-600 pt-2 font-mono">
+            <div className="flex justify-between border-b border-slate-200 pb-1.5">
+              <span>PDF File Naming:</span>
+              <span className="font-bold text-emerald-700">Payslip_[LastName]_[ID].pdf</span>
+            </div>
+            <div className="flex justify-between border-b border-slate-200 pb-1.5">
+              <span>PDF Open Password:</span>
+              <span className="font-bold text-amber-700">[CutoffDays][Month][LastName][ID]</span>
+            </div>
+            <div className="flex justify-between border-b border-slate-200 pb-1.5">
+              <span>Batch Storage Directory:</span>
+              <span className="font-bold text-purple-700">Editable in Settings</span>
+            </div>
+            <div className="flex justify-between pb-1.5">
+              <span>Audit Trail Policy:</span>
+              <span className="font-bold text-blue-700">Mandatory (Paranoid Mode)</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 } 

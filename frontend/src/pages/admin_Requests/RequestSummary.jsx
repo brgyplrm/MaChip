@@ -238,7 +238,6 @@ const RequestSummary = () => {
                     <SelectItem value="Paternity Leave">Paternity</SelectItem>
                     <SelectItem value="VAWC Leave">VAWC</SelectItem>
                     <SelectItem value="Special Leave for Women">Special Leave</SelectItem>
-                    <SelectItem value="Loan Certification">Loan Cert</SelectItem>
                     <SelectItem value="Loan Enrollment">Loan Enroll</SelectItem>
                   </SelectContent>
                 </Select>
