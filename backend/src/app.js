@@ -48,7 +48,9 @@ const allowedOrigins = [
   "http://192.168.1.18:5173",
   "http://localhost:5173",
   "http://192.168.1.18:5173",
-  "http://192.168.0.101:5173"
+  "http://192.168.0.101:5173",
+  "http://192.168.1.11:5173"
+
 ];
 
 app.use(
@@ -168,6 +170,13 @@ connectDB().then(async () => {
   const PORT = process.env.PORT || 4000;
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server is running on port ${PORT} (Listening on 0.0.0.0).`);
+    console.log("==========================================================");
+    console.log(" 🌐 ESP32 SECURED WEB SERIAL CONSOLE ACCESS INFO");
+    console.log(" └─ Direct URL:  http://192.168.1.86/console");
+    console.log(" └─ mDNS URL:    http://machip-esp32.local/console");
+    console.log(" └─ Admin User:  admin");
+    console.log(" └─ Admin Pass:  machip2026");
+    console.log("==========================================================");
   });
 
   // 2. Perform background initialization tasks

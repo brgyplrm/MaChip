@@ -35,6 +35,9 @@ let fpCaptureSession = {
   type: "FP"
 };
 
+// Queue slot deletion for cancelled enrollments
+let pendingDeleteSlot = null;
+
 // Global state for Visitor Access
 let visitorAccessSession = {
   isPending: false,
@@ -62,6 +65,14 @@ exports.getHardwareStatus = (req, res) => {
 
 exports.clearFingerprintSession = async (req, res) => {
   console.log("[ENROLL] Clearing all enrollment sessions (RFID/FP)");
+
+  // Only queue hardware rollback deletion IF the enrollment was cancelled/failed BEFORE completion
+  if (fpCaptureSession.scannedSlot && !fpCaptureSession.success) {
+    pendingDeleteSlot = fpCaptureSession.scannedSlot;
+    console.log(`[ENROLL ROLLBACK] Queued hardware deletion for cancelled slot ${pendingDeleteSlot}`);
+  } else if (fpCaptureSession.scannedSlot && fpCaptureSession.success) {
+    console.log(`[ENROLL SUCCESS] Enrollment completed successfully for slot ${fpCaptureSession.scannedSlot}. Preserving hardware template.`);
+  }
 
   // Clear in-memory FP session
   fpCaptureSession.isCapturing = false;
@@ -353,28 +364,38 @@ exports.scanRFID = async (req, res) => {
     if (action === "clock_in") {
       if (isCurrentlyIn) {
         console.log(`[POLICY] Denied: ${user.user_FirstName} is already clocked in.`);
-        return res.status(200).json({ success: false, message: "already clock-in", name: user.user_FirstName });
+        return res.status(200).json({ success: false, message: "Already Clocked In", employeeName: user.user_FirstName, name: user.user_FirstName });
       }
     } else if (action === "clock_out") {
       if (!isCurrentlyIn) {
         console.log(`[POLICY] Denied: ${user.user_FirstName} is already clocked out.`);
-        return res.status(200).json({ success: false, message: "already clock-out", name: user.user_FirstName });
+        return res.status(200).json({ success: false, message: "Already Clocked Out", employeeName: user.user_FirstName, name: user.user_FirstName });
       }
     }
 
-    // ── 4. 2FA FLOW TRIGGER ──────────────────────────────────────────────────
+    // ── 4. 2FA FLOW TRIGGER (STRICT 2FA ENFORCEMENT) ──────────────────────────
     const hasTemplate = hardware && hardware.user_FingerprintTemplate;
-    // Only trigger 2FA for RFID 'clock_in' on FRONT readers if user has a template
-    if (!is2FA && action === "clock_in" && (terminalType === "FRONT" || !terminalType) && hasTemplate) {
-      console.log(`[2FA] Requesting Biometric Verification for ${user.user_FirstName}`);
-      return res.status(200).json({
-        success: true,
-        mode: "WAITING_FOR_FINGERPRINT_2FA",
-        uid: rfidUid,
-        userId: user.user_Id,
-        userName: user.user_FirstName,
-        expectedFingerId: parseInt(hardware.user_FingerprintId)
-      });
+    if (!is2FA && action === "clock_in" && (terminalType === "FRONT" || !terminalType)) {
+      if (hasTemplate) {
+        console.log(`[2FA] Requesting Biometric Verification for ${user.user_FirstName}`);
+        return res.status(200).json({
+          success: true,
+          mode: "WAITING_FOR_FINGERPRINT_2FA",
+          uid: rfidUid,
+          userId: user.user_Id,
+          userName: user.user_FirstName,
+          expectedFingerId: parseInt(hardware.user_FingerprintId)
+        });
+      } else {
+        console.log(`[2FA REJECT] ${user.user_FirstName} has no enrolled fingerprint in database.`);
+        return res.status(200).json({
+          success: false,
+          message: "Fingerprint Required",
+          employeeName: user.user_FirstName,
+          name: user.user_FirstName,
+          mode: "FINGERPRINT_REQUIRED"
+        });
+      }
     }
 
     // ── 5. 2FA Verification (FingerID Check) ─────────────────────────────────
@@ -599,6 +620,7 @@ exports.scanRFID = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      employeeName: user.user_FirstName,
       name: user.user_FirstName,
       message: statusLabels[nextStatus]
     });
@@ -675,10 +697,16 @@ exports.generateFingerprint = async (req, res) => {
   
   try {
     const result = await sequelize.query(
-      `SELECT MAX("user_FingerprintId") AS "maxSlot" FROM "User_Hardware"`,
+      `SELECT MAX(uh."user_FingerprintId") AS "maxSlot" 
+       FROM "User_Hardware" uh
+       INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
+       WHERE u."deletedAt" IS NULL 
+         AND uh."user_FingerprintId" IS NOT NULL 
+         AND uh."user_FingerprintTemplate" IS NOT NULL 
+         AND TRIM(uh."user_FingerprintTemplate") != ''`,
       { type: QueryTypes.SELECT }
     );
-    const maxSlotValue = result[0].maxSlot;
+    const maxSlotValue = result[0] ? result[0].maxSlot : null;
     const nextSlot = (maxSlotValue && !isNaN(parseInt(maxSlotValue))) ? parseInt(maxSlotValue) + 1 : 1;
     
     // Explicitly reset the session to ensure no stale data
@@ -741,27 +769,49 @@ exports.generateFingerprint = async (req, res) => {
 // ESP32 Endpoints
 exports.factoryResetHardware = async (req, res) => {
   try {
-    // Initialize a special session type for clearing all fingerprints
+    // Clear orphan/stale fingerprint IDs and templates in User_Hardware
+    await sequelize.query(
+      `UPDATE "User_Hardware" 
+       SET "user_FingerprintId" = NULL, "user_FingerprintTemplate" = NULL 
+       WHERE "user_Id" IN (SELECT "user_Id" FROM "User" WHERE "deletedAt" IS NOT NULL)
+          OR "user_FingerprintTemplate" IS NULL 
+          OR TRIM("user_FingerprintTemplate") = ''`
+    );
+
+    // Initialize special session for R307 sensor flash wipe
     fpCaptureSession = { 
       isCapturing: true, 
       scannedSlot: 0, 
       userId: "SYSTEM_RESET",
-      expiresAt: Date.now() + 30000, // 30s timeout
+      expiresAt: Date.now() + 30000,
       success: false,
       template: null,
       type: "CLEAR_ALL"
     };
 
-    console.log(`[HARDWARE] Factory reset session initialized. Waiting for ESP32 polling...`);
-    
-    res.status(200).json({ message: "Hardware reset command queued. Ensure the ESP32 is online." });
+    console.log(`[HARDWARE] Factory reset session initialized. Clearing R307 sensor and DB orphans...`);
+    res.status(200).json({ message: "Hardware reset command queued. R307 memory and orphan DB slots will be wiped." });
   } catch (error) {
+    console.error("[FACTORY RESET ERROR]:", error);
     res.status(500).json({ error: "Failed to initialize hardware reset." });
   }
 };
 
 exports.getFingerprintSession = async (req, res) => {
-  // Update heartbeat
+  // 0. Check for Hardware Slot Deletion command (Rollback cancelled enrollment)
+  if (pendingDeleteSlot !== null) {
+    const slotToDelete = pendingDeleteSlot;
+    pendingDeleteSlot = null;
+    console.log(`[HARDWARE] Sending DELETE_SLOT command for slot ${slotToDelete} to ESP32.`);
+    return res.status(200).json({
+      active: true,
+      slotId: slotToDelete,
+      userId: "ROLLBACK",
+      type: "DELETE_SLOT"
+    });
+  }
+
+  // 1. Check in-memory session (Direct Scan via Edit User Modal);
   const now = Date.now();
   if (!lastEsp32Heartbeat || (now - lastEsp32Heartbeat > 60000)) {
     console.log(`[HARDWARE] ESP32 Heartbeat received at ${new Date(now).toLocaleTimeString()} from ${req.ip}`);
@@ -834,10 +884,19 @@ exports.getFingerprintSession = async (req, res) => {
         // ONLY promote if there isn't ALREADY an active session being tracked
         if (!fpCaptureSession.isCapturing || Date.now() > fpCaptureSession.expiresAt) {
           const result = await sequelize.query(
-            `SELECT MAX("user_FingerprintId") AS "maxSlot" FROM "User_Hardware"`,
+            `SELECT MAX(uh."user_FingerprintId") AS "maxSlot" 
+             FROM "User_Hardware" uh
+             INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
+             WHERE u."deletedAt" IS NULL 
+               AND uh."user_FingerprintId" IS NOT NULL 
+               AND uh."user_FingerprintTemplate" IS NOT NULL 
+               AND TRIM(uh."user_FingerprintTemplate") != ''`,
             { type: QueryTypes.SELECT }
           );
-          const nextSlot = (result[0].maxSlot ? parseInt(result[0].maxSlot) : 0) + 1;
+          const maxSlotVal = result[0] ? result[0].maxSlot : null;
+          const nextSlot = (sessionData.type === 'FP') 
+            ? ((maxSlotVal && !isNaN(parseInt(maxSlotVal))) ? parseInt(maxSlotVal) + 1 : 1) 
+            : 1;
 
           fpCaptureSession = { 
             isCapturing: true, 

@@ -2,6 +2,10 @@
 #include <Wire.h>
 #include <MFRC522.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+#include <WebServer.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Adafruit_Fingerprint.h>
@@ -62,7 +66,8 @@ struct NetworkConfig {
 const NetworkConfig networks[] = {
   { String(WIFI_SSID_1), String(WIFI_PASS_1), String(SERVER_URL_1), String(FP_ENROLL_1) },
   { String(WIFI_SSID_2), String(WIFI_PASS_2), String(SERVER_URL_2), String(FP_ENROLL_2) },
-  { String(WIFI_SSID_3), String(WIFI_PASS_3), String(SERVER_URL_3), String(FP_ENROLL_3) }
+  { String(WIFI_SSID_3), String(WIFI_PASS_3), String(SERVER_URL_3), String(FP_ENROLL_3) },
+  { String(WIFI_SSID_4), String(WIFI_PASS_4), String(SERVER_URL_4), String(FP_ENROLL_4) }
 };
 const int NETWORK_COUNT = sizeof(networks) / sizeof(networks[0]);
 
@@ -93,6 +98,8 @@ bool enrollmentMode = false;
 String enrollmentUserId = "";
 int enrollmentSlotId = 0;
 String enrollmentType = "";
+int fpEnrollStage = 0;
+unsigned long fpEnrollStart = 0;
 
 String pendingUID = "";
 unsigned long pendingStart = 0;
@@ -248,15 +255,191 @@ void updateSolenoid() {
   }
 }
 
+// ── SECURED WEB SERIAL CONSOLE ─────────────────────────────────────
+#ifndef WEB_CONSOLE_USER
+#define WEB_CONSOLE_USER "admin"
+#endif
+#ifndef WEB_CONSOLE_PASS
+#define WEB_CONSOLE_PASS "machip2026"
+#endif
+
+WebServer webServer(80);
+static bool webServerStarted = false;
+
+const int LOG_MAX_ENTRIES = 60;
+String webLogBuffer[LOG_MAX_ENTRIES];
+int logHead = 0;
+int logCount = 0;
+
+void sysLog(const String &msg) {
+  Serial.println(msg);
+  
+  unsigned long ms = millis();
+  unsigned long sec = ms / 1000;
+  unsigned long min = (sec / 60) % 60;
+  unsigned long hr = (sec / 3600) % 24;
+  sec = sec % 60;
+  
+  char timeStr[16];
+  snprintf(timeStr, sizeof(timeStr), "[%02lu:%02lu:%02lu] ", hr, min, sec);
+  
+  webLogBuffer[logHead] = String(timeStr) + msg;
+  logHead = (logHead + 1) % LOG_MAX_ENTRIES;
+  if (logCount < LOG_MAX_ENTRIES) logCount++;
+}
+
+const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAChip Hardware Console</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
+    body { background-color: #0f172a; color: #e2e8f0; display: flex; flex-direction: column; height: 100vh; padding: 16px; }
+    .header { display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 12px 20px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #334155; }
+    .title { font-size: 1.1rem; font-weight: 700; color: #f97316; display: flex; align-items: center; gap: 8px; }
+    .status-badge { background: #166534; color: #4ade80; font-size: 0.8rem; padding: 4px 10px; border-radius: 9999px; font-weight: 600; }
+    .toolbar { display: flex; gap: 12px; align-items: center; }
+    button { background: #ef4444; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+    button:hover { opacity: 0.85; }
+    .label-check { font-size: 0.85rem; display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+    .console-box { flex: 1; background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 14px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.9rem; line-height: 1.5; color: #22c55e; white-space: pre-wrap; word-break: break-all; }
+    .log-line { border-bottom: 1px solid #0f172a; padding: 2px 0; }
+    .log-err { color: #f87171; }
+    .log-warn { color: #fbbf24; }
+    .log-info { color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">⚡ MAChip ESP32 Live Terminal</div>
+    <div class="toolbar">
+      <span class="status-badge" id="status">● ONLINE</span>
+      <label class="label-check"><input type="checkbox" id="autoscroll" checked> Auto-Scroll</label>
+      <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+  </div>
+  <div class="console-box" id="console">Loading live logs...</div>
+  <script>
+    const consoleBox = document.getElementById('console');
+    const autoScrollCheck = document.getElementById('autoscroll');
+    
+    async function fetchLogs() {
+      try {
+        const res = await fetch('/console/logs');
+        if (res.status === 401) { location.reload(); return; }
+        const logs = await res.json();
+        if (logs.length === 0) {
+          consoleBox.innerHTML = '<div class="log-line" style="color:#64748b;">No logs recorded yet.</div>';
+          return;
+        }
+        let html = '';
+        logs.forEach(msg => {
+          let cls = '';
+          if (msg.includes('FAILED') || msg.includes('Fail') || msg.includes('Error') || msg.includes('ERROR')) cls = 'log-err';
+          else if (msg.includes('WARN') || msg.includes('OTA UPDATE')) cls = 'log-warn';
+          else if (msg.includes('[WIFI]') || msg.includes('[SYSTEM]') || msg.includes('CONNECTED') || msg.includes('[OTA]')) cls = 'log-info';
+          html += `<div class="log-line ${cls}">${escapeHtml(msg)}</div>`;
+        });
+        consoleBox.innerHTML = html;
+        if (autoScrollCheck.checked) consoleBox.scrollTop = consoleBox.scrollHeight;
+      } catch (err) {
+        const st = document.getElementById('status');
+        st.innerText = '● DISCONNECTED';
+        st.style.background = '#991b1b';
+        st.style.color = '#fca5a5';
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    async function clearLogs() {
+      await fetch('/console/clear', { method: 'POST' });
+      fetchLogs();
+    }
+
+    setInterval(fetchLogs, 1500);
+    fetchLogs();
+  </script>
+</body>
+</html>
+)rawliteral";
+
+void handleConsoleUI() {
+  if (!webServer.authenticate(WEB_CONSOLE_USER, WEB_CONSOLE_PASS)) {
+    return webServer.requestAuthentication(BASIC_AUTH, "MAChip Admin Auth Required");
+  }
+  webServer.send(200, "text/html", CONSOLE_HTML);
+}
+
+void handleConsoleLogs() {
+  if (!webServer.authenticate(WEB_CONSOLE_USER, WEB_CONSOLE_PASS)) {
+    return webServer.requestAuthentication(BASIC_AUTH, "MAChip Admin Auth Required");
+  }
+  JsonDocument doc;
+  JsonArray array = doc.to<JsonArray>();
+
+  int start = (logCount < LOG_MAX_ENTRIES) ? 0 : logHead;
+  for (int i = 0; i < logCount; i++) {
+    int index = (start + i) % LOG_MAX_ENTRIES;
+    array.add(webLogBuffer[index]);
+  }
+
+  String response;
+  serializeJson(doc, response);
+  webServer.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  webServer.sendHeader("Pragma", "no-cache");
+  webServer.sendHeader("Expires", "0");
+  webServer.send(200, "application/json", response);
+}
+
+void handleConsoleClear() {
+  if (!webServer.authenticate(WEB_CONSOLE_USER, WEB_CONSOLE_PASS)) {
+    return webServer.requestAuthentication(BASIC_AUTH, "MAChip Admin Auth Required");
+  }
+  logHead = 0;
+  logCount = 0;
+  webServer.send(200, "application/json", "{\"success\":true}");
+}
+
+void setupWebConsole() {
+  if (webServerStarted) return;
+
+  webServer.on("/", HTTP_GET, handleConsoleUI);
+  webServer.on("/console", HTTP_GET, handleConsoleUI);
+  webServer.on("/console/logs", HTTP_GET, handleConsoleLogs);
+  webServer.on("/console/clear", HTTP_POST, handleConsoleClear);
+
+  webServer.begin();
+  webServerStarted = true;
+
+  sysLog(F("=========================================================="));
+  sysLog(F(" 🌐 MACHIP SECURED WEB SERIAL CONSOLE INITIALIZED"));
+  sysLog(" └─ URL:      http://" + WiFi.localIP().toString() + "/console");
+  sysLog(F(" └─ mDNS:     http://machip-esp32.local/console"));
+  sysLog(" └─ Username: " + String(WEB_CONSOLE_USER));
+  sysLog(" └─ Password: " + String(WEB_CONSOLE_PASS));
+  sysLog(F("=========================================================="));
+}
+
 // ── WIFI ──────────────────────────────────────────────────────────
 bool autoConnectWiFi() {
   if (WiFi.status() == WL_CONNECTED) return true;
-  Serial.println(F("\n[WIFI] Connecting..."));
+  Serial.println(F("\n[WIFI] Searching and connecting to configured networks..."));
   updateFrontDisplay("NET CONFIG", "Linking to LAN AP...", ST77XX_YELLOW);
   updateBackDisplay("WIFI LINK", "Connecting...");
 
   for (int i = 0; i < NETWORK_COUNT; i++) {
     if (networks[i].ssid == "") continue;
+
+    Serial.print(F("[WIFI] Connecting to ["));
+    Serial.print(networks[i].ssid);
+    Serial.print(F("] "));
+
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF); delay(300);
     WiFi.mode(WIFI_STA); delay(300);
@@ -270,12 +453,20 @@ bool autoConnectWiFi() {
     if (WiFi.status() == WL_CONNECTED) {
       currentServerUrl = networks[i].serverUrl;
       currentFpUrl = networks[i].fpEnrollUrl;
-      Serial.println(F("\n[WIFI] Connected!"));
-      updateFrontDisplay("ONLINE", "System Pipeline Ready", ST77XX_GREEN);
-      updateBackDisplay("ONLINE", "Ready to Scan");
+      Serial.println(F(" [CONNECTED]"));
+      
+      String ipMsg = "[WIFI] IP Address: " + WiFi.localIP().toString();
+      sysLog(ipMsg);
+      
+      updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
+      updateBackDisplay("ONLINE", WiFi.localIP().toString());
       return true;
+    } else {
+      Serial.println(F(" [FAILED]"));
     }
   }
+
+  sysLog(F("[WIFI] All network connection attempts failed. Entering offline mode."));
   updateFrontDisplay("OFFLINE", "LAN Local Database Mode", ST77XX_RED);
   updateBackDisplay("OFFLINE", "Local Base Mode");
   return false;
@@ -394,6 +585,57 @@ void uploadEnrollment(int slotId, bool success, String userId, String templateHe
   http.end();
 }
 
+// ── ARDUINO OTA INITIALIZATION ─────────────────────────────────────
+static bool otaInitialized = false;
+
+void setupOTA() {
+  if (otaInitialized) return;
+
+  // Set Hostname for local mDNS resolution (machip-esp32.local)
+  ArduinoOTA.setHostname("machip-esp32");
+
+  // Optional: Password protection for network updates
+  // ArduinoOTA.setPassword("machip2026");
+
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH) {
+      type = "sketch";
+    } else { // U_SPIFFS / U_LITTLEFS
+      type = "filesystem";
+    }
+    Serial.println("[OTA] Firmware update started: " + type);
+    updateFrontDisplay("OTA UPDATE", "Flashing new firmware...", ST77XX_YELLOW);
+    updateBackDisplay("OTA UPDATE", "Do not power off!");
+  });
+
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[OTA] Firmware update complete!");
+    updateFrontDisplay("OTA COMPLETE", "Rebooting system...", ST77XX_GREEN);
+    updateBackDisplay("OTA COMPLETE", "Rebooting...");
+  });
+
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    int pct = (progress / (total / 100));
+    Serial.printf("[OTA] Progress: %u%%\r", pct);
+  });
+
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("[OTA] Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    updateFrontDisplay("OTA ERROR", "Update Failed!", ST77XX_RED);
+    updateBackDisplay("OTA ERROR", "Update Failed");
+  });
+
+  ArduinoOTA.begin();
+  otaInitialized = true;
+  Serial.println(F("[OTA] ArduinoOTA service initialized and listening on LAN"));
+}
+
 // ── INITIALIZATION ────────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
@@ -446,7 +688,10 @@ void setup() {
   rfidOUT.PCD_Init();
   rfidOUT.PCD_SetAntennaGain(rfidOUT.RxGain_max);
   
-  autoConnectWiFi();
+  if (autoConnectWiFi()) {
+    setupOTA();
+    setupWebConsole();
+  }
   setLED(LED_SLOW_BLINK, LED_OFF);
   
   updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
@@ -455,13 +700,21 @@ void setup() {
 
 // ── MAIN RUNTIME LOOP ─────────────────────────────────────────────
 void loop() {
+  if (WiFi.status() == WL_CONNECTED) {
+    ArduinoOTA.handle();
+    webServer.handleClient();
+  }
+
   updateLEDs();
   updateSolenoid();
 
   if (WiFi.status() != WL_CONNECTED) {
     static unsigned long lastWiFiCheck = 0;
     if (millis() - lastWiFiCheck > 20000) {
-      autoConnectWiFi();
+      if (autoConnectWiFi()) {
+        setupOTA();
+        setupWebConsole();
+      }
       lastWiFiCheck = millis();
     }
   }
@@ -485,13 +738,24 @@ void loop() {
         String type = doc["type"] | "FP";
 
         if (type == "CLEAR_ALL") {
-          updateFrontDisplay("HARDWARE RESET", "Clearing sensor memory...", ST77XX_RED);
-          Serial.println(F("[FP] EXECUTING FACTORY RESET..."));
+          sysLog("[FP-REMOVE] EXECUTING FULL R307 HARDWARE FACTORY RESET...");
+          updateFrontDisplay("HARDWARE RESET", "Wiping sensor memory...", ST77XX_RED);
           
-          if (finger.emptyDatabase() == FINGERPRINT_OK) {
+          bool wiped = (finger.emptyDatabase() == FINGERPRINT_OK);
+          if (!wiped) {
+            sysLog("[FP-REMOVE] emptyDatabase command failed. Executing slot-by-slot purge (1 to 162)...");
+            for (int i = 1; i <= 162; i++) {
+              finger.deleteModel(i);
+            }
+            wiped = true;
+          }
+          
+          if (wiped) {
+            sysLog("[FP-REMOVE] [SUCCESS] All physical R307 fingerprint slots (1-162) wiped clean!");
             updateFrontDisplay("SUCCESS", "Sensor memory wiped.", ST77XX_GREEN);
             provideFeedback(SUCCESS_OK);
           } else {
+            sysLog("[FP-ERROR] Failed to clear sensor memory.");
             updateFrontDisplay("ERROR", "Failed to clear sensor.", ST77XX_RED);
             provideFeedback(ERROR_FAIL);
           }
@@ -530,11 +794,31 @@ void loop() {
           updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
           updateBackDisplay("READY", "Scan Card Out");
         }
+        else if (type == "DELETE_SLOT") {
+          int targetSlot = doc["slotId"] | 0;
+          if (targetSlot > 0) {
+            Serial.printf("[FP] CANCELLED ENROLLMENT: PURGING SLOT %d FROM R307 SENSOR...\n", targetSlot);
+            updateFrontDisplay("ROLLBACK", "Purging cancelled slot " + String(targetSlot), ST77XX_YELLOW);
+            if (finger.deleteModel(targetSlot) == FINGERPRINT_OK) {
+              sysLog("[FP] Slot " + String(targetSlot) + " successfully deleted from R307 memory.");
+            } else {
+              sysLog("[FP] Slot " + String(targetSlot) + " cleared or already empty.");
+            }
+          }
+          delay(1000);
+          HTTPClient clearHttp;
+          clearHttp.begin(currentFpUrl + "/session/clear");
+          clearHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+          clearHttp.GET(); clearHttp.end();
+          updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+        }
         else {
           enrollmentMode = true;
           enrollmentUserId = doc["userId"].as<String>();
           enrollmentSlotId = doc["slotId"] | 1;
           enrollmentType = type;
+          fpEnrollStage = 0; // Always force clean state machine restart
+          fpEnrollStart = millis();
           
           provideFeedback(WAITING_SCAN);
           updateFrontDisplay("ENROLL ACTIVE", "ID: " + enrollmentUserId + " | Mode: " + enrollmentType, ST77XX_ORANGE);
@@ -576,13 +860,58 @@ void loop() {
 
   // ── ENROLLMENT PIPELINE: FINGERPRINT ─────────────────────────────
   else if (enrollmentMode && enrollmentType == "FP") {
-    static unsigned long fpEnrollStart = 0;
-    static int fpEnrollStage = 0;
-    
+    // Check for web app cancellation during enrollment
+    static unsigned long lastFPCheck = 0;
+    if (millis() - lastFPCheck > 2000) {
+      lastFPCheck = millis();
+      HTTPClient httpCheck;
+      httpCheck.begin(currentFpUrl + "/session");
+      httpCheck.addHeader("x-esp32-key", String(ESP32_API_KEY));
+      int cCode = httpCheck.GET();
+      if (cCode == 200) {
+        JsonDocument cDoc;
+        deserializeJson(cDoc, httpCheck.getString());
+        bool active = cDoc["active"] | false;
+        String cType = cDoc["type"] | "";
+        if (!active || cType == "DELETE_SLOT") {
+          sysLog("[FP-CANCEL] Session cancelled by web application. Aborting enrollment for Slot " + String(enrollmentSlotId));
+          if (cType == "DELETE_SLOT" || !active) {
+            int targetSlot = cDoc["slotId"] | enrollmentSlotId;
+            if (targetSlot > 0) {
+              if (finger.deleteModel(targetSlot) == FINGERPRINT_OK) {
+                sysLog("[FP-REMOVE] Slot " + String(targetSlot) + " purged from R307 flash memory.");
+              } else {
+                sysLog("[FP-REMOVE] Slot " + String(targetSlot) + " was already empty.");
+              }
+            }
+          }
+          enrollmentMode = false;
+          fpEnrollStage = 0;
+          updateFrontDisplay("CANCELLED", "Enrollment Aborted", ST77XX_YELLOW);
+          delay(1200);
+          updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+          httpCheck.end();
+          return;
+        }
+      }
+      httpCheck.end();
+    }
+
     if (fpEnrollStage == 0) {
-      updateFrontDisplay("ENROLL BIOMETRIC", "Press pad firmly with finger...", ST77XX_BLUE);
-      fpEnrollStart = millis();
-      fpEnrollStage = 1;
+      int p = finger.getImage();
+      if (p == FINGERPRINT_NOFINGER) {
+        sysLog("[FP-ADD] Session initialized for User: " + enrollmentUserId + " | Target Slot: " + String(enrollmentSlotId));
+        updateFrontDisplay("ENROLL BIOMETRIC", "Press pad firmly with finger...", ST77XX_BLUE);
+        fpEnrollStart = millis();
+        fpEnrollStage = 1;
+      } else {
+        static unsigned long lastLiftWarn = 0;
+        if (millis() - lastLiftWarn > 1500) {
+          lastLiftWarn = millis();
+          sysLog("[FP-STAGE-0] Finger resting on pad. Waiting for finger to be lifted...");
+          updateFrontDisplay("RELEASE SENSOR", "Lift finger off pad first...", ST77XX_YELLOW);
+        }
+      }
     }
     
     if (fpEnrollStage == 1) {
@@ -590,12 +919,14 @@ void loop() {
       if (p == FINGERPRINT_OK) {
         p = finger.image2Tz(1);
         if (p == FINGERPRINT_OK) {
-          // --- NEW DEDUPLICATION CHECK ---
+          sysLog("[FP-STAGE-1] Scan 1 captured into Buffer 1.");
+
+          // --- DEDUPLICATION CHECK (IGNORE SAME SLOT RE-ENROLLMENT) ---
           p = finger.fingerFastSearch();
-          if (p == FINGERPRINT_OK) {
+          if (p == FINGERPRINT_OK && finger.fingerID != enrollmentSlotId) {
+            sysLog("[FP-ERROR] DUPLICATE DETECTED: Finger matches existing Slot " + String(finger.fingerID));
             updateFrontDisplay("DUPLICATE", "Finger already enrolled!\nAbort and Check Admin", ST77XX_RED);
             provideFeedback(ERROR_FAIL);
-            // Send special "DUPLICATE" string in template field to notify backend
             uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "DUPLICATE:" + String(finger.fingerID));
             enrollmentMode = false; fpEnrollStage = 0;
             delay(3000);
@@ -605,6 +936,7 @@ void loop() {
           }
           // --- END CHECK ---
           
+          sysLog("[FP-STAGE-1] [SUCCESS] Scan 1 valid. Promitted: Release finger from sensor...");
           updateFrontDisplay("ENROLL BIOMETRIC", "First Scan OK! Release sensor...", ST77XX_YELLOW);
           beep(100);
           fpEnrollStart = millis();
@@ -613,6 +945,7 @@ void loop() {
       }
       
       if (millis() - fpEnrollStart > 30000) {
+        sysLog("[FP-ERROR] Stage 1 timeout (30s). Aborting enrollment.");
         uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
         provideFeedback(ERROR_FAIL);
         enrollmentMode = false; fpEnrollStage = 0;
@@ -622,10 +955,21 @@ void loop() {
     }
     
     else if (fpEnrollStage == 2) {
-      if (millis() - fpEnrollStart > 2000) {
+      // Require finger to be lifted off sensor before proceeding to Scan 2
+      int p = finger.getImage();
+      if (p == FINGERPRINT_NOFINGER || (millis() - fpEnrollStart > 1000 && p != FINGERPRINT_OK)) {
+        sysLog("[FP-STAGE-2] [SUCCESS] Finger released from sensor pad. Advancing to Scan 2.");
         updateFrontDisplay("ENROLL BIOMETRIC", "Verify: Press same finger again...", ST77XX_BLUE);
+        beep(80);
         fpEnrollStart = millis();
         fpEnrollStage = 3;
+      } else if (millis() - fpEnrollStart > 10000) {
+        sysLog("[FP-ERROR] Stage 2 timeout waiting for finger release. Aborting.");
+        uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
+        provideFeedback(ERROR_FAIL);
+        enrollmentMode = false; fpEnrollStage = 0;
+        setLED(LED_SLOW_BLINK, LED_OFF);
+        updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
       }
     }
     
@@ -634,17 +978,22 @@ void loop() {
       if (p == FINGERPRINT_OK) {
         p = finger.image2Tz(2);
         if (p == FINGERPRINT_OK) {
+          sysLog("[FP-STAGE-3] Scan 2 captured into Buffer 2.");
           if (finger.createModel() == FINGERPRINT_OK) {
+            sysLog("[FP-STAGE-3] [SUCCESS] Scan 1 & Scan 2 templates MATCHED!");
             if (finger.storeModel(enrollmentSlotId) == FINGERPRINT_OK) {
               String templateHex = downloadTemplate();
+              sysLog("[FP-SUCCESS] Slot " + String(enrollmentSlotId) + " written to R307 flash memory & uploaded.");
               uploadEnrollment(enrollmentSlotId, true, enrollmentUserId, templateHex);
               provideFeedback(SUCCESS_OK);
               updateFrontDisplay("SUCCESS", "Biometric Slot " + String(enrollmentSlotId) + " Saved", ST77XX_GREEN);
             } else {
+              sysLog("[FP-ERROR] Failed to store model into Slot " + String(enrollmentSlotId));
               uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
               provideFeedback(ERROR_FAIL);
             }
           } else {
+            sysLog("[FP-ERROR] Templates DO NOT MATCH! Scan 1 != Scan 2");
             updateFrontDisplay("MISMATCH", "Templates do not match", ST77XX_RED);
             uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
             provideFeedback(ERROR_FAIL);
@@ -657,6 +1006,7 @@ void loop() {
       }
       
       if (millis() - fpEnrollStart > 30000) {
+        sysLog("[FP-ERROR] Stage 3 timeout (30s). Aborting enrollment.");
         uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
         provideFeedback(ERROR_FAIL);
         enrollmentMode = false; fpEnrollStage = 0;
@@ -691,6 +1041,8 @@ void loop() {
       rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
       digitalWrite(SS_PIN_IN, HIGH); // Isolate card reader completely
 
+      sysLog("[FRONT READ] Card scanned: " + currentUID);
+
       if (WiFi.status() == WL_CONNECTED) {
         HTTPClient http;
         http.begin(currentServerUrl);
@@ -712,28 +1064,45 @@ void loop() {
           deserializeJson(resDoc, http.getString());
           if (resDoc["success"] | false) {
             if (resDoc["mode"] == "WAITING_FOR_FINGERPRINT_2FA") {
+              sysLog("[2FA] Challenge triggered for Card " + currentUID);
               updateFrontDisplay("2FA CHALLENGE", "Scan biometric token now...", ST77XX_CYAN);
               provideFeedback(WAITING_SCAN);
               pendingUID = currentUID;
               pendingExpectedFingerID = resDoc["expectedFingerId"] | -1;
               pendingStart = millis();
             } else {
-              String name = resDoc["employeeName"] | "Employee";
+              String name = resDoc["employeeName"] | resDoc["name"] | "Employee";
+              sysLog("[ACCESS APPROVED] Clocked in: " + name + " (" + currentUID + ")");
               updateFrontDisplay("VERIFIED", name + "\nAttendance Clocked In", ST77XX_GREEN);
               provideFeedback(SUCCESS_OK);
               solenoidUnlock();
             }
           } else {
             String errMsg = resDoc["message"] | "Access Rejected";
-            updateFrontDisplay("DENIED", errMsg, ST77XX_RED);
-            provideFeedback(ERROR_FAIL);
+            String name = resDoc["employeeName"] | resDoc["name"] | "";
+            String modeStr = resDoc["mode"] | "";
+
+            sysLog("[ACCESS DENIED] Card " + currentUID + ": " + errMsg);
+
+            if (modeStr == "FINGERPRINT_REQUIRED" || errMsg.indexOf("Fingerprint") >= 0) {
+              updateFrontDisplay("DENIED", (name != "" ? name + "\n" : "") + "Fingerprint Required!", ST77XX_RED);
+              provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
+            } else if (errMsg.indexOf("Already") >= 0 || errMsg.indexOf("already") >= 0) {
+              updateFrontDisplay("NOTICE", (name != "" ? name + "\n" : "") + errMsg, ST77XX_YELLOW);
+              provideFeedback(WAITING_SCAN); // Gentle notice, solenoid remains LOCKED
+            } else {
+              updateFrontDisplay("DENIED", errMsg, ST77XX_RED);
+              provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
+            }
           }
         } else {
+          sysLog("[HTTP ERROR] Backend connection failed, Code: " + String(httpCode));
           updateFrontDisplay("BUS ERROR", "Database Connection Lost", ST77XX_RED);
           provideFeedback(ERROR_FAIL);
         }
         http.end();
       } else {
+        sysLog("[NET ERROR] WiFi disconnected during scan.");
         updateFrontDisplay("OFFLINE", "Network Pipeline Down", ST77XX_RED);
         provideFeedback(ERROR_FAIL);
       }

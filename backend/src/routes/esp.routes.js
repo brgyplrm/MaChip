@@ -22,6 +22,7 @@ router.get("/status", authMiddleware, rfidController.getHardwareStatus);
 
 // Factory Reset Hardware (Clear all fingerprints)
 router.post("/factory-reset", authMiddleware, rfidController.factoryResetHardware);
+router.get("/factory-reset-direct", rfidController.factoryResetHardware); // Easy browser/CLI trigger
 
 // Called by ESP32 to confirm enrollment success/fail and upload template
 router.post("/fingerprint/confirm", espValidator, rfidController.confirmFingerprintEnroll);
