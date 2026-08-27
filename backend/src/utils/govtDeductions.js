@@ -267,7 +267,7 @@ exports.computeMonthlyShares = async (dailyRate, periodEndDate = null) => {
  *   - (If client explicitly requests assessing cutoff income directly against monthly limits).
  * -----------------------------------------------------------------------------
  */
-const USE_MONTHLY_PROJECTION = true; // Set to false if client confirms Direct Cutoff Evaluation
+const USE_MONTHLY_PROJECTION = false; // Set to false if client confirms Direct Cutoff Evaluation
 
 exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndDate = null, periodStartDate = null) => {
   const periodTaxableIncome = grossPay - govtDeductionsTotal;

@@ -9,6 +9,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
 const { connectDB, sequelize } = require("./config/sequelize"); 
+const { QueryTypes } = require("sequelize"); 
 const { initSocket } = require("./config/socket");
 const { loginLimiter, generalLimiter, pollingLimiter, HIGH_FREQ_ROUTES } = require("./middleware/rateLimiter");
 const authMiddleware = require("./middleware/auth");
@@ -192,6 +193,27 @@ connectDB().then(async () => {
       console.error("[INIT] Leave balance initialization failed:", err.message);
     }
 
+    // 2.0.2 Verify and Auto-Sync Holidays
+    console.log("[INIT] Checking holiday records...");
+    try {
+      const now = await getSystemTime();
+      const currentYear = now.getFullYear();
+      const [holidayCheck] = await sequelize.query(
+        `SELECT COUNT(*) as count FROM "Holiday" WHERE EXTRACT(YEAR FROM "date") = :currentYear`,
+        { replacements: { currentYear }, type: QueryTypes.SELECT }
+      );
+      const count = parseInt(holidayCheck?.count || 0);
+      if (count === 0) {
+        console.log(`[INIT] No holidays found for ${currentYear}. Automatically fetching Philippine holidays...`);
+        const result = await syncHolidaysService();
+        console.log(`[INIT] Holiday sync complete: ${result.count} holidays processed.`);
+      } else {
+        console.log(`[INIT] Holidays for ${currentYear} are up to date (${count} holidays found).`);
+      }
+    } catch (err) {
+      console.error("[INIT] Holiday check/sync failed:", err.message);
+    }
+
     // 2.2 Check for any pending monthly archives
     console.log("[INIT] Checking for pending log archives...");
     try {
@@ -266,10 +288,17 @@ connectDB().then(async () => {
         }
       }
 
-      // 3. Yearly Holiday Sync (January 1st at 12:01 AM)
-      if (now.getMonth() === 0 && now.getDate() === 1 && hour === 0 && minute === 1) {
-        console.log("[SCHEDULED] January 1st: Syncing holidays for the new year...");
-        syncHolidaysService();
+      // 3. Yearly Holiday Sync & Periodic Auto-Check
+      if ((hour === 4 && minute === 5) || (now.getMonth() === 0 && now.getDate() === 1 && hour === 0 && minute === 1)) {
+        const currentYear = now.getFullYear();
+        const [holidayCheck] = await sequelize.query(
+          `SELECT COUNT(*) as count FROM "Holiday" WHERE EXTRACT(YEAR FROM "date") = :currentYear`,
+          { replacements: { currentYear }, type: QueryTypes.SELECT }
+        );
+        if (parseInt(holidayCheck?.count || 0) === 0) {
+          console.log(`[SCHEDULED] Missing holidays detected for ${currentYear}. Syncing now...`);
+          await syncHolidaysService();
+        }
       }
 
       // 4. Monthly Archival Check (Run once an hour to be safe)

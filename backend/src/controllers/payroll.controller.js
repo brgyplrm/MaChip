@@ -129,6 +129,13 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     return dateObj.getUTCDay() !== 0; // 0 = Sunday
   }).length;
 
+  // 1.1 Check if user is President / Exempt Executive
+  const [empPosition] = await sequelize.query(
+    `SELECT "position", "department" FROM "User" WHERE "user_Id" = :user_Id LIMIT 1`,
+    { replacements: { user_Id }, type: QueryTypes.SELECT }
+  );
+  const isPresident = empPosition?.position?.toUpperCase() === 'PRESIDENT';
+
   // 2. Get holidays in period
   const holidays = await sequelize.query(
     `SELECT *, "date"::text FROM "Holiday" WHERE "date" BETWEEN :period_Start AND :period_End`,
@@ -359,6 +366,15 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     }
   }
 
+  if (isPresident) {
+    absence_Days = 0;
+    tardiness_Mins = 0;
+    unpaidLeave_Days = 0;
+    actual_Worked_Days = totalScheduledDays;
+    actual_Worked_Hrs = totalScheduledDays * 8.0;
+    total_payable_units = totalScheduledDays * 8.0;
+  }
+
   return {
     NoDays_Worked: actual_Worked_Days,
     NoHrs_Worked: Math.round(actual_Worked_Hrs * 100) / 100,
@@ -392,7 +408,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   let hCard = 0, sLoan = 0, hLoan = 0, cLoan = 0, advAmnt = 0, gDed = 0, mpSave = 0, ewLoan = 0;
 
   const user = await sequelize.query(
-    `SELECT u."dailyRate", u."previousDailyRate",
+    `SELECT u."dailyRate", u."previousDailyRate", u."position", u."department",
             d."sss_Share", d."sss_is_manual", d."philhealth_Share", d."ph_is_manual", d."hdmf_Share", d."hdmf_is_manual", d."tax_Share",
             d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
             d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings", d."eastwest_Loan"
@@ -602,10 +618,17 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
 
   const total_OT_Amnt = OT_Amnt + nightOT_Amnt;
   
-  // 4. Attendance Deductions
-  const absence_Amnt = stats.absence_Days * dailyRate; 
-  const tardiness_Amnt = stats.tardiness_Mins * ratePerMin;
-  const unpaidLeave_Amnt = stats.unpaidLeave_Days * dailyRate;
+  // 4. Attendance Deductions (Exempt for President / Managerial)
+  const isPresident = user[0]?.position?.toUpperCase() === 'PRESIDENT';
+  if (isPresident) {
+    stats.absence_Days = 0;
+    stats.tardiness_Mins = 0;
+    stats.unpaidLeave_Days = 0;
+  }
+
+  const absence_Amnt = isPresident ? 0 : (stats.absence_Days * dailyRate); 
+  const tardiness_Amnt = isPresident ? 0 : (stats.tardiness_Mins * ratePerMin);
+  const unpaidLeave_Amnt = isPresident ? 0 : (stats.unpaidLeave_Days * dailyRate);
   const specialHol_Adj = 0;
 
   const incentives = parseFloat(customIncentives || 0); 
@@ -618,7 +641,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   if (isNaN(grossEarnings) || grossEarnings < 0) grossEarnings = 0;
 
   // Actual Basic Pay for internal record (Potential - Absences)
-  const basicPay = potentialBasicPay - absence_Amnt - unpaidLeave_Amnt;
+  const basicPay = isPresident ? potentialBasicPay : (potentialBasicPay - absence_Amnt - unpaidLeave_Amnt);
 
   // 5. Government Deductions
   const govtTotal = grossEarnings > 0 ? (parseFloat(sss_Share || 0) + parseFloat(philhealth_Share || 0) + parseFloat(hdmf_Share || 0)) : 0;

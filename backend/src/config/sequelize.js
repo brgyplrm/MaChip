@@ -287,10 +287,9 @@ const connectDB = async () => {
       "Connection to the database has been established successfully.",
     );
 
-    // Create any missing tables or update existing ones
-    // In production, you'd use migrations, but for this dev setup sync is used.
-    // await sequelize.sync({ alter: true }); // Set to true if you want Sequelize to automatically alter tables to match models
-    
+    // Ensure all base models & tables exist
+    await sequelize.sync();
+
     // Create the 13th Month table if it doesn't exist
     await Payroll_ThirteenthMonth.sync({ alter: true });
 

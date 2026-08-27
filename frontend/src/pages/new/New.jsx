@@ -110,7 +110,6 @@ const New = ({ inputs = [], title }) => {
     account_Number: "",
     bank_Company: "UnionBank of the Philippines",
     bank_AccountName: "",
-    user_RoleId: 3,
   });
 
   // Batch Upload State
