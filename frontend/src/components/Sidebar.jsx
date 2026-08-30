@@ -16,6 +16,7 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DescriptionIcon from '@mui/icons-material/Description';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
 import { useSystemTime } from "../context/SystemTimeContext";
 import { Badge } from "./ui/badge";
@@ -59,6 +60,7 @@ const routeLabels = {
   "hardware" : "Hardware Registry",
   "newUser" : "New User",
   "adminRequests" : "Requests",
+  "adminLoanEnrollment" : "Loan Enrollment",
   "payroll" : "Payroll Management",
   "payrollPeriod" : "Payroll Period",
   "laborBenefits" : "Labor Benefits",
@@ -485,24 +487,7 @@ const Sidebar = ({ children }) => {
                   </SidebarMenuItem>
                 )}
 
-                {/* My Payroll - Employee Only */}
-                {(viewMode === "employee" || Number(roleId) === 3) && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isMyPayrollActive}
-                      className={menuButtonClass(isMyPayrollActive)}
-                    >
-                      <Link to="/employee/payroll">
-                        <CreditCardIcon className="!text-[22px] shrink-0" />
-                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">My Payroll</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-
                 {/* Requests Link */}
-
                 <SidebarMenuItem>
                   <SidebarMenuButton 
                     asChild 
@@ -524,6 +509,38 @@ const Sidebar = ({ children }) => {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+
+                {/* Loan Enrollment - Management Only */}
+                {(isManagement || isSupervisor) && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={location.pathname.startsWith("/adminLoanEnrollment")}
+                      className={menuButtonClass(location.pathname.startsWith("/adminLoanEnrollment"))}
+                    >
+                      <Link to="/adminLoanEnrollment">
+                        <AccountBalanceIcon className="!text-[22px] shrink-0" />
+                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Loan Enrollment</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+
+                {/* My Payroll - Employee Only */}
+                {(viewMode === "employee" || Number(roleId) === 3) && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isMyPayrollActive}
+                      className={menuButtonClass(isMyPayrollActive)}
+                    >
+                      <Link to="/employee/payroll">
+                        <CreditCardIcon className="!text-[22px] shrink-0" />
+                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">My Payroll</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
 
                 {/* Payroll (Dropdown) - Admin Only */}
                 {isManagement && (

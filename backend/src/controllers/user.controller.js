@@ -131,7 +131,18 @@ exports.registerUser = async (req, res) => {
         return res.status(400).json({ error: "Account Number must contain numbers only." });
       }
       if (![12, 15].includes(account_Number.length)) {
-        return res.status(400).json({ error: "Account Number must be 12 or 15 digits." });
+        let msg = "Account Number must be 12 or 15 digits.";
+        if (account_Number.length < 12) {
+          const missing = 12 - account_Number.length;
+          msg = `Account Number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required).`;
+        } else if (account_Number.length > 12 && account_Number.length < 15) {
+          const missing = 15 - account_Number.length;
+          msg = `Account Number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required for 15 digits).`;
+        } else if (account_Number.length > 15) {
+          const extra = account_Number.length - 15;
+          msg = `Account Number must be 12 or 15 digits (${extra} digit${extra > 1 ? "s" : ""} over limit).`;
+        }
+        return res.status(400).json({ error: msg });
       }
     }
 
@@ -734,7 +745,18 @@ exports.updateUser = async (req, res) => {
       return res.status(400).json({ error: "Account Number must contain numbers only." });
     }
     if (![12, 15].includes(account_Number.length)) {
-      return res.status(400).json({ error: "Account Number must be 12 or 15 digits." });
+      let msg = "Account Number must be 12 or 15 digits.";
+      if (account_Number.length < 12) {
+        const missing = 12 - account_Number.length;
+        msg = `Account Number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required).`;
+      } else if (account_Number.length > 12 && account_Number.length < 15) {
+        const missing = 15 - account_Number.length;
+        msg = `Account Number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required for 15 digits).`;
+      } else if (account_Number.length > 15) {
+        const extra = account_Number.length - 15;
+        msg = `Account Number must be 12 or 15 digits (${extra} digit${extra > 1 ? "s" : ""} over limit).`;
+      }
+      return res.status(400).json({ error: msg });
     }
   }
 

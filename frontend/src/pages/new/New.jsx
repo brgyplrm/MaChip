@@ -151,6 +151,10 @@ const New = ({ inputs = [], title }) => {
   const handleInput = (e) => {
     const { id, value } = e.target;
 
+    if (id === "account_Number" && value !== "" && !/^\d+$/.test(value)) {
+      return;
+    }
+
     if (id === "user_Id") {
       setDisplayId(value);
       // Try to extract numeric part for formData
@@ -296,10 +300,20 @@ const New = ({ inputs = [], title }) => {
       if (!formData.bank_Company) newErrors.bank_Company = "Required";
       if (!formData.bank_AccountName?.trim()) newErrors.bank_AccountName = "Required";
       if (!formData.dailyRate || parseFloat(formData.dailyRate) <= 0) newErrors.dailyRate = "Valid Daily Rate is required";
-      if (!formData.account_Number?.trim()) {
+      const accNum = formData.account_Number?.trim() || "";
+      if (!accNum) {
         newErrors.account_Number = "Required";
-      } else if (![12, 15].includes(formData.account_Number.length)) {
-        newErrors.account_Number = "Account number must be 12 or 15 digits.";
+      } else if (!/^\d+$/.test(accNum)) {
+        newErrors.account_Number = "Account number must contain numbers only.";
+      } else if (accNum.length < 12) {
+        const missing = 12 - accNum.length;
+        newErrors.account_Number = `Account number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required).`;
+      } else if (accNum.length > 12 && accNum.length < 15) {
+        const missing = 15 - accNum.length;
+        newErrors.account_Number = `Account number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required for 15 digits).`;
+      } else if (accNum.length > 15) {
+        const extra = accNum.length - 15;
+        newErrors.account_Number = `Account number must be 12 or 15 digits (${extra} digit${extra > 1 ? "s" : ""} over limit).`;
       }
     } else if (step === 3) {
       if (!formData.user_Password || formData.user_Password.length < 6) {

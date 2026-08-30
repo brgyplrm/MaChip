@@ -70,10 +70,20 @@ const validateForm = (formData) => {
     errors.user_EmploymentStatus = "Employment Status is required.";
   }
 
-  if (!formData.account_Number || !formData.account_Number.trim()) {
+  const accNum = formData.account_Number?.trim() || "";
+  if (!accNum) {
     errors.account_Number = "Account number is required.";
-  } else if (![12, 15].includes(formData.account_Number.length)) {
-    errors.account_Number = "Account number must be 12 or 15 digits.";
+  } else if (!/^\d+$/.test(accNum)) {
+    errors.account_Number = "Account number must contain numbers only.";
+  } else if (accNum.length < 12) {
+    const missing = 12 - accNum.length;
+    errors.account_Number = `Account number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required).`;
+  } else if (accNum.length > 12 && accNum.length < 15) {
+    const missing = 15 - accNum.length;
+    errors.account_Number = `Account number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required for 15 digits).`;
+  } else if (accNum.length > 15) {
+    const extra = accNum.length - 15;
+    errors.account_Number = `Account number must be 12 or 15 digits (${extra} digit${extra > 1 ? "s" : ""} over limit).`;
   }
 
   if (!formData.bank_Company) {
