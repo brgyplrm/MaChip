@@ -27,6 +27,25 @@ const EmployeeCalendar = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [pickerMonth, setPickerMonth] = useState(currentDate.getMonth().toString());
+  const [pickerYear, setPickerYear] = useState(currentDate.getFullYear().toString());
+
+  const handleOpenDatePicker = () => {
+    setPickerMonth(currentDate.getMonth().toString());
+    setPickerYear(currentDate.getFullYear().toString());
+    setIsDatePickerOpen(true);
+  };
+
+  const handleApplyDatePicker = () => {
+    setCurrentDate(new Date(parseInt(pickerYear), parseInt(pickerMonth), 1));
+    setIsDatePickerOpen(false);
+  };
+
+  const handleResetToToday = () => {
+    setCurrentDate(new Date(systemToday.getFullYear(), systemToday.getMonth(), 1));
+    setIsDatePickerOpen(false);
+  };
+
   const [selectedDayDetails, setSelectedDayDetails] = useState(null);
   const [selectedHolidayDetails, setSelectedHolidayDetails] = useState(null);
   const [selectedPersonnelAction, setSelectedPersonnelAction] = useState(null);
@@ -314,7 +333,7 @@ const EmployeeCalendar = () => {
                       {/* Clickable Header for Date Picker */}
                       <div 
                         className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity select-none group"
-                        onClick={() => setIsDatePickerOpen(true)}
+                        onClick={handleOpenDatePicker}
                       >
                         <h2 className="text-lg md:text-xl font-bold">{`${monthName} ${year}`}</h2>
                         <CalendarMonthIcon className="h-5 w-5 opacity-70 group-hover:opacity-100 transition-opacity" />
@@ -622,8 +641,14 @@ const EmployeeCalendar = () => {
           )}
 
         {/* DATE PICKER DIALOG */}
-        <Dialog open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-          <DialogContent className="sm:max-w-[300px]">
+        <Dialog open={isDatePickerOpen} onOpenChange={(open) => {
+          setIsDatePickerOpen(open);
+          if (open) {
+            setPickerMonth(currentDate.getMonth().toString());
+            setPickerYear(currentDate.getFullYear().toString());
+          }
+        }}>
+          <DialogContent className="sm:max-w-[360px]">
             <DialogHeader>
               <DialogTitle className="text-[#2A174E] text-lg font-bold text-center">Jump to Date</DialogTitle>
             </DialogHeader>
@@ -631,8 +656,8 @@ const EmployeeCalendar = () => {
               <div className="flex flex-col gap-2">
                 <Label>Select Month</Label>
                 <Select 
-                  value={monthIndex.toString()} 
-                  onValueChange={(val) => setCurrentDate(new Date(year, parseInt(val), 1))}
+                  value={pickerMonth} 
+                  onValueChange={setPickerMonth}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -647,8 +672,8 @@ const EmployeeCalendar = () => {
               <div className="flex flex-col gap-2">
                 <Label>Select Year</Label>
                 <Select 
-                  value={year.toString()} 
-                  onValueChange={(val) => setCurrentDate(new Date(parseInt(val), monthIndex, 1))}
+                  value={pickerYear} 
+                  onValueChange={setPickerYear}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -661,8 +686,20 @@ const EmployeeCalendar = () => {
                 </Select>
               </div>
             </div>
-            <DialogFooter>
-              <Button className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" onClick={() => setIsDatePickerOpen(false)}>
+            <DialogFooter className="grid grid-cols-2 gap-2 w-full pt-1 sm:grid-cols-2 sm:space-x-0">
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full text-slate-700 hover:bg-slate-100 border-slate-200" 
+                onClick={handleResetToToday}
+              >
+                Reset to Today
+              </Button>
+              <Button 
+                type="button" 
+                className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" 
+                onClick={handleApplyDatePicker}
+              >
                 Apply
               </Button>
             </DialogFooter>
@@ -671,56 +708,62 @@ const EmployeeCalendar = () => {
 
         {/* DAY DETAILS DIALOG */}
         <Dialog open={!!selectedDayDetails} onOpenChange={(open) => !open && setSelectedDayDetails(null)}>
-          <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
-            <DialogHeader className="border-b pb-4">
-              <DialogTitle className="text-lg font-bold text-[#2A174E]">
-                Schedule for {selectedDayDetails?.date}
-              </DialogTitle>
-            </DialogHeader>
+          {(() => {
+            const groupedDayEvents = Object.entries(
+              (selectedDayDetails?.events || []).reduce((acc, event) => {
+                if (!acc[event.type]) acc[event.type] = [];
+                acc[event.type].push(event);
+                return acc;
+              }, {})
+            );
+            const isSingleCategory = groupedDayEvents.length <= 1;
 
-            <div className="pt-2 overflow-y-auto custom-scrollbar">
-              {selectedDayDetails?.events.length > 0 ? (
-                // Group events by type
-                Object.entries(
-                  selectedDayDetails.events.reduce((acc, event) => {
-                    if (!acc[event.type]) acc[event.type] = [];
-                    acc[event.type].push(event);
-                    return acc;
-                  }, {})
-                ).map(([type, events]) => {
-                  const config = getEventConfig(type);
-                  
-                  return (
-                    <div key={type} className="mb-6">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className={`w-2 h-2 rounded-full ${config.dot}`}></span>
-                        <h4 className={`text-xs font-bold uppercase tracking-wider ${config.text}`}>
-                          {type}s ({events.length})
-                        </h4>
-                      </div>
+            return (
+              <DialogContent className={`${isSingleCategory ? "sm:max-w-lg" : "sm:max-w-3xl"} max-h-[90vh] flex flex-col transition-all duration-200`}>
+                <DialogHeader className="border-b pb-4">
+                  <DialogTitle className="text-lg font-bold text-[#2A174E]">
+                    Schedule for {selectedDayDetails?.date}
+                  </DialogTitle>
+                </DialogHeader>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {events.map((event, idx) => (
-                          <div key={idx} className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all`}>
-                            <p className={`font-semibold text-sm ${config.text}`}>
-                              {event.name || event.details}
-                            </p>
-                            {event.type === "Field Work" && (
-                              <p className="text-[10px] opacity-70 font-medium italic mt-1">
-                                Automatically credited as 8 hours on-field.
-                              </p>
-                            )}
+                <div className="pt-2 overflow-y-auto custom-scrollbar">
+                  {groupedDayEvents.length > 0 ? (
+                    groupedDayEvents.map(([type, events]) => {
+                      const config = getEventConfig(type);
+                      
+                      return (
+                        <div key={type} className="mb-6 last:mb-2">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className={`w-2 h-2 rounded-full ${config.dot}`}></span>
+                            <h4 className={`text-xs font-bold uppercase tracking-wider ${config.text}`}>
+                              {type}s ({events.length})
+                            </h4>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">No events scheduled.</div>
-              )}
-            </div>
-          </DialogContent>
+
+                          <div className={`grid ${isSingleCategory ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"} gap-3`}>
+                            {events.map((event, idx) => (
+                              <div key={idx} className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all`}>
+                                <p className={`font-semibold text-sm ${config.text}`}>
+                                  {event.name || event.details}
+                                </p>
+                                {event.type === "Field Work" && (
+                                  <p className="text-[10px] opacity-70 font-medium italic mt-1">
+                                    Automatically credited as 8 hours on-field.
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">No events scheduled.</div>
+                  )}
+                </div>
+              </DialogContent>
+            );
+          })()}
         </Dialog>
 
         {/* Global styling for custom scrollbars */}

@@ -57,9 +57,15 @@ const ThirteenthMonth = () => {
 
   // Filter Logic
   const filteredData = useMemo(() => {
-    return previewData.filter(item => 
-      `${item.user_LastName} ${item.user_FirstName}`.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return previewData;
+    return previewData.filter(item => {
+      const firstLast = `${item.user_FirstName || ""} ${item.user_LastName || ""}`.toLowerCase();
+      const lastFirst = `${item.user_LastName || ""} ${item.user_FirstName || ""}`.toLowerCase();
+      const status = (item.existingStatus || "").toLowerCase();
+      const id = String(item.user_Id || "");
+      return firstLast.includes(q) || lastFirst.includes(q) || status.includes(q) || id.includes(q);
+    });
   }, [previewData, searchQuery]);
 
   // Pagination Logic
@@ -318,15 +324,15 @@ const ThirteenthMonth = () => {
                     <div className="relative w-full sm:w-80">
                       <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <Input 
-                        placeholder="Search employee name..." 
+                        placeholder="Search employee name or status..." 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="pl-9"
                       />
                     </div>
-                    {/* <div className="text-sm text-slate-500">
+                    <div className="text-sm text-slate-500 font-medium">
                       Showing {paginatedData.length} of {filteredData.length} employees
-                    </div> */}
+                    </div>
                   </Card>
 
               <Card className="shadow-sm border-0 bg-white mb-6 py-0">
@@ -359,7 +365,7 @@ const ThirteenthMonth = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {previewData.length > 0 ? previewData.map((item) => (
+                      {paginatedData.length > 0 ? paginatedData.map((item) => (
                         <TableRow key={item.user_Id} className={item.deletedAt ? "bg-slate-50/50 grayscale-[0.2]" : ""}>
                           <TableCell className="font-bold text-[#2A174E]">
                             <div className="flex flex-col">
@@ -392,12 +398,11 @@ const ThirteenthMonth = () => {
                       )) : (
                         <TableRow>
                           <TableCell colSpan={6}>
-                              <EmptyState 
-                                  icon={<AssessmentOutlinedIcon className="h-8 w-8 text-slate-400" />}
-                                  title="No 13th Month Pay Records"
-                                  description="There are no 13th month pay records available for the period."
-
-                                />
+                            <EmptyState 
+                              icon={<AssessmentOutlinedIcon className="h-8 w-8 text-slate-400" />}
+                              title="No 13th Month Pay Records"
+                              description={searchQuery ? "No records match your search criteria." : "There are no 13th month pay records available for the period."}
+                            />
                           </TableCell>
                         </TableRow>
                       )}

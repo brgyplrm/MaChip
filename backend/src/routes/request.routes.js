@@ -40,7 +40,7 @@ router.get("/balance/:userId", (req, res, next) => {
   }
   requireStaff(req, res, next);
 }, GetLeaveBalance);
-router.get("/details/:requestId", requireStaff, GetRequestDetails);
+router.get("/details/:requestId", authMiddleware, GetRequestDetails);
 router.get("/:userId", GetUserRequests);
 router.put("/update-status", requireOps, UpdateStatusRequest);
 router.put("/update/:requestId", authMiddleware, UpdateUserRequest);

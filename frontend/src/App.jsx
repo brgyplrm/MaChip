@@ -360,6 +360,11 @@ function App() {
         />
 
         <Route
+          path="/employee"
+          element={<Navigate to="/employee/payroll" replace />}
+        />
+
+        <Route
           path="/employee/payroll"
           element={
             <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>

@@ -25,14 +25,21 @@ exports.GetUserNotifications = async (req, res) => {
       'Irregular logs'
     ];
 
-    if (viewMode === "management") {
-      // Management view: Show ONLY administrative/review notifications
-      query += ` AND "title" IN (:managementTitles)`;
+    // Check user's actual role in database
+    const user = await sequelize.query(`SELECT "user_RoleId" FROM "User" WHERE "user_Id" = :userId`, {
+      replacements: { userId },
+      type: QueryTypes.SELECT
+    });
+    const roleId = user[0]?.user_RoleId;
+    const isManagementRole = roleId === 1 || roleId === 2 || roleId === 4;
+
+    if (!isManagementRole || viewMode === "employee") {
+      // Employee view: Show personal request status notifications
+      query += ` AND "title" NOT IN (:managementTitles)`;
       replacements.managementTitles = managementTitles;
     } else {
-      // Employee view: Show ONLY personal request status notifications
-      // We exclude management titles to keep employee view personal
-      query += ` AND "title" NOT IN (:managementTitles)`;
+      // Management view: Show ONLY administrative/review notifications
+      query += ` AND "title" IN (:managementTitles)`;
       replacements.managementTitles = managementTitles;
     }
 
@@ -125,11 +132,19 @@ exports.GetUnreadCount = async (req, res) => {
       'Irregular logs'
     ];
 
-    if (viewMode === "management") {
-      query += ` AND "title" IN (:managementTitles)`;
+    // Check user's actual role in database
+    const user = await sequelize.query(`SELECT "user_RoleId" FROM "User" WHERE "user_Id" = :userId`, {
+      replacements: { userId },
+      type: QueryTypes.SELECT
+    });
+    const roleId = user[0]?.user_RoleId;
+    const isManagementRole = roleId === 1 || roleId === 2 || roleId === 4;
+
+    if (!isManagementRole || viewMode === "employee") {
+      query += ` AND "title" NOT IN (:managementTitles)`;
       replacements.managementTitles = managementTitles;
     } else {
-      query += ` AND "title" NOT IN (:managementTitles)`;
+      query += ` AND "title" IN (:managementTitles)`;
       replacements.managementTitles = managementTitles;
     }
 

@@ -11,8 +11,16 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 const Notifications = () => {
-  const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
-  const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
+  const [userData, setUserData] = useState(() => JSON.parse(localStorage.getItem("userData")));
+  const roleId = userData?.user_RoleId;
+  const isManagement = roleId === 1 || roleId === 2 || roleId === 4;
+
+  const getInitialViewMode = () => {
+    if (!isManagement) return "employee";
+    return localStorage.getItem("viewMode") || "management";
+  };
+
+  const [viewMode, setViewMode] = useState(getInitialViewMode());
   const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
 
@@ -21,10 +29,12 @@ const Notifications = () => {
   const [rowsPerPage] = useState(10);
   const [goToValue, setGoToValue] = useState("");
 
+  const effectiveViewMode = isManagement ? (viewMode || "management") : "employee";
+
   const fetchNotifications = async () => {
     if (!userData?.user_Id) return;
     try {
-      const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}?viewMode=${viewMode}`);
+      const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}?viewMode=${effectiveViewMode}`);
       if (response.ok) {
         const data = await response.json();
         const formattedData = data.map(n => ({ ...n, id: n.notifId }));
@@ -60,7 +70,9 @@ const Notifications = () => {
 
     const handleStorageChange = () => {
       const updatedUserData = JSON.parse(localStorage.getItem("userData"));
-      const updatedViewMode = localStorage.getItem("viewMode") || "management";
+      const updatedRoleId = updatedUserData?.user_RoleId;
+      const updatedIsManagement = updatedRoleId === 1 || updatedRoleId === 2 || updatedRoleId === 4;
+      const updatedViewMode = updatedIsManagement ? (localStorage.getItem("viewMode") || "management") : "employee";
       setUserData(updatedUserData);
       setViewMode(updatedViewMode);
     };
@@ -74,12 +86,12 @@ const Notifications = () => {
       window.removeEventListener("notificationRefresh", fetchNotifications);
       window.removeEventListener("dataRefresh", fetchNotifications);
     };
-  }, [userData?.user_Id, viewMode]);
+  }, [userData?.user_Id, effectiveViewMode]);
 
   // Reset to page 1 when the user switches view modes
   useEffect(() => {
     setCurrentPage(1);
-  }, [viewMode]);
+  }, [effectiveViewMode]);
 
   const handleMarkAllRead = async () => {
     if (!userData?.user_Id) return;

@@ -1169,11 +1169,23 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
     LEFT JOIN "attendance_status" a ON a."statusId" = r."attendance_StatusId"
     LEFT JOIN "Overtime_Request" ot ON ot."user_Id" = r."user_id" AND ot."OT_DateOf"::date = r."log_Date"::date
     LEFT JOIN "emp_Request" er ON er."emp_reqId" = ot."emp_reqId"
-    WHERE r."log_Date" BETWEEN :startDate AND :endDate
+    WHERE 1=1
   `;
 
-  const replacements = { startDate, endDate };
-  if (user_Id && user_Id !== "All Employees") {
+  const replacements = {};
+  if (startDate && endDate && startDate !== "undefined" && endDate !== "undefined" && startDate !== "" && endDate !== "") {
+    query += ` AND r."log_Date" BETWEEN :startDate AND :endDate`;
+    replacements.startDate = startDate;
+    replacements.endDate = endDate;
+  } else if (startDate && startDate !== "undefined" && startDate !== "") {
+    query += ` AND r."log_Date" >= :startDate`;
+    replacements.startDate = startDate;
+  } else if (endDate && endDate !== "undefined" && endDate !== "") {
+    query += ` AND r."log_Date" <= :endDate`;
+    replacements.endDate = endDate;
+  }
+
+  if (user_Id && user_Id !== "All Employees" && user_Id !== "all") {
     query += ` AND r."user_id" = :user_Id`;
     replacements.user_Id = user_Id;
   } else {
@@ -1189,6 +1201,9 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
   });
 
   // 2. Fetch ALL approved requests for these users in this period
+  const effectiveStart = (startDate && startDate !== "undefined" && startDate !== "") ? startDate : "1970-01-01";
+  const effectiveEnd = (endDate && endDate !== "undefined" && endDate !== "") ? endDate : "2099-12-31";
+
   const requestQuery = `
       SELECT er."user_Id", er."emp_reqTypeId", 
              vl."StartDate" as "vStart", vl."EndDate" as "vEnd", 
@@ -1202,15 +1217,15 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
       WHERE er."emp_reqStatusId" = 2
         AND (
-          (er."emp_reqTypeId" = 1 AND ot."OT_DateOf" BETWEEN :startDate AND :endDate) OR
-          (er."emp_reqTypeId" = 2 AND ow."DateonField" BETWEEN :startDate AND :endDate) OR
-          (er."emp_reqTypeId" = 3 AND (vl."StartDate" <= :endDate AND vl."EndDate" >= :startDate)) OR
-          (er."emp_reqTypeId" = 4 AND (sl."StartDate" <= :endDate AND sl."EndDate" >= :startDate))
+          (er."emp_reqTypeId" = 1 AND ot."OT_DateOf" BETWEEN :effectiveStart AND :effectiveEnd) OR
+          (er."emp_reqTypeId" = 2 AND ow."DateonField" BETWEEN :effectiveStart AND :effectiveEnd) OR
+          (er."emp_reqTypeId" = 3 AND (vl."StartDate" <= :effectiveEnd AND vl."EndDate" >= :effectiveStart)) OR
+          (er."emp_reqTypeId" = 4 AND (sl."StartDate" <= :effectiveEnd AND sl."EndDate" >= :effectiveStart))
         )
   `;
 
   const allApprovedRequests = await sequelize.query(requestQuery, { 
-      replacements: { startDate, endDate }, 
+      replacements: { effectiveStart, effectiveEnd }, 
       type: QueryTypes.SELECT 
   });
 

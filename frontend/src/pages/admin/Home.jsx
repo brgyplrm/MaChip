@@ -118,7 +118,23 @@ const Home = () => {
       const response = await fetchWithAuth("/api/request/all");
       if (response.ok) {
         const data = await response.json();
-        const pending = data.filter(r => r.emp_reqStatusId === 1 || r.emp_reqStatusId === 4).slice(0, 3);
+        const currentUserId = Number(userData?.user_Id || JSON.parse(localStorage.getItem("userData") || "{}")?.user_Id);
+        const userRole = Number(userData?.user_RoleId || JSON.parse(localStorage.getItem("userData") || "{}")?.user_RoleId);
+
+        const pending = data
+          .filter((r) => {
+            const isPendingOrRecommended = r.emp_reqStatusId === 1 || r.emp_reqStatusId === 4;
+            const isNotSelf = Number(r.user_Id) !== currentUserId;
+            
+            if (userRole === 2) {
+              // Supervisors only process standard staff requests
+              return r.emp_reqStatusId === 1 && isNotSelf && Number(r.user_RoleId) === 3;
+            }
+            // Admins (Role 1) and Accountants (Role 4) process requests from other accounts
+            return isPendingOrRecommended && isNotSelf;
+          })
+          .slice(0, 3);
+
         setPendingRequests(pending);
       }
     } catch (error) {
@@ -666,15 +682,15 @@ const Home = () => {
           {/* Occupancy List Section */}
           <div className="w-full mt-3">
             <div className="flex items-center gap-1.5 mb-2 px-1">
-              <h2 className="text-gray-500 font-medium">Today's Office Presence</h2>
-              <Tooltip>
+              {/* <h2 className="text-gray-500 font-medium">Today's Office Presence</h2> */}
+              {/* <Tooltip>
                 <TooltipTrigger asChild>
                   <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-gray-400 hover:text-gray-600 cursor-help" />
                 </TooltipTrigger>
                 <TooltipContent className="bg-slate-900 text-white border-slate-800">
                   Real-time list of employees who have scanned their RFID/fingerprint today, with their check-in and check-out timestamps.
                 </TooltipContent>
-              </Tooltip>
+              </Tooltip> */}
             </div>
             <div className="w-full overflow-x-auto min-w-0 shadow-sm rounded-xl">
               <OccupancyList />

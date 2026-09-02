@@ -962,7 +962,7 @@ const toggleMachipVisibility = (rowId) => {
                     </div>
                     
                     <div className="font-medium">
-                      Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
+                      Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems} {totalItems === 1 ? "log entry" : "log entries"}</span>
                     </div>
                   </div>
 

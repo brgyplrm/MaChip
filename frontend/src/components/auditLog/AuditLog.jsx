@@ -346,7 +346,7 @@ const AuditLogs = () => {
                       </div>
                       <p className="text-4xl font-bold text-[#991b1b]">{stats.securityAlerts}</p>
                     </div>
-                    <p className="text-xs text-[#991b1b]/70 italic mt-4">Deletions and sensitive updates</p>
+                    <p className="text-xs text-[#991b1b]/70 italic mt-4">Sensitive updates</p>
                   </div>
                   <div className="bg-[#991b1b]/10 text-[#991b1b] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                     <WarningAmberIcon className="h-6 w-6" />

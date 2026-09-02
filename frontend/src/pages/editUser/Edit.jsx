@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -579,15 +580,34 @@ const Edit = () => {
         
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full hover:bg-slate-200">
-              <ArrowBackIcon className="text-slate-600" />
-            </Button>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Edit Profile: {formatUserId(userId)}</h1>
-              <span className="text-sm text-slate-500 mt-1 block">Update employee records, compensation, and security access.</span>
+          <TooltipProvider>
+            <div className="group flex items-center gap-0 transition-all">
+              {/* Back Button: Slides in on hover */}
+              <div className="w-0 overflow-hidden group-hover:w-12 transition-all duration-300 ease-in-out shrink-0">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => navigate(-1)} 
+                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E] hover:bg-slate-200/60 rounded-full h-10 w-10"
+                      >
+                        <ArrowBackIcon className="h-6 w-6" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    Back to previous page
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Edit Profile | {formatUserId(userId)}</h1>
+                <span className="text-sm text-slate-500 mt-1 block">Update employee records, compensation, and security access.</span>
+              </div>
             </div>
-          </div>
+          </TooltipProvider>
           <Button onClick={handleSubmit} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm h-11 px-6">
             Save Changes
           </Button>
@@ -624,17 +644,21 @@ const Edit = () => {
                     {/* Avatar Upload */}
                     <div className="flex flex-col items-center justify-center gap-3 w-full md:w-1/4">
                       <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-slate-100 shadow-sm relative group bg-slate-50 flex items-center justify-center">
-                        <img
-                          src={
-                            file
-                              ? URL.createObjectURL(file)
-                              : existingAvatar
-                              ? `/api/uploads/${existingAvatar}`
-                              : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"
-                          }
-                          alt="Avatar"
-                          className="w-full h-full object-cover"
-                        />
+                        {file || existingAvatar ? (
+                          <img
+                            src={
+                              file
+                                ? URL.createObjectURL(file)
+                                : `/api/uploads/${existingAvatar}`
+                            }
+                            alt="Avatar"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-[#2A174E] flex items-center justify-center text-white text-3xl font-bold tracking-wider select-none">
+                            {((formData.user_FirstName?.trim().charAt(0) || "") + (formData.user_LastName?.trim().charAt(0) || "")).toUpperCase() || "U"}
+                          </div>
+                        )}
                         <label htmlFor="file" className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white">
                           <DriveFolderUploadOutlinedIcon />
                         </label>
@@ -645,6 +669,18 @@ const Edit = () => {
                         onChange={(e) => {
                           const selectedFile = e.target.files[0];
                           if (selectedFile) {
+                            const validMimeTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif"];
+                            const validExtensions = [".png", ".jpg", ".jpeg", ".gif"];
+                            const fileName = selectedFile.name.toLowerCase();
+                            const hasValidExt = validExtensions.some((ext) => fileName.endsWith(ext));
+                            const hasValidMime = validMimeTypes.includes(selectedFile.type);
+
+                            if (!hasValidExt && !hasValidMime) {
+                              showToastMsg("File type is not accepted. Only PNG, JPEG, and GIF files are allowed.", "error");
+                              e.target.value = "";
+                              return;
+                            }
+
                             const reader = new FileReader();
                             reader.onload = () => {
                               setTempImageSrc(reader.result);
@@ -654,7 +690,7 @@ const Edit = () => {
                           }
                         }}
                         style={{ display: "none" }}
-                        accept="image/*"
+                        accept=".png, .jpg, .jpeg, .gif, image/png, image/jpeg, image/gif"
                       />
                       <div className="flex flex-col items-center gap-1">
                         <span className="text-xs font-semibold text-slate-500">Upload Photo</span>
@@ -736,7 +772,7 @@ const Edit = () => {
                           onChange={(e) => handleSelectChange("is_solo_parent", e.target.checked)}
                           className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded"
                         />
-                        <Label htmlFor="is_solo_parent" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer">Solo Parent?</Label>
+                        <Label htmlFor="is_solo_parent" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer">Solo Parent</Label>
                       </div>
                     </div>
                   </div>

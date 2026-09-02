@@ -45,9 +45,21 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter (only allow images, pdf, and csv)
+// File filter (strictly allow png, jpeg, gif for profile pictures; images, pdf, and csv for general uploads)
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|pdf|csv/;
+  if (file.fieldname === 'user_ProfilePic' || file.fieldname === 'avatar' || file.fieldname === 'profilePic') {
+    const allowedProfileTypes = /jpeg|jpg|png|gif/;
+    const extname = allowedProfileTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'].includes(file.mimetype);
+
+    if (extname && mimetype) {
+      return cb(null, true);
+    } else {
+      return cb(new Error('File type is not accepted. Only PNG, JPEG, and GIF files are allowed for profile photos!'), false);
+    }
+  }
+
+  const allowedTypes = /jpeg|jpg|png|gif|pdf|csv/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = allowedTypes.test(file.mimetype) || 
                    file.mimetype === 'text/csv' || 
@@ -56,7 +68,7 @@ const fileFilter = (req, file, cb) => {
   if (extname || mimetype) {
     return cb(null, true);
   } else {
-    cb(new Error('Invalid file format. Only images (jpeg, jpg, png), PDF, and CSV are allowed!'), false);
+    cb(new Error('Invalid file format. Only images (jpeg, jpg, png, gif), PDF, and CSV are allowed!'), false);
   }
 };
 

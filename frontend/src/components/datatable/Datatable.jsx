@@ -424,7 +424,7 @@ const Datatable = () => {
                   <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Status</TableHead>
                   <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wide hidden md:table-cell">
                     <div className="flex items-center gap-1">
-                      MaChip ID
+                      MaChip UID
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
@@ -594,7 +594,7 @@ const Datatable = () => {
                 </div>
                 
                 <div className="font-medium">
-                  Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
+                  Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems} accounts</span>
                 </div>
               </div>
 

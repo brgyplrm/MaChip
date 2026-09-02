@@ -12,6 +12,9 @@ import ReplyIcon from "@mui/icons-material/Reply";
 import EditRequestModal from "../../components/EditRequestModal";
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
 import Toast from "../../components/toast/Toast";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
@@ -41,10 +44,19 @@ const UserRequests = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
   const [activeTab, setActiveTab] = useState("submit"); // "submit" or "history"
   const [historyTab, setHistoryTab] = useState("pending"); // "pending", "returned", "past"
+  const [historySearchQuery, setHistorySearchQuery] = useState("");
+  const [historyTypeFilter, setHistoryTypeFilter] = useState("All Types");
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [historyRequests, setHistoryRequests] = useState([]);
   const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0, returned: 0 });
   const [loading, setLoading] = useState(false);
+
+  const isHistoryFiltering = useMemo(() => {
+    return Boolean(
+      historySearchQuery.trim() !== "" || 
+      (historyTypeFilter && historyTypeFilter !== "All Types" && historyTypeFilter !== "all")
+    );
+  }, [historySearchQuery, historyTypeFilter]);
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -851,28 +863,6 @@ const UserRequests = () => {
     }
   };
 
-  // --- Pagination & Formatting Logic for History ---
-  const filteredHistory = historyRequests.filter(req => {
-    if (historyTab === "pending") return req.emp_reqStatusId === 1 || req.emp_reqStatusId === 4;
-    if (historyTab === "returned") return req.emp_reqStatusId === 5;
-    if (historyTab === "past") return req.emp_reqStatusId === 2 || req.emp_reqStatusId === 3;
-    return false;
-  });
-
-  const totalItems = filteredHistory.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const currentHistoryData = filteredHistory.slice(startIndex, endIndex);
-  
-  const currentReq = selectedReqId ? historyRequests.find(r => r.emp_reqId === selectedReqId) : filteredHistory[0];
-
-  useEffect(() => {
-    if (activeTab === "history" && filteredHistory.length > 0 && !selectedReqId) {
-      setSelectedReqId(filteredHistory[0].emp_reqId);
-    }
-  }, [activeTab, historyTab, filteredHistory.length, selectedReqId]);
-
   const formatTime = (time) => {
     if (!time) return "";
     const [hours, minutes] = time.split(":");
@@ -900,7 +890,65 @@ const UserRequests = () => {
                 ? new Date(req.HD_DateOfLeave).toLocaleDateString()
                 : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : 
                 (req.emp_reqTypeId === 13 || req.emp_reqTypeId === 14) ? new Date(req.date_Filed).toLocaleDateString() : "";
-                };
+  };
+
+  // --- Pagination & Formatting Logic for History ---
+  const filteredHistory = useMemo(() => {
+    return historyRequests.filter(req => {
+      // 1. Sub-tab filter (pending, returned, past)
+      let matchesSubTab = false;
+      if (historyTab === "pending") matchesSubTab = req.emp_reqStatusId === 1 || req.emp_reqStatusId === 4;
+      else if (historyTab === "returned") matchesSubTab = req.emp_reqStatusId === 5;
+      else if (historyTab === "past") matchesSubTab = req.emp_reqStatusId === 2 || req.emp_reqStatusId === 3;
+      if (!matchesSubTab) return false;
+
+      // 2. Request Type filter
+      if (historyTypeFilter && historyTypeFilter !== "All Types" && historyTypeFilter !== "all") {
+        const typeMatch = String(req.emp_reqTypeId) === String(historyTypeFilter) || 
+                          (req.reqTypeName && req.reqTypeName.toLowerCase().includes(historyTypeFilter.toLowerCase()));
+        if (!typeMatch) return false;
+      }
+
+      // 3. Search Query filter (search req ID, type name, remarks, dates)
+      if (historySearchQuery.trim()) {
+        const q = historySearchQuery.toLowerCase().trim();
+        const reqIdStr = `req-${req.emp_reqId}`.toLowerCase();
+        const typeNameStr = (req.reqTypeName || "").toLowerCase();
+        const remarksStr = (req.remarks || "").toLowerCase();
+        const datesStr = (getDates(req) || "").toLowerCase();
+        const adminRemarksStr = (req.adminRemarks || req.rejectionReason || "").toLowerCase();
+
+        const matchesQuery = 
+          reqIdStr.includes(q) ||
+          String(req.emp_reqId).includes(q) ||
+          typeNameStr.includes(q) ||
+          remarksStr.includes(q) ||
+          datesStr.includes(q) ||
+          adminRemarksStr.includes(q);
+
+        if (!matchesQuery) return false;
+      }
+
+      return true;
+    });
+  }, [historyRequests, historyTab, historyTypeFilter, historySearchQuery]);
+
+  const totalItems = filteredHistory.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const currentHistoryData = filteredHistory.slice(startIndex, endIndex);
+  
+  const currentReq = selectedReqId ? historyRequests.find(r => r.emp_reqId === selectedReqId) : filteredHistory[0];
+
+  useEffect(() => {
+    if (activeTab === "history" && filteredHistory.length > 0) {
+      const stillExists = filteredHistory.some(r => r.emp_reqId === selectedReqId);
+      if (!stillExists) {
+        setSelectedReqId(filteredHistory[0].emp_reqId);
+      }
+    }
+  }, [activeTab, historyTab, filteredHistory, selectedReqId]);
   const getShortType = (typeName) => {
     if (!typeName) return "REQ";
     const name = typeName.toLowerCase();
@@ -1063,6 +1111,81 @@ const UserRequests = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* History Tab Isolated Filters Card */}
+        {activeTab === "history" && (
+          <Card className="mb-6 shadow-sm border-0 bg-white py-0">
+            <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row gap-4 items-center justify-between">
+              
+              <div className="flex items-center gap-2 font-bold text-slate-700 w-full sm:w-auto">
+                <FilterListIcon className="text-slate-400 h-5 w-5" />
+                <span>Filters</span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto flex-1 justify-end flex-wrap">
+                {/* Search Bar */}
+                <div className="relative w-full sm:w-[260px]">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search by ID, remarks, date..."
+                    value={historySearchQuery}
+                    onChange={(e) => {
+                      setHistorySearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="pl-9 h-9 border-slate-200 focus-visible:ring-[#2A174E] w-full bg-slate-50 text-slate-700 font-medium"
+                  />
+                </div>
+
+                {/* Request Type Dropdown */}
+                <Select
+                  value={historyTypeFilter}
+                  onValueChange={(val) => {
+                    setHistoryTypeFilter(val);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full sm:w-[220px] h-9 border-slate-200 bg-slate-50 font-medium text-slate-700">
+                    <SelectValue placeholder="All Request Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All Types">All Request Types</SelectItem>
+                    <SelectItem value="1">Overtime (OT)</SelectItem>
+                    <SelectItem value="2">Onfield Work</SelectItem>
+                    <SelectItem value="3">Vacation Leave (VL)</SelectItem>
+                    <SelectItem value="4">Sick Leave (SL)</SelectItem>
+                    <SelectItem value="5">Log Correction</SelectItem>
+                    <SelectItem value="6">Emergency Leave (EL)</SelectItem>
+                    <SelectItem value="7">Half-Day</SelectItem>
+                    <SelectItem value="14">Loan Enrollment</SelectItem>
+                    <SelectItem value="8">Maternity Leave</SelectItem>
+                    <SelectItem value="9">Paternity Leave</SelectItem>
+                    <SelectItem value="10">Solo Parent Leave</SelectItem>
+                    <SelectItem value="11">VAWC Leave</SelectItem>
+                    <SelectItem value="12">Special Leave for Women</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Clear Filters Button */}
+                {isHistoryFiltering && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setHistorySearchQuery("");
+                      setHistoryTypeFilter("All Types");
+                      setCurrentPage(1);
+                    }}
+                    className="text-slate-500 hover:text-red-600 font-semibold h-9 gap-1 transition-colors shrink-0"
+                  >
+                    <CloseIcon className="h-4 w-4" /> Clear Filters
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Main Split Content */}
         <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-220px)] min-h-[600px]">

@@ -150,37 +150,115 @@ const RequestDetails = () => {
             </CardContent>
           </Card>
 
-          {/* Schedule Section */}
+          {/* Schedule / Specific Details Section */}
           <Card className="border-0 shadow-sm bg-white">
             <CardHeader className="border-b border-slate-50 pb-4 mb-4">
               <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
-                <CalendarTodayIcon className="text-slate-400 h-5 w-5" /> Requested Schedule
+                <CalendarTodayIcon className="text-slate-400 h-5 w-5" /> Request Details & Schedule
               </CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Duration / Details</label>
-                <p className="font-bold text-[#2A174E]">
-                    {request.VL_NoDays || request.SL_NoDays || request.EL_NoDays || request.ST_NoDays || request.OW_NoDays || 0} Day(s)
-                </p>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time From / Start</label>
-                <p className="font-semibold text-slate-800">
-                  {request.VL_StartDate ? new Date(request.VL_StartDate).toLocaleDateString() : 
-                   request.SL_StartDate ? new Date(request.SL_StartDate).toLocaleDateString() : 
-                   request.ST_StartDate ? new Date(request.ST_StartDate).toLocaleDateString() : 
-                   request.DateonField ? new Date(request.DateonField).toLocaleDateString() : "—"}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time To / End</label>
-                <p className="font-semibold text-slate-800">
-                  {request.VL_EndDate ? new Date(request.VL_EndDate).toLocaleDateString() : 
-                   request.SL_EndDate ? new Date(request.SL_EndDate).toLocaleDateString() : 
-                   request.ST_EndDate ? new Date(request.ST_EndDate).toLocaleDateString() : "—"}
-                </p>
-              </div>
+              {/* Overtime */}
+              {request.emp_reqTypeId === 1 && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">OT Date</label>
+                    <p className="font-semibold text-slate-800">{request.OT_DateOf ? new Date(request.OT_DateOf).toLocaleDateString() : "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time Range</label>
+                    <p className="font-semibold text-slate-800">{formatTime(request.HrFrom)} – {formatTime(request.HrTo)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Hours</label>
+                    <p className="font-bold text-[#2A174E]">{request.Total_Hrs || 0} Hours</p>
+                  </div>
+                </>
+              )}
+
+              {/* Onfield Work */}
+              {request.emp_reqTypeId === 2 && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Date on Field</label>
+                    <p className="font-semibold text-slate-800">{request.DateonField ? new Date(request.DateonField).toLocaleDateString() : "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Destination</label>
+                    <p className="font-semibold text-slate-800">{request.destination || "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Duration</label>
+                    <p className="font-bold text-[#2A174E]">{request.OW_NoHrs || 0} Hours ({request.OW_NoDays || 1} Day)</p>
+                  </div>
+                </>
+              )}
+
+              {/* Log Correction */}
+              {request.emp_reqTypeId === 5 && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Log Date</label>
+                    <p className="font-semibold text-slate-800">{request.LC_logDate ? new Date(request.LC_logDate).toLocaleDateString() : "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Original Log</label>
+                    <p className="font-semibold text-slate-800">In: {request.LC_currentIn || "—"} | Out: {request.LC_currentOut || "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Claimed Corrected Log</label>
+                    <p className="font-bold text-[#2A174E]">In: {formatTime(request.LC_claimedIn) || "—"} | Out: {formatTime(request.LC_claimedOut) || "—"}</p>
+                  </div>
+                </>
+              )}
+
+              {/* Half Day */}
+              {request.emp_reqTypeId === 7 && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Half-Day Date</label>
+                    <p className="font-semibold text-slate-800">{request.HD_DateOfLeave ? new Date(request.HD_DateOfLeave).toLocaleDateString() : "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Period</label>
+                    <p className="font-semibold text-slate-800">{request.HD_period || "—"} {request.HD_timeRange ? `(${request.HD_timeRange})` : ""}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Payment Status</label>
+                    <p className="font-bold text-[#2A174E]">{request.HD_withPayName || "With Pay"}</p>
+                  </div>
+                </>
+              )}
+
+              {/* General Leaves (VL, SL, EL, Maternity, Paternity, Solo Parent, VAWC, Special) */}
+              {![1, 2, 5, 7].includes(request.emp_reqTypeId) && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Duration</label>
+                    <p className="font-bold text-[#2A174E]">
+                      {request.VL_NoDays || request.SL_NoDays || request.EL_NoDays || request.ST_NoDays || 1} Day(s)
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Start Date</label>
+                    <p className="font-semibold text-slate-800">
+                      {request.VL_StartDate ? new Date(request.VL_StartDate).toLocaleDateString() : 
+                       request.SL_StartDate ? new Date(request.SL_StartDate).toLocaleDateString() : 
+                       request.EL_DateOfLeave ? new Date(request.EL_DateOfLeave).toLocaleDateString() : 
+                       request.ST_StartDate ? new Date(request.ST_StartDate).toLocaleDateString() : "—"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">End Date</label>
+                    <p className="font-semibold text-slate-800">
+                      {request.VL_EndDate ? new Date(request.VL_EndDate).toLocaleDateString() : 
+                       request.SL_EndDate ? new Date(request.SL_EndDate).toLocaleDateString() : 
+                       request.EL_DateOfLeave ? new Date(request.EL_DateOfLeave).toLocaleDateString() : 
+                       request.ST_EndDate ? new Date(request.ST_EndDate).toLocaleDateString() : "—"}
+                    </p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -197,19 +275,32 @@ const RequestDetails = () => {
                   }}
                   className="inline-flex items-center text-[#2A174E] font-semibold hover:underline"
                 >
-                  <AttachmentIcon className="mr-1 h-4 w-4" /> View Attachment
+                  <AttachmentIcon className="mr-1 h-4 w-4" /> View Supporting Attachment
                 </button>
               </CardContent>
             </Card>
           )}
 
-          {/* Remarks */}
-          <Card className="border-0 shadow-sm bg-white">
-            <CardContent className="pt-6">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Employee Remarks / Purpose</label>
-              <p className="text-slate-700 italic bg-slate-50 p-4 rounded-xl border border-slate-100">"{request.remarks || "No details provided."}"</p>
-            </CardContent>
-          </Card>
+          {/* Remarks Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="border-0 shadow-sm bg-white">
+              <CardContent className="pt-6">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Employee Purpose / Reason</label>
+                <p className="text-slate-700 italic bg-slate-50 p-4 rounded-xl border border-slate-100">"{request.remarks || "No reason provided."}"</p>
+              </CardContent>
+            </Card>
+
+            {(request.admin_remarks || request.system_remarks) && (
+              <Card className="border-0 shadow-sm bg-white">
+                <CardContent className="pt-6">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Management / Administrator Feedback</label>
+                  <p className="text-slate-700 bg-amber-50/60 p-4 rounded-xl border border-amber-100 font-medium">
+                    {request.admin_remarks || request.system_remarks}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
       </Sidebar>

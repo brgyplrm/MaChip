@@ -20,15 +20,15 @@ const FileViewerModal = ({ isOpen, onClose, fileUrl, fileName }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-4 border-b flex flex-row items-center justify-between shrink-0">
-          <DialogTitle className="text-lg font-bold truncate pr-4">
+      <DialogContent className="sm:max-w-6xl md:max-w-5xl w-[96vw] max-w-[96vw] h-[92vh] flex flex-col p-0 overflow-hidden bg-white shadow-2xl rounded-2xl">
+        <DialogHeader className="px-6 py-4 border-b border-slate-100 flex flex-row items-center justify-between shrink-0 bg-slate-50/50">
+          <DialogTitle className="text-lg font-bold text-slate-800 truncate max-w-[60%]">
             {fileName || "File Viewer"}
           </DialogTitle>
-          <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" asChild className="h-8 mr-2">
+          <div className="flex items-center gap-2 mr-10">
+            <Button variant="outline" size="sm" asChild className="h-8 px-3 text-slate-700 bg-white hover:bg-slate-100 border-slate-200 shadow-xs font-semibold">
               <a href={fullUrl} download target="_blank" rel="noopener noreferrer">
-                <DownloadIcon className="h-4 w-4 mr-1" /> Download
+                <DownloadIcon className="h-4 w-4 mr-1.5 text-[#2A174E]" /> Download
               </a>
             </Button>
           </div>

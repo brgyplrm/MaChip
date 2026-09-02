@@ -54,10 +54,17 @@ const SeparationPay = () => {
 
   // Filtering and Pagination Logic
   const filteredHistory = useMemo(() => {
-    return history.filter(h => 
-      `${h.user_LastName} ${h.user_FirstName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      h.causeName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return history;
+    return history.filter(h => {
+      const firstLast = `${h.user_FirstName || ""} ${h.user_LastName || ""}`.toLowerCase();
+      const lastFirst = `${h.user_LastName || ""} ${h.user_FirstName || ""}`.toLowerCase();
+      const cause = (h.causeName || "").toLowerCase();
+      const reason = (h.reason || "").toLowerCase();
+      const status = (h.status || "").toLowerCase();
+      const id = String(h.user_Id || "");
+      return firstLast.includes(q) || lastFirst.includes(q) || cause.includes(q) || reason.includes(q) || status.includes(q) || id.includes(q);
+    });
   }, [history, searchQuery]);
 
   const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);

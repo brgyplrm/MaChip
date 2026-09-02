@@ -125,8 +125,9 @@ const AdminRequests = () => {
       );
 
       if (response.ok) {
+        const actionLabel = statusId === 2 ? "Approved" : statusId === 3 ? "Rejected" : "Returned";
         setToast({
-          message: `Request ${statusId === 2 ? "Approved" : "Rejected"} successfully!`,
+          message: `Request ${actionLabel} successfully!`,
           type: "success",
         });
         setAdminNote("");
@@ -186,18 +187,17 @@ const AdminRequests = () => {
     let matchesTab = false;
     if (activeTab === "pending") {
       if (userRole === 1) { 
-        // Admins see everything pending, including Supervisor self-requests
+        // Admins see everything in-progress: pending (1), recommended (4), and returned (5)
         matchesTab = isPending || isRecommended || isReturned;
       } else if (userRole === 2 || userRole === 4) {
-        // Supervisors and Accountants see pending requests from others
-        // Matches backend GetPendingCount logic for Supervisors
-        matchesTab = isPending && requesterId !== currentUserId;
+        // Supervisors and Accountants see pending and returned requests from others
+        matchesTab = (isPending || isReturned) && requesterId !== currentUserId;
       }
     } else { 
+      // History tab: strictly for completed records (Approved: 2, Rejected: 3)
       if (userRole === 1) {
         matchesTab = isCompleted;
       } else { 
-        // Supervisors and Accountants see completed/recommended requests
         matchesTab = isRecommended || isCompleted;
       }
     }
@@ -499,7 +499,6 @@ const AdminRequests = () => {
                       <SelectItem value="All">All Statuses</SelectItem>
                       <SelectItem value="Approved">Approved</SelectItem>
                       <SelectItem value="Rejected">Rejected</SelectItem>
-                      <SelectItem value="Returned">Returned</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -623,24 +622,31 @@ const AdminRequests = () => {
                     <div>
                       <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {current.reqTypeName}</h3>
                       <p className="text-sm text-slate-500 mt-1">Submitted on {new Date(current.date_Filed).toLocaleDateString()}</p>
+                      {current.emp_reqStatusId === 5 && (
+                        <div className="mt-2">
+                          <Badge variant="secondary" className="px-3 py-1 text-xs justify-center bg-orange-100 text-orange-800 border border-orange-200 font-semibold w-fit">
+                            Currently Returned
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                     
                     {/* Right Side Grouping Wrapper */}
                     <div className="flex flex-row items-center gap-2 ml-auto md:ml-0 shrink-0">
                       
-                      <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                      <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
                         {/* Pending / Returnable Requests Action Hub */}
-                        {(current.emp_reqStatusId === 1 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
+                        {(current.emp_reqStatusId === 1 || current.emp_reqStatusId === 5 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
                           <>
                             {current.user_Id === userData?.user_Id ? (
                               <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-blue-100 text-blue-800">Your Self-Request</Badge>
                             ) : (userData?.user_RoleId === 4) ? (
                               <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-slate-100 text-slate-500 italic">View Only</Badge>
                             ) : (
-                              <div className="flex gap-2 w-full flex-wrap">
+                              <div className="flex gap-2 w-full flex-wrap items-center">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="flex-1 min-w-[120px]">
+                                    <span className="flex-1 min-w-[110px]">
                                       <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
                                         <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
                                       </Button>
@@ -653,7 +659,7 @@ const AdminRequests = () => {
                                 
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="flex-1 min-w-[120px]">
+                                    <span className="flex-1 min-w-[110px]">
                                       <Button className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
                                         <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
                                       </Button>
@@ -666,7 +672,7 @@ const AdminRequests = () => {
 
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="flex-1 min-w-[120px]">
+                                    <span className="flex-1 min-w-[110px]">
                                       <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 5)}>
                                         <ReplyIcon className="mr-2 h-4 w-4" /> Return
                                       </Button>
@@ -681,8 +687,8 @@ const AdminRequests = () => {
                           </>
                         )}
                         
-                        {/* Completed / Approved / Rejected Request Badges */}
-                        {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || current.emp_reqStatusId === 4) && (
+                        {/* Completed / Approved / Rejected / Recommended Request Badges */}
+                        {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || (current.emp_reqStatusId === 4 && userData?.user_RoleId !== 1)) && (
                           <div className="flex flex-col items-end gap-1">
                             <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(Number(current.emp_reqStatusId))}`}>
                               {current.status}
@@ -986,13 +992,13 @@ const AdminRequests = () => {
                     )}
                   </div>
 
-                  {current.emp_reqStatusId === 1 && userData?.user_RoleId !== 4 && (
+                  {[1, 5].includes(current.emp_reqStatusId) && userData?.user_RoleId !== 4 && (
                     <div className="space-y-3 mt-2">
                       <label className="text-sm font-bold text-slate-800">Admin Note (Optional)</label>
                       <Textarea
                         value={adminNote}
                         onChange={(e) => setAdminNote(e.target.value)}
-                        placeholder="Reason for approval or rejection..."
+                        placeholder="Reason for approval, rejection, or return..."
                         className="h-24 resize-none focus-visible:ring-[#2A174E]"
                       />
                     </div>

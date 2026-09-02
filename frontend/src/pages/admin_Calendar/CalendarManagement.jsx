@@ -43,7 +43,25 @@ const CalendarManagement = () => {
   const [modalType, setModalType] = useState(null); // 'addEvent' or 'editHoliday'
   const [activeTab, setActiveTab] = useState("fieldWork"); // 'fieldWork', 'holiday', 'dueDate'
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [pickerMonth, setPickerMonth] = useState(currentDate.getMonth().toString());
+  const [pickerYear, setPickerYear] = useState(currentDate.getFullYear().toString());
   const [toast, setToast] = useState({ message: "", type: "success" });
+
+  const handleOpenDatePicker = () => {
+    setPickerMonth(currentDate.getMonth().toString());
+    setPickerYear(currentDate.getFullYear().toString());
+    setIsDatePickerOpen(true);
+  };
+
+  const handleApplyDatePicker = () => {
+    setCurrentDate(new Date(parseInt(pickerYear), parseInt(pickerMonth), 1));
+    setIsDatePickerOpen(false);
+  };
+
+  const handleResetToToday = () => {
+    setCurrentDate(new Date(systemToday.getFullYear(), systemToday.getMonth(), 1));
+    setIsDatePickerOpen(false);
+  };
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
@@ -572,7 +590,7 @@ const CalendarManagement = () => {
                 
                 <div 
                   className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity select-none group"
-                  onClick={() => setIsDatePickerOpen(true)}
+                  onClick={handleOpenDatePicker}
                   title="Jump to a specific date"
                 >
                   <h2 className="text-lg md:text-xl font-bold">{`${monthName} ${year}`}</h2>
@@ -892,8 +910,14 @@ const CalendarManagement = () => {
         </div>
 
         {/* DATE PICKER DIALOG */}
-        <Dialog open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-          <DialogContent className="sm:max-w-[300px]">
+        <Dialog open={isDatePickerOpen} onOpenChange={(open) => {
+          setIsDatePickerOpen(open);
+          if (open) {
+            setPickerMonth(currentDate.getMonth().toString());
+            setPickerYear(currentDate.getFullYear().toString());
+          }
+        }}>
+          <DialogContent className="sm:max-w-[360px]">
             <DialogHeader>
               <DialogTitle className="text-[#2A174E] text-lg font-bold text-center">Jump to Date</DialogTitle>
             </DialogHeader>
@@ -901,8 +925,8 @@ const CalendarManagement = () => {
               <div className="flex flex-col gap-2">
                 <Label>Select Month</Label>
                 <Select 
-                  value={monthIndex.toString()} 
-                  onValueChange={(val) => setCurrentDate(new Date(year, parseInt(val), 1))}
+                  value={pickerMonth} 
+                  onValueChange={setPickerMonth}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -917,8 +941,8 @@ const CalendarManagement = () => {
               <div className="flex flex-col gap-2">
                 <Label>Select Year</Label>
                 <Select 
-                  value={year.toString()} 
-                  onValueChange={(val) => setCurrentDate(new Date(parseInt(val), monthIndex, 1))}
+                  value={pickerYear} 
+                  onValueChange={setPickerYear}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -931,8 +955,20 @@ const CalendarManagement = () => {
                 </Select>
               </div>
             </div>
-            <DialogFooter>
-              <Button className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" onClick={() => setIsDatePickerOpen(false)}>
+            <DialogFooter className="grid grid-cols-2 gap-2 w-full pt-1 sm:grid-cols-2 sm:space-x-0">
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full text-slate-700 hover:bg-slate-100 border-slate-200" 
+                onClick={handleResetToToday}
+              >
+                Reset to Today
+              </Button>
+              <Button 
+                type="button" 
+                className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" 
+                onClick={handleApplyDatePicker}
+              >
                 Apply
               </Button>
             </DialogFooter>
@@ -1193,42 +1229,51 @@ const CalendarManagement = () => {
       </Dialog>
 
         <Dialog open={!!selectedDayDetails} onOpenChange={(open) => !open && setSelectedDayDetails(null)}>
-          <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
-            <DialogHeader className="border-b pb-4">
-              <DialogTitle className="text-lg font-bold text-[#2A174E]">Schedule for {selectedDayDetails?.date}</DialogTitle>
-            </DialogHeader>
-            <div className="pt-2 overflow-y-auto custom-scrollbar">
-              {selectedDayDetails?.events.length > 0 ? (
-                Object.entries(selectedDayDetails.events.reduce((acc, event) => {
-                    if (!acc[event.type]) acc[event.type] = [];
-                    acc[event.type].push(event);
-                    return acc;
-                  }, {})).map(([type, events]) => {
-                  const config = getEventConfig(type);
-                  return (
-                    <div key={type} className="mb-6">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className={`w-2 h-2 rounded-full ${config.dot}`}></span>
-                        <h4 className={`text-xs font-bold uppercase tracking-wider ${config.text}`}>{type}s ({events.length})</h4>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {events.map((event, idx) => (
-                          <div key={idx} className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all`}>
-                            <p className={`font-semibold text-sm ${config.text}`}>{event.name || event.details}</p>
-                            {event.type === "Field Work" && (
-                              <p className="text-[10px] opacity-70 font-medium italic mt-1">Auto-credited: {event.hours || 8}hrs</p>
-                            )}
+          {(() => {
+            const groupedDayEvents = Object.entries(
+              (selectedDayDetails?.events || []).reduce((acc, event) => {
+                if (!acc[event.type]) acc[event.type] = [];
+                acc[event.type].push(event);
+                return acc;
+              }, {})
+            );
+            const isSingleCategory = groupedDayEvents.length <= 1;
+
+            return (
+              <DialogContent className={`${isSingleCategory ? "sm:max-w-lg" : "sm:max-w-3xl"} max-h-[90vh] flex flex-col transition-all duration-200`}>
+                <DialogHeader className="border-b pb-4">
+                  <DialogTitle className="text-lg font-bold text-[#2A174E]">Schedule for {selectedDayDetails?.date}</DialogTitle>
+                </DialogHeader>
+                <div className="pt-2 overflow-y-auto custom-scrollbar">
+                  {groupedDayEvents.length > 0 ? (
+                    groupedDayEvents.map(([type, events]) => {
+                      const config = getEventConfig(type);
+                      return (
+                        <div key={type} className="mb-6 last:mb-2">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className={`w-2 h-2 rounded-full ${config.dot}`}></span>
+                            <h4 className={`text-xs font-bold uppercase tracking-wider ${config.text}`}>{type}s ({events.length})</h4>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">No events scheduled.</div>
-              )}
-            </div>
-          </DialogContent>
+                          <div className={`grid ${isSingleCategory ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"} gap-3`}>
+                            {events.map((event, idx) => (
+                              <div key={idx} className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all`}>
+                                <p className={`font-semibold text-sm ${config.text}`}>{event.name || event.details}</p>
+                                {event.type === "Field Work" && (
+                                  <p className="text-[10px] opacity-70 font-medium italic mt-1">Auto-credited: {event.hours || 8}hrs</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">No events scheduled.</div>
+                  )}
+                </div>
+              </DialogContent>
+            );
+          })()}
         </Dialog>
 
         <Dialog open={!!selectedHolidayDetails} onOpenChange={(open) => !open && setSelectedHolidayDetails(null)}>

@@ -23,12 +23,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from "@/components/ui/alert-dialog";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ArchivedUsers = () => {
   const [showPermDelete, setShowPermDelete] = useState(false);
   const [targetUser, setTargetUser] = useState(null);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [userToRestore, setUserToRestore] = useState(null);
+  const [restoring, setRestoring] = useState(false);
   const [archivedUsers, setArchivedUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
@@ -70,20 +83,31 @@ const ArchivedUsers = () => {
     setCurrentPage(1);
   }, [searchQuery, roleFilter, statusFilter, itemsPerPage]);
 
-  const handleRestore = async (user) => {
+  const initiateRestore = (user) => {
+    setUserToRestore(user);
+    setShowRestoreModal(true);
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!userToRestore) return;
+    setRestoring(true);
     try {
-      const response = await fetchWithAuth(`/api/users/restoreUser/${user.user_Id}`, {
+      const response = await fetchWithAuth(`/api/users/restoreUser/${userToRestore.user_Id}`, {
         method: "PATCH",
       });
       if (response.ok) {
-        setArchivedUsers((prev) => prev.filter((u) => u.user_Id !== user.user_Id));
-        setToast({ message: `${user.user_FirstName} ${user.user_LastName} restored successfully.`, type: "success" });
+        setArchivedUsers((prev) => prev.filter((u) => u.user_Id !== userToRestore.user_Id));
+        setToast({ message: `${userToRestore.user_FirstName} ${userToRestore.user_LastName} restored successfully.`, type: "success" });
+        setShowRestoreModal(false);
+        setUserToRestore(null);
       } else {
         const err = await response.json();
         setToast({ message: err.message || "Failed to restore user.", type: "error" });
       }
     } catch (err) {
       setToast({ message: "Network error.", type: "error" });
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -166,43 +190,47 @@ const ArchivedUsers = () => {
   };
 
   return (
-    <div className="flex flex-col w-full min-h-screen">
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
       <TooltipProvider>
         <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
         <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header section with hover-back button */}
-            <div className="group flex items-start md:items-center gap-0 mb-6 transition-all">
-              {/* Back Button: Hidden by default, slides and fades in on hover */}
-              <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-block">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        asChild 
-                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
-                      >
-                        <Link to="/users">
-                          <ArrowBackIcon className="h-6 w-6" />
-                        </Link>
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
-                    Back to User Management
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-
-              {/* Title: Adds left padding when hovered */}
-              <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Archived Users</h1>
-                <span className="text-sm text-slate-500 mt-1 block">Manage archived user records - restore or permanently delete</span>
-              </div>
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6 mb-4">
+          <div className="group flex items-center gap-0 transition-all">
+            {/* Back Button: Hidden by default, slides and fades in on hover */}
+            <div className="w-0 overflow-hidden group-hover:w-12 transition-all duration-300 ease-in-out">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      asChild 
+                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                    >
+                      <Link to="/users">
+                        <ArrowBackIcon className="h-6 w-6" />
+                      </Link>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                  Back to User Management
+                </TooltipContent>
+              </Tooltip>
             </div>
+
+            {/* Title: Adds left padding when hovered */}
+            <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Archived Users</h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Manage archived user records - restore or permanently delete
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
@@ -405,9 +433,9 @@ const ArchivedUsers = () => {
                                     variant="outline" 
                                     size="sm" 
                                     className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white transition-colors"
-                                    onClick={() => handleRestore(user)}
+                                    onClick={() => initiateRestore(user)}
                                   >
-                                    <RestoreIcon className=" h-4 w-4" />
+                                    <RestoreIcon className="h-4 w-4" />
                                   </Button>
                                 </span>
                               </TooltipTrigger>
@@ -499,7 +527,7 @@ const ArchivedUsers = () => {
                   </div>
                   
                   <div className="font-medium">
-                    Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
+                    Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems} {totalItems === 1 ? "archived account" : "archived accounts"}</span>
                   </div>
                 </div>
 
@@ -543,6 +571,48 @@ const ArchivedUsers = () => {
         itemName={targetUser ? `${targetUser.user_FirstName} ${targetUser.user_LastName}` : ""}
         loading={loading}
       />
+
+      {/* Restore User Confirmation Modal */}
+      <AlertDialog open={showRestoreModal} onOpenChange={(open) => {
+        if (!open && !restoring) {
+          setShowRestoreModal(false);
+          setUserToRestore(null);
+        }
+      }}>
+        <AlertDialogContent className="bg-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#2A174E] text-lg font-bold">
+              Confirm Account Restoration
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 text-sm">
+              Are you sure you want to restore the account for{" "}
+              <span className="font-bold text-slate-800">
+                {userToRestore ? `${userToRestore.user_FirstName} ${userToRestore.user_LastName}` : "this user"}
+              </span>{" "}
+              ({userToRestore ? formatUserId(userToRestore.user_Id) : ""})? This will reactivate the employee's profile and restore their access to active listings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              disabled={restoring}
+              onClick={() => {
+                setShowRestoreModal(false);
+                setUserToRestore(null);
+              }}
+              className="border-slate-200"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={restoring}
+              onClick={handleConfirmRestore}
+              className="bg-green-600 hover:bg-green-700 text-white font-medium"
+            >
+              {restoring ? "Restoring..." : "Restore Account"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </TooltipProvider>
       </Sidebar>
     </div>

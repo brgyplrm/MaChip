@@ -294,6 +294,8 @@ exports.UpdateUserRequest = async (req, res) => {
 
 exports.getCalendarReport = async (req, res) => {
   let { startDate, endDate, user_Id } = req.query;
+  startDate = (startDate && startDate !== "undefined" && startDate !== "null" && startDate !== "") ? startDate : "1970-01-01";
+  endDate = (endDate && endDate !== "undefined" && endDate !== "null" && endDate !== "") ? endDate : "2099-12-31";
   try {
     const replacements = { startDate, endDate };
     let userFilter = "";
@@ -2328,6 +2330,11 @@ exports.GetRequestDetails = async (req, res) => {
 
     if (request.length === 0) {
       return res.status(404).json({ error: "Request not found" });
+    }
+
+    // Role check: If regular employee (role 3), verify that they own the request
+    if (req.user && Number(req.user.user_RoleId) === 3 && Number(request[0].user_Id) !== Number(req.user.user_Id)) {
+      return res.status(403).json({ error: "Access denied. You can only view your own request details." });
     }
 
     res.status(200).json(request[0]);

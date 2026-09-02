@@ -271,7 +271,7 @@ const TransactionLog = () => {
                       </div>
                       <p className="text-4xl font-bold text-[#3B4E17]">{stats.payrollReleases}</p>
                     </div>
-                    <p className="text-xs text-[#3B4E17]/70 italic mt-4">Successful fund disbursements</p>
+                    <p className="text-xs text-[#3B4E17]/70 italic mt-4">Successful disbursements</p>
                   </div>
                   <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                     <PaymentsIcon className="h-6 w-6" />

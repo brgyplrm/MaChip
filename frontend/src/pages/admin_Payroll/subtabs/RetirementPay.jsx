@@ -45,6 +45,35 @@ const RetirementPay = () => {
   const [newDate, setNewDate] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  // --- Pagination & Filter States ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
+
+  // Filtering and Pagination Logic
+  const filteredHistory = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return history;
+    return history.filter(h => {
+      const firstLast = `${h.user_FirstName || ""} ${h.user_LastName || ""}`.toLowerCase();
+      const lastFirst = `${h.user_LastName || ""} ${h.user_FirstName || ""}`.toLowerCase();
+      const status = (h.status || "").toLowerCase();
+      const id = String(h.user_Id || "");
+      return firstLast.includes(q) || lastFirst.includes(q) || status.includes(q) || id.includes(q);
+    });
+  }, [history, searchQuery]);
+
+  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+  const paginatedHistory = filteredHistory.slice(
+    (currentPage - 1) * itemsPerPage, 
+    currentPage * itemsPerPage
+  );
+
   const fetchEmployees = async () => {
     try {
       const res = await fetchWithAuth("/api/users/all");
@@ -158,29 +187,6 @@ const RetirementPay = () => {
   };
 
   const formatCurrency = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-// Inside the component:
-const [currentPage, setCurrentPage] = useState(1);
-const [itemsPerPage, setItemsPerPage] = useState(10);
-const [searchQuery, setSearchQuery] = useState("");
-
-// Reset pagination when filter changes
-useEffect(() => {
-  setCurrentPage(1);
-}, [searchQuery, itemsPerPage]);
-
-// Memoized filtered and paginated data
-const filteredHistory = useMemo(() => {
-  return history.filter(h => 
-    `${h.user_LastName} ${h.user_FirstName}`.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-}, [history, searchQuery]);
-
-const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
-const paginatedHistory = filteredHistory.slice(
-  (currentPage - 1) * itemsPerPage, 
-  currentPage * itemsPerPage
-);
 
   return (
     <div className="flex flex-col w-full min-h-screen">
