@@ -851,6 +851,7 @@ exports.getEmployeeDashboardStats = async (req, res) => {
       `SELECT
         er."emp_reqId",
         er."emp_reqTypeId",
+        er."emp_reqStatusId",
         rt."reqTypeName",
         rs."reqStatName" as "status",
         er."date_Filed",

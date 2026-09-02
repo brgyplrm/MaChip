@@ -63,25 +63,28 @@ const AdminRequests = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8; // Showing 8 items per page for a nice fit
 
-  const fetchRequests = async () => {
-    setLoading(true);
+  const fetchRequests = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const response = await fetchWithAuth("/api/request/all");
       const data = await response.json();
-      if (response.ok) {
+      if (response.ok && Array.isArray(data)) {
         setRequests(data);
+      } else {
+        console.warn("[AdminRequests] Failed to refresh requests:", response.status, data);
       }
     } catch (error) {
       console.error("Error fetching requests:", error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRequests();
-    window.addEventListener("dataRefresh", fetchRequests);
-    return () => window.removeEventListener("dataRefresh", fetchRequests);
+    fetchRequests(false);
+    const handleBackgroundRefresh = () => fetchRequests(true);
+    window.addEventListener("dataRefresh", handleBackgroundRefresh);
+    return () => window.removeEventListener("dataRefresh", handleBackgroundRefresh);
   }, []);
 
   // Reset states when changing tabs or filters

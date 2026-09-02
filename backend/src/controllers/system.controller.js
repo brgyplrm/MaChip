@@ -414,7 +414,7 @@ exports.getAuditLogs = async (req, res) => {
     const logs = await sequelize.query(
       `SELECT
          a.*,
-         u."user_FirstName", u."user_LastName"
+         u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId"
        FROM "Audit_Log" a
        LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
        ORDER BY a."createdAt" DESC`,

@@ -693,7 +693,7 @@ const Edit = () => {
                         {renderError("user_Phone")}
                       </div>
                       <div className="space-y-2 sm:col-span-2">
-                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500">*</span></Label>
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address</Label>
                         <Input name="user_Address" value={formData.user_Address} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
                         {renderError("user_Address")}
                       </div>

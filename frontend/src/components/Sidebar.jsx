@@ -224,7 +224,7 @@ const Sidebar = ({ children }) => {
   const fetchUnreadCount = async () => {
     if (!userData?.user_Id) return;
     try {
-      const currentViewMode = localStorage.getItem("viewMode") || "management";
+      const currentViewMode = userData?.user_RoleId === 3 ? "employee" : (localStorage.getItem("viewMode") || "management");
       const response = await fetchWithAuth(`/api/notifications/unread-count/${userData.user_Id}?viewMode=${currentViewMode}`);
       if (response.ok) {
         const data = await response.json();
@@ -236,7 +236,7 @@ const Sidebar = ({ children }) => {
   const fetchLatestNotifications = async () => {
     if (!userData?.user_Id) return;
     try {
-      const currentViewMode = localStorage.getItem("viewMode") || "management";
+      const currentViewMode = userData?.user_RoleId === 3 ? "employee" : (localStorage.getItem("viewMode") || "management");
       const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}?viewMode=${currentViewMode}`);
       if (response.ok) {
         const data = await response.json();
@@ -245,14 +245,62 @@ const Sidebar = ({ children }) => {
     } catch (err) { console.error(err); }
   };
 
+  const handleNotifClick = async (notif) => {
+    setIsNotifLocked(false); 
+    setIsNotifHovered(false);
+
+    if (!notif.isRead) {
+      // 1. Instantly decrement unread count on bell badge
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+
+      // 2. Mark this notification as read in preview dropdown
+      setNotifications((prev) =>
+        prev.map((n) => (n.notifId === notif.notifId ? { ...n, isRead: true } : n))
+      );
+
+      // 3. Persist to backend and notify any listeners
+      try {
+        await fetchWithAuth(`/api/notifications/mark-read/${notif.notifId}`, {
+          method: "PUT",
+        });
+        window.dispatchEvent(new Event("notificationRefresh"));
+      } catch (err) {
+        console.error("Error marking notification as read:", err);
+      }
+    }
+
+    // 4. Navigate to relevant destination
+    if (notif.title === "Password Reset Request" && notif.targetId) {
+      navigate(`/users/edit/${notif.targetId}`);
+    } else if (notif.title === "New Request for Review") {
+      navigate("/adminRequests");
+    } else if (userData?.user_RoleId === 3) {
+      navigate("/userRequests");
+    } else if (notif.targetId) {
+      navigate(`/requests/${notif.targetId}`);
+    }
+  };
+
   useEffect(() => {
     fetchUnreadCount();
     fetchLatestNotifications();
+
+    const handleRefresh = () => {
+      fetchUnreadCount();
+      fetchLatestNotifications();
+    };
+
+    window.addEventListener("notificationRefresh", handleRefresh);
+
     const interval = setInterval(() => {
       fetchUnreadCount();
       fetchLatestNotifications();
     }, 30000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("notificationRefresh", handleRefresh);
+    };
   }, [userData?.user_Id, viewMode]);
 
   // Generate Breadcrumbs based on location
@@ -845,17 +893,7 @@ const Sidebar = ({ children }) => {
                           <div 
                             key={notif.notifId} 
                             className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-[#f0ebfa]/30' : ''}`}
-                            onClick={() => {
-                              setIsNotifLocked(false); 
-                              setIsNotifHovered(false);
-                              if (notif.title === "Password Reset Request" && notif.targetId) {
-                                navigate(`/users/edit/${notif.targetId}`);
-                              } else if (notif.title === "New Request for Review") {
-                                navigate("/adminRequests");
-                              } else if (notif.targetId) {
-                                navigate(`/requests/${notif.targetId}`);
-                              }
-                            }}
+                            onClick={() => handleNotifClick(notif)}
                           >
                             <div className="flex gap-3">
                               {!notif.isRead && (

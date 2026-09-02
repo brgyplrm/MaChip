@@ -31,6 +31,15 @@ import { Switch } from "@/components/ui/switch";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const getMiddleInitial = (middleName) => {
+  if (!middleName || !middleName.trim()) return "";
+  return middleName
+    .trim()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + ".")
+    .join("");
+};
+
 const roleMap = { "Employee": 3, "Supervisor": 2, "Admin Manager": 1, "Admin Accountant": 4 };
 
 const PHILIPPINE_BANKS = [
@@ -696,7 +705,7 @@ const New = ({ inputs = [], title }) => {
                         {/* Info Section */}
                         <div className="pb-6 px-6 text-white text-center">
                           <h2 className="text-lg font-black uppercase leading-tight tracking-tight">
-                            {formData.user_FirstName || "FIRST"} {formData.user_LastName || "LAST"}
+                            {formData.user_FirstName || "FIRST"}{formData.user_MiddleName?.trim() ? ` ${getMiddleInitial(formData.user_MiddleName)}` : ""} {formData.user_LastName || "LAST"}
                           </h2>
                           <p className="text-[11px] font-semibold opacity-90">{formData.user_Role || "EMPLOYEE"}</p>
                           <p className="text-[10px] font-bold mt-1 tracking-widest">ID NO: {displayId || "MACJ-000"}</p>
@@ -799,7 +808,7 @@ const New = ({ inputs = [], title }) => {
                                       className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded cursor-pointer"
                                     />
                                     <Label htmlFor="is_solo_parent" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer whitespace-nowrap flex items-center gap-1">
-                                      Solo Parent?
+                                      Solo Parent
                                       <Tooltip>
                                         <TooltipTrigger asChild>
                                           <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -813,7 +822,7 @@ const New = ({ inputs = [], title }) => {
                                 </div>
                               </div>
                               <div className="space-y-1.5 sm:col-span-2">
-                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500 ml-0.5">*</span></Label>
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Home Address </Label>
                                 <Input id="user_Address" placeholder="123 Main St, Manila" value={formData.user_Address} onChange={handleInput} className="h-11 border-slate-200" />
                               </div>
                               <div className="space-y-1.5">

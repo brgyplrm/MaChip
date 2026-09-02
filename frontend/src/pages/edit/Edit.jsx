@@ -202,7 +202,7 @@ const Edit = ({ inputs, title }) => {
                         
                         {input.label === "MaChip ID" && isAdmin && (
                           <Button 
-                            type="button" 
+                            type="button"   
                             variant="secondary"
                             onClick={handleScanRFID}
                             className="shrink-0 bg-[#2A174E] text-white hover:bg-[#1a0e30] transition-colors"

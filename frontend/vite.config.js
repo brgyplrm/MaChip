@@ -1,4 +1,3 @@
-
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
@@ -23,6 +22,7 @@ export default defineConfig({
       "/api": {
         target: "http://127.0.0.1:4000",
         changeOrigin: true,
+        xfwd: true, // Automatically appends X-Forwarded-For header so Express receives real client LAN IPs
         proxyTimeout: 60000,
         timeout: 60000,
       },

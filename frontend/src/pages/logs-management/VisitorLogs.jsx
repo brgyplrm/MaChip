@@ -147,7 +147,7 @@ const VisitorLogs = () => {
                 <p className="text-3xl font-black text-[#3B4E17]">
                   {logs.find(l => l.loggedStatusName.includes("Opening"))?.time || "--:--"}
                 </p>
-                <span className="text-slate-400 text-sm font-medium">local time</span>
+                <span className="text-slate-400 text-sm font-medium">PHST (UTC+8)</span>
               </div>
               {/* <p className="italic text-[11px] text-slate-400 mt-3 leading-relaxed">
                 Shows the precise time of the most recent authorized visitor access event.

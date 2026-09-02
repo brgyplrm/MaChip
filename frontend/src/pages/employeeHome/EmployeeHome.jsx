@@ -119,6 +119,39 @@ const EmployeeHome = () => {
     }).format(amount || 0);
   };
 
+  const getRequestStatusConfig = (status, statusId) => {
+    const s = (status || "").toLowerCase();
+    const id = Number(statusId);
+
+    if (id === 2 || s.includes("approve")) {
+      return {
+        label: "APPROVED",
+        borderClass: "border-emerald-500",
+        badgeClass: "bg-emerald-500 text-white",
+      };
+    }
+    if (id === 5 || s.includes("return")) {
+      return {
+        label: "RETURNED",
+        borderClass: "border-purple-600",
+        badgeClass: "bg-purple-600 text-white",
+      };
+    }
+    if (id === 3 || s.includes("reject") || s.includes("decline")) {
+      return {
+        label: "REJECTED",
+        borderClass: "border-rose-500",
+        badgeClass: "bg-rose-500 text-white",
+      };
+    }
+    // Default: Pending (1, 4 or other)
+    return {
+      label: status ? status.toUpperCase() : "PENDING",
+      borderClass: "border-amber-500",
+      badgeClass: "bg-amber-500 text-white",
+    };
+  };
+
   // Dynamic Greeting Logic (Match Admin)
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -478,17 +511,19 @@ const EmployeeHome = () => {
                   </div>
                   <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2">
                     {recentRequests.length > 0 ? (
-                      recentRequests.map(req => {
-                        const isApproved = req.status?.toLowerCase().includes("approve");
-                        const boxStyle = isApproved ? "border-green-500" : "border-[#D4AF37]";
+                      recentRequests.map((req) => {
+                        const config = getRequestStatusConfig(req.status, req.emp_reqStatusId);
                         return (
-                          <div key={req.emp_reqId} className={`flex items-center gap-3 p-3.5 rounded-lg hover:bg-slate-100 transition-colors border-l-4 ${boxStyle} bg-slate-50/70 min-w-0`}>
+                          <div
+                            key={req.emp_reqId}
+                            className={`flex items-center gap-3 p-3.5 rounded-lg hover:bg-slate-100 transition-colors border-l-4 ${config.borderClass} bg-slate-50/70 min-w-0`}
+                          >
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-bold text-[#2A174E] truncate">{req.reqTypeName}</p>
                               <p className="text-[10px] text-gray-500 font-medium truncate">{req.remarks || "No description provided"}</p>
                             </div>
-                            <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0 border-0 ${isApproved ? "bg-green-500 text-white" : "bg-amber-500 text-white"}`}>
-                              {req.status}
+                            <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0 border-0 ${config.badgeClass}`}>
+                              {config.label}
                             </Badge>
                           </div>
                         );

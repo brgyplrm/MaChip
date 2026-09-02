@@ -36,55 +36,56 @@ app.use(
 );
 
 const fs = require('fs');
+const { getClientIp, formatUserNumber } = require("./utils/logger");
 const logFile = path.join(__dirname, '../request_debug.log');
-app.use((req, res, next) => {
-  const logEntry = `${new Date().toISOString()} - ${req.method} ${req.url} - Origin: ${req.headers.origin}\n`;
-  fs.appendFileSync(logFile, logEntry);
-  next();
-});
 
-// 4. CORS — must be before rate limiters so OPTIONS preflight isn't rate-limited
-const allowedOrigins = [
-  "http://192.168.254.120:5173",
-  "http://192.168.1.18:5173",
-  "http://localhost:5173",
-  "http://192.168.1.18:5173",
-  "http://192.168.0.101:5173",
-  "http://192.168.1.11:5173"
-
+const SILENT_POLLING_ROUTES = [
+  "/api/esp/fingerprint/session",
+  "/api/notifications/unread-count",
+  "/api/system/time",
+  "/api/attendance/status",
+  "/api/attendance/occupancy"
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith(".trycloudflare.com")) {
-        callback(null, true);
-      } else {
-        console.warn(`[CORS] REJECTED: origin "${origin}" is not in whitelist.`);
-        callback(null, false);
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    credentials: true,
-  }),
-);
-
-// 5. Rate limiters (Now placed after body parsing and CORS)
-app.use("/api/auth/login", loginLimiter);
-
-HIGH_FREQ_ROUTES.forEach(route => {
-  app.use(route, pollingLimiter);
-});
-
-app.use("/api", generalLimiter);
-
-// 6. Debug middleware to log requests (after limiters to avoid logging rejected ones)
 app.use((req, res, next) => {
-  console.log(`[DEBUG] ${req.method} ${req.url}`);
-  const bodyToLog = { ...req.body };
-  if (bodyToLog.password) bodyToLog.password = "***";
-  console.log(`[DEBUG] Body:`, bodyToLog);
+  const start = Date.now();
+  const url = req.originalUrl || req.url;
+  const isSilentPolling = SILENT_POLLING_ROUTES.some((r) => url.startsWith(r));
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    const userNumber = req.user ? formatUserNumber(req.user.user_Id) : "ANONYMOUS";
+    const userIdStr = req.user ? ` (ID: ${req.user.user_Id})` : "";
+    const statusIcon = res.statusCode >= 400 ? "❌" : "✅";
+    
+    // Only output to VSCode terminal if it's not a silent 1-second heartbeat poll or if an error occurred
+    if (!isSilentPolling || res.statusCode >= 400) {
+      const timestamp = new Date().toLocaleString("en-US", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      });
+      const ip = getClientIp(req);
+
+      console.log(
+        `[${timestamp}] ${statusIcon} HTTP ${res.statusCode} ${req.method} ${url} | IP: ${ip} | User: ${userNumber}${userIdStr} | ${duration}ms`
+      );
+
+      if (req.method !== "GET" && req.body && Object.keys(req.body).length > 0) {
+        const sanitizedBody = { ...req.body };
+        ["password", "user_Password", "adminPassword", "token"].forEach(p => {
+          if (sanitizedBody[p]) sanitizedBody[p] = "***REDACTED***";
+        });
+        console.log(` └─ Payload:`, JSON.stringify(sanitizedBody));
+      }
+    }
+  });
+
   next();
 });
 

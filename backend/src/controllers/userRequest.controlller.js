@@ -94,29 +94,133 @@ exports.UpdateUserRequest = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
     const typeId = parseInt(emp_reqTypeId || request.emp_reqTypeId);
+    const effectiveReason = reason || remarks || request.remarks || "";
+    const effectiveWithPay = WithPayID ? parseInt(WithPayID) : 1;
 
     let statusId = request.emp_reqStatusId;
     if (resend || request.emp_reqStatusId === 5) statusId = 1;
 
     await sequelize.query(
       `UPDATE "emp_Request" SET "remarks" = :remarks, "emp_reqStatusId" = :statusId, "updatedAt" = :now WHERE "emp_reqId" = :requestId`,
-      { replacements: { remarks: remarks || request.remarks, statusId, now: nowStr, requestId }, type: QueryTypes.UPDATE, transaction: t }
+      { replacements: { remarks: remarks || request.remarks || "", statusId, now: nowStr, requestId }, type: QueryTypes.UPDATE, transaction: t }
     );
 
     if (typeId === 1) {
-      await sequelize.query(`UPDATE "Overtime_Request" SET "OT_DateOf" = :OT_DateOf, "HrFrom" = :HrFrom, "HrTo" = :HrTo, "Total_Hrs" = :Total_Hrs, "reason" = :reason WHERE "emp_reqId" = :requestId`, { replacements: { OT_DateOf, HrFrom, HrTo, Total_Hrs, reason, requestId }, transaction: t });
+      await sequelize.query(
+        `UPDATE "Overtime_Request" SET "OT_DateOf" = :OT_DateOf, "HrFrom" = :HrFrom, "HrTo" = :HrTo, "Total_Hrs" = :Total_Hrs, "reason" = :reason WHERE "emp_reqId" = :requestId`,
+        { 
+          replacements: { 
+            OT_DateOf: OT_DateOf || request.OT_DateOf || null, 
+            HrFrom: HrFrom || request.HrFrom || null, 
+            HrTo: HrTo || request.HrTo || null, 
+            Total_Hrs: Total_Hrs || request.Total_Hrs || 0, 
+            reason: effectiveReason, 
+            requestId 
+          }, 
+          transaction: t 
+        }
+      );
     } else if (typeId === 2) {
-      await sequelize.query(`UPDATE "Onfield_Work" SET "DateonField" = :DateonField, "NoHrs" = :NoHrs, "destination" = :destination, "reason" = :reason WHERE "emp_reqId" = :requestId`, { replacements: { DateonField, NoHrs, destination, reason, requestId }, transaction: t });
+      await sequelize.query(
+        `UPDATE "Onfield_Work" SET "DateonField" = :DateonField, "NoHrs" = :NoHrs, "destination" = :destination, "reason" = :reason WHERE "emp_reqId" = :requestId`,
+        { 
+          replacements: { 
+            DateonField: DateonField || request.DateonField || null, 
+            NoHrs: NoHrs || request.NoHrs || 0, 
+            destination: destination || request.destination || "", 
+            reason: effectiveReason, 
+            requestId 
+          }, 
+          transaction: t 
+        }
+      );
     } else if (typeId === 3) {
-      await sequelize.query(`UPDATE "Vacation_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`, { replacements: { StartDate, EndDate, NoDays, reason, WithPayID, requestId }, transaction: t });
+      await sequelize.query(
+        `UPDATE "Vacation_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`,
+        { 
+          replacements: { 
+            StartDate: StartDate || request.StartDate || null, 
+            EndDate: EndDate || request.EndDate || null, 
+            NoDays: NoDays || request.NoDays || 1, 
+            reason: effectiveReason, 
+            WithPayID: effectiveWithPay, 
+            requestId 
+          }, 
+          transaction: t 
+        }
+      );
     } else if (typeId === 4) {
-      await sequelize.query(`UPDATE "Sick_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`, { replacements: { StartDate, EndDate, NoDays, reason, WithPayID, requestId }, transaction: t });
+      await sequelize.query(
+        `UPDATE "Sick_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`,
+        { 
+          replacements: { 
+            StartDate: StartDate || request.StartDate || null, 
+            EndDate: EndDate || request.EndDate || null, 
+            NoDays: NoDays || request.NoDays || 1, 
+            reason: effectiveReason, 
+            WithPayID: effectiveWithPay, 
+            requestId 
+          }, 
+          transaction: t 
+        }
+      );
     } else if (typeId === 6) {
-      await sequelize.query(`UPDATE "Emergency_Leave" SET "DateOfLeave" = :StartDate, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`, { replacements: { StartDate, reason, WithPayID: WithPayID || 1, requestId }, transaction: t });
+      await sequelize.query(
+        `UPDATE "Emergency_Leave" SET "DateOfLeave" = :StartDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`,
+        { 
+          replacements: { 
+            StartDate: StartDate || request.StartDate || request.DateOfLeave || null, 
+            NoDays: parseFloat(NoDays) || request.NoDays || 1,
+            reason: effectiveReason, 
+            WithPayID: effectiveWithPay, 
+            requestId 
+          }, 
+          transaction: t 
+        }
+      );
     } else if (typeId === 7) {
-      await sequelize.query(`UPDATE "HalfDay_Leave" SET "DateOfLeave" = :StartDate, "reason" = :reason, "WithPayID" = :WithPayID, "period" = :period WHERE "emp_reqId" = :requestId`, { replacements: { StartDate, reason, WithPayID: WithPayID || 1, period: period || "Morning", requestId }, transaction: t });
+      await sequelize.query(
+        `UPDATE "HalfDay_Leave" SET "DateOfLeave" = :StartDate, "reason" = :reason, "WithPayID" = :WithPayID, "period" = :period WHERE "emp_reqId" = :requestId`,
+        { 
+          replacements: { 
+            StartDate: StartDate || request.StartDate || request.DateOfLeave || null, 
+            reason: effectiveReason, 
+            WithPayID: effectiveWithPay, 
+            period: req.body.period || request.period || "Morning", 
+            requestId 
+          }, 
+          transaction: t 
+        }
+      );
     } else if (typeId === 5) {
-      await sequelize.query(`UPDATE "Log_Correction" SET "logDate" = :logDate, "claimedIn" = :claimedIn, "claimedOut" = :claimedOut, "reason" = :reason WHERE "emp_reqId" = :requestId`, { replacements: { logDate, claimedIn, claimedOut, reason, requestId }, transaction: t });
+      await sequelize.query(
+        `UPDATE "Log_Correction" SET "logDate" = :logDate, "claimedIn" = :claimedIn, "claimedOut" = :claimedOut, "reason" = :reason WHERE "emp_reqId" = :requestId`,
+        { 
+          replacements: { 
+            logDate: req.body.logDate || request.logDate || null, 
+            claimedIn: req.body.claimedIn || request.claimedIn || null, 
+            claimedOut: req.body.claimedOut || request.claimedOut || null, 
+            reason: effectiveReason, 
+            requestId 
+          }, 
+          transaction: t 
+        }
+      );
+    } else if ([8, 9, 10, 11, 12].includes(typeId)) {
+      await sequelize.query(
+        `UPDATE "Statutory_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`,
+        { 
+          replacements: { 
+            StartDate: StartDate || request.StartDate || null, 
+            EndDate: EndDate || request.EndDate || null, 
+            NoDays: NoDays || request.NoDays || 1, 
+            reason: effectiveReason, 
+            WithPayID: effectiveWithPay, 
+            requestId 
+          }, 
+          transaction: t 
+        }
+      );
     } else if (typeId === 13 || typeId === 14) {
       const { agency, loanType, amountRequested, monthsToPay, loanReferenceNo, monthlyAmortization, totalOutstandingBalance } = req.body;
       await sequelize.query(
@@ -132,8 +236,8 @@ exports.UpdateUserRequest = async (req, res) => {
         WHERE "emp_reqId" = :requestId`,
         { 
           replacements: { 
-            agency, 
-            loanType, 
+            agency: agency || request.agency || "SSS", 
+            loanType: loanType || request.loanType || "", 
             amountRequested: amountRequested || null, 
             monthsToPay: monthsToPay || null, 
             loanReferenceNo: loanReferenceNo || null,
@@ -760,7 +864,9 @@ exports.UserCreateRequest = async (req, res) => {
     }
     // Emergency Leave (Type 6)
     else if (finalReqTypeId === 6) {
-      const { DateOfLeave, reason: reqReason } = req.body;
+      const { DateOfLeave, reason: reqReason, StartDate: sDate } = req.body;
+      const effectiveDateOfLeave = DateOfLeave || sDate || StartDate;
+      const effectiveNoDays = finalNoDays || parseFloat(req.body.NoDays) || parseFloat(req.body.noDays) || 1;
       const elResult = await sequelize.query(
         `INSERT INTO "Emergency_Leave"
         ("emp_reqId", "user_Id", "DateOfLeave", "NoDays", "reason", "WithPayID")
@@ -770,8 +876,8 @@ exports.UserCreateRequest = async (req, res) => {
           replacements: {
             emp_reqId,
             userId: finalUserId,
-            DateOfLeave,
-            NoDays: finalNoDays,
+            DateOfLeave: effectiveDateOfLeave,
+            NoDays: effectiveNoDays,
             reason: reqReason || finalReason,
             WithPayID: 1, // EL is usually paid if balance exists
           },

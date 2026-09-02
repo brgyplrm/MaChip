@@ -567,7 +567,7 @@ const toggleMachipVisibility = (rowId) => {
                     <p className="text-4xl font-bold text-[#E11D48]">{stats.systemGenerated}</p>
                   </div>
                   <p className="text-xs text-[#E11D48]/70 italic mt-4">
-                    Automatic system markers in this period
+                    System markers in this period
                   </p>
                 </div>
               </CardContent>

@@ -14,6 +14,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Toast from "../../components/toast/Toast";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { formatUserId } from "../../utils/formatUserId";
 import { formatDateTime, calculateDays } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
@@ -27,6 +28,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+const isSaturday = (dateStr) => {
+  if (!dateStr) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return false;
+  return new Date(y, m - 1, d).getDay() === 6;
+};
 
 const UserRequests = () => {
   const { systemToday } = useSystemTime();
@@ -184,20 +192,26 @@ const UserRequests = () => {
 
     if (!log) return;
 
-    const SHIFT_END = "17:30";
+    const isSat = isSaturday(selectedDate);
+    const MIN_OT_START = isSat ? "12:30" : "17:30"; // Saturday: 12:30 PM, Weekdays: 5:30 PM
+    const MAX_OT_END = "22:00"; // 10:00 PM
     const ins = Array.isArray(log.inArr) ? log.inArr.map(t => t.substring(0, 5)) : [];
     const outs = Array.isArray(log.outArr) ? log.outArr.map(t => t.substring(0, 5)) : [];
 
-    const otIn = ins.find(t => t >= SHIFT_END);
+    const otIn = ins.find(t => t >= MIN_OT_START);
     const lastOut = outs.length > 0 ? outs[outs.length - 1] : "";
 
-    if (lastOut && lastOut > SHIFT_END) {
-      setFormData(prev => ({
-        ...prev,
-        hrFrom: otIn || SHIFT_END,
-        hrTo: lastOut
-      }));
-    }
+    let suggestedFrom = otIn && otIn >= MIN_OT_START ? otIn : MIN_OT_START;
+    if (suggestedFrom > MAX_OT_END) suggestedFrom = MIN_OT_START;
+
+    let suggestedTo = lastOut && lastOut > MIN_OT_START ? lastOut : (isSat ? "17:30" : "19:30");
+    if (suggestedTo > MAX_OT_END) suggestedTo = MAX_OT_END;
+
+    setFormData(prev => ({
+      ...prev,
+      hrFrom: suggestedFrom,
+      hrTo: suggestedTo
+    }));
   };
 
   useEffect(() => {
@@ -259,12 +273,21 @@ const UserRequests = () => {
 
   useEffect(() => {
     if (formData.emp_reqTypeId === "1" && formData.hrFrom && formData.hrTo) {
-      const [h1, m1] = formData.hrFrom.split(":").map(Number);
-      const [h2, m2] = formData.hrTo.split(":").map(Number);
+      let fromStr = formData.hrFrom;
+      let toStr = formData.hrTo;
+
+      const isSat = isSaturday(formData.otDate);
+      const minStart = isSat ? "12:30" : "17:30";
+
+      if (fromStr < minStart) fromStr = minStart;
+      if (toStr > "22:00") toStr = "22:00";
+
+      const [h1, m1] = fromStr.split(":").map(Number);
+      const [h2, m2] = toStr.split(":").map(Number);
       
       if (!isNaN(h1) && !isNaN(h2)) {
         let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-        if (diff < 0) diff += 24 * 60; 
+        if (diff < 0) diff = 0; 
         const calculatedHrs = (diff / 60).toFixed(2);
         setFormData(prev => ({ ...prev, totalHrs: calculatedHrs }));
       }
@@ -273,7 +296,7 @@ const UserRequests = () => {
         setFormData(prev => ({ ...prev, totalHrs: "0.00" }));
       }
     }
-  }, [formData.hrFrom, formData.hrTo, formData.emp_reqTypeId]);
+  }, [formData.hrFrom, formData.hrTo, formData.emp_reqTypeId, formData.otDate]);
 
   const fetchBalance = async () => {
     if (!userData?.user_Id) return;
@@ -330,7 +353,7 @@ const UserRequests = () => {
   }, [activeTab]);
 
   useEffect(() => {
-    if (["3", "4", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && formData.leaveStartDate && formData.leaveEndDate) {
+    if (["3", "4", "6", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && formData.leaveStartDate && formData.leaveEndDate) {
       const start = new Date(formData.leaveStartDate);
       const end = new Date(formData.leaveEndDate);
       let count = 0;
@@ -342,6 +365,102 @@ const UserRequests = () => {
       setFormData((prev) => ({ ...prev, noDays: count }));
     }
   }, [formData.leaveStartDate, formData.leaveEndDate, formData.emp_reqTypeId]);
+
+  // Dynamic validation warnings for the active request form
+  const formWarnings = useMemo(() => {
+    const warnings = [];
+    if (!formData.emp_reqTypeId) return warnings;
+
+    const vlBal = parseFloat(balance?.VL_balance || 0);
+    const slBal = parseFloat(balance?.SL_balance || 0);
+    const spBal = parseFloat(balance?.SoloParent_balance || 0);
+    const reqDays = parseFloat(formData.noDays || 0);
+
+    // 1. Vacation Leave (VL)
+    if (formData.emp_reqTypeId === "3") {
+      if (reqDays > 0 && reqDays > vlBal) {
+        const excess = (reqDays - vlBal).toFixed(1).replace(/\.0$/, "");
+        warnings.push({
+          type: "danger",
+          title: "Leave Balance Exceeded",
+          message: `You are requesting ${reqDays} day(s), but only have ${vlBal} day(s) remaining in your VL balance. The extra ${excess} day(s) will be treated as Leave Without Pay (LWOP) or considered as AWOL if unapproved.`,
+        });
+      }
+
+      if (formData.leaveStartDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const startDate = new Date(formData.leaveStartDate);
+        const diffTime = startDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays < 3) {
+          warnings.push({
+            type: "warning",
+            title: "Late Filing Notice",
+            message: "Vacation Leave must ideally be filed at least 3 days in advance. Requests filed on short notice are subject to managerial discretion and may be rejected.",
+          });
+        }
+      }
+    }
+
+    // 2. Sick Leave (SL)
+    else if (formData.emp_reqTypeId === "4") {
+      if (reqDays > 0 && reqDays > slBal) {
+        const excess = (reqDays - slBal).toFixed(1).replace(/\.0$/, "");
+        warnings.push({
+          type: "danger",
+          title: "Sick Leave Balance Exceeded",
+          message: `You are requesting ${reqDays} day(s), but only have ${slBal} day(s) remaining in your SL balance. The extra ${excess} day(s) will have No Pay (LWOP) or be considered as AWOL if unapproved.`,
+        });
+      }
+
+      if (reqDays > 2 && !formData.proofFile) {
+        warnings.push({
+          type: "info",
+          title: "Medical Certificate Required",
+          message: "Sick leaves spanning more than 2 consecutive days require a valid medical certificate attached.",
+        });
+      }
+    }
+
+    // 3. Emergency Leave (EL)
+    else if (formData.emp_reqTypeId === "6") {
+      const combinedBal = vlBal + slBal;
+      if (reqDays > 0 && reqDays > combinedBal) {
+        const excess = (reqDays - combinedBal).toFixed(1).replace(/\.0$/, "");
+        warnings.push({
+          type: "danger",
+          title: "Insufficient Leave Balance",
+          message: `You are requesting ${reqDays} day(s) of Emergency Leave, but only have ${combinedBal} day(s) remaining in your combined VL/SL balance. The extra ${excess} day(s) will have No Pay (LWOP) or be considered as AWOL if unapproved.`,
+        });
+      }
+    }
+
+    // 4. Half-Day (HD)
+    else if (formData.emp_reqTypeId === "7") {
+      if (vlBal < 0.5) {
+        warnings.push({
+          type: "danger",
+          title: "VL Balance Insufficient for Half-Day",
+          message: `Half-Day Leave requires at least 0.5 VL balance (current balance: ${vlBal} day(s)). This half-day will be processed as Leave Without Pay (LWOP).`,
+        });
+      }
+    }
+
+    // 5. Solo Parent Leave
+    else if (formData.emp_reqTypeId === "10") {
+      if (reqDays > 0 && reqDays > spBal) {
+        const excess = (reqDays - spBal).toFixed(1).replace(/\.0$/, "");
+        warnings.push({
+          type: "danger",
+          title: "Solo Parent Balance Exceeded",
+          message: `You are requesting ${reqDays} day(s), which exceeds your remaining Solo Parent balance of ${spBal} day(s). The extra ${excess} day(s) will have No Pay or be considered as AWOL.`,
+        });
+      }
+    }
+
+    return warnings;
+  }, [formData.emp_reqTypeId, formData.noDays, formData.leaveStartDate, formData.proofFile, balance]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked, files } = e.target;
@@ -470,11 +589,68 @@ const UserRequests = () => {
       }
     }
 
-    setFormData((prev) => ({ ...prev, [name]: newValue }));
+    if (formData.emp_reqTypeId === "1") {
+      const isSat = isSaturday(name === "otDate" ? newValue : formData.otDate);
+      const minTime = isSat ? "12:30" : "17:30";
+      const minTimeLabel = isSat ? "12:30 PM (12:30)" : "5:30 PM (17:30)";
+
+      if (name === "hrFrom") {
+        if (newValue && newValue < minTime) {
+          setToast({ 
+            message: isSat 
+              ? "Saturday Overtime starts at 12:30 PM (12:30). Earlier hours belong to regular half-day shift." 
+              : "Standard Overtime starts at 5:30 PM (17:30). Earlier hours belong to regular shift.", 
+            type: "warning" 
+          });
+          setFormData(prev => ({ ...prev, hrFrom: minTime }));
+          return;
+        }
+        if (newValue && newValue > "22:00") {
+          setToast({ message: "Time From cannot exceed 10:00 PM (22:00) for standard Overtime.", type: "warning" });
+          setFormData(prev => ({ ...prev, hrFrom: "22:00" }));
+          return;
+        }
+      }
+      if (name === "hrTo") {
+        if (newValue && newValue > "22:00") {
+          setToast({ message: "Overtime Time To is capped at 10:00 PM (22:00). Hours after 10:00 PM are considered Night Differential.", type: "warning" });
+          setFormData(prev => ({ ...prev, hrTo: "22:00" }));
+          return;
+        }
+        if (newValue && newValue < minTime) {
+          setToast({ message: `Overtime Time To must be after ${minTimeLabel}.`, type: "warning" });
+          setFormData(prev => ({ ...prev, hrTo: minTime }));
+          return;
+        }
+      }
+    }
 
     if (name === "otDate") {
+      const isSat = isSaturday(newValue);
+      const minTime = isSat ? "12:30" : "17:30";
+      setFormData((prev) => {
+        let updatedHrFrom = prev.hrFrom;
+        let updatedHrTo = prev.hrTo;
+        if (prev.emp_reqTypeId === "1") {
+          if (updatedHrFrom && updatedHrFrom < minTime) {
+            updatedHrFrom = minTime;
+          }
+          if (updatedHrTo && updatedHrTo < minTime) {
+            updatedHrTo = minTime;
+          }
+        }
+        return {
+          ...prev,
+          otDate: newValue,
+          ...(updatedHrFrom !== prev.hrFrom ? { hrFrom: updatedHrFrom } : {}),
+          ...(updatedHrTo !== prev.hrTo ? { hrTo: updatedHrTo } : {})
+        };
+      });
       suggestOTTimes(newValue);
+      return;
     }
+
+    setFormData((prev) => ({ ...prev, [name]: newValue }));
   };
 
   const handleSelectChange = (name, val) => {
@@ -555,7 +731,9 @@ const UserRequests = () => {
       formDataToSubmit.append("reason", formData.remarks);
     } else if (formData.emp_reqTypeId === "6") {
       formDataToSubmit.append("DateOfLeave", formData.leaveStartDate);
-      formDataToSubmit.append("NoDays", 1);
+      formDataToSubmit.append("StartDate", formData.leaveStartDate);
+      formDataToSubmit.append("EndDate", formData.leaveEndDate || formData.leaveStartDate);
+      formDataToSubmit.append("NoDays", formData.noDays || 1);
       formDataToSubmit.append("reason", formData.remarks);
     } else if (formData.emp_reqTypeId === "7") {
       formDataToSubmit.append("DateOfLeave", formData.leaveStartDate);
@@ -630,9 +808,13 @@ const UserRequests = () => {
       const result = await response.json();
       if (response.ok) {
         let finalMessage = "Request submitted successfully!";
-        if (isInsufficient && isLateFiling) finalMessage = "Warning: Insufficient balance & late filing. Request submitted but may be rejected.";
-        else if (isInsufficient) finalMessage = "Warning: Insufficient balance. Request submitted but may be rejected.";
-        else if (isLateFiling) finalMessage = "Warning: Vacation Leave must be filed 3 days in advance. Request submitted but may be rejected.";
+        if (isInsufficient && isLateFiling) {
+          finalMessage = "Warning: Insufficient balance & late filing. Extra days will have No Pay (LWOP) or risk AWOL if unapproved. Request submitted.";
+        } else if (isInsufficient) {
+          finalMessage = "Warning: Insufficient balance. Extra days exceeding your balance will have No Pay (LWOP) or be considered AWOL. Request submitted.";
+        } else if (isLateFiling) {
+          finalMessage = "Warning: Vacation Leave must be filed 3 days in advance. Request submitted for supervisor review.";
+        }
 
         setToast({ message: finalMessage, type: (isInsufficient || isLateFiling) ? "error" : "success" });
         setFormData({
@@ -1136,15 +1318,6 @@ const UserRequests = () => {
                     </div>
                   )}
 
-                  {formData.emp_reqTypeId === "6" && (
-                    <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700">Emergency Leave Date</label>
-                        <Input type="date" name="leaveStartDate" value={formData.leaveStartDate} onChange={handleInputChange} required className="bg-slate-50/50" />
-                      </div>
-                    </div>
-                  )}
-
                   {formData.emp_reqTypeId === "5" && (
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
                       <p className="text-xs font-bold text-slate-500 uppercase">Current Period: <span className="text-[#2A174E]">{payroll.payEnding}</span></p>
@@ -1186,11 +1359,11 @@ const UserRequests = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Claimed In</label>
+                          <label className="text-sm font-bold text-slate-700">Corrected In</label>
                           <Input type="time" name="claimedIn" value={formData.claimedIn} onChange={handleInputChange} required className="bg-slate-50/50" />
                         </div>
                         <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Claimed Out</label>
+                          <label className="text-sm font-bold text-slate-700">Corrected Out</label>
                           <Input type="time" name="claimedOut" value={formData.claimedOut} onChange={handleInputChange} required className="bg-slate-50/50" />
                         </div>
                       </div>
@@ -1200,23 +1373,49 @@ const UserRequests = () => {
                   {formData.emp_reqTypeId === "1" && (
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
                       <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700">OT Date</label>
+                        <label className="text-sm font-bold text-slate-700">Overtime Date</label>
                         <Input type="date" name="otDate" value={formData.otDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-sm font-bold text-slate-700">Time From</label>
-                          <Input type="time" name="hrFrom" value={formData.hrFrom} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          <Input 
+                            type="time" 
+                            name="hrFrom" 
+                            min={isSaturday(formData.otDate) ? "12:30" : "17:30"} 
+                            max="22:00" 
+                            value={formData.hrFrom} 
+                            onChange={handleInputChange} 
+                            required 
+                            className="bg-slate-50/50" 
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-bold text-slate-700">Time To</label>
-                          <Input type="time" name="hrTo" value={formData.hrTo} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          <Input 
+                            type="time" 
+                            name="hrTo" 
+                            min={isSaturday(formData.otDate) ? "12:30" : "17:30"} 
+                            max="22:00" 
+                            value={formData.hrTo} 
+                            onChange={handleInputChange} 
+                            required 
+                            className="bg-slate-50/50" 
+                          />
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700">Total Hours</label>
+                        <label className="text-sm font-bold text-slate-700">Total Regular Overtime Hours</label>
                         <Input type="number" name="totalHrs" value={formData.totalHrs} readOnly className="bg-slate-100 text-slate-500 font-bold" />
                       </div>
+                      {/* <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl space-y-1 text-xs text-amber-900">
+                        <p className="font-bold flex items-center gap-1.5 text-amber-900">
+                          <span>⏰</span> Regular Overtime & Night Differential Policy
+                        </p>
+                        <p className="text-[11px] leading-relaxed text-amber-900/80">
+                          Standard Overtime hours start from <strong>5:30 PM (17:30)</strong> up to <strong>10:00 PM (22:00)</strong>. Hours past 10:00 PM are automatically processed under Night Shift Differential.
+                        </p>
+                      </div> */}
                     </div>
                   )}
 
@@ -1233,7 +1432,7 @@ const UserRequests = () => {
                     </div>
                   )}
 
-                  {(["3", "4", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) && (
+                  {(["3", "4", "6", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) && (
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -1285,7 +1484,7 @@ const UserRequests = () => {
                                   <SelectItem value="Salary Loan">Salary Loan</SelectItem>
                                   <SelectItem value="Calamity Loan">Calamity Loan</SelectItem>
                                   <SelectItem value="Emergency Loan">Emergency Loan</SelectItem>
-                                  <SelectItem value="SSS Conso Loan">SSS Conso Loan</SelectItem>
+                                  {/* <SelectItem value="SSS Conso Loan">SSS CONSO Loan</SelectItem> */}
                                 </>
                               )}                              {formData.agency === "Pag-IBIG" && (
                                 <>
@@ -1831,6 +2030,57 @@ const UserRequests = () => {
                     </p>
                   </div>
 
+                  {/* Real-time Dynamic Validation Warnings */}
+                  {formWarnings.length > 0 && (
+                    <div className="space-y-3 pt-2">
+                      {formWarnings.map((warn, index) => (
+                        <div
+                          key={index}
+                          className={`p-4 rounded-xl border flex items-start gap-3.5 transition-all shadow-sm ${
+                            warn.type === "danger"
+                              ? "bg-red-50/90 border-red-200 text-red-900"
+                              : warn.type === "warning"
+                              ? "bg-amber-50/90 border-amber-200 text-amber-900"
+                              : "bg-blue-50/90 border-blue-200 text-blue-900"
+                          }`}
+                        >
+                          <div
+                            className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                              warn.type === "danger"
+                                ? "bg-red-100 text-red-600"
+                                : warn.type === "warning"
+                                ? "bg-amber-100 text-amber-600"
+                                : "bg-blue-100 text-blue-600"
+                            }`}
+                          >
+                            <WarningAmberIcon className="!text-[20px]" />
+                          </div>
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <h4 className="text-xs font-bold uppercase tracking-wider">
+                                {warn.title}
+                              </h4>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                  warn.type === "danger"
+                                    ? "bg-red-200/80 text-red-800"
+                                    : warn.type === "warning"
+                                    ? "bg-amber-200/80 text-amber-800"
+                                    : "bg-blue-200/80 text-blue-800"
+                                }`}
+                              >
+                                {warn.type === "danger" ? "No Pay / AWOL Risk" : "Policy Notice"}
+                              </span>
+                            </div>
+                            <p className="text-xs leading-relaxed opacity-90 font-medium">
+                              {warn.message}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="pt-4 border-t border-slate-100 flex justify-end">
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1937,11 +2187,11 @@ const UserRequests = () => {
                             <p className="font-semibold text-slate-800">{currentReq.LC_currentOut || "No Log"}</p>
                           </div>
                           <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Claimed In</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Corrected In</label>
                             <p className="font-bold text-blue-700">{formatTime(currentReq.LC_claimedIn)}</p>
                           </div>
                           <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Claimed Out</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Corrected Out</label>
                             <p className="font-bold text-blue-700">{formatTime(currentReq.LC_claimedOut)}</p>
                           </div>
                         </>

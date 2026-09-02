@@ -16,6 +16,7 @@ import { FingerprintIcon } from "lucide-react";
 import { EyeIcon} from "lucide-react";  
 import { Archive, ArchiveRestore, ArchiveX } from "lucide-react";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Label } from "@/components/ui/label"; 
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -151,14 +152,71 @@ const Datatable = () => {
   };
 
   // State to track multiple visible row fields using their user_Id
-const [revealedMachipUsers, setRevealedMachipUsers] = useState({});
+  const [revealedMachipUsers, setRevealedMachipUsers] = useState({});
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [pendingUserId, setPendingUserId] = useState(null);
+  const [passwordError, setPasswordError] = useState("");
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
-const toggleMachipVisibility = (userId) => {
-  setRevealedMachipUsers((prev) => ({
-    ...prev,
-    [userId]: !prev[userId],
-  }));
-};
+  const handleToggleMachip = (userId) => {
+    // If currently revealed, mask it back without requiring password
+    if (revealedMachipUsers[userId]) {
+      setRevealedMachipUsers((prev) => ({
+        ...prev,
+        [userId]: false,
+      }));
+      return;
+    }
+
+    // If masked, prompt for admin password verification before revealing
+    setPendingUserId(userId);
+    setAdminPassword("");
+    setPasswordError("");
+    setShowAdminPassword(false);
+    setShowPasswordModal(true);
+  };
+
+  const handleVerifyAdminPassword = async (e) => {
+    if (e) e.preventDefault();
+    if (!adminPassword || !adminPassword.trim()) {
+      setPasswordError("Please enter your admin password.");
+      return;
+    }
+
+    setVerifyingPassword(true);
+    setPasswordError("");
+
+    try {
+      const res = await fetchWithAuth("/api/auth/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        setRevealedMachipUsers((prev) => ({
+          ...prev,
+          [pendingUserId]: true,
+        }));
+        setShowPasswordModal(false);
+        setAdminPassword("");
+        setPasswordError("");
+        setPendingUserId(null);
+        setToast({ message: "Admin authenticated. MaChip ID revealed.", type: "success" });
+      } else {
+        setPasswordError(result.error || "Incorrect password. Verification failed.");
+      }
+    } catch (err) {
+      console.error("Password verification error:", err);
+      setPasswordError("An error occurred during verification. Please try again.");
+    } finally {
+      setVerifyingPassword(false);
+    }
+  };
 
   return (
     <TooltipProvider>
@@ -386,8 +444,7 @@ const toggleMachipVisibility = (userId) => {
                   currentData.map((user) => {
                     const isMachipRevealed = revealedMachipUsers[user.user_Id];
                     return (
-                    // const isMachipRevealed = revealedMachipUsers[user.user_Id];
-                    <TableRow key={user.user_Id} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
+                      <TableRow key={user.user_Id} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
                       <TableCell className="font-bold text-[#2A174E] py-4 px-6">{formatUserId(user.user_Id)}</TableCell>
                       <TableCell className="font-medium text-slate-800 py-4">
                           {user.user_FirstName || user.user_LastName ? (
@@ -423,9 +480,9 @@ const toggleMachipVisibility = (userId) => {
                         {user.user_MachipId && (
                           <button
                             type="button"
-                            onClick={() => toggleMachipVisibility(user.user_Id)}
+                            onClick={() => handleToggleMachip(user.user_Id)}
                             className="text-slate-400 hover:text-[#2A174E] transition-colors p-0.5 rounded focus:outline-none"
-                            title={isMachipRevealed ? "Hide MaChip ID" : "Show MaChip ID"}
+                            title={isMachipRevealed ? "Hide MaChip ID" : "Verify Admin Password to View MaChip ID"}
                           >
                             {isMachipRevealed ? (
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
@@ -496,7 +553,8 @@ const toggleMachipVisibility = (userId) => {
                         </div>
                       </TableCell>
                     </TableRow>
-                    )})
+                  );
+                })
                 ) : (
                   <TableRow>
                     <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
@@ -579,6 +637,91 @@ const toggleMachipVisibility = (userId) => {
         title="Confirm Archival"
         message="Are you sure you want to archive this user? They will be moved to the Archived Users list."
       />
+
+      {/* Admin Password Verification Modal for MaChip ID View */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-md shadow-2xl border-0 animate-in zoom-in-95 duration-200 bg-white">
+            <CardContent className="p-6">
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 bg-purple-100 text-[#2A174E] rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                  <CreditCardIcon className="h-7 w-7" />
+                </div>
+                <h2 className="text-xl font-bold text-[#2A174E]">Security Verification Required</h2>
+                <p className="text-xs text-slate-500 mt-2">
+                  Please enter your admin password to reveal the hardware MaChip RFID credential.
+                </p>
+              </div>
+
+              <form onSubmit={handleVerifyAdminPassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Admin Password <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type={showAdminPassword ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={adminPassword}
+                      onChange={(e) => {
+                        setAdminPassword(e.target.value);
+                        if (passwordError) setPasswordError("");
+                      }}
+                      className={`h-11 border-slate-200 pr-10 focus-visible:ring-[#2A174E] ${passwordError ? "border-red-500" : ""}`}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      {showAdminPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {passwordError && (
+                    <span className="text-[11px] text-red-500 font-medium block mt-1">
+                      {passwordError}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 h-11 border-slate-200"
+                    disabled={verifyingPassword}
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      setAdminPassword("");
+                      setPasswordError("");
+                      setPendingUserId(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={verifyingPassword}
+                    className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white font-medium"
+                  >
+                    {verifyingPassword ? "Verifying..." : "Verify & View"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
     </TooltipProvider>
   );

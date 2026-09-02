@@ -13,7 +13,7 @@ const { computeMonthlyShares } = require("../utils/govtDeductions");
 exports.getAuditLogs = async (req, res) => {
   try {
     const logs = await sequelize.query(
-      `SELECT a.*, u."user_FirstName", u."user_LastName" 
+      `SELECT a.*, u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId" 
        FROM "Audit_Log" a
        LEFT JOIN "User" u ON a."user_Id" = u."user_Id"
        ORDER BY a."createdAt" DESC LIMIT 500`,
@@ -28,9 +28,11 @@ exports.getAuditLogs = async (req, res) => {
 exports.getTransactionLogs = async (req, res) => {
   try {
     const logs = await sequelize.query(
-      `SELECT t.*, u."user_FirstName", u."user_LastName" 
+      `SELECT t.*, u."user_FirstName" AS "emp_FirstName", u."user_LastName" AS "emp_LastName",
+              a."user_FirstName" AS "admin_FirstName", a."user_LastName" AS "admin_LastName" 
        FROM "Transaction_Log" t
        LEFT JOIN "User" u ON t."user_Id" = u."user_Id"
+       LEFT JOIN "User" a ON t."initiated_By" = a."user_Id"
        ORDER BY t."createdAt" DESC LIMIT 500`,
       { type: QueryTypes.SELECT }
     );

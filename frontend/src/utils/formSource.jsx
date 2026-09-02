@@ -13,7 +13,7 @@ export const userInputs = [
   },
   {
     id: "user_Role", // New ID for Role Status
-    label: "Role Status",
+    label: "System Role",
     type: "select",
     options: ["Employee", "Supervisor", "Admin Manager", "Admin Accountant"], // Updated values
   },

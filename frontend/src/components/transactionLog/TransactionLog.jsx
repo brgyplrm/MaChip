@@ -2,13 +2,15 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import SearchIcon from "@mui/icons-material/Search";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import CloseIcon from "@mui/icons-material/Close";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import PaymentsIcon from "@mui/icons-material/Payments";
 import SyncIcon from "@mui/icons-material/Sync";
 import GppBadIcon from "@mui/icons-material/GppBad";
+import LanguageIcon from "@mui/icons-material/Language";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import PersonIcon from "@mui/icons-material/Person";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
@@ -22,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -42,8 +44,10 @@ const TransactionLog = () => {
       try {
         const response = await fetchWithAuth("/api/system/transaction-logs");
         const data = await response.json();
-        if (response.ok) {
+        if (response.ok && Array.isArray(data)) {
           setTransactions(data);
+        } else {
+          console.warn("[TransactionLog] Non-ok or non-array response:", response.status, data);
         }
       } catch (error) {
         console.error("Error fetching transaction logs:", error);
@@ -68,9 +72,21 @@ const TransactionLog = () => {
   const isFiltering = searchTerm !== "" || actionFilter !== "All Actions";
 
   const filteredData = transactions.filter(t => {
-    const matchesSearch = (t.emp_FirstName + " " + t.emp_LastName).toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          t.event_Type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          t.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const userNumber = t.user_Id ? formatUserId(t.user_Id) : "";
+    const adminNumber = t.initiated_By ? formatUserId(t.initiated_By) : "";
+    const rawUserId = String(t.user_Id || "");
+    const ipAddr = t.ip_Address || t.metadata?.deviceIp || "";
+    
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = (t.emp_FirstName + " " + t.emp_LastName).toLowerCase().includes(searchLower) || 
+                          (t.admin_FirstName + " " + t.admin_LastName).toLowerCase().includes(searchLower) ||
+                          t.event_Type.toLowerCase().includes(searchLower) ||
+                          t.description.toLowerCase().includes(searchLower) ||
+                          userNumber.toLowerCase().includes(searchLower) ||
+                          adminNumber.toLowerCase().includes(searchLower) ||
+                          rawUserId.includes(searchLower) ||
+                          ipAddr.includes(searchLower);
+
     const matchesAction = actionFilter === "All Actions" || t.event_Type === actionFilter;
     return matchesSearch && matchesAction;
   });
@@ -91,10 +107,6 @@ const TransactionLog = () => {
     unauthorizedScans: transactions.filter(t => ["UNAUTHORIZED_SCAN", "UNRECOGNIZED_SCAN", "IRREGULAR_LOG", "2FA_FAILURE", "SUSPICIOUS_SCAN", "ATTENDANCE_LOG_SUSPICIOUS"].includes(t.event_Type)).length,
   };
 
-  const maskDescription = (desc, type) => {
-    return desc; 
-  };
-
   const getEventLabel = (type) => {
     const labels = {
       "UNAUTHORIZED_SCAN": "Unauthorized scan",
@@ -107,52 +119,54 @@ const TransactionLog = () => {
   };
 
   const handleExportPDF = () => {
-    const headers = ["Timestamp", "Initiated By", "Event Category", "Description", "IP Address"];
+    const headers = ["Timestamp", "User No.", "Initiated By", "Event Category", "Description", "IP Address"];
     const data = filteredData.map(t => [
       new Date(t.createdAt).toLocaleString(),
-      t.emp_FirstName 
-        ? `${t.emp_FirstName} ${t.emp_LastName}` 
-        : ["UNAUTHORIZED_SCAN", "UNRECOGNIZED_SCAN"].includes(t.event_Type)
-          ? `Unknown Device`
+      t.initiated_By ? formatUserId(t.initiated_By) : t.user_Id ? formatUserId(t.user_Id) : "SYS",
+      t.admin_FirstName 
+        ? `${t.admin_FirstName} ${t.admin_LastName}`
+        : t.emp_FirstName 
+          ? `${t.emp_FirstName} ${t.emp_LastName}`
           : "System",
       getEventLabel(t.event_Type),
-      maskDescription(t.description, t.event_Type),
-      t.ip_Address || t.metadata?.deviceIp || "Local"
+      t.description,
+      t.ip_Address || t.metadata?.deviceIp || "127.0.0.1"
     ]);
-    exportToPDF("System Transaction Logs", headers, data, `Transaction_Logs_${new Date().toISOString().split('T')[0]}.pdf`, { orientation: "l" });
+    exportToPDF("Detailed System Transaction Logs", headers, data, `Transaction_Logs_${new Date().toISOString().split('T')[0]}.pdf`, { orientation: "l" });
   };
 
-  const handleExport = () => {
-    const headers = ["Timestamp", "Initiated By", "Event Category", "Description", "IP Address"];
+  const handleExportCSV = () => {
+    const headers = ["Timestamp", "User No.", "Initiated By", "Event Category", "Description", "IP Address"];
     const data = filteredData.map(t => [
       new Date(t.createdAt).toLocaleString(),
-      t.emp_FirstName 
-        ? `${t.emp_FirstName} ${t.emp_LastName} (${formatUserId(t.user_Id)})` 
-        : ["UNAUTHORIZED_SCAN", "UNRECOGNIZED_SCAN"].includes(t.event_Type)
-          ? `Unknown Device`
+      t.initiated_By ? formatUserId(t.initiated_By) : t.user_Id ? formatUserId(t.user_Id) : "SYS",
+      t.admin_FirstName 
+        ? `${t.admin_FirstName} ${t.admin_LastName}`
+        : t.emp_FirstName 
+          ? `${t.emp_FirstName} ${t.emp_LastName}`
           : "System",
       getEventLabel(t.event_Type),
-      maskDescription(t.description, t.event_Type),
-      t.ip_Address || t.metadata?.deviceIp || "Local"
+      t.description,
+      t.ip_Address || t.metadata?.deviceIp || "127.0.0.1"
     ]);
     exportToCSV(headers, data, `Transaction_Logs_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   const MetadataTable = ({ data }) => {
-    if (!data) return <p className="text-slate-400 italic text-sm py-4">No metadata available</p>;
+    if (!data) return <p className="text-slate-400 italic text-xs py-4 text-center">No additional metadata properties recorded.</p>;
     
-    const sensitiveFields = ["user_Password", "password", "user_MachipId", "rfid", "uid", "adminPassword", "admin_Password"];
+    const sensitiveFields = ["user_Password", "password", "adminPassword", "admin_Password"];
     const allKeys = Object.keys(data)
       .filter(key => !["createdAt", "updatedAt", "deletedAt"].includes(key))
       .sort();
 
     return (
-      <div className="overflow-x-auto border border-slate-200 rounded-lg max-h-[60vh]">
-        <Table className="min-w-full text-sm">
-          <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+      <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-[50vh]">
+        <Table className="min-w-full text-xs">
+          <TableHeader className="bg-slate-100 sticky top-0 z-10 shadow-xs border-b border-slate-200">
             <TableRow>
-              <TableHead className="font-semibold w-1/3">Property</TableHead>
-              <TableHead className="font-semibold w-2/3">Value</TableHead>
+              <TableHead className="font-bold text-slate-700 w-1/3 py-3">Property Name</TableHead>
+              <TableHead className="font-bold text-slate-700 w-2/3 py-3">Property Value</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -161,8 +175,8 @@ const TransactionLog = () => {
               const isSensitive = sensitiveFields.includes(key);
               return (
                 <TableRow key={key} className="hover:bg-slate-50/50">
-                  <TableCell className="font-medium capitalize text-slate-700">{key.replace(/_/g, " ")}</TableCell>
-                  <TableCell className="font-mono text-xs text-slate-800">
+                  <TableCell className="font-bold text-slate-800 capitalize py-3">{key.replace(/_/g, " ")}</TableCell>
+                  <TableCell className="font-mono text-xs text-slate-800 py-3">
                     {isSensitive ? (
                       <span className="text-red-500 bg-red-50 border border-dashed border-red-200 px-2 py-0.5 rounded font-bold">[REDACTED]</span>
                     ) : key === "result" ? (
@@ -183,308 +197,441 @@ const TransactionLog = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <TooltipProvider>
-        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
-          
-          {/* Header */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Transaction Log</h1>
-              <span className="text-sm text-slate-500 mt-1 block">View and track all financial events, batch runs, and system anomalies.</span>
-            </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={handleExportPDF}>
-                  <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-                Export transaction logs to PDF format
-              </TooltipContent>
-            </Tooltip>
-          </div>
-
-         {/* Statistics Cards */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-          {/* Card 1: Total Events */}
-          <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
-              <div className="flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Events</p>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                        Total count of transactional logs, access warnings, and batch operations recorded.
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
-                </div>
-                <p className="text-xs text-[#2A174E]/70 italic mt-4">All recorded transactions</p>
-              </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <FormatListBulletedIcon className="h-6 w-6" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 2: Payroll Releases */}
-          <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
-              <div className="flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Payroll Releases</p>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                        Total count of processed and released payroll disbursements.
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <p className="text-4xl font-bold text-[#3B4E17]">{stats.payrollReleases}</p>
-                </div>
-                <p className="text-xs text-[#3B4E17]/70 italic mt-4">Successful fund disbursements</p>
-              </div>
-              <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <PaymentsIcon className="h-6 w-6" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 3: Batch Runs */}
-          <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
-              <div className="flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Batch Runs</p>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                        Count of bulk operations (such as batch payroll generation) initiated by administrators.
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <p className="text-4xl font-bold text-[#BB8B26]">{stats.batchRuns}</p>
-                </div>
-                <p className="text-xs text-[#BB8B26]/70 italic mt-4">Automated bulk generations</p>
-              </div>
-              <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <SyncIcon className="h-6 w-6" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 4: Anomalies */}
-          <Card className="border-t-5 border-[#991b1b] bg-white py-0 h-full">
-            <CardContent className="px-5 py-5 flex justify-between h-full">
-              <div className="flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-[#991b1b] uppercase tracking-wider">Anomalies</p>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                        Unrecognized scans, unauthorized access attempts, and system logging irregularities.
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <p className="text-4xl font-bold text-[#991b1b]">{stats.unauthorizedScans}</p>
-                </div>
-                <p className="text-xs text-[#991b1b]/70 italic mt-4">Unauthorized or failed scans</p>
-              </div>
-              <div className="bg-[#991b1b]/10 text-[#991b1b] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <GppBadIcon className="h-6 w-6" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters Card */}
-        <Card className="shadow-sm border-0 bg-white mb-6 py-0">
-          <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
-            <div className="relative w-full xl:max-w-md">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-              <Input
-                type="text"
-                placeholder="Search by user, action, or details..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
-              />
-            </div>
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto space-y-6">
             
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
-                <Select value={actionFilter} onValueChange={setActionFilter}>
-                  <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                    <SelectValue placeholder="All Actions" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {uniqueActions.map(a => <SelectItem key={a} value={a}>{a.replace(/_/g, " ")}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">System Transaction Log</h1>
+                <span className="text-sm text-slate-500 mt-1 block">
+                  Track system events, financial disbursements, hardware access logs, IP addresses, and user numbers.
+                </span>
               </div>
-
-              {isFiltering && (
-                <Button 
-                  variant="ghost" 
-                  onClick={handleClearFilters}
-                  className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold"
-                >
-                  <CloseIcon className="h-4 w-4 mr-1" /> Clear
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <Button variant="outline" className="w-full md:w-auto border-slate-200 text-slate-700 hover:bg-slate-100 text-xs" onClick={handleExportCSV}>
+                  CSV
                 </Button>
-              )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm text-xs" onClick={handleExportPDF}>
+                      <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                    Export complete transaction log with IP addresses and user numbers
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Table Card */}
-        <Card className="shadow-sm border-0 bg-white py-0">
-          <CardContent className="p-0 overflow-x-auto">
-            {loading ? <div className="p-12 text-center text-slate-400">Loading records...</div> : (
-              <Table className="min-w-[1000px] md:min-w-full">
-                <TableHeader className="bg-[#2B174F]">
-                  <TableRow className="hover:bg-transparent border-b-0">
-                    <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Timestamp</TableHead>
-                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Initiated By</TableHead>
-                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Event Category</TableHead>
-                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider w-1/4">Description</TableHead>
-                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">IP Address</TableHead>
-                    <TableHead className="font-semibold text-white py-4 text-right pr-6 uppercase text-xs tracking-wider">Details</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentLogs.length > 0 ? (
-                    currentLogs.map((t) => {
-                      let badgeColor = "bg-slate-100 text-slate-700 border-slate-200";
-                      const eventLower = t.event_Type.toLowerCase();
-                      if (eventLower.includes("fail") || eventLower.includes("reject") || eventLower.includes("unauth")) badgeColor = "bg-red-100 text-red-800 border-red-200";
-                      else if (eventLower.includes("success") || eventLower.includes("release") || eventLower.includes("complete")) badgeColor = "bg-green-100 text-green-800 border-green-200";
-                      else if (eventLower.includes("batch") || eventLower.includes("gen")) badgeColor = "bg-amber-100 text-amber-800 border-amber-200";
+            {/* Statistics Cards */}
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 w-full">
+              {/* Card 1: Total Events */}
+              <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                <CardContent className="px-5 py-5 flex justify-between h-full">
+                  <div className="flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Events</p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                            Total count of transactional logs, access warnings, and batch operations recorded.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
+                    </div>
+                    <p className="text-xs text-[#2A174E]/70 italic mt-4">All recorded transactions</p>
+                  </div>
+                  <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <FormatListBulletedIcon className="h-6 w-6" />
+                  </div>
+                </CardContent>
+              </Card>
 
-                      return (
-                        <TableRow key={t.transId} className="hover:bg-slate-50/50 border-b-slate-100 transition-colors">
-                          <TableCell className="text-slate-500 text-xs py-4 px-6">{new Date(t.createdAt).toLocaleString()}</TableCell>
-                          <TableCell className="font-semibold text-[#2A174E] py-4">
-                            {t.emp_FirstName 
-                              ? `${t.emp_FirstName} ${t.emp_LastName} (${formatUserId(t.user_Id)})` 
-                              : t.event_Type === "UNAUTHORIZED_SCAN" ? `Unknown Device` : "System"
-                            }
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <Badge variant="outline" className={`${badgeColor} uppercase tracking-wider text-[10px]`}>{getEventLabel(t.event_Type)}</Badge>
-                          </TableCell>
-                          <TableCell className="text-slate-500 text-sm max-w-[300px] truncate py-4" title={t.description}>{maskDescription(t.description, t.event_Type)}</TableCell>
-                          <TableCell className="text-slate-400 font-mono text-xs py-4">{t.ip_Address || t.metadata?.deviceIp || "Local"}</TableCell>
-                          <TableCell className="text-right pr-6 py-4">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]">
-                                  <EyeIcon className=" h-4 w-4"/>
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-                                View transaction details and metadata
-                              </TooltipContent>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center h-24 text-slate-400 italic">No transactions found.</TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
+              {/* Card 2: Payroll Releases */}
+              <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                <CardContent className="px-5 py-5 flex justify-between h-full">
+                  <div className="flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Payroll Releases</p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                            Total count of processed and released payroll disbursements.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <p className="text-4xl font-bold text-[#3B4E17]">{stats.payrollReleases}</p>
+                    </div>
+                    <p className="text-xs text-[#3B4E17]/70 italic mt-4">Successful fund disbursements</p>
+                  </div>
+                  <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <PaymentsIcon className="h-6 w-6" />
+                  </div>
+                </CardContent>
+              </Card>
 
-            {/* Pagination Controls */}
-            {totalItems > 0 && !loading && (
-              <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
-                <div className="flex items-center gap-4 text-sm text-slate-500">
-                  <div className="flex items-center gap-2">
-                    <span className="hidden sm:inline">Rows per page:</span>
-                    <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(Number(val))}>
-                      <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
-                        <SelectValue placeholder="10" />
+              {/* Card 3: Batch Runs */}
+              <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                <CardContent className="px-5 py-5 flex justify-between h-full">
+                  <div className="flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Batch Runs</p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                            Count of bulk operations (such as batch payroll generation) initiated by administrators.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <p className="text-4xl font-bold text-[#BB8B26]">{stats.batchRuns}</p>
+                    </div>
+                    <p className="text-xs text-[#BB8B26]/70 italic mt-4">Automated bulk generations</p>
+                  </div>
+                  <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <SyncIcon className="h-6 w-6" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 4: Anomalies */}
+              <Card className="border-t-5 border-[#991b1b] bg-white py-0 h-full">
+                <CardContent className="px-5 py-5 flex justify-between h-full">
+                  <div className="flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <p className="text-[13px] font-bold text-[#991b1b] uppercase tracking-wider">Anomalies</p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                            Unrecognized scans, unauthorized access attempts, and system logging irregularities.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <p className="text-4xl font-bold text-[#991b1b]">{stats.unauthorizedScans}</p>
+                    </div>
+                    <p className="text-xs text-[#991b1b]/70 italic mt-4">Unauthorized or failed scans</p>
+                  </div>
+                  <div className="bg-[#991b1b]/10 text-[#991b1b] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <GppBadIcon className="h-6 w-6" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Filters Card */}
+            <Card className="shadow-sm border-0 bg-white py-0">
+              <CardContent className="p-4 sm:p-5 flex flex-col xl:flex-row gap-4 items-center justify-between">
+                <div className="relative w-full xl:max-w-md">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search User, User Number (MACJ-001), IP Address, Event..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full text-xs"
+                  />
+                </div>
+                
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
+                    <Select value={actionFilter} onValueChange={setActionFilter}>
+                      <SelectTrigger className="w-full sm:w-[220px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors text-xs">
+                        <SelectValue placeholder="All Actions" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
+                        {uniqueActions.map(a => <SelectItem key={a} value={a} className="text-xs">{a.replace(/_/g, " ")}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="font-medium">
-                    Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                  >
-                    Previous
-                  </Button>
-                  <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
-                    {currentPage}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                  >
-                    Next
-                  </Button>
+                  {isFiltering && (
+                    <Button 
+                      variant="ghost" 
+                      onClick={handleClearFilters}
+                      className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold text-xs"
+                    >
+                      <CloseIcon className="h-4 w-4 mr-1" /> Clear
+                    </Button>
+                  )}
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
 
-      <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-[#2A174E]">Transaction Details</DialogTitle>
-          </DialogHeader>
-          <div className="py-2">
-            <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Event Metadata</h4>
-            <MetadataTable data={selectedLog?.metadata} />
+            {/* Table Card */}
+            <Card className="shadow-sm border-0 bg-white py-0">
+              <CardContent className="p-0 overflow-x-auto">
+                {loading ? <div className="p-12 text-center text-slate-400 text-xs">Loading transaction records...</div> : (
+                  <Table className="min-w-[1000px] md:min-w-full">
+                    <TableHeader className="bg-[#2B174F]">
+                      <TableRow className="hover:bg-transparent border-b-0">
+                        <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Timestamp</TableHead>
+                        <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Initiated By</TableHead>
+                        <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Event Category</TableHead>
+                        <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider w-1/3">Description</TableHead>
+                        <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">IP Address</TableHead>
+                        <TableHead className="font-semibold text-white py-4 text-right pr-6 uppercase text-xs tracking-wider">Details</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {currentLogs.length > 0 ? (
+                        currentLogs.map((t) => {
+                          let badgeColor = "bg-slate-100 text-slate-700 border-slate-200";
+                          const eventLower = t.event_Type.toLowerCase();
+                          if (eventLower.includes("fail") || eventLower.includes("reject") || eventLower.includes("unauth")) badgeColor = "bg-red-100 text-red-800 border-red-200";
+                          else if (eventLower.includes("success") || eventLower.includes("release") || eventLower.includes("complete")) badgeColor = "bg-green-100 text-green-800 border-green-200";
+                          else if (eventLower.includes("batch") || eventLower.includes("gen")) badgeColor = "bg-amber-100 text-amber-800 border-amber-200";
+
+                          const initiatorName = t.admin_FirstName 
+                            ? `${t.admin_FirstName} ${t.admin_LastName}`
+                            : t.emp_FirstName
+                              ? `${t.emp_FirstName} ${t.emp_LastName}`
+                              : t.event_Type === "UNAUTHORIZED_SCAN" ? "Unknown Device" : "System Automated";
+
+                          const userNum = t.initiated_By 
+                            ? formatUserId(t.initiated_By) 
+                            : t.user_Id 
+                              ? formatUserId(t.user_Id) 
+                              : "SYS";
+
+                          return (
+                            <TableRow key={t.transId} className="hover:bg-slate-50/50 border-b-slate-100 transition-colors">
+                              {/* Timestamp */}
+                              <TableCell className="text-slate-600 text-xs py-4 px-6 font-medium whitespace-nowrap">
+                                {new Date(t.createdAt).toLocaleString(undefined, {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit'
+                                })}
+                              </TableCell>
+
+                              {/* Initiated By & User Number */}
+                              <TableCell className="py-4">
+                                <p className="font-bold text-[#2A174E] text-xs">
+                                  {initiatorName}
+                                </p>
+                                <span className="text-[10px] text-slate-400 font-mono font-semibold block mt-0.5">
+                                  {userNum}
+                                </span>
+                              </TableCell>
+
+                              {/* Category */}
+                              <TableCell className="py-4">
+                                <Badge variant="outline" className={`${badgeColor} uppercase tracking-wider text-[10px] font-bold`}>
+                                  {getEventLabel(t.event_Type)}
+                                </Badge>
+                              </TableCell>
+
+                              {/* Description */}
+                              <TableCell className="text-slate-600 text-xs py-4 max-w-[320px] truncate" title={t.description}>
+                                {t.description}
+                              </TableCell>
+
+                              {/* IP Address */}
+                              <TableCell className="py-4 whitespace-nowrap">
+                                <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/80 font-bold inline-block">
+                                  {t.ip_Address || t.metadata?.deviceIp || "127.0.0.1"}
+                                </span>
+                              </TableCell>
+
+                              {/* Details View */}
+                              <TableCell className="text-right pr-6 py-4">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]">
+                                      <EyeIcon className="h-4 w-4"/>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                    Inspect transaction details, IP address, and metadata
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center h-24 text-slate-400 italic text-xs">No transactions found.</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+
+                {/* Pagination Controls */}
+                {totalItems > 0 && !loading && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
+                    <div className="flex items-center gap-4 text-xs text-slate-500">
+                      <div className="flex items-center gap-2">
+                        <span className="hidden sm:inline font-medium">Rows per page:</span>
+                        <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(Number(val))}>
+                          <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200 text-xs">
+                            <SelectValue placeholder="10" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5">5</SelectItem>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="font-medium">
+                        Showing <span className="text-slate-800 font-bold">{startIndex + 1}</span> to <span className="text-slate-800 font-bold">{endIndex}</span> of <span className="text-slate-800 font-bold">{totalItems}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100 text-xs"
+                      >
+                        Previous
+                      </Button>
+                      <div className="flex items-center justify-center min-w-[32px] h-8 text-xs font-bold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
+                        {currentPage}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages || totalPages === 0}
+                        className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100 text-xs"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
-          <DialogFooter className="flex-col sm:flex-col items-start border-t border-slate-100 pt-4 mt-2 gap-2 text-xs text-slate-500">
-            <div className="flex flex-wrap gap-x-6 gap-y-2 mb-2">
-              <span><strong className="text-slate-700">Event:</strong> {selectedLog?.event_Type}</span>
-              {selectedLog?.user_Id && <span><strong className="text-slate-700">User ID:</strong> {formatUserId(selectedLog?.user_Id)}</span>}
-              <span><strong className="text-slate-700">IP Address:</strong> {selectedLog?.ip_Address || selectedLog?.metadata?.deviceIp || "Local"}</span>
-            </div>
-            <p className="italic text-slate-600">"{selectedLog?.description}"</p>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      </TooltipProvider>
+
+          {/* Detailed Transaction Dialog Modal */}
+          <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
+            <DialogContent className="max-w-3xl w-[95vw] p-0 overflow-hidden rounded-xl bg-white shadow-2xl">
+              {selectedLog && (
+                <div className="space-y-0">
+                  {/* Modal Header */}
+                  <div className="bg-[#2A174E] text-white p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge className="bg-amber-400 text-slate-950 font-bold uppercase text-[10px] tracking-wider">
+                        TRANSACTION RECORD #{selectedLog.transId}
+                      </Badge>
+                      <span className="text-xs text-purple-200 font-mono">
+                        EVENT: {selectedLog.event_Type}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-extrabold tracking-tight text-white">
+                      {getEventLabel(selectedLog.event_Type)}
+                    </h3>
+                    <p className="text-purple-100 text-xs mt-1 leading-relaxed">
+                      "{selectedLog.description}"
+                    </p>
+                  </div>
+
+                  {/* Metadata & Audit Body */}
+                  <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                    
+                    {/* Key Attributes Header Box */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      
+                      {/* Initiated By / User Number */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
+                          <PersonIcon fontSize="small" className="text-[#2A174E]" /> Initiator / User
+                        </div>
+                        <p className="font-bold text-slate-900 text-sm">
+                          {selectedLog.admin_FirstName 
+                            ? `${selectedLog.admin_FirstName} ${selectedLog.admin_LastName}`
+                            : selectedLog.emp_FirstName
+                              ? `${selectedLog.emp_FirstName} ${selectedLog.emp_LastName}`
+                              : "System Process"}
+                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded bg-purple-100 text-[#2A174E] font-mono font-bold text-[11px]">
+                            {selectedLog.initiated_By 
+                              ? formatUserId(selectedLog.initiated_By) 
+                              : selectedLog.user_Id 
+                                ? formatUserId(selectedLog.user_Id) 
+                                : "SYS-000"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* IP Address */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
+                          <LanguageIcon fontSize="small" className="text-blue-600" /> Network IP
+                        </div>
+                        <p className="font-mono font-bold text-slate-900 text-sm">
+                          {selectedLog.ip_Address || selectedLog.metadata?.deviceIp || "127.0.0.1"}
+                        </p>
+                        <span className="text-[10px] text-slate-400 italic block">
+                          Source Client IP
+                        </span>
+                      </div>
+
+                      {/* Timestamp */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
+                          <AccessTimeIcon fontSize="small" className="text-amber-600" /> Timestamp
+                        </div>
+                        <p className="font-semibold text-slate-900 text-xs">
+                          {new Date(selectedLog.createdAt).toLocaleString(undefined, {
+                            weekday: 'short',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                          })}
+                        </p>
+                        {selectedLog.user_Id && (
+                          <span className="text-[10px] text-slate-400 font-mono block">
+                            Target Employee: {formatUserId(selectedLog.user_Id)}
+                          </span>
+                        )}
+                      </div>
+
+                    </div>
+
+                    {/* Metadata Table */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                        Recorded Event Metadata Properties
+                      </h4>
+                      <MetadataTable data={selectedLog.metadata} />
+                    </div>
+
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+        </TooltipProvider>
       </Sidebar>
     </div>
   );

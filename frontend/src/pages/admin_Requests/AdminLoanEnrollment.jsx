@@ -72,30 +72,33 @@ const AdminLoanEnrollment = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  const fetchRequests = async () => {
-    setLoading(true);
+  const fetchRequests = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const response = await fetchWithAuth("/api/request/all");
       const data = await response.json();
-      if (response.ok) {
+      if (response.ok && Array.isArray(data)) {
         const loanRequests = data.filter(
           (req) =>
             LOAN_TYPE_IDS.includes(req.emp_reqTypeId) ||
             req.reqTypeName?.toLowerCase().includes("loan")
         );
         setRequests(loanRequests);
+      } else {
+        console.warn("[AdminLoanEnrollment] Failed to refresh loan requests:", response.status, data);
       }
     } catch (error) {
       console.error("Error fetching loan requests:", error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRequests();
-    window.addEventListener("dataRefresh", fetchRequests);
-    return () => window.removeEventListener("dataRefresh", fetchRequests);
+    fetchRequests(false);
+    const handleBackgroundRefresh = () => fetchRequests(true);
+    window.addEventListener("dataRefresh", handleBackgroundRefresh);
+    return () => window.removeEventListener("dataRefresh", handleBackgroundRefresh);
   }, []);
 
   useEffect(() => {

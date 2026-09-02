@@ -3,32 +3,48 @@ const rateLimit = require("express-rate-limit");
 const jwt = require("jsonwebtoken");
 
 /**
- * Extracts a unique key per request.
- * - For auth routes (no token yet): use IP
- * - For authenticated routes: use user_Id from JWT (avoids NAT collision)
+ * Extracts a unique rate-limit key per request.
+ * - For authenticated users: Uses `user_${user_Id}` (from cookies or Bearer token).
+ *   This ensures multiple users on the same NAT/LAN IP have independent rate limit buckets
+ *   and will never block each other during multi-user testing.
+ * - For unauthenticated requests: Uses `ip_${clientIp}`.
  */
 const keyByUser = (req) => {
   try {
-    const authHeader = req.headers["authorization"];
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.split(" ")[1];
+    if (req.user && req.user.user_Id) {
+      return `user_${req.user.user_Id}`;
+    }
+    let token = null;
+    if (req.headers["authorization"] && req.headers["authorization"].startsWith("Bearer ")) {
+      token = req.headers["authorization"].split(" ")[1];
+    } else if (req.cookies && req.cookies.machip_token) {
+      token = req.cookies.machip_token;
+    }
+    if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      return `user_${decoded.user_Id}`;
+      if (decoded && decoded.user_Id) {
+        return `user_${decoded.user_Id}`;
+      }
     }
   } catch (_) {
-    // Token invalid or missing
+    // Token missing or invalid
   }
-  return req.ip;
+  const ip = req.headers?.["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || "127.0.0.1";
+  return `ip_${ip}`;
 };
 
-const isESP32 = (req) => {
+/**
+ * Checks if request originates from an authorized ESP32 hardware device.
+ */
+const isESP32Hardware = (req) => {
   return req.headers["x-esp32-key"] !== undefined || req.headers["x-api-key"] !== undefined;
 };
 
-// ── Login Limiter ─────────────────────────────────────────────────────────────
+// ── Login Limiter (Strict Brute-Force Defense) ────────────────────────────────
+// Enforces strict throttling on login attempts to prevent brute-force attacks.
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
+  windowMs: 15 * 60 * 1000, // 15-minute window
+  max: 15, // Maximum 15 attempts per 15 minutes per IP
   message: { error: "Too many login attempts. Please try again after 15 minutes." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -49,29 +65,29 @@ const HIGH_FREQ_ROUTES = [
 // ── Polling Limiter ───────────────────────────────────────────────────────────
 const pollingLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 1000,
+  max: 3000, // High ceiling per user bucket to accommodate UI polling
   keyGenerator: keyByUser,
-  skip: (req) => isESP32(req),
+  skip: (req) => isESP32Hardware(req),
   message: { error: "Excessive polling detected. Please slow down.", code: 429 },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: true, keyGeneratorIpFallback: false }, // Fix for IPv6 validation error
+  validate: { trustProxy: true, keyGeneratorIpFallback: false },
 });
 
-// ── General Limiter ───────────────────────────────────────────────────────────
+// ── General API Limiter ───────────────────────────────────────────────────────
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 1000,
+  max: 2500, // 2500 requests per 15 mins per user bucket (generous for app use, safe against abuse)
   keyGenerator: keyByUser,
   skip: (req) =>
-    isESP32(req) || 
+    isESP32Hardware(req) || 
     HIGH_FREQ_ROUTES.some((route) =>
-      req.baseUrl.concat(req.path).startsWith(route)
+      req.baseUrl ? req.baseUrl.concat(req.path).startsWith(route) : req.path.startsWith(route)
     ),
   message: { error: "Too many requests. Please slow down.", code: 429 },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: true, keyGeneratorIpFallback: false }, // Fix for IPv6 validation error
+  validate: { trustProxy: true, keyGeneratorIpFallback: false },
 });
 
 module.exports = { loginLimiter, generalLimiter, pollingLimiter, HIGH_FREQ_ROUTES };

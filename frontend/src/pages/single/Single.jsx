@@ -15,6 +15,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const getMiddleInitial = (middleName) => {
+  if (!middleName || !middleName.trim()) return "";
+  return middleName
+    .trim()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + ".")
+    .join("");
+};
+
 const Single = () => {
   const { userId } = useParams();
   const [user, setUser] = useState(null);
@@ -98,7 +107,7 @@ const Single = () => {
                 <Button 
                   asChild 
                   variant="ghost" 
-                  className="absolute top-4 right-4 z-20 text-white/80 hover:text-white hover:bg-white/10 h-8 w-8 p-0 rounded-full"
+                  className="absolute top-4 right-4 z-20 text-[#2A174E] hover:text-[#7A52B5] hover:bg-white/10 h-8 w-8 p-0 rounded-full"
                 >
                   <Link to={`/users/edit/${userId}`}>
                     <EditOutlinedIcon className="h-4 w-4" />
@@ -144,7 +153,7 @@ const Single = () => {
                 {/* Info Section */}
                 <div className="pb-8 px-6 text-white text-center">
                   <h2 className="text-xl font-black uppercase leading-tight tracking-tight">
-                    {user.user_FirstName} {user.user_LastName}
+                    {user.user_FirstName}{user.user_MiddleName?.trim() ? ` ${getMiddleInitial(user.user_MiddleName)}` : ""} {user.user_LastName}
                   </h2>
                   <p className="text-[12px] font-semibold opacity-90">{user.user_Role || "Employee"}</p>
                   <p className="text-[11px] font-bold mt-2 tracking-widest">ID NO: {formatUserId(user.user_Id)}</p>
