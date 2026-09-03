@@ -341,8 +341,8 @@ exports.scanRFID = async (req, res) => {
     );
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
     
-    // Statuses indicating the user is physically inside: 1 (Clock In), 4 (In From Lunch), 5 (Overtime In)
-    const isCurrentlyIn = [1, 4, 5].includes(lastStatus);
+    // Statuses indicating the user is physically inside: 1 (Morning In), 3 (Afternoon In), 5 (Overtime In)
+    const isCurrentlyIn = [1, 3, 5].includes(lastStatus);
 
     console.log(`[DEBUG-POLICY] User: ${user.user_FirstName}, LastStatus: ${lastStatus || "NONE"}, isCurrentlyIn: ${isCurrentlyIn}`);
 
@@ -478,9 +478,9 @@ exports.scanRFID = async (req, res) => {
     const isLunchWindow = totalMinutes >= lStart && totalMinutes < lEnd;
 
     if (action === "clock_in") {
-      nextStatus = (isLunchWindow && lastStatus === 3) ? 4 : (hasApprovedOT && isWithinOTWindow ? 5 : 1);
+      nextStatus = (isLunchWindow || lastStatus === 2) ? 3 : (hasApprovedOT && isWithinOTWindow ? 5 : 1);
     } else {
-      nextStatus = (isLunchWindow && [1, 4].includes(lastStatus)) ? 3 : (lastStatus === 5 ? 6 : 2);
+      nextStatus = (isLunchWindow && [1, 3].includes(lastStatus)) ? 2 : (lastStatus === 5 ? 6 : 4);
     }
 
     // ... (rest of the code remains until recording attendance)
@@ -553,10 +553,8 @@ exports.scanRFID = async (req, res) => {
     );
 
     // 5. Update Reporting
-    const isEntry = [1, 4, 5].includes(nextStatus);
-    let reportLoggedStatus = nextStatus;
-    if (nextStatus === 4 || nextStatus === 5) reportLoggedStatus = 1;
-    if (nextStatus === 3 || nextStatus === 6) reportLoggedStatus = 2;
+    const isEntry = [1, 3, 5].includes(nextStatus);
+    const reportLoggedStatus = isEntry ? 1 : 2;
 
     const existingReport = await sequelize.query(
       `SELECT * FROM "employee_Logging_report"
@@ -1117,7 +1115,7 @@ exports.getFingerprintTemplate = async (req, res) => {
     );
 
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
-    const isCurrentlyIn = lastStatus === 1 || lastStatus === 4 || lastStatus === 5;
+    const isCurrentlyIn = lastStatus === 1 || lastStatus === 3 || lastStatus === 5;
 
     if (isCurrentlyIn) {
       console.log(`[FP DOWNLOAD] User ${user.user_Id} already clocked in. Skipping 2FA template.`);

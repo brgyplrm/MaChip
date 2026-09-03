@@ -122,7 +122,7 @@ const Cashadvances = () => {
           if (!dateMap[dKey]) dateMap[dKey] = {};
           dateMap[dKey][item.user_Id.toString()] = {
             amount: parseFloat(item.amount),
-            status: 'paid'
+            status: item.payrollId ? 'paid' : 'pending'
           };
         });
         const matrix = Object.keys(dateMap).sort().map(date => ({

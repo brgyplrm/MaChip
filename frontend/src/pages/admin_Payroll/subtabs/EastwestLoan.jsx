@@ -128,7 +128,6 @@ const EastwestLoan = () => {
         key: emp.user_Id.toString(),
         eastwest_Loan: parseFloat(emp.eastwest_Loan || 0),
       }));
-      setEmployeeList(activeEmps);
 
       if (Array.isArray(history)) {
         const dateMap = {};
@@ -137,14 +136,41 @@ const EastwestLoan = () => {
           if (!dateMap[dKey]) dateMap[dKey] = {};
           dateMap[dKey][item.user_Id.toString()] = {
             amount: parseFloat(item.amount),
-            status: 'paid'
+            status: item.payrollId ? 'paid' : 'pending'
           };
         });
         const matrix = Object.keys(dateMap).sort().map(date => ({
           date,
           values: dateMap[date]
         }));
+
+        // Merge in any employee who has data but is NOT in the active list
+        // (e.g. zero-rate employees or employees whose loan rate was cleared)
+        const activeKeySet = new Set(activeEmps.map(e => e.key));
+        const extraUserIds = new Set();
+        matrix.forEach(row => {
+          Object.keys(row.values).forEach(uid => {
+            if (!activeKeySet.has(uid)) extraUserIds.add(uid);
+          });
+        });
+
+        const extraEmps = [...extraUserIds].map(uid => {
+          const found = employees.find(e => e.user_Id.toString() === uid);
+          return {
+            user_Id: parseInt(uid),
+            name: found
+              ? `${found.user_LastName}, ${found.user_FirstName}`
+              : `Employee #${uid}`,
+            id: `MACJ-${String(uid).padStart(3, "0")}`,
+            key: uid,
+            eastwest_Loan: found ? parseFloat(found.eastwest_Loan || 0) : 0,
+          };
+        }).sort((a, b) => a.name.localeCompare(b.name));
+
+        setEmployeeList([...activeEmps, ...extraEmps]);
         setData(matrix);
+      } else {
+        setEmployeeList(activeEmps);
       }
     } catch (err) {
       console.error("Error fetching Eastwest loan data", err);
@@ -1147,17 +1173,57 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                           TOTAL PAID ({selectedYear})
                         </td>
                         <td className="p-2.5 text-right font-mono text-xs text-slate-500">—</td>
-                        {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((_, mIdx) => {
+                        {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((mName, mIdx) => {
                           const mDates = expectedDates.filter(dStr => new Date(dStr).getMonth() === mIdx);
-                          const monthSum = mDates.reduce((sum, dStr) => {
+
+                          // Collect per-employee contributions for this month
+                          const contributors = [];
+                          mDates.forEach(dStr => {
                             const actualRecord = data.find(d => isInSamePeriod(d.date, dStr));
-                            if (!actualRecord) return sum;
-                            return sum + Object.values(actualRecord.values).reduce((acc, v) => acc + (v.amount || 0), 0);
-                          }, 0);
+                            if (!actualRecord) return;
+                            Object.entries(actualRecord.values).forEach(([uid, v]) => {
+                              if ((v.amount || 0) <= 0) return;
+                              const emp = employeeList.find(e => e.key === uid);
+                              const existing = contributors.find(c => c.uid === uid);
+                              if (existing) {
+                                existing.amount += v.amount;
+                              } else {
+                                contributors.push({
+                                  uid,
+                                  name: emp ? emp.name : `Employee #${uid}`,
+                                  amount: v.amount,
+                                });
+                              }
+                            });
+                          });
+                          const monthSum = contributors.reduce((s, c) => s + c.amount, 0);
 
                           return (
-                            <td key={mIdx} className="p-1.5 text-center font-mono text-xs font-black text-[#2A174E] border-r border-slate-200">
-                              {monthSum > 0 ? peso(monthSum) : "—"}
+                            <td key={mIdx} className="p-1 text-center font-mono border-r border-slate-200 align-middle">
+                              {monthSum > 0 ? (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <div className={`py-1 px-1 rounded text-[10px] font-mono font-bold transition-all cursor-help bg-[#2A174E] text-white shadow-sm`}>
+                                      {peso(monthSum)}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white text-xs border-slate-800 p-0 overflow-hidden min-w-[200px]">
+                                    <p className="font-bold px-3 py-2 bg-[#2A174E] text-yellow-300 text-[11px] uppercase tracking-wide">
+                                      {mName} {selectedYear} — Who paid
+                                    </p>
+                                    <div className="px-3 py-2 space-y-1">
+                                      {[...contributors].sort((a, b) => b.amount - a.amount).map(c => (
+                                        <div key={c.uid} className="flex justify-between items-center gap-4">
+                                          <span className="text-slate-300 text-[11px]">{c.name}</span>
+                                          <span className="font-mono font-bold text-emerald-300 text-[11px] shrink-0">{peso(c.amount)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <span className="text-slate-300 font-mono text-[10px]">—</span>
+                              )}
                             </td>
                           );
                         })}

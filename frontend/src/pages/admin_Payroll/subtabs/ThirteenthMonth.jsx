@@ -513,7 +513,7 @@ const ThirteenthMonth = () => {
 
       {/* Breakdown Modal */}
       <Dialog open={isBreakdownOpen} onOpenChange={setIsBreakdownOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-[#2A174E]">Earnings Breakdown - {selectedBreakdown?.year || currentYear}</DialogTitle>
             <DialogDescription>
@@ -522,31 +522,50 @@ const ThirteenthMonth = () => {
           </DialogHeader>
 
           <div className="py-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Month</TableHead>
-                  <TableHead className="text-right">Basic Earned</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {selectedBreakdown?.breakdown?.map((m) => (
-                  <TableRow key={m.month_num}>
-                    <TableCell className="font-medium">{m.month_name.trim()}</TableCell>
-                    <TableCell className="text-right font-mono">{formatCurrency(m.monthly_basic)}</TableCell>
+            {(!selectedBreakdown?.breakdown || selectedBreakdown.breakdown.length === 0) ? (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-400 italic text-sm">
+                <span>No monthly payroll data found for this period.</span>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50">
+                    <TableHead className="font-bold text-slate-600">Month</TableHead>
+                    <TableHead className="text-right font-bold text-slate-600">Basic Earned</TableHead>
                   </TableRow>
-                ))}
-                <TableRow className="bg-slate-50 font-bold">
-                  <TableCell>Total Basic</TableCell>
-                  <TableCell className="text-right text-[#2A174E]">{formatCurrency(selectedBreakdown?.totalBasicEarned)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {[...selectedBreakdown.breakdown]
+                    .sort((a, b) => Number(a.month_num) - Number(b.month_num))
+                    .map((m) => (
+                      <TableRow key={m.month_num}>
+                        <TableCell className="font-medium">{String(m.month_name).trim()}</TableCell>
+                        <TableCell className="text-right font-mono text-slate-700">{formatCurrency(m.monthly_basic)}</TableCell>
+                      </TableRow>
+                    ))}
+                  <TableRow className="bg-slate-100 font-bold border-t-2">
+                    <TableCell className="font-bold text-[#2A174E]">Total Basic</TableCell>
+                    <TableCell className="text-right text-[#2A174E] font-bold font-mono">
+                      {formatCurrency(
+                        selectedBreakdown?.totalBasicEarned ||
+                        selectedBreakdown?.breakdown?.reduce((sum, m) => sum + parseFloat(m.monthly_basic || 0), 0)
+                      )}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            )}
 
             <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-bold text-blue-600 uppercase">Formula: Total / 12</span>
-                <span className="text-lg font-bold text-blue-800">{formatCurrency(selectedBreakdown?.computedAmount || selectedBreakdown?.amount)}</span>
+                <span className="text-xs font-bold text-blue-600 uppercase">Formula: Total Basic ÷ 12</span>
+                <span className="text-lg font-bold text-blue-800">
+                  {formatCurrency(
+                    selectedBreakdown?.computedAmount ||
+                    selectedBreakdown?.amount ||
+                    (selectedBreakdown?.breakdown?.reduce((sum, m) => sum + parseFloat(m.monthly_basic || 0), 0) / 12)
+                  )}
+                </span>
               </div>
               <p className="text-[10px] text-blue-500 italic">
                 *Based on Presidential Decree No. 851. Includes all basic remunerations paid for services rendered.

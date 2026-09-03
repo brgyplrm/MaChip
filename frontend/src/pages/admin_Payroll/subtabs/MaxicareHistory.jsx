@@ -47,7 +47,7 @@ const MaxicareHistory = () => {
         const settingsData = await settingsRes.json();
         
         // Ensure history is always an array
-        const safeHistory = Array.isArray(historyData) ? historyData : (historyData.data || []);
+        const safeHistory = Array.isArray(historyData) ? historyData : (historyData.history || historyData.data || []);
         setHistory(safeHistory);
         
         setConfigs(settingsData.maxicareDates?.configs || {});
@@ -123,7 +123,7 @@ const MaxicareHistory = () => {
         config,
         isOver: new Date(systemToday) > range.deductionEnd
       };
-    }).filter(s => s && s.isOver);
+    }).filter(Boolean);
   }, [configs, history, systemToday]);
 
   const stats = useMemo(() => {
@@ -298,12 +298,19 @@ const MaxicareHistory = () => {
                   cycleSummaries.map((summary) => (
                     <TableRow key={summary.year} className="hover:bg-slate-50 transition-colors">
                       <TableCell className="font-bold text-[#2A174E] px-6 py-5">
-                        Cycle {summary.label}
-                        {summary.year === currentCycleYear && (
-                          <Badge className="ml-2 bg-yellow-400 text-[#2A174E] hover:bg-yellow-500 border-none font-black text-[10px]">
-                            CURRENT
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <span>Cycle {summary.label}</span>
+                          {summary.year === currentCycleYear && (
+                            <Badge className="bg-yellow-400 text-[#2A174E] hover:bg-yellow-500 border-none font-black text-[10px]">
+                              CURRENT
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-mono text-slate-500 font-medium block mt-1">
+                          {summary.config?.cycleStartDate 
+                            ? `${new Date(summary.config.cycleStartDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })} - Aug 10, ${summary.year + Math.ceil((summary.config.monthsToPay || 12) / 12)}` 
+                            : `Aug 11, ${summary.year} - Aug 10, ${summary.year + 1}`}
+                        </span>
                       </TableCell>
                       <TableCell className="font-medium text-slate-700">
                         {peso(summary.totalGrossPremium)}

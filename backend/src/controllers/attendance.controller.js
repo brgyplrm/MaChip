@@ -144,8 +144,8 @@ exports.markAttendance = async (req, res) => {
     );
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
 
-    if ([1, 4].includes(lastStatus) && now >= fivePMThirty && hasApprovedOT) {
-      await sequelize.query(`INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId") VALUES (:target_user_Id, :todayStart, '17:30:00', 2)`, { replacements: { target_user_Id, todayStart }, type: QueryTypes.INSERT });
+    if ([1, 3].includes(lastStatus) && now >= fivePMThirty && hasApprovedOT) {
+      await sequelize.query(`INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId") VALUES (:target_user_Id, :todayStart, '17:30:00', 4)`, { replacements: { target_user_Id, todayStart }, type: QueryTypes.INSERT });
       await sequelize.query(`INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId") VALUES (:target_user_Id, :todayStart, '17:30:00', 5)`, { replacements: { target_user_Id, todayStart }, type: QueryTypes.INSERT });
       const report = await sequelize.query(`SELECT * FROM "employee_Logging_report" WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`, { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT });
       if (report[0]) {
@@ -158,8 +158,8 @@ exports.markAttendance = async (req, res) => {
     }
 
     const currentStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
-    if (forcedStatus === 1 && [1, 4, 5].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-in` });
-    if (forcedStatus === 2 && currentStatus === 2) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-out` });
+    if (forcedStatus === 1 && [1, 3, 5].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-in` });
+    if (forcedStatus === 2 && [2, 4, 6].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-out` });
 
     const firstLoginToday = await sequelize.query(`SELECT * FROM "user_logging" WHERE "user_id" = :target_user_Id AND "logged_StatusId" = 1 AND "log_Date" BETWEEN :todayStart AND :todayEnd LIMIT 1`, { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT });
     const hasPriorClockIn = !!firstLoginToday[0];
@@ -185,9 +185,9 @@ exports.markAttendance = async (req, res) => {
     );
 
     let nextStatus;
-    if (forcedStatus === 1) nextStatus = (lastStatus === 3) ? 4 : (hasApprovedOT && isWithinOTWindow ? 5 : 1);
-    else if (forcedStatus === 2) nextStatus = (isLunchWindow && [1, 4].includes(lastStatus)) ? 3 : (lastStatus === 5 ? 6 : 2);
-    else nextStatus = (!lastStatus || [2, 3, 6].includes(lastStatus)) ? (hasApprovedOT && isWithinOTWindow ? 5 : 1) : ((isLunchWindow && [1, 4].includes(lastStatus)) ? 3 : (lastStatus === 5 ? 6 : 2));
+    if (forcedStatus === 1) nextStatus = (lastStatus === 2 || isLunchWindow) ? 3 : (hasApprovedOT && isWithinOTWindow ? 5 : 1);
+    else if (forcedStatus === 2) nextStatus = (isLunchWindow && [1, 3].includes(lastStatus)) ? 2 : (lastStatus === 5 ? 6 : 4);
+    else nextStatus = (!lastStatus || [2, 4, 6].includes(lastStatus)) ? ((lastStatus === 2 || isLunchWindow) ? 3 : (hasApprovedOT && isWithinOTWindow ? 5 : 1)) : ((isLunchWindow && [1, 3].includes(lastStatus)) ? 2 : (lastStatus === 5 ? 6 : 4));
 
     const isSuspiciousWindow = (now >= fivePMThirty || now < fiveAMThirty);
     const isLateNightFirstIn = (nextStatus === 1 && isSuspiciousWindow && !hasPriorClockIn && !isWithinOTWindow);
@@ -228,8 +228,8 @@ exports.markAttendance = async (req, res) => {
     const newLogResult = await sequelize.query(`INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId") VALUES (:target_user_Id, :log_Date, :time_Logged, :logged_StatusId, :attendance_StatusId) RETURNING *`, { replacements: { target_user_Id, log_Date: todayStart, time_Logged: timeStr, logged_StatusId: nextStatus, attendance_StatusId: attendanceVal }, type: QueryTypes.INSERT });
     const newLog = newLogResult[0][0];
 
-    const isEntry = [1, 4, 5].includes(nextStatus);
-    let repStat = nextStatus; if (nextStatus === 4 || nextStatus === 5) repStat = 1; if (nextStatus === 3 || nextStatus === 6) repStat = 2;
+    const isEntry = [1, 3, 5].includes(nextStatus);
+    const repStat = isEntry ? 1 : 2;
     const existing = await sequelize.query(`SELECT * FROM "employee_Logging_report" WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`, { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT });
     if (!existing[0]) {
       const inArr = isEntry ? [timeStr] : []; const outArr = !isEntry ? [timeStr] : [];

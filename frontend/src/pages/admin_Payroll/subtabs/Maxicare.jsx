@@ -293,7 +293,7 @@ const Maxicare = () => {
 
   const currentVirtualDates = virtualExpectedDates();
 
-  const displayDates = [...new Set([
+  const rawDisplayDates = [...new Set([
     ...expectedDates,
     ...currentVirtualDates,
     ...data.map(d => d.date)
@@ -348,6 +348,21 @@ const Maxicare = () => {
     return false;
   }).sort();
 
+  // Canonical deduplication per payroll period (strictly 2 per month: 1st half and 2nd half)
+  const displayDates = useMemo(() => {
+    const periodMap = new Map();
+    rawDisplayDates.forEach(dStr => {
+      const dt = new Date(dStr);
+      const isFirstHalf = dt.getDate() <= 15;
+      const key = `${dt.getFullYear()}_${String(dt.getMonth() + 1).padStart(2, '0')}_${isFirstHalf ? 'H1' : 'H2'}`;
+      // Prefer true month-end date or 15th (e.g. 31 over 30, 15 over 14)
+      if (!periodMap.has(key) || dStr > periodMap.get(key)) {
+        periodMap.set(key, dStr);
+      }
+    });
+    return Array.from(periodMap.values()).sort();
+  }, [rawDisplayDates]);
+
   const getCycleLabel = () => {
     const months = cycleConfigs[selectedYear]?.monthsToPay || config.monthsToPay || 12;
     const endYear = selectedYear + Math.max(1, Math.ceil(months / 12));
@@ -359,6 +374,43 @@ const Maxicare = () => {
     const options = { month: 'short', day: 'numeric', year: 'numeric' };
     return `${cycle.start.toLocaleDateString('en-PH', options)} TO ${cycle.end.toLocaleDateString('en-PH', options)}`.toUpperCase();
   };
+
+  // ── Compute Columns Based on Policy Cycle (e.g. Aug 2023 - Aug 2024) ─────────
+  const cycleMonths = useMemo(() => {
+    if (!cycle) {
+      return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m, i) => ({
+        key: `${selectedYear}-${i}`,
+        name: m,
+        year: selectedYear,
+        monthIndex: i,
+        label: m,
+        fullLabel: `${m} ${selectedYear}`
+      }));
+    }
+
+    const months = [];
+    const startDate = new Date(cycle.start);
+    const startY = startDate.getFullYear();
+    const startM = startDate.getMonth();
+    const endDate = new Date(cycle.deductionEnd);
+
+    let cur = new Date(startY, startM, 1);
+    while (cur <= endDate && months.length < 14) {
+      const y = cur.getFullYear();
+      const mIdx = cur.getMonth();
+      const mName = cur.toLocaleDateString('en-PH', { month: 'short' });
+      months.push({
+        key: `${y}-${mIdx}`,
+        name: mName,
+        year: y,
+        monthIndex: mIdx,
+        label: `${mName} '${String(y).slice(-2)}`,
+        fullLabel: `${mName} ${y}`
+      });
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    return months;
+  }, [cycle, selectedYear]);
   // ──────────────────────────────────────────────────────────────────────────
 
   const fetchData = async () => {
@@ -673,10 +725,13 @@ const Maxicare = () => {
 
       if (isInScope) {
         Object.keys(item.values).forEach(empKey => {
-          const amt = item.values[empKey].amount;
+          const val = item.values[empKey];
+          const amt = val?.amount || 0;
           if (amt > 0) {
             subscribers.add(empKey);
-            totalPaid += amt;
+            if (val?.status === 'paid') {
+              totalPaid += amt;
+            }
           }
         });
       }
@@ -1472,7 +1527,31 @@ const Maxicare = () => {
             </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto xl:justify-end">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto xl:justify-end">
+            {/* Direct Cycle Selector Dropdown */}
+            <div className="w-full sm:w-auto">
+              <Select value={selectedYear.toString()} onValueChange={(val) => {
+                setSelectedYear(parseInt(val));
+                setExpectedDates([]);
+              }}>
+                <SelectTrigger className="w-full sm:w-[280px] h-10 bg-white border-[#2A174E]/30 font-bold text-xs text-[#2A174E] shadow-xs hover:border-[#2A174E]">
+                  <SelectValue placeholder="Select Policy Cycle" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  {Object.keys(cycleConfigs).sort((a, b) => b - a).map(yr => {
+                    const cfg = cycleConfigs[yr];
+                    const eYear = parseInt(yr) + Math.max(1, Math.ceil((cfg?.monthsToPay || 12) / 12));
+                    const sDate = cfg?.cycleStartDate ? new Date(cfg.cycleStartDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : `Aug 11, ${yr}`;
+                    return (
+                      <SelectItem key={yr} value={yr} className="text-xs font-semibold">
+                        Cycle {yr} - {eYear} ({sDate} to Aug 10, {eYear})
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
@@ -1819,10 +1898,10 @@ const Maxicare = () => {
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-[#2A174E]">
-                  12-Month Matrix Visual Table ({getCycleLabel()})
+                  Policy Cycle Matrix Visual Table ({getRenewalPeriod()})
                 </h3>
                 <span className="text-xs text-slate-500 font-mono">
-                  Compact 12-month bird's-eye view for all covered employees. Hover over month chips for cutoff details.
+                  Policy coverage period: {getRenewalPeriod()}. Hover over month chips for cutoff details.
                 </span>
               </div>
               <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-md border border-slate-200">
@@ -1840,13 +1919,13 @@ const Maxicare = () => {
                     <th className="text-white font-bold text-xs uppercase text-right p-2.5 min-w-[100px]">
                       CUTOFF RATE
                     </th>
-                    {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map(m => (
-                      <th key={m} className="text-white font-bold text-xs uppercase text-center p-2 min-w-[65px]">
-                        {m}
+                    {cycleMonths.map(m => (
+                      <th key={m.key} className="text-white font-bold text-xs uppercase text-center p-2 min-w-[65px]">
+                        {m.label}
                       </th>
                     ))}
                     <th className="text-white font-bold text-xs uppercase text-right p-2.5 min-w-[110px]">
-                      YTD PAID ({selectedYear})
+                      CYCLE TOTAL
                     </th>
                     <th className="text-white font-bold text-xs uppercase text-center p-2.5 min-w-[90px]">
                       PROGRESS
@@ -1858,37 +1937,47 @@ const Maxicare = () => {
                   {loading ? (
                     <tr>
                       <td colSpan={16} className="h-32 text-center text-slate-500 italic p-6">
-                        Loading Maxicare 12-month matrix visual data...
+                        Loading Maxicare matrix visual data...
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
                       <td colSpan={16} className="h-32 text-center text-red-500 p-6">
                         <p>Error: {error}</p>
-                        <Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
+<Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
                       </td>
                     </tr>
                   ) : filteredTableEmployees.length > 0 ? (
                     <>
                       {paginatedTableEmployees.map((emp) => {
-                        const monthlyData = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((mName, mIdx) => {
-                          const mDates = displayDates.filter(dStr => new Date(dStr).getMonth() === mIdx);
+                        const monthlyData = cycleMonths.map((m) => {
+                          const mDates = displayDates.filter(dStr => {
+                            const dt = new Date(dStr);
+                            return dt.getMonth() === m.monthIndex && dt.getFullYear() === m.year;
+                          });
                           let mAmount = 0;
                           let cutoffsPaid = 0;
+                          let cutoffsPending = 0;
                           mDates.forEach(dateStr => {
                             const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
-                            const amt = actualRecord?.values[emp.key]?.amount || 0;
+                            const val = actualRecord?.values[emp.key];
+                            const amt = val?.amount || 0;
                             if (amt > 0) {
                               mAmount += amt;
-                              cutoffsPaid += 1;
+                              if (val?.status === 'paid') {
+                                cutoffsPaid += 1;
+                              } else {
+                                cutoffsPending += 1;
+                              }
                             }
                           });
-                          return { monthIndex: mIdx, monthName: mName, mAmount, cutoffsPaid };
+                          return { ...m, mAmount, cutoffsPaid, cutoffsPending };
                         });
 
                         const empYtdPaid = displayDates.reduce((acc, dateStr) => {
                           const period = data.find(d => isInSamePeriod(d.date, dateStr));
-                          return acc + ((period && period.values[emp.key]) ? period.values[emp.key].amount : 0);
+                          const val = period?.values[emp.key];
+                          return acc + ((val && val.status === 'paid') ? val.amount : 0);
                         }, 0);
 
                         const userRate = parseFloat(emp.expectedDeduction) || 0;
@@ -1916,21 +2005,24 @@ const Maxicare = () => {
                               {peso(userRate)}
                             </td>
 
-                            {/* 12 Month Status Pills */}
+                            {/* Policy Cycle Months Status Pills */}
                             {monthlyData.map((m) => {
-                              const isFullMonth = targetMonthlyFull > 0 && m.mAmount >= targetMonthlyFull;
-                              const isPartialMonth = m.mAmount > 0 && !isFullMonth;
+                              const isFullPaid = m.cutoffsPaid > 0 && m.cutoffsPending === 0;
+                              const isPartialPaid = m.cutoffsPaid > 0 && m.cutoffsPending > 0;
+                              const isPending = m.cutoffsPending > 0 && m.cutoffsPaid === 0;
 
                               return (
-                                <td key={m.monthIndex} className="p-1 text-center font-mono border-r border-slate-100 align-middle">
+                                <td key={m.key} className="p-1 text-center font-mono border-r border-slate-100 align-middle">
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <div
                                         className={`py-1 px-1 rounded text-[10px] font-mono font-bold transition-all cursor-help ${
-                                          isFullMonth
+                                          isFullPaid
                                             ? "bg-emerald-500 text-white shadow-2xs"
-                                            : isPartialMonth
-                                            ? "bg-amber-400 text-slate-900 shadow-2xs"
+                                            : isPartialPaid
+                                            ? "bg-teal-600 text-white shadow-2xs"
+                                            : isPending
+                                            ? "bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs"
                                             : "bg-slate-100 text-slate-300"
                                         }`}
                                       >
@@ -1938,9 +2030,10 @@ const Maxicare = () => {
                                       </div>
                                     </TooltipTrigger>
                                     <TooltipContent className="bg-slate-900 text-white text-xs border-slate-800">
-                                      <p className="font-bold">{m.monthName} {selectedYear}</p>
-                                      <p>Total Collected: {peso(m.mAmount)}</p>
-                                      <p>Paid Cutoffs: {m.cutoffsPaid} / 2</p>
+                                      <p className="font-bold">{m.fullLabel}</p>
+                                      <p>Amount: {peso(m.mAmount)}</p>
+                                      {m.cutoffsPaid > 0 && <p className="text-emerald-400 font-semibold">Paid via Payroll: {m.cutoffsPaid} / 2 cutoffs</p>}
+                                      {m.cutoffsPending > 0 && <p className="text-amber-400 font-semibold">Pending Payroll: {m.cutoffsPending} / 2 cutoffs</p>}
                                     </TooltipContent>
                                   </Tooltip>
                                 </td>
@@ -1973,27 +2066,30 @@ const Maxicare = () => {
                       {/* Footer Row (Monthly Totals for All Employees) */}
                       <tr className="bg-slate-100 font-bold border-t-2 border-[#2A174E]">
                         <td className="sticky left-0 z-[40] bg-slate-100 border-r border-[#2A174E] p-2.5 text-left font-black text-[#2A174E] text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
-                          TOTAL PAID ({selectedYear})
+                          TOTAL PAID
                         </td>
                         <td className="p-2.5 text-right font-mono text-xs text-slate-500">—</td>
-                        {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((_, mIdx) => {
-                          const mDates = displayDates.filter(dStr => new Date(dStr).getMonth() === mIdx);
-                          const monthSum = mDates.reduce((sum, dStr) => {
+                        {cycleMonths.map((m) => {
+                          const mDates = displayDates.filter(dStr => {
+                            const dt = new Date(dStr);
+                            return dt.getMonth() === m.monthIndex && dt.getFullYear() === m.year;
+                          });
+                          const monthSumPaid = mDates.reduce((sum, dStr) => {
                             const actualRecord = data.find(d => isInSamePeriod(d.date, dStr));
                             if (!actualRecord) return sum;
-                            return sum + Object.values(actualRecord.values).reduce((acc, v) => acc + (v.amount || 0), 0);
+                            return sum + Object.values(actualRecord.values).reduce((acc, v) => acc + (v.status === 'paid' ? (v.amount || 0) : 0), 0);
                           }, 0);
 
                           return (
-                            <td key={mIdx} className="p-1.5 text-center font-mono text-xs font-black text-[#2A174E] border-r border-slate-200">
-                              {monthSum > 0 ? peso(monthSum) : "—"}
+                            <td key={m.key} className="p-1.5 text-center font-mono text-xs font-black text-[#2A174E] border-r border-slate-200">
+                              {monthSumPaid > 0 ? peso(monthSumPaid) : "—"}
                             </td>
                           );
                         })}
                         <td className="p-2.5 text-right font-mono text-xs font-black text-emerald-800 bg-emerald-100/60 border-r border-slate-200">
                           {peso(stats.totalPaid)}
                         </td>
-                        <td className="p-2.5 text-center text-[10px] text-slate-400 font-bold">ANNUAL</td>
+                        <td className="p-2.5 text-center text-[10px] text-slate-400 font-bold">CYCLE</td>
                       </tr>
                     </>
                   ) : (

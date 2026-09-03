@@ -152,6 +152,23 @@ export default function LoanDetailsPage() {
     const installmentsPaid = loan.history?.length || 0;
     const totalInstallments = loan.schedule?.length || 0;
 
+    const calculateTimelineProgress = () => {
+        if (paidPercentage >= 100 || parseFloat(loan.remainingBalance) <= 0) return 100;
+        if (installmentsPaid === 0) return 0;
+        
+        const expectedCutoffs = totalInstallments || (parseInt(loan.monthsToPay || 12) * 2) || 24;
+        if (expectedCutoffs <= 1) return 100;
+        
+        const remainingCutoffs = expectedCutoffs - 1;
+        const cutoffsAfterFirst = Math.min(remainingCutoffs, Math.max(0, installmentsPaid - 1));
+        
+        // Node 1 (1st Deduction) is reached at 50%
+        // Subsequent cutoffs scale smoothly from 50% to 100%
+        return Math.min(100, 50 + (cutoffsAfterFirst / remainingCutoffs) * 50);
+    };
+
+    const timelineProgress = calculateTimelineProgress();
+
     const handleExportPDF = async () => {
         try {
             const response = await fetchWithAuth(`/api/payroll/loans/details/${id}/pdf`);
@@ -293,16 +310,23 @@ export default function LoanDetailsPage() {
 
                         <TabsContent value="overview" className="mt-4">
                             <Card className="p-8 bg-gradient-to-br from-[#FAF2FF] via-white to-[#FAF2FF] shadow-sm rounded-xl border-slate-100">
-                                <h2 className="font-black flex items-center gap-2 text-[#2A174E] mb-8 text-sm uppercase tracking-wider">
-                                    <Clock className="h-4 w-4" /> Repayment Timeline
-                                </h2>
-                                <div className="relative flex justify-between items-center w-full max-w-3xl mx-auto py-4">
-                                    <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2 z-0 rounded-full" />
-                                    <div className="absolute top-1/2 left-0 h-1 bg-indigo-500 -translate-y-1/2 z-0 rounded-full transition-all duration-1000" style={{ width: `${paidPercentage}%` }} />
+                                <div className="flex flex-wrap justify-between items-center gap-2 mb-8">
+                                    <h2 className="font-black flex items-center gap-2 text-[#2A174E] text-sm uppercase tracking-wider">
+                                        <Clock className="h-4 w-4" /> Repayment Timeline
+                                    </h2>
+                                    <Badge className="bg-[#2A174E]/10 text-[#2A174E] hover:bg-[#2A174E]/10 border-0 font-mono font-bold text-xs">
+                                        {paidPercentage.toFixed(1)}% Amortized ({installmentsPaid} of {totalInstallments || (parseInt(loan.monthsToPay || 12) * 2)} Cutoffs)
+                                    </Badge>
+                                </div>
+                                <div className="relative flex justify-between items-center w-full max-w-3xl mx-auto py-6">
+                                    <div className="absolute top-1/2 left-0 right-0 h-1.5 bg-slate-100 -translate-y-1/2 z-0 rounded-full" />
+                                    <div 
+                                        className="absolute top-1/2 left-0 h-1.5 bg-indigo-600 -translate-y-1/2 z-0 rounded-full transition-all duration-1000 shadow-xs" 
+                                        style={{ width: `${timelineProgress}%` }} 
+                                    />
 
                                     {(() => {
-                                        const firstDeduction = loan.schedule?.[0]?.dueDate || loan.contractDate;
-                                        // Calculate final date if schedule is empty
+                                        const firstDeduction = loan.history?.[0]?.dueDate || loan.schedule?.[0]?.dueDate || loan.contractDate;
                                         let finalDate = loan.schedule?.[loan.schedule.length - 1]?.dueDate;
                                         if (!finalDate && loan.contractDate && loan.monthsToPay) {
                                             const d = new Date(loan.contractDate);
@@ -310,15 +334,55 @@ export default function LoanDetailsPage() {
                                             finalDate = d.toISOString().split('T')[0];
                                         }
 
-                                        return [
-                                            { label: "Loan Enrolled", date: loan.contractDate || loan.createdAt },
-                                            { label: "1st Deduction", date: firstDeduction },
-                                            { label: "Final Expected", date: finalDate }
-                                        ].map((item, index) => (
+                                        const isFirstDeducted = installmentsPaid > 0;
+                                        const isCompleted = paidPercentage >= 100 || parseFloat(loan.remainingBalance) <= 0;
+
+                                        const items = [
+                                            { 
+                                                label: "Loan Enrolled", 
+                                                date: loan.contractDate || loan.createdAt,
+                                                isReached: true,
+                                                badge: "Active",
+                                                badgeClass: "text-indigo-700 bg-indigo-50 border-indigo-200"
+                                            },
+                                            { 
+                                                label: "1st Deduction", 
+                                                date: firstDeduction,
+                                                isReached: isFirstDeducted,
+                                                badge: isFirstDeducted ? "Deducted" : "Pending",
+                                                badgeClass: isFirstDeducted 
+                                                    ? "text-emerald-700 bg-emerald-50 border-emerald-200 font-bold" 
+                                                    : "text-amber-700 bg-amber-50 border-amber-200"
+                                            },
+                                            { 
+                                                label: "Final Expected", 
+                                                date: finalDate,
+                                                isReached: isCompleted,
+                                                badge: isCompleted ? "Completed" : `${formatCurrency(loan.remainingBalance)} Left`,
+                                                badgeClass: isCompleted 
+                                                    ? "text-emerald-700 bg-emerald-50 border-emerald-200 font-bold" 
+                                                    : "text-slate-600 bg-slate-100 border-slate-200"
+                                            }
+                                        ];
+
+                                        return items.map((item, index) => (
                                             <div key={index} className="relative z-10 flex flex-col items-center">
-                                                <div className={`w-5 h-5 rounded-full border-4 border-white shadow-md mb-3 ${new Date(item.date) <= new Date() ? 'bg-indigo-500' : 'bg-slate-300'}`} />
-                                                <p className="font-black text-[10px] text-[#2A174E] whitespace-nowrap uppercase tracking-tighter">{item.label}</p>
-                                                <p className="text-[10px] text-slate-400 font-bold font-mono">{formatDate(item.date)}</p>
+                                                <div 
+                                                    className={`w-7 h-7 rounded-full border-4 border-white shadow-md mb-2 flex items-center justify-center transition-all ${
+                                                        item.isReached ? 'bg-indigo-600 text-white shadow-indigo-200' : 'bg-slate-200 text-slate-400'
+                                                    }`}
+                                                >
+                                                    {item.isReached ? (
+                                                        <CheckCircle2 className="h-4 w-4 stroke-[2.5]" />
+                                                    ) : (
+                                                        <span className="text-[10px] font-bold font-mono">{index + 1}</span>
+                                                    )}
+                                                </div>
+                                                <p className="font-black text-[11px] text-[#2A174E] whitespace-nowrap uppercase tracking-tight">{item.label}</p>
+                                                <p className="text-[10px] text-slate-500 font-bold font-mono mt-0.5">{formatDate(item.date)}</p>
+                                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full mt-1.5 border shadow-2xs ${item.badgeClass}`}>
+                                                    {item.badge}
+                                                </span>
                                             </div>
                                         ));
                                     })()}

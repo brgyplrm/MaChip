@@ -178,10 +178,12 @@ exports.sendPayrollEmail = async ({ email, name, period, netPay, attachments = [
     },
   });
 
+  const targetRecipient = (email && !email.endsWith('@machip.com') && email.includes('@')) ? email : EMAIL_USER;
+
   const mailOptions = {
     from: `"MaChip Payroll" <${EMAIL_USER}>`,
-    to: email,
-    subject: `Payroll Summary for Period: ${period}`,
+    to: targetRecipient,
+    subject: `Payroll Summary for Period: ${period} (${name})`,
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <h2 style="color: #2c3e50;">Payroll Notification</h2>

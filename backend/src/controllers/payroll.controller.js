@@ -831,6 +831,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
     const rateToUse = customDailyRate !== null ? customDailyRate : emp.dailyRate;
     const fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse);
 
+    const initialStatus = shouldRelease ? 5 : 1;
     const payrollResult = await sequelize.query(
       `INSERT INTO "Payroll"
         ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked", "totalScheduledDays",
@@ -841,7 +842,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
         (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked, :totalScheduledDays,
          :dailyRate, :previousDailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
          :holidaysTotal, :holidaysRegularWorked, :holidaysSpecialWorked,
-         1, :now, :now)
+         :initialStatus, :now, :now)
        RETURNING "payrollId"`,
       {
         replacements: {
@@ -855,6 +856,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
           holidaysTotal: fullStats.holidaysTotal || 0,
           holidaysRegularWorked: fullStats.legalHol_Days || 0,
           holidaysSpecialWorked: fullStats.specialHol_Days || 0,
+          initialStatus,
           now: nowStr
         },
         type: QueryTypes.INSERT
@@ -1005,15 +1007,17 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
     processedCount++;
   }
 
-  if (periodId && shouldRelease) {
-    await sequelize.query(
-      `UPDATE "PayrollPeriod" SET "status" = 'Released', "updatedAt" = :now WHERE "periodId" = :periodId`,
-      { replacements: { periodId, now: nowStr }, type: QueryTypes.UPDATE }
-    );
+  if (shouldRelease) {
+    if (periodId) {
+      await sequelize.query(
+        `UPDATE "PayrollPeriod" SET "status" = 'Released', "updatedAt" = :now WHERE "periodId" = :periodId`,
+        { replacements: { periodId, now: nowStr }, type: QueryTypes.UPDATE }
+      );
+    }
     
-    // Also mark individual payrolls as released (status 2) if shouldRelease is true
+    // Also mark individual payrolls as released (status 5 = Released in Payroll_status)
     await sequelize.query(
-      `UPDATE "Payroll" SET "status" = 2, "updatedAt" = :now WHERE "period_Start" = :period_Start AND "period_End" = :period_End`,
+      `UPDATE "Payroll" SET "status" = 5, "updatedAt" = :now WHERE "period_Start" = :period_Start AND "period_End" = :period_End`,
       { replacements: { period_Start, period_End, now: nowStr }, type: QueryTypes.UPDATE }
     );
   }
@@ -1527,7 +1531,7 @@ exports.releasePayroll = async (req, res) => {
     const nowStr = formatForSQL(now);
 
     const [updated] = await sequelize.query(
-      `UPDATE "Payroll" SET "status" = 2, "updatedAt" = :now WHERE "payrollId" = :payrollId`,
+      `UPDATE "Payroll" SET "status" = 5, "updatedAt" = :now WHERE "payrollId" = :payrollId`,
       { replacements: { payrollId, now: nowStr }, type: QueryTypes.UPDATE }
     );
 
@@ -2412,16 +2416,16 @@ exports.getThirteenthMonthPreview = async (req, res) => {
          tm."status" as "existingStatus",
          tm."amount" as "savedAmount",
          (
-           SELECT json_agg(m)
+           SELECT json_agg(m ORDER BY (m).month_num)
            FROM (
              SELECT 
-               EXTRACT(MONTH FROM p2."period_Start") as month_num,
-               TO_CHAR(p2."period_Start", 'Month') as month_name,
+               EXTRACT(MONTH FROM p2."period_Start")::int as month_num,
+               TO_CHAR(DATE_TRUNC('month', p2."period_Start"), 'Month') as month_name,
                SUM(p2."basicPay") as monthly_basic
              FROM "Payroll" p2
              WHERE p2."user_Id" = u."user_Id" 
                AND EXTRACT(YEAR FROM p2."period_Start") = :year 
-               AND p2."status" = 2
+               AND p2."status" IN (2, 5)
              GROUP BY month_num, month_name
              ORDER BY month_num
            ) m
@@ -2429,7 +2433,7 @@ exports.getThirteenthMonthPreview = async (req, res) => {
        FROM "User" u
        LEFT JOIN "Payroll" p ON u."user_Id" = p."user_Id" 
          AND EXTRACT(YEAR FROM p."period_Start") = :year 
-         AND p."status" = 2
+         AND p."status" IN (2, 5)
        LEFT JOIN "Payroll_ThirteenthMonth" tm ON u."user_Id" = tm."user_Id" AND tm."year" = :year
        WHERE u."dailyRate" > 0
        GROUP BY u."user_Id", u."user_FirstName", u."user_LastName", tm."status", tm."amount", u."deletedAt"
@@ -2658,16 +2662,16 @@ exports.getThirteenthMonthHistory = async (req, res) => {
     let query = `
       SELECT tm.*, u."user_FirstName", u."user_LastName",
       (
-        SELECT json_agg(m)
+        SELECT json_agg(m ORDER BY (m).month_num)
         FROM (
           SELECT 
-            EXTRACT(MONTH FROM p2."period_Start") as month_num,
-            TO_CHAR(p2."period_Start", 'Month') as month_name,
+            EXTRACT(MONTH FROM p2."period_Start")::int as month_num,
+            TO_CHAR(DATE_TRUNC('month', p2."period_Start"), 'Month') as month_name,
             SUM(p2."basicPay") as monthly_basic
           FROM "Payroll" p2
           WHERE p2."user_Id" = tm."user_Id" 
             AND EXTRACT(YEAR FROM p2."period_Start") = tm."year"
-            AND p2."status" = 2
+            AND p2."status" IN (2, 5)
           GROUP BY month_num, month_name
           ORDER BY month_num
         ) m
@@ -3529,7 +3533,7 @@ exports.getActiveLoans = async (req, res) => {
       `SELECT 
         ld."id",
         CASE
-          WHEN ld."deductionType" = 'sss_loan' THEN 'SSS'
+          WHEN ld."deductionType" = 'sss_loan' THEN 'SSS Salary'
           WHEN ld."deductionType" = 'sss_emergency' THEN 'SSS Emergency'
           WHEN ld."deductionType" = 'sss_conso' THEN 'SSS Conso Loan'
           WHEN ld."deductionType" = 'hdmf_loan' THEN 'Pag-IBIG MPL'
@@ -3553,6 +3557,7 @@ exports.getActiveLoans = async (req, res) => {
        FROM "Loan_Deductions" ld
        JOIN "User" u ON ld."userId" = u."user_Id"
        WHERE u."deletedAt" IS NULL
+         AND ld."deductionType" NOT IN ('cash_advance', 'eastwest', 'maxicare')
        ORDER BY ld."createdAt" DESC`,
       { type: QueryTypes.SELECT }
     );
@@ -3632,7 +3637,7 @@ exports.getLoanById = async (req, res) => {
         "payrollId",
         CASE WHEN "payrollId" IS NOT NULL THEN 'PAID' ELSE 'PENDING' END as "status"
        FROM "Payroll_GovernmentLoans"
-       WHERE "user_Id" = :userId AND "government_type"::text = :govType
+       WHERE "user_Id" = :userId AND ("government_type"::text = :govType OR "government_type"::text LIKE :govType || '%')
        ORDER BY "date" ASC`,
       { replacements: { userId: targetUserId, govType }, type: QueryTypes.SELECT }
     );
@@ -3708,7 +3713,7 @@ exports.getMyPayrollHistory = async (req, res) => {
        FROM "Payroll" p
        LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
        LEFT JOIN "PayrollPeriod" pp ON pp."periodId" = p."periodId"
-       WHERE p."user_Id" = :user_Id AND p."status" = 2
+       WHERE p."user_Id" = :user_Id AND p."status" IN (2, 5)
        ORDER BY p."period_Start" DESC`,
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
@@ -3753,7 +3758,7 @@ exports.getMyPayrollById = async (req, res) => {
        LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
        LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
        LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
-       WHERE p."payrollId" = :payrollId AND p."user_Id" = :user_Id AND p."status" = 2
+       WHERE p."payrollId" = :payrollId AND p."user_Id" = :user_Id AND p."status" IN (2, 5)
        LIMIT 1`,
       { replacements: { payrollId, user_Id }, type: QueryTypes.SELECT },
     );
