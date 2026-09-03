@@ -3,11 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, User, FileText, Clock, DollarSign, CheckCircle2 } from "lucide-react";
+import { Download, User, FileText, Clock, DollarSign, CheckCircle2, ChevronLeft } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Sidebar from "../../../components/Sidebar";
 import { Link, useParams } from "react-router-dom";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { fetchWithAuth } from "../../../utils/api";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -187,7 +186,7 @@ export default function LoanDetailsPage() {
                                     <TooltipTrigger asChild>
                                         <span className="inline-block">
                                             <Button variant="ghost" size="icon" asChild className="text-[#2A174E]">
-                                                <Link to="/loanManagement"><ArrowBackIcon className="h-6 w-6" /></Link>
+                                                <Link to="/loanManagement"><ChevronLeft className="h-6 w-6" /></Link>
                                             </Button>
                                         </span>
                                     </TooltipTrigger>

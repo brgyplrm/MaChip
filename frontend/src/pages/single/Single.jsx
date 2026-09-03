@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import Chart from "../../components/chart/Chart";
 import Table from "../../components/table/Table";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import PaymentsIcon from "@mui/icons-material/Payments";
 import WorkIcon from "@mui/icons-material/Work";
@@ -183,7 +183,7 @@ const Single = () => {
                           onClick={() => navigate(-1)}
                           className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E] hover:bg-slate-200/60 rounded-full h-10 w-10"
                         >
-                          <ArrowBackIcon className="h-6 w-6" />
+                          <ChevronLeft className="h-6 w-6" />
                         </Button>
                       </span>
                     </TooltipTrigger>

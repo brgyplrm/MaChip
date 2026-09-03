@@ -63,13 +63,13 @@ export const userInputs = [
     id: "user_MachipId",
     label: "MaChip ID",
     type: "text",
-    placeholder: "e.g. MACHIP-XXXXXX",
+    placeholder: "Click SCAN to link RFID card",
   },
   {
-  id: "user_FingerprintId",
-  label: "Fingerprint ID",
-  type: "text",
-  placeholder: "Scan to register fingerprint",
+    id: "user_FingerprintId",
+    label: "Fingerprint ID",
+    type: "text",
+    placeholder: "Click SCAN to enroll fingerprint",
   },
 ];
 

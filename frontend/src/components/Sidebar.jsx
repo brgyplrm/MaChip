@@ -18,6 +18,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import DescriptionIcon from '@mui/icons-material/Description';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
+import CloseIcon from '@mui/icons-material/Close';
 import { useSystemTime } from "../context/SystemTimeContext";
 import { Badge } from "./ui/badge";
 import TuneIcon from '@mui/icons-material/Tune';
@@ -240,7 +241,9 @@ const Sidebar = ({ children }) => {
       const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}?viewMode=${currentViewMode}`);
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data.slice(0, 5));
+        // Only keep unread/unclicked notifications in the dropdown so clicked ones disappear
+        const unreadOnly = data.filter((n) => !n.isRead);
+        setNotifications(unreadOnly.slice(0, 5));
       }
     } catch (err) { console.error(err); }
   };
@@ -249,16 +252,14 @@ const Sidebar = ({ children }) => {
     setIsNotifLocked(false); 
     setIsNotifHovered(false);
 
+    // Immediately remove this clicked notification so remaining unclicked notifications are easily accessible at the top
+    setNotifications((prev) => prev.filter((n) => n.notifId !== notif.notifId));
+
     if (!notif.isRead) {
       // 1. Instantly decrement unread count on bell badge
       setUnreadCount((prev) => Math.max(0, prev - 1));
 
-      // 2. Mark this notification as read in preview dropdown
-      setNotifications((prev) =>
-        prev.map((n) => (n.notifId === notif.notifId ? { ...n, isRead: true } : n))
-      );
-
-      // 3. Persist to backend and notify any listeners
+      // 2. Persist to backend and notify any listeners
       try {
         await fetchWithAuth(`/api/notifications/mark-read/${notif.notifId}`, {
           method: "PUT",
@@ -269,8 +270,16 @@ const Sidebar = ({ children }) => {
       }
     }
 
-    // 4. Navigate to relevant destination
-    if (notif.title === "Password Reset Request" && notif.targetId) {
+    // 3. Navigate to relevant destination
+    const titleLower = (notif.title || "").toLowerCase();
+    if (
+      titleLower.includes("irregular log") ||
+      titleLower.includes("unrecognized") ||
+      titleLower.includes("unauthorized") ||
+      titleLower.includes("suspicious")
+    ) {
+      navigate("/transactionLog");
+    } else if (notif.title === "Password Reset Request" && notif.targetId) {
       navigate(`/users/edit/${notif.targetId}`);
     } else if (notif.title === "New Request for Review") {
       navigate("/adminRequests");
@@ -278,6 +287,25 @@ const Sidebar = ({ children }) => {
       navigate("/userRequests");
     } else if (notif.targetId) {
       navigate(`/requests/${notif.targetId}`);
+    }
+  };
+
+  const handleDismissNotif = async (e, notif) => {
+    e.stopPropagation();
+
+    // Immediately remove from dropdown
+    setNotifications((prev) => prev.filter((n) => n.notifId !== notif.notifId));
+
+    if (!notif.isRead) {
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+      try {
+        await fetchWithAuth(`/api/notifications/mark-read/${notif.notifId}`, {
+          method: "PUT",
+        });
+        window.dispatchEvent(new Event("notificationRefresh"));
+      } catch (err) {
+        console.error("Error marking notification as read:", err);
+      }
     }
   };
 
@@ -812,7 +840,7 @@ const Sidebar = ({ children }) => {
                 </SidebarMenuItem>
 
                 {/* Loan Enrollment - Management Only */}
-                {(isManagement || isSupervisor) && (
+                {/* {(isManagement || isSupervisor) && (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
@@ -825,7 +853,7 @@ const Sidebar = ({ children }) => {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                )}
+                )} */}
 
                 {/* My Payroll - Employee Only */}
                 {(viewMode === "employee" || Number(roleId) === 3) && (
@@ -1138,17 +1166,23 @@ const Sidebar = ({ children }) => {
                         notifications.map((notif) => (
                           <div 
                             key={notif.notifId} 
-                            className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-[#f0ebfa]/30' : ''}`}
+                            className="group/notif relative px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer bg-[#f0ebfa]/30"
                             onClick={() => handleNotifClick(notif)}
                           >
-                            <div className="flex gap-3">
-                              {!notif.isRead && (
-                                <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full bg-[#2A174E]" />
-                              )}
-                              <div className="flex-1">
+                            <div className="flex gap-3 items-start">
+                              <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full bg-[#2A174E]" />
+                              <div className="flex-1 min-w-0 pr-2">
                                 <p className="text-[12px] text-gray-800 leading-snug line-clamp-2 font-medium">{notif.message}</p>
                                 <p className="text-[10px] text-gray-400 mt-1">{new Date(notif.createdAt).toLocaleString()}</p>
                               </div>
+                              <button
+                                type="button"
+                                title="Dismiss notification"
+                                onClick={(e) => handleDismissNotif(e, notif)}
+                                className="opacity-0 group-hover/notif:opacity-100 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded transition-all shrink-0"
+                              >
+                                <CloseIcon sx={{ fontSize: 13 }} />
+                              </button>
                             </div>
                           </div>
                         ))

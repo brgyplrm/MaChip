@@ -6,7 +6,7 @@ import "react-circular-progressbar/dist/styles.css";
 import HistoryIcon from '@mui/icons-material/History';
 import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
 import Toast from "../../components/toast/Toast";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import { fetchWithAuth } from "../../utils/api";
@@ -35,6 +35,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 const EmployeeHome = () => {
   const { systemToday, isMockTime } = useSystemTime();
   const [userData, setUserData] = useState(() => JSON.parse(localStorage.getItem("userData")));
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("viewMode") || "employee");
   
   const formattedTime = systemToday.toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -66,7 +67,7 @@ const EmployeeHome = () => {
       try {
         const [statsRes, notifRes, payrollRes] = await Promise.all([
           fetchWithAuth(`/api/attendance/employee-dashboard/${currentId}`),
-          fetchWithAuth(`/api/notifications/unread-count/${currentId}`),
+          fetchWithAuth(`/api/notifications/unread-count/${currentId}?viewMode=employee`),
           fetchWithAuth(`/api/payroll/my-history`)
         ]);
 
@@ -85,7 +86,13 @@ const EmployeeHome = () => {
         if (notifRes.ok) {
           const notifData = await notifRes.json();
           if (notifData.count > 0) {
-            setToast({ message: `You have ${notifData.count} unread notification(s).`, type: "success" });
+            const isSwitchable = [1, 2, 4].includes(Number(storedUser.user_RoleId));
+            setToast({ 
+              message: isSwitchable 
+                ? `You have ${notifData.count} unread employee notification(s).` 
+                : `You have ${notifData.count} unread notification(s).`, 
+              type: "success" 
+            });
           }
         }
       } catch (error) {
@@ -96,14 +103,28 @@ const EmployeeHome = () => {
     };
 
     fetchDashboardData();
-    window.addEventListener("storage", fetchDashboardData);
+
+    const handleStorageChange = () => {
+      const stored = JSON.parse(localStorage.getItem("userData"));
+      const storedMode = localStorage.getItem("viewMode") || "employee";
+      setUserData(stored);
+      setViewMode(storedMode);
+      fetchDashboardData();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
     window.addEventListener("dataRefresh", fetchDashboardData);
     
     return () => {
-      window.removeEventListener("storage", fetchDashboardData);
+      window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("dataRefresh", fetchDashboardData);
     };
   }, []);
+
+  const isSwitchableRole = [1, 2, 4].includes(Number(userData?.user_RoleId));
+  if (isSwitchableRole && viewMode === "management") {
+    return <Navigate to="/" replace />;
+  }
 
   if (!userData) return null;
 
@@ -414,7 +435,7 @@ const EmployeeHome = () => {
                             {(balance.VL_balance || 0) + (balance.SL_balance || 0)} <span className="text-xl opacity-80 font-medium">Days</span>
                           </p>
                         </div>
-                        <p className="text-xs font-semibold text-white/70 italic mt-4">VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance}</p>
+                        <p className="text-xs font-semibold text-white/70 italic mt-4">VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance} Remaining Leaves</p>
                       </CardContent>
                     </Card>
                   </TooltipTrigger>
@@ -709,7 +730,7 @@ const EmployeeHome = () => {
                 
                 {/* Attendance Timeline */}
                 <Card className="xl:col-span-2 shadow-sm border-0 border-t-4 border-[#2A174E] bg-white h-[420px] flex flex-col">
-                  <CardHeader className="pb-4 border-b border-slate-50 shrink-0">
+                  <CardHeader className="pb-0 border-b border-slate-50 shrink-0">
                     <CardTitle className="text-[#2A174E] text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
                         <HistoryIcon className="h-5 w-5" />
@@ -725,7 +746,7 @@ const EmployeeHome = () => {
                       </div>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6 flex-1 overflow-hidden flex flex-col">
+                  <CardContent className="py-0 flex-1 overflow-hidden flex flex-col">
                     <div className="space-y-3 overflow-y-auto custom-scrollbar pr-2 flex-1">
                       {dashboardStats.recentLogs.map((log, idx) => {
                         const isGood = log.status?.toLowerCase().includes('time') || log.status?.toLowerCase().includes('field');
@@ -755,7 +776,7 @@ const EmployeeHome = () => {
 
                 {/* Detailed Leave Balances */}
                 <Card className="shadow-sm border-0 border-t-4 border-[#3B4E17] bg-white flex flex-col h-[420px]">
-                  <CardHeader className="pb-4 border-b border-slate-50 shrink-0">
+                  <CardHeader className="pb-0 border-b border-slate-50 shrink-0">
                     <CardTitle className="text-[#3B4E17] text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
@@ -771,7 +792,7 @@ const EmployeeHome = () => {
                       </div>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6 flex-1 flex flex-col justify-center gap-6">
+                  <CardContent className="py-0 flex-1 flex flex-col justify-center gap-6">
                     {[
                       { label: "Vacation Leave (VL)", bal: balance.VL_balance, total: balance.VL_total, color: "bg-[#8DB552]", light: "bg-[#8DB552]/20" },
                       { label: "Sick Leave (SL)", bal: balance.SL_balance, total: balance.SL_total, color: "bg-[#C0E990]", light: "bg-[#C0E990]/30" }

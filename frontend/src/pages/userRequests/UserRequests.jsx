@@ -31,6 +31,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const isSaturday = (dateStr) => {
   if (!dateStr) return false;
@@ -1319,45 +1320,17 @@ const UserRequests = () => {
                 </div>
 
                 {/* Queue Pagination Footer */}
-                {totalItems > itemsPerPage && (
-                  <div className="flex items-center justify-between py-4 shrink-0 px-4 border-t border-slate-100">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                          disabled={currentPage === 1}
-                          className="h-8 px-2"
-                        >
-                          <ChevronLeftIcon className="h-4 w-4 text-slate-500" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
-                        Previous page
-                      </TooltipContent>
-                    </Tooltip>
-                    <span className="text-xs font-semibold text-slate-500">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                          disabled={currentPage === totalPages}
-                          className="h-8 px-2"
-                        >
-                          <ChevronRightIcon className="h-4 w-4 text-slate-500" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
-                        Next page
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                )}
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  setCurrentPage={setCurrentPage}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                  startIndex={startIndex}
+                  endIndex={endIndex}
+                  itemLabel="requests"
+                  compact={true}
+                />
 
               </div>
             )}

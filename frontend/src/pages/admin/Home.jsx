@@ -45,8 +45,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const Home = () => {
   const { systemToday, isMockTime } = useSystemTime();
-  const userData = JSON.parse(localStorage.getItem("userData"));
-  const viewMode = localStorage.getItem("viewMode") || "management";
+  const [userData, setUserData] = useState(() => JSON.parse(localStorage.getItem("userData")));
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("viewMode") || "management");
   const [loading, setLoading] = useState(false);
 
   const formattedTime = systemToday.toLocaleTimeString('en-US', {
@@ -167,25 +167,57 @@ const Home = () => {
   };
 
   useEffect(() => {
-    const fetchPendingCount = async () => {
-      if (!(userData?.user_RoleId === 1 || userData?.user_RoleId === 2)) return;
+    const fetchAdminNotificationUpdates = async () => {
+      const storedUser = JSON.parse(localStorage.getItem("userData") || "{}");
+      const currentRole = Number(storedUser?.user_RoleId);
+      const currentId = Number(storedUser?.user_Id);
+
+      // Only management roles (Admin: 1, Supervisor: 2, Accountant: 4) can receive management updates
+      if (![1, 2, 4].includes(currentRole)) return;
+
       try {
-        const response = await fetchWithAuth("/api/request/pending-count");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.count > 0) {
-            setToast({
-              message: `Attention: There are ${data.count} pending request(s) awaiting your approval.`,
-              type: "error" 
-            });
-          }
+        const [pendingRes, notifRes] = await Promise.all([
+          fetchWithAuth("/api/request/pending-count"),
+          currentId 
+            ? fetchWithAuth(`/api/notifications/unread-count/${currentId}?viewMode=management`)
+            : Promise.resolve(null)
+        ]);
+
+        let pendingCount = 0;
+        if (pendingRes && pendingRes.ok) {
+          const data = await pendingRes.json();
+          pendingCount = Number(data.count) || 0;
+        }
+
+        let unreadManagementCount = 0;
+        if (notifRes && notifRes.ok) {
+          const notifData = await notifRes.json();
+          unreadManagementCount = Number(notifData.count) || 0;
+        }
+
+        // Distinct separated Admin Dashboard toast messages
+        if (pendingCount > 0 && unreadManagementCount > 0) {
+          setToast({
+            message: `Attention: There are ${pendingCount} pending request(s) awaiting your action, and ${unreadManagementCount} unread administrative notification(s).`,
+            type: "error"
+          });
+        } else if (pendingCount > 0) {
+          setToast({
+            message: `Attention: There are ${pendingCount} pending request(s) awaiting your approval.`,
+            type: "error"
+          });
+        } else if (unreadManagementCount > 0) {
+          setToast({
+            message: `You have ${unreadManagementCount} unread administrative notification(s).`,
+            type: "info"
+          });
         }
       } catch (error) {
-        console.error("Error fetching pending count:", error);
+        console.error("Error fetching admin notification updates:", error);
       }
     };
 
-    fetchPendingCount();
+    fetchAdminNotificationUpdates();
     fetchDashboardStats();
     fetchPayrollPeriods();
     fetchPendingRequests();
@@ -198,19 +230,29 @@ const Home = () => {
     }, 60000);
 
     const handleRefresh = () => {
-      fetchPendingCount();
+      fetchAdminNotificationUpdates();
       fetchDashboardStats();
       fetchPayrollPeriods();
       fetchPendingRequests();
       fetchOverallStats();
     };
 
+    const handleStorageChange = () => {
+      const stored = JSON.parse(localStorage.getItem("userData"));
+      const storedMode = localStorage.getItem("viewMode") || "management";
+      setUserData(stored);
+      setViewMode(storedMode);
+      handleRefresh();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
     window.addEventListener("dataRefresh", handleRefresh);
     return () => {
+      window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("dataRefresh", handleRefresh);
       clearInterval(interval);
     };
-  }, [userData?.user_RoleId]);
+  }, []);
 
   const isEmptyDonut = stats.onTimeCount === 0 && stats.lateArrivalsCount === 0;
   const donutData = isEmptyDonut

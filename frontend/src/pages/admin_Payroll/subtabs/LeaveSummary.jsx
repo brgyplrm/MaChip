@@ -37,6 +37,7 @@ import {
   DialogDescription,
   DialogFooter
 } from "@/components/ui/dialog";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const LeaveSummary = () => {
   const [year, setYear] = useState(new Date().getFullYear());
@@ -488,35 +489,16 @@ const LeaveSummary = () => {
           </div>
         )}
         {/* Pagination Controls */}
-        {filteredData.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between py-6 border-t border-slate-100 gap-4">
-            <div className="text-sm text-slate-500">
-              Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredData.length)} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                disabled={currentPage === 1}
-              >
-                Previous
-              </Button>
-              <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
-                {currentPage}
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                disabled={currentPage >= totalPages}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          setCurrentPage={setCurrentPage}
+          totalItems={filteredData.length}
+          itemsPerPage={itemsPerPage}
+          setItemsPerPage={setItemsPerPage}
+          pageSizeOptions={[6, 9, 12, 18]}
+          itemLabel="employees"
+        />
       </div>
 
       {/* Export Report Configuration Dialog Modal */}

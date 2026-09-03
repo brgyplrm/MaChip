@@ -37,6 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import EditRequestModal from "../../components/EditRequestModal";
 import FileViewerModal from "../../components/FileViewerModal";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const LOAN_TYPE_IDS = [13, 14]; // 13: Loan Certification, 14: Loan Enrollment
 
@@ -70,7 +71,7 @@ const AdminLoanEnrollment = () => {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const fetchRequests = async (isBackground = false) => {
     if (!isBackground) setLoading(true);
@@ -738,36 +739,17 @@ const AdminLoanEnrollment = () => {
           )}
 
           {/* Pagination Footer */}
-          {totalItems > itemsPerPage && (
-            <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-              <span className="text-xs font-medium text-slate-500">
-                Showing {startIndex + 1} to {endIndex} of {totalItems} entries
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="h-8 border-slate-200 text-xs"
-                >
-                  <ChevronLeftIcon className="h-4 w-4 mr-1" /> Previous
-                </Button>
-                <span className="text-xs font-bold text-[#2A174E] px-2">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="h-8 border-slate-200 text-xs"
-                >
-                  Next <ChevronRightIcon className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
-            </div>
-          )}
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            setCurrentPage={setCurrentPage}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            setItemsPerPage={setItemsPerPage}
+            startIndex={startIndex}
+            endIndex={endIndex}
+            itemLabel="entries"
+          />
 
           {/* Detail Review Modal / Slide-over Overlay */}
           {isDetailDrawerOpen && current && (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
@@ -103,7 +103,7 @@ const RequestDetails = () => {
               onClick={() => navigate(-1)} 
               className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0"
             >
-              <ArrowBackIcon />
+              <ChevronLeft className="h-6 w-6" />
             </button>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Review {request.reqTypeName}</h1>

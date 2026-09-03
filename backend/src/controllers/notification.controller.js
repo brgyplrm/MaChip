@@ -2,6 +2,20 @@ const { sequelize } = require("../config/sequelize");
 const { QueryTypes } = require("sequelize");
 const { getIO } = require("../config/socket");
 
+const MANAGEMENT_TITLES = [
+  'New Request for Review', 
+  'Final Approval Required', 
+  'Unauthorized RFID Scan', 
+  'Suspicious Activity Detected',
+  'Suspicious Activity',
+  'Password Reset Request',
+  'Unauthorized scan',
+  'Unrecognized card or scan',
+  'Irregular logs',
+  'Pending Request Escalation',
+  'Loan Certification Nudge'
+];
+
 exports.GetUserNotifications = async (req, res) => {
   const userId = parseInt(req.params.userId);
   const { viewMode } = req.query; // management or employee
@@ -12,18 +26,7 @@ exports.GetUserNotifications = async (req, res) => {
 
   try {
     let query = `SELECT * FROM "Notification" WHERE "user_Id" = :userId`;
-    let replacements = { userId };
-
-    const managementTitles = [
-      'New Request for Review', 
-      'Final Approval Required', 
-      'Unauthorized RFID Scan', 
-      'Suspicious Activity Detected',
-      'Password Reset Request',
-      'Unauthorized scan',
-      'Unrecognized card or scan',
-      'Irregular logs'
-    ];
+    let replacements = { userId, managementTitles: MANAGEMENT_TITLES };
 
     // Check user's actual role in database
     const user = await sequelize.query(`SELECT "user_RoleId" FROM "User" WHERE "user_Id" = :userId`, {
@@ -36,11 +39,9 @@ exports.GetUserNotifications = async (req, res) => {
     if (!isManagementRole || viewMode === "employee") {
       // Employee view: Show personal request status notifications
       query += ` AND "title" NOT IN (:managementTitles)`;
-      replacements.managementTitles = managementTitles;
     } else {
       // Management view: Show ONLY administrative/review notifications
       query += ` AND "title" IN (:managementTitles)`;
-      replacements.managementTitles = managementTitles;
     }
 
     query += ` ORDER BY "createdAt" DESC`;
@@ -57,20 +58,26 @@ exports.GetUserNotifications = async (req, res) => {
 };
 
 exports.MarkAllAsRead = async (req, res) => {
-  const { userId } = req.body;
+  const { userId, viewMode } = req.body;
 
   if (!userId) {
     return res.status(400).json({ error: "User Id is required" });
   }
 
   try {
-    await sequelize.query(
-      `UPDATE "Notification" SET "isRead" = true WHERE "user_Id" = :userId`,
-      {
-        replacements: { userId },
-        type: QueryTypes.UPDATE,
-      }
-    );
+    let query = `UPDATE "Notification" SET "isRead" = true WHERE "user_Id" = :userId`;
+    let replacements = { userId, managementTitles: MANAGEMENT_TITLES };
+
+    if (viewMode === "employee") {
+      query += ` AND "title" NOT IN (:managementTitles)`;
+    } else if (viewMode === "management") {
+      query += ` AND "title" IN (:managementTitles)`;
+    }
+
+    await sequelize.query(query, {
+      replacements,
+      type: QueryTypes.UPDATE,
+    });
 
     // [SOCKET] Trigger real-time unread count update
     getIO().to(`user_${userId}`).emit("NOTIFICATION_UPDATE");
@@ -119,18 +126,7 @@ exports.GetUnreadCount = async (req, res) => {
 
   try {
     let query = `SELECT COUNT(*) as count FROM "Notification" WHERE "user_Id" = :userId AND "isRead" = false`;
-    let replacements = { userId };
-
-    const managementTitles = [
-      'New Request for Review', 
-      'Final Approval Required', 
-      'Unauthorized RFID Scan', 
-      'Suspicious Activity Detected',
-      'Password Reset Request',
-      'Unauthorized scan',
-      'Unrecognized card or scan',
-      'Irregular logs'
-    ];
+    let replacements = { userId, managementTitles: MANAGEMENT_TITLES };
 
     // Check user's actual role in database
     const user = await sequelize.query(`SELECT "user_RoleId" FROM "User" WHERE "user_Id" = :userId`, {
@@ -142,10 +138,8 @@ exports.GetUnreadCount = async (req, res) => {
 
     if (!isManagementRole || viewMode === "employee") {
       query += ` AND "title" NOT IN (:managementTitles)`;
-      replacements.managementTitles = managementTitles;
     } else {
       query += ` AND "title" IN (:managementTitles)`;
-      replacements.managementTitles = managementTitles;
     }
 
     const result = await sequelize.query(query, {

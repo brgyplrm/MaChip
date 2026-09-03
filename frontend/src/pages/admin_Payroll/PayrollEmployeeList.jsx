@@ -13,11 +13,10 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import { formatUserId } from "../../utils/formatUserId";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Link } from "react-router-dom";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { fetchWithAuth } from "../../utils/api";
-import { Edit2, Edit2Icon } from "lucide-react";
+import { Edit2, Edit2Icon, ChevronLeft } from "lucide-react";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -28,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import EditPayrollModal from "../../components/editPayrollModal/EditPayrollModal";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const PayrollEmployeeList = () => {
   const [employees, setEmployees] = useState([]);
@@ -241,7 +241,7 @@ const PayrollEmployeeList = () => {
                         className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
                       >
                         <Link to="/payroll">
-                          <ArrowBackIcon className="h-6 w-6" />
+                          <ChevronLeft className="h-6 w-6" />
                         </Link>
                       </Button>
                     </span>
@@ -564,56 +564,17 @@ const PayrollEmployeeList = () => {
                 </Table>
 
                 {/* Pagination Controls */}
-                {totalItems > 0 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
-                    <div className="flex items-center gap-4 text-sm text-slate-500">
-                      <div className="flex items-center gap-2">
-                        <span className="hidden sm:inline">Rows per page:</span>
-                        <Select 
-                          value={itemsPerPage.toString()} 
-                          onValueChange={(val) => setItemsPerPage(Number(val))}
-                        >
-                          <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
-                            <SelectValue placeholder="10" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="5">5</SelectItem>
-                            <SelectItem value="10">10</SelectItem>
-                            <SelectItem value="20">20</SelectItem>
-                            <SelectItem value="50">50</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="font-medium">
-                        Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
-                        className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                      >
-                        Previous
-                      </Button>
-                      <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
-                        {currentPage}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                        disabled={currentPage === totalPages || totalPages === 0}
-                        className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  setCurrentPage={setCurrentPage}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                  setItemsPerPage={setItemsPerPage}
+                  startIndex={startIndex}
+                  endIndex={endIndex}
+                  itemLabel="employees"
+                />
               </>
             )}
           </CardContent>

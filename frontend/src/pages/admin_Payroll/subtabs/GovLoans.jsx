@@ -17,8 +17,7 @@ import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined';
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 import { Link } from "react-router-dom";
-import { HistoryIcon } from "lucide-react";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { HistoryIcon, ChevronLeft } from "lucide-react";
 
 
 // shadcn/ui components
@@ -720,7 +719,7 @@ const GovLoans = () => {
               className="text-[#2A174E]"
             >
               <Link to="/loanmanagement">
-                <ArrowBackIcon className="h-6 w-6" />
+                <ChevronLeft className="h-6 w-6" />
               </Link>
             </Button>
           </div>

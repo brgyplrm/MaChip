@@ -2155,15 +2155,26 @@ exports.GetPendingCount = async (req, res) => {
     let replacements = { userId };
 
     if (roleId === 2) { // Supervisor
-      // Count all pending requests (1) except their own
+      // Count all pending requests (1) from staff except their own
       query = `
         SELECT COUNT(*)::int as count 
         FROM "emp_Request" er
+        JOIN "User" u ON er."user_Id" = u."user_Id"
         WHERE er."emp_reqStatusId" = 1 
+        AND er."user_Id" != :userId
+        AND u."user_RoleId" = 3
+        AND u."deletedAt" IS NULL
+      `;
+    } else if (roleId === 1 || roleId === 4) { // Admin or Accountant
+      // Count pending (1) and recommended (4) requests except their own
+      query = `
+        SELECT COUNT(*)::int as count 
+        FROM "emp_Request" er
+        WHERE er."emp_reqStatusId" IN (1, 4) 
         AND er."user_Id" != :userId
       `;
     } else {
-      // Admin (1) or Employee (3) see 0 pending for them to process
+      // Regular Employee (3) sees 0 pending for them to process
       return res.status(200).json({ count: 0 });
     }
 
@@ -2172,7 +2183,7 @@ exports.GetPendingCount = async (req, res) => {
       type: QueryTypes.SELECT 
     });
     
-    res.status(200).json({ count: result[0].count });
+    res.status(200).json({ count: result[0]?.count || 0 });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

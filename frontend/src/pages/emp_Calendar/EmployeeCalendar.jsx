@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -51,6 +51,46 @@ const EmployeeCalendar = () => {
   const [selectedPersonnelAction, setSelectedPersonnelAction] = useState(null);
   const [selectedFieldLog, setSelectedFieldLog] = useState(null);
   const [selectedDueDateDetails, setSelectedDueDateDetails] = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const calendarRef = useRef(null);
+
+  const isEventSelected = (item) => {
+    if (!selectedEvent || !item) return false;
+    return (
+      item.type === selectedEvent.type &&
+      item.id === selectedEvent.id &&
+      item.date === selectedEvent.date
+    );
+  };
+
+  const handleSelectEvent = (item) => {
+    if (
+      selectedEvent &&
+      selectedEvent.type === item.type &&
+      selectedEvent.id === item.id &&
+      selectedEvent.date === item.date
+    ) {
+      setSelectedEvent(null);
+      return;
+    }
+
+    setSelectedEvent(item);
+
+    if (item.date) {
+      const eventDate = new Date(item.date);
+      if (!isNaN(eventDate.getTime())) {
+        const itemYear = eventDate.getFullYear();
+        const itemMonth = eventDate.getMonth();
+        if (currentDate.getFullYear() !== itemYear || currentDate.getMonth() !== itemMonth) {
+          setCurrentDate(new Date(itemYear, itemMonth, 1));
+        }
+      }
+    }
+
+    if (calendarRef.current) {
+      calendarRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
 
   const userData = JSON.parse(localStorage.getItem("userData") || "{}");
 
@@ -109,6 +149,10 @@ const EmployeeCalendar = () => {
       date: formattedDate,
       events: dayEvents
     });
+
+    if (selectedEvent) {
+      setSelectedEvent(null);
+    }
   };
 
   const handleHolidayClick = (holiday) => {
@@ -326,7 +370,31 @@ const EmployeeCalendar = () => {
                 
                 {/* Full-Width Calendar */}
                 <div className="w-full">
-                  <Card className="py-0 overflow-hidden border-0 shadow-sm bg-white">
+                  {selectedEvent && (
+                    <div className="mb-4 flex items-center justify-between bg-[#2A174E]/10 border border-[#2A174E]/25 text-[#2A174E] px-4 py-2.5 rounded-lg shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                      <div className="flex items-center gap-2 flex-wrap text-xs md:text-sm font-medium">
+                        <span className="font-bold flex items-center gap-1">Showing on calendar:</span>
+                        <span className="font-semibold text-slate-800">{selectedEvent.name || selectedEvent.details}</span>
+                        <Badge variant="secondary" className="text-[10px] bg-white border border-[#2A174E]/30 text-[#2A174E] font-bold">
+                          {selectedEvent.type}
+                        </Badge>
+                        <span className="text-xs text-slate-500">
+                          ({new Date(selectedEvent.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {selectedEvent.endDate && selectedEvent.endDate !== selectedEvent.date ? ` - ${new Date(selectedEvent.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ""})
+                        </span>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => setSelectedEvent(null)}
+                        className="h-7 px-2 text-xs font-semibold text-[#2A174E] hover:bg-[#2A174E]/15 hover:text-[#2A174E]"
+                      >
+                        Clear Highlight
+                      </Button>
+                    </div>
+                  )}
+
+                  <Card ref={calendarRef} className="py-0 overflow-hidden border-0 shadow-sm bg-white scroll-mt-6">
                     <div className="bg-[#2A174E] text-white flex justify-between items-center p-3 md:p-4 rounded-t-xl">
                       <ChevronLeftIcon className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => changeMonth(-1)} />
                       
@@ -337,14 +405,14 @@ const EmployeeCalendar = () => {
                       >
                         <h2 className="text-lg md:text-xl font-bold">{`${monthName} ${year}`}</h2>
                         <CalendarMonthIcon className="h-5 w-5 opacity-70 group-hover:opacity-100 transition-opacity" />
-                        <Tooltip>
+                        {/* <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpOutlinedIcon className="text-white/60 hover:text-white cursor-pointer !text-[16px] transition-colors" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                             Click to jump to a specific month and year.
                           </TooltipContent>
-                        </Tooltip>
+                        </Tooltip> */}
                       </div>
 
                       <ChevronRightIcon className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => changeMonth(1)} />
@@ -376,6 +444,17 @@ const EmployeeCalendar = () => {
                             monthIndex === systemToday.getMonth() && 
                             year === systemToday.getFullYear();
 
+                          const targetDateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                          const isDaySelected = (() => {
+                            if (!selectedEvent || !selectedEvent.date) return false;
+                            const startDateStr = selectedEvent.date.split('T')[0];
+                            if (!selectedEvent.endDate) {
+                              return startDateStr === targetDateStr;
+                            }
+                            const endDateStr = selectedEvent.endDate.split('T')[0];
+                            return targetDateStr >= startDateStr && targetDateStr <= endDateStr;
+                          })();
+
                           let bgClass = "bg-white hover:bg-slate-50";
                           if (hasLeave) bgClass = "bg-green-50/60 hover:bg-green-50";
                           else if (hasField) bgClass = "bg-orange-50/60 hover:bg-orange-50";
@@ -390,16 +469,31 @@ const EmployeeCalendar = () => {
                           return (
                             <div 
                               key={d} 
-                              className={`min-h-[80px] md:min-h-[120px] p-1 md:p-2 transition-colors cursor-pointer overflow-y-auto overflow-x-hidden flex flex-col relative ${bgClass}`}
+                              className={`min-h-[80px] md:min-h-[120px] p-1 md:p-2 transition-all cursor-pointer overflow-y-auto overflow-x-hidden flex flex-col relative ${bgClass}`}
                               onClick={() => handleDayClick(d)}
                             >
-                              <div className={`text-xs md:text-sm font-semibold mb-1 shrink-0 text-center md:text-left ${
-                                isToday ? "bg-[#BA90E9] text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto md:mx-0" : "text-slate-700"
-                              }`}>
-                                {d}
+                              <div className="flex items-center justify-between mb-1">
+                                <div className={`text-xs md:text-sm font-semibold shrink-0 text-center md:text-left ${
+                                  isToday ? "bg-[#BA90E9] text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto md:mx-0" : "text-slate-700"
+                                }`}>
+                                  {d}
+                                </div>
+                                {isDaySelected && (
+                                  <span 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedEvent(null);
+                                    }}
+                                    title="Click to clear"
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] md:text-[9px] font-bold bg-[#2A174E] text-white shadow-md animate-bounce shrink-0 select-none cursor-pointer hover:bg-red-600 transition-colors"
+                                  >
+                                    📍 Here
+                                  </span>
+                                )}
                               </div>
 
                               {dayEvents.slice(0, 2).map((e, i) => {
+                                const isThisEventSelected = isEventSelected(e);
                                 let typeClass = "bg-red-100 text-red-800"; 
                                 if (e.type === "Holiday") {
                                   typeClass = e.details?.toLowerCase().includes("special") ? "bg-purple-100 text-purple-800" : "bg-red-100 text-red-800";
@@ -462,14 +556,27 @@ const EmployeeCalendar = () => {
                         <div className="space-y-2 mt-2">
                           {getUpcomingHolidays().map((holiday, idx) => {
                             const isSpecial = holiday.type?.toLowerCase().includes("special") || holiday.details?.toLowerCase().includes("special");
+                            const isSelected = isEventSelected(holiday);
                             
                             return (
                               <div 
-                                className="group relative cursor-pointer transition-all flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100 hover:bg-slate-50" 
+                                className={`group relative cursor-pointer transition-all flex items-center justify-between p-3 rounded-lg border ${
+                                  isSelected 
+                                    ? "border-[#2A174E] bg-purple-50 ring-2 ring-[#BA90E9] shadow-sm" 
+                                    : "bg-white border-slate-100 hover:bg-slate-50"
+                                }`} 
                                 key={idx} 
+                                onClick={() => handleSelectEvent(holiday)}
                               >
                                 <div className="flex flex-col min-w-0">
-                                  <p className="font-bold text-sm text-slate-800 truncate">{holiday.name}</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="font-bold text-sm text-slate-800 truncate">{holiday.name}</p>
+                                    {isSelected && (
+                                      <span className="text-[9px] text-[#2A174E] font-bold bg-[#2A174E]/10 px-1.5 py-0.5 rounded">
+                                        Showing
+                                      </span>
+                                    )}
+                                  </div>
                                   <span className="text-[10px] text-slate-400 font-medium">
                                     {new Date(holiday.date).toLocaleDateString('en-US', { 
                                       month: 'long', day: 'numeric', year: 'numeric' 
@@ -522,20 +629,38 @@ const EmployeeCalendar = () => {
                         <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
                           <TabsContent value="leave" className="mt-0 space-y-2">
                             {events.filter(e => e.type === "Leave").length > 0 ? (
-                              events.filter(e => e.type === "Leave").map((item, i) => (
-                                <div 
-                                  key={i} 
-                                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-green-50/50 transition-colors"
-                                >
-                                  <div className="flex flex-col">
-                                    <span className="text-sm font-bold text-slate-800">{item.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">
-                                      {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                                    </span>
+                              events.filter(e => e.type === "Leave").map((item, i) => {
+                                const isSelected = isEventSelected(item);
+                                return (
+                                  <div 
+                                    key={i} 
+                                    onClick={() => handleSelectEvent(item)}
+                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
+                                      isSelected 
+                                        ? "border-green-600 bg-green-50 ring-2 ring-green-400 shadow-sm" 
+                                        : "border-slate-100 bg-white hover:bg-green-50/50"
+                                    }`}
+                                  >
+                                    <div className="flex flex-col min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
+                                        {isSelected && (
+                                          <span className="text-[9px] text-green-800 font-bold bg-green-100 px-1.5 py-0.5 rounded">
+                                            Showing
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-medium">
+                                        {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                        {item.endDate && item.endDate !== item.date && (
+                                          ` - ${new Date(item.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+                                        )}
+                                      </span>
+                                    </div>
+                                    <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">LEAVE</Badge>
                                   </div>
-                                  <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">LEAVE</Badge>
-                                </div>
-                              ))
+                                );
+                              })
                             ) : (
                               <EmptyState className="h-20 border-0" title="No Leaves" />
                             )}
@@ -543,20 +668,35 @@ const EmployeeCalendar = () => {
                           
                           <TabsContent value="ot" className="mt-0 space-y-2">
                             {events.filter(e => e.type === "Overtime").length > 0 ? (
-                              events.filter(e => e.type === "Overtime").map((item, i) => (
-                                <div 
-                                  key={i} 
-                                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-blue-50/50 transition-colors"
-                                >
-                                  <div className="flex flex-col">
-                                    <span className="text-sm font-bold text-slate-800">{item.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">
-                                      {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                                    </span>
+                              events.filter(e => e.type === "Overtime").map((item, i) => {
+                                const isSelected = isEventSelected(item);
+                                return (
+                                  <div 
+                                    key={i} 
+                                    onClick={() => handleSelectEvent(item)}
+                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
+                                      isSelected 
+                                        ? "border-blue-600 bg-blue-50 ring-2 ring-blue-400 shadow-sm" 
+                                        : "border-slate-100 bg-white hover:bg-blue-50/50"
+                                    }`}
+                                  >
+                                    <div className="flex flex-col min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
+                                        {isSelected && (
+                                          <span className="text-[9px] text-blue-800 font-bold bg-blue-100 px-1.5 py-0.5 rounded">
+                                            Showing
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-medium">
+                                        {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                      </span>
+                                    </div>
+                                    <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700">OT</Badge>
                                   </div>
-                                  <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700">OT</Badge>
-                                </div>
-                              ))
+                                );
+                              })
                             ) : (
                               <EmptyState className="h-20 border-0" title="No Overtime" />
                             )}
@@ -591,20 +731,35 @@ const EmployeeCalendar = () => {
                         <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
                           <TabsContent value="field" className="mt-0 space-y-2">
                             {events.filter(e => e.type === "Field Work").length > 0 ? (
-                              events.filter(e => e.type === "Field Work").map((item, idx) => (
-                                <div 
-                                  key={idx} 
-                                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-orange-50/50 transition-colors"
-                                >
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">
-                                      {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                                    </span>
+                              events.filter(e => e.type === "Field Work").map((item, idx) => {
+                                const isSelected = isEventSelected(item);
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    onClick={() => handleSelectEvent(item)}
+                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
+                                      isSelected 
+                                        ? "border-orange-500 bg-orange-50 ring-2 ring-orange-400 shadow-sm" 
+                                        : "border-slate-100 bg-white hover:bg-orange-50/50"
+                                    }`}
+                                  >
+                                    <div className="flex flex-col min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
+                                        {isSelected && (
+                                          <span className="text-[9px] text-orange-800 font-bold bg-orange-100 px-1.5 py-0.5 rounded">
+                                            Showing
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-medium">
+                                        {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                      </span>
+                                    </div>
+                                    <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-700">FIELD</Badge>
                                   </div>
-                                  <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-700">FIELD</Badge>
-                                </div>
-                              ))
+                                );
+                              })
                             ) : (
                               <EmptyState className="h-20 border-0" title="No Field Work" />
                             )}
@@ -612,20 +767,35 @@ const EmployeeCalendar = () => {
 
                           <TabsContent value="due" className="mt-0 space-y-2">
                             {events.filter(e => e.type === "Due Date").length > 0 ? (
-                              events.filter(e => e.type === "Due Date").map((item, idx) => (
-                                <div 
-                                  key={idx} 
-                                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-teal-50/50 transition-colors"
-                                >
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="text-sm font-bold text-slate-800 truncate">{item.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">
-                                      {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                                    </span>
+                              events.filter(e => e.type === "Due Date").map((item, idx) => {
+                                const isSelected = isEventSelected(item);
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    onClick={() => handleSelectEvent(item)}
+                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
+                                      isSelected 
+                                        ? "border-teal-600 bg-teal-50 ring-2 ring-teal-400 shadow-sm" 
+                                        : "border-slate-100 bg-white hover:bg-teal-50/50"
+                                    }`}
+                                  >
+                                    <div className="flex flex-col min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-sm font-bold text-slate-800 truncate">{item.name}</span>
+                                        {isSelected && (
+                                          <span className="text-[9px] text-teal-800 font-bold bg-teal-100 px-1.5 py-0.5 rounded">
+                                            Showing
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-medium">
+                                        {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                      </span>
+                                    </div>
+                                    <Badge variant="secondary" className="text-[10px] bg-teal-100 text-teal-700">DUE</Badge>
                                   </div>
-                                  <Badge variant="secondary" className="text-[10px] bg-teal-100 text-teal-700">DUE</Badge>
-                                </div>
-                              ))
+                                );
+                              })
                             ) : (
                               <EmptyState className="h-20 border-0" title="No Due Dates" />
                             )}

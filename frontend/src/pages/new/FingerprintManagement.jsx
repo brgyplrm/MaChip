@@ -12,8 +12,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import EmptyState from "../../components/EmptyState";
 import { Link } from "react-router-dom";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { ScanLine } from "lucide-react";
+import { ScanLine, ChevronLeft } from "lucide-react";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal"; // Core Scan Session Capture Modal
 
 // shadcn/ui components
@@ -25,6 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const FingerprintManagement = () => {
   const [biometricList, setBiometricList] = useState([]);
@@ -48,7 +48,7 @@ const FingerprintManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [sensorFilter, setSensorFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const fetchBiometricData = useCallback(async () => {
     setLoading(true);
@@ -256,7 +256,7 @@ const FingerprintManagement = () => {
                   className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
                 >
                   <Link to="/users">
-                    <ArrowBackIcon className="h-6 w-6" />
+                    <ChevronLeft className="h-6 w-6" />
                   </Link>
                 </Button>
               </div>
@@ -358,14 +358,17 @@ const FingerprintManagement = () => {
             </Table>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between p-4 bg-slate-50/30 border-t border-slate-100">
-              <span className="text-xs font-medium text-slate-500">Showing {startIndex + 1} to {endIndex} of {totalItems} profiles</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1}>Previous</Button>
-                <div className="h-8 w-8 flex items-center justify-center bg-[#2A174E]/10 text-[#2A174E] rounded text-xs font-bold">{currentPage}</div>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages}>Next</Button>
-              </div>
-            </div>
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              setItemsPerPage={setItemsPerPage}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              itemLabel="profiles"
+            />
           </CardContent>
         </Card>
       </div>

@@ -8,7 +8,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
 import { fetchWithAuth } from "../../utils/api";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import VpnKeyOutlinedIcon from '@mui/icons-material/VpnKeyOutlined';
 
 // shadcn/ui components
@@ -593,7 +593,7 @@ const Edit = () => {
                         onClick={() => navigate(-1)} 
                         className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E] hover:bg-slate-200/60 rounded-full h-10 w-10"
                       >
-                        <ArrowBackIcon className="h-6 w-6" />
+                        <ChevronLeft className="h-6 w-6" />
                       </Button>
                     </span>
                   </TooltipTrigger>

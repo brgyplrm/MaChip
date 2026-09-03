@@ -11,7 +11,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GroupIcon from '@mui/icons-material/Group';
 import AssuredWorkloadIcon from '@mui/icons-material/AssuredWorkload';
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import Toast from "../../../components/toast/Toast";
 import { Link } from "react-router-dom";
 
@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const GovLoansHistory = () => {
   const { systemToday } = useSystemTime();
@@ -34,7 +35,7 @@ const GovLoansHistory = () => {
   const [typeFilter, setTypeFilter] = useState("All Types");
   const [yearFilter, setYearFilter] = useState("All Years");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const govTypes = [
     { id: "sss_loan", label: "SSS Loan", dbType: "SSS Loan" },
@@ -142,7 +143,7 @@ const GovLoansHistory = () => {
                to="/govloans" 
                className="mr-4 flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
               >
-            <ArrowBackIcon className="h-6 w-6" />
+            <ChevronLeft className="h-6 w-6" />
           </Link>
           <div className="flex justify-between w-full">
             <div>
@@ -282,16 +283,17 @@ const GovLoansHistory = () => {
             </Table>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between p-4 bg-slate-50/50 border-t border-slate-100">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-tighter">
-                Showing {startIndex + 1} to {endIndex} of {totalItems} loan records
-              </span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1}>Previous</Button>
-                <div className="h-8 w-8 flex items-center justify-center bg-[#2A174E] text-white rounded text-xs font-bold shadow-sm">{currentPage}</div>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages}>Next</Button>
-              </div>
-            </div>
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              setItemsPerPage={setItemsPerPage}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              itemLabel="loan records"
+            />
           </CardContent>
         </Card>
       </div>

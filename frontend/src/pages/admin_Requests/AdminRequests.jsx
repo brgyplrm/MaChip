@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import EditRequestModal from "../../components/EditRequestModal";
 import FileViewerModal from "../../components/FileViewerModal";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const AdminRequests = () => {
   const navigate = useNavigate();
@@ -586,31 +587,17 @@ const AdminRequests = () => {
             </div>
 
             {/* Queue Pagination Footer */}
-            {totalItems > itemsPerPage && (
-              <div className="flex items-center justify-between p-3 border-t border-slate-100 bg-slate-50/50 shrink-0">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                  disabled={currentPage === 1}
-                  className="h-8 px-2"
-                >
-                  <ChevronLeftIcon className="h-4 w-4 text-slate-500" />
-                </Button>
-                <span className="text-xs font-semibold text-slate-500">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                  disabled={currentPage === totalPages}
-                  className="h-8 px-2"
-                >
-                  <ChevronRightIcon className="h-4 w-4 text-slate-500" />
-                </Button>
-              </div>
-            )}
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              itemLabel="requests"
+              compact={true}
+            />
           </Card>
 
           {/* Right: Detailed Review */}

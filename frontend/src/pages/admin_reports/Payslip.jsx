@@ -5,7 +5,7 @@ import PrintIcon from "@mui/icons-material/Print";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { useParams, Link, useLocation } from "react-router-dom";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import { fetchWithAuth } from "../../utils/api";
 
@@ -123,7 +123,7 @@ if (!payroll) return (
           <div className="headerActions">
             <div className="titleWithBack">
               <Link to="/adminReports" state={{ activeTab: previousTab }} className="backLink">
-                <ArrowBackIcon className="backIcon" />
+                <ChevronLeft className="backIcon h-6 w-6" />
               </Link>
               <h1>Payslip Preview</h1>
             </div>
