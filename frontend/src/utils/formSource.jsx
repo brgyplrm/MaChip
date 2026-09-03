@@ -13,7 +13,7 @@ export const userInputs = [
   },
   {
     id: "user_Role", // New ID for Role Status
-    label: "Role Status",
+    label: "System Role",
     type: "select",
     options: ["Employee", "Supervisor", "Admin Manager", "Admin Accountant"], // Updated values
   },
@@ -63,13 +63,13 @@ export const userInputs = [
     id: "user_MachipId",
     label: "MaChip ID",
     type: "text",
-    placeholder: "e.g. MACHIP-XXXXXX",
+    placeholder: "Click SCAN to link RFID card",
   },
   {
-  id: "user_FingerprintId",
-  label: "Fingerprint ID",
-  type: "text",
-  placeholder: "Scan to register fingerprint",
+    id: "user_FingerprintId",
+    label: "Fingerprint ID",
+    type: "text",
+    placeholder: "Click SCAN to enroll fingerprint",
   },
 ];
 

@@ -3,7 +3,7 @@ import Sidebar from "../../components/Sidebar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Import your existing components
@@ -31,7 +31,7 @@ const LaborBenefits = () => {
                         className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
                       >
                         <Link to="/payroll">
-                          <ArrowBackIcon className="h-6 w-6" />
+                          <ChevronLeft className="h-6 w-6" />
                         </Link>
                       </Button>
                     </span>

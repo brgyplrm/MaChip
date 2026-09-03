@@ -16,7 +16,9 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DescriptionIcon from '@mui/icons-material/Description';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
+import CloseIcon from '@mui/icons-material/Close';
 import { useSystemTime } from "../context/SystemTimeContext";
 import { Badge } from "./ui/badge";
 import TuneIcon from '@mui/icons-material/Tune';
@@ -59,6 +61,7 @@ const routeLabels = {
   "hardware" : "Hardware Registry",
   "newUser" : "New User",
   "adminRequests" : "Requests",
+  "adminLoanEnrollment" : "Loan Enrollment",
   "payroll" : "Payroll Management",
   "payrollPeriod" : "Payroll Period",
   "laborBenefits" : "Labor Benefits",
@@ -222,7 +225,7 @@ const Sidebar = ({ children }) => {
   const fetchUnreadCount = async () => {
     if (!userData?.user_Id) return;
     try {
-      const currentViewMode = localStorage.getItem("viewMode") || "management";
+      const currentViewMode = userData?.user_RoleId === 3 ? "employee" : (localStorage.getItem("viewMode") || "management");
       const response = await fetchWithAuth(`/api/notifications/unread-count/${userData.user_Id}?viewMode=${currentViewMode}`);
       if (response.ok) {
         const data = await response.json();
@@ -234,27 +237,355 @@ const Sidebar = ({ children }) => {
   const fetchLatestNotifications = async () => {
     if (!userData?.user_Id) return;
     try {
-      const currentViewMode = localStorage.getItem("viewMode") || "management";
+      const currentViewMode = userData?.user_RoleId === 3 ? "employee" : (localStorage.getItem("viewMode") || "management");
       const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}?viewMode=${currentViewMode}`);
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data.slice(0, 5));
+        // Only keep unread/unclicked notifications in the dropdown so clicked ones disappear
+        const unreadOnly = data.filter((n) => !n.isRead);
+        setNotifications(unreadOnly.slice(0, 5));
       }
     } catch (err) { console.error(err); }
+  };
+
+  const handleNotifClick = async (notif) => {
+    setIsNotifLocked(false); 
+    setIsNotifHovered(false);
+
+    // Immediately remove this clicked notification so remaining unclicked notifications are easily accessible at the top
+    setNotifications((prev) => prev.filter((n) => n.notifId !== notif.notifId));
+
+    if (!notif.isRead) {
+      // 1. Instantly decrement unread count on bell badge
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+
+      // 2. Persist to backend and notify any listeners
+      try {
+        await fetchWithAuth(`/api/notifications/mark-read/${notif.notifId}`, {
+          method: "PUT",
+        });
+        window.dispatchEvent(new Event("notificationRefresh"));
+      } catch (err) {
+        console.error("Error marking notification as read:", err);
+      }
+    }
+
+    // 3. Navigate to relevant destination
+    const titleLower = (notif.title || "").toLowerCase();
+    if (
+      titleLower.includes("irregular log") ||
+      titleLower.includes("unrecognized") ||
+      titleLower.includes("unauthorized") ||
+      titleLower.includes("suspicious")
+    ) {
+      navigate("/transactionLog");
+    } else if (notif.title === "Password Reset Request" && notif.targetId) {
+      navigate(`/users/edit/${notif.targetId}`);
+    } else if (notif.title === "New Request for Review") {
+      navigate("/adminRequests");
+    } else if (userData?.user_RoleId === 3) {
+      navigate("/userRequests");
+    } else if (notif.targetId) {
+      navigate(`/requests/${notif.targetId}`);
+    }
+  };
+
+  const handleDismissNotif = async (e, notif) => {
+    e.stopPropagation();
+
+    // Immediately remove from dropdown
+    setNotifications((prev) => prev.filter((n) => n.notifId !== notif.notifId));
+
+    if (!notif.isRead) {
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+      try {
+        await fetchWithAuth(`/api/notifications/mark-read/${notif.notifId}`, {
+          method: "PUT",
+        });
+        window.dispatchEvent(new Event("notificationRefresh"));
+      } catch (err) {
+        console.error("Error marking notification as read:", err);
+      }
+    }
   };
 
   useEffect(() => {
     fetchUnreadCount();
     fetchLatestNotifications();
+
+    const handleRefresh = () => {
+      fetchUnreadCount();
+      fetchLatestNotifications();
+    };
+
+    window.addEventListener("notificationRefresh", handleRefresh);
+
     const interval = setInterval(() => {
       fetchUnreadCount();
       fetchLatestNotifications();
     }, 30000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("notificationRefresh", handleRefresh);
+    };
   }, [userData?.user_Id, viewMode]);
 
   // Generate Breadcrumbs based on location
-  const pathnames = location.pathname.split("/").filter((x) => x);
+  const getBreadcrumbs = () => {
+    // If on home/dashboard
+    if (location.pathname === "/" || location.pathname === "/employeeHome") {
+      return [{ label: "Home", path: null }];
+    }
+
+    const items = [{ label: "Home", path: homePath }];
+
+    // Employee Payroll sub-routes
+    if (location.pathname === "/employee/payroll") {
+      items.push({ label: "My Payroll", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/employee/payslip/")) {
+      items.push({ label: "My Payroll", path: "/employee/payroll" });
+      items.push({ label: "Payslip Details", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/employee/payroll-details/")) {
+      items.push({ label: "My Payroll", path: "/employee/payroll" });
+      items.push({ label: "Computation Details", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/employee/13th-month/")) {
+      items.push({ label: "My Payroll", path: "/employee/payroll" });
+      items.push({ label: "13th Month Details", path: null });
+      return items;
+    }
+
+    // Users sub-routes
+    if (location.pathname === "/users") {
+      items.push({ label: "User List", path: null });
+      return items;
+    }
+    if (location.pathname === "/users/newUser") {
+      items.push({ label: "Users", path: "/users" });
+      items.push({ label: "Add New User", path: null });
+      return items;
+    }
+    if (location.pathname === "/users/archived") {
+      items.push({ label: "Users", path: "/users" });
+      items.push({ label: "Archived Users", path: null });
+      return items;
+    }
+    if (location.pathname === "/users/hardware") {
+      items.push({ label: "Users", path: "/users" });
+      items.push({ label: "Hardware Registry", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/users/edit/")) {
+      items.push({ label: "Users", path: "/users" });
+      items.push({ label: "Edit User Profile", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/users/")) {
+      items.push({ label: "Users", path: "/users" });
+      items.push({ label: "User Profile", path: null });
+      return items;
+    }
+
+    // Admin Payroll sub-routes
+    if (location.pathname === "/payroll") {
+      items.push({ label: "Payroll Management", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/payrollDetails/")) {
+      items.push({ label: "Payroll Management", path: "/payroll" });
+      items.push({ label: "Payroll Details", path: null });
+      return items;
+    }
+    if (location.pathname === "/payroll/payrollPeriod") {
+      items.push({ label: "Payroll Management", path: "/payroll" });
+      items.push({ label: "Payroll Period", path: null });
+      return items;
+    }
+    if (location.pathname === "/payroll/employeeList") {
+      items.push({ label: "Payroll Management", path: "/payroll" });
+      items.push({ label: "Employee List", path: null });
+      return items;
+    }
+    if (location.pathname === "/payroll/leave-summary") {
+      items.push({ label: "Payroll Management", path: "/payroll" });
+      items.push({ label: "Leave Summary", path: null });
+      return items;
+    }
+
+    // Labor Benefits
+    if (location.pathname === "/laborBenefits") {
+      items.push({ label: "Labor Benefits", path: null });
+      return items;
+    }
+    if (location.pathname === "/thirteenth-month") {
+      items.push({ label: "Labor Benefits", path: "/laborBenefits" });
+      items.push({ label: "13th Month Pay", path: null });
+      return items;
+    }
+    if (location.pathname === "/separation-pay") {
+      items.push({ label: "Labor Benefits", path: "/laborBenefits" });
+      items.push({ label: "Separation Pay", path: null });
+      return items;
+    }
+    if (location.pathname === "/retirement-pay") {
+      items.push({ label: "Labor Benefits", path: "/laborBenefits" });
+      items.push({ label: "Retirement Pay", path: null });
+      return items;
+    }
+
+    // Loans
+    if (location.pathname === "/loanManagement" || location.pathname === "/loanmod" || location.pathname === "/loanManagementHub" || location.pathname === "/govloans") {
+      items.push({ label: "Government Loans", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/loanDetails/")) {
+      items.push({ label: "Government Loans", path: "/loanManagement" });
+      items.push({ label: "Loan Details", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/govloans/history")) {
+      items.push({ label: "Government Loans", path: "/loanManagement" });
+      items.push({ label: "Loan History", path: null });
+      return items;
+    }
+    if (location.pathname === "/eastwestloan") {
+      items.push({ label: "Employee Loans", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/eastwestloan/history")) {
+      items.push({ label: "Employee Loans", path: "/eastwestloan" });
+      items.push({ label: "Loan History", path: null });
+      return items;
+    }
+    if (location.pathname === "/cashadvances") {
+      items.push({ label: "Cash Advances", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/cashadvances/history")) {
+      items.push({ label: "Cash Advances", path: "/cashadvances" });
+      items.push({ label: "Cash Advance History", path: null });
+      return items;
+    }
+    if (location.pathname === "/maxicare") {
+      items.push({ label: "HMOs", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/maxicare/history")) {
+      items.push({ label: "HMOs", path: "/maxicare" });
+      items.push({ label: "HMO History", path: null });
+      return items;
+    }
+
+    // Reports
+    if (location.pathname === "/adminReports") {
+      items.push({ label: "Admin Reports", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/adminReports/payslip/")) {
+      items.push({ label: "Admin Reports", path: "/adminReports" });
+      items.push({ label: "Payslip Details", path: null });
+      return items;
+    }
+
+    // Access Logs
+    if (location.pathname === "/logs" || location.pathname === "/accessLogs") {
+      items.push({ label: "Access Logs", path: null });
+      return items;
+    }
+    if (location.pathname === "/visitorLogs") {
+      items.push({ label: "Visitor Access", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/logs/edit/")) {
+      items.push({ label: "Access Logs", path: "/logs" });
+      items.push({ label: "Edit Attendance", path: null });
+      return items;
+    }
+
+    // Requests
+    if (location.pathname === "/adminRequests") {
+      items.push({ label: "Requests", path: null });
+      return items;
+    }
+    if (location.pathname === "/adminoversight") {
+      items.push({ label: "Requests Oversight", path: null });
+      return items;
+    }
+    if (location.pathname === "/adminLoanEnrollment") {
+      items.push({ label: "Loan Enrollment", path: null });
+      return items;
+    }
+    if (location.pathname === "/requestSum") {
+      items.push({ label: "Request Summary", path: null });
+      return items;
+    }
+    if (location.pathname === "/requests" || location.pathname === "/userRequests") {
+      items.push({ label: "My Requests", path: null });
+      return items;
+    }
+    if (location.pathname.startsWith("/requests/")) {
+      items.push({ label: "My Requests", path: "/requests" });
+      items.push({ label: "Request Details", path: null });
+      return items;
+    }
+
+    // Calendar
+    if (location.pathname === "/calendar" || location.pathname === "/employeeCalendar") {
+      items.push({ label: "Calendar", path: null });
+      return items;
+    }
+
+    // Settings / Misc
+    if (location.pathname === "/settings") {
+      items.push({ label: "Configurations", path: null });
+      return items;
+    }
+    if (location.pathname === "/auditLogs") {
+      items.push({ label: "Audit Logs", path: null });
+      return items;
+    }
+    if (location.pathname === "/transactionLog") {
+      items.push({ label: "Transaction Logs", path: null });
+      return items;
+    }
+    if (location.pathname === "/faq") {
+      items.push({ label: "Help & Support", path: null });
+      return items;
+    }
+    if (location.pathname === "/profile") {
+      items.push({ label: "My Profile", path: null });
+      return items;
+    }
+    if (location.pathname === "/notifications") {
+      items.push({ label: "Notifications", path: null });
+      return items;
+    }
+    if (location.pathname === "/transitions") {
+      items.push({ label: "UI Animations Lab", path: null });
+      return items;
+    }
+
+    // Generic fallback for any other single-level paths
+    const segments = location.pathname.split("/").filter(Boolean);
+    segments.forEach((seg, idx) => {
+      const isLast = idx === segments.length - 1;
+      const label = routeLabels[seg] || seg.replace(/-/g, " ");
+      items.push({
+        label,
+        path: isLast ? null : `/${segments.slice(0, idx + 1).join("/")}`
+      });
+    });
+
+    return items;
+  };
+
+  const breadcrumbsList = getBreadcrumbs();
 
   // Dropdown visibility logic
   const showProfileMenu = isProfileHovered || isProfileLocked;
@@ -485,24 +816,7 @@ const Sidebar = ({ children }) => {
                   </SidebarMenuItem>
                 )}
 
-                {/* My Payroll - Employee Only */}
-                {(viewMode === "employee" || Number(roleId) === 3) && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isMyPayrollActive}
-                      className={menuButtonClass(isMyPayrollActive)}
-                    >
-                      <Link to="/employee/payroll">
-                        <CreditCardIcon className="!text-[22px] shrink-0" />
-                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">My Payroll</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-
                 {/* Requests Link */}
-
                 <SidebarMenuItem>
                   <SidebarMenuButton 
                     asChild 
@@ -524,6 +838,38 @@ const Sidebar = ({ children }) => {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+
+                {/* Loan Enrollment - Management Only */}
+                {/* {(isManagement || isSupervisor) && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={location.pathname.startsWith("/adminLoanEnrollment")}
+                      className={menuButtonClass(location.pathname.startsWith("/adminLoanEnrollment"))}
+                    >
+                      <Link to="/adminLoanEnrollment">
+                        <AccountBalanceIcon className="!text-[22px] shrink-0" />
+                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Loan Enrollment</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )} */}
+
+                {/* My Payroll - Employee Only */}
+                {(viewMode === "employee" || Number(roleId) === 3) && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isMyPayrollActive}
+                      className={menuButtonClass(isMyPayrollActive)}
+                    >
+                      <Link to="/employee/payroll">
+                        <CreditCardIcon className="!text-[22px] shrink-0" />
+                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">My Payroll</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
 
                 {/* Payroll (Dropdown) - Admin Only */}
                 {isManagement && (
@@ -757,24 +1103,17 @@ const Sidebar = ({ children }) => {
               <Separator orientation="vertical" className="mr-2 h-10" />
               <Breadcrumb>
                 <BreadcrumbList>
-                  <BreadcrumbItem className="hidden md:block">
-                    <BreadcrumbLink asChild>
-                      <Link to={homePath}>Home</Link>
-                    </BreadcrumbLink>
-                  </BreadcrumbItem>
-                  {pathnames.map((name, index) => {
-                    const routeTo = `/${pathnames.slice(0, index + 1).join("/")}`;
-                    const isLast = index === pathnames.length - 1;
-                    const label = routeLabels[name] || name.replace(/-/g, " ");
+                  {breadcrumbsList.map((item, index) => {
+                    const isLast = index === breadcrumbsList.length - 1;
                     return (
-                      <React.Fragment key={name}>
-                        <BreadcrumbSeparator className="hidden md:block" />
-                        <BreadcrumbItem>
-                          {isLast ? (
-                            <BreadcrumbPage className="capitalize">{label}</BreadcrumbPage>
+                      <React.Fragment key={index}>
+                        {index > 0 && <BreadcrumbSeparator className="hidden md:block" />}
+                        <BreadcrumbItem className={index === 0 && !isLast ? "hidden md:block" : ""}>
+                          {isLast || !item.path ? (
+                            <BreadcrumbPage className="capitalize">{item.label}</BreadcrumbPage>
                           ) : (
                             <BreadcrumbLink asChild className="capitalize">
-                              <Link to={routeTo}>{label}</Link>
+                              <Link to={item.path}>{item.label}</Link>
                             </BreadcrumbLink>
                           )}
                         </BreadcrumbItem>
@@ -827,27 +1166,23 @@ const Sidebar = ({ children }) => {
                         notifications.map((notif) => (
                           <div 
                             key={notif.notifId} 
-                            className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-[#f0ebfa]/30' : ''}`}
-                            onClick={() => {
-                              setIsNotifLocked(false); 
-                              setIsNotifHovered(false);
-                              if (notif.title === "Password Reset Request" && notif.targetId) {
-                                navigate(`/users/edit/${notif.targetId}`);
-                              } else if (notif.title === "New Request for Review") {
-                                navigate("/adminRequests");
-                              } else if (notif.targetId) {
-                                navigate(`/requests/${notif.targetId}`);
-                              }
-                            }}
+                            className="group/notif relative px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer bg-[#f0ebfa]/30"
+                            onClick={() => handleNotifClick(notif)}
                           >
-                            <div className="flex gap-3">
-                              {!notif.isRead && (
-                                <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full bg-[#2A174E]" />
-                              )}
-                              <div className="flex-1">
+                            <div className="flex gap-3 items-start">
+                              <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full bg-[#2A174E]" />
+                              <div className="flex-1 min-w-0 pr-2">
                                 <p className="text-[12px] text-gray-800 leading-snug line-clamp-2 font-medium">{notif.message}</p>
                                 <p className="text-[10px] text-gray-400 mt-1">{new Date(notif.createdAt).toLocaleString()}</p>
                               </div>
+                              <button
+                                type="button"
+                                title="Dismiss notification"
+                                onClick={(e) => handleDismissNotif(e, notif)}
+                                className="opacity-0 group-hover/notif:opacity-100 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded transition-all shrink-0"
+                              >
+                                <CloseIcon sx={{ fontSize: 13 }} />
+                              </button>
                             </div>
                           </div>
                         ))

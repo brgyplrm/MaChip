@@ -204,7 +204,7 @@ const EmployeePayslip = () => {
 
           {/* Quick Stats / Info Sidebar */}
           <div className="space-y-6">
-            <Card className="border-none shadow-sm overflow-hidden">
+            <Card className="border-t-4 border-[#2A174E] shadow-sm overflow-hidden">
               <CardHeader className="bg-white border-b border-slate-100">
                 <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
                   <Banknote className="h-5 w-5 text-[#2A174E]" />
@@ -223,7 +223,7 @@ const EmployeePayslip = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-sm overflow-hidden">
+            <Card className="border-t-4 border-[#2A174E] shadow-sm overflow-hidden">
               <CardHeader className="bg-white border-b border-slate-100">
                 <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
                   <Calendar className="h-5 w-5 text-[#2A174E]" />

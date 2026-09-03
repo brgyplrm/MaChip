@@ -71,18 +71,18 @@ const VisitorLogs = () => {
   const todayVisits = logs.filter(l => l.date === today && l.loggedStatusName.includes("Opening")).length;
 
   return (
-    <Sidebar>
+    <div className="flex flex-col w-full min-h-screen bg-slate-50">
+      <Sidebar>
       <TooltipProvider>
-        <div className="flex flex-col w-full min-h-screen p-4 max-w-6xl mx-auto bg-slate-50/30">
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
         
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <HistoryIcon className="text-[#2A174E] h-8 w-8" />
-              <h1 className="text-3xl font-bold text-[#2A174E]">Visitor Access</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Visitor Access</h1>
             </div>
-            <p className="text-slate-500">Monitor manual entry logs and control hardware solenoid access.</p>
+            <p className="text-sm text-slate-500 mt-1">Monitor manual entry logs and control hardware solenoid access.</p>
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -90,11 +90,11 @@ const VisitorLogs = () => {
                 <Button 
                   onClick={handleOpenDoor} 
                   disabled={loading}
-                  className="w-full bg-[#2A174E] hover:bg-[#3b206d] text-white px-8 py-7 rounded-2xl shadow-xl flex items-center gap-3 transition-all transform active:scale-95 group"
+                  className="w-full bg-[#2A174E] hover:bg-[#7A52B5] text-white px-6 py-5 rounded-xl shadow-sm flex items-center gap-3 transition-all transform active:scale-95 group"
                 >
                   <LockOpenIcon className="group-hover:rotate-12 transition-transform" />
                   <div className="flex flex-col items-start">
-                    <span className="text-lg font-bold uppercase tracking-wider leading-none">Open Door</span>
+                    <span className="text-base font-bold uppercase tracking-wider leading-none">Open Door</span>
                     <span className="text-[10px] opacity-70 font-normal normal-case">Trigger Solenoid Signal</span>
                   </div>
                 </Button>
@@ -106,74 +106,77 @@ const VisitorLogs = () => {
           </Tooltip>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
-          <Card className="border-t-4 border-[#2A174E] shadow-sm py-0">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-1.5 mb-2">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Today's Total Entries</p>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                    Count of successful visitor access requests recorded today.
-                  </TooltipContent>
-                </Tooltip>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          {/* Card 1: Today's Total Entries */}
+          <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Today's Total Entries</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                      Count of successful visitor access requests recorded today.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <p className="text-4xl font-bold text-[#2A174E]">{todayVisits}</p>
+                  <span className="text-slate-400 text-sm font-medium">{todayVisits === 1 ? "visitor" : "visitors"}</span>
+                </div>
               </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <p className="text-4xl font-black text-[#2A174E]">{todayVisits}</p>
-                <span className="text-slate-400 text-sm font-medium">{todayVisits <= 1 ? "visitor" : "vistors"}</span>
-              </div>
-              {/* <p className="italic text-[11px] text-slate-400 mt-3 leading-relaxed">
-                Displays the total number of entries recorded for the current day.
-              </p> */}
+              <p className="text-xs font-semibold text-[#2A174E]/70 italic mt-4">Total entries recorded for today</p>
             </CardContent>
           </Card>
           
-          <Card className="border-t-4 border-[#3B4E17] shadow-sm py-0">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-1.5 mb-2">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Last Entry Detected</p>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                    Precise time the entry system last authorized visitor entry.
-                  </TooltipContent>
-                </Tooltip>
+          {/* Card 2: Last Entry Detected */}
+          <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Last Entry Detected</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                      Precise time the entry system last authorized visitor entry.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <p className="text-3xl font-bold text-[#3B4E17]">
+                    {logs.find(l => l.loggedStatusName.includes("Opening"))?.time || "—"}
+                  </p>
+                  <span className="text-slate-400 text-sm font-medium">PHST (UTC+8)</span>
+                </div>
               </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <p className="text-3xl font-black text-[#3B4E17]">
-                  {logs.find(l => l.loggedStatusName.includes("Opening"))?.time || "--:--"}
-                </p>
-                <span className="text-slate-400 text-sm font-medium">local time</span>
-              </div>
-              {/* <p className="italic text-[11px] text-slate-400 mt-3 leading-relaxed">
-                Shows the precise time of the most recent authorized visitor access event.
-              </p> */}
+              <p className="text-xs font-semibold text-[#3B4E17]/70 italic mt-4">Most recent authorized guest entry</p>
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-[#B06E16] shadow-sm hidden md:block py-0">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-1.5 mb-2">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">System User</p>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                    The standard virtual employee ID mapped to all guest logs for data integrity.
-                  </TooltipContent>
-                </Tooltip>
+          {/* Card 3: System User */}
+          <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">System User</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                      The standard virtual employee ID mapped to all guest logs for data integrity.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <p className="text-3xl font-bold text-[#BB8B26]">VISITOR-999</p>
+                </div>
               </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <p className="text-2xl font-black text-[#B06E16]">VISITOR-999</p>
-              </div>
-              {/* <p className="italic text-[11px] text-slate-400 mt-3 leading-relaxed">
-                The dedicated system account used to categorize and store all anonymous visitor logs.
-              </p> */}
+              <p className="text-xs font-semibold text-[#BB8B26]/70 italic mt-4">Virtual account mapped to guest logs</p>
             </CardContent>
           </Card>
         </div>
@@ -238,6 +241,7 @@ const VisitorLogs = () => {
         </div>
       </TooltipProvider>
     </Sidebar>
+    </div>
   );
 };
 

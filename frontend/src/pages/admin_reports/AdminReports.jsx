@@ -21,6 +21,7 @@ import { exportBatchToZip } from "../../utils/payrollExport";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
 import { exportToPDF } from "../../utils/pdfExport";
+import { useSystemTime } from "../../context/SystemTimeContext";
 import { FileInput } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 
@@ -37,29 +38,113 @@ import ShieldIcon from '@mui/icons-material/Shield';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TablePagination } from "@/components/ui/table-pagination";
+
+const MONTHS = [
+  { value: "1", label: "January" },
+  { value: "2", label: "February" },
+  { value: "3", label: "March" },
+  { value: "4", label: "April" },
+  { value: "5", label: "May" },
+  { value: "6", label: "June" },
+  { value: "7", label: "July" },
+  { value: "8", label: "August" },
+  { value: "9", label: "September" },
+  { value: "10", label: "October" },
+  { value: "11", label: "November" },
+  { value: "12", label: "December" }
+];
+
+const PERIOD_OPTIONS = [
+  { value: "1", label: "1st Period (1st – 15th)" },
+  { value: "2", label: "2nd Period (16th – End)" }
+];
+
+const computeCutoffDates = (yearStr, monthStr, periodStr) => {
+  const isYearValid = yearStr && yearStr !== "all";
+  const isMonthValid = monthStr && monthStr !== "all";
+  const isPeriodValid = periodStr && periodStr !== "all";
+
+  if (!isYearValid && !isMonthValid && !isPeriodValid) {
+    return { startDate: "", endDate: "" };
+  }
+
+  const currentY = new Date().getFullYear();
+  const y = isYearValid ? parseInt(yearStr, 10) : currentY;
+  const pad = (n) => String(n).padStart(2, '0');
+
+  if (isMonthValid) {
+    const m = parseInt(monthStr, 10);
+    if (periodStr === "1") {
+      return {
+        startDate: `${y}-${pad(m)}-01`,
+        endDate: `${y}-${pad(m)}-15`
+      };
+    } else if (periodStr === "2") {
+      const lastDay = new Date(y, m, 0).getDate();
+      return {
+        startDate: `${y}-${pad(m)}-16`,
+        endDate: `${y}-${pad(m)}-${pad(lastDay)}`
+      };
+    } else {
+      // Entire month (1st to last day)
+      const lastDay = new Date(y, m, 0).getDate();
+      return {
+        startDate: `${y}-${pad(m)}-01`,
+        endDate: `${y}-${pad(m)}-${pad(lastDay)}`
+      };
+    }
+  }
+
+  if (isYearValid) {
+    return {
+      startDate: `${y}-01-01`,
+      endDate: `${y}-12-31`
+    };
+  }
+
+  return { startDate: "", endDate: "" };
+};
 
 const AdminReports = () => {
-  // Constant Baseline Fallback Variable References
-  const defaultStartDate = useMemo(() => new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0], []);
-  const defaultEndDate = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const defaultEmployee = "All Employees";
-  const defaultPeriod = "custom";
-  const defaultEventType = "All Types";
+  const { systemToday } = useSystemTime();
+  const currentSysDate = useMemo(() => systemToday || new Date(), [systemToday]);
 
-  // --- Attendance & Payroll Filters ---
-  const [startDate, setStartDate] = useState(defaultStartDate);
-  const [endDate, setEndDate] = useState(defaultEndDate);
-  const [selectedEmployee, setSelectedEmployee] = useState(defaultEmployee);
+  // Constant Baseline Fallback Variable References
+  const defaultYear = useMemo(() => currentSysDate.getFullYear().toString(), [currentSysDate]);
+  const defaultMonth = useMemo(() => (currentSysDate.getMonth() + 1).toString(), [currentSysDate]);
+  const defaultPeriod = useMemo(() => (currentSysDate.getDate() <= 15 ? "1" : "2"), [currentSysDate]);
+  const defaultEmployee = "All Employees";
+  const defaultEventType = "All Types";
+  const defaultCalendarStartDate = useMemo(() => new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0], []);
+  const defaultCalendarEndDate = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const defaultRequestDate = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // Available years: current year + 1 down to 5 years past (7 years)
+  const availableYears = useMemo(() => {
+    const currentY = currentSysDate.getFullYear();
+    return Array.from({ length: 7 }, (_, i) => (currentY + 1 - i).toString());
+  }, [currentSysDate]);
+
+  // --- Attendance & Payroll Filters (Year, Month, Period, Employee) ---
+  const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
   const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
-  const [payrollPeriods, setPayrollPeriods] = useState([]);
+  const [selectedEmployee, setSelectedEmployee] = useState(defaultEmployee);
+
+  // Derive active attendance & payroll cutoff dates
+  const { startDate, endDate } = useMemo(() => {
+    return computeCutoffDates(selectedYear, selectedMonth, selectedPeriod);
+  }, [selectedYear, selectedMonth, selectedPeriod]);
   
   // --- Calendar/Events Specific Filters ---
-  const [calendarStartDate, setCalendarStartDate] = useState(defaultStartDate);
-  const [calendarEndDate, setCalendarEndDate] = useState(defaultEndDate);
+  const [calendarStartDate, setCalendarStartDate] = useState(defaultCalendarStartDate);
+  const [calendarEndDate, setCalendarEndDate] = useState(defaultCalendarEndDate);
   const [eventTypeFilter, setEventTypeFilter] = useState(defaultEventType);
 
   // --- Requests Tab Specific Filters ---
   const [searchQuery, setSearchQuery] = useState("");
+  const [requestDate, setRequestDate] = useState(defaultRequestDate);
   const [typeFilter, setTypeFilter] = useState("All Types");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
 
@@ -103,7 +188,10 @@ const AdminReports = () => {
   const fetchRequestsReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/request/all?startDate=${startDate}&endDate=${endDate}`);
+      const url = requestDate 
+        ? `/api/request/all?startDate=${requestDate}&endDate=${requestDate}`
+        : `/api/request/all`;
+      const response = await fetchWithAuth(url);
       if (response.ok) {
         const data = await response.json();
         setRequests(data);
@@ -113,30 +201,7 @@ const AdminReports = () => {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
-
-  const fetchPayrollPeriods = useCallback(async () => {
-    try {
-      const response = await fetchWithAuth("/api/system/payroll-periods");
-      if (response.ok) {
-        const data = await response.json();
-        setPayrollPeriods(data);
-      }
-    } catch (error) {
-      console.error("Error fetching payroll periods:", error);
-    }
-  }, []);
-
-  const handlePeriodChange = (val) => {
-    setSelectedPeriod(val);
-    if (val === "custom") return;
-
-    const period = payrollPeriods.find(p => p.periodId.toString() === val);
-    if (period) {
-      setStartDate(period.startDate);
-      setEndDate(period.endDate);
-    }
-  };
+  }, [requestDate]);
 
   const fetchEmployees = useCallback(async () => {
     try {
@@ -153,7 +218,15 @@ const AdminReports = () => {
   const fetchAttendanceReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/attendance/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      const params = new URLSearchParams();
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
+      if (selectedEmployee && selectedEmployee !== "All Employees" && selectedEmployee !== "all") {
+        params.append("user_Id", selectedEmployee);
+      } else {
+        params.append("user_Id", "All Employees");
+      }
+      const response = await fetchWithAuth(`/api/attendance/report?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setAttendanceData(Array.isArray(data) ? data : (data.logs || []));
@@ -168,7 +241,15 @@ const AdminReports = () => {
   const fetchPayrollReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/payroll/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      const params = new URLSearchParams();
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
+      if (selectedEmployee && selectedEmployee !== "All Employees" && selectedEmployee !== "all") {
+        params.append("user_Id", selectedEmployee);
+      } else {
+        params.append("user_Id", "All Employees");
+      }
+      const response = await fetchWithAuth(`/api/payroll/report?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setPayrollData(data);
@@ -183,7 +264,11 @@ const AdminReports = () => {
   const fetchCalendarReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/request/report/calendar?startDate=${calendarStartDate}&endDate=${calendarEndDate}&user_Id=All Employees`);
+      const params = new URLSearchParams();
+      if (calendarStartDate) params.append("startDate", calendarStartDate);
+      if (calendarEndDate) params.append("endDate", calendarEndDate);
+      params.append("user_Id", "All Employees");
+      const response = await fetchWithAuth(`/api/request/report/calendar?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setCalendarData(data);
@@ -197,8 +282,7 @@ const AdminReports = () => {
 
   useEffect(() => {
     fetchEmployees();
-    fetchPayrollPeriods();
-  }, [fetchEmployees, fetchPayrollPeriods]);
+  }, [fetchEmployees]);
 
   useEffect(() => {
     if (activeReport === "attendance") fetchAttendanceReport();
@@ -208,13 +292,6 @@ const AdminReports = () => {
   }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport, fetchRequestsReport]);
 
   useEffect(() => {
-    // Ensure one date only for requests tab
-    if (activeReport === "requests" && startDate !== endDate) {
-      setEndDate(startDate);
-    }
-  }, [activeReport, startDate, endDate]);
-
-  useEffect(() => {
     if (location.state?.activeTab) {
       setActiveReport(location.state.activeTab);
     }
@@ -222,20 +299,21 @@ const AdminReports = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeReport, startDate, endDate, selectedEmployee, calendarStartDate, calendarEndDate, eventTypeFilter, searchQuery, typeFilter, statusFilter, itemsPerPage]);
+  }, [activeReport, startDate, endDate, selectedEmployee, calendarStartDate, calendarEndDate, eventTypeFilter, requestDate, searchQuery, typeFilter, statusFilter, itemsPerPage]);
 
   const handleClearFilters = () => {
     if (activeReport === "attendance" || activeReport === "payroll") {
-      setSelectedEmployee(defaultEmployee);
-      setSelectedPeriod(defaultPeriod);
-      setStartDate(defaultStartDate);
-      setEndDate(defaultEndDate);
+      setSelectedYear("");
+      setSelectedMonth("");
+      setSelectedPeriod("");
+      setSelectedEmployee("All Employees");
     } else if (activeReport === "calendar") {
-      setCalendarStartDate(defaultStartDate);
-      setCalendarEndDate(defaultEndDate);
-      setEventTypeFilter(defaultEventType);
+      setCalendarStartDate("");
+      setCalendarEndDate("");
+      setEventTypeFilter("All Types");
     } else if (activeReport === "requests") {
       setSearchQuery("");
+      setRequestDate("");
       setTypeFilter("All Types");
       setStatusFilter("All Statuses");
     }
@@ -244,16 +322,43 @@ const AdminReports = () => {
 
   const isFiltering = useMemo(() => {
     if (activeReport === "attendance" || activeReport === "payroll") {
-      return selectedEmployee !== defaultEmployee || selectedPeriod !== defaultPeriod || startDate !== defaultStartDate || endDate !== defaultEndDate;
+      return Boolean(
+        (selectedYear && selectedYear !== "all") ||
+        (selectedMonth && selectedMonth !== "all") ||
+        (selectedPeriod && selectedPeriod !== "all") ||
+        (selectedEmployee && selectedEmployee !== "All Employees" && selectedEmployee !== "all")
+      );
     }
     if (activeReport === "calendar") {
-      return calendarStartDate !== defaultStartDate || calendarEndDate !== defaultEndDate || eventTypeFilter !== defaultEventType;
+      return Boolean(
+        calendarStartDate !== "" ||
+        calendarEndDate !== "" ||
+        (eventTypeFilter && eventTypeFilter !== "All Types" && eventTypeFilter !== "all")
+      );
     }
     if (activeReport === "requests") {
-      return searchQuery !== "" || typeFilter !== "All Types" || statusFilter !== "All Statuses";
+      return Boolean(
+        searchQuery !== "" ||
+        requestDate !== "" ||
+        (typeFilter && typeFilter !== "All Types" && typeFilter !== "all") ||
+        (statusFilter && statusFilter !== "All Statuses" && statusFilter !== "all")
+      );
     }
     return false;
-  }, [activeReport, selectedEmployee, selectedPeriod, startDate, endDate, calendarStartDate, calendarEndDate, eventTypeFilter, searchQuery, typeFilter, statusFilter, defaultStartDate, defaultEndDate, defaultEmployee, defaultPeriod, defaultEventType]);
+  }, [
+    activeReport,
+    selectedYear,
+    selectedMonth,
+    selectedPeriod,
+    selectedEmployee,
+    calendarStartDate,
+    calendarEndDate,
+    eventTypeFilter,
+    searchQuery,
+    requestDate,
+    typeFilter,
+    statusFilter
+  ]);
 
   const handleCSVExport = () => {
     let dataToExport = [];
@@ -343,27 +448,12 @@ const AdminReports = () => {
 
   const handleBatchExport = () => {
     if (payrollData.length === 0) return;
-    let label = "Payroll_Report";
-    let periodCode = "MAChipPayroll";
+    const [sY, sM, sD] = startDate.split('-').map(Number);
+    const [eY, eM, eD] = endDate.split('-').map(Number);
+    const month = new Date(sY, sM - 1, sD).toLocaleString('en-US', { month: 'long' });
+    const label = `${month}${String(sD).padStart(2, '0')}-${String(eD).padStart(2, '0')}`;
+    const periodCode = `${sY}_${String(sM).padStart(2, '0')}${String(sD).padStart(2, '0')}-${String(eD).padStart(2, '0')}MAChipPayroll`;
     
-    // FIXED: Corrected syntax scoping error where 'val' was unreferenced
-    if (selectedPeriod !== "custom") {
-      const period = payrollPeriods.find(p => p.periodId.toString() === selectedPeriod);
-      if (period) {
-        const [startY, startM, startD] = period.startDate.split('-').map(Number);
-        const [endY, endM, endD] = period.endDate.split('-').map(Number);
-        const month = new Date(startY, startM - 1, startD).toLocaleString('en-US', { month: 'long' });
-        label = `${month}${startD}-${endD}`;
-        const monthNum = String(startM).padStart(2, '0');
-        const pRange = `${String(startD).padStart(2, '0')}-${String(endD).padStart(2, '0')}`;
-        periodCode = `${startY}_${monthNum}${pRange}MAChipPayroll`;
-      }
-    } else {
-      label = `Payroll_${startDate}_to_${endDate}`;
-      const [sY, sM, sD] = startDate.split('-').map(Number);
-      const [eY, eM, eD] = endDate.split('-').map(Number);
-      periodCode = `${sY}_${String(sM).padStart(2, '0')}${String(sD).padStart(2, '0')}-${String(eD).padStart(2, '0')}MAChipPayroll`;
-    }
     setZipPassword(periodCode);
     setZipLabel(label);
     setShowBatchZipModal(true);
@@ -803,31 +893,51 @@ const AdminReports = () => {
                 <FilterListIcon className="text-slate-400 h-5 w-5" /> Filters
               </div>
 
-              {/* FILTER VIEW 1: Attendance & Payroll (Includes Period and Employee) */}
+              {/* FILTER VIEW 1: Attendance & Payroll (Year, Month, Period, Employee) */}
               {(activeReport === "attendance" || activeReport === "payroll") && (
-                <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto flex-wrap">
-                  <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
-                    <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 font-medium text-slate-700">
-                      <SelectValue placeholder="-- Select Period --" />
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto flex-wrap">
+                  {/* Year Selection */}
+                  <Select value={selectedYear || ""} onValueChange={(val) => setSelectedYear(val === "all" ? "" : val)}>
+                    <SelectTrigger className="w-full sm:w-[110px] border-slate-200 bg-slate-50 font-medium text-slate-700">
+                      <SelectValue placeholder="Year" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="custom">Custom Date Range</SelectItem>
-                      {payrollPeriods.map(p => (
-                        <SelectItem key={p.periodId} value={p.periodId.toString()}>{p.label}</SelectItem>
+                      <SelectItem value="all">All Years</SelectItem>
+                      {availableYears.map(year => (
+                        <SelectItem key={year} value={year}>{year}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
 
-                  {selectedPeriod === "custom" && (
-                    <>
-                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full sm:w-[150px] border-slate-200 bg-slate-50 font-medium text-slate-700" />
-                      <span className="hidden sm:block text-slate-400 font-bold">to</span>
-                      <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full sm:w-[150px] border-slate-200 bg-slate-50 font-medium text-slate-700" />
-                    </>
-                  )}
+                  {/* Month Selection */}
+                  <Select value={selectedMonth || ""} onValueChange={(val) => setSelectedMonth(val === "all" ? "" : val)}>
+                    <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50 font-medium text-slate-700">
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Months</SelectItem>
+                      {MONTHS.map(m => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                  <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                  {/* Period Selection (1st or 2nd) */}
+                  <Select value={selectedPeriod || ""} onValueChange={(val) => setSelectedPeriod(val === "all" ? "" : val)}>
                     <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 font-medium text-slate-700">
+                      <SelectValue placeholder="Period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Periods</SelectItem>
+                      {PERIOD_OPTIONS.map(p => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Employee Selection */}
+                  <Select value={selectedEmployee || "All Employees"} onValueChange={setSelectedEmployee}>
+                    <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="All Employees" />
                     </SelectTrigger>
                     <SelectContent>
@@ -891,11 +1001,8 @@ const AdminReports = () => {
                   <div className="flex items-center gap-2">
                     <Input 
                       type="date" 
-                      value={startDate} 
-                      onChange={(e) => {
-                        setStartDate(e.target.value);
-                        setEndDate(e.target.value);
-                      }} 
+                      value={requestDate} 
+                      onChange={(e) => setRequestDate(e.target.value)} 
                       className="w-full sm:w-[150px] h-9 border-slate-200 bg-slate-50 text-slate-700 font-medium" 
                     />
                   </div>
@@ -1147,36 +1254,18 @@ const AdminReports = () => {
                 </div>
               )}
 
-              {/* Centralized Pagination Area */}
-              {totalItems > 0 && !loading && (
-                <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30 mt-auto">
-                  <div className="flex items-center gap-4 text-sm text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <span className="hidden sm:inline">Rows per page:</span>
-                      <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(Number(val))}>
-                        <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
-                          <SelectValue placeholder="10" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5">5</SelectItem>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="20">20</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="font-medium">
-                      Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1}>Previous</Button>
-                    <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">{currentPage}</div>
-                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0}>Next</Button>
-                  </div>
-                </div>
-              )}
+              {/* Pagination Controls */}
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                setCurrentPage={setCurrentPage}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                setItemsPerPage={setItemsPerPage}
+                startIndex={startIndex}
+                endIndex={endIndex}
+                itemLabel="records"
+              />
             </CardContent>
           </Card>
         </div>

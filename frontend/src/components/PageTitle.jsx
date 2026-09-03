@@ -6,6 +6,7 @@ const routeTitleMap = [
   { path: /^\/$/, title: "Dashboard" },
   { path: /^\/employeeHome\/?$/, title: "Home" },
   { path: /^\/adminRequests\/?$/, title: "Requests Management" },
+  { path: /^\/adminLoanEnrollment\/?$/, title: "Loan Enrollment & Certification" },
   { path: /^\/requestSum\/?$/, title: "Request Summary" },
   { path: /^\/adminoversight\/?$/, title: "Admin Requests Oversight" },
   { path: /^\/requests\/[^/]+$/, title: "Request Details" },

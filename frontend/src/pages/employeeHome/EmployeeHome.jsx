@@ -6,7 +6,7 @@ import "react-circular-progressbar/dist/styles.css";
 import HistoryIcon from '@mui/icons-material/History';
 import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
 import Toast from "../../components/toast/Toast";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import { fetchWithAuth } from "../../utils/api";
@@ -35,6 +35,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 const EmployeeHome = () => {
   const { systemToday, isMockTime } = useSystemTime();
   const [userData, setUserData] = useState(() => JSON.parse(localStorage.getItem("userData")));
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("viewMode") || "employee");
   
   const formattedTime = systemToday.toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -66,7 +67,7 @@ const EmployeeHome = () => {
       try {
         const [statsRes, notifRes, payrollRes] = await Promise.all([
           fetchWithAuth(`/api/attendance/employee-dashboard/${currentId}`),
-          fetchWithAuth(`/api/notifications/unread-count/${currentId}`),
+          fetchWithAuth(`/api/notifications/unread-count/${currentId}?viewMode=employee`),
           fetchWithAuth(`/api/payroll/my-history`)
         ]);
 
@@ -85,7 +86,13 @@ const EmployeeHome = () => {
         if (notifRes.ok) {
           const notifData = await notifRes.json();
           if (notifData.count > 0) {
-            setToast({ message: `You have ${notifData.count} unread notification(s).`, type: "success" });
+            const isSwitchable = [1, 2, 4].includes(Number(storedUser.user_RoleId));
+            setToast({ 
+              message: isSwitchable 
+                ? `You have ${notifData.count} unread employee notification(s).` 
+                : `You have ${notifData.count} unread notification(s).`, 
+              type: "success" 
+            });
           }
         }
       } catch (error) {
@@ -96,27 +103,80 @@ const EmployeeHome = () => {
     };
 
     fetchDashboardData();
-    window.addEventListener("storage", fetchDashboardData);
+
+    const handleStorageChange = () => {
+      const stored = JSON.parse(localStorage.getItem("userData"));
+      const storedMode = localStorage.getItem("viewMode") || "employee";
+      setUserData(stored);
+      setViewMode(storedMode);
+      fetchDashboardData();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
     window.addEventListener("dataRefresh", fetchDashboardData);
     
     return () => {
-      window.removeEventListener("storage", fetchDashboardData);
+      window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("dataRefresh", fetchDashboardData);
     };
   }, []);
+
+  const isSwitchableRole = [1, 2, 4].includes(Number(userData?.user_RoleId));
+  if (isSwitchableRole && viewMode === "management") {
+    return <Navigate to="/" replace />;
+  }
 
   if (!userData) return null;
 
   const att = dashboardStats.attendance;
   const balance = dashboardStats.leaveBalance;
   const recentRequests = dashboardStats.monthlyRequests;
-  const totalTrackedDays = (att.absent || 0) + (att.onTime || 0) + (att.late || 0) || 1;
+  const totalDays = (att.absent || 0) + (att.onTime || 0) + (att.late || 0);
+  const totalTrackedDays = totalDays || 1;
+
+  const onTimePct = totalDays > 0 ? Math.round(((att.onTime || 0) / totalTrackedDays) * 100) : 0;
+  const latePct = totalDays > 0 ? Math.round(((att.late || 0) / totalTrackedDays) * 100) : 0;
+  const absentPct = totalDays > 0 ? Math.round(((att.absent || 0) / totalTrackedDays) * 100) : 0;
+  const attendanceRate = totalDays > 0 ? Math.round((((att.onTime || 0) + (att.late || 0)) / totalTrackedDays) * 100) : 100;
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat("en-PH", {
       style: "currency",
       currency: "PHP",
     }).format(amount || 0);
+  };
+
+  const getRequestStatusConfig = (status, statusId) => {
+    const s = (status || "").toLowerCase();
+    const id = Number(statusId);
+
+    if (id === 2 || s.includes("approve")) {
+      return {
+        label: "APPROVED",
+        borderClass: "border-emerald-500",
+        badgeClass: "bg-emerald-500 text-white",
+      };
+    }
+    if (id === 5 || s.includes("return")) {
+      return {
+        label: "RETURNED",
+        borderClass: "border-purple-600",
+        badgeClass: "bg-purple-600 text-white",
+      };
+    }
+    if (id === 3 || s.includes("reject") || s.includes("decline")) {
+      return {
+        label: "REJECTED",
+        borderClass: "border-rose-500",
+        badgeClass: "bg-rose-500 text-white",
+      };
+    }
+    // Default: Pending (1, 4 or other)
+    return {
+      label: status ? status.toUpperCase() : "PENDING",
+      borderClass: "border-amber-500",
+      badgeClass: "bg-amber-500 text-white",
+    };
   };
 
   // Dynamic Greeting Logic (Match Admin)
@@ -187,16 +247,17 @@ const EmployeeHome = () => {
                         </div>
                       ))}
                     </div>
-                    <div className="w-full space-y-4 mt-auto">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="space-y-2">
-                          <div className="flex justify-between">
-                            <Skeleton className="h-3 w-16" />
-                            <Skeleton className="h-3 w-8" />
-                          </div>
-                          <Skeleton className="h-2 w-full rounded-full" />
-                        </div>
-                      ))}
+                    <div className="w-full space-y-3 mt-auto">
+                      <div className="flex justify-between">
+                        <Skeleton className="h-3 w-32" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                      <Skeleton className="h-3 w-full rounded-full" />
+                      <div className="grid grid-cols-3 gap-2 pt-0.5">
+                        <Skeleton className="h-12 w-full rounded-lg" />
+                        <Skeleton className="h-12 w-full rounded-lg" />
+                        <Skeleton className="h-12 w-full rounded-lg" />
+                      </div>
                     </div>
                   </div>
                 </Card>
@@ -338,6 +399,7 @@ const EmployeeHome = () => {
 
               {/* Border Top Widget Cards (Match Admin Style) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+                <Link to="/logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Card className="bg-gradient-to-t from-[#2A174E] to-[#4A2C7D] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
@@ -357,7 +419,9 @@ const EmployeeHome = () => {
                     Your first clock-in recorded by the RFID/biometric terminal today.
                   </TooltipContent>
                 </Tooltip>
-
+                </Link>
+                
+                <Link to="/requests" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Card className="bg-gradient-to-t from-[#3B4E17] to-[#5A6F2A] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
@@ -371,7 +435,7 @@ const EmployeeHome = () => {
                             {(balance.VL_balance || 0) + (balance.SL_balance || 0)} <span className="text-xl opacity-80 font-medium">Days</span>
                           </p>
                         </div>
-                        <p className="text-xs font-semibold text-white/70 italic mt-4">VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance}</p>
+                        <p className="text-xs font-semibold text-white/70 italic mt-4">VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance} Remaining Leaves</p>
                       </CardContent>
                     </Card>
                   </TooltipTrigger>
@@ -379,7 +443,9 @@ const EmployeeHome = () => {
                     Sum of remaining Vacation Leave (VL) and Sick Leave (SL) credits.
                   </TooltipContent>
                 </Tooltip>
+                </Link>
 
+                <Link to="/employee/payroll" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Card className="bg-gradient-to-t from-[#B06E16] to-[#D4AF37] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
@@ -401,6 +467,8 @@ const EmployeeHome = () => {
                     Take-home pay for the most recent cutoff period (excluding government deductions).
                   </TooltipContent>
                 </Tooltip>
+                </Link>
+
               </div>
 
               <div className="h-4"></div>
@@ -418,44 +486,142 @@ const EmployeeHome = () => {
                           <HelpOutlinedIcon className="text-slate-400 hover:text-slate-600 cursor-pointer !text-[14px] transition-colors" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                          Summary of your attendance punches (Absences, Latenesses, and On-Time arrivals) for this month.
+                          Summary of your attendance punches (Absences, Latenesses, and On-Time arrivals) for this {att.monthName || "Month"}.
                         </TooltipContent>
                       </Tooltip>
-                      <span className="text-xs opacity-70">({att.monthName || "Month"})</span>
                     </h2>
                   </div>
                   <div className="flex-1 flex flex-col items-center justify-between gap-4 mt-2">
                     <div className="flex justify-around w-full px-2">
-                      <div className="w-20 md:w-24 text-center space-y-3">
-                        <CircularProgressbar value={att.absent} maxValue={20} text={`${att.absent}`} styles={buildStyles({ pathColor: `#ef4444`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} />
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Absent</span>
-                      </div>
-                      <div className="w-20 md:w-24 text-center space-y-3">
-                        <CircularProgressbar value={att.late} maxValue={20} text={`${att.late}`} styles={buildStyles({ pathColor: `#f59e0b`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} />
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Late</span>
-                      </div>
-                      <div className="w-20 md:w-24 text-center space-y-3">
-                        <CircularProgressbar value={att.onTime} maxValue={20} text={`${att.onTime}`} styles={buildStyles({ pathColor: `#22c55e`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} />
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">On-Time</span>
-                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="w-20 md:w-24 text-center space-y-3 cursor-pointer group">
+                            <div className="transition-transform duration-200 group-hover:scale-105">
+                              <CircularProgressbar 
+                                value={att.absent || 0} 
+                                maxValue={totalTrackedDays} 
+                                text={`${att.absent || 0}`} 
+                                styles={buildStyles({ pathColor: `#ef4444`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} 
+                              />
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Absent</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                          {att.absent || 0} out of {totalDays} {totalDays === 1 ? "day" : "days"}
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="w-20 md:w-24 text-center space-y-3 cursor-pointer group">
+                            <div className="transition-transform duration-200 group-hover:scale-105">
+                              <CircularProgressbar 
+                                value={att.late || 0} 
+                                maxValue={totalTrackedDays} 
+                                text={`${att.late || 0}`} 
+                                styles={buildStyles({ pathColor: `#f59e0b`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} 
+                              />
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Late</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                          {att.late || 0} out of {totalDays} {totalDays === 1 ? "day" : "days"}
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="w-20 md:w-24 text-center space-y-3 cursor-pointer group">
+                            <div className="transition-transform duration-200 group-hover:scale-105">
+                              <CircularProgressbar 
+                                value={att.onTime || 0} 
+                                maxValue={totalTrackedDays} 
+                                text={`${att.onTime || 0}`} 
+                                styles={buildStyles({ pathColor: `#22c55e`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} 
+                              />
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">On-Time</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                          {att.onTime || 0} out of {totalDays} {totalDays === 1 ? "day" : "days"}
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                     
                     <div className="w-full space-y-3 mt-auto">
-                      {[
-                        { label: "Absent", val: att.absent, color: "bg-red-500" },
-                        { label: "Late Arrivals", val: att.late, color: "bg-amber-500" },
-                        { label: "On-Time / On-Field", val: att.onTime, color: "bg-green-500" }
-                      ].map((item, i) => (
-                        <div key={i} className="space-y-1.5">
-                          <div className="flex justify-between text-xs font-bold text-slate-700">
-                            <span className="uppercase tracking-wider text-[10px]">{item.label}</span>
-                            <span className="text-slate-500">{item.val} d</span>
-                          </div>
-                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                            <div className={`h-full ${item.color} rounded-full transition-all duration-1000 ease-out`} style={{ width: `${(item.val / totalTrackedDays) * 100}%` }}></div>
-                          </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-600 uppercase tracking-wider text-[10px]">
+                          Period Attendance Ratio
+                        </span>
+                        <span className="text-slate-400 font-medium text-[11px]">
+                          {totalDays} {totalDays === 1 ? "day" : "days"} tracked
+                        </span>
+                      </div>
+
+                      {/* 100% Continuous Multi-Segment Bar */}
+                      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+                        {att.onTime > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div 
+                                className="bg-green-500 h-full transition-all duration-700 hover:opacity-90 cursor-help" 
+                                style={{ width: `${(att.onTime / totalTrackedDays) * 100}%` }}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              On-Time: {onTimePct}% ({att.onTime} {att.onTime === 1 ? "day" : "days"})
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {att.late > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div 
+                                className="bg-amber-500 h-full transition-all duration-700 hover:opacity-90 cursor-help" 
+                                style={{ width: `${(att.late / totalTrackedDays) * 100}%` }}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Late: {latePct}% ({att.late} {att.late === 1 ? "day" : "days"})
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {att.absent > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div 
+                                className="bg-red-500 h-full transition-all duration-700 hover:opacity-90 cursor-help" 
+                                style={{ width: `${(att.absent / totalTrackedDays) * 100}%` }}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Absent: {absentPct}% ({att.absent} {att.absent === 1 ? "day" : "days"})
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {totalDays === 0 && (
+                          <div className="w-full h-full bg-slate-200" />
+                        )}
+                      </div>
+
+                      {/* Ratio Metric Legend Cards */}
+                      <div className="grid grid-cols-3 gap-2 pt-0.5 text-center">
+                        <div className="bg-green-50/70 p-2 rounded-lg border border-green-100">
+                          <span className="text-[10px] font-bold text-green-700 block uppercase tracking-wider">On-Time</span>
+                          <span className="text-sm font-black text-green-800">{onTimePct}%</span>
                         </div>
-                      ))}
+                        <div className="bg-amber-50/70 p-2 rounded-lg border border-amber-100">
+                          <span className="text-[10px] font-bold text-amber-700 block uppercase tracking-wider">Late</span>
+                          <span className="text-sm font-black text-amber-800">{latePct}%</span>
+                        </div>
+                        <div className="bg-red-50/70 p-2 rounded-lg border border-red-100">
+                          <span className="text-[10px] font-bold text-red-700 block uppercase tracking-wider">Absent</span>
+                          <span className="text-sm font-black text-red-800">{absentPct}%</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -478,17 +644,19 @@ const EmployeeHome = () => {
                   </div>
                   <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2">
                     {recentRequests.length > 0 ? (
-                      recentRequests.map(req => {
-                        const isApproved = req.status?.toLowerCase().includes("approve");
-                        const boxStyle = isApproved ? "border-green-500" : "border-[#D4AF37]";
+                      recentRequests.map((req) => {
+                        const config = getRequestStatusConfig(req.status, req.emp_reqStatusId);
                         return (
-                          <div key={req.emp_reqId} className={`flex items-center gap-3 p-3.5 rounded-lg hover:bg-slate-100 transition-colors border-l-4 ${boxStyle} bg-slate-50/70 min-w-0`}>
+                          <div
+                            key={req.emp_reqId}
+                            className={`flex items-center gap-3 p-3.5 rounded-lg hover:bg-slate-100 transition-colors border-l-4 ${config.borderClass} bg-slate-50/70 min-w-0`}
+                          >
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-bold text-[#2A174E] truncate">{req.reqTypeName}</p>
                               <p className="text-[10px] text-gray-500 font-medium truncate">{req.remarks || "No description provided"}</p>
                             </div>
-                            <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0 border-0 ${isApproved ? "bg-green-500 text-white" : "bg-amber-500 text-white"}`}>
-                              {req.status}
+                            <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0 border-0 ${config.badgeClass}`}>
+                              {config.label}
                             </Badge>
                           </div>
                         );
@@ -562,7 +730,7 @@ const EmployeeHome = () => {
                 
                 {/* Attendance Timeline */}
                 <Card className="xl:col-span-2 shadow-sm border-0 border-t-4 border-[#2A174E] bg-white h-[420px] flex flex-col">
-                  <CardHeader className="pb-4 border-b border-slate-50 shrink-0">
+                  <CardHeader className="pb-0 border-b border-slate-50 shrink-0">
                     <CardTitle className="text-[#2A174E] text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
                         <HistoryIcon className="h-5 w-5" />
@@ -578,7 +746,7 @@ const EmployeeHome = () => {
                       </div>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6 flex-1 overflow-hidden flex flex-col">
+                  <CardContent className="py-0 flex-1 overflow-hidden flex flex-col">
                     <div className="space-y-3 overflow-y-auto custom-scrollbar pr-2 flex-1">
                       {dashboardStats.recentLogs.map((log, idx) => {
                         const isGood = log.status?.toLowerCase().includes('time') || log.status?.toLowerCase().includes('field');
@@ -608,7 +776,7 @@ const EmployeeHome = () => {
 
                 {/* Detailed Leave Balances */}
                 <Card className="shadow-sm border-0 border-t-4 border-[#3B4E17] bg-white flex flex-col h-[420px]">
-                  <CardHeader className="pb-4 border-b border-slate-50 shrink-0">
+                  <CardHeader className="pb-0 border-b border-slate-50 shrink-0">
                     <CardTitle className="text-[#3B4E17] text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
@@ -624,7 +792,7 @@ const EmployeeHome = () => {
                       </div>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6 flex-1 flex flex-col justify-center gap-6">
+                  <CardContent className="py-0 flex-1 flex flex-col justify-center gap-6">
                     {[
                       { label: "Vacation Leave (VL)", bal: balance.VL_balance, total: balance.VL_total, color: "bg-[#8DB552]", light: "bg-[#8DB552]/20" },
                       { label: "Sick Leave (SL)", bal: balance.SL_balance, total: balance.SL_total, color: "bg-[#C0E990]", light: "bg-[#C0E990]/30" }

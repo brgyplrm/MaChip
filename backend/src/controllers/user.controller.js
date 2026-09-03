@@ -13,7 +13,7 @@ const { computeMonthlyShares } = require("../utils/govtDeductions");
 exports.getAuditLogs = async (req, res) => {
   try {
     const logs = await sequelize.query(
-      `SELECT a.*, u."user_FirstName", u."user_LastName" 
+      `SELECT a.*, u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId" 
        FROM "Audit_Log" a
        LEFT JOIN "User" u ON a."user_Id" = u."user_Id"
        ORDER BY a."createdAt" DESC LIMIT 500`,
@@ -28,9 +28,11 @@ exports.getAuditLogs = async (req, res) => {
 exports.getTransactionLogs = async (req, res) => {
   try {
     const logs = await sequelize.query(
-      `SELECT t.*, u."user_FirstName", u."user_LastName" 
+      `SELECT t.*, u."user_FirstName" AS "emp_FirstName", u."user_LastName" AS "emp_LastName",
+              a."user_FirstName" AS "admin_FirstName", a."user_LastName" AS "admin_LastName" 
        FROM "Transaction_Log" t
        LEFT JOIN "User" u ON t."user_Id" = u."user_Id"
+       LEFT JOIN "User" a ON t."initiated_By" = a."user_Id"
        ORDER BY t."createdAt" DESC LIMIT 500`,
       { type: QueryTypes.SELECT }
     );
@@ -131,7 +133,18 @@ exports.registerUser = async (req, res) => {
         return res.status(400).json({ error: "Account Number must contain numbers only." });
       }
       if (![12, 15].includes(account_Number.length)) {
-        return res.status(400).json({ error: "Account Number must be 12 or 15 digits." });
+        let msg = "Account Number must be 12 or 15 digits.";
+        if (account_Number.length < 12) {
+          const missing = 12 - account_Number.length;
+          msg = `Account Number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required).`;
+        } else if (account_Number.length > 12 && account_Number.length < 15) {
+          const missing = 15 - account_Number.length;
+          msg = `Account Number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required for 15 digits).`;
+        } else if (account_Number.length > 15) {
+          const extra = account_Number.length - 15;
+          msg = `Account Number must be 12 or 15 digits (${extra} digit${extra > 1 ? "s" : ""} over limit).`;
+        }
+        return res.status(400).json({ error: msg });
       }
     }
 
@@ -734,7 +747,18 @@ exports.updateUser = async (req, res) => {
       return res.status(400).json({ error: "Account Number must contain numbers only." });
     }
     if (![12, 15].includes(account_Number.length)) {
-      return res.status(400).json({ error: "Account Number must be 12 or 15 digits." });
+      let msg = "Account Number must be 12 or 15 digits.";
+      if (account_Number.length < 12) {
+        const missing = 12 - account_Number.length;
+        msg = `Account Number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required).`;
+      } else if (account_Number.length > 12 && account_Number.length < 15) {
+        const missing = 15 - account_Number.length;
+        msg = `Account Number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required for 15 digits).`;
+      } else if (account_Number.length > 15) {
+        const extra = account_Number.length - 15;
+        msg = `Account Number must be 12 or 15 digits (${extra} digit${extra > 1 ? "s" : ""} over limit).`;
+      }
+      return res.status(400).json({ error: msg });
     }
   }
 

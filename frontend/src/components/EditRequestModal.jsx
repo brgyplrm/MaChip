@@ -117,9 +117,11 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // Ensure WithPayID is sent as integer for the backend
+      // Ensure WithPayID is sent as integer for the backend and reason/remarks are mapped
       const payload = { 
         ...formData, 
+        reason: formData.remarks || "",
+        remarks: formData.remarks || "",
         WithPayID: parseInt(formData.WithPayID) || 1,
         modificationReason 
       };

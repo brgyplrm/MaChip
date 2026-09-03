@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EyeIcon } from "lucide-react";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const ThirteenthMonth = () => {
   const { systemToday } = useSystemTime();
@@ -49,6 +50,8 @@ const ThirteenthMonth = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [searchQuery, setSearchQuery] = useState("");
+  const [startIndex, setStartIndex] = useState(0);
+  const [endIndex, setEndIndex] = useState(0);
 
   // Reset pagination when data changes
   useEffect(() => {
@@ -57,9 +60,15 @@ const ThirteenthMonth = () => {
 
   // Filter Logic
   const filteredData = useMemo(() => {
-    return previewData.filter(item => 
-      `${item.user_LastName} ${item.user_FirstName}`.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return previewData;
+    return previewData.filter(item => {
+      const firstLast = `${item.user_FirstName || ""} ${item.user_LastName || ""}`.toLowerCase();
+      const lastFirst = `${item.user_LastName || ""} ${item.user_FirstName || ""}`.toLowerCase();
+      const status = (item.existingStatus || "").toLowerCase();
+      const id = String(item.user_Id || "");
+      return firstLast.includes(q) || lastFirst.includes(q) || status.includes(q) || id.includes(q);
+    });
   }, [previewData, searchQuery]);
 
   // Pagination Logic
@@ -318,15 +327,15 @@ const ThirteenthMonth = () => {
                     <div className="relative w-full sm:w-80">
                       <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <Input 
-                        placeholder="Search employee name..." 
+                        placeholder="Search employee name or status..." 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="pl-9"
                       />
                     </div>
-                    {/* <div className="text-sm text-slate-500">
+                    <div className="text-sm text-slate-500 font-medium">
                       Showing {paginatedData.length} of {filteredData.length} employees
-                    </div> */}
+                    </div>
                   </Card>
 
               <Card className="shadow-sm border-0 bg-white mb-6 py-0">
@@ -359,7 +368,7 @@ const ThirteenthMonth = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {previewData.length > 0 ? previewData.map((item) => (
+                      {paginatedData.length > 0 ? paginatedData.map((item) => (
                         <TableRow key={item.user_Id} className={item.deletedAt ? "bg-slate-50/50 grayscale-[0.2]" : ""}>
                           <TableCell className="font-bold text-[#2A174E]">
                             <div className="flex flex-col">
@@ -392,54 +401,28 @@ const ThirteenthMonth = () => {
                       )) : (
                         <TableRow>
                           <TableCell colSpan={6}>
-                              <EmptyState 
-                                  icon={<AssessmentOutlinedIcon className="h-8 w-8 text-slate-400" />}
-                                  title="No 13th Month Pay Records"
-                                  description="There are no 13th month pay records available for the period."
-
-                                />
+                            <EmptyState 
+                              icon={<AssessmentOutlinedIcon className="h-8 w-8 text-slate-400" />}
+                              title="No 13th Month Pay Records"
+                              description={searchQuery ? "No records match your search criteria." : "There are no 13th month pay records available for the period."}
+                            />
                           </TableCell>
                         </TableRow>
                       )}
                     </TableBody>
                   </Table>
-                  <div className="flex items-center justify-between p-4 border-t border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
-                        <SelectTrigger className="w-24">
-                          <SelectValue placeholder="10" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5">5</SelectItem>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="20">20</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <span className="text-xs font-semibold text-slate-500">
-                        Showing {paginatedData.length} of {filteredData.length} employees
-                      </span>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        disabled={currentPage === 1}
-                        onClick={() => setCurrentPage(p => p - 1)}
-                      >
-                        Previous
-                      </Button>
-                      <div className="flex items-center px-4 font-bold text-[#2A174E]">
-                        {currentPage} / {totalPages || 1}
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        disabled={currentPage >= totalPages}
-                        onClick={() => setCurrentPage(p => p + 1)}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
+                  {/* Pagination Controls */}
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    setCurrentPage={setCurrentPage}
+                    totalItems={filteredData.length}
+                    itemsPerPage={itemsPerPage}
+                    setItemsPerPage={setItemsPerPage}
+                    startIndex={startIndex}
+                    endIndex={endIndex}
+                    itemLabel="records"
+                  />
                 </CardContent>
               </Card>
             </TabsContent>

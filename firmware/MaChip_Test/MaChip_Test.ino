@@ -67,7 +67,8 @@ const NetworkConfig networks[] = {
   { String(WIFI_SSID_1), String(WIFI_PASS_1), String(SERVER_URL_1), String(FP_ENROLL_1) },
   { String(WIFI_SSID_2), String(WIFI_PASS_2), String(SERVER_URL_2), String(FP_ENROLL_2) },
   { String(WIFI_SSID_3), String(WIFI_PASS_3), String(SERVER_URL_3), String(FP_ENROLL_3) },
-  { String(WIFI_SSID_4), String(WIFI_PASS_4), String(SERVER_URL_4), String(FP_ENROLL_4) }
+  { String(WIFI_SSID_4), String(WIFI_PASS_4), String(SERVER_URL_4), String(FP_ENROLL_4) },
+  { String(WIFI_SSID_6), String(WIFI_PASS_6), String(SERVER_URL_6), String(FP_ENROLL_6) }
 };
 const int NETWORK_COUNT = sizeof(networks) / sizeof(networks[0]);
 
@@ -316,7 +317,8 @@ const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
   <div class="header">
     <div class="title">⚡ MAChip ESP32 Live Terminal</div>
     <div class="toolbar">
-      <span class="status-badge" id="status">● ONLINE</span>
+      <span class="status-badge" id="status">● ESP32 ONLINE</span>
+      <span class="status-badge" id="server-status" style="background:#1e3a8a; color:#93c5fd;">● SERVER: CONNECTED</span>
       <label class="label-check"><input type="checkbox" id="autoscroll" checked> Auto-Scroll</label>
       <button onclick="clearLogs()">Clear Logs</button>
     </div>
@@ -339,17 +341,33 @@ const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
         logs.forEach(msg => {
           let cls = '';
           if (msg.includes('FAILED') || msg.includes('Fail') || msg.includes('Error') || msg.includes('ERROR')) cls = 'log-err';
-          else if (msg.includes('WARN') || msg.includes('OTA UPDATE')) cls = 'log-warn';
-          else if (msg.includes('[WIFI]') || msg.includes('[SYSTEM]') || msg.includes('CONNECTED') || msg.includes('[OTA]')) cls = 'log-info';
+          else if (msg.includes('WARN') || msg.includes('WARNING') || msg.includes('OTA UPDATE')) cls = 'log-warn';
+          else if (msg.includes('[WIFI]') || msg.includes('[SYSTEM]') || msg.includes('CONNECTED') || msg.includes('[OTA]') || msg.includes('[NET')) cls = 'log-info';
           html += `<div class="log-line ${cls}">${escapeHtml(msg)}</div>`;
+
+          if (msg.includes('[NET-SERVER]') && msg.includes('ONLINE')) {
+            const sBadge = document.getElementById('server-status');
+            if (sBadge) {
+              sBadge.innerText = '● SERVER: ONLINE';
+              sBadge.style.background = '#166534'; sBadge.style.color = '#4ade80';
+            }
+          } else if (msg.includes('[NET-SERVER]') && msg.includes('WARNING')) {
+            const sBadge = document.getElementById('server-status');
+            if (sBadge) {
+              sBadge.innerText = '● SERVER: WARN';
+              sBadge.style.background = '#854d0e'; sBadge.style.color = '#fef08a';
+            }
+          }
         });
         consoleBox.innerHTML = html;
         if (autoScrollCheck.checked) consoleBox.scrollTop = consoleBox.scrollHeight;
       } catch (err) {
         const st = document.getElementById('status');
-        st.innerText = '● DISCONNECTED';
-        st.style.background = '#991b1b';
-        st.style.color = '#fca5a5';
+        if (st) {
+          st.innerText = '● DISCONNECTED';
+          st.style.background = '#991b1b';
+          st.style.color = '#fca5a5';
+        }
       }
     }
 
@@ -426,43 +444,90 @@ void setupWebConsole() {
   sysLog(F("=========================================================="));
 }
 
-// ── WIFI ──────────────────────────────────────────────────────────
+// ── FAST WIFI CONNECTION ENGINE (SCAN & MATCH) ───────────────────
 bool autoConnectWiFi() {
   if (WiFi.status() == WL_CONNECTED) return true;
-  Serial.println(F("\n[WIFI] Searching and connecting to configured networks..."));
-  updateFrontDisplay("NET CONFIG", "Linking to LAN AP...", ST77XX_YELLOW);
-  updateBackDisplay("WIFI LINK", "Connecting...");
+  
+  sysLog(F("[WIFI] Scanning for nearby configured networks..."));
+  updateFrontDisplay("NET CONFIG", "Scanning Wi-Fi...", ST77XX_YELLOW);
+  updateBackDisplay("WIFI LINK", "Scanning...");
 
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false); // Max power / zero sleep latency for fastest link
+  
+  // Fast asynchronous scan (takes ~500ms)
+  int n = WiFi.scanNetworks(false, false, false, 150);
+  sysLog("[WIFI] Scan complete. Found " + String(n) + " access points.");
+
+  // 1. Primary Priority: Match scanned networks against our configured profiles
+  for (int j = 0; j < n; j++) {
+    String scannedSSID = WiFi.SSID(j);
+    int scannedRSSI = WiFi.RSSI(j);
+
+    for (int i = 0; i < NETWORK_COUNT; i++) {
+      if (networks[i].ssid == "") continue;
+      
+      if (scannedSSID == networks[i].ssid) {
+        sysLog("[WIFI] Visible AP detected: [" + networks[i].ssid + "] (" + String(scannedRSSI) + " dBm). Connecting...");
+        updateFrontDisplay("WIFI CONNECT", "Joining " + networks[i].ssid, ST77XX_YELLOW);
+        
+        WiFi.begin(networks[i].ssid.c_str(), networks[i].pass.c_str());
+        
+        int tries = 0;
+        while (WiFi.status() != WL_CONNECTED && tries < 20) { // 20 * 200ms = 4s max
+          updateLEDs();
+          delay(200);
+          tries++;
+        }
+
+        if (WiFi.status() == WL_CONNECTED) {
+          currentServerUrl = networks[i].serverUrl;
+          currentFpUrl = networks[i].fpEnrollUrl;
+          WiFi.scanDelete(); // Free scan memory
+          
+          sysLog("[WIFI] [CONNECTED] Linked to [" + networks[i].ssid + "] in " + String(tries * 200) + "ms!");
+          sysLog("[WIFI] ESP32 Local IP: " + WiFi.localIP().toString());
+          sysLog("[NET] Target Backend Server: " + currentServerUrl);
+          
+          // Immediate Server Health Verification
+          HTTPClient testHttp;
+          testHttp.begin(currentFpUrl + "/session");
+          testHttp.setTimeout(3000);
+          testHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+          int testCode = testHttp.GET();
+          if (testCode == 200) {
+            sysLog("[NET-SERVER] [SUCCESS] Node.js Backend Server is ONLINE & Connected!");
+          } else {
+            sysLog("[NET-SERVER] [WARNING] Wi-Fi linked, but Server returned HTTP " + String(testCode));
+          }
+          testHttp.end();
+
+          updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
+          updateBackDisplay("ONLINE", WiFi.localIP().toString());
+          return true;
+        }
+      }
+    }
+  }
+
+  // 2. Direct fallback (in case SSID is hidden or missed in first scan pass)
+  sysLog(F("[WIFI] Running direct fallback connection..."));
   for (int i = 0; i < NETWORK_COUNT; i++) {
     if (networks[i].ssid == "") continue;
-
-    Serial.print(F("[WIFI] Connecting to ["));
-    Serial.print(networks[i].ssid);
-    Serial.print(F("] "));
-
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF); delay(300);
-    WiFi.mode(WIFI_STA); delay(300);
-
+    
     WiFi.begin(networks[i].ssid.c_str(), networks[i].pass.c_str());
     int tries = 0;
-    while (WiFi.status() != WL_CONNECTED && tries < 30) {
-      updateLEDs(); delay(500); Serial.print(F(".")); tries++;
+    while (WiFi.status() != WL_CONNECTED && tries < 10) { // 2s timeout
+      updateLEDs(); delay(200); tries++;
     }
-
+    
     if (WiFi.status() == WL_CONNECTED) {
       currentServerUrl = networks[i].serverUrl;
       currentFpUrl = networks[i].fpEnrollUrl;
-      Serial.println(F(" [CONNECTED]"));
-      
-      String ipMsg = "[WIFI] IP Address: " + WiFi.localIP().toString();
-      sysLog(ipMsg);
-      
+      sysLog("[WIFI] [CONNECTED] Fallback linked to [" + networks[i].ssid + "]");
       updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
       updateBackDisplay("ONLINE", WiFi.localIP().toString());
       return true;
-    } else {
-      Serial.println(F(" [FAILED]"));
     }
   }
 
@@ -642,57 +707,114 @@ void setup() {
   delay(1000);
   Serial.println(F("\n\n[SYSTEM] MAChip Booting Architecture..."));
   
+  // 1. Configure all Control, LED, Relay, and Chip-Select Pins
   pinMode(GREEN_LED, OUTPUT); 
   pinMode(RED_LED, OUTPUT);
   pinMode(SOLENOID_PIN, OUTPUT);
   
+  pinMode(TFT_CS, OUTPUT);
+  pinMode(TFT_DC, OUTPUT);
+  pinMode(TFT_RST, OUTPUT);
+  
   pinMode(SS_PIN_IN, OUTPUT);
+  pinMode(RST_PIN_IN, OUTPUT);
   pinMode(SS_PIN_OUT, OUTPUT);
   pinMode(RST_PIN_OUT, OUTPUT);
-  
-  // Enforce locked states on startup
+
+  // 2. Enforce clean locked/deselected states to prevent SPI bus contention
+  digitalWrite(TFT_CS, HIGH);
+  digitalWrite(TFT_RST, HIGH);
   digitalWrite(SS_PIN_IN, HIGH);
+  digitalWrite(RST_PIN_IN, HIGH);
   digitalWrite(SS_PIN_OUT, HIGH);
   digitalWrite(RST_PIN_OUT, HIGH);
   digitalWrite(SOLENOID_PIN, HIGH);
   solenoidActive = false;
 
-  // Init Back Display (0.96" OLED I2C)
-  if(!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
-    Serial.println(F("[OLED] Allocation failed"));
-  } else {
+  // 3. Initialize Shared SPI Bus FIRST
+  SPI.begin();
+  delay(50);
+
+  // 4. Hardware Reset & Initialize Front Display (2.4" TFT ST7789 SPI)
+  digitalWrite(TFT_RST, LOW);
+  delay(50);
+  digitalWrite(TFT_RST, HIGH);
+  delay(100);
+
+  clearSpiBusPins();
+  digitalWrite(TFT_CS, LOW);
+  tft.init(240, 320);
+  tft.setRotation(3);
+  digitalWrite(TFT_CS, HIGH);
+
+  // 5. Init Back Display (0.96" OLED I2C)
+  bool oledOk = oled.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  if (oledOk) { 
     oled.setRotation(0); 
     oled.clearDisplay();
     oled.display();
   }
 
-  // Init Front Display (2.4" TFT SPI)
-  tft.init(240, 320);
-  tft.setRotation(3); 
+  // 6. Hardware Reset & Initialize Dual MFRC522 RFID Modules (4MHz Safe SPI Clock)
+  digitalWrite(RST_PIN_IN, LOW);
+  digitalWrite(RST_PIN_OUT, LOW);
+  delay(50);
+  digitalWrite(RST_PIN_IN, HIGH);
+  digitalWrite(RST_PIN_OUT, HIGH);
+  delay(50);
+
+  clearSpiBusPins();
+  SPI.setFrequency(4000000); // MFRC522 max reliable SPI clock is 4MHz
   
-  updateFrontDisplay("BOOTING", "Initializing Peripheral Buses...", ST77XX_YELLOW);
-  updateBackDisplay("BOOTING", "Loading system...");
+  rfidIN.PCD_Init();
+  rfidIN.PCD_SetAntennaGain(rfidIN.RxGain_max);
+  delay(20);
+  byte vFront = rfidIN.PCD_ReadRegister(MFRC522::VersionReg);
+
+  clearSpiBusPins();
+  rfidOUT.PCD_Init();
+  rfidOUT.PCD_SetAntennaGain(rfidOUT.RxGain_max);
+  delay(20);
+  byte vBack = rfidOUT.PCD_ReadRegister(MFRC522::VersionReg);
+  clearSpiBusPins();
+
+  // 7. Init R307 Optical Fingerprint Sensor (UART2)
+  fpSerial.begin(57600, SERIAL_8N1, FP_RX, FP_TX);
+  bool fpOk = finger.verifyPassword();
+
+  // 8. Visual & Audio Startup Feedback
+  updateFrontDisplay("BOOTING", "Running Hardware Self-Test...", ST77XX_YELLOW);
+  updateBackDisplay("BOOTING", "Checking sensors...");
 
   ledcAttach(BUZZER, BUZZER_FREQ, BUZZER_RES);
   provideFeedback(SYSTEM_READY);
 
-  fpSerial.begin(57600, SERIAL_8N1, FP_RX, FP_TX);
-  if (finger.verifyPassword()) Serial.println(F("[FP] Online"));
-
-  SPI.begin();
-  
-  rfidIN.PCD_Init();
-  rfidIN.PCD_SetAntennaGain(rfidIN.RxGain_max);
-  delay(50);
-  
-  rfidOUT.PCD_Init();
-  rfidOUT.PCD_SetAntennaGain(rfidOUT.RxGain_max);
-  
+  // 9. Wi-Fi & Web Console Initialization
   if (autoConnectWiFi()) {
     setupOTA();
     setupWebConsole();
   }
   setLED(LED_SLOW_BLINK, LED_OFF);
+
+  // 10. Comprehensive Hardware Self-Test Report
+  sysLog(F("=========================================================="));
+  sysLog(F(" 🔍 MACHIP HARDWARE SELF-TEST DIAGNOSTICS"));
+  sysLog(" ├─ [OLED BACK]   " + String(oledOk ? "ONLINE (0x3C I2C)" : "FAILED/OFFLINE"));
+  sysLog(F(" ├─ [TFT FRONT]   INITIALIZED (ST7789 240x320 SPI CS:33)"));
+  sysLog(" ├─ [FP SENSOR]   " + String(fpOk ? "ONLINE (R307 UART2 RX:16 TX:17)" : "FAILED (Check RX:16 TX:17 5V GND)"));
+  
+  if (vFront == 0x91 || vFront == 0x92) {
+    sysLog(" ├─ [RFID FRONT]  ONLINE (MFRC522 v0x" + String(vFront, HEX) + " CS:5 RST:32)");
+  } else {
+    sysLog(" ├─ [RFID FRONT]  [ERROR] FAILED! (Reg: 0x" + String(vFront, HEX) + " - Check CS:5, SCK:18, MOSI:23, MISO:19, RST:32)");
+  }
+
+  if (vBack == 0x91 || vBack == 0x92) {
+    sysLog(" └─ [RFID BACK]   ONLINE (MFRC522 v0x" + String(vBack, HEX) + " CS:26 RST:4)");
+  } else {
+    sysLog(" └─ [RFID BACK]   [ERROR] FAILED! (Reg: 0x" + String(vBack, HEX) + " - Check CS:26, SCK:18, MOSI:23, MISO:19, RST:4)");
+  }
+  sysLog(F("=========================================================="));
   
   updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
   updateBackDisplay("READY", "Scan Card Out");
@@ -716,6 +838,26 @@ void loop() {
         setupWebConsole();
       }
       lastWiFiCheck = millis();
+    }
+  }
+
+  // Periodic Server Connection Heartbeat (Logged every 30 seconds to Web Console)
+  static unsigned long lastServerHeartbeat = 0;
+  if (WiFi.status() == WL_CONNECTED && millis() - lastServerHeartbeat > 30000) {
+    lastServerHeartbeat = millis();
+    HTTPClient checkHttp;
+    checkHttp.begin(currentFpUrl + "/session");
+    checkHttp.setTimeout(2500);
+    checkHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+    unsigned long startMs = millis();
+    int sCode = checkHttp.GET();
+    unsigned long latency = millis() - startMs;
+    checkHttp.end();
+
+    if (sCode == 200) {
+      sysLog("[NET-SERVER] Server Connection: ONLINE | Backend: " + currentServerUrl + " | Latency: " + String(latency) + "ms | Wi-Fi RSSI: " + String(WiFi.RSSI()) + " dBm");
+    } else {
+      sysLog("[NET-SERVER] [WARNING] Server Heartbeat: HTTP " + String(sCode) + " | URL: " + currentServerUrl);
     }
   }
 
@@ -832,7 +974,6 @@ void loop() {
   // ── ENROLLMENT PIPELINE: RFID CAPTURE ────────────────────────────
   if (enrollmentMode && enrollmentType == "RFID") {
     clearSpiBusPins();
-    digitalWrite(SS_PIN_IN, LOW);
     if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
       String cardUid = "";
       for (byte i = 0; i < rfidIN.uid.size; i++) {
@@ -840,7 +981,7 @@ void loop() {
       }
       cardUid.toUpperCase();
       rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
-      digitalWrite(SS_PIN_IN, HIGH);
+      clearSpiBusPins();
       
       uploadEnrollment(enrollmentSlotId, true, enrollmentUserId, cardUid);
       provideFeedback(SUCCESS_OK);
@@ -855,7 +996,6 @@ void loop() {
       setLED(LED_SLOW_BLINK, LED_OFF);
       updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
     }
-    digitalWrite(SS_PIN_IN, HIGH);
   }
 
   // ── ENROLLMENT PIPELINE: FINGERPRINT ─────────────────────────────
@@ -1019,16 +1159,16 @@ void loop() {
   // ── ACCESS ENGINE (RUNS WHEN PROVISIONING SESSIONS ARE QUIET) ────
   if (!enrollmentMode) {
     static unsigned long lastReaderInit = 0;
-    if (millis() - lastReaderInit > 5000) {
+    if (millis() - lastReaderInit > 10000) {
       clearSpiBusPins();
-      digitalWrite(SS_PIN_IN, LOW); rfidIN.PCD_Init(); digitalWrite(SS_PIN_IN, HIGH);
-      digitalWrite(SS_PIN_OUT, LOW); rfidOUT.PCD_Init(); digitalWrite(SS_PIN_OUT, HIGH);
+      rfidIN.PCD_Init();
+      rfidOUT.PCD_Init();
+      clearSpiBusPins();
       lastReaderInit = millis();
     }
 
     // ── FRONT INTERFACE: CLOCK-IN 2FA PIPELINE ─────────────────────
     clearSpiBusPins();
-    digitalWrite(SS_PIN_IN, LOW);
     bool checkInScan = rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial();
     
     if (checkInScan) {
@@ -1039,7 +1179,7 @@ void loop() {
       }
       currentUID.toUpperCase();
       rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
-      digitalWrite(SS_PIN_IN, HIGH); // Isolate card reader completely
+      clearSpiBusPins();
 
       sysLog("[FRONT READ] Card scanned: " + currentUID);
 
@@ -1150,7 +1290,6 @@ void loop() {
 
     // ── BACK INTERFACE: CLOCK-OUT MODULE (RFID ONLY) ────────────────
     clearSpiBusPins();
-    digitalWrite(SS_PIN_OUT, LOW);
     bool checkOutScan = rfidOUT.PICC_IsNewCardPresent() && rfidOUT.PICC_ReadCardSerial();
     
     if (checkOutScan) {
@@ -1161,7 +1300,7 @@ void loop() {
       }
       outUID.toUpperCase();
       rfidOUT.PICC_HaltA(); rfidOUT.PCD_StopCrypto1();
-      digitalWrite(SS_PIN_OUT, HIGH);
+      clearSpiBusPins();
 
       if (WiFi.status() == WL_CONNECTED) {
         HTTPClient http;

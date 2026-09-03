@@ -7,6 +7,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import ViewTimelineIcon from '@mui/icons-material/ViewTimeline';
+import DateRangeIcon from '@mui/icons-material/DateRange';
 import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
 import { useSystemTime } from "../../context/SystemTimeContext";
@@ -23,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const UserLogs = () => {
   const { systemToday } = useSystemTime();
@@ -48,7 +50,14 @@ const UserLogs = () => {
   const [loading, setLoading] = useState(true);
   const [payrollPeriods, setPayrollPeriods] = useState([]);
   
+  const MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
   // Tab & Filter States
+  const [selectedYear, setSelectedYear] = useState(() => systemToday.getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState(() => systemToday.getMonth().toString());
   const [selectedPeriodId, setSelectedPeriodId] = useState("current");
   const [activeTab, setActiveTab] = useState("dtr");
   const [searchQuery, setSearchQuery] = useState("");
@@ -108,14 +117,70 @@ const UserLogs = () => {
     fetchPeriods();
   }, []);
 
-  useEffect(() => {
-    if (selectedPeriodId === "current") {
-      const p = getPayrollDates(systemToday);
-      setDtrStartDate(p.start);
-      setDtrEndDate(p.end);
-      setPayEndingLabel(p.payEnding);
+  // Compute available years from existing periods + system current year
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set();
+    yearsSet.add(systemToday.getFullYear().toString());
+
+    payrollPeriods.forEach((p) => {
+      if (p.startDate) {
+        const y = new Date(p.startDate).getFullYear().toString();
+        if (y && !isNaN(Number(y))) {
+          yearsSet.add(y);
+        }
+      }
+    });
+
+    return Array.from(yearsSet).sort((a, b) => Number(b) - Number(a));
+  }, [payrollPeriods, systemToday]);
+
+  // Compute uncluttered periods filtered by selected Year and Month
+  const availablePeriods = useMemo(() => {
+    const dbPeriods = payrollPeriods.filter((p) => {
+      if (!p.startDate) return false;
+      const pDate = new Date(p.startDate);
+      const pYear = pDate.getFullYear().toString();
+      const pMonth = pDate.getMonth().toString();
+
+      const matchesYear = selectedYear === "all" || pYear === selectedYear;
+      const matchesMonth = selectedMonth === "all" || pMonth === selectedMonth;
+
+      return matchesYear && matchesMonth;
+    });
+
+    if (dbPeriods.length > 0 || selectedMonth === "all" || selectedYear === "all") {
+      return dbPeriods;
     }
-  }, [systemToday.getDate(), systemToday.getMonth(), selectedPeriodId]);
+
+    // Fallback: Generate standard Philippine cutoffs if no DB entry exists yet for the picked month
+    const y = parseInt(selectedYear);
+    const m = parseInt(selectedMonth);
+    if (isNaN(y) || isNaN(m)) return [];
+
+    const monthDate = new Date(y, m, 1);
+    const monthName = monthDate.toLocaleString("en-US", { month: "long" });
+    const lastDay = new Date(y, m + 1, 0).getDate();
+
+    const pad = (n) => String(n).padStart(2, "0");
+    const p1 = {
+      periodId: `std_${y}_${m}_1`,
+      startDate: `${y}-${pad(m + 1)}-01`,
+      endDate: `${y}-${pad(m + 1)}-15`,
+      label: `${monthName} 1-15, ${y}`,
+    };
+    const p2 = {
+      periodId: `std_${y}_${m}_2`,
+      startDate: `${y}-${pad(m + 1)}-16`,
+      endDate: `${y}-${pad(m + 1)}-${lastDay}`,
+      label: `${monthName} 16-${lastDay}, ${y}`,
+    };
+
+    return [p1, p2];
+  }, [payrollPeriods, selectedYear, selectedMonth]);
+
+  const isCurrentMonthView = 
+    selectedYear === systemToday.getFullYear().toString() && 
+    (selectedMonth === "all" || selectedMonth === systemToday.getMonth().toString());
 
   const handlePeriodChange = (val) => {
     setSelectedPeriodId(val);
@@ -125,7 +190,8 @@ const UserLogs = () => {
       setDtrEndDate(p.end);
       setPayEndingLabel(p.payEnding);
     } else {
-      const period = payrollPeriods.find((p) => p.periodId.toString() === val);
+      const period = availablePeriods.find((p) => p.periodId.toString() === val) ||
+                     payrollPeriods.find((p) => p.periodId.toString() === val);
       if (period) {
         setDtrStartDate(period.startDate);
         setDtrEndDate(period.endDate);
@@ -133,6 +199,37 @@ const UserLogs = () => {
       }
     }
   };
+
+  const handleResetToCurrent = () => {
+    setSelectedYear(systemToday.getFullYear().toString());
+    setSelectedMonth(systemToday.getMonth().toString());
+    handlePeriodChange("current");
+  };
+
+  // Sync selected cutoff when year or month changes so it doesn't get stuck on invalid period
+  useEffect(() => {
+    if (isCurrentMonthView && selectedPeriodId === "current") {
+      return;
+    }
+
+    const exists = availablePeriods.some((p) => p.periodId.toString() === selectedPeriodId);
+    if (!exists) {
+      if (isCurrentMonthView) {
+        handlePeriodChange("current");
+      } else if (availablePeriods.length > 0) {
+        handlePeriodChange(availablePeriods[0].periodId.toString());
+      }
+    }
+  }, [selectedYear, selectedMonth, availablePeriods, isCurrentMonthView]);
+
+  useEffect(() => {
+    if (selectedPeriodId === "current") {
+      const p = getPayrollDates(systemToday);
+      setDtrStartDate(p.start);
+      setDtrEndDate(p.end);
+      setPayEndingLabel(p.payEnding);
+    }
+  }, [systemToday.getDate(), systemToday.getMonth(), selectedPeriodId]);
 
   // ── Data Fetching ────────────────────────────────────────────────────────
 
@@ -520,30 +617,7 @@ const UserLogs = () => {
                 <span className="text-sm text-slate-500 mt-1 block">View your official Daily Time Record and complete raw access logs.</span>
               </div>
               
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
-                <div className="flex items-center gap-2 pl-0 md:pl-4 md:border-l border-slate-200">
-                  <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider shrink-0">Period:</span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <Select value={selectedPeriodId} onValueChange={handlePeriodChange}>
-                          <SelectTrigger className="w-[180px] bg-white border-slate-200 font-bold text-[#2A174E]">
-                            <SelectValue placeholder="Select Period" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="current">Current Period</SelectItem>
-                            {payrollPeriods.map((p) => (
-                              <SelectItem key={p.periodId} value={p.periodId.toString()}>{p.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
-                      Select payroll cutoff period to view logs
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button 
@@ -559,6 +633,8 @@ const UserLogs = () => {
                 </Tooltip>
               </div>
             </div>
+
+            
 
             {/* Tabs Navigation */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -588,6 +664,117 @@ const UserLogs = () => {
                   </Tooltip>
                 </TabsTrigger>
               </TabsList>
+
+              {/* Attendance Period Filter Card */}
+            <Card className="shadow-sm border-0 bg-white mb-6 py-0">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  {/* Title / Info */}
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center text-[#2A174E] shrink-0">
+                      <DateRangeIcon sx={{ fontSize: 20 }} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-[#2A174E]">Attendance Period Filter</span>
+                        {/* {selectedPeriodId === "current" && (
+                          <Badge variant="secondary" className="bg-green-100 text-green-700 text-[10px] font-semibold">
+                            Live Cutoff
+                          </Badge>
+                        )} */}
+                      </div>
+                      <span className="text-xs text-slate-500 font-medium block">
+                        Showing logs for: <span className="font-semibold text-slate-700">{payEndingLabel}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Year, Month, Cutoff Period Selectors */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Year Select */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-500">Year:</span>
+                      <Select value={selectedYear} onValueChange={setSelectedYear}>
+                        <SelectTrigger className="w-[100px] h-9 bg-slate-50 border-slate-200 text-xs font-bold text-slate-700">
+                          <SelectValue placeholder="Year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableYears.map((y) => (
+                            <SelectItem key={y} value={y} className="text-xs">
+                              {y}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Month Select */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-500">Month:</span>
+                      <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                        <SelectTrigger className="w-[130px] h-9 bg-slate-50 border-slate-200 text-xs font-bold text-slate-700">
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all" className="text-xs">All Months</SelectItem>
+                          {MONTH_NAMES.map((name, idx) => (
+                            <SelectItem key={idx} value={idx.toString()} className="text-xs">
+                              {name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Cutoff Period Select */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-500">Cutoff:</span>
+                      <Select value={selectedPeriodId} onValueChange={handlePeriodChange}>
+                        <SelectTrigger className="min-w-[170px] max-w-[240px] h-9 bg-white border-slate-200 font-bold text-[#2A174E] text-xs">
+                          <SelectValue placeholder="Select Cutoff" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {isCurrentMonthView && (
+                            <SelectItem value="current" className="text-xs font-semibold text-[#2A174E]">
+                              Current Period (Live)
+                            </SelectItem>
+                          )}
+                          {availablePeriods.map((p) => (
+                            <SelectItem key={p.periodId} value={p.periodId.toString()} className="text-xs">
+                              {p.label}
+                            </SelectItem>
+                          ))}
+                          {!isCurrentMonthView && availablePeriods.length === 0 && (
+                            <SelectItem value="none" disabled className="text-xs">
+                              No cutoffs available
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Reset to Current Button */}
+                    {(!isCurrentMonthView || selectedPeriodId !== "current") && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleResetToCurrent}
+                            className="h-9 px-2.5 text-xs text-slate-500 hover:text-[#2A174E] hover:bg-purple-50 font-semibold transition-colors"
+                          >
+                            Reset to Current
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                          Jump back to today's active payroll period
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
               {/* TAB 1: DTR SIDE-BY-SIDE VIEW */}
               <TabsContent value="dtr" className="animate-in fade-in zoom-in-95 duration-200">
@@ -637,9 +824,9 @@ const UserLogs = () => {
                   <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
                     
                     {/* Left: Attendance History for the Period */}
-                    <Card className="w-full lg:w-[45%] shadow-sm border-0 bg-white">
-                      <CardHeader className="pb-3 border-b border-slate-50">
-                        <CardTitle className="text-lg text-slate-800">Attendance History</CardTitle>
+                    <Card className="w-full lg:w-[45%] shadow-sm border-0 bg-white py-0">
+                      <CardHeader className="pb-3 border-b border-slate-50 bg-[#2A174E] pt-5" >
+                        <CardTitle className="text-lg text-white">Attendance History</CardTitle>
                       </CardHeader>
                       <CardContent className="p-0 overflow-x-auto custom-scrollbar">
                         <Table className="min-w-[400px]">
@@ -911,7 +1098,7 @@ const UserLogs = () => {
                   </div>
                 ) : (
                   <>
-                    {/* Filters Card */}
+                    {/* Filters Card
                     <Card className="shadow-sm border-0 bg-white mb-6 py-0">
                       <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
                         <div className="relative w-full xl:max-w-md">
@@ -958,7 +1145,7 @@ const UserLogs = () => {
                           )}
                         </div>
                       </CardContent>
-                    </Card>
+                    </Card> */}
     
                     {/* Table Card */}
                     <Card className="shadow-sm border-0 bg-white py-0 flex flex-col">
@@ -1019,53 +1206,17 @@ const UserLogs = () => {
                         </div>
     
                         {/* Pagination Controls */}
-                        {totalItems > 0 && (
-                          <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
-                            <div className="flex items-center gap-4 text-sm text-slate-500">
-                              <div className="flex items-center gap-2">
-                                <span className="hidden sm:inline">Rows per page:</span>
-                                <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(Number(val))}>
-                                  <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
-                                    <SelectValue placeholder="10" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="5">5</SelectItem>
-                                    <SelectItem value="10">10</SelectItem>
-                                    <SelectItem value="20">20</SelectItem>
-                                    <SelectItem value="50">50</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="font-medium">
-                                Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-                              </div>
-                            </div>
-    
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                              >
-                                Previous
-                              </Button>
-                              <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
-                                {currentPage}
-                              </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages || totalPages === 0}
-                                className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                              >
-                                Next
-                              </Button>
-                            </div>
-                          </div>
-                        )}
+                        <TablePagination
+                          currentPage={currentPage}
+                          totalPages={totalPages}
+                          setCurrentPage={setCurrentPage}
+                          totalItems={totalItems}
+                          itemsPerPage={itemsPerPage}
+                          setItemsPerPage={setItemsPerPage}
+                          startIndex={startIndex}
+                          endIndex={endIndex}
+                          itemLabel="scans"
+                        />
                       </CardContent>
                     </Card>
                   </>

@@ -17,6 +17,7 @@ import AssessmentIcon  from "@mui/icons-material/Assessment";
 import { fetchWithAuth } from "../../../utils/api";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 export default function LoanManagement() {
   const navigate = useNavigate();
@@ -445,32 +446,18 @@ export default function LoanManagement() {
                 </TableBody>
               </Table>
             </div>
-            {filteredLoans.length > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 gap-4 bg-slate-50/30">
-              <div className="flex items-center gap-4 text-sm text-slate-500">
-                <div className="flex items-center gap-2">
-                  <span className="hidden sm:inline">Rows per page:</span>
-                  <Select value={itemsPerPage.toString()} onValueChange={(val) => { setItemsPerPage(Number(val)); setCurrentPage(1); }}>
-                    <SelectTrigger className="h-8 w-[70px] bg-white"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="font-medium">
-                  Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{filteredLoans.length}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Previous</Button>
-                <div className="w-8 h-8 flex items-center justify-center font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">{currentPage}</div>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>Next</Button>
-              </div>
-            </div>
-          )}
+            {/* Table Pagination */}
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              totalItems={filteredLoans.length}
+              itemsPerPage={itemsPerPage}
+              setItemsPerPage={setItemsPerPage}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              itemLabel="loans"
+            />
           </CardContent>
         </Card>
       ) : (
@@ -594,33 +581,18 @@ export default function LoanManagement() {
             ))}
           </div>
 
-          {/* Grid Mode Pagination Controls */}
-          {groupedGridLoans.length > 0 && !loading && (
-            <div className="flex flex-col sm:flex-row items-center justify-between p-4 border border-slate-100 rounded-xl bg-white gap-4 mt-6">
-              <div className="flex items-center gap-4 text-sm text-slate-500">
-                <div className="flex items-center gap-2">
-                  <span className="hidden sm:inline">Rows per page:</span>
-                  <Select value={itemsPerPage.toString()} onValueChange={(val) => { setItemsPerPage(Number(val)); setCurrentPage(1); }}>
-                    <SelectTrigger className="h-8 w-[70px] bg-white"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="font-medium">
-                  Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{groupedGridLoans.length}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Previous</Button>
-                <div className="w-8 h-8 flex items-center justify-center font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">{currentPage}</div>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>Next</Button>
-              </div>
-            </div>
-          )}
+          {/* Card Grid Pagination */}
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            setCurrentPage={setCurrentPage}
+            totalItems={groupedGridLoans.length}
+            itemsPerPage={itemsPerPage}
+            setItemsPerPage={setItemsPerPage}
+            startIndex={startIndex}
+            endIndex={endIndex}
+            itemLabel="employees"
+          />
         </>
       )}
 

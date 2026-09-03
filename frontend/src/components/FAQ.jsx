@@ -48,7 +48,7 @@ const FAQ = () => {
         },
         {
           q: "How do I navigate the system sidebar?",
-          a: "The sidebar organizes features into distinct functional groups:\n\n• **Main**: *Dashboard* and *Calendar*.\n• **Management**: Sub-menus for *Users* (View All, Add New, Archived), *Access Logs* (Employee, Visitor), *Requests* (Queue/Oversight), and *Payroll* (Management, Employee List, Government Loans, Employee Loan, HMO Management, Labor Benefits, Leave Summary).\n• **System**: *Settings* (Audit Logs, Transaction Logs, configurations) and *Help & Support* (FAQ)."
+          a: "The sidebar organizes features into distinct functional groups:\n\n• **Main**: *Dashboard*, *Calendar*, *Users* (View All, Add New, Archived), *Access Logs* (Employee, Visitor), *Requests* (Queue/Oversight), and *Payroll* (Management, Employee List, Government Loans, Employee Loan, HMO Management, Labor Benefits, Leave Summary).\n• **System**: *Settings* (Audit Logs, Transaction Logs, configurations) and *Help & Support* (FAQ)."
         }
       ]
     },
@@ -211,7 +211,7 @@ const FAQ = () => {
         </div>
 
         {/* Support CTA */}
-        <div className="mt-16 text-center bg-white rounded-2xl p-8 shadow-sm border border-slate-100 max-w-3xl mx-auto w-full">
+        <div className="mt-8 text-center bg-white rounded-2xl p-8 shadow-sm border border-slate-100 max-w-3xl mx-auto w-full">
           <ContactSupportIcon className="text-[#2A174E] mb-4" fontSize="large" />
           <h3 className="text-xl font-bold text-[#2A174E] mb-2">Still have questions?</h3>
           <p className="text-slate-500 mb-6 text-sm">Our support team is here to help with any technical issues or payroll concerns.</p>

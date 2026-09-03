@@ -11,6 +11,7 @@ import EditAttendance from "./pages/editAttendance/EditAttendance";
 import Logs from "./pages/logs-management/Logs";
 import VisitorLogs from "./pages/logs-management/VisitorLogs";
 import AdminRequests from "./pages/admin_Requests/AdminRequests";
+import AdminLoanEnrollment from "./pages/admin_Requests/AdminLoanEnrollment";
 import RequestSummary from "./pages/admin_Requests/RequestSummary";
 import RequestDetails from "./pages/request_Details/RequestDetails";
 import Payroll from "./pages/admin_Payroll/PayrollManagement";
@@ -80,6 +81,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 2, 4]}>
               <AdminRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/adminLoanEnrollment"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 4]}>
+              <AdminLoanEnrollment />
             </ProtectedRoute>
           }
         />
@@ -347,6 +357,11 @@ function App() {
               <EmployeeCalendar />
             </ProtectedRoute>
           }
+        />
+
+        <Route
+          path="/employee"
+          element={<Navigate to="/employee/payroll" replace />}
         />
 
         <Route

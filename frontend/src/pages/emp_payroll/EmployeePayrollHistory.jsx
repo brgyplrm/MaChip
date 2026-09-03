@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const EmployeePayrollHistory = () => {
   const [payrolls, setPayrolls] = useState([]);
@@ -44,7 +45,7 @@ const EmployeePayrollHistory = () => {
   
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -428,68 +429,17 @@ const EmployeePayrollHistory = () => {
                   </div>
   
                   {/* Pagination Controls */}
-                  {totalPages > 1 && (
-                    <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
-                      <p className="text-sm text-slate-500">
-                        Showing <span className="font-medium text-slate-700">{startIndex + 1}</span> to <span className="font-medium text-slate-700">{Math.min(startIndex + itemsPerPage, filteredPayrolls.length)}</span> of <span className="font-medium text-slate-700">{filteredPayrolls.length}</span> results
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              disabled={currentPage === 1}
-                              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                              className="h-8 w-8 p-0"
-                            >
-                              <ChevronLeft className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
-                            Previous page
-                          </TooltipContent>
-                        </Tooltip>
-                        
-                        <div className="flex items-center gap-1">
-                          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                            <Tooltip key={page}>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant={currentPage === page ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => setCurrentPage(page)}
-                                  className={`h-8 w-8 p-0 ${currentPage === page ? "bg-[#2A174E] hover:bg-[#3d2270]" : ""}`}
-                                >
-                                  {page}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
-                                Go to page {page}
-                              </TooltipContent>
-                            </Tooltip>
-                          ))}
-                        </div>
-  
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              disabled={currentPage === totalPages}
-                              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                              className="h-8 w-8 p-0"
-                            >
-                              <ChevronRight className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
-                            Next page
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>
-                  )}
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    setCurrentPage={setCurrentPage}
+                    totalItems={filteredPayrolls.length}
+                    itemsPerPage={itemsPerPage}
+                    setItemsPerPage={setItemsPerPage}
+                    startIndex={startIndex}
+                    endIndex={Math.min(startIndex + itemsPerPage, filteredPayrolls.length)}
+                    itemLabel="payslips"
+                  />
                 </>
               ) : (
                 <div className="p-12 text-center flex flex-col items-center">

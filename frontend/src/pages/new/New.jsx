@@ -12,7 +12,7 @@ import BatchUploadReviewModal from "../../components/BatchUploadReviewModal";
 import CheckIcon from "@mui/icons-material/Check";
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import WorkIcon from '@mui/icons-material/Work';
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import { fetchWithAuth } from "../../utils/api";
 import { Link } from "react-router-dom";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
@@ -30,6 +30,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const getMiddleInitial = (middleName) => {
+  if (!middleName || !middleName.trim()) return "";
+  return middleName
+    .trim()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + ".")
+    .join("");
+};
 
 const roleMap = { "Employee": 3, "Supervisor": 2, "Admin Manager": 1, "Admin Accountant": 4 };
 
@@ -150,6 +159,10 @@ const New = ({ inputs = [], title }) => {
 
   const handleInput = (e) => {
     const { id, value } = e.target;
+
+    if (id === "account_Number" && value !== "" && !/^\d+$/.test(value)) {
+      return;
+    }
 
     if (id === "user_Id") {
       setDisplayId(value);
@@ -296,10 +309,20 @@ const New = ({ inputs = [], title }) => {
       if (!formData.bank_Company) newErrors.bank_Company = "Required";
       if (!formData.bank_AccountName?.trim()) newErrors.bank_AccountName = "Required";
       if (!formData.dailyRate || parseFloat(formData.dailyRate) <= 0) newErrors.dailyRate = "Valid Daily Rate is required";
-      if (!formData.account_Number?.trim()) {
+      const accNum = formData.account_Number?.trim() || "";
+      if (!accNum) {
         newErrors.account_Number = "Required";
-      } else if (![12, 15].includes(formData.account_Number.length)) {
-        newErrors.account_Number = "Account number must be 12 or 15 digits.";
+      } else if (!/^\d+$/.test(accNum)) {
+        newErrors.account_Number = "Account number must contain numbers only.";
+      } else if (accNum.length < 12) {
+        const missing = 12 - accNum.length;
+        newErrors.account_Number = `Account number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required).`;
+      } else if (accNum.length > 12 && accNum.length < 15) {
+        const missing = 15 - accNum.length;
+        newErrors.account_Number = `Account number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required for 15 digits).`;
+      } else if (accNum.length > 15) {
+        const extra = accNum.length - 15;
+        newErrors.account_Number = `Account number must be 12 or 15 digits (${extra} digit${extra > 1 ? "s" : ""} over limit).`;
       }
     } else if (step === 3) {
       if (!formData.user_Password || formData.user_Password.length < 6) {
@@ -465,107 +488,135 @@ const New = ({ inputs = [], title }) => {
   };
 
   // Helper to render dynamic inputs from your original structure
-  const renderDynamicInput = (input) => (
-    <div key={input.id} className="space-y-1.5">
-      <div className="flex items-center gap-1.5">
-        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{input.label} <span className="text-red-500 ml-0.5">*</span></Label>
-        {(input.label === "MaChip ID" || input.label === "Fingerprint ID" || input.id === "user_Role" || input.id === "user_EmploymentStatus") && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-            </TooltipTrigger>
-            <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-              {input.label === "MaChip ID" && "Unique RFID serial token read from the physical card."}
-              {input.label === "Fingerprint ID" && "Biometric slot number mapped to the physical scanner node."}
-              {input.id === "user_Role" && "The permissions and access control role assigned in the MAChip system."}
-              {input.id === "user_EmploymentStatus" && "The employee's official company position/employment classification status."}
-            </TooltipContent>
-          </Tooltip>
-        )}
-      </div>
-      {input.type === "select" ? (
-        <Select 
-          value={formData[input.id] || ""} 
-          onValueChange={(val) => handleInput({ target: { id: input.id, value: val } })}
-        >
-          <SelectTrigger className={`bg-white h-11 w-full ${errors[input.id] ? "border-red-500" : "border-slate-200"}`}>
-            <SelectValue placeholder={`Select ${input.label}`} />
-          </SelectTrigger>
-          <SelectContent>
-            {input.id === "user_EmploymentStatus" && (
-              <>
-                <SelectItem value="Regular">Regular</SelectItem>
-                <SelectItem value="Probationary">Probationary</SelectItem>
-              </>
+  const renderDynamicInput = (input) => {
+    const isHardwareField = input.id === "user_MachipId" || input.id === "user_FingerprintId" || input.label === "MaChip ID" || input.label === "Fingerprint ID";
+
+    return (
+      <div key={input.id} className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            {input.label} {!isHardwareField ? (
+              <span className="text-red-500 ml-0.5">*</span>
+            ) : (
+              <span className="text-slate-400 font-medium normal-case text-[10px] ml-1">(Optional)</span>
             )}
-            {input.id === "user_Role" && (
-              <>
-                <SelectItem value="Employee">Employee</SelectItem>
-                {!isAccountant && (
-                  <>
-                    <SelectItem value="Supervisor">Supervisor</SelectItem>
-                    <SelectItem value="Admin Manager">Admin Manager</SelectItem>
-                    <SelectItem value="Admin Accountant">Admin Accountant</SelectItem>
-                  </>
-                )}
-              </>
-            )}
-          </SelectContent>
-        </Select>
-      ) : (
-        <div className="flex gap-2 relative">
-          <div className="relative flex-1">
-            <Input
-              id={input.id}
-              type={
-                (input.id === "user_Password" && showPassword)
-                  ? "text" 
-                  : input.type
-              }
-              placeholder={input.placeholder}
-              value={input.id === "user_Id" ? displayId : formData[input.id]}
-              onChange={handleInput}
-              onBlur={input.id === "user_Id" ? handleIdBlur : undefined}
-              readOnly={input.label === "MaChip ID" || input.label === "Fingerprint ID"}
-              className={`bg-white h-11 ${input.id === "user_Password" ? "pr-10" : ""} ${errors[input.id] ? "border-red-500" : "border-slate-200"} ${input.label === "MaChip ID" || input.label === "Fingerprint ID" ? "bg-slate-50 text-slate-500" : ""}`}
-            />
-            {/* Visibility Toggles */}
-            {input.id === "user_Password" && (
-              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowPassword(!showPassword)}>
-                {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-              </button>
-            )}
-          </div>
-          {/* Scan Buttons */}
-          {input.label === "MaChip ID" && (
+          </Label>
+          {(input.label === "MaChip ID" || input.label === "Fingerprint ID" || input.id === "user_Role" || input.id === "user_EmploymentStatus") && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-block">
-                  <Button type="button" variant="secondary" className="shrink-0 h-11 px-4 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanRFID}>SCAN</Button>
-                </span>
+                <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
               </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
-                Scan RFID tag from active terminal sensor.
-              </TooltipContent>
-            </Tooltip>
-          )}
-          {input.label === "Fingerprint ID" && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-block">
-                  <Button type="button" variant="secondary" className="shrink-0 h-11 px-4 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanFingerprint}>SCAN</Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
-                Register fingerprint template from optical biometric scanner.
+              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                {input.label === "MaChip ID" && "Optional: Unique RFID serial token read from the physical card. Can also be assigned later in Hardware Management."}
+                {input.label === "Fingerprint ID" && "Optional: Biometric slot number mapped to the physical scanner node. Can also be enrolled later in Hardware Management."}
+                {input.id === "user_Role" && "The permissions and access control role assigned in the MAChip system."}
+                {input.id === "user_EmploymentStatus" && "The employee's official company position/employment classification status."}
               </TooltipContent>
             </Tooltip>
           )}
         </div>
-      )}
-      {errors[input.id] && <span className="text-[10px] text-red-500 block font-medium">{errors[input.id]}</span>}
-    </div>
-  );
+        {input.type === "select" ? (
+          <Select 
+            value={formData[input.id] || ""} 
+            onValueChange={(val) => handleInput({ target: { id: input.id, value: val } })}
+          >
+            <SelectTrigger className={`bg-white h-11 w-full ${errors[input.id] ? "border-red-500" : "border-slate-200"}`}>
+              <SelectValue placeholder={`Select ${input.label}`} />
+            </SelectTrigger>
+            <SelectContent>
+              {input.id === "user_EmploymentStatus" && (
+                <>
+                  <SelectItem value="Regular">Regular</SelectItem>
+                  <SelectItem value="Probationary">Probationary</SelectItem>
+                </>
+              )}
+              {input.id === "user_Role" && (
+                <>
+                  <SelectItem value="Employee">Employee</SelectItem>
+                  {!isAccountant && (
+                    <>
+                      <SelectItem value="Supervisor">Supervisor</SelectItem>
+                      <SelectItem value="Admin Manager">Admin Manager</SelectItem>
+                      <SelectItem value="Admin Accountant">Admin Accountant</SelectItem>
+                    </>
+                  )}
+                </>
+              )}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="flex gap-2 relative">
+            <div className="relative flex-1">
+              <Input
+                id={input.id}
+                type={
+                  (input.id === "user_Password" && showPassword)
+                    ? "text" 
+                    : input.type
+                }
+                placeholder={input.placeholder}
+                value={input.id === "user_Id" ? displayId : formData[input.id]}
+                onChange={handleInput}
+                onBlur={input.id === "user_Id" ? handleIdBlur : undefined}
+                readOnly={input.label === "MaChip ID" || input.label === "Fingerprint ID"}
+                className={`bg-white h-11 ${input.id === "user_Password" ? "pr-10" : ""} ${errors[input.id] ? "border-red-500" : "border-slate-200"} ${input.label === "MaChip ID" || input.label === "Fingerprint ID" ? "bg-slate-50 text-slate-500" : ""}`}
+              />
+              {/* Visibility Toggles */}
+              {input.id === "user_Password" && (
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowPassword(!showPassword)}>
+                  {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                </button>
+              )}
+            </div>
+            {/* Clear Button for Optional Hardware Fields */}
+            {isHardwareField && formData[input.id] && (
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0 h-11 px-3 border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200"
+                onClick={() => {
+                  setFormData(prev => ({
+                    ...prev,
+                    [input.id]: "",
+                    ...(input.id === "user_FingerprintId" ? { user_FingerprintTemplate: "" } : {})
+                  }));
+                }}
+                title="Clear"
+              >
+                Clear
+              </Button>
+            )}
+            {/* Scan Buttons */}
+            {input.label === "MaChip ID" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button type="button" variant="secondary" className="shrink-0 h-11 px-4 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanRFID}>SCAN</Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                  Scan RFID tag from active terminal sensor.
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {input.label === "Fingerprint ID" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button type="button" variant="secondary" className="shrink-0 h-11 px-4 bg-[#2A174E] text-white hover:bg-[#1a0e30]" onClick={handleScanFingerprint}>SCAN</Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                  Register fingerprint template from optical biometric scanner.
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )}
+        {errors[input.id] && <span className="text-[10px] text-red-500 block font-medium">{errors[input.id]}</span>}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
@@ -592,7 +643,7 @@ const New = ({ inputs = [], title }) => {
                       className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
                     >
                       <Link to="/users">
-                        <ArrowBackIcon className="h-6 w-6" />
+                        <ChevronLeft className="h-6 w-6" />
                       </Link>
                     </Button>
                   </span>
@@ -682,7 +733,7 @@ const New = ({ inputs = [], title }) => {
                         {/* Info Section */}
                         <div className="pb-6 px-6 text-white text-center">
                           <h2 className="text-lg font-black uppercase leading-tight tracking-tight">
-                            {formData.user_FirstName || "FIRST"} {formData.user_LastName || "LAST"}
+                            {formData.user_FirstName || "FIRST"}{formData.user_MiddleName?.trim() ? ` ${getMiddleInitial(formData.user_MiddleName)}` : ""} {formData.user_LastName || "LAST"}
                           </h2>
                           <p className="text-[11px] font-semibold opacity-90">{formData.user_Role || "EMPLOYEE"}</p>
                           <p className="text-[10px] font-bold mt-1 tracking-widest">ID NO: {displayId || "MACJ-000"}</p>
@@ -785,7 +836,7 @@ const New = ({ inputs = [], title }) => {
                                       className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded cursor-pointer"
                                     />
                                     <Label htmlFor="is_solo_parent" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer whitespace-nowrap flex items-center gap-1">
-                                      Solo Parent?
+                                      Solo Parent
                                       <Tooltip>
                                         <TooltipTrigger asChild>
                                           <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -799,7 +850,7 @@ const New = ({ inputs = [], title }) => {
                                 </div>
                               </div>
                               <div className="space-y-1.5 sm:col-span-2">
-                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500 ml-0.5">*</span></Label>
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Home Address </Label>
                                 <Input id="user_Address" placeholder="123 Main St, Manila" value={formData.user_Address} onChange={handleInput} className="h-11 border-slate-200" />
                               </div>
                               <div className="space-y-1.5">
@@ -1012,7 +1063,9 @@ const New = ({ inputs = [], title }) => {
                       {/* STEP 3: Security */}
                       {activeStep === 3 && (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-6">
-                          <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 block">Security & Biometrics</Label>
+                          <div>
+                            <Label className="text-slate-800 font-bold text-lg border-b border-slate-100 pb-2 block">Security & Biometrics</Label>
+                          </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {inputs.filter(i => step3Fields.includes(i.id)).map(renderDynamicInput)}
                           </div>

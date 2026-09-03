@@ -19,6 +19,8 @@ const Edit = ({ inputs, title }) => {
   const isAdmin = currentUser?.user_RoleId === 1;
 
   const [formData, setFormData] = useState({});
+  const [file, setFile] = useState(null);
+  const [existingAvatar, setExistingAvatar] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
 
@@ -32,6 +34,27 @@ const Edit = ({ inputs, title }) => {
 
   const dismissToast = useCallback(() => setToast({ message: "", type: "success" }), []);
 
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      const validMimeTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif"];
+      const validExtensions = [".png", ".jpg", ".jpeg", ".gif"];
+      const fileName = selectedFile.name.toLowerCase();
+      const hasValidExt = validExtensions.some((ext) => fileName.endsWith(ext));
+      const hasValidMime = validMimeTypes.includes(selectedFile.type);
+
+      if (!hasValidExt && !hasValidMime) {
+        setToast({
+          message: "File type is not accepted. Only PNG, JPEG, and GIF files are allowed.",
+          type: "error",
+        });
+        e.target.value = "";
+        return;
+      }
+      setFile(selectedFile);
+    }
+  };
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -39,6 +62,7 @@ const Edit = ({ inputs, title }) => {
         if (response.ok) {
           const data = await response.json();
           setFormData(data);
+          setExistingAvatar(data.user_ProfilePic || "");
         } else {
           setToast({ message: "Failed to fetch user data.", type: "error" });
         }
@@ -137,11 +161,29 @@ const Edit = ({ inputs, title }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/users/update/${userId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      let response;
+      if (file) {
+        const formDataToSend = new FormData();
+        Object.keys(formData).forEach((key) => {
+          if (formData[key] !== null && formData[key] !== undefined) {
+            formDataToSend.append(key, formData[key]);
+          }
+        });
+        formDataToSend.append("user_ProfilePic", file);
+        response = await fetch(`/api/users/updateUser/${userId}`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: formDataToSend,
+        });
+      } else {
+        response = await fetchWithAuth(`/api/users/updateUser/${userId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+      }
 
       if (response.ok) {
         setToast({ message: "User profile updated successfully!", type: "success" });
@@ -177,6 +219,41 @@ const Edit = ({ inputs, title }) => {
           <CardContent>
             <form onSubmit={handleUpdate} className="space-y-6">
               
+              {/* Profile Photo Upload */}
+              <div className="flex flex-col items-center justify-center gap-3 mb-6 pb-6 border-b border-slate-100">
+                <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-slate-100 shadow-sm relative group bg-slate-50 flex items-center justify-center">
+                  {file || existingAvatar ? (
+                    <img
+                      src={
+                        file
+                          ? URL.createObjectURL(file)
+                          : `/api/uploads/${existingAvatar}`
+                      }
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-[#2A174E] flex items-center justify-center text-white text-2xl font-bold tracking-wider select-none">
+                      {((formData.user_FirstName?.trim().charAt(0) || "") + (formData.user_LastName?.trim().charAt(0) || "")).toUpperCase() || "U"}
+                    </div>
+                  )}
+                  <label
+                    htmlFor="profilePicFile"
+                    className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white text-xs font-semibold"
+                  >
+                    Change Photo
+                  </label>
+                </div>
+                <input
+                  type="file"
+                  id="profilePicFile"
+                  onChange={handleFileChange}
+                  style={{ display: "none" }}
+                  accept=".png, .jpg, .jpeg, .gif, image/png, image/jpeg, image/gif"
+                />
+                <span className="text-xs font-semibold text-slate-500">Upload Profile Photo</span>
+              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {inputs && inputs.map((input) => {
                   // Strict permission check: Non-admins can ONLY edit Email, Password, and ATM / Account Number
@@ -202,7 +279,7 @@ const Edit = ({ inputs, title }) => {
                         
                         {input.label === "MaChip ID" && isAdmin && (
                           <Button 
-                            type="button" 
+                            type="button"   
                             variant="secondary"
                             onClick={handleScanRFID}
                             className="shrink-0 bg-[#2A174E] text-white hover:bg-[#1a0e30] transition-colors"

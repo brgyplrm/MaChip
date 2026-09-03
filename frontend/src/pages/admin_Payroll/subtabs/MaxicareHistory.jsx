@@ -12,7 +12,7 @@ import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import Toast from "../../../components/toast/Toast";
 import { Link, useNavigate } from "react-router-dom";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import EmptyState from "../../../components/EmptyState";
 
 // shadcn/ui components
@@ -162,7 +162,7 @@ const MaxicareHistory = () => {
                       className="text-[#2A174E]"
                     >
                       <Link to="/maxicare">
-                        <ArrowBackIcon className="h-6 w-6" />
+                        <ChevronLeft className="h-6 w-6" />
                       </Link>
                     </Button>
                   </span>

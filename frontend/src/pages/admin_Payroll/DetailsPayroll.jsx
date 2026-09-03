@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
@@ -168,7 +168,7 @@ const PayrollDetails = () => {
                     to={periodId ? `/payroll/payrollPeriod?periodId=${periodId}` : "/payroll/payrollPeriod"}
                     className="flex items-center justify-center rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-all hover:scale-110"
                   >
-                    <ArrowBackIcon className="h-6 w-6" />
+                    <ChevronLeft className="h-6 w-6" />
                   </Link>
                 </Button>
               </span>

@@ -248,6 +248,12 @@ const TransitionPlayground = () => {
               <Badge className="bg-emerald-500 text-white font-bold text-[10px]">
                 LIVE RENDER
               </Badge>
+              <Button 
+              onClick={handleReplay} 
+              className="bg-[#2A174E] text-white hover:bg-[#1f103b] shadow-md gap-2 font-bold px-5 py-2.5 transition-all hover:scale-105 active:scale-95"
+            >
+              <RotateCcw className="h-4 w-4 animate-spin-once" /> Replay Transition
+            </Button>
             </div>
 
             {/* Dynamic Container with key triggering transition */}

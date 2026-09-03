@@ -1789,11 +1789,19 @@ exports.getPayrollReport = async (req, res) => {
       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
-      WHERE p."period_Start" >= :startDate AND p."period_End" <= :endDate
+      WHERE 1=1
     `;
 
-    const replacements = { startDate, endDate };
-    if (user_Id && user_Id !== "All Employees") {
+    const replacements = {};
+    if (startDate && startDate !== "undefined" && startDate !== "null") {
+      query += ` AND p."period_Start" >= :startDate`;
+      replacements.startDate = startDate;
+    }
+    if (endDate && endDate !== "undefined" && endDate !== "null") {
+      query += ` AND p."period_End" <= :endDate`;
+      replacements.endDate = endDate;
+    }
+    if (user_Id && user_Id !== "All Employees" && user_Id !== "all") {
       query += ` AND p."user_Id" = :user_Id`;
       replacements.user_Id = user_Id;
     }

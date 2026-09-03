@@ -13,6 +13,7 @@ import { fetchWithAuth } from "../../utils/api";
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const List = ({ userId }) => {
   const [rows, setRows] = useState([]);
@@ -144,57 +145,19 @@ const List = ({ userId }) => {
       </TableContainer>
 
       {/* Pagination Controls */}
-      {!loading && totalItems > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 bg-slate-50/30 rounded-lg border border-slate-100 gap-4">
-          <div className="flex items-center gap-4 text-xs text-slate-500">
-            <div className="flex items-center gap-2">
-              <span className="hidden sm:inline">Rows:</span>
-              <Select 
-                value={itemsPerPage.toString()} 
-                onValueChange={(val) => {
-                  setItemsPerPage(Number(val));
-                  setCurrentPage(1);
-                }}
-              >
-                <SelectTrigger className="h-7 w-[60px] bg-white border-slate-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="font-medium">
-              Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className="h-7 bg-white text-xs px-2"
-            >
-              Previous
-            </Button>
-            <div className="flex items-center justify-center min-w-[28px] h-7 text-[11px] font-bold text-[#2A174E] bg-[#2A174E]/10 rounded">
-              {currentPage}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages || totalPages === 0}
-              className="h-7 bg-white text-xs px-2"
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {!loading && (
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          setCurrentPage={setCurrentPage}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          setItemsPerPage={setItemsPerPage}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          itemLabel="records"
+          className="rounded-lg border border-slate-100"
+        />
       )}
     </div>
   );

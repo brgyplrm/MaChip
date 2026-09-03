@@ -318,13 +318,22 @@ const HmoCalculatorModal = ({
           .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
           .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         `}} />
-        {/* Save Button below the white background box */}
+        {/* Action Buttons below the white background box */}
         <br/>
-      <div className="flex justify-center mt-2">
+      <div className="flex justify-center items-center gap-4 mt-2">
+        <Button 
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          disabled={saving}
+          className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 h-12 min-w-[200px] px-6 rounded-lg font-bold transition-all shadow-sm hover:scale-102 transform active:scale-98"
+        >
+          Cancel
+        </Button>
         <Button 
           onClick={handleSaveClick}
           disabled={saving}
-          className="bg-[#2A174E] text-white hover:bg-[#1a0e30] border border-white/20 px-8 py-3 rounded-lg font-bold transition-all shadow-xl hover:scale-102 transform active:scale-98"
+          className="bg-[#2A174E] text-white hover:bg-[#1a0e30] border border-white/20 h-12 min-w-[200px] px-6 rounded-lg font-bold transition-all shadow-xl hover:scale-102 transform active:scale-98"
         >
           {saving ? "Saving Configuration..." : (onSave ? "Save Configuration" : "Save New Configuration")}
         </Button>

@@ -1,5 +1,5 @@
 // Toast Notification Styles
-// Supports "success" and "error" types with slide-in animation
+// Supports "success", "error", "warning", and "info" types with slide-in animation
 
 @keyframes slideInRight {
   from {
@@ -32,10 +32,10 @@
   gap: 10px;
 
   min-width: 280px;
-  max-width: 420px;
+  max-width: 440px;
   padding: 14px 18px;
   border-radius: 10px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
 
   font-size: 14px;
   font-weight: 500;
@@ -60,6 +60,26 @@
 
     .toast__icon {
       color: #ffc3bb;
+    }
+  }
+
+  // ── Warning ──────────────────────────────────────────────
+  &--warning {
+    background-color: #d97706;
+    border-left: 5px solid #92400e;
+
+    .toast__icon {
+      color: #fef08a;
+    }
+  }
+
+  // ── Info ─────────────────────────────────────────────────
+  &--info {
+    background-color: #2563eb;
+    border-left: 5px solid #1d4ed8;
+
+    .toast__icon {
+      color: #bfdbfe;
     }
   }
 

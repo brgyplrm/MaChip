@@ -12,7 +12,7 @@ const Navbar = () => {
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
   const [unreadCount, setUnreadCount] = useState(0);
   
-  const isManagement = userData?.user_RoleId === 1 || userData?.user_RoleId === 2;
+  const isManagement = userData?.user_RoleId === 1 || userData?.user_RoleId === 2 || userData?.user_RoleId === 4;
   
   // Default to "employee" if user is not management, otherwise use stored mode or "management"
   const getInitialViewMode = () => {

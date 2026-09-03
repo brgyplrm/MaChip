@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const RetirementPay = () => {
   const { systemToday } = useSystemTime();
@@ -44,6 +45,38 @@ const RetirementPay = () => {
   const [editRecord, setEditRecord] = useState(null);
   const [newDate, setNewDate] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // --- Pagination & Filter States ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+
+    const [startIndex, setStartIndex] = useState(0);
+    const [endIndex, setEndIndex] = useState(0);
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
+
+  // Filtering and Pagination Logic
+  const filteredHistory = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return history;
+    return history.filter(h => {
+      const firstLast = `${h.user_FirstName || ""} ${h.user_LastName || ""}`.toLowerCase();
+      const lastFirst = `${h.user_LastName || ""} ${h.user_FirstName || ""}`.toLowerCase();
+      const status = (h.status || "").toLowerCase();
+      const id = String(h.user_Id || "");
+      return firstLast.includes(q) || lastFirst.includes(q) || status.includes(q) || id.includes(q);
+    });
+  }, [history, searchQuery]);
+
+  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+  const paginatedHistory = filteredHistory.slice(
+    (currentPage - 1) * itemsPerPage, 
+    currentPage * itemsPerPage
+  );
 
   const fetchEmployees = async () => {
     try {
@@ -158,29 +191,6 @@ const RetirementPay = () => {
   };
 
   const formatCurrency = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-// Inside the component:
-const [currentPage, setCurrentPage] = useState(1);
-const [itemsPerPage, setItemsPerPage] = useState(10);
-const [searchQuery, setSearchQuery] = useState("");
-
-// Reset pagination when filter changes
-useEffect(() => {
-  setCurrentPage(1);
-}, [searchQuery, itemsPerPage]);
-
-// Memoized filtered and paginated data
-const filteredHistory = useMemo(() => {
-  return history.filter(h => 
-    `${h.user_LastName} ${h.user_FirstName}`.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-}, [history, searchQuery]);
-
-const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
-const paginatedHistory = filteredHistory.slice(
-  (currentPage - 1) * itemsPerPage, 
-  currentPage * itemsPerPage
-);
 
   return (
     <div className="flex flex-col w-full min-h-screen">
@@ -624,29 +634,18 @@ const paginatedHistory = filteredHistory.slice(
                       )}
                     </TableBody>
                   </Table>
-                  {filteredHistory.length > 0 && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-slate-100 gap-4">
-                      <div className="flex items-center gap-3">
-                        <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
-                          <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="5">5</SelectItem>
-                            <SelectItem value="10">10</SelectItem>
-                            <SelectItem value="20">20</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <span className="text-xs font-semibold text-slate-500">
-                          Showing {paginatedHistory.length} of {filteredHistory.length} employees
-                        </span>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
-                        <div className="flex items-center px-2 font-bold text-[#2A174E]">{currentPage} / {totalPages || 1}</div>
-                        <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>Next</Button>
-                      </div>
-                    </div>
-                  )}
+                  {/* Pagination Controls */}
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    setCurrentPage={setCurrentPage}
+                    totalItems={filteredHistory.length}
+                    itemsPerPage={itemsPerPage}
+                    setItemsPerPage={setItemsPerPage}
+                    startIndex={startIndex}
+                    endIndex={endIndex}
+                    itemLabel="records"
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
