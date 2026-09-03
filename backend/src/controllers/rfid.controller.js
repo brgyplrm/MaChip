@@ -363,13 +363,43 @@ exports.scanRFID = async (req, res) => {
     // ── 3. STRICT POLICY VALIDATION ──────────────────────────────────────────
     if (action === "clock_in") {
       if (isCurrentlyIn) {
-        console.log(`[POLICY] Denied: ${user.user_FirstName} is already clocked in.`);
-        return res.status(200).json({ success: false, message: "Already Clocked In", employeeName: user.user_FirstName, name: user.user_FirstName });
+        console.log(`[POLICY] Denied: ${user.user_FirstName} is already inside.`);
+        await logTransaction(
+          user.user_Id, 
+          null, 
+          "ACCESS_DENIED", 
+          `Passback Denied: ${user.user_FirstName} ${user.user_LastName} is already inside.`, 
+          { reason: "Already Inside", terminal: terminalType || "FRONT" }, 
+          req
+        );
+        return res.status(200).json({ 
+          success: false, 
+          error: "Person is already inside",
+          message: "Person is already inside", 
+          mode: "ALREADY_INSIDE",
+          employeeName: user.user_FirstName, 
+          name: user.user_FirstName 
+        });
       }
     } else if (action === "clock_out") {
       if (!isCurrentlyIn) {
-        console.log(`[POLICY] Denied: ${user.user_FirstName} is already clocked out.`);
-        return res.status(200).json({ success: false, message: "Already Clocked Out", employeeName: user.user_FirstName, name: user.user_FirstName });
+        console.log(`[POLICY] Denied: ${user.user_FirstName} is already outside.`);
+        await logTransaction(
+          user.user_Id, 
+          null, 
+          "ACCESS_DENIED", 
+          `Passback Denied: ${user.user_FirstName} ${user.user_LastName} is already outside.`, 
+          { reason: "Already Outside", terminal: terminalType || "BACK" }, 
+          req
+        );
+        return res.status(200).json({ 
+          success: false, 
+          error: "Person is already outside",
+          message: "Person is already outside", 
+          mode: "ALREADY_OUTSIDE",
+          employeeName: user.user_FirstName, 
+          name: user.user_FirstName 
+        });
       }
     }
 

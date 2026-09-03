@@ -1227,9 +1227,9 @@ void loop() {
             if (modeStr == "FINGERPRINT_REQUIRED" || errMsg.indexOf("Fingerprint") >= 0) {
               updateFrontDisplay("DENIED", (name != "" ? name + "\n" : "") + "Fingerprint Required!", ST77XX_RED);
               provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
-            } else if (errMsg.indexOf("Already") >= 0 || errMsg.indexOf("already") >= 0) {
-              updateFrontDisplay("NOTICE", (name != "" ? name + "\n" : "") + errMsg, ST77XX_YELLOW);
-              provideFeedback(WAITING_SCAN); // Gentle notice, solenoid remains LOCKED
+            } else if (modeStr == "ALREADY_INSIDE" || errMsg.indexOf("inside") >= 0 || errMsg.indexOf("Inside") >= 0 || errMsg.indexOf("Already") >= 0) {
+              updateFrontDisplay("ACCESS DENIED", (name != "" ? name + "\n" : "") + "Already Inside!", ST77XX_RED);
+              provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
             } else {
               updateFrontDisplay("DENIED", errMsg, ST77XX_RED);
               provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
@@ -1325,7 +1325,11 @@ void loop() {
             solenoidUnlock();
           } else {
             String errMsg = resDoc["message"] | "Rejected";
-            updateBackDisplay("DENIED", errMsg);
+            if (errMsg.indexOf("outside") >= 0 || errMsg.indexOf("Outside") >= 0) {
+              updateBackDisplay("DENIED", "Already Outside");
+            } else {
+              updateBackDisplay("DENIED", errMsg);
+            }
             provideFeedback(ERROR_FAIL);
           }
         } else {
