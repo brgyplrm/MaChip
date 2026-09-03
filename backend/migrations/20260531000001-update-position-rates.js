@@ -11,6 +11,8 @@ module.exports = {
       { title: 'MESSENGER', department: 'OPERATION', baseDailyRate: 721.93 },
     ];
 
+    await queryInterface.sequelize.query(`SELECT setval(pg_get_serial_sequence('"Position"', 'positionId'), COALESCE((SELECT MAX("positionId") FROM "Position"), 1));`);
+
     const now = new Date();
 
     for (const pos of positionUpdates) {
@@ -29,14 +31,11 @@ module.exports = {
           { replacements: { rate: pos.baseDailyRate, monthly: baseMonthlyPay, now, id: existing.positionId } }
         );
       } else {
-        await queryInterface.bulkInsert('Position', [{
-          title: pos.title,
-          department: pos.department,
-          baseDailyRate: pos.baseDailyRate,
-          baseMonthlyPay: baseMonthlyPay,
-          createdAt: now,
-          updatedAt: now
-        }]);
+        await queryInterface.sequelize.query(
+          `INSERT INTO "Position" ("title", "department", "baseDailyRate", "baseMonthlyPay", "createdAt", "updatedAt")
+           VALUES (:title, :dept, :rate, :monthly, :now, :now)`,
+          { replacements: { title: pos.title, dept: pos.department, rate: pos.baseDailyRate, monthly: baseMonthlyPay, now } }
+        );
       }
     }
   },

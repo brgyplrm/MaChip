@@ -230,9 +230,9 @@ const ReferenceDataManagement = () => {
         ).join("\n") + "\n";
       } else {
         dataRows = 
-          "1000.00,1500.00,0.01,0.02,1500.00\n" +
-          "1501.00,5000.00,0.02,0.02,5000.00\n" +
-          "5000.01,9999999.00,0.02,0.02,5000.00\n";
+          "0.00,1500.00,0.01,0.02,1500.00\n" +
+          "1500.01,10000.00,0.02,0.02,10000.00\n" +
+          "10000.01,9999999.00,0.02,0.02,10000.00\n";
       }
     } else if (activeSubTab === "tax") {
       filename = `BIR_WithholdingTax_${taxPeriodType === "monthly" ? "Monthly" : "SemiMonthly"}_Template.csv`;

@@ -129,12 +129,12 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     return dateObj.getUTCDay() !== 0; // 0 = Sunday
   }).length;
 
-  // 1.1 Check if user is President / Exempt Executive
+  // 1.1 Check if user has attendance exemption (is_time_exempt)
   const [empPosition] = await sequelize.query(
-    `SELECT "position", "department" FROM "User" WHERE "user_Id" = :user_Id LIMIT 1`,
+    `SELECT "position", "department", "is_time_exempt" FROM "User" WHERE "user_Id" = :user_Id LIMIT 1`,
     { replacements: { user_Id }, type: QueryTypes.SELECT }
   );
-  const isPresident = empPosition?.position?.toUpperCase() === 'PRESIDENT';
+  const isPresident = empPosition?.is_time_exempt === true;
 
   // 2. Get holidays in period
   const holidays = await sequelize.query(
@@ -618,8 +618,8 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
 
   const total_OT_Amnt = OT_Amnt + nightOT_Amnt;
   
-  // 4. Attendance Deductions (Exempt for President / Managerial)
-  const isPresident = user[0]?.position?.toUpperCase() === 'PRESIDENT';
+  // 4. Attendance Deductions (Exempt if is_time_exempt is enabled)
+  const isPresident = user[0]?.is_time_exempt === true;
   if (isPresident) {
     stats.absence_Days = 0;
     stats.tardiness_Mins = 0;
@@ -796,6 +796,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
      LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
      LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
      WHERE (u."deletedAt" IS NULL OR u."deletedAt" >= :period_Start)
+       AND (u."hireDate" IS NULL OR u."hireDate" <= :period_End)
        AND u."dailyRate" > 0
        AND u."user_Id" != 999
    `;

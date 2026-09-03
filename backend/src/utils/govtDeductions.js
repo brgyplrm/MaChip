@@ -53,8 +53,7 @@ exports.computeSSSAsync = async (dailyRate, periodEndDate = null) => {
     // Fetch SSS brackets for the effective date
     const brackets = await SSS_ContributionTable.findAll({
       where: {
-        effectiveDate: { [Op.lte]: dateStr },
-        isActive: true
+        effectiveDate: { [Op.lte]: dateStr }
       },
       order: [["effectiveDate", "DESC"], ["range_Min", "ASC"]]
     });
@@ -108,11 +107,10 @@ exports.computePhilHealthAsync = async (dailyRate, periodEndDate = null) => {
     const { Philhealth_ContributionTable } = require("../config/sequelize.js");
     const { Op } = require("sequelize");
 
-    // Fetch the active PhilHealth table configuration
+    // Fetch the PhilHealth table configuration
     const brackets = await Philhealth_ContributionTable.findAll({
       where: {
-        effectiveDate: { [Op.lte]: dateStr },
-        isActive: true
+        effectiveDate: { [Op.lte]: dateStr }
       },
       order: [["effectiveDate", "DESC"], ["range_Min", "ASC"]]
     });
@@ -185,11 +183,10 @@ exports.computeHDMFAsync = async (dailyRate, periodEndDate = null) => {
     const { PagIBIG_ContributionTable } = require("../config/sequelize.js");
     const { Op } = require("sequelize");
 
-    // Fetch active Pag-IBIG brackets
+    // Fetch Pag-IBIG brackets
     const brackets = await PagIBIG_ContributionTable.findAll({
       where: {
-        effectiveDate: { [Op.lte]: dateStr },
-        isActive: true
+        effectiveDate: { [Op.lte]: dateStr }
       },
       order: [["effectiveDate", "DESC"], ["range_Min", "ASC"]]
     });
@@ -297,11 +294,10 @@ exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndD
     const { WithholdingTax_Table } = require("../config/sequelize.js");
     const { Op } = require("sequelize");
 
-    // Fetch active withholding tax brackets (prefers 'monthly' or latest active table)
+    // Fetch withholding tax brackets for effective date
     let brackets = await WithholdingTax_Table.findAll({
       where: {
-        effectiveDate: { [Op.lte]: dateStr },
-        isActive: true
+        effectiveDate: { [Op.lte]: dateStr }
       },
       order: [["effectiveDate", "DESC"], ["range_Min", "ASC"]]
     });
@@ -309,11 +305,16 @@ exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndD
     if (brackets && brackets.length > 0) {
       const latestEffectiveDate = brackets[0].effectiveDate;
       let activeBrackets = brackets.filter(b => b.effectiveDate === latestEffectiveDate);
-      
-      // Filter for monthly periodType if present
-      const monthlyBrackets = activeBrackets.filter(b => b.periodType === 'monthly');
-      if (monthlyBrackets.length > 0) {
-        activeBrackets = monthlyBrackets;
+
+      // Match specific periodType (semi-monthly vs monthly) from the database table
+      const periodBrackets = activeBrackets.filter(b => b.periodType === periodType);
+      if (periodBrackets.length > 0) {
+        activeBrackets = periodBrackets;
+      } else {
+        const monthlyBrackets = activeBrackets.filter(b => b.periodType === 'monthly');
+        if (monthlyBrackets.length > 0) {
+          activeBrackets = monthlyBrackets;
+        }
       }
 
       let match = activeBrackets.find(b => monthlyTaxable >= b.range_Min && monthlyTaxable <= b.range_Max);

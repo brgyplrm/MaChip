@@ -3,16 +3,19 @@
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     const addAuditIdColumn = async (tableName) => {
-      await queryInterface.addColumn(tableName, 'auditId', {
-        type: Sequelize.INTEGER,
-        allowNull: true, // Allow null temporarily in case there are existing rows
-        references: {
-          model: 'ReferenceTable_Audit',
-          key: 'auditId',
-        },
-        onUpdate: 'CASCADE',
-        onDelete: 'SET NULL',
-      });
+      const tableInfo = await queryInterface.describeTable(tableName);
+      if (!tableInfo.auditId) {
+        await queryInterface.addColumn(tableName, 'auditId', {
+          type: Sequelize.INTEGER,
+          allowNull: true,
+          references: {
+            model: 'ReferenceTable_Audit',
+            key: 'auditId',
+          },
+          onUpdate: 'CASCADE',
+          onDelete: 'SET NULL',
+        });
+      }
     };
 
     await addAuditIdColumn('SSS_ContributionTable');

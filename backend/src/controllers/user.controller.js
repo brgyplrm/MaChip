@@ -882,6 +882,19 @@ exports.updateUser = async (req, res) => {
         updatedAt: nowStr
       };
 
+      // Guardrail: is_time_exempt update validation
+      let isTimeExemptVal = oldUser.is_time_exempt || false;
+      if (req.body.is_time_exempt !== undefined) {
+        if (!isAdmin) {
+          return res.status(403).json({ error: "Access denied: Only top management (General Manager) can grant attendance exemptions." });
+        }
+        if (parseInt(operator?.user_Id) === parseInt(user_Id) && parseInt(user_Id) !== 1) {
+          return res.status(403).json({ error: "Security violation: Self-exemption from attendance is strictly prohibited." });
+        }
+        isTimeExemptVal = req.body.is_time_exempt === true || req.body.is_time_exempt === "true";
+      }
+      replacements.is_time_exempt = isTimeExemptVal;
+
       // Handle Daily Rate Update logic (tracking previous rate)
       let rateUpdateSql = "";
       if (Math.abs(replacements.dailyRate - oldUser.dailyRate) > 0.01) {
@@ -910,6 +923,7 @@ exports.updateUser = async (req, res) => {
           "taxStatus"      = :taxStatus,
           "civil_status"   = :civil_status,
           "is_solo_parent" = :is_solo_parent,
+          "is_time_exempt" = :is_time_exempt,
           "dailyRate"      = :dailyRate,
           "updatedAt"      = :updatedAt
           ${rateUpdateSql}
