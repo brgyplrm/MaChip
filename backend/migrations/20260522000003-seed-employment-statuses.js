@@ -7,7 +7,7 @@ module.exports = {
       VALUES 
         (1, 'Regular'),
         (2, 'Probationary'),
-        (3, 'Intern')
+        (3, 'Resigned')
       ON CONFLICT ("statusId") DO UPDATE SET "statusName" = EXCLUDED."statusName";
     `);
   },

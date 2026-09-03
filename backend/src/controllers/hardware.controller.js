@@ -132,7 +132,10 @@ exports.getAllFingerprints = async (req, res) => {
         'Secure Node 01' as "sensorNode"
       FROM "User" u
       JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
-      WHERE u."deletedAt" IS NULL AND h."user_FingerprintId" IS NOT NULL
+      WHERE u."deletedAt" IS NULL 
+        AND h."user_FingerprintId" IS NOT NULL
+        AND h."user_FingerprintTemplate" IS NOT NULL 
+        AND TRIM(h."user_FingerprintTemplate") != ''
       ORDER BY u."user_LastName" ASC`,
       { type: QueryTypes.SELECT }
     );

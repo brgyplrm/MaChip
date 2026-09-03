@@ -1655,12 +1655,14 @@ exports.getUnassignedHardwareUsers = async (req, res) => {
     if (type === 'rfid') {
       sql += ` AND u."user_Id" NOT IN (
         SELECT "user_Id" FROM "User_Hardware" 
-        WHERE "user_MachipId" IS NOT NULL AND "user_MachipId" != ''
+        WHERE "user_MachipId" IS NOT NULL AND "user_MachipId" != '' AND "user_MachipId" NOT LIKE 'MACHIP-%'
       )`;
     } else if (type === 'fingerprint') {
       sql += ` AND u."user_Id" NOT IN (
         SELECT "user_Id" FROM "User_Hardware" 
-        WHERE "user_FingerprintId" IS NOT NULL
+        WHERE "user_FingerprintId" IS NOT NULL 
+          AND "user_FingerprintTemplate" IS NOT NULL 
+          AND TRIM("user_FingerprintTemplate") != ''
       )`;
     }
 

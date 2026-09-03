@@ -55,10 +55,11 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ error: "Invalid user ID or password." });
     }
 
-    const allowedRoles = ["Admin Manager", "Admin Accountant", "Supervisor", "Employee", "Admin"];
-    if (!allowedRoles.includes(user.user_Role)) {
-      console.log("[AUTH] Role denied:", user.user_Role);
-      return res.status(403).json({ error: "Access denied." });
+    // Validate system role (strictly roleId 1 to 4: 1=Admin Manager, 2=Supervisor, 3=Employee, 4=Admin Accountant)
+    const roleId = parseInt(user.user_RoleId, 10);
+    if (![1, 2, 3, 4].includes(roleId)) {
+      console.log("[AUTH] Access denied: User has invalid roleId:", user.user_RoleId);
+      return res.status(403).json({ error: "Access denied. Invalid user role." });
     }
 
     // Generate JWT

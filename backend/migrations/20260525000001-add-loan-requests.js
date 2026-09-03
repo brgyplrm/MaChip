@@ -58,10 +58,13 @@ module.exports = {
     });
 
     // 2. Insert new request types
-    await queryInterface.bulkInsert('request_Type', [
-      { reqTypeId: 13, reqTypeName: 'Loan Certification' },
-      { reqTypeId: 14, reqTypeName: 'Loan Enrollment' }
-    ]);
+    await queryInterface.sequelize.query(`
+      INSERT INTO "request_Type" ("reqTypeId", "reqTypeName")
+      VALUES 
+        (13, 'Loan Certification'),
+        (14, 'Loan Enrollment')
+      ON CONFLICT ("reqTypeId") DO UPDATE SET "reqTypeName" = EXCLUDED."reqTypeName";
+    `);
   },
 
   down: async (queryInterface, Sequelize) => {
