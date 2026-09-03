@@ -778,7 +778,7 @@ exports.getPayrollPreview = async (req, res) => {
 };
 
 // ── Generate Batch Payroll (Internal) ───────────────────────────────────────
-async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = false, customDailyRate = null, targetUserId = null) {
+async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = false, customDailyRate = null, targetUserId = null, awaitReleaseTasks = false) {
   const now = await getSystemTime();
   const nowStr = formatForSQL(now);
 
@@ -1018,9 +1018,9 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
     );
   }
 
-  // Handle background tasks (emails, archival) - strictly for non-interactive use
-  if (newPayrollsForEmail.length > 0 && shouldRelease && process.env.SKIP_EMAILS !== 'true') {
-    (async () => {
+  // Handle release tasks (archival, emails)
+  if (newPayrollsForEmail.length > 0 && shouldRelease) {
+    const processReleaseTasks = async () => {
       for (const item of newPayrollsForEmail) {
         try {
           const { emp, fullStats } = item;
@@ -1061,8 +1061,8 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
           await saveFileToArchive(payslipBuffer, `Payslip_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
           await saveFileToArchive(dtrBuffer, `DTR_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
 
-          // Skip email for seed/internal runs if needed
-          if (!process.env.SKIP_EMAILS) {
+          // Email sending (only if not skipped)
+          if (process.env.SKIP_EMAILS !== 'true') {
             await sendPayrollEmail({
               email: emp.user_Email,
               name: `${emp.user_FirstName} ${emp.user_LastName}`,
@@ -1074,12 +1074,12 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
               ]
             });
           }
-        } catch (emailErr) {
-          console.error(`[INTERNAL BATCH ERROR] for ${item.emp.user_Email}:`, emailErr.message);
+        } catch (taskErr) {
+          console.error(`[RELEASE ARCHIVE ERROR] for ${item.emp?.user_Email || item.emp?.user_Id}:`, taskErr.message);
         }
       }
 
-      // Archival logic
+      // Archival logic for summary report
       try {
         const dateObj = new Date(period_End);
         const archiveOpts = {
@@ -1108,7 +1108,13 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
       } catch (archErr) {
         console.error(`[INTERNAL BATCH ARCHIVE ERROR]:`, archErr.message);
       }
-    })();
+    };
+
+    if (awaitReleaseTasks) {
+      await processReleaseTasks();
+    } else {
+      processReleaseTasks().catch(err => console.error('[ASYNC RELEASE ERROR]:', err));
+    }
   }
 
   return { processedCount, skippedCount, periodId };
@@ -2585,6 +2591,63 @@ exports.releaseThirteenthMonth = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+/**
+ * Internal helper to generate/release 13th month pay records during seed or automation
+ */
+async function releaseThirteenthMonthInternal(year, status = 'Released') {
+  const parsedYear = parseInt(year);
+  const now = await getSystemTime();
+  const nowStr = formatForSQL(now);
+
+  const eligibleRecords = await sequelize.query(
+    `SELECT 
+       u."user_Id",
+       COALESCE(SUM(p."basicPay"), 0) as "totalBasicEarned",
+       (COALESCE(SUM(p."basicPay"), 0) / 12) as "computedAmount",
+       GREATEST(0, (COALESCE(SUM(p."basicPay"), 0) / 12) - 90000) as "taxableExcess"
+     FROM "User" u
+     JOIN "Payroll" p ON u."user_Id" = p."user_Id" 
+       AND EXTRACT(YEAR FROM p."period_Start") = :year 
+       AND p."status" = 2
+     WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
+     GROUP BY u."user_Id"
+     HAVING SUM(p."basicPay") > 0`,
+    { replacements: { year: parsedYear }, type: QueryTypes.SELECT }
+  );
+
+  for (const rec of eligibleRecords) {
+    await sequelize.query(
+      `INSERT INTO "Payroll_ThirteenthMonth" 
+        ("user_Id", "year", "totalBasicEarned", "amount", "taxable_Excess", "status", "releasedAt", "createdAt", "updatedAt")
+       VALUES 
+        (:user_Id, :year, :totalBasicEarned, :amount, :taxable_Excess, :status, ${status === 'Released' ? ':now' : 'NULL'}, :now, :now)
+       ON CONFLICT ("user_Id", "year") DO UPDATE SET
+        "totalBasicEarned" = EXCLUDED."totalBasicEarned",
+        "amount" = EXCLUDED."amount",
+        "taxable_Excess" = EXCLUDED."taxable_Excess",
+        "status" = EXCLUDED."status",
+        "releasedAt" = EXCLUDED."releasedAt",
+        "updatedAt" = :now`,
+      { 
+        replacements: { 
+          user_Id: rec.user_Id, 
+          year: parsedYear, 
+          totalBasicEarned: parseFloat(rec.totalBasicEarned), 
+          amount: parseFloat(rec.computedAmount), 
+          taxable_Excess: parseFloat(rec.taxableExcess),
+          status,
+          now: nowStr
+        },
+        type: QueryTypes.INSERT
+      }
+    );
+  }
+
+  return { updatedCount: eligibleRecords.length };
+}
+
+exports.releaseThirteenthMonthInternal = releaseThirteenthMonthInternal;
 
 /**
  * Gets 13th Month history.

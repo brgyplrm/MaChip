@@ -582,15 +582,14 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
 </html>`;
 };
 
+const { getSharedBrowser } = require("./dtrGenerator");
+
 exports.generatePayrollSummaryPDF = async (payrollRows, periodLabel, signatures = {}) => {
   const html = buildReportHTML(payrollRows, periodLabel, signatures);
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
-  });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
     // Use A4 landscape for each page
     return await page.pdf({
       format: "A4",
@@ -599,7 +598,9 @@ exports.generatePayrollSummaryPDF = async (payrollRows, periodLabel, signatures 
       margin: { top: "0", bottom: "0", left: "0", right: "0" }
     });
   } finally {
-    await browser.close();
+    try {
+      await page.close();
+    } catch (e) {}
   }
 };
 

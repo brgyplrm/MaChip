@@ -47,7 +47,6 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, fullStats) =>
   const totalHrs    = totalHours(dtrData);
 
   // Map fullStats for summary table - be robust with property names (handle camelCase and lowercase)
-  console.log(`[DTR_GEN] Generating for ${empName} (${empId}). fullStats keys:`, Object.keys(fullStats || {}));
 
   const regHrs      = parseFloat(fullStats?.NoHrs_Worked || fullStats?.nohrs_worked || fullStats?.reg_hrs || 0).toFixed(2);
   const hourlyRate  = parseFloat(fullStats?.ratePerHr || fullStats?.rateperhr || fullStats?.dailyRate / 8 || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 });
@@ -344,10 +343,29 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, fullStats) =>
 
 // ── Main Export ───────────────────────────────────────────────────────────────
 
+let _sharedBrowser = null;
+
+async function getSharedBrowser() {
+  if (!_sharedBrowser || !_sharedBrowser.isConnected()) {
+    _sharedBrowser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+    });
+  }
+  return _sharedBrowser;
+}
+
+async function closeSharedBrowser() {
+  if (_sharedBrowser && _sharedBrowser.isConnected()) {
+    try {
+      await _sharedBrowser.close();
+    } catch (e) {}
+    _sharedBrowser = null;
+  }
+}
+
 /**
- * Generates a DTR PDF buffer for a single employee.
- *
- * @param {object} params
+ * @param {object}   params
  * @param {object}   params.employee     - { user_Id, user_FirstName, user_LastName }
  * @param {object[]} params.dtrData      - rows from getAttendanceReportInternal()
  * @param {string}   params.period_Start - "YYYY-MM-DD"
@@ -358,14 +376,11 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, fullStats) =>
 const generateDTRPDF = async ({ employee, dtrData, period_Start, period_End, fullStats }) => {
   const html = buildDTRHTML(employee, dtrData, period_Start, period_End, fullStats);
 
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-  });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
 
   try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
 
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -375,8 +390,10 @@ const generateDTRPDF = async ({ employee, dtrData, period_Start, period_End, ful
 
     return pdfBuffer;
   } finally {
-    await browser.close();
+    try {
+      await page.close();
+    } catch (e) {}
   }
 };
 
-module.exports = { generateDTRPDF };
+module.exports = { generateDTRPDF, getSharedBrowser, closeSharedBrowser };
