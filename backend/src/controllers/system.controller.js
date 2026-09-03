@@ -671,9 +671,8 @@ exports.getReferenceTableData = async (req, res) => {
       return res.status(400).json({ error: "Invalid reference table type." });
     }
 
-    // Get ONLY currently active records sorted by range_Min
+    // Get ALL records sorted by range_Min (for active and historical preview)
     const records = await model.findAll({
-      where: { isActive: true },
       order: [["range_Min", "ASC"]]
     });
 
@@ -862,11 +861,27 @@ exports.toggleReferenceTableVersion = async (req, res) => {
     // Run transaction to update status
     await sequelize.transaction(async (transaction) => {
       if (isActive) {
-        // 1. Deactivate ALL versions across table so only one version is active at a time
-        await model.update(
-          { isActive: false },
-          { where: {}, transaction }
-        );
+        if (tableType === "tax") {
+          const auditRec = await ReferenceTable_Audit.findByPk(parseInt(auditId), { transaction });
+          const pType = auditRec ? auditRec.periodType : null;
+          if (pType) {
+            await model.update(
+              { isActive: false },
+              { where: { periodType: pType }, transaction }
+            );
+          } else {
+            await model.update(
+              { isActive: false },
+              { where: {}, transaction }
+            );
+          }
+        } else {
+          // 1. Deactivate ALL versions across table so only one version is active at a time
+          await model.update(
+            { isActive: false },
+            { where: {}, transaction }
+          );
+        }
         // 2. Activate ONLY the selected audit version
         await model.update(
           { isActive: true },

@@ -19,7 +19,9 @@ import {
   ShieldAlert,
   X,
   Eye,
-  EyeOff
+  EyeOff,
+  Check,
+  RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,15 +36,26 @@ const ReferenceDataManagement = () => {
   const [records, setRecords] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [activeAuditIds, setActiveAuditIds] = useState([]);
+  const [selectedAuditId, setSelectedAuditId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [toggling, setToggling] = useState(null); // stores auditId being toggled
   const [statusMessage, setStatusMessage] = useState(null);
   const [taxPeriodType, setTaxPeriodType] = useState("semi-monthly");
+  
+  // Upload modal security flow
   const [step, setStep] = useState(0); // 0 = closed, 1 = confirm, 2 = password verification
   const [adminPassword, setAdminPassword] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [pwdError, setPwdError] = useState("");
+  const [showRefPassword, setShowRefPassword] = useState(false);
+
+  // Toggle status security flow (Activate / Deactivate)
+  const [toggleModal, setToggleModal] = useState({ isOpen: false, step: 1, log: null, targetStatus: false });
+  const [toggleAdminPassword, setToggleAdminPassword] = useState("");
+  const [togglePwdError, setTogglePwdError] = useState("");
+  const [toggleVerifying, setToggleVerifying] = useState(false);
+  const [showTogglePassword, setShowTogglePassword] = useState(false);
+  const [toggling, setToggling] = useState(null);
 
   const agencyLabels = {
     sss: "SSS Contribution Table",
@@ -63,8 +76,6 @@ const ReferenceDataManagement = () => {
   const handleProceedToPassword = () => {
     setStep(2);
   };
-
-  const [showRefPassword, setShowRefPassword] = useState(false);
 
   const handleVerifyAndPasswordUpload = async (e) => {
     e.preventDefault();
@@ -98,46 +109,151 @@ const ReferenceDataManagement = () => {
     }
   };
 
+  // Open confirmation modal for Activate / Deactivate toggle
+  const openToggleModal = (log, isCurrentlyActive) => {
+    setToggleAdminPassword("");
+    setTogglePwdError("");
+    setToggleModal({
+      isOpen: true,
+      step: 1,
+      log: log,
+      targetStatus: !isCurrentlyActive
+    });
+  };
+
+  const handleVerifyAndExecuteToggle = async (e) => {
+    e.preventDefault();
+    if (!toggleAdminPassword) {
+      setTogglePwdError("Admin password is required.");
+      return;
+    }
+
+    try {
+      setToggleVerifying(true);
+      setTogglePwdError("");
+      const res = await fetch("/api/auth/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password: toggleAdminPassword })
+      });
+      const resData = await res.json();
+
+      if (res.ok && resData.success) {
+        const { log, targetStatus } = toggleModal;
+        setToggleModal({ isOpen: false, step: 1, log: null, targetStatus: false });
+        setToggleAdminPassword("");
+        await executeToggle(log.auditId, targetStatus);
+      } else {
+        setTogglePwdError(resData.error || "Incorrect password. Verification failed.");
+      }
+    } catch (err) {
+      setTogglePwdError("Error verifying password.");
+    } finally {
+      setToggleVerifying(false);
+    }
+  };
+
+  const executeToggle = async (auditId, targetStatus) => {
+    setToggling(auditId);
+    try {
+      const res = await fetchWithAuth(`/api/system/reference-data/toggle/${activeSubTab}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          auditId: auditId,
+          isActive: targetStatus
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        showStatus(data.message || "Table status updated successfully.", "success");
+        fetchReferenceData();
+      } else {
+        showStatus(data.error || "Failed to update table status.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showStatus("Network connection error updating status.", "error");
+    } finally {
+      setToggling(null);
+    }
+  };
+
   const downloadCSVTemplate = () => {
     let headers = "";
-    let sampleData = "";
+    let dataRows = "";
     let filename = "";
 
+    // Find the active records or displayed brackets for the current agency
+    const activeRows = (displayedBrackets && displayedBrackets.length > 0)
+      ? displayedBrackets
+      : filteredRecords;
+
     if (activeSubTab === "sss") {
-      filename = "SSS_Contribution_Template.csv";
-      headers = ",Range of Compensation,,MONTHLY SALARY CREDIT ,,,Employer,,,,Employee,,,,Total\n" +
-                ",Range1,Range2,Regular SS/ EC,MPF,Total,Regular SS,MPF,EC,Total,Regular SS,MPF,EC,Total,\n";
-      sampleData = 
-        "1,0.00,5249.99,5000,,5000,500,,10,510,250,,,250,760\n" +
-        "2,5250,5749.99,5500,,5500,550,,10,560,275,,,275,835\n" +
-        "34,21250,21749.99,20000,1500,21500,1900,150,30,2080,1000,75,,1075,3155\n" +
-        "53,34750,Over,20000,15000,35000,2000,1500,30,3530,1000,750,,1750,5280\n";
+      filename = `SSS_Contribution_Template_${taxPeriodType || "active"}.csv`;
+      headers = "Range Min,Range Max,MSC,ER_SS,EE_SS,ER_EC,ER_Provident,EE_Provident\n";
+      
+      if (activeRows.length > 0) {
+        dataRows = activeRows.map(r => 
+          `${r.range_Min},${r.range_Max >= 9999999 ? "Over" : r.range_Max},${r.monthlySalaryCredit},${r.er_SS},${r.ee_SS},${r.er_EC || 0},${r.er_Provident || 0},${r.ee_Provident || 0}`
+        ).join("\n") + "\n";
+      } else {
+        dataRows = 
+          "0.00,5249.99,5000,500,250,10,0,0\n" +
+          "5250.00,5749.99,5500,550,275,10,0,0\n" +
+          "21250.00,21749.99,20000,1900,1000,30,150,75\n" +
+          "34750.00,Over,20000,2000,1000,30,1500,750\n";
+      }
     } else if (activeSubTab === "philhealth") {
       filename = "Philhealth_Contribution_Template.csv";
       headers = "Range Min,Range Max,Rate,EmployeeShareRatio\n";
-      sampleData = 
-        "0.00,10000.00,0.05,0.50\n" +
-        "10000.01,99999.99,0.05,0.50\n" +
-        "100000.00,9999999.00,0.05,0.50\n";
+      
+      if (activeRows.length > 0) {
+        dataRows = activeRows.map(r => 
+          `${r.range_Min},${r.range_Max >= 9999999 ? "9999999.00" : r.range_Max},${r.rate},${r.employeeShareRatio}`
+        ).join("\n") + "\n";
+      } else {
+        dataRows = 
+          "0.00,10000.00,0.05,0.50\n" +
+          "10000.01,99999.99,0.05,0.50\n" +
+          "100000.00,9999999.00,0.05,0.50\n";
+      }
     } else if (activeSubTab === "pagibig") {
       filename = "PagIBIG_Contribution_Template.csv";
       headers = "Range Min,Range Max,EE_Rate,ER_Rate,ContributionCeiling\n";
-      sampleData = 
-        "0.00,1500.00,0.01,0.02,10000.00\n" +
-        "1500.01,9999999.00,0.02,0.02,10000.00\n";
+      
+      if (activeRows.length > 0) {
+        dataRows = activeRows.map(r => 
+          `${r.range_Min},${r.range_Max >= 9999999 ? "9999999.00" : r.range_Max},${r.ee_Rate},${r.er_Rate},${r.contributionCeiling}`
+        ).join("\n") + "\n";
+      } else {
+        dataRows = 
+          "1000.00,1500.00,0.01,0.02,1500.00\n" +
+          "1501.00,5000.00,0.02,0.02,5000.00\n" +
+          "5000.01,9999999.00,0.02,0.02,5000.00\n";
+      }
     } else if (activeSubTab === "tax") {
-      filename = "BIR_WithholdingTax_Monthly_Template.csv";
+      filename = `BIR_WithholdingTax_${taxPeriodType === "monthly" ? "Monthly" : "SemiMonthly"}_Template.csv`;
       headers = "Range Min,Range Max,BaseTax,ExcessRate,ExcessOver\n";
-      sampleData = 
-        "0.00,20833.00,0.00,0.00,0.00\n" +
-        "20833.01,33333.00,0.00,0.20,20833.00\n" +
-        "33333.01,66667.00,2500.00,0.25,33333.00\n" +
-        "66667.01,166667.00,10833.33,0.30,66667.00\n" +
-        "166667.01,666667.00,40833.33,0.32,166667.00\n" +
-        "666667.01,9999999.00,200833.33,0.35,666667.00\n";
+      
+      if (activeRows.length > 0) {
+        dataRows = activeRows.map(r => 
+          `${r.range_Min},${r.range_Max >= 9999999 ? "9999999.00" : r.range_Max},${r.baseTax},${r.excessRate},${r.excessOver}`
+        ).join("\n") + "\n";
+      } else {
+        dataRows = 
+          "0.00,10417.00,0.00,0.00,0.00\n" +
+          "10417.01,16666.00,0.00,0.15,10417.00\n" +
+          "16667.00,33333.00,937.50,0.20,16667.00\n" +
+          "33334.00,83333.00,4270.90,0.25,33334.00\n" +
+          "83334.00,333333.00,16770.90,0.30,83334.00\n" +
+          "333334.00,9999999.00,91770.90,0.35,333334.00\n";
+      }
     }
 
-    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + sampleData);
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + dataRows);
     const link = document.createElement("a");
     link.setAttribute("href", csvContent);
     link.setAttribute("download", filename);
@@ -146,14 +262,14 @@ const ReferenceDataManagement = () => {
     document.body.removeChild(link);
   };
 
-
   useEffect(() => {
     fetchReferenceData();
     // Reset file and date on tab change
     setCsvFile(null);
     setEffectiveDate("");
     setStatusMessage(null);
-  }, [activeSubTab]);
+    setSelectedAuditId(null);
+  }, [activeSubTab, taxPeriodType]);
 
   const fetchReferenceData = async () => {
     setLoading(true);
@@ -162,8 +278,24 @@ const ReferenceDataManagement = () => {
       if (res.ok) {
         const data = await res.json();
         setRecords(data.records || []);
-        setAuditLogs(data.auditLogs || []);
-        setActiveAuditIds(data.activeAuditIds || []);
+        const logs = data.auditLogs || [];
+        setAuditLogs(logs);
+        const activeIds = data.activeAuditIds || [];
+        setActiveAuditIds(activeIds);
+
+        // Auto-select the active version or first available version
+        const relevantLogs = activeSubTab === "tax"
+          ? logs.filter(l => l.periodType === taxPeriodType)
+          : logs;
+        
+        const activeLog = relevantLogs.find(l => activeIds.includes(l.auditId));
+        if (activeLog) {
+          setSelectedAuditId(activeLog.auditId);
+        } else if (relevantLogs.length > 0) {
+          setSelectedAuditId(relevantLogs[0].auditId);
+        } else {
+          setSelectedAuditId(null);
+        }
       } else {
         showStatus("Failed to fetch reference data.", "error");
       }
@@ -198,7 +330,6 @@ const ReferenceDataManagement = () => {
     }
 
     try {
-      // Direct raw fetch because fetchWithAuth handles standard JSON content-types automatically
       const token = localStorage.getItem("token");
       const response = await fetch(`/api/system/reference-data/upload/${activeSubTab}`, {
         method: "POST",
@@ -213,7 +344,6 @@ const ReferenceDataManagement = () => {
         showStatus(data.message || "Table uploaded and mapped successfully!", "success");
         setCsvFile(null);
         setEffectiveDate("");
-        // Reset file input element
         const fileInput = document.getElementById("csv-file-input");
         if (fileInput) fileInput.value = "";
         fetchReferenceData();
@@ -225,33 +355,6 @@ const ReferenceDataManagement = () => {
       showStatus("Network failure during upload.", "error");
     } finally {
       setUploading(false);
-    }
-  };
-
-  const handleToggle = async (auditId, currentStatus) => {
-    setToggling(auditId);
-    try {
-      const res = await fetchWithAuth(`/api/system/reference-data/toggle/${activeSubTab}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          auditId: auditId,
-          isActive: !currentStatus
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        showStatus(data.message, "success");
-        fetchReferenceData();
-      } else {
-        showStatus(data.error || "Failed to update table status.", "error");
-      }
-    } catch (err) {
-      console.error(err);
-      showStatus("Network connection error updating status.", "error");
-    } finally {
-      setToggling(null);
     }
   };
 
@@ -268,18 +371,14 @@ const ReferenceDataManagement = () => {
     ? auditLogs.filter(log => log.periodType === taxPeriodType)
     : auditLogs;
 
-  // Group records by effective date for previewing
-  const recordsByDate = filteredRecords.reduce((acc, curr) => {
-    if (!acc[curr.effectiveDate]) {
-      acc[curr.effectiveDate] = [];
-    }
-    acc[curr.effectiveDate].push(curr);
-    return acc;
-  }, {});
+  // Selected Log for preview
+  const selectedLog = filteredAuditLogs.find(l => l.auditId === selectedAuditId) || filteredAuditLogs[0];
+  const isSelectedActive = selectedLog ? activeAuditIds.includes(selectedLog.auditId) : false;
 
-  const datesList = Object.keys(recordsByDate).sort().reverse();
-  const activeDate = datesList.find(d => recordsByDate[d][0]?.isActive);
-  const selectedPreviewDate = datesList[0] || ""; // Preview latest by default
+  // Filter rows matching selected version
+  const displayedBrackets = selectedLog
+    ? filteredRecords.filter(r => r.auditId === selectedLog.auditId)
+    : filteredRecords.filter(r => r.isActive);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full animate-in fade-in duration-200">
@@ -312,6 +411,37 @@ const ReferenceDataManagement = () => {
                 </button>
               ))}
             </div>
+
+            {/* Tax Period Sub-toggle for BIR */}
+            {activeSubTab === "tax" && (
+              <div className="mt-4 pt-3 border-t border-slate-100">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Tax Period Frequency</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTaxPeriodType("semi-monthly")}
+                    className={`py-2 text-xs font-bold rounded-lg border transition ${
+                      taxPeriodType === "semi-monthly"
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    Semi-Monthly
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaxPeriodType("monthly")}
+                    className={`py-2 text-xs font-bold rounded-lg border transition ${
+                      taxPeriodType === "monthly"
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -388,17 +518,18 @@ const ReferenceDataManagement = () => {
             <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-100 text-[11px] text-slate-500 space-y-2">
               <div className="font-bold text-slate-700 flex items-center justify-between">
                 <span className="flex items-center gap-1">
-                  <Info className="h-3.5 w-3.5 text-indigo-600" /> CSV Column Guidelines
+                  <Info className="h-3.5 w-3.5 text-indigo-600" /> CSV Guidelines & Export
                 </span>
                 <button
                   type="button"
                   onClick={downloadCSVTemplate}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 hover:underline cursor-pointer bg-indigo-50/80 px-2 py-1 rounded border border-indigo-100"
+                  title="Download CSV pre-filled with current active brackets for easy editing"
                 >
-                  <Download className="h-3.5 w-3.5" /> Download Template
+                  <Download className="h-3.5 w-3.5" /> Download Active CSV
                 </button>
               </div>
-              <p>Ensure your CSV headers match the exact mappings:</p>
+              <p>Download the current active table pre-filled, modify any numbers in Excel or a text editor, and upload with a new effective date:</p>
               {activeSubTab === "sss" && (
                 <code className="block p-1 bg-slate-100 rounded text-slate-700 text-[10px] font-mono break-all">
                   Range Min, Range Max, MSC, ER_SS, EE_SS, ER_EC, ER_Provident, EE_Provident
@@ -427,7 +558,7 @@ const ReferenceDataManagement = () => {
       {/* Right Column: Brackets Preview & Auditing */}
       <div className="xl:col-span-2 space-y-6">
         
-        {/* Active Rates Summary / Preview */}
+        {/* Active / Selected Rates Preview */}
         <Card className="border-slate-200 shadow-sm">
           <CardHeader className="bg-slate-50/50 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -435,14 +566,38 @@ const ReferenceDataManagement = () => {
                 <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
                   <Table className="h-5 w-5 text-indigo-600" /> Brackets Preview
                 </CardTitle>
-                <CardDescription>Currently parsed active brackets for {agencyLabels[activeSubTab]}.</CardDescription>
+                <CardDescription>
+                  {selectedLog ? (
+                    <span>Viewing: <strong className="text-slate-800">{selectedLog.fileName}</strong> (Effective: {selectedLog.effectiveDate})</span>
+                  ) : (
+                    <span>Parsed active brackets for {agencyLabels[activeSubTab]}.</span>
+                  )}
+                </CardDescription>
               </div>
             </div>
-            {activeDate && (
-              <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold">
-                Active Table: {activeDate}
-              </Badge>
-            )}
+            
+            <div className="flex items-center gap-2">
+              {selectedLog && (
+                isSelectedActive ? (
+                  <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" /> Official Active Table ({selectedLog.effectiveDate})
+                  </Badge>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-semibold flex items-center gap-1">
+                      <Eye className="w-3.5 h-3.5" /> Historical Archive Preview
+                    </Badge>
+                    <Button
+                      size="sm"
+                      onClick={() => openToggleModal(selectedLog, false)}
+                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-md shadow-xs"
+                    >
+                      Activate This Version
+                    </Button>
+                  </div>
+                )
+              )}
+            </div>
           </CardHeader>
           <CardContent className="pt-4">
             {loading ? (
@@ -450,11 +605,11 @@ const ReferenceDataManagement = () => {
                 <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
                 <span className="text-sm text-slate-500 font-medium">Loading brackets...</span>
               </div>
-            ) : datesList.length === 0 ? (
+            ) : displayedBrackets.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
                 <AlertCircle className="h-8 w-8 text-slate-300 mb-2" />
-                <p className="text-sm font-semibold">No Table Uploaded Yet</p>
-                <p className="text-xs mt-1">Upload a CSV file to view structural brackets.</p>
+                <p className="text-sm font-semibold">No Brackets Found For This Version</p>
+                <p className="text-xs mt-1">Select an active or historical version from the table below.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -521,7 +676,7 @@ const ReferenceDataManagement = () => {
                       )}
                     </thead>
                     <tbody>
-                      {recordsByDate[selectedPreviewDate]?.map((row, index) => {
+                      {displayedBrackets.map((row, index) => {
                         const mscMPF = row.ee_Provident > 0 ? row.ee_Provident * 20 : 0;
                         const mscTotal = row.monthlySalaryCredit + mscMPF;
                         const erTotal = row.er_SS + row.er_Provident + row.er_EC;
@@ -582,35 +737,32 @@ const ReferenceDataManagement = () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="flex justify-between items-center text-[11px] text-slate-400 pt-1">
-                  <span>Displaying {recordsByDate[selectedPreviewDate]?.length || 0} brackets.</span>
-                  <span>Effective Date: {selectedPreviewDate}</span>
-                </div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Upload Audit Trail & Status Management */}
+        {/* Upload Audit Trail & Version History Management */}
         <Card className="border-slate-200 shadow-sm">
           <CardHeader className="bg-slate-50/50 border-b border-slate-100">
             <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
               <History className="h-5 w-5 text-indigo-600" /> Version History
             </CardTitle>
-            <CardDescription>Enable, disable, or audit uploaded table configurations.</CardDescription>
+            <CardDescription>Click any row to inspect brackets in preview without changing its active status.</CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
             {loading ? (
               <div className="flex items-center justify-center py-6">
                 <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
               </div>
-            ) : auditLogs.length === 0 ? (
-              <p className="text-slate-400 text-xs text-center py-6">No historical records available.</p>
+            ) : filteredAuditLogs.length === 0 ? (
+              <p className="text-slate-400 text-xs text-center py-6">No historical records available for this selection.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-100 text-slate-600 uppercase font-semibold border-b border-slate-200">
+                      <th className="p-3">Preview</th>
                       <th className="p-3">File Name</th>
                       <th className="p-3">Rows</th>
                       <th className="p-3">Effective Date</th>
@@ -622,12 +774,38 @@ const ReferenceDataManagement = () => {
                   <tbody>
                     {filteredAuditLogs.map((log) => {
                       const isVersionActive = activeAuditIds.includes(log.auditId);
+                      const isCurrentlyPreviewed = selectedAuditId === log.auditId;
 
                       return (
-                         <tr key={log.auditId} className="hover:bg-slate-50 border-b border-slate-100 text-slate-700">
+                        <tr 
+                          key={log.auditId} 
+                          onClick={() => setSelectedAuditId(log.auditId)}
+                          className={`border-b border-slate-100 text-slate-700 cursor-pointer transition-all ${
+                            isCurrentlyPreviewed
+                              ? "bg-indigo-50/80 font-medium"
+                              : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <td className="p-3">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedAuditId(log.auditId);
+                              }}
+                              className={`p-1.5 rounded-md transition ${
+                                isCurrentlyPreviewed
+                                  ? "bg-indigo-600 text-white shadow-xs"
+                                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                              }`}
+                              title="Checkout / View Brackets"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
                           <td className="p-3 font-medium flex items-center gap-1.5 max-w-[150px] truncate" title={log.fileName}>
                             <FileSpreadsheet className="h-4 w-4 text-indigo-500 shrink-0" />
-                            {log.fileName}
+                            <span className={isCurrentlyPreviewed ? "text-indigo-950 font-bold" : ""}>{log.fileName}</span>
                           </td>
                           <td className="p-3">{log.rowCount} rows</td>
                           <td className="p-3 font-semibold text-slate-800">{log.effectiveDate}</td>
@@ -639,9 +817,9 @@ const ReferenceDataManagement = () => {
                               <Badge className="bg-slate-100 text-slate-500 border-slate-200">Inactive</Badge>
                             )}
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                             <Button
-                              onClick={() => handleToggle(log.auditId, isVersionActive)}
+                              onClick={() => openToggleModal(log, isVersionActive)}
                               disabled={toggling === log.auditId}
                               className={`h-7 px-3 text-[10px] font-bold shadow-sm rounded-md transition-all ${
                                 isVersionActive
@@ -669,7 +847,7 @@ const ReferenceDataManagement = () => {
         </Card>
       </div>
 
-      {/* STEP 1: CONFIRMATION MODAL */}
+      {/* STEP 1: UPLOAD CONFIRMATION MODAL */}
       {step === 1 && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
@@ -726,7 +904,7 @@ const ReferenceDataManagement = () => {
         </div>
       )}
 
-      {/* STEP 2: ADMIN PASSWORD VERIFICATION MODAL */}
+      {/* STEP 2: UPLOAD ADMIN PASSWORD VERIFICATION MODAL */}
       {step === 2 && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <form onSubmit={handleVerifyAndPasswordUpload} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
@@ -787,6 +965,152 @@ const ReferenceDataManagement = () => {
                   <span>Verifying Password...</span>
                 ) : (
                   <span>Verify & Apply Table</span>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* TOGGLE STATUS CONFIRMATION & PASSWORD MODALS (ACTIVATE / DEACTIVATE) */}
+      {toggleModal.isOpen && toggleModal.step === 1 && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
+            <div className="flex items-center space-x-3 text-indigo-600">
+              <div className={`p-3 rounded-full ${toggleModal.targetStatus ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"}`}>
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {toggleModal.targetStatus ? "Activate Table Version?" : "Deactivate Table Version?"}
+                </h3>
+                <p className="text-xs text-slate-500">Step 1 of 2: Security Confirmation</p>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
+              <p>
+                Are you sure you want to <strong>{toggleModal.targetStatus ? "activate" : "deactivate"}</strong> this statutory configuration?
+              </p>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1 font-mono text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Agency:</span>
+                  <span className="font-bold text-indigo-900">{agencyLabels[activeSubTab]}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">File Name:</span>
+                  <span className="font-bold text-slate-700 truncate max-w-[180px]">{toggleModal.log?.fileName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Effective Date:</span>
+                  <span className="font-bold text-emerald-700">{toggleModal.log?.effectiveDate}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Action:</span>
+                  <span className={`font-bold ${toggleModal.targetStatus ? "text-emerald-600" : "text-amber-600"}`}>
+                    {toggleModal.targetStatus ? "Set as Active Official Schedule" : "Set as Inactive Archive"}
+                  </span>
+                </div>
+              </div>
+              <p className="text-slate-500 text-[11px]">
+                {toggleModal.targetStatus 
+                  ? "Activating this table will immediately apply its contribution and tax calculation formulas to all upcoming payroll runs."
+                  : "Deactivating this table will archive its brackets. The system will fall back to statutory standards until another version is activated."}
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setToggleModal({ isOpen: false, step: 1, log: null, targetStatus: false })}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => setToggleModal(prev => ({ ...prev, step: 2 }))}
+                className={`px-4 py-2 text-white text-xs font-bold rounded-lg transition shadow-sm ${
+                  toggleModal.targetStatus 
+                    ? "bg-emerald-600 hover:bg-emerald-700" 
+                    : "bg-amber-600 hover:bg-amber-700"
+                }`}
+              >
+                Proceed to Security Verification →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toggleModal.isOpen && toggleModal.step === 2 && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form onSubmit={handleVerifyAndExecuteToggle} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2 text-[#2A1B4E]">
+                <Shield className="w-5 h-5" />
+                <h3 className="text-base font-bold text-slate-900">Admin Security Authorization</h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setToggleModal({ isOpen: false, step: 1, log: null, targetStatus: false })} 
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Please enter your <strong>Admin Password</strong> to authorize {toggleModal.targetStatus ? "activating" : "deactivating"} this statutory table version:
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">Admin Password</label>
+              <div className="relative">
+                <input
+                  type={showTogglePassword ? "text" : "password"}
+                  required
+                  autoFocus
+                  placeholder="Enter password..."
+                  value={toggleAdminPassword}
+                  onChange={(e) => setToggleAdminPassword(e.target.value)}
+                  className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowTogglePassword(!showTogglePassword)}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  title={showTogglePassword ? "Hide password" : "Show password"}
+                >
+                  {showTogglePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {togglePwdError && (
+                <p className="text-xs text-rose-600 font-medium pt-1">{togglePwdError}</p>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setToggleModal({ isOpen: false, step: 1, log: null, targetStatus: false })}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={toggleVerifying}
+                className={`px-4 py-2 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center space-x-1.5 ${
+                  toggleModal.targetStatus
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-amber-600 hover:bg-amber-700"
+                }`}
+              >
+                {toggleVerifying ? (
+                  <span>Verifying Password...</span>
+                ) : (
+                  <span>Confirm {toggleModal.targetStatus ? "Activation" : "Deactivation"}</span>
                 )}
               </button>
             </div>

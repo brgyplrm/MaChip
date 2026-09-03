@@ -16,4 +16,4 @@ test_leave_insertion.js
 seeds/
 backend/seeds/
 seed_users.js
-
+backend/request_debug.log
