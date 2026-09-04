@@ -513,7 +513,7 @@ const AuditLogs = () => {
                 setDiffPage(1);
               }
             }}>
-            <DialogContent className="max-w-3xl w-[95vw] p-0 overflow-hidden rounded-xl bg-white shadow-2xl">
+            <DialogContent className="max-w-5xl! w-[200vw] p-0 overflow-hidden rounded-xl bg-white shadow-2xl">
               {selectedLog && (
                 <div className="space-y-0">
                   {/* Modal Header */}

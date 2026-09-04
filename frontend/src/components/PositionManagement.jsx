@@ -9,7 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Plus, Edit, Trash2, Save, X, AlertTriangle, Briefcase 
+  Plus, Edit, Trash2, Save, X, AlertTriangle, Briefcase, Edit3 
 } from "lucide-react";
 
 const PositionManagement = ({ 
@@ -23,6 +23,7 @@ const PositionManagement = ({
   const [editingId, setEditingId] = useState(null);
   const [mandatedWage, setMandatedWage] = useState(initialWage || 610);
   const [effectiveDate, setEffectiveDate] = useState(initialDate || "2025-07-18");
+  const [isEditing, setIsEditing] = useState(false);
   const [isEditingWage, setIsEditingWage] = useState(false);
   const [savingWage, setSavingWage] = useState(false);
   const [formData, setFormData] = useState({
@@ -98,28 +99,31 @@ const PositionManagement = ({
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => {
-      const newData = { ...prev, [name]: value };
+      const updated = { ...prev, [name]: value };
       
       // Auto-calculate daily rate if monthly pay changes
       if (name === "baseMonthlyPay") {
-        const monthly = sanitizeNumber(value);
-        newData.baseDailyRate = monthly > 0 ? (monthly / 26).toFixed(2) : ""; // Assuming 26 working days
+        const num = sanitizeNumber(value);
+        if (num > 0) {
+          updated.baseDailyRate = ((num * 12) / 313).toFixed(2);
+        }
       } else if (name === "baseDailyRate") {
         const daily = sanitizeNumber(value);
-        newData.baseMonthlyPay = daily > 0 ? (daily * 26).toFixed(2) : "";
+        updated.baseMonthlyPay = daily > 0 ? (daily * 26).toFixed(2) : "";
       }
       
-      return newData;
+      return updated;
     });
   };
 
   const handleEdit = (pos) => {
+    setIsEditing(true);
     setEditingId(pos.positionId);
     setFormData({
       title: pos.title,
       department: pos.department,
-      baseMonthlyPay: pos.baseMonthlyPay,
-      baseDailyRate: pos.baseDailyRate
+      baseMonthlyPay: pos.baseMonthlyPay || "",
+      baseDailyRate: pos.baseDailyRate || ""
     });
   };
 
@@ -155,6 +159,7 @@ const PositionManagement = ({
       if (response.ok) {
         fetchPositions();
         handleCancel();
+        setIsEditing(false);
       }
     } catch (error) {
       console.error("Error saving position:", error);
@@ -179,19 +184,79 @@ const PositionManagement = ({
 
   return (
     <div className="space-y-6">
-      <Card className="border-0 shadow-sm bg-gradient-to-r from-[#2A174E] to-[#3d2270] text-white">
+      {/* Top Header Card matching PayrollConfiguration */}
+      <div className="bg-[#2A1B4E] text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex items-start space-x-4">
+          <div className="p-3 bg-white/10 rounded-lg border border-white/10">
+            <Briefcase className="w-6 h-6 text-purple-200" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Salary Grades & Position Configuration</h1>
+            <p className="text-sm text-purple-200/80 mt-0.5">Manage position templates, base daily rates, and mandated minimum wage</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          {isEditing ? (
+            <>
+              <button 
+                type="button"
+                onClick={() => {
+                  setMandatedWage(initialWage);
+                  setEffectiveDate(initialDate);
+                  setIsEditingWage(false);
+                  handleCancel();
+                  setIsEditing(false);
+                }}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-sm font-medium shadow-sm transition"
+              >
+                <X className="w-4 h-4" /> <span>Cancel</span>
+              </button>
+              <button 
+                type="button"
+                onClick={async () => {
+                  if (isEditingWage) {
+                    await handleSaveWage();
+                  }
+                  if (editingId) {
+                    await handleSave();
+                  }
+                  setIsEditing(false);
+                }}
+                disabled={savingWage}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" /> <span>{savingWage ? "Saving..." : "Save Changes"}</span>
+              </button>
+            </>
+          ) : (
+            <button 
+              type="button"
+              onClick={() => {
+                setIsEditing(true);
+                setIsEditingWage(true);
+              }}
+              className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition"
+            >
+              <Edit3 className="w-4 h-4" /> <span>Edit Configuration</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <Card className="border border-purple-100 shadow-sm bg-gradient-to-br from-[#FAF5FF] via-white to-[#FAF2FF] text-slate-800">
         <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-full border border-white/20">
-              <AlertTriangle className="w-6 h-6 text-amber-400" />
+            <div className="p-3 bg-purple-100/80 rounded-full border border-purple-200 shadow-xs shrink-0">
+              <AlertTriangle className="w-6 h-6 text-[#2A174E]" />
             </div>
             <div className="min-w-[200px]">
-              <p className="text-sm font-bold text-purple-200 uppercase tracking-widest leading-none mb-1">Mandated Basic Rate</p>
-              {isEditingWage ? (
+              <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider leading-none mb-1.5">Mandated Basic Rate</p>
+              {isEditingWage && isEditing ? (
                 <div className="flex flex-col gap-2 mt-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-purple-300">₱</span>
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₱</span>
                       <Input 
                         type="text"
                         inputMode="decimal"
@@ -202,7 +267,7 @@ const PositionManagement = ({
                             setMandatedWage(raw);
                           }
                         }}
-                        className="bg-white/10 border-white/20 text-white pl-6 w-32 font-bold text-xl h-10"
+                        className="bg-white border-slate-300 text-[#2A174E] pl-7 w-32 font-bold text-xl h-10 shadow-xs focus:border-purple-500 focus:ring-purple-200"
                         autoFocus
                       />
                     </div>
@@ -210,38 +275,37 @@ const PositionManagement = ({
                       type="date"
                       value={effectiveDate}
                       onChange={(e) => setEffectiveDate(e.target.value)}
-                      className="bg-white/10 border-white/20 text-white w-40 font-semibold h-10 [color-scheme:dark]"
+                      className="bg-white border-slate-300 text-slate-700 w-44 font-semibold h-10 shadow-xs focus:border-purple-500 focus:ring-purple-200"
                     />
-                    <Button size="sm" onClick={handleSaveWage} disabled={savingWage} className="bg-amber-500 hover:bg-amber-600 text-white h-10">
-                      {savingWage ? "..." : <Save className="w-4 h-4" />}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => { 
-                      setMandatedWage(initialWage); 
-                      setEffectiveDate(initialDate);
-                      setIsEditingWage(false); 
-                    }} className="text-white hover:bg-white/10 h-10">
-                      <X className="w-4 h-4" />
-                    </Button>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <h2 className="text-3xl font-black tracking-tight">₱{parseFloat(mandatedWage).toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
-                  <Button variant="ghost" size="icon" onClick={() => setIsEditingWage(true)} className="text-purple-300 hover:text-white hover:bg-white/10 h-8 w-8">
+                  <h2 className="text-3xl font-black tracking-tight text-[#2A174E]">₱{parseFloat(mandatedWage || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => {
+                      setIsEditing(true);
+                      setIsEditingWage(true);
+                    }} 
+                    className="text-purple-700/70 hover:text-purple-900 hover:bg-purple-100/80 h-8 w-8 rounded-lg transition"
+                    title="Edit Mandated Rate"
+                  >
                     <Edit className="w-4 h-4" />
                   </Button>
                 </div>
               )}
-              <p className="text-xs text-purple-200/60 font-medium italic mt-1">
-                As of {formatDateLabel(effectiveDate)} from BIR/DOLE
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                As of <span className="font-semibold text-slate-700">{formatDateLabel(effectiveDate)}</span> from BIR/DOLE
               </p>
             </div>
           </div>
-          <div className="hidden lg:block h-12 w-[1px] bg-white/10 mx-4"></div>
+          <div className="hidden lg:block h-12 w-[1px] bg-purple-200/80 mx-4"></div>
           <div className="text-center md:text-left">
-            <p className="text-[10px] font-bold uppercase text-purple-300 tracking-wider">Compliance Status</p>
-            <p className="text-sm font-medium">
-              System is monitoring {positions.length} templates against this baseline.
+            <p className="text-[11px] font-bold uppercase text-[#2A174E] tracking-wider mb-1">Compliance Status</p>
+            <p className="text-sm font-medium text-slate-600">
+              System is monitoring <span className="font-bold text-[#2A174E]">{positions.length}</span> templates against this baseline.
             </p>
           </div>
         </CardContent>
@@ -262,7 +326,8 @@ const PositionManagement = ({
                 placeholder="e.g. Logistics Staff"
                 value={formData.title}
                 onChange={handleInputChange}
-                className="bg-white"
+                disabled={!isEditing}
+                className="bg-white disabled:bg-slate-100 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-1.5">
@@ -272,7 +337,8 @@ const PositionManagement = ({
                 placeholder="e.g. Operations"
                 value={formData.department}
                 onChange={handleInputChange}
-                className="bg-white"
+                disabled={!isEditing}
+                className="bg-white disabled:bg-slate-100 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-1.5">
@@ -296,15 +362,16 @@ const PositionManagement = ({
                     const { name, value } = e.target;
                     handleInputChange({ target: { name, value: parseFloat(value.replace(/,/g, '')) || 0 } });
                   }}
-                  className="bg-white pl-7 font-mono"
+                  disabled={!isEditing}
+                  className="bg-white pl-7 font-mono disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
             <div className="flex items-end gap-2">
               <Button 
                 onClick={handleSave}
-                className="bg-[#2A174E] hover:bg-[#3d2270] text-white flex-1"
-                disabled={!formData.title || !formData.department}
+                className="bg-[#2A174E] hover:bg-[#3d2270] text-white flex-1 disabled:opacity-50"
+                disabled={!isEditing || !formData.title || !formData.department}
               >
                 {editingId ? <><Save className="w-4 h-4 mr-2" /> Update</> : <><Plus className="w-4 h-4 mr-2" /> Add Template</>}
               </Button>
@@ -370,7 +437,8 @@ const PositionManagement = ({
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                              disabled={!isEditing}
                               onClick={() => handleEdit(pos)}
                             >
                               <Edit className="w-4 h-4" />
@@ -378,7 +446,8 @@ const PositionManagement = ({
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                              disabled={!isEditing}
                               onClick={() => handleDelete(pos.positionId)}
                             >
                               <Trash2 className="w-4 h-4" />

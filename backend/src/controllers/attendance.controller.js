@@ -520,6 +520,12 @@ exports.viewAllAttendance = async (req, res) => {
           ]
         },
         {
+          model: User,
+          as: "authorizingAdmin",
+          attributes: ["user_Id", "user_FirstName", "user_LastName"],
+          required: false,
+        },
+        {
           model: logged_status,
           as: "loggedStatus",
           attributes: ["statusName"],
@@ -536,6 +542,13 @@ exports.viewAllAttendance = async (req, res) => {
     // Map to the format expected by the frontend
     const formattedLogs = logs.map(log => {
       const plain = log.get({ plain: true });
+      const adminName = plain.authorizingAdmin
+        ? `${plain.authorizingAdmin.user_FirstName || ""} ${plain.authorizingAdmin.user_LastName || ""}`.trim()
+        : (plain.admin_id ? `Admin #${plain.admin_id}` : null);
+      const adminDisplayId = plain.admin_id
+        ? `MACJ-${String(plain.admin_id).padStart(3, "0")}`
+        : null;
+
       return {
         ...plain,
         log_Date: formatDateLocal(plain.log_Date),
@@ -543,7 +556,11 @@ exports.viewAllAttendance = async (req, res) => {
         user_LastName: plain.user?.user_LastName,
         user_MachipId: plain.user?.hardware?.user_MachipId,
         loggedStatusName: plain.loggedStatus?.statusName,
-        attendanceStatusName: plain.attendanceStatus?.statusName === "Exempt" ? "On Time" : plain.attendanceStatus?.statusName
+        attendanceStatusName: plain.attendanceStatus?.statusName === "Exempt" ? "On Time" : plain.attendanceStatus?.statusName,
+        reason: plain.reason || null,
+        admin_id: plain.admin_id || null,
+        adminName,
+        adminDisplayId,
       };
     });
 

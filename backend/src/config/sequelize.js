@@ -96,6 +96,11 @@ user_logging.belongsTo(User, {
   targetKey: "user_Id",
   as: "user",
 });
+user_logging.belongsTo(User, {
+  foreignKey: "admin_id",
+  targetKey: "user_Id",
+  as: "authorizingAdmin",
+});
 
 // User ↔ employee_Logging_report
 User.hasMany(employee_Logging_report, {

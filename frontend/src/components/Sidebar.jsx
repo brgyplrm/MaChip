@@ -1078,7 +1078,7 @@ const Sidebar = ({ children }) => {
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
 
-                  <SidebarMenuSubItem>
+                  {/* <SidebarMenuSubItem>
                     <SidebarMenuSubButton asChild isActive={location.pathname === "/transitions"} className={subMenuButtonClass(location.pathname === "/transitions")}>
                       <Link 
                         to="/transitions" 
@@ -1087,7 +1087,7 @@ const Sidebar = ({ children }) => {
                         <AutoAwesomeIcon className="!text-[18px] mr-2 text-purple-600" /> UI Animations Lab
                       </Link>
                     </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
+                  </SidebarMenuSubItem> */}
                 </SidebarMenuSub>
               )}
             </SidebarMenuItem>

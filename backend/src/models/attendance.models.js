@@ -44,6 +44,16 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         defaultValue: null,
       },
+      reason: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: null,
+      },
+      admin_id: {
+        type: DataTypes.SMALLINT,
+        allowNull: true,
+        defaultValue: null,
+      },
     },
     {
       timestamps: false,

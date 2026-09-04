@@ -327,23 +327,93 @@ const SeparationPay = () => {
                         </CardContent>
                       </Card>
 
-                      <Card className="shadow-sm border-0 bg-white overflow-hidden text-left">
-                        <CardHeader className="bg-slate-900 text-white py-4">
-                          <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                            <span>Final Settlement Breakdown & Mathematical Basis</span>
+                      <Card className="shadow-sm border-0 bg-white border-t-6 border-indigo-950">
+                        <CardHeader>
+                          <CardTitle className="text-lg font-bold text-[#2A174E]">Step 1: Choose Authorized Cause</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {preview.preview.map((p) => (
+                              <div 
+                                key={p.causeId}
+                                onClick={() => setSelectedCauseId(p.causeId)}
+                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                                  selectedCauseId === p.causeId 
+                                  ? 'border-[#2A174E] bg-[#2A174E]/5 shadow-md' 
+                                  : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                                }`}
+                              >
+                                <div className="flex justify-between items-start mb-2">
+                                  <Badge className={p.multiplier === 1.0 ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}>
+                                    {p.multiplier === 1.0 ? "1 Month Pay / Yr" : "1/2 Month Pay / Yr"}
+                                  </Badge>
+                                  {selectedCauseId === p.causeId && <CheckCircleIcon className="text-[#2A174E] h-5 w-5" />}
+                                </div>
+                                <p className="font-bold text-[#2A174E] mb-1">{p.causeName}</p>
+                                <p className="text-xl font-black text-slate-900 mb-1">{formatCurrency(p.amount)}</p>
+                                <p className="text-[10px] text-slate-500 font-medium leading-tight">{p.desc}</p>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <CardTitle className="text-sm font-bold text-[#2A174E]">Comprehensive Separation Pay Breakdown Formula</CardTitle>
+                          {/* Comprehensive Separation Pay Formula Breakdown */}
+                          {selectedCauseId && (
+                            <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-3 text-left">
+                              <div className="flex items-center space-x-2 text-indigo-900 font-bold text-xs uppercase tracking-wide">
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                <div className="bg-white p-3 rounded-lg border border-indigo-100">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Step 1: Salary Base</p>
+                                  <p className="font-bold text-slate-800">{formatCurrency(preview.baseSalary)}</p>
+                                  <p className="text-[10px] text-slate-500">Monthly Basic (Daily x 26)</p>
+                                </div>
+                                <div className="bg-white p-3 rounded-lg border border-indigo-100">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Step 2: Service Tenure</p>
+                                  <p className="font-bold text-blue-600">{preview.yearsOfService} Years</p>
+                                  <p className="text-[10px] text-slate-500">({preview.diffMonths} months tenure, 6+ mos = 1 yr)</p>
+                                </div>
+                                <div className="bg-white p-3 rounded-lg border border-indigo-100">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Step 3: Cause Factor</p>
+                                  <p className="font-bold text-emerald-600">
+                                    {preview.preview.find(p => p.causeId === selectedCauseId)?.multiplier === 1.0 ? '1.0 Month Pay / Yr' : '0.5 Month Pay / Yr'}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500">Labor Code Art. 298 / 299 Rule</p>
+                                </div>
+                              </div>
+                              <div className="p-3 bg-white border border-indigo-200 rounded-lg text-xs font-mono flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                <span className="text-slate-600">
+                                  Formula: {formatCurrency(preview.baseSalary)} × {preview.yearsOfService} yrs × {preview.preview.find(p => p.causeId === selectedCauseId)?.multiplier || 0.5}
+                                </span>
+                                <span className="font-bold text-indigo-900 text-sm">
+                                  = {formatCurrency(preview.preview.find(p => p.causeId === selectedCauseId)?.amount || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          
+                        </CardContent>
+                      </Card>
+
+                      <Card className="shadow-sm border-0 bg-white overflow-hidden text-left pt-0">
+                        <CardHeader className="border-t-6 border-indigo-950 text-white py-4">
+                          <CardTitle className="mt-2 text-lg font-bold text-[#2A174E]">
+                            <span>Step 2: Finalize Settlement Breakdown & Mathematical Basis</span>
                           </CardTitle>
-                          <CardDescription className="text-slate-300 text-xs mt-0.5">
+                          <CardDescription className="text-indigo-800 text-xs mt-0.5">
                             Itemized mathematical origin for pro-rated 13th month, leave encashment, and final worked days.
                           </CardDescription>
                         </CardHeader>
-                        <CardContent className="p-6 space-y-6">
+                        <CardContent className="px-6 space-y-4">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                             {/* 1. Pro-rated 13th Month Card */}
                             <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100 flex flex-col justify-between space-y-3">
                               <div className="flex justify-between items-start">
                                 <Badge className="bg-indigo-100 text-indigo-700 font-bold text-[10px]">PD 851 Mandate</Badge>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pro-rated 13th Month</span>
+                                
                               </div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pro-rated 13th Month</span>
                               <div>
                                 <p className="text-2xl font-black text-indigo-950">{formatCurrency(preview.backPay.prorated13thMonth)}</p>
                                 <p className="text-[11px] font-semibold text-indigo-700 mt-1">Basis: {formatCurrency(preview.backPay.totalBasicYear)}</p>
@@ -360,8 +430,9 @@ const SeparationPay = () => {
                             <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100 flex flex-col justify-between space-y-3">
                               <div className="flex justify-between items-start">
                                 <Badge className="bg-emerald-100 text-emerald-700 font-bold text-[10px]">SIL / Leave Encashment</Badge>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Conversion</span>
                               </div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Conversion</span>
+
                               <div>
                                 <p className="text-2xl font-black text-emerald-950">{formatCurrency(preview.backPay.leaveConversion)}</p>
                                 <p className="text-[11px] font-semibold text-emerald-700 mt-1">
@@ -380,8 +451,9 @@ const SeparationPay = () => {
                             <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-100 flex flex-col justify-between space-y-3">
                               <div className="flex justify-between items-start">
                                 <Badge className="bg-amber-100 text-amber-700 font-bold text-[10px]">Unbilled Days</Badge>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Final Worked Days</span>
                               </div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Final Worked Days</span>
+
                               <div>
                                 <p className="text-2xl font-black text-amber-950">{formatCurrency(preview.backPay.finalWorkedSalary)}</p>
                                 <p className="text-[11px] font-semibold text-amber-700 mt-1">
@@ -457,75 +529,7 @@ const SeparationPay = () => {
                               </div>
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="shadow-sm border-0 bg-white">
-                        <CardHeader>
-                          <CardTitle className="text-lg font-bold text-[#2A174E]">Choose Authorized Cause</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {preview.preview.map((p) => (
-                              <div 
-                                key={p.causeId}
-                                onClick={() => setSelectedCauseId(p.causeId)}
-                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                                  selectedCauseId === p.causeId 
-                                  ? 'border-[#2A174E] bg-[#2A174E]/5 shadow-md' 
-                                  : 'border-slate-100 bg-slate-50 hover:border-slate-200'
-                                }`}
-                              >
-                                <div className="flex justify-between items-start mb-2">
-                                  <Badge className={p.multiplier === 1.0 ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}>
-                                    {p.multiplier === 1.0 ? "1 Month Pay / Yr" : "1/2 Month Pay / Yr"}
-                                  </Badge>
-                                  {selectedCauseId === p.causeId && <CheckCircleIcon className="text-[#2A174E] h-5 w-5" />}
-                                </div>
-                                <p className="font-bold text-[#2A174E] mb-1">{p.causeName}</p>
-                                <p className="text-xl font-black text-slate-900 mb-1">{formatCurrency(p.amount)}</p>
-                                <p className="text-[10px] text-slate-500 font-medium leading-tight">{p.desc}</p>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Comprehensive Separation Pay Formula Breakdown */}
-                          {selectedCauseId && (
-                            <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-3 text-left">
-                              <div className="flex items-center space-x-2 text-indigo-900 font-bold text-xs uppercase tracking-wide">
-                                <InfoOutlinedIcon className="w-4 h-4 text-indigo-600" />
-                                <span>Comprehensive Separation Pay Breakdown Formula</span>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                                <div className="bg-white p-3 rounded-lg border border-indigo-100">
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Step 1: Salary Base</p>
-                                  <p className="font-bold text-slate-800">{formatCurrency(preview.baseSalary)}</p>
-                                  <p className="text-[10px] text-slate-500">Monthly Basic (Daily x 26)</p>
-                                </div>
-                                <div className="bg-white p-3 rounded-lg border border-indigo-100">
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Step 2: Service Tenure</p>
-                                  <p className="font-bold text-blue-600">{preview.yearsOfService} Years</p>
-                                  <p className="text-[10px] text-slate-500">({preview.diffMonths} months tenure, 6+ mos = 1 yr)</p>
-                                </div>
-                                <div className="bg-white p-3 rounded-lg border border-indigo-100">
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Step 3: Cause Factor</p>
-                                  <p className="font-bold text-emerald-600">
-                                    {preview.preview.find(p => p.causeId === selectedCauseId)?.multiplier === 1.0 ? '1.0 Month Pay / Yr' : '0.5 Month Pay / Yr'}
-                                  </p>
-                                  <p className="text-[10px] text-slate-500">Labor Code Art. 298 / 299 Rule</p>
-                                </div>
-                              </div>
-                              <div className="p-3 bg-white border border-indigo-200 rounded-lg text-xs font-mono flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                                <span className="text-slate-600">
-                                  Formula: {formatCurrency(preview.baseSalary)} × {preview.yearsOfService} yrs × {preview.preview.find(p => p.causeId === selectedCauseId)?.multiplier || 0.5}
-                                </span>
-                                <span className="font-bold text-indigo-900 text-sm">
-                                  = {formatCurrency(preview.preview.find(p => p.causeId === selectedCauseId)?.amount || 0)}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
+                          <CardTitle className="mt-10 text-lg font-bold text-[#2A174E]">Step 3: Specify Reason and Finalize Notice.</CardTitle>
                           <div className="space-y-2">
                             <Label>Specific Reason (Optional)</Label>
                             <Input 
@@ -554,6 +558,8 @@ const SeparationPay = () => {
                           </div>
                         </CardContent>
                       </Card>
+
+                      
                     </>
                   ) : (
                     

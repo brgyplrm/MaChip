@@ -21,7 +21,9 @@ import {
   Eye,
   EyeOff,
   Check,
-  RotateCcw
+  RotateCcw,
+  Save,
+  Edit3
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const ReferenceDataManagement = () => {
+  const [isEditing, setIsEditing] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState("sss");
   const [csvFile, setCsvFile] = useState(null);
   const [effectiveDate, setEffectiveDate] = useState("");
@@ -346,6 +349,7 @@ const ReferenceDataManagement = () => {
         setEffectiveDate("");
         const fileInput = document.getElementById("csv-file-input");
         if (fileInput) fileInput.value = "";
+        setIsEditing(false);
         fetchReferenceData();
       } else {
         showStatus(data.error || "Failed to process and map table data.", "error");
@@ -381,138 +385,197 @@ const ReferenceDataManagement = () => {
     : filteredRecords.filter(r => r.isActive);
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full animate-in fade-in duration-200">
-      
-      {/* Left Column: Selector, Upload & History */}
-      <div className="xl:col-span-1 space-y-6">
-        
-        {/* Selector Card */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-            <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
-              <Layers className="h-5 w-5 text-indigo-600" /> Agency Selector
-            </CardTitle>
-            <CardDescription>Select the statutory agency table to manage.</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="flex flex-col gap-2">
-              {Object.keys(agencyLabels).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveSubTab(tab)}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg text-left text-sm font-semibold transition-all border ${
-                    activeSubTab === tab
-                      ? "bg-indigo-50 border-indigo-200 text-indigo-900 shadow-sm"
-                      : "bg-white hover:bg-slate-50 border-slate-200 text-slate-600"
-                  }`}
-                >
-                  <span>{agencyLabels[tab]}</span>
-                  {activeSubTab === tab && <div className="w-2 h-2 rounded-full bg-indigo-600" />}
-                </button>
-              ))}
-            </div>
+    <div className="space-y-6 w-full animate-in fade-in duration-200">
+      {/* Top Header Card */}
+      <div className="bg-[#2A1B4E] text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex items-start space-x-4">
+          <div className="p-3 bg-white/10 rounded-lg border border-white/10">
+            <Layers className="w-6 h-6 text-purple-200" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Statutory Reference Tables</h1>
+            <p className="text-sm text-purple-200/80 mt-0.5">Manage contribution schedules and tax brackets for SSS, PhilHealth, Pag-IBIG, and BIR</p>
+          </div>
+        </div>
 
-            {/* Tax Period Sub-toggle for BIR */}
-            {activeSubTab === "tax" && (
-              <div className="mt-4 pt-3 border-t border-slate-100">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Tax Period Frequency</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTaxPeriodType("semi-monthly")}
-                    className={`py-2 text-xs font-bold rounded-lg border transition ${
-                      taxPeriodType === "semi-monthly"
-                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
-                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-                    }`}
-                  >
-                    Semi-Monthly
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTaxPeriodType("monthly")}
-                    className={`py-2 text-xs font-bold rounded-lg border transition ${
-                      taxPeriodType === "monthly"
-                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
-                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-                    }`}
-                  >
-                    Monthly
-                  </button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Upload Card */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-            <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
-              <Upload className="h-5 w-5 text-indigo-600" /> Upload CSV Table
-            </CardTitle>
-            <CardDescription>Upload a fresh CSV spreadsheet of official brackets.</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-4">
-            {statusMessage && (
-              <div className={`p-3 rounded-lg mb-4 text-xs font-semibold flex items-center gap-2 border ${
-                statusMessage.type === "success" 
-                  ? "bg-green-50 text-green-800 border-green-200" 
-                  : "bg-red-50 text-red-800 border-red-200"
-              }`}>
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{statusMessage.message}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleUploadClick} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Effective Date</label>
-                <div className="relative">
-                  <Input
-                    type="date"
-                    required
-                    value={effectiveDate}
-                    onChange={(e) => setEffectiveDate(e.target.value)}
-                    className="pl-9 text-slate-700 font-medium border-slate-200 focus:border-indigo-400"
-                  />
-                  <Calendar className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                </div>
-                <span className="text-[10px] text-slate-400 block">The date from which calculations will apply these rates.</span>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">CSV File</label>
-                <div className="relative">
-                  <Input
-                    id="csv-file-input"
-                    type="file"
-                    accept=".csv"
-                    required
-                    onChange={handleFileChange}
-                    className="pl-9 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 border-slate-200 focus:border-indigo-400"
-                  />
-                  <FileSpreadsheet className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                disabled={uploading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-11 shadow-sm flex items-center justify-center gap-2 transition-all"
+        <div className="flex items-center space-x-3">
+          {isEditing ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  setCsvFile(null);
+                  setEffectiveDate("");
+                  const fileInput = document.getElementById("csv-file-input");
+                  if (fileInput) fileInput.value = "";
+                }}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-sm font-medium shadow-sm transition"
               >
-                {uploading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Processing & Mapping...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4" /> Upload & Parse CSV
-                  </>
-                )}
-              </Button>
-            </form>
+                <X className="w-4 h-4" /> <span>Cancel</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  showStatus("Configuration mode saved.", "success");
+                }}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium shadow-sm transition"
+              >
+                <Save className="w-4 h-4" /> <span>Save Changes</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition"
+            >
+              <Edit3 className="w-4 h-4" /> <span>Edit Configuration</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full">
+        {/* Left Column: Selector, Upload & History */}
+        <div className="xl:col-span-1 space-y-6">
+          {/* Selector Card */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-100">
+              <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
+                <Layers className="h-5 w-5 text-indigo-600" /> Agency Selector
+              </CardTitle>
+              <CardDescription>Select the statutory agency table to manage.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="flex flex-col gap-2">
+                {Object.keys(agencyLabels).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveSubTab(tab)}
+                    className={`w-full flex items-center justify-between p-3 rounded-lg text-left text-sm font-semibold transition-all border ${
+                      activeSubTab === tab
+                        ? "bg-indigo-50 border-indigo-200 text-indigo-900 shadow-sm"
+                        : "bg-white hover:bg-slate-50 border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    <span>{agencyLabels[tab]}</span>
+                    {activeSubTab === tab && <div className="w-2 h-2 rounded-full bg-indigo-600" />}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tax Period Sub-toggle for BIR */}
+              {activeSubTab === "tax" && (
+                <div className="mt-4 pt-3 border-t border-slate-100">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Tax Period Frequency</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTaxPeriodType("semi-monthly")}
+                      className={`py-2 text-xs font-bold rounded-lg border transition ${
+                        taxPeriodType === "semi-monthly"
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                          : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      Semi-Monthly
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTaxPeriodType("monthly")}
+                      className={`py-2 text-xs font-bold rounded-lg border transition ${
+                        taxPeriodType === "monthly"
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                          : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Upload Card */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-100">
+              <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
+                <Upload className="h-5 w-5 text-indigo-600" /> Upload CSV Table
+              </CardTitle>
+              <CardDescription>Upload a fresh CSV spreadsheet of official brackets.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {!isEditing && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2 mb-4">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>Table modification is currently locked. Click <strong>Edit Configuration</strong> above to upload or switch active schedules.</span>
+                </div>
+              )}
+
+              {statusMessage && (
+                <div className={`p-3 rounded-lg mb-4 text-xs font-semibold flex items-center gap-2 border ${
+                  statusMessage.type === "success" 
+                    ? "bg-green-50 text-green-800 border-green-200" 
+                    : "bg-red-50 text-red-800 border-red-200"
+                }`}>
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{statusMessage.message}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleUploadClick} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Effective Date</label>
+                  <div className="relative">
+                    <Input
+                      type="date"
+                      required
+                      disabled={!isEditing}
+                      value={effectiveDate}
+                      onChange={(e) => setEffectiveDate(e.target.value)}
+                      className="pl-9 text-slate-700 font-medium border-slate-200 focus:border-indigo-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    />
+                    <Calendar className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">The date from which calculations will apply these rates.</span>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">CSV File</label>
+                  <div className="relative">
+                    <Input
+                      id="csv-file-input"
+                      type="file"
+                      accept=".csv"
+                      required
+                      disabled={!isEditing}
+                      onChange={handleFileChange}
+                      className="pl-9 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 border-slate-200 focus:border-indigo-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    />
+                    <FileSpreadsheet className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={!isEditing || uploading}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-11 shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Processing & Mapping...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" /> Upload & Parse CSV
+                    </>
+                  )}
+                </Button>
+              </form>
 
             {/* CSV Template Instructions */}
             <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-100 text-[11px] text-slate-500 space-y-2">
@@ -589,8 +652,9 @@ const ReferenceDataManagement = () => {
                     </Badge>
                     <Button
                       size="sm"
+                      disabled={!isEditing}
                       onClick={() => openToggleModal(selectedLog, false)}
-                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-md shadow-xs"
+                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-md shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Activate This Version
                     </Button>
@@ -820,8 +884,8 @@ const ReferenceDataManagement = () => {
                           <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                             <Button
                               onClick={() => openToggleModal(log, isVersionActive)}
-                              disabled={toggling === log.auditId}
-                              className={`h-7 px-3 text-[10px] font-bold shadow-sm rounded-md transition-all ${
+                              disabled={!isEditing || toggling === log.auditId}
+                              className={`h-7 px-3 text-[10px] font-bold shadow-sm rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                                 isVersionActive
                                   ? "bg-amber-500 hover:bg-amber-600 text-white"
                                   : "bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -845,6 +909,8 @@ const ReferenceDataManagement = () => {
             )}
           </CardContent>
         </Card>
+      </div>
+
       </div>
 
       {/* STEP 1: UPLOAD CONFIRMATION MODAL */}

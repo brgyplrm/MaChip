@@ -49,6 +49,10 @@ const FAQ = () => {
         {
           q: "How do I navigate the system sidebar?",
           a: "The sidebar organizes features into distinct functional groups:\n\n• **Main**: *Dashboard*, *Calendar*, *Users* (View All, Add New, Archived), *Access Logs* (Employee, Visitor), *Requests* (Queue/Oversight), and *Payroll* (Management, Employee List, Government Loans, Employee Loan, HMO Management, Labor Benefits, Leave Summary).\n• **System**: *Settings* (Audit Logs, Transaction Logs, configurations) and *Help & Support* (FAQ)."
+        },
+        {
+          q: "Can employees access MAChip from their mobile phones or outside the office?",
+          a: "Yes. While physical biometric and RFID time-clock stations operate locally inside the facility for security, the **Employee Request Module** is exposed via secure port forwarding. Employees can log in using any modern smartphone or browser to *file leave requests*, *submit overtime slips*, *check attendance records*, and *view payslips* on the go."
         }
       ]
     },
@@ -66,6 +70,14 @@ const FAQ = () => {
         {
           q: "Can I permanently delete a user from the database?",
           a: "To preserve data integrity, MAChip uses **Paranoid Mode (Soft Delete)** for users. A user can *only* be permanently deleted if there are *zero linked records* in dependent tables: **Payroll**, **User Logs**, **Employee Requests**, and **Employee Logging Reports**. Otherwise, soft deletion (archiving) is applied."
+        },
+        {
+          q: "What should an employee do if their RFID card is lost or damaged?",
+          a: "If an RFID card is misplaced or damaged:\n\n1. Immediately report the loss to your **Administrator** or HR officer.\n2. In compliance with **CTPAT supply chain facility security**, the Admin will unbind the compromised RFID UID in **User Management** to deactivate it immediately.\n3. The Admin will tap a new card on the reader to bind the replacement RFID chip to your existing employee profile without affecting your past attendance logs."
+        },
+        {
+          q: "How are biometric fingerprints enrolled and stored securely?",
+          a: "Fingerprints are registered using the **Optical Fingerprint Sensor** at the physical hardware station. The scanner converts optical features into a mathematical template hash mapped to the employee's **User ID**. MAChip does not store raw fingerprint images, ensuring employee biometric privacy and compliance with data privacy standards."
         }
       ]
     },
@@ -79,6 +91,18 @@ const FAQ = () => {
         {
           q: "What should I do if I forgot to clock in or out?",
           a: "If you miss a log event, file a **'Log Correction'** request via the **Requests** page. Specify the date, corrected time, and explanation. Once approved by a **Supervisor** and **Admin**, the database logs will reflect the corrected hours."
+        },
+        {
+          q: "How are late arrivals (tardiness) and grace periods calculated?",
+          a: "The official work shift begins at the configured **Work Start Time** (e.g., 8:00 AM). The system provides an official **Grace Period** (e.g., until 8:15 AM):\n\n• Clocking in between Work Start and Grace Period end is considered **On-Time**.\n• Punching in after the Grace Period cutoff flags the attendance record as **Tardy**, and the total late minutes are calculated and deducted from the basic pay during payroll processing based on your hourly/minute rate."
+        },
+        {
+          q: "How does the flexible lunch break policy work?",
+          a: "MAChip features a configurable **Flexible Lunch Window** (e.g., 12:00 PM – 1:00 PM) with a standard **60-minute duration**. For full-day attendance calculations, the 1-hour lunch break is automatically factored in without reducing paid hours. If employees punch out and in for lunch, the system monitors break duration to prevent undertime violations."
+        },
+        {
+          q: "Why does the terminal reject my RFID card or fingerprint right after I tap?",
+          a: "To eliminate accidental double-taps, the hardware terminal enforces a **Hardware Buffer Window** (configurable between 1 to 10 minutes). Once a successful time punch is registered, subsequent scans from the same credential are automatically ignored until the buffer cooldown period finishes."
         },
         {
           q: "How do administrators view visitor logs?",
@@ -96,6 +120,14 @@ const FAQ = () => {
         {
           q: "What is the approval workflow for employee requests?",
           a: "Filed requests enter a **'Pending'** queue. A **Supervisor** reviews the request and marks it as **'Recommended'**. Finally, an **Administrator** approves or rejects the request. Both supervisors and admins can manage this queue under the **Requests** menu."
+        },
+        {
+          q: "How does Overtime (OT) pay calculation integrate with attendance logs?",
+          a: "To receive overtime compensation, employees must file an **Overtime Request** specifying the date, expected hours, and job justification. Once approved by the Supervisor and Admin, the system verifies the request against actual physical clock-out timestamps to ensure hours were rendered, then computes overtime pay using statutory multipliers (e.g., 125% for regular days, 130% on rest days/holidays)."
+        },
+        {
+          q: "Can I cancel or edit a request once it has been submitted?",
+          a: "While a request is still in **'Pending'** status, an employee can cancel it directly from their **Request History** in Employee View. However, once a request has been marked as **'Recommended'** by a Supervisor or **'Approved'** by an Admin, it is locked; you must contact your Administrator or Supervisor to reopen or void it."
         }
       ]
     },
@@ -107,8 +139,16 @@ const FAQ = () => {
           a: "Payroll is processed twice a month:\n- Processed on the **10th** for the cutoff ending on the **15th**.\n- Processed on the **25th** for the cutoff ending on the **30th/31st**."
         },
         {
+          q: "How is the 13th-Month Pay calculated and when is it issued?",
+          a: "In compliance with **Presidential Decree No. 851**, 13th-month pay is calculated using the statutory formula:\n\n**Total Basic Salary Earned within Calendar Year ÷ 12**\n\n• It includes all basic salary earned for actual services rendered (prorated for employees hired mid-year).\n• It excludes non-basic compensation like overtime, night shift premiums, unworked holiday pay, and discretionary bonuses.\n• A detailed monthly earnings breakdown is available in **Payroll > Labor Benefits**."
+        },
+        {
+          q: "How are statutory contributions (SSS, PhilHealth, Pag-IBIG) and BIR taxes deducted?",
+          a: "MAChip automatically applies statutory rates using the active brackets configured in **Settings > Ref Table**:\n\n• **SSS**: Deducts Regular Social Security, Mandatory Provident Fund (MPF/WISP), and Employer EC based on Monthly Salary Credit brackets.\n• **PhilHealth**: Calculates statutory percentage premiums (split equally between employer and employee) within legal floor and ceiling limits.\n• **Pag-IBIG**: Applies 1-2% employee contribution and 2% employer share up to statutory ceilings.\n• **BIR Withholding Tax**: Automatically calculates progressive withholding tax based on semi-monthly or monthly taxable earnings."
+        },
+        {
           q: "How are government and employee loans managed?",
-          a: "Accountants track SSS/Pag-IBIG/PhilHealth loans in **Payroll > Government Loans** and corporate cash advances in **Payroll > Employee Loan**. The system automatically computes and applies the scheduled amortization deduction during payroll calculation."
+          a: "Accountants track SSS/Pag-IBIG/PhilHealth loans in **Payroll > Government Loans** and corporate cash advances in **Payroll > Employee Loan**. The system automatically computes and applies the scheduled amortization deduction during payroll calculation until the balance reaches zero."
         },
         {
           q: "Where do I configure Maxicare HMO plans?",
@@ -121,12 +161,24 @@ const FAQ = () => {
         {
           q: "How do I download payslips for employees in batches?",
           a: "Administrators and Accountants can go to **Admin Reports > Payroll Report**, filter by period, and click **'Batch ZIP Payslips'**. For security, the ZIP is encrypted using a password pattern based on the payroll period."
+        },
+        {
+          q: "What is the password format for opening encrypted batch payslip files?",
+          a: "For data security and confidentiality under privacy regulations, batch payslip archives are encrypted. The default archive password format follows company convention (such as the **Payroll Period Code** e.g., *MACJ-2026-03A* or employee birthday/ID format). Inquire with your HR or Finance department for your designated key format."
         }
       ]
     },
     {
       category: "System Settings & Auditing",
       questions: [
+        {
+          q: "Why are configuration fields locked in the Settings tabs?",
+          a: "To prevent accidental modifications to critical operational rules, settings tabs (**System Variables**, **Attendance**, **Notifications**, **Salary Grades**, and **Reference Tables**) are locked in read-only mode by default. Authorized administrators must click the orange **'Edit Configuration'** button to make edits, then click **'Save Changes'** to persist or **'Cancel'** to revert."
+        },
+        {
+          q: "How do administrators upload or update statutory reference tables (SSS, PhilHealth, Pag-IBIG, BIR)?",
+          a: "Go to **Settings > Ref Table**:\n1. Click **'Edit Configuration'** to enable controls.\n2. Select the agency tab (**SSS**, **PhilHealth**, **Pag-IBIG**, or **BIR Tax**).\n3. Click **'Download Active CSV'** to get an Excel template pre-filled with existing brackets.\n4. Input the new rates and brackets, select the **Effective Date**, and attach your CSV.\n5. Click **'Upload & Parse CSV'** and confirm your **Admin Password** in the 2-step security modal. Calculations after the effective date will automatically adopt the new brackets."
+        },
         {
           q: "Where do I configure holidays in the system?",
           a: "The system fetches official Philippine holidays using the **Nager.Date REST API**, supplemented with a static list of annually proclaimed holidays. These can be adjusted in the **Configuration** settings page."

@@ -7,8 +7,9 @@
     "start": "nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:reset": "node db_reset.js",
-    "db:manager": "node db-manager.js",
-    "seed:users": "node seeds/seed_users.js",
+    "db:manager": "node seeds/seed_updated_AGAIN/manage_seeds.js",
+    "seed:users": "node seeds/seed_updated_AGAIN/seed_users.js",
+    "seed:all": "node seeds/seed_updated_AGAIN/manage_seeds.js --all",
     "migrate": "sequelize db:migrate",
     "migrate:undo": "sequelize db:migrate:undo"
   },

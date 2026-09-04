@@ -1,11 +1,35 @@
 import React, { useState } from 'react';
-import { Bell, Mail, ShieldAlert, Clock, Info, Save } from 'lucide-react';
+import { Bell, Mail, ShieldAlert, Clock, Info, Save, Edit3, X, CheckCircle } from 'lucide-react';
 
 export default function NotificationConfiguration() {
   // Stateful hooks to manage configuration states
+  const [isEditing, setIsEditing] = useState(false);
   const [emailPayslip, setEmailPayslip] = useState(true);
   const [suspiciousScans, setSuspiciousScans] = useState(true);
   const [absentTriggerTime, setAbsentTriggerTime] = useState("17:30");
+  const [snapshot, setSnapshot] = useState(null);
+  const [savedToast, setSavedToast] = useState(false);
+
+  const handleStartEdit = () => {
+    setSnapshot({ emailPayslip, suspiciousScans, absentTriggerTime });
+    setIsEditing(true);
+    setSavedToast(false);
+  };
+
+  const handleCancel = () => {
+    if (snapshot) {
+      setEmailPayslip(snapshot.emailPayslip);
+      setSuspiciousScans(snapshot.suspiciousScans);
+      setAbsentTriggerTime(snapshot.absentTriggerTime);
+    }
+    setIsEditing(false);
+  };
+
+  const handleSave = () => {
+    setIsEditing(false);
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 3000);
+  };
 
   return (
     <div className="min-h-screen text-slate-800 font-sans max-w-6xl mx-auto space-y-6">
@@ -23,11 +47,41 @@ export default function NotificationConfiguration() {
         </div>
         
         <div className="flex items-center space-x-3">
-          <button className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition">
-            <Save className="w-4 h-4" /> <span>Save Notification Rules</span>
-          </button>
+          {isEditing ? (
+            <>
+              <button 
+                type="button"
+                onClick={handleCancel}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-sm font-medium shadow-sm transition"
+              >
+                <X className="w-4 h-4" /> <span>Cancel</span>
+              </button>
+              <button 
+                type="button"
+                onClick={handleSave}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium shadow-sm transition"
+              >
+                <Save className="w-4 h-4" /> <span>Save Changes</span>
+              </button>
+            </>
+          ) : (
+            <button 
+              type="button"
+              onClick={handleStartEdit}
+              className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition"
+            >
+              <Edit3 className="w-4 h-4" /> <span>Edit Configuration</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {savedToast && (
+        <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg flex items-center space-x-2 text-emerald-800 text-xs font-semibold animate-in fade-in">
+          <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <span>Notification configuration saved successfully!</span>
+        </div>
+      )}
 
       {/* --- CORE SETTINGS CARD --- */}
       <div className="bg-white border border-slate-100 rounded-xl p-6 shadow-sm space-y-6">
@@ -45,6 +99,7 @@ export default function NotificationConfiguration() {
               description="Automatically trigger and distribute secure digital payslips via email to registered employee addresses upon closing out payroll cycles."
               icon={<Mail className="w-4 h-4 text-slate-500" />}
               checked={emailPayslip}
+              disabled={!isEditing}
               onChange={() => setEmailPayslip(!emailPayslip)}
             />
             
@@ -55,6 +110,7 @@ export default function NotificationConfiguration() {
               description="Instantly flag and dispatch high-priority notifications to system administrators when biometrics register duplicate location logs or impossible time gaps."
               icon={<ShieldAlert className="w-4 h-4 text-amber-500" />}
               checked={suspiciousScans}
+              disabled={!isEditing}
               onChange={() => setSuspiciousScans(!suspiciousScans)}
             />
           </div>
@@ -75,8 +131,9 @@ export default function NotificationConfiguration() {
               <input
                 type="time"
                 value={absentTriggerTime}
+                disabled={!isEditing}
                 onChange={(e) => setAbsentTriggerTime(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs cursor-pointer"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs cursor-pointer disabled:bg-slate-50 disabled:cursor-not-allowed"
               />
               <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
                 The targeted system clock timestamp where empty active shift records dynamically roll into an explicit "Absenteeism" state.
@@ -103,7 +160,7 @@ export default function NotificationConfiguration() {
 }
 
 {/* --- REUSABLE ATOMIC FORM SWITCH WITH INTEGRATED ICON --- */}
-function FormSwitch({ label, description, icon, checked, onChange }) {
+function FormSwitch({ label, description, icon, checked, disabled = false, onChange }) {
   return (
     <div className="flex items-start justify-between py-3 px-2 rounded-lg hover:bg-slate-50/50 transition">
       <div className="flex items-start space-x-3 text-left max-w-[85%]">
@@ -116,8 +173,12 @@ function FormSwitch({ label, description, icon, checked, onChange }) {
         </div>
       </div>
       <button
-        onClick={onChange}
-        className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none mt-2 ${
+        type="button"
+        onClick={disabled ? undefined : onChange}
+        disabled={disabled}
+        className={`relative inline-flex h-5 w-10 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none mt-2 ${
+          disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+        } ${
           checked ? 'bg-emerald-500' : 'bg-slate-200'
         }`}
       >

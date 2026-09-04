@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
+import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import SaveIcon from "@mui/icons-material/Save";
-import MemoryIcon from "@mui/icons-material/Memory";
 import CurrencyExchangeIcon from "@mui/icons-material/CurrencyExchange";
 import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import CheckIcon from "@mui/icons-material/Check";
@@ -19,7 +19,7 @@ import AttendanceConfiguration from "@/components/AttendanceConfiguration";
 import NotificationConfiguration from "@/components/NotificationConfiguration";
 import PositionManagement from "@/components/PositionManagement";
 import ReferenceDataManagement from "@/components/ReferenceDataManagement";
-import { Clock, Coffee, ShieldAlert, CheckCircle, Info, Edit3, Save, Layers } from 'lucide-react';
+import { Clock, Coffee, ShieldAlert, CheckCircle, Info, Edit3, Save, Layers, X } from 'lucide-react';
 
 
 // shadcn/ui components
@@ -40,6 +40,7 @@ const Settings = () => {
   const { refreshSystemTime } = useSystemTime();
   const [realTime, setRealTime] = useState(new Date());
   const [activeSettingsTab, setActiveSettingsTab] = useState("simulation");
+  const [isEditingSystem, setIsEditingSystem] = useState(false);
 
   // --- Retained States: Existing Configurations ---
   const [useMockTime, setUseMockTime] = useState(false);
@@ -109,7 +110,7 @@ const Settings = () => {
         // Load Attendance Settings
         if (data.morningShiftStart) setMorningShiftStart(data.morningShiftStart.substring(0, 5));
         if (data.morningShiftEnd) setMorningShiftEnd(data.morningShiftEnd.substring(0, 5));
-        if (data.gracePeriod) setGracePeriod(data.gracePeriod.substring(0, 5));
+        if (data.gracePeriod) setGracePeriod(data.gracePeriod.substring(0, 5)); 
         if (data.lunchStartThreshold) setLunchStartThreshold(data.lunchStartThreshold.substring(0, 5));
         if (data.lunchEndThreshold) setLunchEndThreshold(data.lunchEndThreshold.substring(0, 5));
         setLunchDuration(data.lunchDuration ?? 60);
@@ -281,7 +282,7 @@ const Settings = () => {
                     </SelectItem>
                     <SelectItem value="notification" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
                       <div className="flex items-center font-semibold text-slate-700">
-                        <AccessTimeIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> Notification
+                        <NotificationsNoneIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> Notification
                       </div>
                     </SelectItem>
                     <SelectItem value="positions" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
@@ -297,29 +298,7 @@ const Settings = () => {
                   </SelectContent>
                 </Select>
               </div>
-
-              {isAdmin && (
-                <Button 
-                  onClick={handleSaveSettings} 
-                  disabled={saving}
-                  className="bg-[#2A174E] hover:bg-[#3d2270] text-white font-bold px-6 h-[45px] shadow-md transition-all flex items-center gap-2"
-                >
-                  {saving ? (
-                    <span className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Saving...
-                    </span>
-                  ) : (
-                    <>
-                      <SaveIcon className="h-4 w-4" /> Save Global Changes
-                    </>
-                  )}
-                </Button>
-              )}
             </div>
-
-            
-            
 
             {loading ? (
               <div className="p-12 text-center text-slate-400 italic">Syncing global parameters...</div>
@@ -340,13 +319,40 @@ const Settings = () => {
                     </div>
                     
                     <div className="flex items-center space-x-3">
-                      <button 
-                        className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
-                        onClick={() => handleSaveSettings()}
-                        disabled={!isAdmin || saving}
-                      >
-                        <Save className="w-4 h-4" /> <span>{saving ? "Saving..." : "Save Configuration"}</span>
-                      </button>
+                      {isEditingSystem ? (
+                        <>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              fetchSettings();
+                              setIsEditingSystem(false);
+                            }}
+                            className="flex items-center space-x-1.5 px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-sm font-medium shadow-sm transition"
+                          >
+                            <X className="w-4 h-4" /> <span>Cancel</span>
+                          </button>
+                          <button 
+                            type="button"
+                            className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
+                            onClick={async () => {
+                              await handleSaveSettings();
+                              setIsEditingSystem(false);
+                            }}
+                            disabled={!isAdmin || saving}
+                          >
+                            <Save className="w-4 h-4" /> <span>{saving ? "Saving..." : "Save Changes"}</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button 
+                          type="button"
+                          className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
+                          onClick={() => setIsEditingSystem(true)}
+                          disabled={!isAdmin}
+                        >
+                          <Edit3 className="w-4 h-4" /> <span>Edit Configuration</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full">
@@ -365,7 +371,7 @@ const Settings = () => {
                           <Switch 
                             checked={useMockTime} 
                             onCheckedChange={setUseMockTime}
-                            disabled={!isAdmin}
+                            disabled={!isAdmin || !isEditingSystem}
                           />
                         </div>
 
@@ -379,7 +385,7 @@ const Settings = () => {
                                 type="date"
                                 value={mockDate}
                                 onChange={(e) => setMockDate(e.target.value)}
-                                disabled={!isAdmin}
+                                disabled={!isAdmin || !isEditingSystem}
                                 className="bg-white border-slate-200"
                               />
                             </div>
@@ -391,7 +397,7 @@ const Settings = () => {
                                 type="time"
                                 value={mockTime}
                                 onChange={(e) => setMockTime(e.target.value)}
-                                disabled={!isAdmin}
+                                disabled={!isAdmin || !isEditingSystem}
                                 className="bg-white border-slate-200"
                               />
                             </div>
@@ -433,16 +439,13 @@ const Settings = () => {
                             onChange={(e) => {
                               const raw = e.target.value.replace(/,/g, '');
                               if (raw === '' || raw === '.' || !isNaN(raw)) {
-                                // Keep the raw string state for intermediate typing (like "1.")
-                                // But handle the numeric update
                                 setHardwareBufferWindow(raw);
                               }
                             }}
                             onBlur={() => {
-                              // Ensure it's a valid number on blur
                               setHardwareBufferWindow(parseFloat(hardwareBufferWindow) || 0);
                             }}
-                            disabled={!isAdmin}
+                            disabled={!isAdmin || !isEditingSystem}
                             className="bg-white border-slate-200 w-full font-mono"
                           />
                         </div>
@@ -456,10 +459,10 @@ const Settings = () => {
                             placeholder="/var/data/machip/backups"
                             value={storageRootPath}
                             onChange={(e) => setStorageRootPath(e.target.value)}
-                            disabled={!isAdmin}
+                            disabled={!isAdmin || !isEditingSystem}
                             className="bg-white border-slate-200 flex-1 font-mono text-xs"
                           />
-                          {isAdmin && (
+                          {isAdmin && isEditingSystem && (
                             <Button variant="outline" onClick={() => setShowPicker(true)} className="border-slate-200 hover:bg-slate-50">
                               Browse...
                             </Button>

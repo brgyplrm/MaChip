@@ -1,7 +1,7 @@
 const { sequelize, User, Notification, System_State, User_Hardware } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
-const { logTransaction } = require("../utils/logger");
+const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
 const { resolveLeaveConflict } = require("../utils/attendanceHelper.js");
 const { decrypt } = require("../utils/encryption.js");
@@ -1142,13 +1142,15 @@ exports.getFingerprintTemplate = async (req, res) => {
 
 exports.triggerVisitorAccess = async (req, res) => {
   const adminId = req.user?.user_Id || 1; 
+  const { reason } = req.body || {};
   
-  console.log(`[VISITOR] Triggered by Admin: ${adminId}`);
+  console.log(`[VISITOR] Triggered by Admin: ${adminId}, Reason: ${reason || "N/A"}`);
   
   visitorAccessSession = {
     isPending: true,
     expiresAt: Date.now() + 30000, 
-    adminId: adminId
+    adminId: adminId,
+    reason: reason || null
   };
 
   try {
@@ -1157,18 +1159,40 @@ exports.triggerVisitorAccess = async (req, res) => {
     todayStart.setHours(0, 0, 0, 0);
     const timeStr = now.toTimeString().split(" ")[0];
 
-    await sequelize.query(
-      `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId")
-       VALUES (999, :log_Date, :time_Logged, 8)`,
+    const [insertResult] = await sequelize.query(
+      `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "reason", "admin_id")
+       VALUES (999, :log_Date, :time_Logged, 8, :reason, :adminId)
+       RETURNING "user_loggingId"`,
       {
-        replacements: { log_Date: todayStart, time_Logged: timeStr },
+        replacements: { log_Date: todayStart, time_Logged: timeStr, reason: reason || null, adminId },
         type: QueryTypes.INSERT
       }
     );
+    const loggingId = insertResult?.[0]?.user_loggingId;
+
+    try {
+      await logAudit(
+        req,
+        adminId,
+        "Visitor Access",
+        "VISITOR_DOOR_RELEASE",
+        "user_logging",
+        loggingId,
+        null,
+        { reason: reason || "Manual visitor entry authorized", time: timeStr, adminId }
+      );
+    } catch (auditErr) {
+      console.error("[VISITOR AUDIT ERROR]:", auditErr);
+    }
 
     const io = getIO();
-    io.emit("OPEN_DOOR", { type: "VISITOR", adminId });
-    io.emit("NEW_ATTENDANCE_LOG", { userId: 999, status: "Visitor Access: Opening" });
+    io.emit("OPEN_DOOR", { type: "VISITOR", adminId, reason: reason || null });
+    io.emit("NEW_ATTENDANCE_LOG", { 
+      userId: 999, 
+      status: "Visitor Access: Opening", 
+      reason: reason || null,
+      adminId: adminId 
+    });
 
     res.status(200).json({ success: true, message: "Visitor access triggered" });
   } catch (error) {

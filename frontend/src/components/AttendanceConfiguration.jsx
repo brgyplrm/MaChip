@@ -1,5 +1,5 @@
-import React from 'react';
-import { Clock, Coffee, ShieldAlert, Save, Info } from 'lucide-react';
+import React, { useState } from 'react';
+import { Clock, Coffee, ShieldAlert, Save, Info, Edit3, X } from 'lucide-react';
 
 export default function AttendanceConfiguration({
   workStart, setWorkStart,
@@ -14,6 +14,42 @@ export default function AttendanceConfiguration({
   saving,
   isAdmin
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [snapshot, setSnapshot] = useState(null);
+
+  const handleStartEdit = () => {
+    setSnapshot({
+      workStart,
+      workEnd,
+      gracePeriod,
+      lunchStart,
+      lunchEnd,
+      lunchDuration,
+      flexibleThreshold,
+      workHourThreshold
+    });
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    if (snapshot) {
+      setWorkStart(snapshot.workStart);
+      setWorkEnd(snapshot.workEnd);
+      setGracePeriod(snapshot.gracePeriod);
+      setLunchStart(snapshot.lunchStart);
+      setLunchEnd(snapshot.lunchEnd);
+      setLunchDuration(snapshot.lunchDuration);
+      setFlexibleThreshold(snapshot.flexibleThreshold);
+      setWorkHourThreshold(snapshot.workHourThreshold);
+    }
+    setIsEditing(false);
+  };
+
+  const handleSave = async () => {
+    await onSave();
+    setIsEditing(false);
+  };
+
   return (
     <div className="min-h-screen text-slate-800 font-sans max-w-6xl mx-auto space-y-6">
       
@@ -31,13 +67,33 @@ export default function AttendanceConfiguration({
         
         {isAdmin && (
           <div className="flex items-center space-x-3">
-            <button 
-              onClick={() => onSave()}
-              disabled={saving}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" /> <span>{saving ? "Saving..." : "Save Ruleset"}</span>
-            </button>
+            {isEditing ? (
+              <>
+                <button 
+                  type="button"
+                  onClick={handleCancel}
+                  className="flex items-center space-x-1.5 px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-sm font-medium shadow-sm transition"
+                >
+                  <X className="w-4 h-4" /> <span>Cancel</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" /> <span>{saving ? "Saving..." : "Save Changes"}</span>
+                </button>
+              </>
+            ) : (
+              <button 
+                type="button"
+                onClick={handleStartEdit}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-[#FF6B00] hover:bg-[#e66000] text-white rounded-lg text-sm font-medium shadow-sm transition"
+              >
+                <Edit3 className="w-4 h-4" /> <span>Edit Configuration</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -58,14 +114,14 @@ export default function AttendanceConfiguration({
               value={workStart}
               onChange={(e) => setWorkStart(e.target.value)}
               subtext="Official expected time-in punch threshold"
-              disabled={!isAdmin}
+              disabled={!isAdmin || !isEditing}
             />
             <FormTimePicker 
               label="Work End Time"
               value={workEnd}
               onChange={(e) => setWorkEnd(e.target.value)}
               subtext="Official expected clock-out time marker"
-              disabled={!isAdmin}
+              disabled={!isAdmin || !isEditing}
             />
           </div>
         </div>
@@ -83,7 +139,7 @@ export default function AttendanceConfiguration({
               value={gracePeriod}
               onChange={(e) => setGracePeriod(e.target.value)}
               subtext="The last minute allowed before an employee's time card is flagged as tardy"
-              disabled={!isAdmin}
+              disabled={!isAdmin || !isEditing}
             />
             
             <div className="space-y-1.5 text-left">
@@ -116,14 +172,14 @@ export default function AttendanceConfiguration({
               value={lunchStart}
               onChange={(e) => setLunchStart(e.target.value)}
               subtext="Punches after this are tagged as Lunch Out"
-              disabled={!isAdmin}
+              disabled={!isAdmin || !isEditing}
             />
             <FormTimePicker 
               label="Lunch Window End (Latest)"
               value={lunchEnd}
               onChange={(e) => setLunchEnd(e.target.value)}
               subtext="Punches before this are tagged as Lunch In"
-              disabled={!isAdmin}
+              disabled={!isAdmin || !isEditing}
             />
             <div className="space-y-1.5 text-left w-full">
               <label className="block text-xs font-medium text-slate-500 tracking-wide">
@@ -138,8 +194,8 @@ export default function AttendanceConfiguration({
                   if (raw === '' || raw === '.' || !isNaN(raw)) setLunchDuration(raw);
                 }}
                 onBlur={() => setLunchDuration(parseFloat(lunchDuration) || 0)}
-                disabled={!isAdmin}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs"
+                disabled={!isAdmin || !isEditing}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs disabled:bg-slate-50 disabled:cursor-not-allowed"
               />
               <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
                 Fixed time deducted from total hours
@@ -158,8 +214,8 @@ export default function AttendanceConfiguration({
                   if (raw === '' || raw === '.' || !isNaN(raw)) setFlexibleThreshold(raw);
                 }}
                 onBlur={() => setFlexibleThreshold(parseFloat(flexibleThreshold) || 0)}
-                disabled={!isAdmin}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs"
+                disabled={!isAdmin || !isEditing}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs disabled:bg-slate-50 disabled:cursor-not-allowed"
               />
               <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
                 Break is only deducted if total shift exceeds this (e.g. 300 for 5 hrs)
@@ -178,8 +234,8 @@ export default function AttendanceConfiguration({
                   if (raw === '' || raw === '.' || !isNaN(raw)) setWorkHourThreshold(raw);
                 }}
                 onBlur={() => setWorkHourThreshold(parseFloat(workHourThreshold) || 0)}
-                disabled={!isAdmin}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs"
+                disabled={!isAdmin || !isEditing}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-mono transition focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 shadow-xs disabled:bg-slate-50 disabled:cursor-not-allowed"
               />
               <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
                 Min. worked hours to avoid being marked as Absent by system

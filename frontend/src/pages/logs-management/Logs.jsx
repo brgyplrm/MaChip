@@ -438,14 +438,11 @@ const toggleMachipVisibility = (rowId) => {
                 <AssessmentIcon className="mr-2 h-4 w-4" /> View Detailed Reports
               </Link>
             </Button>
-          
-          </div>
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-              {/* View Mode Toggle (Tabs integrated into Header) */}
+            {/* View Mode Toggle (Tabs integrated into Header) */}
               <Tabs value={viewMode} onValueChange={(val) => {
                 setViewMode(val);
                 setSearchParams({ view: val });
-              }}  className="w-full sm:w-[320px] xl:w-[320px]">
+              }}  className="w-full sm:w-[250px] xl:w-[250px]">
                 <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 rounded-lg">
                   <TabsTrigger value="raw" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
                     Raw Logs
@@ -455,6 +452,9 @@ const toggleMachipVisibility = (rowId) => {
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+              
             </div>
           <div className="h-6"></div>
  

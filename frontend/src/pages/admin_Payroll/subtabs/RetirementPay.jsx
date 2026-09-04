@@ -327,28 +327,91 @@ const RetirementPay = () => {
                         </Card>
                       </div>
 
-                      <Card className="shadow-sm border-0 bg-white overflow-hidden text-left">
-                        <CardHeader className="bg-slate-900 text-white py-4">
-                          <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                      <Card className="shadow-sm border-t-6 border-[#2A174E] bg-white">
+                        <CardHeader>
+                          <CardTitle className="text-lg font-bold text-[#2A174E]">Computation Breakdown (1/2 Month Salary)</CardTitle>
+                          <CardDescription>Legal components per RA 7641 comprising the 22.5-day multiplier.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">15 Days Salary</p>
+                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.components.salary15Days)}</p>
+                            </div>
+                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">5 Days SIL</p>
+                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.components.sil5Days)}</p>
+                            </div>
+                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">2.5 Days (1/12 of 13th)</p>
+                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.components.thirteenthMonth2_5Days)}</p>
+                            </div>
+                          </div>
+
+                          <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 text-[11px] text-amber-800 italic">
+                            * One-half (1/2) month salary is equivalent to 22.5 days. The COLA is excluded from this computation per legal mandates.
+                          </div>
+
+                          {/* Comprehensive Retirement Pay Formula Breakdown Box */}
+                          <div className="p-4 bg-purple-50/60 border border-purple-100 rounded-xl space-y-3 text-left">
+                            <div className="flex items-center space-x-2 text-[#2A174E] font-bold text-xs uppercase tracking-wide">
+                              <InfoOutlinedIcon className="w-4 h-4 text-purple-600" />
+                              <span>Comprehensive Retirement Benefit Formula Breakdown (RA 7641)</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                              <div className="bg-white p-3 rounded-lg border border-purple-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Step 1: Daily Wage Base</p>
+                                <p className="font-bold text-slate-800">{formatCurrency(preview.dailyRate)}</p>
+                                <p className="text-[10px] text-slate-500">Live Daily Rate</p>
+                              </div>
+                              <div className="bg-white p-3 rounded-lg border border-purple-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Step 2: Legal Multiplier</p>
+                                <p className="font-bold text-purple-700">22.5 Days / Year</p>
+                                <p className="text-[10px] text-slate-500">(15d Basic + 5d SIL + 2.5d 1/12th 13th)</p>
+                              </div>
+                              <div className="bg-white p-3 rounded-lg border border-purple-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Step 3: Service Tenure</p>
+                                <p className="font-bold text-blue-600">{preview.yearsOfService} Years</p>
+                                <p className="text-[10px] text-slate-500">({preview.diffMonths} months, 6+ mos = 1 yr)</p>
+                              </div>
+                            </div>
+                            <div className="p-3 bg-white border border-purple-200 rounded-lg text-xs font-mono flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                              <span className="text-slate-600">
+                                Formula: {formatCurrency(preview.dailyRate)} × 22.5 Days × {preview.yearsOfService} Yrs
+                              </span>
+                              <span className="font-bold text-[#2A174E] text-sm">
+                                = {formatCurrency(preview.totalAmount)}
+                              </span>
+                            </div>
+                          </div>
+
+                          
+                        </CardContent>
+                      </Card>
+
+                      <Card className="shadow-sm border-t-6 border-[#2A174E] bg-white overflow-hidden text-left py-0">
+                        <CardHeader className=" text-[#2A174E] pt-6">
+                          <CardTitle className="text-base font-bold text-[#2A174E] flex items-center gap-2">
                             <span>Final Settlement Breakdown & Mathematical Basis</span>
                           </CardTitle>
-                          <CardDescription className="text-slate-300 text-xs mt-0.5">
+                          <CardDescription className="text-[#2A174E] text-xs mt-0.5">
                             Itemized mathematical origin for pro-rated 13th month, leave encashment, and final worked days.
                           </CardDescription>
                         </CardHeader>
-                        <CardContent className="p-6 space-y-6">
+                        <CardContent className="pb-6 space-y-4">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                             {/* 1. Pro-rated 13th Month Card */}
                             <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100 flex flex-col justify-between space-y-3">
                               <div className="flex justify-between items-start">
                                 <Badge className="bg-indigo-100 text-indigo-700 font-bold text-[10px]">PD 851 Mandate</Badge>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pro-rated 13th Month</span>
                               </div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pro-rated 13th Month</span>
+
                               <div>
                                 <p className="text-2xl font-black text-indigo-950">{formatCurrency(preview.backPay.prorated13thMonth)}</p>
                                 <p className="text-[11px] font-semibold text-indigo-700 mt-1">Basis: {formatCurrency(preview.backPay.totalBasicYear)}</p>
                                 <p className="text-[10px] text-slate-500 italic mt-0.5 leading-tight">
-                                  *Origin of Basis: Total basic salary earnings accrued from Jan 1 of current year up to retirement date.
+                                  Origin of Basis: Total basic salary earnings accrued from Jan 1 of current year up to retirement date.
                                 </p>
                               </div>
                               <div className="pt-2 border-t border-indigo-100 font-mono text-[10px] text-indigo-900 font-medium">
@@ -360,15 +423,15 @@ const RetirementPay = () => {
                             <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100 flex flex-col justify-between space-y-3">
                               <div className="flex justify-between items-start">
                                 <Badge className="bg-emerald-100 text-emerald-700 font-bold text-[10px]">SIL / Leave Encashment</Badge>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Conversion</span>
                               </div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave Conversion</span>
                               <div>
                                 <p className="text-2xl font-black text-emerald-950">{formatCurrency(preview.backPay.leaveConversion)}</p>
                                 <p className="text-[11px] font-semibold text-emerald-700 mt-1">
-                                  Total Credits: {parseFloat(preview.backPay.vlBalance || 0) + parseFloat(preview.backPay.slBalance || 0)} Days ({preview.backPay.vlBalance} VL + {preview.backPay.slBalance} SL)
+                                  Total Credits: {parseFloat(preview.backPay.vlBalance || 0) + parseFloat(preview.backPay.slBalance || 0)} Days ( VL +  SL)
                                 </p>
                                 <p className="text-[10px] text-slate-500 italic mt-0.5 leading-tight">
-                                  *Origin of Basis: Remaining Vacation & Sick Leave credits multiplied by live Daily Rate ({formatCurrency(preview.dailyRate)}).
+                                  Origin of Basis: Remaining Vacation & Sick Leave credits multiplied by live Daily Rate ({formatCurrency(preview.dailyRate)}).
                                 </p>
                               </div>
                               <div className="pt-2 border-t border-emerald-100 font-mono text-[10px] text-emerald-900 font-medium">
@@ -380,15 +443,15 @@ const RetirementPay = () => {
                             <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-100 flex flex-col justify-between space-y-3">
                               <div className="flex justify-between items-start">
                                 <Badge className="bg-amber-100 text-amber-700 font-bold text-[10px]">Unbilled Days</Badge>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Final Worked Days</span>
                               </div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Final Worked Days</span>
                               <div>
                                 <p className="text-2xl font-black text-amber-950">{formatCurrency(preview.backPay.finalWorkedSalary)}</p>
                                 <p className="text-[11px] font-semibold text-amber-700 mt-1">
                                   Days Worked: {preview.backPay.workedDaysCount} Days
                                 </p>
                                 <p className="text-[10px] text-slate-500 italic mt-0.5 leading-tight">
-                                  *Origin of Basis: Attendance logs rendered after last closed payroll cutoff up to retirement date.
+                                  Origin of Basis: Attendance logs rendered after last closed payroll cutoff up to retirement date.
                                 </p>
                               </div>
                               <div className="pt-2 border-t border-amber-100 font-mono text-[10px] text-amber-900 font-medium">
@@ -449,67 +512,6 @@ const RetirementPay = () => {
                               </div>
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="shadow-sm border-0 bg-white">
-                        <CardHeader>
-                          <CardTitle className="text-lg font-bold text-[#2A174E]">Computation Breakdown (1/2 Month Salary)</CardTitle>
-                          <CardDescription>Legal components per RA 7641 comprising the 22.5-day multiplier.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">15 Days Salary</p>
-                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.components.salary15Days)}</p>
-                            </div>
-                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">5 Days SIL</p>
-                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.components.sil5Days)}</p>
-                            </div>
-                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">2.5 Days (1/12 of 13th)</p>
-                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.components.thirteenthMonth2_5Days)}</p>
-                            </div>
-                          </div>
-
-                          <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 text-[11px] text-amber-800 italic">
-                            * One-half (1/2) month salary is equivalent to 22.5 days. The COLA is excluded from this computation per legal mandates.
-                          </div>
-
-                          {/* Comprehensive Retirement Pay Formula Breakdown Box */}
-                          <div className="p-4 bg-purple-50/60 border border-purple-100 rounded-xl space-y-3 text-left">
-                            <div className="flex items-center space-x-2 text-[#2A174E] font-bold text-xs uppercase tracking-wide">
-                              <InfoOutlinedIcon className="w-4 h-4 text-purple-600" />
-                              <span>Comprehensive Retirement Benefit Formula Breakdown (RA 7641)</span>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                              <div className="bg-white p-3 rounded-lg border border-purple-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Step 1: Daily Wage Base</p>
-                                <p className="font-bold text-slate-800">{formatCurrency(preview.dailyRate)}</p>
-                                <p className="text-[10px] text-slate-500">Live Daily Rate</p>
-                              </div>
-                              <div className="bg-white p-3 rounded-lg border border-purple-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Step 2: Legal Multiplier</p>
-                                <p className="font-bold text-purple-700">22.5 Days / Year</p>
-                                <p className="text-[10px] text-slate-500">(15d Basic + 5d SIL + 2.5d 1/12th 13th)</p>
-                              </div>
-                              <div className="bg-white p-3 rounded-lg border border-purple-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Step 3: Service Tenure</p>
-                                <p className="font-bold text-blue-600">{preview.yearsOfService} Years</p>
-                                <p className="text-[10px] text-slate-500">({preview.diffMonths} months, 6+ mos = 1 yr)</p>
-                              </div>
-                            </div>
-                            <div className="p-3 bg-white border border-purple-200 rounded-lg text-xs font-mono flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                              <span className="text-slate-600">
-                                Formula: {formatCurrency(preview.dailyRate)} × 22.5 Days × {preview.yearsOfService} Yrs
-                              </span>
-                              <span className="font-bold text-[#2A174E] text-sm">
-                                = {formatCurrency(preview.totalAmount)}
-                              </span>
-                            </div>
-                          </div>
-
                           <Button 
                             onClick={handleGenerate} 
                             className="w-full py-6 bg-green-600 hover:bg-green-700 text-white font-bold"
@@ -519,6 +521,8 @@ const RetirementPay = () => {
                           </Button>
                         </CardContent>
                       </Card>
+
+                      
                     </>
                   ) : (
                     <Card className="h-full flex items-center justify-center p-6 text-slate-400 italic">
