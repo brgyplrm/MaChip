@@ -11,7 +11,8 @@ import {
   Banknote,
   Calendar,
   User,
-  ArrowRight
+  ArrowRight,
+  TrendingUp
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -238,6 +239,37 @@ const EmployeePayslip = () => {
                 <div className="flex justify-between">
                   <span className="text-slate-500 text-sm">Hours Worked</span>
                   <span className="font-medium text-slate-800">{payroll.NoHrs_Worked} hrs</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Year-To-Date (YTD) Snapshot Card */}
+            <Card className="border-t-4 border-emerald-600 shadow-sm overflow-hidden">
+              <CardHeader className="bg-white border-b border-slate-100 pb-3">
+                <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
+                  <TrendingUp className="h-5 w-5 text-emerald-600" />
+                  Year-To-Date (YTD)
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-500">
+                  Calendar Year {payroll.period_Start ? new Date(payroll.period_Start).getFullYear() : new Date().getFullYear()} Accumulated
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-3">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500">YTD Gross Earnings</span>
+                  <span className="font-semibold text-emerald-600">{formatCurrency(payroll.ytdGross)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500">YTD Non-Taxable</span>
+                  <span className="font-medium text-slate-700">{formatCurrency(payroll.ytdNonTaxable)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500">YTD Deductions</span>
+                  <span className="font-semibold text-rose-600">({formatCurrency(payroll.ytdDeductions)})</span>
+                </div>
+                <div className="flex justify-between items-center text-sm border-t border-slate-100 pt-2">
+                  <span className="text-slate-500">YTD Withholding Tax</span>
+                  <span className="font-medium text-amber-700">({formatCurrency(payroll.ytdBIR)})</span>
                 </div>
               </CardContent>
             </Card>

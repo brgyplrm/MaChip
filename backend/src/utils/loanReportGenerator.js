@@ -92,6 +92,95 @@ exports.generateGovLoanReportPDF = async (history, filters = {}) => {
 };
 
 /**
+ * Generates an Employee / Eastwest Loan Report PDF.
+ */
+exports.generateEastwestLoanReportPDF = async (history, filters = {}) => {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 40, size: "A4", layout: "landscape" });
+    let buffers = [];
+    doc.on("data", buffers.push.bind(buffers));
+    doc.on("end", () => resolve(Buffer.concat(buffers)));
+    doc.on("error", reject);
+
+    // --- Header ---
+    try {
+      const logoPath = path.join(__dirname, "../../../frontend/public/logo2.png");
+      doc.image(logoPath, 40, 35, { width: 50 });
+    } catch (e) {}
+
+    doc.fillColor("#1e3a8a")
+       .font("Helvetica-Bold").fontSize(16)
+       .text("MAC-J INT'L., FORWARDING LTD., CO.", 100, 40);
+    
+    doc.fillColor("#444")
+       .font("Helvetica").fontSize(8)
+       .text("EMPLOYEE BANK LOAN & ADVANCES REPAYMENT REPORT", 100, 60);
+
+    const reportDate = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+    doc.text(`Generated on: ${reportDate}`, 100, 72);
+
+    // --- Filter Info ---
+    doc.fontSize(9).font("Helvetica-Bold").text("FILTERS APPLIED:", 40, 100);
+    doc.font("Helvetica").text(`Year: ${filters.year || 'All'}`, 130, 100);
+
+    doc.moveTo(40, 115).lineTo(800, 115).lineWidth(1).stroke("#eee");
+
+    // --- Table ---
+    const tableTop = 130;
+    const colStarts = [40, 150, 350, 520, 680];
+    const headers = ["DATE PROCESSED", "BORROWER NAME", "DEDUCTION TYPE", "AMOUNT DEDUCTED", "STATUS"];
+
+    // Table Header
+    doc.rect(40, tableTop, 760, 25).fill("#2A174E");
+    doc.fillColor("white").font("Helvetica-Bold").fontSize(10);
+    headers.forEach((h, i) => doc.text(h, colStarts[i] + 5, tableTop + 8));
+
+    let rowY = tableTop + 25;
+    doc.fillColor("black").font("Helvetica").fontSize(9);
+
+    const peso = (val) => `P${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+
+    history.forEach((item, idx) => {
+      // Alternate row background
+      if (idx % 2 === 1) {
+        doc.rect(40, rowY, 760, 20).fill("#f9fafb");
+      }
+      
+      doc.fillColor("#444");
+      const dateStr = new Date(item.date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+      doc.text(dateStr, colStarts[0] + 5, rowY + 6);
+      doc.text(item.userName || `User #${item.user_Id}`, colStarts[1] + 5, rowY + 6);
+      doc.text(item.source || "Eastwest Bank Loan", colStarts[2] + 5, rowY + 6);
+      doc.text(peso(item.amount), colStarts[3] + 5, rowY + 6, { width: 120, align: 'right' });
+      doc.text(item.payrollId ? "PAID" : "PENDING", colStarts[4] + 5, rowY + 6);
+
+      doc.moveTo(40, rowY + 20).lineTo(800, rowY + 20).lineWidth(0.5).stroke("#eee");
+      rowY += 20;
+
+      // Page break check
+      if (rowY > 500) {
+        doc.addPage({ margin: 40, size: "A4", layout: "landscape" });
+        rowY = 40;
+        // Re-draw headers on new page
+        doc.rect(40, rowY, 760, 25).fill("#2A174E");
+        doc.fillColor("white").font("Helvetica-Bold").fontSize(10);
+        headers.forEach((h, i) => doc.text(h, colStarts[i] + 5, rowY + 8));
+        rowY += 25;
+        doc.fillColor("black").font("Helvetica").fontSize(9);
+      }
+    });
+
+    // --- Summary ---
+    const totalRemitted = history.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+    doc.moveDown(2);
+    doc.font("Helvetica-Bold").fontSize(11).text("TOTAL COLLECTED:", 400, doc.y);
+    doc.fontSize(14).fillColor("#1e3a8a").text(peso(totalRemitted), 550, doc.y - 3, { align: 'right', width: 140 });
+
+    doc.end();
+  });
+};
+
+/**
  * Generates an Individual Loan Ledger PDF.
  */
 exports.generateIndividualLoanPDF = async (loan, ledger) => {

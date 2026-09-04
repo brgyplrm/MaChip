@@ -58,6 +58,8 @@ module.exports = (sequelize, DataTypes) => {
       rateUpdatedAt: { type: DataTypes.DATE, allowNull: true },
       hasAvailedRetirementTax: { type: DataTypes.BOOLEAN, defaultValue: false },
       is_time_exempt: { type: DataTypes.BOOLEAN, defaultValue: false },
+      resetPasswordToken: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
+      resetPasswordExpires: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
     },
     {
       timestamps: true,

@@ -4,6 +4,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HistoryIcon from "@mui/icons-material/History";
 import SaveIcon from "@mui/icons-material/Save";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import Toast from "../../../components/toast/Toast";
@@ -207,6 +208,28 @@ const ThirteenthMonth = () => {
     }
   };
 
+  const handleDiscardDrafts = async () => {
+    if (!window.confirm(`Are you sure you want to discard all 13th month drafts for ${currentYear}?`)) return;
+    try {
+      setLoading(true);
+      const response = await fetchWithAuth(`/api/payroll/thirteenth-month/drafts/${currentYear}`, {
+        method: "DELETE"
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setToast({ message: data.message, type: "success" });
+        fetchPreview();
+        fetchHistory();
+      } else {
+        setToast({ message: data.error || "Failed to discard drafts", type: "error" });
+      }
+    } catch (error) {
+      setToast({ message: "Network error", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatCurrency = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
@@ -347,10 +370,15 @@ const ThirteenthMonth = () => {
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={handleGenerateDrafts} className="bg-[#2A174E] text-white hover:bg-[#BA90E9]">
+                    {previewData.some(i => i.existingStatus === 'Draft') && (
+                      <Button onClick={handleDiscardDrafts} variant="outline" className="border-rose-400 text-rose-300 hover:bg-rose-900/40 hover:text-white">
+                        <DeleteOutlineIcon className="mr-2 h-4 w-4" /> Discard Drafts
+                      </Button>
+                    )}
+                    <Button onClick={handleGenerateDrafts} className="bg-[#2A174E] text-white hover:bg-[#BA90E9] border border-white/20">
                       <SaveIcon className="mr-2 h-4 w-4" /> Save Drafts
                     </Button>
-                    <Button onClick={handleRelease} variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
+                    <Button onClick={handleRelease} variant="outline" className="border-green-400 text-green-300 hover:bg-green-900/40 hover:text-white">
                       <CheckCircleIcon className="mr-2 h-4 w-4" /> Release All
                     </Button>
                   </div>

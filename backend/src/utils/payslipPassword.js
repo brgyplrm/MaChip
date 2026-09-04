@@ -21,9 +21,18 @@ exports.generatePayslipPassword = (payroll) => {
   // 2. Get Month Name (e.g., "May")
   const monthName = startDate.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
 
-  // 3. Get Last Name (Sanitized: Title case, no spaces)
+  // 3. Get Last Name (Sanitized: Title case or preserved camel/mixed case, no spaces)
   const lastName = (user_LastName || "").trim().split(' ')[0];
-  const capitalizedLastName = lastName.charAt(0).toUpperCase() + lastName.slice(1).toLowerCase();
+  let capitalizedLastName = "";
+  if (lastName) {
+    if (lastName === lastName.toUpperCase()) {
+      // If ALL CAPS like "DOE", normalize to Titlecase
+      capitalizedLastName = lastName.charAt(0).toUpperCase() + lastName.slice(1).toLowerCase();
+    } else {
+      // Preserve existing mixed case (e.g. "McQuack", "DeGuzman")
+      capitalizedLastName = lastName.charAt(0).toUpperCase() + lastName.slice(1);
+    }
+  }
 
   // 4. User ID (Padded to 3 digits to match MACJ-001 format)
   const id = String(user_Id).padStart(3, '0');

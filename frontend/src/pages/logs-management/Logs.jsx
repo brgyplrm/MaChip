@@ -620,7 +620,9 @@ const toggleMachipVisibility = (rowId) => {
                           <SelectItem value="On Time">On Time</SelectItem>
                           <SelectItem value="Late">Late</SelectItem>
                           <SelectItem value="Absent">Absent</SelectItem>
+                          <SelectItem value="On Leave">On Leave</SelectItem>
                           <SelectItem value="On-Field">On-Field</SelectItem>
+                          <SelectItem value="Half Day">Half Day</SelectItem>
                         </>
                       )}
                     </SelectContent>
@@ -862,7 +864,10 @@ const toggleMachipVisibility = (rowId) => {
                             let badgeStyle = "bg-slate-100 text-slate-800 hover:bg-slate-100";
                             if (row.status === "On Time") badgeStyle = "bg-green-100 text-green-800 hover:bg-green-100";
                             else if (row.status === "On-Field") badgeStyle = "bg-blue-100 text-blue-800 hover:bg-blue-100";
-                            else if (row.status?.toLowerCase().includes("absent") || row.status?.toLowerCase().includes("late")) badgeStyle = "bg-red-100 text-red-800 hover:bg-red-100";
+                            else if (row.status === "On Leave" || row.status?.toLowerCase().includes("leave")) badgeStyle = "bg-sky-100 text-sky-800 hover:bg-sky-100";
+                            else if (row.status === "Half Day" || row.status?.toLowerCase().includes("half")) badgeStyle = "bg-orange-100 text-orange-800 hover:bg-orange-100";
+                            else if (row.status?.toLowerCase().includes("late")) badgeStyle = "bg-amber-100 text-amber-800 hover:bg-amber-100";
+                            else if (row.status?.toLowerCase().includes("absent")) badgeStyle = "bg-red-100 text-red-800 hover:bg-red-100";
 
                             return (
                               <TableRow key={`${row.user_Id}-${row.log_Date}-${index}`} className="border-b-slate-100 hover:bg-slate-50/50">

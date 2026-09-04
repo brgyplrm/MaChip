@@ -8,6 +8,7 @@ const { validateEmailActive, sendWelcomeEmail, sendPasswordUpdateEmail } = requi
 const { logAudit } = require("../utils/logger");
 const { encrypt, decrypt } = require("../utils/encryption");
 const { computeMonthlyShares } = require("../utils/govtDeductions");
+const { queueSlotDeletion } = require("./rfid.controller");
 
 // ── Get Next User ID ──────────────────────────────────────────────────────────
 exports.getAuditLogs = async (req, res) => {
@@ -520,13 +521,14 @@ exports.deleteUser = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    // 1. Get current hardware info to handle MachipId prefixing
+    // 1. Get current hardware info to handle MachipId prefixing and slot deletion
     const hardwareResult = await sequelize.query(
-      `SELECT "user_MachipId" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
+      `SELECT "user_MachipId", "user_FingerprintId" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT }
     );
     
     const currentMachipId = hardwareResult.length > 0 ? hardwareResult[0].user_MachipId : null;
+    const currentFpSlot = hardwareResult.length > 0 ? hardwareResult[0].user_FingerprintId : null;
     // Append unique suffix to MachipId to free it up for others
     const archivedMachipId = currentMachipId ? `${currentMachipId}-ARCHIVED-${user_Id}` : null;
 
@@ -537,12 +539,21 @@ exports.deleteUser = async (req, res) => {
     );
 
     if (result) {
-      // Also soft-delete hardware info and archive the MachipId
+      // Also soft-delete hardware info, archive the MachipId, and wipe fingerprint
       await sequelize.query(
-        `UPDATE "User_Hardware" SET "deletedAt" = :now, "user_MachipId" = :archivedMachipId
+        `UPDATE "User_Hardware" 
+         SET "deletedAt" = :now, 
+             "user_MachipId" = :archivedMachipId, 
+             "user_FingerprintId" = NULL, 
+             "user_FingerprintTemplate" = NULL,
+             "updatedAt" = :now
          WHERE "user_Id" = :user_Id`,
         { replacements: { user_Id, now: nowStr, archivedMachipId }, type: QueryTypes.UPDATE },
       );
+
+      if (currentFpSlot) {
+        queueSlotDeletion(currentFpSlot);
+      }
 
       const user = await sequelize.query(`SELECT * FROM "User" WHERE "user_Id" = :user_Id`, { replacements: { user_Id }, type: QueryTypes.SELECT });
       await logAudit(req, currentAdminId || 1, "User Management", "SOFT_DELETE_USER", "User", user_Id, user[0], null);
@@ -555,9 +566,17 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
-// ── Restore Soft-Deleted User ─────────────────────────────────────────────────
+// ── Restore Soft-Deleted User (Re-Hire) ───────────────────────────────────────
 exports.restoreUser = async (req, res) => {
   const { user_Id } = req.params;
+  const {
+    hireDate,
+    user_EmploymentStatusId,
+    department,
+    position,
+    position_id,
+    dailyRate
+  } = req.body || {};
 
   try {
     // Check if user exists (including soft-deleted)
@@ -572,6 +591,10 @@ exports.restoreUser = async (req, res) => {
     if (!user[0].deletedAt) {
       return res.status(400).json({ message: "User is not deleted." });
     }
+
+    const oldUser = user[0];
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
 
     // 1. Get current hardware info
     const hardwareResult = await sequelize.query(
@@ -598,21 +621,115 @@ exports.restoreUser = async (req, res) => {
       );
 
       if (taken.length > 0) {
-        // ID is taken by someone else, restore user without a card
         targetMachipId = null;
       }
     }
 
+    // Determine updated values
+    const newHireDate = hireDate || now.toISOString().split("T")[0];
+    const newStatusId = parseInt(user_EmploymentStatusId) || 1; // Default to Regular (1)
+    const newDepartment = department || oldUser.department;
+    const newPosition = position || oldUser.position;
+    const newPositionId = position_id || oldUser.position_id;
+
+    // Rate update tracking
+    let newDailyRate = oldUser.dailyRate;
+    let newPrevRate = oldUser.previousDailyRate || 0;
+    let newRateUpdatedAt = oldUser.rateUpdatedAt;
+
+    if (dailyRate !== undefined && dailyRate !== null && !isNaN(parseFloat(dailyRate))) {
+      const parsedRate = parseFloat(dailyRate);
+      if (Math.abs(parsedRate - parseFloat(oldUser.dailyRate || 0)) > 0.01) {
+        newPrevRate = parseFloat(oldUser.dailyRate || 0);
+        newDailyRate = parsedRate;
+        newRateUpdatedAt = nowStr;
+
+        // Recompute deduction profile shares for the new rate
+        try {
+          const shares = await computeMonthlyShares(newDailyRate);
+          await sequelize.query(
+            `UPDATE "User_Deduction_Profile" 
+             SET "sss_Share" = :sss, "philhealth_Share" = :ph, "hdmf_Share" = :hd, "updatedAt" = :now
+             WHERE "user_Id" = :user_Id`,
+            { 
+              replacements: { 
+                user_Id, 
+                sss: shares.sss_Share, 
+                ph: shares.philhealth_Share, 
+                hd: shares.hdmf_Share, 
+                now: nowStr 
+              }, 
+              type: QueryTypes.UPDATE 
+            }
+          );
+        } catch (shareErr) {
+          console.error(`[RESTORE] Failed to update deduction shares: ${shareErr.message}`);
+        }
+      }
+    }
+
+    // Update User: clear deletedAt, refresh hire date, status to Regular, department, position, daily rate
     await sequelize.query(
-      `UPDATE "User" SET "deletedAt" = NULL WHERE "user_Id" = :user_Id`,
-      { replacements: { user_Id }, type: QueryTypes.UPDATE },
+      `UPDATE "User" SET 
+         "deletedAt" = NULL,
+         "hireDate" = :hireDate,
+         "user_EmploymentStatusId" = :statusId,
+         "department" = :department,
+         "position" = :position,
+         "position_id" = :position_id,
+         "dailyRate" = :dailyRate,
+         "previousDailyRate" = :prevRate,
+         "rateUpdatedAt" = :rateUpdatedAt,
+         "updatedAt" = :now
+       WHERE "user_Id" = :user_Id`,
+      { 
+        replacements: { 
+          user_Id, 
+          hireDate: newHireDate,
+          statusId: newStatusId,
+          department: newDepartment,
+          position: newPosition,
+          position_id: newPositionId,
+          dailyRate: newDailyRate,
+          prevRate: newPrevRate,
+          rateUpdatedAt: newRateUpdatedAt,
+          now: nowStr 
+        }, 
+        type: QueryTypes.UPDATE 
+      },
     );
 
     // Also restore hardware info
     await sequelize.query(
-      `UPDATE "User_Hardware" SET "deletedAt" = NULL, "user_MachipId" = :targetMachipId WHERE "user_Id" = :user_Id`,
-      { replacements: { user_Id, targetMachipId }, type: QueryTypes.UPDATE },
+      `UPDATE "User_Hardware" 
+       SET "deletedAt" = NULL, "user_MachipId" = :targetMachipId, "updatedAt" = :now 
+       WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id, targetMachipId, now: nowStr }, type: QueryTypes.UPDATE },
     );
+
+    // Refresh leave balances for current year
+    const currentYear = now.getFullYear();
+    const existingLb = await sequelize.query(
+      `SELECT "lb_Id" FROM "Leave_Balance" WHERE "user_Id" = :userId AND "year" = :year LIMIT 1`,
+      { replacements: { userId: user_Id, year: currentYear }, type: QueryTypes.SELECT }
+    );
+
+    if (existingLb.length > 0) {
+      await sequelize.query(
+        `UPDATE "Leave_Balance" SET
+           "VL_balance" = 7, "SL_balance" = 7, "SoloParent_balance" = 7,
+           "VL_used" = 0, "SL_used" = 0, "SoloParent_used" = 0,
+           "updatedAt" = :now
+         WHERE "lb_Id" = :lbId`,
+        { replacements: { lbId: existingLb[0].lb_Id, now: nowStr }, type: QueryTypes.UPDATE }
+      );
+    } else {
+      await sequelize.query(
+        `INSERT INTO "Leave_Balance" ("user_Id", "year", "VL_balance", "SL_balance", "SoloParent_balance", "VL_used", "SL_used", "SoloParent_used", "createdAt", "updatedAt")
+         VALUES (:userId, :year, 7, 7, 7, 0, 0, 0, :now, :now)`,
+        { replacements: { userId: user_Id, year: currentYear, now: nowStr }, type: QueryTypes.INSERT }
+      );
+    }
 
     const restored = await sequelize.query(
       `SELECT * FROM "User" WHERE "user_Id" = :user_Id`,
@@ -626,6 +743,7 @@ exports.restoreUser = async (req, res) => {
       .status(200)
       .json({ message: "User restored successfully.", data: restored[0] });
   } catch (error) {
+    console.error("[RESTORE USER ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -644,21 +762,94 @@ exports.forceDeleteUser = async (req, res) => {
 
     // 1. Check if user exists
     const user = await sequelize.query(
-      `SELECT "user_Id" FROM "User" WHERE "user_Id" = :user_Id`,
+      `SELECT * FROM "User" WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
 
     if (user.length === 0) {
       return res.status(404).json({ error: "User not found." });
     }
+    const targetUser = user[0];
 
-    // 2. Perform hard delete
+    // 2. Data Retention Policy Check from SystemSettings
+    const settingsResult = await sequelize.query(
+      `SELECT "archivedRetentionYears" FROM "SystemSettings" LIMIT 1`,
+      { type: QueryTypes.SELECT }
+    );
+    const retentionYears = settingsResult.length > 0 && settingsResult[0].archivedRetentionYears !== null 
+      ? parseInt(settingsResult[0].archivedRetentionYears) 
+      : 5; // Default 5 years
+
+    if (retentionYears === 0) {
+      return res.status(400).json({ 
+        error: "Cannot permanently delete: Data retention policy is set to Indefinite. Records must be preserved." 
+      });
+    }
+
+    if (targetUser.deletedAt) {
+      const now = await getSystemTime();
+      const deletedDate = new Date(targetUser.deletedAt);
+      const retentionEndDate = new Date(deletedDate);
+      retentionEndDate.setFullYear(retentionEndDate.getFullYear() + retentionYears);
+
+      if (now < retentionEndDate) {
+        const yearsRemaining = ((retentionEndDate - now) / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1);
+        return res.status(400).json({ 
+          error: `Cannot permanently delete: Data retention policy requires keeping employee records for at least ${retentionYears} years (${yearsRemaining} years remaining).` 
+        });
+      }
+    }
+
+    // 3. Conditional Permanent Delete: Zero linked records mandate
+    // Check Payroll, user_logging, emp_Request, employee_Logging_report
+    const [payrollCount] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM "Payroll" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    const [loggingCount] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM "user_logging" WHERE "user_id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    const [requestCount] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM "emp_Request" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    const [reportCount] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM "employee_Logging_report" WHERE "user_id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+
+    const hasLinkedRecords = 
+      parseInt(payrollCount?.count || 0) > 0 ||
+      parseInt(loggingCount?.count || 0) > 0 ||
+      parseInt(requestCount?.count || 0) > 0 ||
+      parseInt(reportCount?.count || 0) > 0;
+
+    if (hasLinkedRecords) {
+      return res.status(400).json({ 
+        error: "Cannot permanently delete: Employee has linked historical records (Payroll, Attendance Logs, or Requests). Under CTPAT/DOLE audit compliance, these records cannot be purged." 
+      });
+    }
+
+    // 4. Perform hard delete if zero dependencies and retention passed
+    await sequelize.query(
+      `DELETE FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.DELETE }
+    );
+    await sequelize.query(
+      `DELETE FROM "User_Banking" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.DELETE }
+    );
+    await sequelize.query(
+      `DELETE FROM "User_Deduction_Profile" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.DELETE }
+    );
     await sequelize.query(
       `DELETE FROM "User" WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.DELETE },
     );
 
-    await logAudit(req, currentAdminId || 1, "User Management", "PERMANENT_DELETE_USER", "User", user_Id, user[0], null);
+    await logAudit(req, currentAdminId || 1, "User Management", "PERMANENT_DELETE_USER", "User", user_Id, targetUser, null);
 
     res.status(200).json({ message: "User permanently deleted." });
   } catch (error) {
@@ -697,16 +888,20 @@ exports.bulkUpdateMaxicare = async (req, res) => {
 exports.updateUser = async (req, res) => {
   const { user_Id } = req.params;
   const operator = req.user;
-  const isAdmin = operator && parseInt(operator.user_RoleId) === 1;
+  const operatorRoleId = operator ? parseInt(operator.user_RoleId) : null;
+  const isAdmin = operatorRoleId === 1;
+  const isAccountant = operatorRoleId === 4;
+  const isSupervisor = operatorRoleId === 2;
+  const isMaster = isAdmin || isAccountant;
+  const isStaff = isMaster || isSupervisor;
 
   // ── 1. AUTHORIZATION CHECK ──
-  // If not admin, you can ONLY update your own ID
-  if (!isAdmin && parseInt(operator?.user_Id) !== parseInt(user_Id)) {
+  // If not staff (Admin, Accountant, Supervisor), you can ONLY update your own ID
+  if (!isStaff && parseInt(operator?.user_Id) !== parseInt(user_Id)) {
     return res.status(403).json({ error: "Access denied. You can only update your own profile." });
   }
 
-  console.log("[DEBUG] Received body in updateUser:", req.body);
-    const {
+  const {
     user_FirstName,
     user_LastName,
     user_MiddleName,
@@ -836,49 +1031,68 @@ exports.updateUser = async (req, res) => {
         finalHD = shares.hdmf_Share;
       }
 
+      // Role assignment security rule:
+      // - Admin Manager (isAdmin) can assign any role (1, 2, 3, 4) or alter an Admin Manager.
+      // - Admin Accountant (isAccountant) can assign Supervisor (2), Employee (3), Admin Accountant (4),
+      //   but CANNOT assign Admin Manager (1), and CANNOT alter an existing Admin Manager's role.
+      let assignedRoleId = oldUser.user_RoleId;
+      if (isAdmin) {
+        assignedRoleId = parseInt(user_RoleId) || oldUser.user_RoleId || 3;
+      } else if (isAccountant) {
+        if (parseInt(oldUser.user_RoleId) !== 1) {
+          const requestedRole = parseInt(user_RoleId);
+          if (requestedRole !== 1 && [2, 3, 4].includes(requestedRole)) {
+            assignedRoleId = requestedRole;
+          }
+        }
+      }
+
       // Build replacements object with explicit types
-      // SECURITY: If not admin, FORCE sensitive fields to stay at their OLD values
       const replacements = {
         targetId: parseInt(user_Id),
-        firstName: user_FirstName || null,
-        lastName: user_LastName || null,
-        middleName: user_MiddleName || null,
-        machipId: isAdmin ? (user_MachipId || null) : oldUser.user_MachipId,
-        fingerprintId: isAdmin ? (user_FingerprintId || null) : oldUser.user_FingerprintId,
-        roleId: isAdmin ? (parseInt(user_RoleId) || 3) : oldUser.user_RoleId,
-        statusId: isAdmin ? (parseInt(user_EmploymentStatusId) || 1) : oldUser.user_EmploymentStatusId,
-        email: user_Email || null,
-        phone: req.body.user_Phone || null,
-        address: req.body.user_Address || null,
-        dob: req.body.user_DOB || null,
-        gender: req.body.user_Gender || null,
-        shiftId: isAdmin ? (parseInt(req.body.user_ShiftId) || 1) : oldUser.user_ShiftId,
-        accountNumber: encrypt(account_Number) || null,
-        bankCompany: bank_Company || null,
-        bankAccountName: bank_AccountName || null,
-        department: isAdmin ? (department || null) : oldUser.department,
-        position: isAdmin ? (position || null) : oldUser.position,
-        position_id: isAdmin ? (position_id || null) : oldUser.position_id,
-        hireDate: isAdmin ? (hireDate || null) : oldUser.hireDate,
-        taxStatus: isAdmin ? (taxStatus || "S") : oldUser.taxStatus,
-        civil_status: req.body.civil_status || oldUser.civil_status || "Single",
-        is_solo_parent: req.body.is_solo_parent === "true" || req.body.is_solo_parent === true,
-        dailyRate: isAdmin ? parsedDailyRate : (oldUser.dailyRate || 0),
-        sss: isAdmin ? finalSSS : (oldUser.sss_Share || 0),
-        sss_is_manual: isAdmin ? (req.body.sss_is_manual === true || req.body.sss_is_manual === "true") : (oldUser.sss_is_manual || false),
-        ph: isAdmin ? finalPH : (oldUser.philhealth_Share || 0),
-        ph_is_manual: isAdmin ? (req.body.ph_is_manual === true || req.body.ph_is_manual === "true") : (oldUser.ph_is_manual || false),
-        hd: isAdmin ? finalHD : (oldUser.hdmf_Share || 0),
-        hdmf_is_manual: isAdmin ? (req.body.hdmf_is_manual === true || req.body.hdmf_is_manual === "true") : (oldUser.hdmf_is_manual || false),
-        tax: isAdmin ? (parseFloat(Tax_Ded) || 0) : (oldUser.tax_Share || 0),
-        hc: isAdmin ? (parseFloat(healthCard_Amnt) || 0) : (oldUser.healthCard_Amnt || 0),
-        sl: isAdmin ? (parseFloat(SSS_Loan) || 0) : (oldUser.SSS_Loan || 0),
-        hl: isAdmin ? (parseFloat(HDMF_Loan) || 0) : (oldUser.HDMF_Loan || 0),
-        cl: isAdmin ? (parseFloat(calamityLoan_Amnt) || 0) : (oldUser.calamityLoan_Amnt || 0),
-        el: isAdmin ? (parseFloat(eastwest_Loan) || 0) : (oldUser.eastwest_Loan || 0),
-        gd: isAdmin ? (parseFloat(globe_Deduction) || 0) : (oldUser.globe_Deduction || 0),
-        ms: isAdmin ? (parseFloat(multiPurposeSavings) || 0) : (oldUser.multiPurposeSavings || 0),
-        aa: isAdmin ? (parseFloat(advances_Amnt) || 0) : (oldUser.advances_Amnt || 0),
+        firstName: req.body.user_FirstName !== undefined ? (req.body.user_FirstName || null) : oldUser.user_FirstName,
+        lastName: req.body.user_LastName !== undefined ? (req.body.user_LastName || null) : oldUser.user_LastName,
+        middleName: req.body.user_MiddleName !== undefined ? (req.body.user_MiddleName || null) : oldUser.user_MiddleName,
+        machipId: isMaster ? (user_MachipId !== undefined ? (user_MachipId || null) : oldUser.user_MachipId) : oldUser.user_MachipId,
+        fingerprintId: isMaster ? (user_FingerprintId !== undefined ? (user_FingerprintId || null) : oldUser.user_FingerprintId) : oldUser.user_FingerprintId,
+        roleId: assignedRoleId,
+        statusId: isMaster ? (parseInt(user_EmploymentStatusId) || oldUser.user_EmploymentStatusId || 1) : oldUser.user_EmploymentStatusId,
+        email: req.body.user_Email !== undefined ? (req.body.user_Email || null) : oldUser.user_Email,
+        phone: req.body.user_Phone !== undefined ? (req.body.user_Phone || null) : oldUser.user_Phone,
+        address: req.body.user_Address !== undefined ? (req.body.user_Address || null) : oldUser.user_Address,
+        dob: req.body.user_DOB !== undefined ? (req.body.user_DOB || null) : oldUser.user_DOB,
+        gender: req.body.user_Gender !== undefined ? (req.body.user_Gender || null) : oldUser.user_Gender,
+        shiftId: isMaster ? (parseInt(req.body.user_ShiftId) || oldUser.user_ShiftId || 1) : oldUser.user_ShiftId,
+        accountNumber: account_Number !== undefined ? (encrypt(account_Number) || null) : oldUser.account_Number,
+        bankCompany: req.body.bank_Company !== undefined ? (req.body.bank_Company || null) : oldUser.bank_Company,
+        bankAccountName: req.body.bank_AccountName !== undefined ? (req.body.bank_AccountName || null) : oldUser.bank_AccountName,
+        department: isMaster ? (department !== undefined ? (department || null) : oldUser.department) : oldUser.department,
+        position: isMaster ? (position !== undefined ? (position || null) : oldUser.position) : oldUser.position,
+        position_id: isMaster ? (position_id !== undefined ? (position_id || null) : oldUser.position_id) : oldUser.position_id,
+        hireDate: isAdmin 
+          ? (req.body.hireDate !== undefined ? (req.body.hireDate || null) : oldUser.hireDate) 
+          : oldUser.hireDate,
+        taxStatus: isMaster 
+          ? (req.body.taxStatus !== undefined ? (req.body.taxStatus || "S") : (oldUser.taxStatus || "S")) 
+          : oldUser.taxStatus,
+        civil_status: req.body.civil_status !== undefined ? (req.body.civil_status || "Single") : (oldUser.civil_status || "Single"),
+        is_solo_parent: req.body.is_solo_parent !== undefined ? (req.body.is_solo_parent === "true" || req.body.is_solo_parent === true) : (oldUser.is_solo_parent || false),
+        dailyRate: isMaster ? parsedDailyRate : (oldUser.dailyRate || 0),
+        sss: isMaster ? finalSSS : (oldUser.sss_Share || 0),
+        sss_is_manual: isMaster ? (req.body.sss_is_manual === true || req.body.sss_is_manual === "true") : (oldUser.sss_is_manual || false),
+        ph: isMaster ? finalPH : (oldUser.philhealth_Share || 0),
+        ph_is_manual: isMaster ? (req.body.ph_is_manual === true || req.body.ph_is_manual === "true") : (oldUser.ph_is_manual || false),
+        hd: isMaster ? finalHD : (oldUser.hdmf_Share || 0),
+        hdmf_is_manual: isMaster ? (req.body.hdmf_is_manual === true || req.body.hdmf_is_manual === "true") : (oldUser.hdmf_is_manual || false),
+        tax: isMaster ? (parseFloat(Tax_Ded) || 0) : (oldUser.tax_Share || 0),
+        hc: isMaster ? (parseFloat(healthCard_Amnt) || 0) : (oldUser.healthCard_Amnt || 0),
+        sl: isMaster ? (parseFloat(SSS_Loan) || 0) : (oldUser.SSS_Loan || 0),
+        hl: isMaster ? (parseFloat(HDMF_Loan) || 0) : (oldUser.HDMF_Loan || 0),
+        cl: isMaster ? (parseFloat(calamityLoan_Amnt) || 0) : (oldUser.calamityLoan_Amnt || 0),
+        el: isMaster ? (parseFloat(eastwest_Loan) || 0) : (oldUser.eastwest_Loan || 0),
+        gd: isMaster ? (parseFloat(globe_Deduction) || 0) : (oldUser.globe_Deduction || 0),
+        ms: isMaster ? (parseFloat(multiPurposeSavings) || 0) : (oldUser.multiPurposeSavings || 0),
+        aa: isMaster ? (parseFloat(advances_Amnt) || 0) : (oldUser.advances_Amnt || 0),
         updatedAt: nowStr
       };
 
@@ -886,10 +1100,7 @@ exports.updateUser = async (req, res) => {
       let isTimeExemptVal = oldUser.is_time_exempt || false;
       if (req.body.is_time_exempt !== undefined) {
         if (!isAdmin) {
-          return res.status(403).json({ error: "Access denied: Only top management (General Manager) can grant attendance exemptions." });
-        }
-        if (parseInt(operator?.user_Id) === parseInt(user_Id) && parseInt(user_Id) !== 1) {
-          return res.status(403).json({ error: "Security violation: Self-exemption from attendance is strictly prohibited." });
+          return res.status(403).json({ error: "Access denied: Only Admin Manager can grant attendance exemptions." });
         }
         isTimeExemptVal = req.body.is_time_exempt === true || req.body.is_time_exempt === "true";
       }
@@ -1066,52 +1277,8 @@ exports.updateUser = async (req, res) => {
 
 // ── Request Password Reset ───────────────────────────────────────────────────
 exports.requestPasswordReset = async (req, res) => {
-  const { email } = req.body;
-
-  try {
-    // 1. Find user by email
-    const user = await sequelize.query(
-      `SELECT "user_Id", "user_FirstName", "user_LastName" FROM "User" WHERE "user_Email" = :email AND "deletedAt" IS NULL`,
-      { replacements: { email }, type: QueryTypes.SELECT }
-    );
-
-    if (user.length === 0) {
-      return res.status(404).json({ error: "No active user found with that email address." });
-    }
-
-    const targetUser = user[0];
-    const now = await getSystemTime();
-    const nowStr = formatForSQL(now);
-
-    // 2. Find all Admins (RoleId = 1)
-    const admins = await sequelize.query(
-      `SELECT "user_Id" FROM "User" WHERE "user_RoleId" = 1 AND "deletedAt" IS NULL`,
-      { type: QueryTypes.SELECT }
-    );
-
-    // 3. Create notifications for all admins
-    for (const admin of admins) {
-      await sequelize.query(
-        `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
-         VALUES (:adminId, :title, :message, false, :targetId, :now, :now)`,
-        {
-          replacements: {
-            adminId: admin.user_Id,
-            title: "Password Reset Request",
-            message: `User ${targetUser.user_FirstName} ${targetUser.user_LastName} (ID: ${targetUser.user_Id}) has requested a password reset.`,
-            targetId: targetUser.user_Id,
-            now: nowStr
-          },
-          type: QueryTypes.INSERT
-        }
-      );
-    }
-
-    res.status(200).json({ message: "Reset request sent to administrators." });
-  } catch (error) {
-    console.error("[RESET REQUEST ERROR]:", error);
-    res.status(500).json({ error: error.message });
-  }
+  const authController = require("./auth.controller");
+  return authController.forgotPassword(req, res);
 };
 
 // ── Get Employee Masterlist (with Daily Rate) ─────────────────────────────────

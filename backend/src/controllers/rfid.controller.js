@@ -35,8 +35,20 @@ let fpCaptureSession = {
   type: "FP"
 };
 
-// Queue slot deletion for cancelled enrollments
-let pendingDeleteSlot = null;
+// Queue slot deletion for cancelled enrollments or separated/deleted employees
+let pendingDeleteSlots = [];
+
+exports.queueSlotDeletion = (slotId) => {
+  if (slotId !== null && slotId !== undefined) {
+    const parsed = parseInt(slotId);
+    if (!isNaN(parsed) && parsed > 0) {
+      if (!pendingDeleteSlots.includes(parsed)) {
+        pendingDeleteSlots.push(parsed);
+      }
+      console.log(`[HARDWARE] Queued deletion for fingerprint slot ${parsed}. Pending queue: [${pendingDeleteSlots.join(", ")}]`);
+    }
+  }
+};
 
 // Global state for Visitor Access
 let visitorAccessSession = {
@@ -68,8 +80,10 @@ exports.clearFingerprintSession = async (req, res) => {
 
   // Only queue hardware rollback deletion IF the enrollment was cancelled/failed BEFORE completion
   if (fpCaptureSession.scannedSlot && !fpCaptureSession.success) {
-    pendingDeleteSlot = fpCaptureSession.scannedSlot;
-    console.log(`[ENROLL ROLLBACK] Queued hardware deletion for cancelled slot ${pendingDeleteSlot}`);
+    if (!pendingDeleteSlots.includes(fpCaptureSession.scannedSlot)) {
+      pendingDeleteSlots.push(fpCaptureSession.scannedSlot);
+    }
+    console.log(`[ENROLL ROLLBACK] Queued hardware deletion for cancelled slot ${fpCaptureSession.scannedSlot}`);
   } else if (fpCaptureSession.scannedSlot && fpCaptureSession.success) {
     console.log(`[ENROLL SUCCESS] Enrollment completed successfully for slot ${fpCaptureSession.scannedSlot}. Preserving hardware template.`);
   }
@@ -314,7 +328,16 @@ exports.scanRFID = async (req, res) => {
       return res.status(200).json({ 
         success: false, 
         error: "Card not enrolled",
-        mode: "CARD_NOT_ENROLLED" 
+        mode: "CARD_NOT_ENROLLED"
+      });
+    }
+
+    if (user.user_EmploymentStatusId === 5 || user.user_EmploymentStatusId === 6) {
+      console.log(`[SECURITY] Access denied for inactive/separated employee: ${user.user_FirstName} ${user.user_LastName} (ID: ${user.user_Id})`);
+      return res.status(200).json({ 
+        success: false, 
+        error: "Access Denied: Inactive / Separated Account",
+        mode: "ACCOUNT_INACTIVE" 
       });
     }
 
@@ -513,7 +536,7 @@ exports.scanRFID = async (req, res) => {
     }
 
     let attendanceVal = null;
-    if (user.user_RoleId === 1) {
+    if (user.user_RoleId === 1 || user.is_time_exempt === true) {
       attendanceVal = 6; // Exempt
     } else if (nextStatus === 1) {
       // Dynamic Grace Period from Settings
@@ -826,15 +849,14 @@ exports.factoryResetHardware = async (req, res) => {
 };
 
 exports.getFingerprintSession = async (req, res) => {
-  // 0. Check for Hardware Slot Deletion command (Rollback cancelled enrollment)
-  if (pendingDeleteSlot !== null) {
-    const slotToDelete = pendingDeleteSlot;
-    pendingDeleteSlot = null;
+  // 0. Check for Hardware Slot Deletion command (Rollback cancelled enrollment or separated/deleted employee)
+  if (pendingDeleteSlots.length > 0) {
+    const slotToDelete = pendingDeleteSlots.shift();
     console.log(`[HARDWARE] Sending DELETE_SLOT command for slot ${slotToDelete} to ESP32.`);
     return res.status(200).json({
       active: true,
       slotId: slotToDelete,
-      userId: "ROLLBACK",
+      userId: "DELETION",
       type: "DELETE_SLOT"
     });
   }

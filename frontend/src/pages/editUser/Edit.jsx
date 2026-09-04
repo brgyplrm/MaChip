@@ -57,6 +57,12 @@ const validateForm = (formData) => {
     errors.user_LastName = "Last Name cannot contain numbers or special characters";
   }
 
+  if (formData.user_MiddleName && formData.user_MiddleName.trim()) {
+    if (!nameRegex.test(formData.user_MiddleName)) {
+      errors.user_MiddleName = "Middle Name cannot contain numbers or special characters";
+    }
+  }
+
   if (!formData.user_Email || !formData.user_Email.trim()) {
     errors.user_Email = "Email is required.";
   } else if (!EMAIL_REGEX.test(formData.user_Email)) {
@@ -112,9 +118,12 @@ import ImageCropperModal from "../../components/ImageCropperModal";
 const Edit = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const currentUser = JSON.parse(localStorage.getItem("userData"));
-  const isAdmin = currentUser?.user_RoleId === 1;
-  const isAccountant = currentUser?.user_RoleId === 4;
+  const currentUser = JSON.parse(localStorage.getItem("userData") || "{}");
+  const roleId = Number(currentUser?.user_RoleId);
+  const isAdmin = roleId === 1 || currentUser?.user_Role === "Admin Manager";
+  const isAccountant = roleId === 4 || currentUser?.user_Role === "Admin Accountant";
+  const isSupervisor = roleId === 2 || currentUser?.user_Role === "Supervisor";
+  const isMaster = isAdmin || isAccountant;
 
   const [file, setFile] = useState("");
   const [existingAvatar, setExistingAvatar] = useState("");
@@ -128,13 +137,19 @@ const Edit = () => {
   const [formData, setFormData] = useState({
     user_FirstName: "",
     user_LastName: "",
+    user_MiddleName: "",
     user_Email: "",
     user_Phone: "",
     user_Address: "",
     user_Role: "",
     user_RoleId: "",
+    department: "",
+    position: "",
+    position_id: "",
     user_EmploymentStatus: "",
     user_EmploymentStatusId: "",
+    hireDate: "",
+    taxStatus: "S",
     user_Password: "",
     user_MachipId: "",
     user_FingerprintId: "",
@@ -144,7 +159,7 @@ const Edit = () => {
     is_solo_parent: false,
     shift_Schedule: "",
     dailyRate: "",
-    is_attendance_exempt: false,
+    is_time_exempt: false,
     healthCard_Amnt: "",
     SSS_Ded: "",
     Philhealth_Ded: "",
@@ -170,11 +185,12 @@ const Edit = () => {
   const [userData, setUserData] = useState(null);
   
   const [originalRole, setOriginalRole] = useState("");
+  const isTargetAdminManager = Number(formData.user_RoleId) === 1 || formData.user_Role === "Admin Manager" || Number(userData?.user_RoleId) === 1 || originalRole === "Admin Manager";
 // ... (rest of state)
 
   // ── Automatic Calculation ──────────────────────────────────────────────────
   useEffect(() => {
-    if (isAdmin) {
+    if (isMaster) {
       const rate = parseFloat(formData.dailyRate);
       if (!isNaN(rate) && rate > 0 && !loadingGovt) {
         const timer = setTimeout(() => {
@@ -183,7 +199,7 @@ const Edit = () => {
         return () => clearTimeout(timer);
       }
     }
-  }, [formData.dailyRate, isAdmin]);
+  }, [formData.dailyRate, isMaster]);
 
   const handleCalculateGovt = async (rate) => {
     setLoadingGovt(true);
@@ -328,19 +344,39 @@ const Edit = () => {
   };
 
   useEffect(() => {
-    if (isAdmin) {
-      fetchWithAuth("/api/positions")
-        .then(res => {
-          if (res.status === 403) return [];
-          return res.json();
-        })
-        .then(data => setPositions(Array.isArray(data) ? data : []))
-        .catch(err => {
-          console.error("Error fetching positions:", err);
-          setPositions([]);
-        });
+    fetchWithAuth("/api/positions")
+      .then(res => {
+        if (res.status === 403) return [];
+        return res.json();
+      })
+      .then(data => setPositions(Array.isArray(data) ? data : []))
+      .catch(err => {
+        console.error("Error fetching positions:", err);
+        setPositions([]);
+      });
+  }, []);
+
+  // Synchronize position_id and department with positions list if mismatched or missing
+  useEffect(() => {
+    if (positions.length > 0 && formData.position) {
+      const currentValid = positions.some(p => 
+        p.positionId.toString() === formData.position_id?.toString() && 
+        p.department === formData.department &&
+        p.title.trim().toLowerCase() === formData.position.trim().toLowerCase()
+      );
+      if (!currentValid) {
+        const match = positions.find(p => p.title.trim().toLowerCase() === formData.position.trim().toLowerCase());
+        if (match) {
+          setFormData(prev => ({
+            ...prev,
+            position_id: match.positionId,
+            position: match.title,
+            department: match.department || prev.department
+          }));
+        }
+      }
     }
-  }, [isAdmin]);
+  }, [positions, formData.position, formData.department, formData.position_id]);
 
   const dismissToast = useCallback(() => {
     setToast({ message: "", type: "success" });
@@ -359,6 +395,7 @@ const Edit = () => {
           const userData = await response.json();
           setFormData({
             user_FirstName: userData.user_FirstName || "",
+            user_MiddleName: userData.user_MiddleName || "",
             user_LastName: userData.user_LastName || "",
             user_Email: userData.user_Email || "",
             user_Phone: userData.user_Phone || "",
@@ -370,6 +407,8 @@ const Edit = () => {
             position_id: userData.position_id || "",
             user_EmploymentStatus: userData.user_EmploymentStatus || "",
             user_EmploymentStatusId: userData.user_EmploymentStatusId || 1,
+            hireDate: userData.hireDate ? userData.hireDate.split('T')[0] : "",
+            taxStatus: userData.taxStatus || "S",
             user_Password: "", // Do not show hash, leave empty for optional update
             user_MachipId: userData.user_MachipId || "",
             user_FingerprintId: userData.user_FingerprintId || "",
@@ -380,7 +419,7 @@ const Edit = () => {
             is_solo_parent: userData.is_solo_parent || false,
             shift_Schedule: userData.shift_Schedule || "",
             dailyRate: userData.dailyRate || "",
-            is_attendance_exempt: userData.is_attendance_exempt || false,
+            is_time_exempt: Boolean(userData.is_time_exempt),
             healthCard_Amnt: userData.healthCard_Amnt || "",
             SSS_Ded: userData.sss_Share || "",
             Philhealth_Ded: userData.philhealth_Share || "",
@@ -499,6 +538,22 @@ const Edit = () => {
         }
       });
 
+      // Explicitly append user_MiddleName even if empty string so clearing it works
+      if (formData.user_MiddleName !== undefined) {
+        formDataToSend.set("user_MiddleName", formData.user_MiddleName);
+      }
+
+      // If Admin Manager, explicitly set hireDate and is_time_exempt
+      if (isAdmin) {
+        formDataToSend.set("is_time_exempt", formData.is_time_exempt ? "true" : "false");
+        if (formData.hireDate) {
+          formDataToSend.set("hireDate", formData.hireDate);
+        }
+      } else {
+        formDataToSend.delete("hireDate");
+        formDataToSend.delete("is_time_exempt");
+      }
+
       if (file) {
         formDataToSend.append("user_ProfilePic", file);
       }
@@ -507,11 +562,8 @@ const Edit = () => {
         formDataToSend.append("adminPassword", adminVerification);
       }
 
-      const response = await fetch(`/api/users/updateUser/${userId}`, {
+      const response = await fetchWithAuth(`/api/users/updateUser/${userId}`, {
         method: "PUT",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
         body: formDataToSend,
       });
 
@@ -614,11 +666,11 @@ const Edit = () => {
         </div>
 
         <Tabs defaultValue="personal" className="w-full">
-          <TabsList className={`grid w-full ${isAdmin ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1"} h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0 mb-6`}>
+          <TabsList className={`grid w-full ${isMaster ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1"} h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0 mb-6`}>
             <TabsTrigger value="personal" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
               Personal Information
             </TabsTrigger>
-            {isAdmin && (
+            {isMaster && (
               <>
                 <TabsTrigger value="employment" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
                   Employment & Comp
@@ -707,28 +759,33 @@ const Edit = () => {
                     </div>
 
                     {/* Basic Info Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full md:w-3/4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full md:w-3/4">
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">First Name <span className="text-red-500">*</span></Label>
                         <Input name="user_FirstName" value={formData.user_FirstName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
                         {renderError("user_FirstName")}
                       </div>
                       <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Middle Name</Label>
+                        <Input name="user_MiddleName" placeholder="Optional" value={formData.user_MiddleName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        {renderError("user_MiddleName")}
+                      </div>
+                      <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Last Name <span className="text-red-500">*</span></Label>
                         <Input name="user_LastName" value={formData.user_LastName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
                         {renderError("user_LastName")}
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2 sm:col-span-1">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address <span className="text-red-500">*</span></Label>
                         <Input name="user_Email" type="email" value={formData.user_Email} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
                         {renderError("user_Email")}
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2 sm:col-span-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number <span className="text-red-500">*</span></Label>
                         <Input name="user_Phone" value={formData.user_Phone} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
                         {renderError("user_Phone")}
                       </div>
-                      <div className="space-y-2 sm:col-span-2">
+                      <div className="space-y-2 sm:col-span-3">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address</Label>
                         <Input name="user_Address" value={formData.user_Address} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
                         {renderError("user_Address")}
@@ -764,13 +821,13 @@ const Edit = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2 flex items-center gap-3 pt-6">
+                      <div className="space-y-2 flex items-center gap-3 pt-4 sm:col-span-3">
                         <input 
                           type="checkbox" 
                           id="is_solo_parent" 
                           checked={formData.is_solo_parent} 
                           onChange={(e) => handleSelectChange("is_solo_parent", e.target.checked)}
-                          className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded"
+                          className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded cursor-pointer"
                         />
                         <Label htmlFor="is_solo_parent" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer">Solo Parent</Label>
                       </div>
@@ -780,8 +837,8 @@ const Edit = () => {
                 </CardContent>
               </Card>
 
-              {/* Bank Details (Visible to everyone in Personal Tab if non-admin, otherwise in Comp tab) */}
-              {!isAdmin && (
+              {/* Bank Details (Visible to everyone in Personal Tab if non-master, otherwise in Comp tab) */}
+              {!isMaster && (
                 <Card className="shadow-sm border-0 bg-white">
                   <CardHeader className="border-b border-slate-100 pb-4">
                     <CardTitle className="text-lg text-[#2A174E]">Bank Details</CardTitle>
@@ -832,18 +889,34 @@ const Edit = () => {
                 </CardHeader>
                 <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">System Role <span className="text-red-500">*</span></Label>
-                    <Select value={formData.user_Role} onValueChange={(val) => handleSelectChange("user_Role", val)}>
-                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
-                        <SelectValue placeholder="Select Role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Employee">Employee</SelectItem>
-                        <SelectItem value="Supervisor">Supervisor</SelectItem>
-                        <SelectItem value="Admin Manager">Admin Manager</SelectItem>
-                        <SelectItem value="Admin Accountant">Admin Accountant</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">System Role <span className="text-red-500">*</span></Label>
+                      {!isAdmin && isTargetAdminManager && (
+                        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                          Read-only
+                        </span>
+                      )}
+                    </div>
+                    {!isAdmin && isTargetAdminManager ? (
+                      <Input
+                        value={formData.user_Role}
+                        readOnly
+                        disabled
+                        className="border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed opacity-90 font-medium"
+                      />
+                    ) : (
+                      <Select value={formData.user_Role} onValueChange={(val) => handleSelectChange("user_Role", val)}>
+                        <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                          <SelectValue placeholder="Select Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Employee">Employee</SelectItem>
+                          <SelectItem value="Supervisor">Supervisor</SelectItem>
+                          {isAdmin && <SelectItem value="Admin Manager">Admin Manager</SelectItem>}
+                          <SelectItem value="Admin Accountant">Admin Accountant</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                     {renderError("user_Role")}
                   </div>
                   <div className="space-y-2">
@@ -874,10 +947,11 @@ const Edit = () => {
                   </div>
 
                   {/* New Department & Position Section */}
+                  {/* Department & Position Section */}
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Department <span className="text-red-500">*</span></Label>
                     <Select 
-                      value={formData.department} 
+                      value={formData.department || ""} 
                       onValueChange={(val) => {
                         setFormData(prev => ({ ...prev, department: val, position: "", position_id: "" }));
                       }}
@@ -886,44 +960,110 @@ const Edit = () => {
                         <SelectValue placeholder="Select Department" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.isArray(positions) && [...new Set(positions.map(p => p.department))].map((dept) => (
+                        {Array.isArray(positions) && [...new Set([
+                          ...(formData.department ? [formData.department] : []),
+                          ...positions.map(p => p.department)
+                        ])].filter(Boolean).map((dept) => (
                           <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                         ))}
                       </SelectContent>
-
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                   <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position <span className="text-red-500">*</span></Label>
-                   <Select
-                     value={formData.position_id?.toString()}
-                     onValueChange={(val) => {
-                       const selectedPos = Array.isArray(positions) ? positions.find(p => p.positionId.toString() === val) : null;
-                       if (selectedPos) {
-                         setFormData(prev => ({
-                           ...prev,
-                           position_id: selectedPos.positionId,
-                           position: selectedPos.title,
-                           dailyRate: selectedPos.baseDailyRate
-                         }));
-                       }
-                     }}
-                     disabled={!formData.department}
-                   >
-                     <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
-                       <SelectValue placeholder={formData.department ? "Select Position" : "Select Dept First"} />
-                     </SelectTrigger>
-                     <SelectContent>
-                       {formData.department && Array.isArray(positions) && positions
-                         .filter(p => p.department === formData.department)
-                         .map((pos) => (
-                           <SelectItem key={pos.positionId} value={pos.positionId.toString()}>{pos.title}</SelectItem>
-                         ))
-                       }
-                     </SelectContent>
-                   </Select>
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position <span className="text-red-500">*</span></Label>
+                    <Select
+                      value={formData.position_id ? formData.position_id.toString() : ""}
+                      onValueChange={(val) => {
+                        const selectedPos = Array.isArray(positions) ? positions.find(p => p.positionId.toString() === val) : null;
+                        if (selectedPos) {
+                          setFormData(prev => ({
+                            ...prev,
+                            position_id: selectedPos.positionId,
+                            position: selectedPos.title,
+                            dailyRate: selectedPos.baseDailyRate
+                          }));
+                        }
+                      }}
+                      disabled={!formData.department}
+                    >
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectValue placeholder={formData.department ? "Select Position" : "Select Dept First"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formData.department && Array.isArray(positions) && positions
+                          .filter(p => p.department === formData.department)
+                          .map((pos) => (
+                            <SelectItem key={pos.positionId} value={pos.positionId.toString()}>{pos.title}</SelectItem>
+                          ))
+                        }
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  {/* Date Hired: Editable by Admin Manager (1), Read-only for Supervisor (2) & Accountant (4) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Hired</Label>
+                      {!isAdmin && (
+                        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                          Read-only
+                        </span>
+                      )}
+                    </div>
+                    {isAdmin ? (
+                      <Input 
+                        name="hireDate" 
+                        type="date" 
+                        value={formData.hireDate} 
+                        onChange={handleChange} 
+                        className="border-slate-200 focus-visible:ring-[#2A174E]"
+                      />
+                    ) : (
+                      <Input 
+                        name="hireDate" 
+                        type="date" 
+                        value={formData.hireDate} 
+                        readOnly 
+                        disabled 
+                        className="border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed opacity-90 font-medium"
+                      />
+                    )}
+                  </div>
+
+                  {/* Tax Status */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tax Status</Label>
+                    <Select value={formData.taxStatus} onValueChange={(val) => handleSelectChange("taxStatus", val)}>
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectValue placeholder="Select Tax Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="S">Single (S)</SelectItem>
+                        <SelectItem value="ME">Married / Head of Family (ME)</SelectItem>
+                        <SelectItem value="Z">Zero Exemption (Z)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Attendance Time Exemption: Visible to Admin Manager (Role 1) ONLY, Hidden to Supervisor & Accountant */}
+                  {isAdmin && (
+                    <div className="space-y-2 sm:col-span-3 bg-purple-50/70 p-4 rounded-xl border border-purple-100 flex items-center justify-between mt-1">
+                      <div>
+                        <Label htmlFor="is_time_exempt" className="text-sm font-bold text-[#2A174E] cursor-pointer">
+                          Attendance Time Exemption
+                        </Label>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Exempt this employee from mandatory RFID attendance tracking (for executives & field personnel).
+                        </p>
+                      </div>
+                      <Switch
+                        id="is_time_exempt"
+                        checked={Boolean(formData.is_time_exempt)}
+                        onCheckedChange={(checked) => handleSelectChange("is_time_exempt", checked)}
+                      />
+                    </div>
+                  )}
 
                 </CardContent>
               </Card>
@@ -1083,14 +1223,14 @@ const Edit = () => {
         }}>
           <DialogContent className="sm:max-w-md bg-white border-0 shadow-2xl rounded-xl">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-[#2A174E]">Verify Administrator Override</DialogTitle>
+              <DialogTitle className="text-xl font-bold text-[#2A174E]">Verify Role Elevation</DialogTitle>
               <DialogDescription className="text-slate-500 mt-2 leading-relaxed">
-                You are about to promote this user to <b>{formData.user_Role}</b>. This grants elevated system access. Please enter your current admin password to verify this critical action.
+                You are about to assign this user to <b>{formData.user_Role}</b>. This grants elevated administrative access. Please enter your account password to verify this action.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase">Your Admin Password</Label>
+                <Label className="text-xs font-bold text-slate-500 uppercase">Your Password</Label>
                 <Input
                   type="password"
                   placeholder="Enter your password..."

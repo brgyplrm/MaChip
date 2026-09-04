@@ -50,6 +50,7 @@ const Settings = () => {
   const [mandatedMinimumWage, setMandatedMinimumWage] = useState(610.0);
   const [mandatedWageEffectiveDate, setMandatedWageEffectiveDate] = useState("2025-07-18");
   const [hardwareBufferWindow, setHardwareBufferWindow] = useState(5);
+  const [archivedRetentionYears, setArchivedRetentionYears] = useState(5);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
@@ -106,6 +107,7 @@ const Settings = () => {
         setMandatedMinimumWage(data.mandatedMinimumWage ?? 610.0);
         setMandatedWageEffectiveDate(data.mandatedWageEffectiveDate ?? "2025-07-18");
         setHardwareBufferWindow(data.hardwareBufferWindow ?? 5);
+        setArchivedRetentionYears(data.archivedRetentionYears !== undefined && data.archivedRetentionYears !== null ? data.archivedRetentionYears : 5);
 
         // Load Attendance Settings
         if (data.morningShiftStart) setMorningShiftStart(data.morningShiftStart.substring(0, 5));
@@ -158,68 +160,9 @@ const Settings = () => {
     }
   };
 
-  const handleSaveSettings = async (overrides = {}) => {
-    if (!isAdmin) return;
-    
-    // [FIX] Prevent React SyntheticEvents from leaking into the payload
-    // If the first argument has a nativeEvent or preventDefault, it's an event handler call, not a data override.
-    const actualOverrides = (overrides && typeof overrides === 'object' && !overrides.nativeEvent && !overrides.preventDefault) 
-      ? overrides 
-      : {};
-
+  const sendSettingsUpdate = async (payload, successMessage = "Configuration updated successfully!") => {
+    if (!isAdmin) return false;
     setSaving(true);
-    
-    // Merge flat states into the nested structure to preserve extra fields (floor, ceiling, etc.)
-    const consolidatedStatutory = (actualOverrides.payroll || payrollRates?.statutoryConstants) ? {
-      ...(actualOverrides.payroll || payrollRates?.statutoryConstants),
-      sss: { ...(actualOverrides.payroll || payrollRates?.statutoryConstants).sss, employee_rate: sssRate / 100 },
-      philhealth: { ...(actualOverrides.payroll || payrollRates?.statutoryConstants).philhealth, rate: philhealthRate / 100 },
-      hdmf: { ...(actualOverrides.payroll || payrollRates?.statutoryConstants).hdmf, ee_rate_high: pagibigEmployee / 5000, er_rate: pagibigEmployer / 5000 },
-      thirteenthMonthBasis,
-      overtimeMultiplier,
-      nightDiffMultiplier
-    } : {
-      sssRate,
-      philhealthRate,
-      pagibigEmployee,
-      pagibigEmployer,
-      thirteenthMonthBasis,
-      overtimeMultiplier,
-      nightDiffMultiplier
-    };
-
-    const sanitize = (val) => {
-      if (val === null || val === undefined || val === "") return 0;
-      const str = val.toString().replace(/,/g, "");
-      return parseFloat(str) || 0;
-    };
-
-    const payload = {
-      useMockTime,
-      mockDate,
-      mockTime,
-      storageRootPath,
-      mandatedMinimumWage: sanitize(mandatedMinimumWage),
-      mandatedWageEffectiveDate,
-      hardwareBufferWindow: sanitize(hardwareBufferWindow),
-      morningShiftStart,
-      morningShiftEnd,
-      gracePeriod,
-      lunchStartThreshold,
-      lunchEndThreshold,
-      lunchDuration: Math.floor(sanitize(lunchDuration)),
-      flexibleBreakThreshold: Math.floor(sanitize(flexibleBreakThreshold)),
-      workHourThreshold: sanitize(workHourThreshold),
-      payrollRates: actualOverrides.payrollRates || {
-        ...payrollRates,
-        statutoryConstants: consolidatedStatutory
-      },
-      payroll: actualOverrides.payroll || consolidatedStatutory,
-      ...actualOverrides // Allow any other overrides
-    };
-
-    console.log("[DEBUG] Sending global configuration update:", payload);
-
     try {
       const response = await fetchWithAuth("/api/system/settings", {
         method: "PUT",
@@ -228,20 +171,92 @@ const Settings = () => {
       });
 
       if (response.ok) {
-        console.log("[DEBUG] Configuration update SUCCESSful.");
-        showNotification("Global configurations updated successfully!");
+        showNotification(successMessage);
         refreshSystemTime();
+        await fetchSettings();
+        return true;
       } else {
         const errorData = await response.json();
-        console.error("[DEBUG] Configuration update FAILED:", errorData);
-        showNotification(`Failed to apply updated variables: ${errorData.error || "Unknown Error"}`, "error");
+        showNotification(`Failed to apply updated variables: ${errorData.error || errorData.message || "Unknown Error"}`, "error");
+        return false;
       }
     } catch (err) {
       console.error("[DEBUG] Network failure during configuration update:", err);
       showNotification("Network connection failure.", "error");
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveSystemVariables = async () => {
+    const sanitizeInt = (val, fallback) => {
+      const parsed = parseInt(val, 10);
+      return !isNaN(parsed) ? parsed : fallback;
+    };
+
+    const payload = {
+      useMockTime,
+      mockDate,
+      mockTime,
+      storageRootPath,
+      archivedRetentionYears: sanitizeInt(archivedRetentionYears, 5),
+      hardwareBufferWindow: sanitizeInt(hardwareBufferWindow, 5)
+    };
+
+    const success = await sendSettingsUpdate(payload, "System variables updated successfully!");
+    if (success) {
+      setIsEditingSystem(false);
+    }
+  };
+
+  const handleSaveAttendance = async () => {
+    const sanitize = (val) => {
+      if (val === null || val === undefined || val === "") return 0;
+      return parseFloat(val.toString().replace(/,/g, "")) || 0;
+    };
+
+    const payload = {
+      morningShiftStart,
+      morningShiftEnd,
+      gracePeriod,
+      lunchStartThreshold,
+      lunchEndThreshold,
+      lunchDuration: Math.floor(sanitize(lunchDuration)),
+      flexibleBreakThreshold: Math.floor(sanitize(flexibleBreakThreshold)),
+      workHourThreshold: sanitize(workHourThreshold)
+    };
+
+    await sendSettingsUpdate(payload, "Attendance configurations updated successfully!");
+  };
+
+  const handleSavePayroll = async (newRates) => {
+    if (!newRates) return;
+
+    const payload = {
+      ordinaryDayRate: newRates.ordinaryDayRate,
+      specialDayRate: newRates.specialDayRate,
+      restDayRate: newRates.restDayRate,
+      regularHolidayRate: newRates.regularHolidayRate,
+      doubleRegularHolidayRate: newRates.doubleRegularHolidayRate,
+      doubleSpecialDayRate: newRates.doubleSpecialDayRate,
+      specialDayRestDayRate: newRates.specialDayRestDayRate,
+      regularHolidayRestDayRate: newRates.regularHolidayRestDayRate,
+      doubleRegularHolidayRestDayRate: newRates.doubleRegularHolidayRestDayRate,
+      doubleSpecialDayRestDayRate: newRates.doubleSpecialDayRestDayRate,
+      nightDiffRate: newRates.nightDiffRate,
+      overtimeRate: newRates.overtimeRate,
+      payrollRates: newRates.payrollRates,
+      payroll: newRates.payroll
+    };
+
+    Object.keys(payload).forEach(key => {
+      if (payload[key] === undefined) {
+        delete payload[key];
+      }
+    });
+
+    await sendSettingsUpdate(payload, "Payroll formulas updated successfully!");
   };
 
   return (
@@ -334,10 +349,7 @@ const Settings = () => {
                           <button 
                             type="button"
                             className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
-                            onClick={async () => {
-                              await handleSaveSettings();
-                              setIsEditingSystem(false);
-                            }}
+                            onClick={handleSaveSystemVariables}
                             disabled={!isAdmin || saving}
                           >
                             <Save className="w-4 h-4" /> <span>{saving ? "Saving..." : "Save Changes"}</span>
@@ -449,6 +461,32 @@ const Settings = () => {
                             className="bg-white border-slate-200 w-full font-mono"
                           />
                         </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                            Archived Employee Record Retention
+                          </Label>
+                          <Select
+                            value={(archivedRetentionYears ?? 5).toString()}
+                            onValueChange={(val) => setArchivedRetentionYears(parseInt(val))}
+                            disabled={!isAdmin || !isEditingSystem}
+                          >
+                            <SelectTrigger className="bg-white border-slate-200 w-full">
+                              <SelectValue placeholder="Select retention policy" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">1 Year</SelectItem>
+                              <SelectItem value="3">3 Years (DOLE Minimum)</SelectItem>
+                              <SelectItem value="5">5 Years (DOLE & CTPAT Standard)</SelectItem>
+                              <SelectItem value="7">7 Years (Tax Compliance)</SelectItem>
+                              <SelectItem value="10">10 Years (BIR Statutory Limit)</SelectItem>
+                              <SelectItem value="0">Indefinite (No Auto-Purge)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[11px] text-slate-400">
+                            Minimum duration archived employee records are kept before permanent deletion eligibility.
+                          </p>
+                        </div>
                       </div>
 
                       <div className="space-y-2 pt-4 border-t border-slate-100">
@@ -492,8 +530,8 @@ const Settings = () => {
                           if (stat.hdmf?.er_rate !== undefined) setPagibigEmployer(stat.hdmf.er_rate * 5000);
                         }
 
-                        // 3. Call the centralized save function with all new rates
-                        await handleSaveSettings(newRates);
+                        // 3. Call the targeted save function with only payroll rates
+                        await handleSavePayroll(newRates);
                       }} 
                     />
                   </div>
@@ -510,7 +548,7 @@ const Settings = () => {
                     lunchDuration={lunchDuration} setLunchDuration={setLunchDuration}
                     flexibleThreshold={flexibleBreakThreshold} setFlexibleThreshold={setFlexibleBreakThreshold}
                     workHourThreshold={workHourThreshold} setWorkHourThreshold={setWorkHourThreshold}
-                    onSave={handleSaveSettings}
+                    onSave={handleSaveAttendance}
                     saving={saving}
                     isAdmin={isAdmin}
                   />

@@ -17,6 +17,8 @@ router.get("/summary-preview", requireAdmin, payrollController.getPayrollSummary
 // Specific Ledgers & History
 router.get("/maxicare/history", requireAdmin, payrollController.getMaxicareHistory);
 router.post("/maxicare/sync", requireAdmin, payrollController.syncMaxicareHistory);
+router.get("/eastwest/history", requireAdmin, payrollController.getEastwestLoanHistory);
+router.get("/eastwest/history-pdf", requireAdmin, payrollController.downloadEastwestLoanReportPDF);
 router.get("/loans/history", requireAdmin, payrollController.getLoanHistory);
 router.get("/loans/history/all-gov", requireAdmin, payrollController.getGovLoanHistoryAll);
 router.get("/loans/history/all-gov-pdf", requireAdmin, payrollController.downloadGovLoanReportPDF);
@@ -30,6 +32,7 @@ router.get("/thirteenth-month/preview", requireAdmin, payrollController.getThirt
 router.post("/thirteenth-month/generate", requireAdmin, payrollController.generateThirteenthMonth);
 router.post("/thirteenth-month/release", requireAdmin, payrollController.releaseThirteenthMonth);
 router.get("/thirteenth-month/history", requireAdmin, payrollController.getThirteenthMonthHistory);
+router.delete("/thirteenth-month/drafts/:year", requireAdmin, payrollController.deleteThirteenthMonthDrafts);
 
 // Separation Pay
 router.get("/separation/preview", requireAdmin, payrollController.getSeparationPayPreview);

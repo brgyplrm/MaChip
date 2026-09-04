@@ -87,6 +87,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         defaultValue: 7,
       },
+      archivedRetentionYears: {
+        type: DataTypes.INTEGER,
+        defaultValue: 5,
+      },
+      hardwareBufferWindow: {
+        type: DataTypes.INTEGER,
+        defaultValue: 5,
+      },
     },
     {
       timestamps: true,

@@ -80,12 +80,14 @@ const ArchivedUsers = () => {
     setShowRestoreModal(true);
   };
 
-  const handleConfirmRestore = async () => {
+  const handleConfirmRestore = async (formData) => {
     if (!userToRestore) return;
     setRestoring(true);
     try {
       const response = await fetchWithAuth(`/api/users/restoreUser/${userToRestore.user_Id}`, {
         method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData || {}),
       });
       if (response.ok) {
         setArchivedUsers((prev) => prev.filter((u) => u.user_Id !== userToRestore.user_Id));
@@ -94,7 +96,7 @@ const ArchivedUsers = () => {
         setUserToRestore(null);
       } else {
         const err = await response.json();
-        setToast({ message: err.message || "Failed to restore user.", type: "error" });
+        setToast({ message: err.error || err.message || "Failed to restore user.", type: "error" });
       }
     } catch (err) {
       setToast({ message: "Network error.", type: "error" });
@@ -529,6 +531,7 @@ const ArchivedUsers = () => {
           }
         }}
         onConfirm={handleConfirmRestore}
+        user={userToRestore}
         itemName={userToRestore ? `${userToRestore.user_FirstName} ${userToRestore.user_LastName}` : ""}
         userId={userToRestore ? formatUserId(userToRestore.user_Id) : ""}
         loading={restoring}

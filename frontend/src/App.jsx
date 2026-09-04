@@ -2,6 +2,7 @@ import Home from "./pages/admin/Home";
 import EmployeeHome from "./pages/employeeHome/EmployeeHome";
 import UserRequests from "./pages/userRequests/UserRequests"; 
 import Login from "./pages/login/Login";
+import ResetPassword from "./pages/resetPassword/ResetPassword";
 import List from "./pages/list/List";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
@@ -66,6 +67,7 @@ function App() {
       <PageTitle />
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         <Route
           path="/employeeHome"

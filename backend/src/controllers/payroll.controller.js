@@ -6,7 +6,7 @@ const {
   sendTerminationNoticeEmail, 
   sendTerminationRescissionEmail 
 } = require("../utils/emailService");
-const { generatePayslipPDF } = require("../utils/pdfGenerator");
+const { generatePayslipPDF, generateDetailedPayslipPDF } = require("../utils/pdfGenerator");
 const { generatePayslipPassword } = require("../utils/payslipPassword");
 const { generateDTRPDF } = require("../utils/dtrGenerator");
 const { decrypt } = require("../utils/encryption");
@@ -17,7 +17,8 @@ const { getAttendanceReportInternal } = require("./attendance.controller");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { computeMonthlyShares, computePeriodTax } = require("../utils/govtDeductions");
 const { generatePayrollSummaryPDF } = require("../utils/payrollSummaryGenerator");
-const { generateGovLoanReportPDF, generateIndividualLoanPDF } = require("../utils/loanReportGenerator");
+const { generateGovLoanReportPDF, generateIndividualLoanPDF, generateEastwestLoanReportPDF } = require("../utils/loanReportGenerator");
+const { queueSlotDeletion } = require("./rfid.controller");
 const archiver = require("archiver");
 archiver.registerFormat("zip-encryptable", require("archiver-zip-encryptable"));
 
@@ -71,8 +72,9 @@ exports.downloadBatchZip = async (req, res) => {
       });
 
       const pdfBuffer = await generatePayslipPDF(fullStats, pdfPassword);
-      const pdfFilename = `Payslip_${p.user_LastName}_${p.user_Id}.pdf`;
-      archive.append(pdfBuffer, { name: pdfFilename });
+      const detailedPdfBuffer = await generateDetailedPayslipPDF(fullStats, pdfPassword);
+      archive.append(pdfBuffer, { name: `Payslip_${p.user_LastName}_${p.user_Id}.pdf` });
+      archive.append(detailedPdfBuffer, { name: `Payslip_${p.user_LastName}_${p.user_Id}_Detailed.pdf` });
     }
 
     await archive.finalize();
@@ -226,7 +228,10 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
   let total_nd_units = 0;
   let total_ot_units = 0;
   let total_hol_units = 0;
+  let total_legal_hol_units = 0;
+  let total_special_hol_units = 0;
   let total_payable_units = 0;
+  const holidayBreakdown = [];
 
   for (let i = 0; i < allDays.length; i++) {
     const dateStr = allDays[i];
@@ -293,24 +298,71 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
       }
 
       if (holiday) {
-        if (holiday.type === "Regular Holiday") legalHol_Days++;
-        else specialHol_Days++;
+        const isRegular = holiday.type === "Regular Holiday";
+        const loggedHolHours = parseFloat(log?.holiday_hrs || 0);
+        // If logged holiday units exist, use them; otherwise fallback to standard premium units (1.0x for regular, 0.3x for special)
+        const holHours = loggedHolHours > 0 ? loggedHolHours : (isRegular ? dailyHrs * 1.0 : dailyHrs * 0.3);
+
+        if (isRegular) {
+          legalHol_Days++;
+          total_legal_hol_units += holHours;
+        } else {
+          specialHol_Days++;
+          total_special_hol_units += holHours;
+        }
+
+        holidayBreakdown.push({
+          holidayId: holiday.holidayId,
+          name: holiday.name || (isRegular ? "Regular Holiday" : "Special Holiday"),
+          date: dateStr,
+          type: holiday.type,
+          worked: true,
+          hoursWorked: dailyHrs,
+          premiumHours: holHours,
+          multiplier: isRegular ? 2.0 : 1.3,
+          premiumRate: isRegular ? 1.0 : 0.3
+        });
       }
       continue; 
     }
 
     if (holiday) {
       if (!isFuture) {
-        if (holiday.type === "Regular Holiday") {
+        const isRegular = holiday.type === "Regular Holiday";
+        if (isRegular) {
           actual_Worked_Days++;
           actual_Worked_Hrs += WORK_HRS_PER_DAY;
           total_payable_units += WORK_HRS_PER_DAY;
           legalHol_NotWorked++;
+          holidayBreakdown.push({
+            holidayId: holiday.holidayId,
+            name: holiday.name || "Regular Holiday",
+            date: dateStr,
+            type: holiday.type,
+            worked: false,
+            hoursWorked: 0,
+            premiumHours: 0,
+            multiplier: 1.0,
+            premiumRate: 0,
+            note: "Unworked Regular Holiday (100% in Basic Pay)"
+          });
         } else {
           specialHol_NotWorked++;
+          holidayBreakdown.push({
+            holidayId: holiday.holidayId,
+            name: holiday.name || "Special Holiday",
+            date: dateStr,
+            type: holiday.type,
+            worked: false,
+            hoursWorked: 0,
+            premiumHours: 0,
+            multiplier: 0,
+            premiumRate: 0,
+            note: "Unworked Special Holiday (No work, no pay)"
+          });
         }
       }
-      continue;
+      continue; 
     }
 
     const [y, m, d] = dateStr.split("-").map(Number);
@@ -382,6 +434,8 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     nd_hrs: Math.round(total_nd_units * 100) / 100,
     ot_hrs: Math.round(total_ot_units * 100) / 100,
     holiday_hrs: Math.round(total_hol_units * 100) / 100,
+    legal_hol_hrs: Math.round(total_legal_hol_units * 100) / 100,
+    special_hol_hrs: Math.round(total_special_hol_units * 100) / 100,
     totalScheduledDays,
     absence_Days,
     paidLeave_Days,
@@ -394,6 +448,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     holidaysTotal: holidays.length,
     OT_Hrs_Manual: verified_OT_Hrs,
     workedHolidays: { regular: legalHol_Days, special: specialHol_Days },
+    holidayBreakdown
   };
 }
 
@@ -589,8 +644,9 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const potentialBasicPay = (stats.totalScheduledDays * dailyRate);
 
   // 2. Holiday Premiums (Using Precise Units)
-  const legalHol_Amnt = stats.holiday_hrs * ratePerHr;
-  const specialHol_Amnt = 0; 
+  const legalHol_Amnt = (stats.legal_hol_hrs || 0) * ratePerHr;
+  const specialHol_Amnt = (stats.special_hol_hrs || 0) * ratePerHr;
+  const total_hol_Amnt = legalHol_Amnt + specialHol_Amnt;
 
   // 3. OT & Night Diff
   // Retrieve settings to get dynamic multipliers
@@ -637,7 +693,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   // 4. Actual Earnings & Adjustments
   // "Gross Earnings" should be the potential pay + premiums before ANY deductions (absences/tardiness)
   // This ensures the math (Gross - Total Deductions = Net) is transparent on the payslip.
-  let grossEarnings = potentialBasicPay + legalHol_Amnt + nightDiff_Amnt + OT_Amnt + nightOT_Amnt + incentives;
+  let grossEarnings = potentialBasicPay + legalHol_Amnt + specialHol_Amnt + nightDiff_Amnt + OT_Amnt + nightOT_Amnt + incentives;
   if (isNaN(grossEarnings) || grossEarnings < 0) grossEarnings = 0;
 
   // Actual Basic Pay for internal record (Potential - Absences)
@@ -668,6 +724,31 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   let netPay = (grossEarnings - totalDeductions) + allowance;
   if (isNaN(netPay) || netPay < 0) netPay = 0;
 
+  const decoratedHolidayBreakdown = (stats.holidayBreakdown || []).map(h => {
+    let amount = 0;
+    let formula = "";
+    if (h.worked) {
+      if (h.type === "Regular Holiday") {
+        amount = (h.premiumHours || 8) * ratePerHr;
+        formula = `100% Base in Basic Pay + 100% Regular Holiday Premium: ₱${dailyRate.toFixed(2)} × 1.00 = ₱${amount.toFixed(2)}`;
+      } else {
+        amount = (h.premiumHours || 2.4) * ratePerHr;
+        formula = `100% Base in Basic Pay + 30% Special Premium: (₱${dailyRate.toFixed(2)} × 1.30) - ₱${dailyRate.toFixed(2)} = ₱${amount.toFixed(2)}`;
+      }
+    } else {
+      if (h.type === "Regular Holiday") {
+        formula = `Unworked Regular Holiday: 100% Daily Rate (₱${dailyRate.toFixed(2)}) included in Basic Pay`;
+      } else {
+        formula = `Unworked Special Holiday: No work, no pay`;
+      }
+    }
+    return {
+      ...h,
+      amount: Math.round(amount * 100) / 100,
+      formula
+    };
+  });
+
   return {
     ...stats,
     NoDays_Worked: stats.NoDays_Worked, 
@@ -682,7 +763,9 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     totalEarnings: grossEarnings, // For backward compatibility with some reports
     legalHol_Amnt,
     specialHol_Amnt,
+    total_hol_Amnt,
     specialHol_Adj,
+    holidayBreakdown: decoratedHolidayBreakdown,
     OT_Hrs: regular_OT_hrs,
     OT_Amnt,
     nightOT_Hrs: night_OT_hrs,
@@ -717,6 +800,77 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   };
 }
 
+// ── Internal Helper: Generate Detailed Holiday Breakdown ─────────────────────
+async function getHolidayBreakdown(user_Id, period_Start, period_End, dailyRate = 0, ratePerHr = 0, legalHol_Amnt = 0, specialHol_Amnt = 0) {
+  try {
+    const numDailyRate = parseFloat(dailyRate || 0);
+    const numRatePerHr = ratePerHr > 0 ? parseFloat(ratePerHr) : (numDailyRate / WORK_HRS_PER_DAY);
+
+    const holidays = await sequelize.query(
+      `SELECT "holidayId", "name", "date"::text as "date", "type" 
+       FROM "Holiday" 
+       WHERE "date" BETWEEN :period_Start AND :period_End 
+       ORDER BY "date"::date ASC`,
+      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+    if (!holidays || holidays.length === 0) return [];
+
+    const logs = await sequelize.query(
+      `SELECT "log_Date"::text as log_date, "reg_hrs", "holiday_hrs", "attendance_StatusId"
+       FROM "employee_Logging_report"
+       WHERE "user_id" = :user_Id AND "log_Date" BETWEEN :period_Start AND :period_End`,
+      { replacements: { user_Id, period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+    const logMap = {};
+    logs.forEach(l => {
+      const dStr = typeof l.log_date === 'string' ? l.log_date : l.log_date.toISOString().split('T')[0];
+      logMap[dStr] = l;
+    });
+
+    const breakdown = [];
+    for (const h of holidays) {
+      const dStr = typeof h.date === 'string' ? h.date : h.date.toISOString().split('T')[0];
+      const log = logMap[dStr];
+      const isRegular = h.type === "Regular Holiday";
+      const worked = log && (parseInt(log.attendance_StatusId) !== 3 && parseInt(log.attendance_StatusId) !== 7);
+      const hours = worked ? parseFloat(log.reg_hrs || 8) : 0;
+      
+      let amount = 0;
+      let formula = "";
+      if (worked) {
+        if (isRegular) {
+          amount = hours * numRatePerHr * 1.0;
+          formula = `100% Base in Basic Pay + 100% Regular Holiday Premium: ₱${numDailyRate.toFixed(2)} × 1.00 = ₱${amount.toFixed(2)}`;
+        } else {
+          amount = hours * numRatePerHr * 0.3;
+          formula = `100% Base in Basic Pay + 30% Special Premium: (₱${numDailyRate.toFixed(2)} × 1.30) - ₱${numDailyRate.toFixed(2)} = ₱${amount.toFixed(2)}`;
+        }
+      } else {
+        if (isRegular) {
+          formula = `Unworked Regular Holiday: 100% Daily Rate (₱${numDailyRate.toFixed(2)}) included in Basic Pay`;
+        } else {
+          formula = `Unworked Special Holiday: No work, no pay`;
+        }
+      }
+
+      breakdown.push({
+        holidayId: h.holidayId,
+        name: h.name,
+        date: dStr,
+        type: h.type,
+        worked: Boolean(worked),
+        hoursWorked: hours,
+        amount: Math.round(amount * 100) / 100,
+        formula
+      });
+    }
+    return breakdown;
+  } catch (err) {
+    console.error("[HOLIDAY BREAKDOWN ERROR]:", err);
+    return [];
+  }
+}
+
 // ── Internal Helper: Calculate YTD ───────────────────────────────────────────
 async function calculateYTD(user_Id, period_Start, period_End, currentEarnings, currentAllowance, currentDeductions, currentTax) {
   const year = new Date(period_Start).getFullYear();
@@ -732,7 +886,7 @@ async function calculateYTD(user_Id, period_Start, period_End, currentEarnings, 
      LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
      LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
      WHERE p."user_Id" = :user_Id 
-     AND p."status" = 2
+     AND p."status" IN (2, 3, 4, 5)
      AND EXTRACT(YEAR FROM p."period_Start") = :safeYear
      AND p."period_End" < :period_Start`,
     { 
@@ -743,10 +897,10 @@ async function calculateYTD(user_Id, period_Start, period_End, currentEarnings, 
 
   const hist = ytdData[0] || {};
   return {
-    ytdGross: parseFloat(hist.ytdGross || 0) + parseFloat(currentEarnings || 0),
-    ytdNonTaxable: parseFloat(hist.ytdNonTaxable || 0) + parseFloat(currentAllowance || 0),
-    ytdDeductions: parseFloat(hist.ytdDeductions || 0) + (parseFloat(currentDeductions || 0) - parseFloat(currentTax || 0)),
-    ytdBIR: parseFloat(hist.ytdBIR || 0) + parseFloat(currentTax || 0)
+    ytdGross: Math.round((parseFloat(hist.ytdGross || 0) + parseFloat(currentEarnings || 0)) * 100) / 100,
+    ytdNonTaxable: Math.round((parseFloat(hist.ytdNonTaxable || 0) + parseFloat(currentAllowance || 0)) * 100) / 100,
+    ytdDeductions: Math.round((parseFloat(hist.ytdDeductions || 0) + (parseFloat(currentDeductions || 0) - parseFloat(currentTax || 0))) * 100) / 100,
+    ytdBIR: Math.round((parseFloat(hist.ytdBIR || 0) + parseFloat(currentTax || 0)) * 100) / 100
   };
 }
 
@@ -1038,14 +1192,18 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
           };
           const pdfPassword = generatePayslipPassword(payrollDataForPass);
 
-          const payslipBuffer = await generatePayslipPDF({
+          const payslipPayload = {
             ...fullStats,
             user_FirstName: emp.user_FirstName,
             user_LastName: emp.user_LastName,
+            user_Position: emp.position,
             period_Start,
             period_End,
             accountNo: decrypt(emp.account_Number) || "—"
-          }, pdfPassword);
+          };
+
+          const payslipBuffer = await generatePayslipPDF(payslipPayload, pdfPassword);
+          const detailedPayslipBuffer = await generateDetailedPayslipPDF(payslipPayload, pdfPassword);
 
           const dtrBuffer = await generateDTRPDF({
             employee: emp,
@@ -1063,6 +1221,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
           };
 
           await saveFileToArchive(payslipBuffer, `Payslip_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
+          await saveFileToArchive(detailedPayslipBuffer, `Payslip_${emp.user_LastName}_${emp.user_Id}_Detailed.pdf`, archiveOpts);
           await saveFileToArchive(dtrBuffer, `DTR_${emp.user_LastName}_${emp.user_Id}.pdf`, archiveOpts);
 
           // Email sending (only if not skipped)
@@ -1074,6 +1233,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
               netPay: fullStats.netPay,
               attachments: [
                 { filename: `Payslip_${emp.user_LastName}.pdf`, content: payslipBuffer },
+                { filename: `Payslip_${emp.user_LastName}_Detailed.pdf`, content: detailedPayslipBuffer },
                 { filename: `DTR_${emp.user_LastName}.pdf`, content: dtrBuffer }
               ]
             });
@@ -1376,14 +1536,18 @@ exports.generatePayroll = async (req, res) => {
           user_Id
         });
 
-        const payslipBuffer = await generatePayslipPDF({
+        const payslipPayload = {
           ...fullStats,
           user_FirstName: emp.user_FirstName,
           user_LastName: emp.user_LastName,
+          user_Position: emp.position,
           period_Start,
           period_End,
           accountNo: decrypt(emp.account_Number) || "—"
-        }, pdfPassword);
+        };
+
+        const payslipBuffer = await generatePayslipPDF(payslipPayload, pdfPassword);
+        const detailedPayslipBuffer = await generateDetailedPayslipPDF(payslipPayload, pdfPassword);
 
         const dtrBuffer = await generateDTRPDF({
           employee: { user_Id, ...emp },
@@ -1402,6 +1566,7 @@ exports.generatePayroll = async (req, res) => {
         };
 
         await saveFileToArchive(payslipBuffer, `Payslip_${emp.user_LastName}_${user_Id}.pdf`, archiveOpts);
+        await saveFileToArchive(detailedPayslipBuffer, `Payslip_${emp.user_LastName}_${user_Id}_Detailed.pdf`, archiveOpts);
         await saveFileToArchive(dtrBuffer, `DTR_${emp.user_LastName}_${user_Id}.pdf`, archiveOpts);
         // ──────────────────────────────────────────────────────────────────
 
@@ -1412,6 +1577,7 @@ exports.generatePayroll = async (req, res) => {
           netPay: fullStats.netPay,
           attachments: [
             { filename: `Payslip_${emp.user_LastName}.pdf`, content: payslipBuffer },
+            { filename: `Payslip_${emp.user_LastName}_Detailed.pdf`, content: detailedPayslipBuffer },
             { filename: `DTR_${emp.user_LastName}.pdf`, content: dtrBuffer }
           ]
         });
@@ -1471,6 +1637,13 @@ exports.generatePayroll = async (req, res) => {
     // 2. Cash Advance Link
     await sequelize.query(
       `UPDATE "Payroll_Cash_Advances" SET "payrollId" = :payrollId
+       WHERE "user_Id" = :user_Id AND "date" = :period_End`,
+      { replacements: { payrollId, user_Id, period_End }, type: QueryTypes.UPDATE }
+    );
+
+    // 2.5 Eastwest / Company Loan Link
+    await sequelize.query(
+      `UPDATE "Payroll_Eastwest" SET "payrollId" = :payrollId
        WHERE "user_Id" = :user_Id AND "date" = :period_End`,
       { replacements: { payrollId, user_Id, period_End }, type: QueryTypes.UPDATE }
     );
@@ -1601,13 +1774,17 @@ exports.resendPayrollEmail = async (req, res) => {
       user_Id: payroll.user_Id
     });
 
-    const [payslipBuffer, dtrBuffer] = await Promise.all([
-      generatePayslipPDF({
-        ...fullStats,
-        user_FirstName: payroll.user_FirstName,
-        user_LastName: payroll.user_LastName,
-        accountNo: decrypt(payroll.account_Number) || "—"
-      }, pdfPassword),
+    const payslipPayload = {
+      ...fullStats,
+      user_FirstName: payroll.user_FirstName,
+      user_LastName: payroll.user_LastName,
+      user_Position: payroll.position || payroll.user_Position,
+      accountNo: decrypt(payroll.account_Number) || "—"
+    };
+
+    const [payslipBuffer, detailedPayslipBuffer, dtrBuffer] = await Promise.all([
+      generatePayslipPDF(payslipPayload, pdfPassword),
+      generateDetailedPayslipPDF(payslipPayload, pdfPassword),
       generateDTRPDF({
         employee: payroll,
         dtrData,
@@ -1624,6 +1801,7 @@ exports.resendPayrollEmail = async (req, res) => {
       netPay: payroll.netPay,
       attachments: [
         { filename: `Payslip_${payroll.user_LastName}.pdf`, content: payslipBuffer },
+        { filename: `Payslip_${payroll.user_LastName}_Detailed.pdf`, content: detailedPayslipBuffer },
         { filename: `DTR_${payroll.user_LastName}.pdf`, content: dtrBuffer }
       ]
     });
@@ -1766,9 +1944,20 @@ exports.getPayrollById = async (req, res) => {
       currentPayroll.Tax_Ded
     );
 
+    const holidayBreakdown = await getHolidayBreakdown(
+      currentPayroll.user_Id,
+      currentPayroll.period_Start,
+      currentPayroll.period_End,
+      currentPayroll.dailyRate,
+      currentPayroll.ratePerHr,
+      currentPayroll.legalHol_Amnt,
+      currentPayroll.specialHol_Amnt
+    );
+
     const result = {
       ...currentPayroll,
-      ...ytd
+      ...ytd,
+      holidayBreakdown
     };
 
     res.status(200).json(result);
@@ -2217,7 +2406,11 @@ exports.getLoanHistory = async (req, res) => {
     // 1. Dedicated Ledger Tables
     if (type === "Cash Advance") {
       const history = await sequelize.query(
-        `SELECT "date", "user_Id", "amount", "payrollId" FROM "Payroll_Cash_Advances" ORDER BY "date" ASC`,
+        `SELECT pca."date", pca."user_Id", pca."amount", pca."payrollId",
+                u."user_FirstName" || ' ' || u."user_LastName" as "userName"
+         FROM "Payroll_Cash_Advances" pca
+         JOIN "User" u ON pca."user_Id" = u."user_Id"
+         ORDER BY pca."date" ASC`,
         { type: QueryTypes.SELECT }
       );
       return res.status(200).json(history);
@@ -2225,9 +2418,15 @@ exports.getLoanHistory = async (req, res) => {
 
     if (type === "Eastwest Loan") {
       const history = await sequelize.query(
-        `SELECT "date", "user_Id", "amount", "payrollId", 'Eastwest' as "source" FROM "Payroll_Eastwest"
+        `SELECT pe."date", pe."user_Id", pe."amount", pe."payrollId", 'Eastwest' as "source",
+                u."user_FirstName" || ' ' || u."user_LastName" as "userName"
+         FROM "Payroll_Eastwest" pe
+         JOIN "User" u ON pe."user_Id" = u."user_Id"
          UNION ALL
-         SELECT "date", "user_Id", "amount", "payrollId", 'CashAdvance' as "source" FROM "Payroll_Cash_Advances"
+         SELECT pca."date", pca."user_Id", pca."amount", pca."payrollId", 'CashAdvance' as "source",
+                u."user_FirstName" || ' ' || u."user_LastName" as "userName"
+         FROM "Payroll_Cash_Advances" pca
+         JOIN "User" u ON pca."user_Id" = u."user_Id"
          ORDER BY "date" ASC`,
         { type: QueryTypes.SELECT }
       );
@@ -2425,7 +2624,7 @@ exports.getThirteenthMonthPreview = async (req, res) => {
              FROM "Payroll" p2
              WHERE p2."user_Id" = u."user_Id" 
                AND EXTRACT(YEAR FROM p2."period_Start") = :year 
-               AND p2."status" IN (2, 5)
+               AND p2."status" IN (2, 3, 4, 5)
              GROUP BY month_num, month_name
              ORDER BY month_num
            ) m
@@ -2433,7 +2632,7 @@ exports.getThirteenthMonthPreview = async (req, res) => {
        FROM "User" u
        LEFT JOIN "Payroll" p ON u."user_Id" = p."user_Id" 
          AND EXTRACT(YEAR FROM p."period_Start") = :year 
-         AND p."status" IN (2, 5)
+         AND p."status" IN (2, 3, 4, 5)
        LEFT JOIN "Payroll_ThirteenthMonth" tm ON u."user_Id" = tm."user_Id" AND tm."year" = :year
        WHERE u."dailyRate" > 0
        GROUP BY u."user_Id", u."user_FirstName", u."user_LastName", tm."status", tm."amount", u."deletedAt"
@@ -2538,7 +2737,7 @@ exports.releaseThirteenthMonth = async (req, res) => {
        FROM "User" u
        JOIN "Payroll" p ON u."user_Id" = p."user_Id" 
          AND EXTRACT(YEAR FROM p."period_Start") = :year 
-         AND p."status" = 2
+         AND p."status" IN (2, 3, 4, 5)
        WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
        GROUP BY u."user_Id"
        HAVING SUM(p."basicPay") > 0`,
@@ -2613,7 +2812,7 @@ async function releaseThirteenthMonthInternal(year, status = 'Released') {
      FROM "User" u
      JOIN "Payroll" p ON u."user_Id" = p."user_Id" 
        AND EXTRACT(YEAR FROM p."period_Start") = :year 
-       AND p."status" = 2
+       AND p."status" IN (2, 3, 4, 5)
      WHERE u."deletedAt" IS NULL AND u."dailyRate" > 0
      GROUP BY u."user_Id"
      HAVING SUM(p."basicPay") > 0`,
@@ -2671,7 +2870,7 @@ exports.getThirteenthMonthHistory = async (req, res) => {
           FROM "Payroll" p2
           WHERE p2."user_Id" = tm."user_Id" 
             AND EXTRACT(YEAR FROM p2."period_Start") = tm."year"
-            AND p2."status" IN (2, 5)
+            AND p2."status" IN (2, 3, 4, 5)
           GROUP BY month_num, month_name
           ORDER BY month_num
         ) m
@@ -2753,20 +2952,7 @@ exports.getSeparationPayPreview = async (req, res) => {
     const monthlyBasic = (user.dailyRate || 0) * 26;
     const baseSalary = monthlyBasic + (parseFloat(user.monthlyAllowance) || 0);
 
-    // 1. Fetch current year earnings for pro-rated 13th month
-    const currentYear = new Date(separationDate).getFullYear();
-    const earningsResult = await sequelize.query(
-      `SELECT COALESCE(SUM("basicPay"), 0) as "totalBasic"
-       FROM "Payroll" 
-       WHERE "user_Id" = :user_Id 
-         AND EXTRACT(YEAR FROM "period_Start") = :year 
-         AND "status" = 2`,
-      { replacements: { user_Id, year: currentYear }, type: QueryTypes.SELECT }
-    );
-    const totalBasicYear = parseFloat(earningsResult[0]?.totalBasic || 0);
-    const prorated13thMonth = totalBasicYear / 12;
-
-    // 2. Fetch Leave Balances
+    // 1. Fetch Leave Balances
     const leaveBalances = await sequelize.query(
       `SELECT "VL_balance", "SL_balance" FROM "Leave_Balance" WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT }
@@ -2774,36 +2960,54 @@ exports.getSeparationPayPreview = async (req, res) => {
     const vlBalance = parseFloat(leaveBalances[0]?.VL_balance || 0);
     const slBalance = parseFloat(leaveBalances[0]?.SL_balance || 0);
     const totalLeaveCredits = vlBalance + slBalance;
-    const leaveConversion = totalLeaveCredits * (user.dailyRate || 0);
+    const leaveConversion = Math.round(totalLeaveCredits * (user.dailyRate || 0) * 100) / 100;
 
-    // 3. Fetch Final Worked Days Salary (Attendance Audit)
-    // Find the end date of the last released payroll for this user
+    // 2. Fetch Final Worked Days Salary (Attendance Audit)
+    // Find the end date of the last closed/released payroll for this user up to separation date
     const lastPayroll = await sequelize.query(
-      `SELECT MAX(pp."endDate") as "lastDate" 
+      `SELECT MAX(COALESCE(p."period_End", pp."endDate")) as "lastDate" 
        FROM "Payroll" p 
-       JOIN "PayrollPeriod" pp ON p."periodId" = pp."periodId" 
-       WHERE p."user_Id" = :user_Id AND p."status" = 2`,
-      { replacements: { user_Id }, type: QueryTypes.SELECT }
+       LEFT JOIN "PayrollPeriod" pp ON p."periodId" = pp."periodId" 
+       WHERE p."user_Id" = :user_Id 
+         AND p."status" IN (2, 3, 4, 5)
+         AND p."period_End" <= :sepDate`,
+      { replacements: { user_Id, sepDate: separationDate }, type: QueryTypes.SELECT }
     );
     
-    // Fallback to hireDate if no previous payroll found
-    const startDate = lastPayroll[0]?.lastDate || user.hireDate;
+    const hasLastPayroll = Boolean(lastPayroll[0]?.lastDate);
+    const startDate = hasLastPayroll ? lastPayroll[0].lastDate : user.hireDate;
+    const startDateStr = typeof startDate === 'string' ? startDate.split('T')[0] : new Date(startDate).toISOString().split('T')[0];
 
     const attendanceGap = await sequelize.query(
       `SELECT COUNT(*) as "worked" 
        FROM "employee_Logging_report" 
        WHERE "user_id" = :user_Id 
-         AND "log_Date" > :startDate 
-         AND "log_Date" <= :sepDate
+         AND "log_Date" ${hasLastPayroll ? '>' : '>='} :startDate::date 
+         AND "log_Date" <= :sepDate::date
          AND "attendance_StatusId" IN (1, 2, 4, 5, 6)`,
       { 
-        replacements: { user_Id, startDate, sepDate: separationDate }, 
+        replacements: { user_Id, startDate: startDateStr, sepDate: separationDate }, 
         type: QueryTypes.SELECT 
       }
     );
 
     const workedDaysCount = parseInt(attendanceGap[0]?.worked || 0);
-    const finalWorkedSalary = workedDaysCount * (user.dailyRate || 0);
+    const finalWorkedSalary = Math.round(workedDaysCount * (user.dailyRate || 0) * 100) / 100;
+
+    // 3. Fetch current year earnings for pro-rated 13th month
+    const currentYear = new Date(separationDate).getFullYear();
+    const earningsResult = await sequelize.query(
+      `SELECT COALESCE(SUM("basicPay"), 0) as "totalBasic"
+       FROM "Payroll" 
+       WHERE "user_Id" = :user_Id 
+         AND EXTRACT(YEAR FROM "period_Start") = :year 
+         AND "status" IN (2, 3, 4, 5)
+         AND "period_End" <= :sepDate`,
+      { replacements: { user_Id, year: currentYear, sepDate: separationDate }, type: QueryTypes.SELECT }
+    );
+    const totalBasicPayroll = parseFloat(earningsResult[0]?.totalBasic || 0);
+    const totalBasicYear = Math.round((totalBasicPayroll + finalWorkedSalary) * 100) / 100;
+    const prorated13thMonth = Math.round((totalBasicYear / 12) * 100) / 100;
 
     // 4. Fetch Outstanding Loans (Mandatory full deduction on separation per SSS rules)
     const activeLoans = await sequelize.query(
@@ -3020,6 +3224,26 @@ exports.releaseSeparationPay = async (req, res) => {
       { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
     );
 
+    // 3.1 Hardware Deactivation: Archive MachipId and clear fingerprint template/slot
+    const hardwareResult = await sequelize.query(
+      `SELECT "user_MachipId", "user_FingerprintId" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT, transaction: t }
+    );
+    const currentMachipId = hardwareResult.length > 0 ? hardwareResult[0].user_MachipId : null;
+    const currentFpSlot = hardwareResult.length > 0 ? hardwareResult[0].user_FingerprintId : null;
+    const archivedMachipId = currentMachipId ? `${currentMachipId}-ARCHIVED-${user_Id}` : null;
+
+    await sequelize.query(
+      `UPDATE "User_Hardware" 
+       SET "deletedAt" = :now, 
+           "user_MachipId" = :archivedMachipId, 
+           "user_FingerprintId" = NULL, 
+           "user_FingerprintTemplate" = NULL,
+           "updatedAt" = :now
+       WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id, now: nowStr, archivedMachipId }, type: QueryTypes.UPDATE, transaction: t }
+    );
+
     // 4. Settle Outstanding Loans (Mandatory per SSS rules)
     await sequelize.query(
       `UPDATE "Loan_Deductions" 
@@ -3043,6 +3267,11 @@ exports.releaseSeparationPay = async (req, res) => {
     );
 
     await t.commit();
+
+    // Queue hardware sensor slot wipe for ESP32
+    if (currentFpSlot) {
+      queueSlotDeletion(currentFpSlot);
+    }
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logTransaction(null, currentAdminId, "SEPARATION_RELEASE", `Released separation pay and archived user ${user_Id}`, { separationId, user_Id }, req);
@@ -3196,20 +3425,7 @@ exports.getRetirementPayPreview = async (req, res) => {
     // Tax Exemption Check (Age 50+ AND 10+ years tenure AND one-time only)
     const isTaxExempt = age >= 50 && yearsOfService >= 10 && !user.hasAvailedRetirementTax;
 
-    // 1. Fetch current year earnings for pro-rated 13th month
-    const currentYearNum = targetDate.getFullYear();
-    const earningsResult = await sequelize.query(
-      `SELECT COALESCE(SUM("basicPay"), 0) as "totalBasic"
-       FROM "Payroll" 
-       WHERE "user_Id" = :user_Id 
-         AND EXTRACT(YEAR FROM "period_Start") = :year 
-         AND "status" = 2`,
-      { replacements: { user_Id, year: currentYearNum }, type: QueryTypes.SELECT }
-    );
-    const totalBasicYear = parseFloat(earningsResult[0]?.totalBasic || 0);
-    const prorated13thMonth = totalBasicYear / 12;
-
-    // 2. Fetch Leave Balances
+    // 1. Fetch Leave Balances
     const leaveBalances = await sequelize.query(
       `SELECT "VL_balance", "SL_balance" FROM "Leave_Balance" WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT }
@@ -3217,33 +3433,54 @@ exports.getRetirementPayPreview = async (req, res) => {
     const vlBalance = parseFloat(leaveBalances[0]?.VL_balance || 0);
     const slBalance = parseFloat(leaveBalances[0]?.SL_balance || 0);
     const totalLeaveCredits = vlBalance + slBalance;
-    const leaveConversion = totalLeaveCredits * dailyRate;
+    const leaveConversion = Math.round(totalLeaveCredits * dailyRate * 100) / 100;
 
-    // 3. Fetch Final Worked Days Salary (Attendance Audit)
+    // 2. Fetch Final Worked Days Salary (Attendance Audit)
+    // Find the end date of the last closed/released payroll for this user up to retirement date
     const lastPayroll = await sequelize.query(
-      `SELECT MAX(pp."endDate") as "lastDate" 
+      `SELECT MAX(COALESCE(p."period_End", pp."endDate")) as "lastDate" 
        FROM "Payroll" p 
-       JOIN "PayrollPeriod" pp ON p."periodId" = pp."periodId" 
-       WHERE p."user_Id" = :user_Id AND p."status" = 2`,
-      { replacements: { user_Id }, type: QueryTypes.SELECT }
+       LEFT JOIN "PayrollPeriod" pp ON p."periodId" = pp."periodId" 
+       WHERE p."user_Id" = :user_Id 
+         AND p."status" IN (2, 3, 4, 5)
+         AND p."period_End" <= :retirementDate`,
+      { replacements: { user_Id, retirementDate }, type: QueryTypes.SELECT }
     );
     
-    const auditStartDate = lastPayroll[0]?.lastDate || user.hireDate;
+    const hasLastPayroll = Boolean(lastPayroll[0]?.lastDate);
+    const auditStartDate = hasLastPayroll ? lastPayroll[0].lastDate : user.hireDate;
+    const auditStartDateStr = typeof auditStartDate === 'string' ? auditStartDate.split('T')[0] : new Date(auditStartDate).toISOString().split('T')[0];
+
     const attendanceGap = await sequelize.query(
       `SELECT COUNT(*) as "worked" 
        FROM "employee_Logging_report" 
        WHERE "user_id" = :user_Id 
-         AND "log_Date" > :startDate 
-         AND "log_Date" <= :sepDate
+         AND "log_Date" ${hasLastPayroll ? '>' : '>='} :startDate::date 
+         AND "log_Date" <= :sepDate::date
          AND "attendance_StatusId" IN (1, 2, 4, 5, 6)`,
       { 
-        replacements: { user_Id, startDate: auditStartDate, sepDate: retirementDate }, 
+        replacements: { user_Id, startDate: auditStartDateStr, sepDate: retirementDate }, 
         type: QueryTypes.SELECT 
       }
     );
 
     const workedDaysCount = parseInt(attendanceGap[0]?.worked || 0);
-    const finalWorkedSalary = workedDaysCount * dailyRate;
+    const finalWorkedSalary = Math.round(workedDaysCount * dailyRate * 100) / 100;
+
+    // 3. Fetch current year earnings for pro-rated 13th month
+    const currentYearNum = targetDate.getFullYear();
+    const earningsResult = await sequelize.query(
+      `SELECT COALESCE(SUM("basicPay"), 0) as "totalBasic"
+       FROM "Payroll" 
+       WHERE "user_Id" = :user_Id 
+         AND EXTRACT(YEAR FROM "period_Start") = :year 
+         AND "status" IN (2, 3, 4, 5)
+         AND "period_End" <= :retirementDate`,
+      { replacements: { user_Id, year: currentYearNum, retirementDate }, type: QueryTypes.SELECT }
+    );
+    const totalBasicPayroll = parseFloat(earningsResult[0]?.totalBasic || 0);
+    const totalBasicYear = Math.round((totalBasicPayroll + finalWorkedSalary) * 100) / 100;
+    const prorated13thMonth = Math.round((totalBasicYear / 12) * 100) / 100;
 
     // 4. Fetch Outstanding Loans (Mandatory deduction per SSS rules)
     const activeLoans = await sequelize.query(
@@ -3409,6 +3646,26 @@ exports.releaseRetirementPay = async (req, res) => {
         { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
       );
 
+      // 3.1 Hardware Deactivation: Archive MachipId and clear fingerprint template/slot
+      const hardwareResult = await sequelize.query(
+        `SELECT "user_MachipId", "user_FingerprintId" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id }, type: QueryTypes.SELECT, transaction: t }
+      );
+      const currentMachipId = hardwareResult.length > 0 ? hardwareResult[0].user_MachipId : null;
+      const currentFpSlot = hardwareResult.length > 0 ? hardwareResult[0].user_FingerprintId : null;
+      const archivedMachipId = currentMachipId ? `${currentMachipId}-ARCHIVED-${user_Id}` : null;
+
+      await sequelize.query(
+        `UPDATE "User_Hardware" 
+         SET "deletedAt" = :now, 
+             "user_MachipId" = :archivedMachipId, 
+             "user_FingerprintId" = NULL, 
+             "user_FingerprintTemplate" = NULL,
+             "updatedAt" = :now
+         WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id, now: nowStr, archivedMachipId }, type: QueryTypes.UPDATE, transaction: t }
+      );
+
       // 4. Settle Outstanding Loans (Mandatory per SSS rules)
       await sequelize.query(
         `UPDATE "Loan_Deductions" 
@@ -3434,6 +3691,10 @@ exports.releaseRetirementPay = async (req, res) => {
       // 6. Log Transaction
       const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
       await logTransaction(null, currentAdminId, "RETIREMENT_RELEASE", `Released retirement pay ID ${retirementId} and archived user ${user_Id}`, { retirementId, user_Id }, req);
+
+      if (currentFpSlot) {
+        queueSlotDeletion(currentFpSlot);
+      }
     });
 
     res.status(200).json({ message: "Retirement pay released successfully." });
@@ -3765,7 +4026,50 @@ exports.getMyPayrollById = async (req, res) => {
 
     if (payroll.length === 0) return res.status(404).json({ error: "Payroll not found or access denied." });
 
-    res.status(200).json(payroll[0]);
+    const currentPayroll = payroll[0];
+
+    // Ensure numeric fields are numbers
+    const numericFields = [
+      "dailyRate", "previousDailyRate", "ratePerHr", "basicPay", "totalEarnings", 
+      "totalDeductions", "netPay", "OT_Amnt", "restDay_OT_Amnt", "nightOT_Amnt", 
+      "nightDiff_Amnt", "specialHol_Amnt", "legalHol_Amnt", "specialHol_Adj", 
+      "incentives", "allowance", "absence_Amnt", "tardiness_Amnt", "unpaidLeave_Amnt",
+      "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "SSS_Ded_ER", "Philhealth_Ded_ER", 
+      "HDMF_Ded_ER", "Tax_Ded", "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", 
+      "calamityLoan_Amnt", "multiPurposeSavings", "advances_Amnt", "globe_Deduction", 
+      "eastwest_Loan", "Other_Deductions"
+    ];
+    numericFields.forEach(field => {
+      if (currentPayroll[field] !== undefined) {
+        currentPayroll[field] = parseFloat(currentPayroll[field] || 0);
+      }
+    });
+
+    const ytd = await calculateYTD(
+      currentPayroll.user_Id,
+      currentPayroll.period_Start,
+      currentPayroll.period_End,
+      currentPayroll.totalEarnings,
+      currentPayroll.allowance,
+      currentPayroll.totalDeductions,
+      currentPayroll.Tax_Ded
+    );
+
+    const holidayBreakdown = await getHolidayBreakdown(
+      currentPayroll.user_Id,
+      currentPayroll.period_Start,
+      currentPayroll.period_End,
+      currentPayroll.dailyRate,
+      currentPayroll.ratePerHr,
+      currentPayroll.legalHol_Amnt,
+      currentPayroll.specialHol_Amnt
+    );
+
+    res.status(200).json({
+      ...currentPayroll,
+      ...ytd,
+      holidayBreakdown
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -3777,31 +4081,67 @@ exports.getMyPayrollById = async (req, res) => {
  */
 exports.getMyThirteenthMonthHistory = async (req, res) => {
   const user_Id = req.user.user_Id;
+  const { year } = req.query;
   try {
+    const replacements = { user_Id };
+    let yearClause = "";
+    if (year && !isNaN(parseInt(year))) {
+      yearClause = ` AND tm."year" = :year`;
+      replacements.year = parseInt(year);
+    }
+
     const history = await sequelize.query(
       `SELECT tm.*,
       (
-        SELECT COALESCE(json_agg(m), '[]'::json)
+        SELECT COALESCE(json_agg(m ORDER BY (m).month_num), '[]'::json)
         FROM (
           SELECT 
-            EXTRACT(MONTH FROM p2."period_Start") as month_num,
+            EXTRACT(MONTH FROM p2."period_Start")::int as month_num,
             TRIM(TO_CHAR(p2."period_Start", 'Month')) as month_name,
             SUM(p2."basicPay") as monthly_basic
           FROM "Payroll" p2
           WHERE p2."user_Id" = :user_Id 
             AND EXTRACT(YEAR FROM p2."period_Start") = tm."year"
-            AND p2."status" = 2
+            AND p2."status" IN (2, 3, 4, 5)
           GROUP BY month_num, month_name
           ORDER BY month_num
         ) m
       ) as "breakdown"
        FROM "Payroll_ThirteenthMonth" tm
        WHERE tm."user_Id" = :user_Id 
+         AND tm."status" = 'Released'
+         ${yearClause}
        ORDER BY tm."year" DESC`,
-      { replacements: { user_Id }, type: QueryTypes.SELECT }
+      { replacements, type: QueryTypes.SELECT }
     );
     res.status(200).json(history);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Deletes/Discards draft 13th Month Pay records for a specified year.
+ */
+exports.deleteThirteenthMonthDrafts = async (req, res) => {
+  const { year } = req.params;
+  if (!year || isNaN(parseInt(year))) {
+    return res.status(400).json({ error: "A valid year is required." });
+  }
+
+  try {
+    const deleted = await sequelize.query(
+      `DELETE FROM "Payroll_ThirteenthMonth" 
+       WHERE "year" = :year AND "status" = 'Draft'`,
+      { replacements: { year: parseInt(year) }, type: QueryTypes.DELETE }
+    );
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(null, currentAdminId, "13TH_MONTH_DISCARD_DRAFTS", `Discarded draft 13th month records for year ${year}`, { year }, req);
+
+    res.status(200).json({ message: `Successfully discarded draft 13th month records for year ${year}.` });
+  } catch (error) {
+    console.error("[13TH_MONTH_DISCARD_ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -3906,6 +4246,162 @@ exports.downloadGovLoanReportPDF = async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="Gov_Loan_Report_${year || 'All'}.pdf"`);
     res.end(pdfBuffer);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets aggregated history for all employee bank loans (Eastwest) & advances.
+ */
+exports.getEastwestLoanHistory = async (req, res) => {
+  const { year } = req.query;
+  try {
+    let query = `
+      SELECT * FROM (
+        SELECT 
+          pe."date"::text as "date",
+          pe."user_Id",
+          pe."amount",
+          pe."payrollId",
+          'Eastwest Bank Loan' as "source",
+          pe."notes",
+          u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
+        FROM "Payroll_Eastwest" pe
+        JOIN "User" u ON pe."user_Id" = u."user_Id"
+
+        UNION ALL
+
+        SELECT 
+          pca."date"::text as "date",
+          pca."user_Id",
+          pca."amount",
+          pca."payrollId",
+          'Cash Advance' as "source",
+          pca."notes",
+          u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
+        FROM "Payroll_Cash_Advances" pca
+        JOIN "User" u ON pca."user_Id" = u."user_Id"
+        WHERE NOT EXISTS (
+          SELECT 1 FROM "Payroll_Eastwest" pe2 
+          WHERE pe2."user_Id" = pca."user_Id" AND pe2."date" = pca."date"
+        )
+
+        UNION ALL
+
+        SELECT 
+          p."period_End"::text as "date",
+          p."user_Id",
+          pd."eastwest_Loan" as "amount",
+          p."payrollId",
+          'Eastwest Bank Loan' as "source",
+          'Payroll Deduction' as "notes",
+          u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
+        FROM "Payroll_Deductions" pd
+        JOIN "Payroll" p ON pd."payrollId" = p."payrollId"
+        JOIN "User" u ON p."user_Id" = u."user_Id"
+        WHERE pd."eastwest_Loan" > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM "Payroll_Eastwest" pe3 
+            WHERE pe3."user_Id" = p."user_Id" AND (pe3."payrollId" = p."payrollId" OR pe3."date" = p."period_End")
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "Payroll_Cash_Advances" pca2 
+            WHERE pca2."user_Id" = p."user_Id" AND (pca2."payrollId" = p."payrollId" OR pca2."date" = p."period_End")
+          )
+      ) combined
+      WHERE 1=1
+    `;
+    const replacements = {};
+    if (year && year !== "All Years") {
+      query += ` AND EXTRACT(YEAR FROM combined."date"::date) = :year`;
+      replacements.year = parseInt(year);
+    }
+    query += ` ORDER BY combined."date" DESC, combined."userName" ASC`;
+
+    const history = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
+    res.status(200).json(history);
+  } catch (error) {
+    console.error("[GET_EASTWEST_LOAN_HISTORY_ERROR]:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Downloads a PDF report of employee bank loan & advance remittances.
+ */
+exports.downloadEastwestLoanReportPDF = async (req, res) => {
+  const { year } = req.query;
+  try {
+    let query = `
+      SELECT * FROM (
+        SELECT 
+          pe."date"::text as "date",
+          pe."user_Id",
+          pe."amount",
+          pe."payrollId",
+          'Eastwest Bank Loan' as "source",
+          pe."notes",
+          u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
+        FROM "Payroll_Eastwest" pe
+        JOIN "User" u ON pe."user_Id" = u."user_Id"
+
+        UNION ALL
+
+        SELECT 
+          pca."date"::text as "date",
+          pca."user_Id",
+          pca."amount",
+          pca."payrollId",
+          'Cash Advance' as "source",
+          pca."notes",
+          u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
+        FROM "Payroll_Cash_Advances" pca
+        JOIN "User" u ON pca."user_Id" = u."user_Id"
+        WHERE NOT EXISTS (
+          SELECT 1 FROM "Payroll_Eastwest" pe2 
+          WHERE pe2."user_Id" = pca."user_Id" AND pe2."date" = pca."date"
+        )
+
+        UNION ALL
+
+        SELECT 
+          p."period_End"::text as "date",
+          p."user_Id",
+          pd."eastwest_Loan" as "amount",
+          p."payrollId",
+          'Eastwest Bank Loan' as "source",
+          'Payroll Deduction' as "notes",
+          u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
+        FROM "Payroll_Deductions" pd
+        JOIN "Payroll" p ON pd."payrollId" = p."payrollId"
+        JOIN "User" u ON p."user_Id" = u."user_Id"
+        WHERE pd."eastwest_Loan" > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM "Payroll_Eastwest" pe3 
+            WHERE pe3."user_Id" = p."user_Id" AND (pe3."payrollId" = p."payrollId" OR pe3."date" = p."period_End")
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "Payroll_Cash_Advances" pca2 
+            WHERE pca2."user_Id" = p."user_Id" AND (pca2."payrollId" = p."payrollId" OR pca2."date" = p."period_End")
+          )
+      ) combined
+      WHERE 1=1
+    `;
+    const replacements = {};
+    if (year && year !== "All Years") {
+      query += ` AND EXTRACT(YEAR FROM combined."date"::date) = :year`;
+      replacements.year = parseInt(year);
+    }
+    query += ` ORDER BY combined."date" DESC, combined."userName" ASC`;
+
+    const history = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
+    const pdfBuffer = await generateEastwestLoanReportPDF(history, { year });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Employee_Loan_Report_${year || 'All'}.pdf"`);
+    res.end(pdfBuffer);
+  } catch (error) {
+    console.error("[DOWNLOAD_EASTWEST_LOAN_PDF_ERROR]:", error.message);
     res.status(500).json({ error: error.message });
   }
 };

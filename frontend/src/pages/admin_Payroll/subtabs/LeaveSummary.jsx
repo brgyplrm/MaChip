@@ -86,7 +86,7 @@ const LeaveSummary = () => {
         const res = await fetchWithAuth(`/api/request/summary/${year}`);
         const result = await res.json();
         if (res.ok) {
-          setData(result.data);
+          setData((result.data || []).filter(emp => emp.user_Id !== 999 && emp.machipId !== "MACJ-999"));
           setMonths(result.months);
           setRates({ vlRate: result.vlRate, slRate: result.slRate });
         }
@@ -99,10 +99,12 @@ const LeaveSummary = () => {
     fetchData();
   }, [year]);
 
-  // Client-side search matching employee names or IDs
+  // Client-side search matching employee names or IDs (excluding visitor placeholder 999)
   const filteredData = data.filter(employee =>
-    employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    employee.user_Id.toString().includes(searchTerm)
+    employee.user_Id !== 999 &&
+    employee.machipId !== "MACJ-999" &&
+    (employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     employee.user_Id.toString().includes(searchTerm))
   );
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);

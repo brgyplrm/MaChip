@@ -7,7 +7,10 @@ import {
   TrendingUp, 
   TrendingDown,
   Info,
-  HelpCircle
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
+  CalendarDays
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +28,7 @@ const PayrollComputationDetails = () => {
   const [payroll, setPayroll] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isHolidayExpanded, setIsHolidayExpanded] = useState(false);
 
   useEffect(() => {
     const fetchPayrollDetails = async () => {
@@ -207,30 +211,78 @@ const PayrollComputationDetails = () => {
                   <span className="font-semibold text-slate-800">{formatCurrency(payroll.nightOT_Amnt)}</span>
                 </div>
                 <Separator className="bg-slate-50" />
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-700">Legal Holiday Pay</span>
-                    <Tooltip>
-                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
-                        Legal Holiday: 100% premium (Double Pay) for working on regular national holidays
-                      </TooltipContent>
-                    </Tooltip>
+                {(parseFloat(payroll.legalHol_Amnt || 0) + parseFloat(payroll.specialHol_Amnt || 0)) > 0 && (
+                  <div className="pt-1">
+                    <div 
+                      className="flex justify-between items-center cursor-pointer hover:bg-slate-50/80 -mx-2 px-2 py-1.5 rounded-lg transition-colors group"
+                      onClick={() => setIsHolidayExpanded(!isHolidayExpanded)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-700 font-medium group-hover:text-[#2A174E]">Holiday Pay</span>
+                        <Tooltip>
+                          <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                            Statutory holiday compensation (100% premium for regular holidays, 30% for special holidays)
+                          </TooltipContent>
+                        </Tooltip>
+                        {isHolidayExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-slate-400 group-hover:text-[#2A174E]" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-[#2A174E]" />
+                        )}
+                      </div>
+                      <span className="font-semibold text-slate-800">
+                        {formatCurrency(parseFloat(payroll.legalHol_Amnt || 0) + parseFloat(payroll.specialHol_Amnt || 0))}
+                      </span>
+                    </div>
+
+                    {/* Accordion Detailed Content */}
+                    {isHolidayExpanded && (
+                      <div className="mt-2 ml-1 pl-3 border-l-2 border-[#2A174E]/30 space-y-2 text-xs">
+                        {Array.isArray(payroll.holidayBreakdown) && payroll.holidayBreakdown.length > 0 ? (
+                          payroll.holidayBreakdown.map((item, idx) => (
+                            <div key={idx} className="bg-slate-50/90 p-2.5 rounded-lg border border-slate-100 space-y-1">
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-800">{item.name}</span>
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${item.type === 'Regular Holiday' ? 'bg-indigo-100 text-indigo-800' : 'bg-purple-100 text-purple-800'}`}>
+                                    {item.type}
+                                  </span>
+                                </div>
+                                <span className="font-bold text-slate-900">{formatCurrency(item.amount)}</span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-0.5">
+                                <span>{new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} • {item.worked ? `Worked ${item.hoursWorked} hrs` : 'Unworked'}</span>
+                                <span className="font-mono text-[10px] text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">{item.formula}</span>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <>
+                            {parseFloat(payroll.legalHol_Amnt || 0) > 0 && (
+                              <div className="bg-slate-50/90 p-2.5 rounded-lg border border-slate-100 space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <span className="font-bold text-slate-800">Regular Holiday Pay</span>
+                                  <span className="font-bold text-slate-900">{formatCurrency(payroll.legalHol_Amnt)}</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-mono">100% Base in Basic Pay + 100% Regular Holiday Premium = 200% Total</p>
+                              </div>
+                            )}
+                            {parseFloat(payroll.specialHol_Amnt || 0) > 0 && (
+                              <div className="bg-slate-50/90 p-2.5 rounded-lg border border-slate-100 space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <span className="font-bold text-slate-800">Special Holiday Pay</span>
+                                  <span className="font-bold text-slate-900">{formatCurrency(payroll.specialHol_Amnt)}</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-mono">100% Base in Basic Pay + 30% Special Holiday Premium = 130% Total</p>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <span className="font-semibold text-slate-800">{formatCurrency(payroll.legalHol_Amnt)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-700">Special Holiday Pay</span>
-                    <Tooltip>
-                      <TooltipTrigger><HelpCircle className="h-3 w-3 text-slate-300 cursor-help" /></TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
-                        Special Holiday: 30% premium for working on special non-working days
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <span className="font-semibold text-slate-800">{formatCurrency(payroll.specialHol_Amnt)}</span>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -401,6 +453,34 @@ const PayrollComputationDetails = () => {
             </div>
           </div>
         </div>
+
+        {/* Year-To-Date (YTD) Snapshot Card */}
+        <Card className="border-none shadow-sm overflow-hidden bg-gradient-to-r from-slate-900 via-[#2A174E] to-slate-900 text-white">
+          <CardHeader className="pb-3 border-b border-white/10">
+            <CardTitle className="text-base flex items-center gap-2 text-white font-semibold">
+              <CalendarDays className="h-5 w-5 text-amber-400" />
+              Year-To-Date (YTD) Accumulated Totals ({new Date(payroll.period_Start).getFullYear()})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">YTD Gross Earnings</p>
+              <p className="text-xl font-bold text-emerald-400 mt-0.5">{formatCurrency(payroll.ytdGross)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">YTD Non-Taxable</p>
+              <p className="text-xl font-bold text-blue-300 mt-0.5">{formatCurrency(payroll.ytdNonTaxable)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">YTD Total Deductions</p>
+              <p className="text-xl font-bold text-rose-300 mt-0.5">({formatCurrency(payroll.ytdDeductions)})</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">YTD Withholding Tax</p>
+              <p className="text-xl font-bold text-amber-300 mt-0.5">({formatCurrency(payroll.ytdBIR)})</p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Audit / Info Banner */}
         <Card className="bg-blue-50 border-blue-100 shadow-none">

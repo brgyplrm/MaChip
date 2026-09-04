@@ -32,6 +32,7 @@ const EastwestLoanHistory = () => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [isExporting, setIsExporting] = useState(false);
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,18 +43,50 @@ const EastwestLoanHistory = () => {
   const fetchLoanHistory = useCallback(async () => {
     setLoading(true);
     try {
-      // Endpoint follows the pattern of your Maxicare history
       const response = await fetchWithAuth("/api/payroll/eastwest/history");
       if (response.ok) {
         const data = await response.json();
-        setHistory(data);
+        const safeData = Array.isArray(data) ? data : (data.history || data.data || []);
+        setHistory(safeData);
+      } else {
+        setHistory([]);
       }
     } catch (err) {
       console.error("Failed to load loan history:", err);
+      setHistory([]);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const handleExportPDF = async () => {
+    try {
+      setIsExporting(true);
+      const queryParams = new URLSearchParams({
+        year: yearFilter
+      }).toString();
+      
+      const response = await fetchWithAuth(`/api/payroll/eastwest/history-pdf?${queryParams}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Employee_Loan_History_${yearFilter.replace(/\s+/g, '_')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setToast({ message: "PDF report downloaded successfully.", type: "success" });
+      } else {
+        setToast({ message: "Failed to download PDF report.", type: "error" });
+      }
+    } catch (error) {
+      console.error("PDF Export Error:", error);
+      setToast({ message: "An error occurred while generating PDF.", type: "error" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     fetchLoanHistory();
@@ -98,8 +131,9 @@ const EastwestLoanHistory = () => {
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 
   const availableYears = useMemo(() => {
-    const years = [...new Set(history.map(item => new Date(item.date).getFullYear().toString()))];
-    return years.sort((a, b) => b - a);
+    const historyYears = history.map(item => new Date(item.date).getFullYear().toString());
+    const defaultYears = ["2026", "2025", "2024"];
+    return [...new Set([...historyYears, ...defaultYears])].sort((a, b) => b - a);
   }, [history]);
 
   return (
@@ -149,8 +183,13 @@ const EastwestLoanHistory = () => {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  <Button className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-sm w-full md:w-auto">
-                    <DownloadIcon className="mr-2 h-4 w-4" /> Export History (PDF)
+                  <Button 
+                    onClick={handleExportPDF}
+                    disabled={isExporting || history.length === 0}
+                    className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-sm w-full md:w-auto"
+                  >
+                    <DownloadIcon className="mr-2 h-4 w-4" /> 
+                    {isExporting ? "Exporting..." : "Export History (PDF)"}
                   </Button>
                 </span>
               </TooltipTrigger>
@@ -289,7 +328,7 @@ const EastwestLoanHistory = () => {
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100">
-                          Eastwest Bank Loan
+                          {item.source || "Eastwest Bank Loan"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right pr-6 font-bold text-slate-900">

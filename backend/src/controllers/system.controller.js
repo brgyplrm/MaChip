@@ -173,115 +173,126 @@ exports.updateMandatedWage = async (req, res) => {
 };
 
 exports.updateSystemSettings = async (req, res) => {
-  const { 
-    useMockTime, 
-    mockDate,
-    mockTime,
-    mockTimeEnabled, 
-    mockTimeValue,
-    maxicareTotalGross, 
-    maxicareMonthsToPay, 
-    maxicareCycleStartDate,
-    maxicareDates,
-    vlRate,
-    slRate,
-    storageRootPath,
-    payrollRates,
-    payroll // Standing for statutory rates like SSS, Philhealth, etc.
-  } = req.body;
-
   try {
     const settings = await SystemSettings.findOne();
-    let oldSettings = null;
+    let oldSettings = settings ? settings.toJSON() : null;
     let newSettings;
 
-    const finalMockEnabled = useMockTime !== undefined ? useMockTime : mockTimeEnabled;
-    let finalMockValue = mockTimeValue;
+    const updateData = {};
 
-    if (mockDate && mockTime) {
-      finalMockValue = new Date(`${mockDate}T${mockTime}`);
+    // 1. Time Simulation
+    if (req.body.useMockTime !== undefined || req.body.mockTimeEnabled !== undefined) {
+      updateData.mockTimeEnabled = req.body.useMockTime !== undefined ? Boolean(req.body.useMockTime) : Boolean(req.body.mockTimeEnabled);
+    }
+    if (req.body.mockDate !== undefined && req.body.mockTime !== undefined) {
+      updateData.mockTimeValue = (req.body.mockDate && req.body.mockTime) 
+        ? new Date(`${req.body.mockDate}T${req.body.mockTime}`) 
+        : null;
+    } else if (req.body.mockTimeValue !== undefined) {
+      updateData.mockTimeValue = req.body.mockTimeValue;
     }
 
-    // Merge statutory payroll data into payrollRates JSON for permanent storage
-    const consolidatedPayrollRates = {
-      ...(payrollRates || {}),
-      statutoryConstants: payroll || {}
-    };
+    // 2. Storage & System Infrastructure
+    if (req.body.storageRootPath !== undefined) updateData.storageRootPath = req.body.storageRootPath;
+    if (req.body.archivedRetentionYears !== undefined && req.body.archivedRetentionYears !== null) {
+      updateData.archivedRetentionYears = parseInt(req.body.archivedRetentionYears, 10);
+    }
+    if (req.body.hardwareBufferWindow !== undefined && req.body.hardwareBufferWindow !== null) {
+      updateData.hardwareBufferWindow = parseInt(req.body.hardwareBufferWindow, 10);
+    }
+    if (req.body.vlRate !== undefined) updateData.vlRate = parseFloat(req.body.vlRate);
+    if (req.body.slRate !== undefined) updateData.slRate = parseFloat(req.body.slRate);
 
-    // Sanitize Maxicare Dates if present
-    let sanitizedMaxicareDates = maxicareDates;
-    if (maxicareDates && Array.isArray(maxicareDates.dates)) {
-      sanitizedMaxicareDates = {
-        ...maxicareDates,
-        dates: maxicareDates.dates.filter(d => {
+    // 3. Shifts & Attendance Thresholds
+    if (req.body.morningShiftStart !== undefined) updateData.morningShiftStart = req.body.morningShiftStart;
+    if (req.body.morningShiftEnd !== undefined) updateData.morningShiftEnd = req.body.morningShiftEnd;
+    if (req.body.eveningShiftStart !== undefined) updateData.eveningShiftStart = req.body.eveningShiftStart;
+    if (req.body.eveningShiftEnd !== undefined) updateData.eveningShiftEnd = req.body.eveningShiftEnd;
+    if (req.body.gracePeriod !== undefined) updateData.gracePeriod = req.body.gracePeriod;
+    if (req.body.lunchStartThreshold !== undefined) updateData.lunchStartThreshold = req.body.lunchStartThreshold;
+    if (req.body.lunchEndThreshold !== undefined) updateData.lunchEndThreshold = req.body.lunchEndThreshold;
+    if (req.body.lunchDuration !== undefined) updateData.lunchDuration = parseInt(req.body.lunchDuration, 10);
+    if (req.body.flexibleBreakThreshold !== undefined) updateData.flexibleBreakThreshold = parseInt(req.body.flexibleBreakThreshold, 10);
+    if (req.body.workHourThreshold !== undefined) updateData.workHourThreshold = parseFloat(req.body.workHourThreshold);
+
+    // 4. Labor Multipliers
+    const multiplierFields = [
+      'ordinaryDayRate', 'specialDayRate', 'restDayRate', 'regularHolidayRate',
+      'nightDiffRate', 'overtimeRate', 'doubleRegularHolidayRate',
+      'specialDayRestDayRate', 'doubleSpecialDayRate', 'doubleSpecialDayRestDayRate',
+      'regularHolidayRestDayRate', 'doubleRegularHolidayRestDayRate'
+    ];
+    multiplierFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updateData[field] = parseFloat(req.body[field]);
+      }
+    });
+
+    // 5. Mandated Wage & Grace Period
+    if (req.body.mandatedMinimumWage !== undefined) updateData.mandatedMinimumWage = parseFloat(req.body.mandatedMinimumWage);
+    if (req.body.mandatedWageEffectiveDate !== undefined) updateData.mandatedWageEffectiveDate = req.body.mandatedWageEffectiveDate;
+    if (req.body.payrollGracePeriodDays !== undefined && req.body.payrollGracePeriodDays !== null) {
+      updateData.payrollGracePeriodDays = parseInt(req.body.payrollGracePeriodDays, 10);
+    }
+
+    // 6. Maxicare / HMO
+    if (req.body.maxicareTotalGross !== undefined) updateData.maxicareTotalGross = parseFloat(req.body.maxicareTotalGross);
+    if (req.body.maxicareMonthsToPay !== undefined) updateData.maxicareMonthsToPay = parseInt(req.body.maxicareMonthsToPay, 10);
+    if (req.body.maxicareCycleStartDate !== undefined) updateData.maxicareCycleStartDate = req.body.maxicareCycleStartDate;
+    if (req.body.maxicareDates !== undefined) {
+      let sanitizedMaxicareDates = req.body.maxicareDates;
+      if (sanitizedMaxicareDates && Array.isArray(sanitizedMaxicareDates.dates)) {
+        sanitizedMaxicareDates = {
+          ...sanitizedMaxicareDates,
+          dates: sanitizedMaxicareDates.dates.filter(d => {
+            if (!d || typeof d !== 'string') return false;
+            const parts = d.split('-');
+            return parts.length === 3 && parts[0].length === 4 && d.length === 10;
+          }).sort()
+        };
+      } else if (Array.isArray(sanitizedMaxicareDates)) {
+        sanitizedMaxicareDates = sanitizedMaxicareDates.filter(d => {
           if (!d || typeof d !== 'string') return false;
-          // Ensure YYYY-MM-DD format with 10 characters
           const parts = d.split('-');
           return parts.length === 3 && parts[0].length === 4 && d.length === 10;
-        }).sort()
-      };
-    } else if (Array.isArray(maxicareDates)) {
-      // Handle legacy array-only format
-      sanitizedMaxicareDates = maxicareDates.filter(d => {
-        if (!d || typeof d !== 'string') return false;
-        const parts = d.split('-');
-        return parts.length === 3 && parts[0].length === 4 && d.length === 10;
-      }).sort();
+        }).sort();
+      }
+      updateData.maxicareDates = sanitizedMaxicareDates;
     }
 
-    const updateData = { 
-      mockTimeEnabled: finalMockEnabled, 
-      mockTimeValue: finalMockValue, 
-      maxicareTotalGross, 
-      maxicareMonthsToPay, 
-      maxicareCycleStartDate,
-      maxicareDates: sanitizedMaxicareDates,
-      vlRate,
-      slRate,
-      storageRootPath,
-      // Shift Configurations
-      morningShiftStart: req.body.morningShiftStart,
-      morningShiftEnd: req.body.morningShiftEnd,
-      eveningShiftStart: req.body.eveningShiftStart,
-      eveningShiftEnd: req.body.eveningShiftEnd,
-      // Attendance Thresholds
-      gracePeriod: req.body.gracePeriod,
-      lunchStartThreshold: req.body.lunchStartThreshold,
-      lunchEndThreshold: req.body.lunchEndThreshold,
-      lunchDuration: req.body.lunchDuration,
-      flexibleBreakThreshold: req.body.flexibleBreakThreshold,
-      workHourThreshold: req.body.workHourThreshold,
-      // Labor Multipliers
-      ordinaryDayRate: req.body.ordinaryDayRate,
-      specialDayRate: req.body.specialDayRate,
-      restDayRate: req.body.restDayRate,
-      regularHolidayRate: req.body.regularHolidayRate,
-      nightDiffRate: req.body.nightDiffRate,
-      overtimeRate: req.body.overtimeRate,
-      doubleRegularHolidayRate: req.body.doubleRegularHolidayRate,
-      specialDayRestDayRate: req.body.specialDayRestDayRate,
-      doubleSpecialDayRate: req.body.doubleSpecialDayRate,
-      doubleSpecialDayRestDayRate: req.body.doubleSpecialDayRestDayRate,
-      regularHolidayRestDayRate: req.body.regularHolidayRestDayRate,
-      doubleRegularHolidayRestDayRate: req.body.doubleRegularHolidayRestDayRate,
-      mandatedMinimumWage: req.body.mandatedMinimumWage,
-      payrollGracePeriodDays: req.body.payrollGracePeriodDays !== undefined ? parseInt(req.body.payrollGracePeriodDays) : 7,
-      payrollRates: consolidatedPayrollRates
-    };
+    // 7. Payroll Rates (Deep Merge to prevent wiping statutoryConstants or otNightRates)
+    if (req.body.payrollRates !== undefined || req.body.payroll !== undefined) {
+      const existingRates = (settings && settings.payrollRates) ? settings.payrollRates : {};
+      const newRates = req.body.payrollRates || {};
+      const newStatutory = req.body.payroll || newRates.statutoryConstants || {};
+
+      const mergedStatutory = {
+        ...(existingRates.statutoryConstants || {}),
+        ...(newRates.statutoryConstants || {}),
+        ...newStatutory
+      };
+
+      updateData.payrollRates = {
+        ...existingRates,
+        ...newRates,
+        statutoryConstants: mergedStatutory
+      };
+    }
+
+    // If nothing to update, return current settings
+    if (Object.keys(updateData).length === 0) {
+      return res.status(200).json({ message: "No changes provided", data: settings });
+    }
 
     if (!settings) {
-      console.log("[DEBUG] No settings row found. Creating NEW record.");
       newSettings = await SystemSettings.create(updateData);
     } else {
-      oldSettings = settings.toJSON();
-      console.log("[DEBUG] Existing settings found. Updating ID:", settings.settingId);
       newSettings = await settings.update(updateData);
     }
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logAudit(req, currentAdminId, "System Settings", "UPDATE_SETTINGS", "SystemSettings", newSettings.settingId, oldSettings, newSettings.toJSON());
 
-    console.log("[DEBUG] System Settings UPDATE SUCCESSFUL. New Data Saved.");
     res.status(200).json({ message: "System settings updated successfully", data: newSettings });
   } catch (error) {
     console.error("[ERROR] updateSystemSettings FAILED:", error);

@@ -322,18 +322,21 @@ async function ensureAbsentsMarked(dateOverride = null) {
       // Check if already has a record in report
       const existingReport = await employee_Logging_report.findOne({ where: { user_id: userId, log_Date: todayStr } });
       
-      // EXEMPT LOGIC: President in Admin Dept gets auto-logs if missing
-      const isPresident = emp.position?.toUpperCase() === 'PRESIDENT';
-      const isAdminDept = emp.department?.toUpperCase() === 'ADMIN';
+      // EXEMPT LOGIC: Checked via is_time_exempt toggle OR legacy President in Admin Dept
+      const isTimeExempt = Boolean(emp.is_time_exempt) || 
+        (emp.position?.toUpperCase() === 'PRESIDENT' && emp.department?.toUpperCase() === 'ADMIN');
 
-      if (isPresident && isAdminDept) {
+      if (isTimeExempt) {
+        const standardInArr = JSON.stringify(["08:30:00", "13:00:00"]);
+        const standardOutArr = JSON.stringify(["12:00:00", "17:30:00"]);
+
         if (!existingReport) {
           await employee_Logging_report.create({
             user_id: userId,
             log_Date: todayStr,
-            time_Logged_inArr: JSON.stringify(["08:30:00", "13:00:00"]),
-            time_Logged_outArr: JSON.stringify(["12:00:00", "17:30:00"]),
-            attendance_StatusId: 1, // Present
+            time_Logged_inArr: standardInArr,
+            time_Logged_outArr: standardOutArr,
+            attendance_StatusId: 6, // Exempt
             logged_StatusId: 2, // Closed
             reg_hrs: 8,
             total_payable_hrs: 8
@@ -344,8 +347,34 @@ async function ensureAbsentsMarked(dateOverride = null) {
             log_Date: todayStr,
             time_Logged: "08:30:00",
             logged_StatusId: 7, // System Generated
-            attendance_StatusId: 1
+            attendance_StatusId: 6
           });
+        } else if (existingReport.attendance_StatusId === 3 || existingReport.attendance_StatusId === 8 || parseFloat(existingReport.reg_hrs || 0) === 0) {
+          await existingReport.update({
+            time_Logged_inArr: standardInArr,
+            time_Logged_outArr: standardOutArr,
+            attendance_StatusId: 6,
+            logged_StatusId: 2,
+            reg_hrs: 8,
+            total_payable_hrs: 8
+          });
+
+          const existingUserLog = await user_logging.findOne({ where: { user_id: userId, log_Date: todayStr } });
+          if (existingUserLog) {
+            await existingUserLog.update({
+              time_Logged: "08:30:00",
+              logged_StatusId: 7,
+              attendance_StatusId: 6
+            });
+          } else {
+            await user_logging.create({
+              user_id: userId,
+              log_Date: todayStr,
+              time_Logged: "08:30:00",
+              logged_StatusId: 7,
+              attendance_StatusId: 6
+            });
+          }
         }
         continue;
       }

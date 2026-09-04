@@ -15,7 +15,11 @@ import {
   X,
   Gift,
   LogOut,
-  UserCheck
+  UserCheck,
+  TrendingUp,
+  Wallet,
+  ArrowDownRight,
+  CalendarDays
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -78,17 +82,19 @@ const EmployeePayrollHistory = () => {
           daysWorked: p.NoDays_Worked
         }));
 
-        const bonusItems = (thirteenthData || []).map(b => ({
-          ...b,
-          type: "13th Month Pay",
-          displayDate: `${b.year}-12-24`, // Approximate for sorting
-          label: `${b.year} Year-End Bonus`,
-          amount: b.amount,
-          status: b.status,
-          id: `tm-${b.thirteenthId}`,
-          link: `/employee/13th-month/${b.year}`,
-          daysWorked: null
-        }));
+        const bonusItems = (thirteenthData || [])
+          .filter(b => b.status === "Released")
+          .map(b => ({
+            ...b,
+            type: "13th Month Pay",
+            displayDate: `${b.year}-12-24`, // Approximate for sorting
+            label: `${b.year} Year-End Bonus`,
+            amount: b.amount,
+            status: b.status,
+            id: `tm-${b.thirteenthId}`,
+            link: `/employee/13th-month/${b.year}`,
+            daysWorked: null
+          }));
 
         const separationItems = (separationData || []).map(s => ({
           ...s,
@@ -144,6 +150,20 @@ const EmployeePayrollHistory = () => {
     const years = payrolls.map(p => new Date(p.displayDate).getFullYear());
     return [...new Set(years)].sort((a, b) => b - a);
   }, [payrolls]);
+
+  const targetYear = selectedYear !== "all" ? parseInt(selectedYear) : (availableYears[0] || new Date().getFullYear());
+  
+  const ytdOverview = useMemo(() => {
+    const yearPayrolls = payrolls.filter(p => {
+      const yr = new Date(p.displayDate).getFullYear();
+      return yr === targetYear && p.type === "Regular Payroll";
+    });
+    const gross = yearPayrolls.reduce((sum, p) => sum + parseFloat(p.totalEarnings || 0), 0);
+    const net = yearPayrolls.reduce((sum, p) => sum + parseFloat(p.netPay || p.amount || 0), 0);
+    const deductions = yearPayrolls.reduce((sum, p) => sum + parseFloat(p.totalDeductions || 0), 0);
+    const daysWorked = yearPayrolls.reduce((sum, p) => sum + parseFloat(p.NoDays_Worked || 0), 0);
+    return { gross, net, deductions, daysWorked, count: yearPayrolls.length, year: targetYear };
+  }, [payrolls, targetYear]);
 
   const months = [
     { value: "0", label: "January" }, { value: "1", label: "February" }, { value: "2", label: "March" },
@@ -217,6 +237,53 @@ const EmployeePayrollHistory = () => {
               </h1>
               <p className="text-slate-500 text-sm">View and download your past payslips and benefits.</p>
             </div>
+          </div>
+
+          {/* YTD Overview Cards for Current / Selected Year */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="border-none shadow-sm bg-white p-4 flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <TrendingUp className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 font-medium">YTD Gross ({targetYear})</p>
+                <p className="text-lg font-bold text-slate-800">{formatCurrency(ytdOverview.gross)}</p>
+                <p className="text-[11px] text-slate-400">{ytdOverview.count} Cutoffs Released</p>
+              </div>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-white p-4 flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-[#2A174E]/10 text-[#2A174E] flex items-center justify-center font-bold">
+                <Wallet className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 font-medium">YTD Net Pay ({targetYear})</p>
+                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(ytdOverview.net)}</p>
+                <p className="text-[11px] text-slate-400">Total Take-Home</p>
+              </div>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-white p-4 flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                <ArrowDownRight className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 font-medium">YTD Total Deductions</p>
+                <p className="text-lg font-bold text-rose-600">({formatCurrency(ytdOverview.deductions)})</p>
+                <p className="text-[11px] text-slate-400">Taxes & Contributions</p>
+              </div>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-white p-4 flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <CalendarDays className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 font-medium">YTD Days Worked</p>
+                <p className="text-lg font-bold text-slate-800">{ytdOverview.daysWorked} Days</p>
+                <p className="text-[11px] text-slate-400">Accumulated Attendance</p>
+              </div>
+            </Card>
           </div>
   
           <Card className="border-none shadow-sm overflow-hidden pt-1">

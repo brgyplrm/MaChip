@@ -205,7 +205,7 @@ exports.markAttendance = async (req, res) => {
     }
 
     let attendanceVal = null;
-    if (user.user_RoleId === 1) {
+    if (user.user_RoleId === 1 || user.is_time_exempt === true) {
       attendanceVal = 6; // Exempt
     } else if (nextStatus === 1) {
       const graceTimeStr = settings?.gracePeriod || "08:35:00";
@@ -468,7 +468,7 @@ exports.viewUserLogs = async (req, res) => {
             holidayFormatted: formatDuration(stats.holiday_hrs)
           },
           logStatus: report.loggedStatusName,
-          attendanceStatus: (report.attendanceStatusName === "Exempt" ? "On Time" : (report.attendanceStatusName || (stats.totalPayableHours > 0 ? "Present" : "No Record"))),
+          attendanceStatus: (report.attendanceStatusName === "Exempt" || report.attendanceStatusName === "Present") ? "On Time" : (report.attendanceStatusName || (stats.totalPayableHours > 0 ? "On Time" : "No Record")),
           systemGenerated: report.logged_StatusId === 7 || isOnField
         };
       }))).filter(row => row !== null);
@@ -556,7 +556,7 @@ exports.viewAllAttendance = async (req, res) => {
         user_LastName: plain.user?.user_LastName,
         user_MachipId: plain.user?.hardware?.user_MachipId,
         loggedStatusName: plain.loggedStatus?.statusName,
-        attendanceStatusName: plain.attendanceStatus?.statusName === "Exempt" ? "On Time" : plain.attendanceStatus?.statusName,
+        attendanceStatusName: (plain.attendanceStatus?.statusName === "Exempt" || plain.attendanceStatus?.statusName === "Present") ? "On Time" : plain.attendanceStatus?.statusName,
         reason: plain.reason || null,
         admin_id: plain.admin_id || null,
         adminName,
@@ -1349,7 +1349,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         outArr,
         hoursWorked: hoursObj.reg_hrs || 0,
         hoursWorkedFormatted: formatDuration(hoursObj.reg_hrs || 0),
-        status: (r.attendanceStatusName === "Exempt" ? "On Time" : (r.attendanceStatusName || (hoursObj.reg_hrs > 0 ? "Present" : "—"))),
+        status: (r.attendanceStatusName === "Exempt" || r.attendanceStatusName === "Present") ? "On Time" : (r.attendanceStatusName || (hoursObj.reg_hrs > 0 ? "On Time" : "—")),
         shiftId: r.user_ShiftId,
         buckets: hoursObj.buckets,
         systemGenerated: r.logged_StatusId === 7

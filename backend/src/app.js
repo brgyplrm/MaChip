@@ -81,7 +81,15 @@ app.use((req, res, next) => {
         ["password", "user_Password", "adminPassword", "token"].forEach(p => {
           if (sanitizedBody[p]) sanitizedBody[p] = "***REDACTED***";
         });
-        console.log(` └─ Payload:`, JSON.stringify(sanitizedBody));
+        if (sanitizedBody.account_Number && typeof sanitizedBody.account_Number === "string") {
+          const acc = sanitizedBody.account_Number;
+          sanitizedBody.account_Number = acc.length > 4 ? `****${acc.slice(-4)}` : "****";
+        }
+        const formatted = JSON.stringify(sanitizedBody, null, 2)
+          .split("\n")
+          .map(line => `    ${line}`)
+          .join("\n");
+        console.log(` └─ Payload:\n${formatted}`);
       }
     }
   });

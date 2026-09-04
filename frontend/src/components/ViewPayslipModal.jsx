@@ -210,7 +210,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll }) => {
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                     <tr>
                       <td className="p-3 pl-5 border-r border-slate-200 w-1/2 bg-slate-50/50 font-bold text-slate-400 uppercase text-[10px]">Monthly Rate</td>
-                      <td className="p-3 font-mono font-bold text-slate-800 text-sm text-right pr-8">₱{formatCurrency(parseFloat(payroll.dailyRate || 0) * 22)}</td>
+                      <td className="p-3 font-mono font-bold text-slate-800 text-sm text-right pr-8">₱{formatCurrency(parseFloat(payroll.dailyRate || 0) * 26)}</td>
                     </tr>
                     <tr>
                       <td className="p-3 pl-5 border-r border-slate-200 w-1/2 bg-slate-50/50 font-bold text-slate-400 uppercase text-[10px]">Daily Rate</td>

@@ -192,12 +192,18 @@ exports.sendPayrollEmail = async ({ email, name, period, netPay, attachments = [
         <div style="background: #eef9f1; padding: 20px; border-radius: 8px; border: 1px solid #c3e6cb; display: inline-block;">
           <span style="font-size: 24px; font-weight: bold; color: #28a745;">₱${parseFloat(netPay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
-        <p style="margin-top: 20px;">For your security, your attached payslip is <strong>password-protected</strong>. To open the file, please use the following password format:</p>
+        <p style="margin-top: 20px;">For your security, your attached payslips are <strong>password-protected</strong>. To open the files, please use the following password format:</p>
         <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; margin-bottom: 20px;">
           <p style="margin: 5px 0; color: #856404;"><strong>Password Format:</strong> [PeriodDigits][Month][LastName][PaddedID]</p>
           <p style="margin: 5px 0; color: #856404; font-size: 0.9em;">Example: If the period is May 1-15, name is <strong>Rodrigo</strong>, and ID is <strong>MACJ-001</strong>, your password is: <strong>0115MayRodrigo001</strong></p>
         </div>
-        <p>Attached is your official payslip PDF. You can also view your full records by logging into the MaChip portal.</p>
+        <p>Attached are your official payroll documents:</p>
+        <ul>
+          <li><strong>Standard Compliance Payslip</strong> (Summary view)</li>
+          <li><strong>Detailed Computation Payslip</strong> (Full breakdown of metrics, allowances, & deductions)</li>
+          <li><strong>Daily Time Record (DTR)</strong></li>
+        </ul>
+        <p>You can also view and download your full records anytime by logging into the MaChip employee portal.</p>
         <br/>
         <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
       </div>
@@ -484,5 +490,83 @@ exports.sendTerminationRescissionEmail = async ({ email, name }) => {
     console.error(`[RESCISSION NOTICE ERROR] for ${email}:`, error.message);
   }
 };
+
+/**
+ * Sends a self-service password reset email with a secure time-limited link.
+ */
+exports.sendPasswordResetEmail = async ({ email, name, resetLink, expiresMinutes = 60 }) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.error("[EMAIL CONFIG ERROR]: Missing credentials in .env.");
+    throw new Error("Email service is not configured.");
+  }
+
+  const cleanPass = (EMAIL_PASS || '').replace(/["']/g, '');
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: {
+      user: EMAIL_USER,
+      pass: cleanPass,
+    },
+  });
+
+  const mailOptions = {
+    from: `"MaChip Security" <${EMAIL_USER}>`,
+    to: email,
+    subject: "MaChip - Password Reset Request",
+    html: `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div style="background: #2A174E; padding: 28px 24px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.5px;">MAChip System</h1>
+          <p style="color: #d8b4fe; margin: 6px 0 0 0; font-size: 13px;">Microchip Attendance & Chip Payroll</p>
+        </div>
+        
+        <div style="padding: 32px 28px; color: #334155; line-height: 1.6;">
+          <h2 style="color: #1e293b; font-size: 18px; margin: 0 0 12px 0;">Password Reset Request</h2>
+          <p style="margin: 0 0 16px 0; font-size: 14px;">Hello <strong>${name || 'Employee'}</strong>,</p>
+          <p style="margin: 0 0 24px 0; font-size: 14px; color: #475569;">
+            We received a request to reset the password for your MAChip portal account. Click the button below to set a new password:
+          </p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" style="background-color: #2A174E; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block; box-shadow: 0 2px 6px rgba(42, 23, 78, 0.3);">
+              Reset My Password
+            </a>
+          </div>
+          
+          <p style="margin: 0 0 12px 0; font-size: 12px; color: #64748b;">
+            If the button above does not work, copy and paste the following link into your web browser:
+          </p>
+          <p style="margin: 0 0 24px 0; word-break: break-all; font-size: 11px; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0; color: #475569;">
+            <a href="${resetLink}" style="color: #6366f1; text-decoration: underline;">${resetLink}</a>
+          </p>
+          
+          <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 4px; margin-bottom: 24px;">
+            <p style="margin: 0; font-size: 12px; color: #92400e; line-height: 1.5;">
+              <strong>Security Notice:</strong> This reset link will expire in <strong>${expiresMinutes} minutes</strong>. If you did not make this request, your account is still secure and you can ignore this email.
+            </p>
+          </div>
+          
+          <p style="margin: 0; font-size: 13px; color: #64748b;">
+            Best Regards,<br/>
+            <strong>MAChip Administration & Security Team</strong>
+          </p>
+        </div>
+        
+        <div style="background: #f1f5f9; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
+          <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+            MAC-J Int'l Forwarding Ltd., Co. &bull; CTPAT Compliant System
+          </p>
+        </div>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+  console.log(`[PASSWORD RESET EMAIL SENT] to ${email}`);
+};
+
 
 

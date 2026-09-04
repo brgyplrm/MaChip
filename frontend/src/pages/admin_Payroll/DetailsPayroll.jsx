@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronUp } from "lucide-react";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
@@ -37,6 +37,7 @@ const PayrollDetails = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isHolidayExpanded, setIsHolidayExpanded] = useState(false);
 
   useEffect(() => {
     const fetchPayrollDetails = async () => {
@@ -348,16 +349,79 @@ const PayrollDetails = () => {
                     <span className="text-sm text-slate-600">Night Differential ({payroll.nightDiff_Hrs || 0} hrs)</span>
                     <span className="font-semibold text-slate-800">₱{parseFloat(payroll.nightDiff_Amnt || 0).toLocaleString()}</span>
                   </div>
-                  {payroll.legalHol_Amnt > 0 && (
-                    <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                      <span className="text-sm text-slate-600">Regular Holiday Pay</span>
-                      <span className="font-semibold text-slate-800">₱{parseFloat(payroll.legalHol_Amnt).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {payroll.specialHol_Amnt > 0 && (
-                    <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                      <span className="text-sm text-slate-600">Special Holiday Pay</span>
-                      <span className="font-semibold text-slate-800">₱{parseFloat(payroll.specialHol_Amnt).toLocaleString()}</span>
+                  {(parseFloat(payroll.legalHol_Amnt || 0) + parseFloat(payroll.specialHol_Amnt || 0)) > 0 && (
+                    <div className="border-b border-slate-50 pb-3">
+                      <div 
+                        className="flex justify-between items-center cursor-pointer hover:bg-slate-50/80 -mx-2 px-2 py-1.5 rounded-lg transition-colors group"
+                        onClick={() => setIsHolidayExpanded(!isHolidayExpanded)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-slate-700 font-medium group-hover:text-[#2A174E]">Holiday Pay</span>
+                          <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                            {(payroll.holidaysRegularWorked || 0) + (payroll.holidaysSpecialWorked || 0)} Days Worked
+                          </Badge>
+                          {isHolidayExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-slate-400 group-hover:text-[#2A174E]" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-[#2A174E]" />
+                          )}
+                        </div>
+                        <span className="font-semibold text-slate-800">
+                          ₱{(parseFloat(payroll.legalHol_Amnt || 0) + parseFloat(payroll.specialHol_Amnt || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      {/* Accordion Detailed Content */}
+                      {isHolidayExpanded && (
+                        <div className="mt-2 ml-1 pl-3 border-l-2 border-[#2A174E]/30 space-y-2 text-xs">
+                          {Array.isArray(payroll.holidayBreakdown) && payroll.holidayBreakdown.length > 0 ? (
+                            payroll.holidayBreakdown.map((item, idx) => (
+                              <div key={idx} className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-slate-800">{item.name}</span>
+                                    <Badge className={`text-[9px] px-1.5 py-0 border-0 ${item.type === 'Regular Holiday' ? 'bg-indigo-100 text-indigo-800 font-semibold' : 'bg-purple-100 text-purple-800 font-semibold'}`}>
+                                      {item.type}
+                                    </Badge>
+                                  </div>
+                                  <span className="font-bold text-slate-900">₱{parseFloat(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-500 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-0.5">
+                                  <span>{new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} • {item.worked ? `Worked ${item.hoursWorked} hrs` : 'Unworked'}</span>
+                                  <span className="font-mono text-[10px] text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">{item.formula}</span>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <>
+                              {parseFloat(payroll.legalHol_Amnt || 0) > 0 && (
+                                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 space-y-1">
+                                  <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-bold text-slate-800">Regular Holiday Pay</span>
+                                      <Badge className="text-[9px] px-1.5 py-0 bg-indigo-100 text-indigo-800 border-0 font-semibold">Regular</Badge>
+                                    </div>
+                                    <span className="font-bold text-slate-900">₱{parseFloat(payroll.legalHol_Amnt).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-mono">100% Base in Basic Pay + 100% Regular Holiday Premium = 200% Total</p>
+                                </div>
+                              )}
+                              {parseFloat(payroll.specialHol_Amnt || 0) > 0 && (
+                                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 space-y-1">
+                                  <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-bold text-slate-800">Special Holiday Pay</span>
+                                      <Badge className="text-[9px] px-1.5 py-0 bg-purple-100 text-purple-800 border-0 font-semibold">Special</Badge>
+                                    </div>
+                                    <span className="font-bold text-slate-900">₱{parseFloat(payroll.specialHol_Amnt).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-mono">100% Base in Basic Pay + 30% Special Holiday Premium = 130% Total</p>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                   {payroll.incentives > 0 && (
