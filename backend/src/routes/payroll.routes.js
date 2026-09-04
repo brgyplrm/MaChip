@@ -56,6 +56,8 @@ router.get("/all", requireStaff, payrollController.getAllPayrolls);
 router.get("/report", requireAdmin, payrollController.getPayrollReport);
 router.get("/my-history", authMiddleware, payrollController.getMyPayrollHistory);
 router.get("/my-payslip/:payrollId", authMiddleware, payrollController.getMyPayrollById);
+router.get("/my-payslip/:payrollId/pdf", authMiddleware, payrollController.downloadMyPayslipPDF);
+router.get("/my-payslip/:payrollId/dtr", authMiddleware, payrollController.downloadMyDTRPDF);
 router.get("/my-thirteenth-history", authMiddleware, payrollController.getMyThirteenthMonthHistory);
 router.get("/my-separation", authMiddleware, payrollController.getMySeparationPay);
 router.get("/my-retirement", authMiddleware, payrollController.getMyRetirementPay);
@@ -65,5 +67,6 @@ router.put("/update/:payrollId", requireAdmin, payrollController.updatePayroll);
 router.put("/update-full/:payrollId", requireAdmin, payrollController.updatePayrollFull);
 router.put("/release/:payrollId", requireAdmin, payrollController.releasePayroll);
 router.post("/resend-email/:payrollId", requireAdmin, payrollController.resendPayrollEmail);
+router.post("/resend-batch-emails", requireAdmin, payrollController.resendBatchPayrollEmails);
 
 module.exports = router;

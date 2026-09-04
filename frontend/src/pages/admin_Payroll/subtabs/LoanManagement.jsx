@@ -404,7 +404,7 @@ export default function LoanManagement() {
                             {loan.status.toUpperCase()}
                           </Badge>
                         </TableCell>
-                        <TableCell className="flex gap-1 text-muted-foreground justify-center">
+                        <TableCell className="flex text-muted-foreground justify-center">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="inline-block">
@@ -423,7 +423,7 @@ export default function LoanManagement() {
                             </TooltipContent>
                           </Tooltip>
 
-                          <Tooltip>
+                          {/* <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="inline-block">
                                 <Button variant="ghost" size="icon" onClick={() => setShowEditModal(true)} className="border-[#B8551F]/40 text-[#B8551F] hover:bg-[#FEE0C0] hover:border-[#E18C52]">
@@ -434,7 +434,7 @@ export default function LoanManagement() {
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
                               Adjust Loan
                             </TooltipContent>
-                          </Tooltip>
+                          </Tooltip> */}
                         </TableCell>
                       </TableRow>
                     ))
@@ -555,7 +555,7 @@ export default function LoanManagement() {
                                 View Ledger
                               </TooltipContent>
                             </Tooltip>
-                            <Tooltip>
+                            {/* <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button 
                                   variant="ghost" 
@@ -569,7 +569,7 @@ export default function LoanManagement() {
                               <TooltipContent className="bg-slate-900 text-white border-slate-800 text-[10px]">
                                 Adjust Loan
                               </TooltipContent>
-                            </Tooltip>
+                            </Tooltip> */}
                           </div>
                         </div>
                       ))}

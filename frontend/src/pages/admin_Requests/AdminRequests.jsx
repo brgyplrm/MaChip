@@ -19,6 +19,7 @@ import { useNavigate, Link } from "react-router-dom";
 import AssessmentIcon  from "@mui/icons-material/Assessment";
 import EditIcon from "@mui/icons-material/Edit";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
@@ -32,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import EditRequestModal from "../../components/EditRequestModal";
 import FileViewerModal from "../../components/FileViewerModal";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const AdminRequests = () => {
   const navigate = useNavigate();
@@ -53,6 +55,10 @@ const AdminRequests = () => {
   const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
   const [viewingFileUrl, setViewingFileUrl] = useState("");
   const [viewingFileName, setViewingFileName] = useState("");
+
+  // Approval Policy Warning Confirmation Modal State
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [pendingApprovalId, setPendingApprovalId] = useState(null);
 
   // History Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -151,6 +157,23 @@ const AdminRequests = () => {
     } catch (error) {
       setToast({ message: "Error connecting to server", type: "error" });
     }
+  };
+
+  const handleApproveClick = (emp_reqId) => {
+    if (current?.system_remarks) {
+      setPendingApprovalId(emp_reqId);
+      setIsWarningModalOpen(true);
+    } else {
+      handleStatusUpdate(emp_reqId, 2);
+    }
+  };
+
+  const confirmApprovalWithWarning = () => {
+    if (pendingApprovalId) {
+      handleStatusUpdate(pendingApprovalId, 2);
+    }
+    setIsWarningModalOpen(false);
+    setPendingApprovalId(null);
   };
 
   const getShortType = (typeName) => {
@@ -559,9 +582,16 @@ const AdminRequests = () => {
                       className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
                     >
                       <div className="flex justify-between items-center mb-2">
-                        <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
-                          {getShortType(req.reqTypeName)}
-                        </Badge>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
+                            {getShortType(req.reqTypeName)}
+                          </Badge>
+                          {req.system_remarks && (
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] px-1.5 py-0">
+                              ⚠️ Notice
+                            </Badge>
+                          )}
+                        </div>
                         <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
                       </div>
                       <p className="font-bold text-slate-800 text-sm mb-1">{req.userName}</p>
@@ -634,7 +664,7 @@ const AdminRequests = () => {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="flex-1 min-w-[110px]">
-                                      <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
+                                      <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveClick(current.emp_reqId)}>
                                         <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
                                       </Button>
                                     </span>
@@ -1054,6 +1084,44 @@ const AdminRequests = () => {
         fileUrl={viewingFileUrl}
         fileName={viewingFileName}
       />
+
+      {/* Approval Policy Warning Confirmation Modal */}
+      <AlertDialog open={isWarningModalOpen} onOpenChange={setIsWarningModalOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 text-amber-600 mb-1">
+              <WarningAmberIcon className="h-6 w-6 shrink-0" />
+              <AlertDialogTitle className="text-lg font-bold text-slate-900">
+                Review Policy Warning Before Approval
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2 text-slate-600 text-sm">
+                <p>
+                  This request for <b>{current?.userName}</b> (REQ-{current?.emp_reqId}) has triggered the following policy flag(s):
+                </p>
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs leading-relaxed font-medium">
+                  "{current?.system_remarks}"
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Approving this request confirms you acknowledge the policy notice (such as Sandwich Rule, balance limitation, or tenure notice). Do you wish to approve anyway?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel onClick={() => { setIsWarningModalOpen(false); setPendingApprovalId(null); }}>
+              Cancel & Review
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmApprovalWithWarning} 
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+            >
+              Proceed & Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </TooltipProvider>
     </Sidebar>
   );

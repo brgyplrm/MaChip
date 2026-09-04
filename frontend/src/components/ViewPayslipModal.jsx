@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import CloseIcon from "@mui/icons-material/Close";
 import { formatUserId } from "../utils/formatUserId";
+import { FileText, Receipt } from "lucide-react";
 
-const ViewPayslipModal = ({ isOpen, onClose, payroll }) => {
+const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
   if (!payroll) return null;
 
   const formatCurrency = (val) =>
@@ -45,13 +46,37 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll }) => {
         {/* Header Block */}
         <DialogHeader className="px-6 py-4 bg-[#2A174E] text-white sticky top-0 z-50 !rounded-none flex flex-row items-center justify-between shadow-md">
           <DialogTitle className="text-xl font-bold tracking-wide">Employee Payslip Generation Engine</DialogTitle>
-          <Button 
-            variant="ghost" 
-            onClick={onClose}
-            className="text-white hover:bg-white/10 rounded-full h-10 w-10 p-0"
-          >
-            <CloseIcon />
-          </Button>
+          <div className="flex items-center gap-2">
+            {onDownload && (
+              <div className="flex items-center gap-2 mr-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => onDownload("standard")}
+                  className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs font-semibold h-9 px-3 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  <span>Standard PDF</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => onDownload("detailed")}
+                  className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs font-semibold h-9 px-3 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  <span>Detailed PDF</span>
+                </Button>
+              </div>
+            )}
+            <Button 
+              variant="ghost" 
+              onClick={onClose}
+              className="text-white hover:bg-white/10 rounded-full h-10 w-10 p-0"
+            >
+              <CloseIcon />
+            </Button>
+          </div>
         </DialogHeader>
 
         {/* Modal Dual View Presentation Body */}

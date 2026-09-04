@@ -865,7 +865,7 @@ const Sidebar = ({ children }) => {
                     >
                       <Link to="/employee/payroll">
                         <CreditCardIcon className="!text-[22px] shrink-0" />
-                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">My Payroll</span>
+                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Payroll</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

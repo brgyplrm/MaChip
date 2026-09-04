@@ -18,7 +18,8 @@ import KeyboardDoubleArrowDownIcon from '@mui/icons-material/KeyboardDoubleArrow
 import PaymentsIcon from '@mui/icons-material/Payments';
 import { useSystemTime } from "../../context/SystemTimeContext";
 import SummarizeOutlinedIcon from '@mui/icons-material/SummarizeOutlined';
-import { EyeIcon, ChevronLeft } from "lucide-react";  
+import { EyeIcon, ChevronLeft, Mail } from "lucide-react";  
+import Toast from "../../components/toast/Toast";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -61,6 +62,35 @@ const PayrollPeriod = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [gracePeriodDays, setGracePeriodDays] = useState(7);
+  const [toast, setToast] = useState({ message: "", type: "success" });
+  const [isSendingBatchEmails, setIsSendingBatchEmails] = useState(false);
+
+  const handleResendBatchEmails = async () => {
+    if (!selectedPeriod) return;
+    if (!window.confirm(`Resend payroll emails with Payslips 1 & 2 and DTR to all employees for period ${selectedPeriod.startDate} to ${selectedPeriod.endDate}?`)) return;
+
+    setIsSendingBatchEmails(true);
+    try {
+      const res = await fetchWithAuth("/api/payroll/resend-batch-emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          period_Start: selectedPeriod.startDate,
+          period_End: selectedPeriod.endDate
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setToast({ message: data.message || "Payroll emails sent successfully!", type: "success" });
+      } else {
+        setToast({ message: data.error || "Failed to send batch emails", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Network error: " + err.message, type: "error" });
+    } finally {
+      setIsSendingBatchEmails(false);
+    }
+  };
 
   const isProcessingWindow = useMemo(() => {
     if (!selectedPeriod?.endDate || !systemToday) return false;
@@ -356,6 +386,28 @@ const PayrollPeriod = () => {
                 {selectedPeriod?.status === 'Draft' ? "Recalculate, lock, and archive payroll for all active employees." : "This payroll period is locked/processed."}
               </TooltipContent>
             </Tooltip>
+
+            {/* Resend Batch Emails Button */}
+            {selectedPeriod?.status !== 'Draft' && payrolls.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block w-full sm:w-auto">
+                    <Button 
+                      variant="outline"
+                      className="w-full border-purple-300 text-[#2A174E] hover:bg-purple-50"
+                      onClick={handleResendBatchEmails}
+                      disabled={isSendingBatchEmails}
+                    >
+                      <Mail className="mr-2 h-4 w-4 text-purple-700" />
+                      {isSendingBatchEmails ? "Sending..." : "Resend Emails"}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                  Resend password-protected Payslips 1 & 2 and DTR via email to all employees in this period.
+                </TooltipContent>
+              </Tooltip>
+            )}
         </div>
         </div>
 
@@ -759,6 +811,11 @@ const PayrollPeriod = () => {
           background: #94a3b8; 
         }
       `}} />
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast({ ...toast, message: "" })} 
+        />
       </TooltipProvider>
       </Sidebar>
     </div>

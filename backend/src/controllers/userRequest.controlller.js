@@ -222,7 +222,39 @@ exports.UpdateUserRequest = async (req, res) => {
         }
       );
     } else if (typeId === 13 || typeId === 14) {
-      const { agency, loanType, amountRequested, monthsToPay, loanReferenceNo, monthlyAmortization, totalOutstandingBalance } = req.body;
+      const { 
+        agency, 
+        loanType, 
+        amountRequested, 
+        monthsToPay, 
+        loanReferenceNo, 
+        monthlyAmortization, 
+        totalOutstandingBalance,
+        loanApprovalDate,
+        amortizationStartMonth,
+        calamityArea,
+        pagibigTAV
+      } = req.body;
+
+      let effectiveAmortizationStartMonth = amortizationStartMonth;
+      if ((!effectiveAmortizationStartMonth || effectiveAmortizationStartMonth.trim() === "") && (loanApprovalDate || request.loanApprovalDate)) {
+        const approvalDate = new Date(loanApprovalDate || request.loanApprovalDate);
+        if (!isNaN(approvalDate.getTime())) {
+          let monthsToAdd = 1;
+          const effAgency = agency || request.agency;
+          const effLoanType = loanType || request.loanType;
+          if (effAgency === "SSS") {
+            monthsToAdd = (effLoanType === "Emergency Loan") ? 6 : 2;
+          } else if (effAgency === "Pag-IBIG") {
+            monthsToAdd = (effLoanType === "Calamity Loan") ? 4 : 1;
+          }
+          const startMonth = new Date(approvalDate.getFullYear(), approvalDate.getMonth() + monthsToAdd, 1);
+          const yyyy = startMonth.getFullYear();
+          const mm = String(startMonth.getMonth() + 1).padStart(2, '0');
+          effectiveAmortizationStartMonth = `${yyyy}-${mm}`;
+        }
+      }
+
       await sequelize.query(
         `UPDATE "Loan_Request" SET 
           "agency" = :agency, 
@@ -232,6 +264,10 @@ exports.UpdateUserRequest = async (req, res) => {
           "loanReferenceNo" = :loanReferenceNo,
           "monthlyAmortization" = :monthlyAmortization,
           "totalOutstandingBalance" = :totalOutstandingBalance,
+          "loanApprovalDate" = :loanApprovalDate,
+          "amortizationStartMonth" = :amortizationStartMonth,
+          "calamityArea" = :calamityArea,
+          "pagibigTAV" = :pagibigTAV,
           "updatedAt" = :now 
         WHERE "emp_reqId" = :requestId`,
         { 
@@ -243,6 +279,10 @@ exports.UpdateUserRequest = async (req, res) => {
             loanReferenceNo: loanReferenceNo || null,
             monthlyAmortization: monthlyAmortization || null,
             totalOutstandingBalance: totalOutstandingBalance || null,
+            loanApprovalDate: loanApprovalDate || null,
+            amortizationStartMonth: effectiveAmortizationStartMonth || null,
+            calamityArea: calamityArea || null,
+            pagibigTAV: pagibigTAV || null,
             now: nowStr, 
             requestId 
           }, 
@@ -456,16 +496,20 @@ exports.UserCreateRequest = async (req, res) => {
        enhancedRemarks = `Pag-IBIG Calamity Loan for ${req.body.calamityArea}. ${finalRemarks || ""}`;
     }
 
-    // --- HOLIDAY ADJACENCY RULE (SANDWICH) ---
-    if ([3, 4, 6, 7].includes(finalReqTypeId)) {
+    let systemRemarks = [];
+
+    // --- HOLIDAY ADJACENCY & INTERVENING RULE (SANDWICH RULE) ---
+    if ([3, 4, 6, 7, 8, 9, 10, 11, 12].includes(finalReqTypeId)) {
       const leaveDateStart = StartDate || req.body.DateOfLeave;
       const leaveDateEnd = EndDate || req.body.DateOfLeave;
 
       if (leaveDateStart && leaveDateEnd) {
-        const holidayCheck = await sequelize.query(
-          `SELECT "name", "date" FROM "Holiday" 
-           WHERE "date" = (:startDate::date - INTERVAL '1 day')
-              OR "date" = (:endDate::date + INTERVAL '1 day')`,
+        // Query holidays in a 4-day window around the leave period to catch intervening and weekend-adjacent holidays
+        const holidaysNear = await sequelize.query(
+          `SELECT "name", "date", "type" FROM "Holiday" 
+           WHERE "date" >= (:startDate::date - INTERVAL '4 days')
+             AND "date" <= (:endDate::date + INTERVAL '4 days')
+           ORDER BY "date" ASC`,
           { 
             replacements: { startDate: leaveDateStart, endDate: leaveDateEnd }, 
             type: QueryTypes.SELECT,
@@ -473,18 +517,85 @@ exports.UserCreateRequest = async (req, res) => {
           }
         );
 
-        if (holidayCheck.length > 0) {
-          await t.rollback();
-          return res.status(400).json({ 
-            error: "Filing leave before or after a holiday is strictly prohibited (Sandwich Rule)." 
+        if (holidaysNear.length > 0) {
+          const sDateStr = (typeof leaveDateStart === "string" ? leaveDateStart : leaveDateStart.toISOString()).split("T")[0];
+          const eDateStr = (typeof leaveDateEnd === "string" ? leaveDateEnd : leaveDateEnd.toISOString()).split("T")[0];
+          const sDateObj = new Date(sDateStr + "T00:00:00");
+          const eDateObj = new Date(eDateStr + "T00:00:00");
+
+          // 1. Intervening holidays (falling within requested leave range)
+          const interveningHolidays = holidaysNear.filter(h => {
+            const hDate = typeof h.date === "string" ? h.date.split("T")[0] : new Date(h.date).toISOString().split("T")[0];
+            return hDate >= sDateStr && hDate <= eDateStr;
           });
+
+          if (interveningHolidays.length > 0) {
+            const holDetails = interveningHolidays
+              .map(h => {
+                const hd = typeof h.date === "string" ? h.date.split("T")[0] : new Date(h.date).toISOString().split("T")[0];
+                return `${h.name} (${hd}) [${h.type}]`;
+              })
+              .join(", ");
+            systemRemarks.push(
+              `Warning: Leave period spans official holiday(s): ${holDetails}. Holiday pay and leave balance deduction policy applies (Sandwich Rule).`
+            );
+          }
+
+          // 2. Adjacent holidays (before start or after end, accounting for weekends)
+          const nonIntervening = holidaysNear.filter(h => {
+            const hDate = typeof h.date === "string" ? h.date.split("T")[0] : new Date(h.date).toISOString().split("T")[0];
+            return hDate < sDateStr || hDate > eDateStr;
+          });
+
+          for (const h of nonIntervening) {
+            const hDate = typeof h.date === "string" ? h.date.split("T")[0] : new Date(h.date).toISOString().split("T")[0];
+            const hDateObj = new Date(hDate + "T00:00:00");
+            const diffBeforeDays = Math.round((sDateObj - hDateObj) / (1000 * 60 * 60 * 24));
+            const diffAfterDays = Math.round((hDateObj - eDateObj) / (1000 * 60 * 60 * 24));
+
+            // Check preceding adjacency:
+            // If startDate is Monday (1), preceding working day was Friday (3 days), Saturday (2 days), or Sunday (1 day)
+            // If startDate is Sunday (0), preceding was Saturday (1 day) or Friday (2 days)
+            // Otherwise, preceding day is 1 day before
+            let isPrecedingAdjacent = false;
+            const startDayOfWeek = sDateObj.getDay();
+            if (diffBeforeDays === 1) {
+              isPrecedingAdjacent = true;
+            } else if (startDayOfWeek === 1 && (diffBeforeDays === 2 || diffBeforeDays === 3)) {
+              isPrecedingAdjacent = true;
+            } else if (startDayOfWeek === 0 && diffBeforeDays === 2) {
+              isPrecedingAdjacent = true;
+            }
+
+            // Check following adjacency:
+            // If endDate is Friday (5), following working day is Monday (3 days) or weekend (1-2 days)
+            // If endDate is Saturday (6), following is Monday (2 days) or Sunday (1 day)
+            // Otherwise, following day is 1 day after
+            let isFollowingAdjacent = false;
+            const endDayOfWeek = eDateObj.getDay();
+            if (diffAfterDays === 1) {
+              isFollowingAdjacent = true;
+            } else if (endDayOfWeek === 5 && (diffAfterDays === 2 || diffAfterDays === 3)) {
+              isFollowingAdjacent = true;
+            } else if (endDayOfWeek === 6 && diffAfterDays === 2) {
+              isFollowingAdjacent = true;
+            }
+
+            if (isPrecedingAdjacent) {
+              systemRemarks.push(
+                `Warning: Leave is adjacent to preceding official holiday: ${h.name} (${hDate}) [${h.type}]. Sandwich Rule applies.`
+              );
+            } else if (isFollowingAdjacent) {
+              systemRemarks.push(
+                `Warning: Leave is adjacent to following official holiday: ${h.name} (${hDate}) [${h.type}]. Sandwich Rule applies.`
+              );
+            }
+          }
         }
       }
     }
     // ------------------------------------------
     const currentYear = now.getFullYear();
-
-    let systemRemarks = [];
 
     // --- STATUTORY ELIGIBILITY CHECKS ---
     if ([8, 9, 10, 11, 12].includes(finalReqTypeId)) {
@@ -620,6 +731,8 @@ exports.UserCreateRequest = async (req, res) => {
       }
     }
 
+    let userLeaveBalance = null;
+
     // Check Leave Balances if applicable before creating parent request
     if ([3, 4, 6, 7, 10].includes(finalReqTypeId)) {
       const checkDays = [7, 10].includes(finalReqTypeId) ? 0.5 : finalNoDays;
@@ -657,7 +770,8 @@ exports.UserCreateRequest = async (req, res) => {
         );
       }
 
-      const balance = balanceResult[0];
+      userLeaveBalance = balanceResult[0];
+      const balance = userLeaveBalance;
       if (finalReqTypeId === 3) {
         // ... (existing VL logic)
         const filingDate = new Date(todayStr);
@@ -812,6 +926,10 @@ exports.UserCreateRequest = async (req, res) => {
 
       // Leave Request (Vacation Leave)
     } else if (finalReqTypeId === 3) {
+      const explicitWithPay = req.body.WithPayID || req.body.withPayId;
+      const defaultWithPay = (userLeaveBalance && parseFloat(userLeaveBalance.VL_balance) >= finalNoDays) ? 1 : 2;
+      const finalWithPayID = (explicitWithPay !== undefined && explicitWithPay !== null && explicitWithPay !== "") ? parseInt(explicitWithPay) : defaultWithPay;
+
       const vlResult = await sequelize.query(
         `INSERT INTO "Vacation_Leave"
         ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "reason", "WithPayID")
@@ -825,7 +943,7 @@ exports.UserCreateRequest = async (req, res) => {
             EndDate,
             NoDays: finalNoDays,
             reason: finalReason,
-            WithPayID: 2, // Default: Leave without Pay
+            WithPayID: finalWithPayID,
           },
           type: QueryTypes.INSERT,
           transaction: t
@@ -839,6 +957,10 @@ exports.UserCreateRequest = async (req, res) => {
     }
     // Sick Leave
     else if (finalReqTypeId === 4) {
+      const explicitWithPay = req.body.WithPayID || req.body.withPayId;
+      const defaultWithPay = (userLeaveBalance && parseFloat(userLeaveBalance.SL_balance) >= finalNoDays) ? 1 : 2;
+      const finalWithPayID = (explicitWithPay !== undefined && explicitWithPay !== null && explicitWithPay !== "") ? parseInt(explicitWithPay) : defaultWithPay;
+
       const slResult = await sequelize.query(
         `INSERT INTO "Sick_Leave"
         ("emp_reqId", "user_Id", "StartDate", "EndDate", "NoDays", "proof_File", "reason", "WithPayID")
@@ -853,7 +975,7 @@ exports.UserCreateRequest = async (req, res) => {
             NoDays: finalNoDays,
             proof_File: proof_File,
             reason: finalReason,
-            WithPayID: 2, // Default: Leave without Pay
+            WithPayID: finalWithPayID,
           },
           type: QueryTypes.INSERT,
           transaction: t
@@ -1015,8 +1137,26 @@ exports.UserCreateRequest = async (req, res) => {
         return res.status(400).json({ error: "Agency and Loan Type are required for loan requests." });
       }
 
+      // Auto-derive amortizationStartMonth if not explicitly provided but approval date is present
+      let effectiveAmortizationStartMonth = amortizationStartMonth;
+      if ((!effectiveAmortizationStartMonth || effectiveAmortizationStartMonth.trim() === "") && loanApprovalDate) {
+        const approvalDate = new Date(loanApprovalDate);
+        if (!isNaN(approvalDate.getTime())) {
+          let monthsToAdd = 1;
+          if (agency === "SSS") {
+            monthsToAdd = (loanType === "Emergency Loan") ? 6 : 2;
+          } else if (agency === "Pag-IBIG") {
+            monthsToAdd = (loanType === "Calamity Loan") ? 4 : 1;
+          }
+          const startMonth = new Date(approvalDate.getFullYear(), approvalDate.getMonth() + monthsToAdd, 1);
+          const yyyy = startMonth.getFullYear();
+          const mm = String(startMonth.getMonth() + 1).padStart(2, '0');
+          effectiveAmortizationStartMonth = `${yyyy}-${mm}`;
+        }
+      }
+
       if (isEnrollment && agency === "SSS" && loanType === "Salary Loan") {
-         if (!loanReferenceNo || !loanApprovalDate || !monthlyAmortization || !totalLoanTerm || !amortizationStartMonth || !totalOutstandingBalance || !proof_File) {
+         if (!loanReferenceNo || !loanApprovalDate || !monthlyAmortization || !totalLoanTerm || !effectiveAmortizationStartMonth || !totalOutstandingBalance || !proof_File) {
             console.log("[DEBUG_LOAN_ENROLLMENT] Failed Salary Loan Validation");
             await t.rollback();
             return res.status(400).json({ error: "All SSS Salary Loan fields and the Disclosure Statement upload are mandatory." });
@@ -1028,29 +1168,29 @@ exports.UserCreateRequest = async (req, res) => {
             return res.status(400).json({ error: "All SSS Calamity Loan fields and both file uploads are mandatory." });
          }
       } else if (isEnrollment && agency === "SSS" && loanType === "Emergency Loan") {
-         if (!amountRequested || !monthsToPay || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !amortizationStartMonth || !proof_File) {
+         if (!amountRequested || !monthsToPay || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !effectiveAmortizationStartMonth || !proof_File) {
             console.log("[DEBUG_LOAN_ENROLLMENT] Failed Emergency Loan Validation");
             await t.rollback();
             return res.status(400).json({ error: "All SSS Emergency Loan fields and the Disclosure Statement upload are mandatory." });
          }
       } else if (isEnrollment && agency === "Pag-IBIG" && loanType === "Multi-Purpose Loan (MPL)") {
-         if (!amountRequested || !monthsToPay || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !amortizationStartMonth || !proof_File) {
+         if (!amountRequested || !monthsToPay || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !effectiveAmortizationStartMonth || !proof_File) {
             await t.rollback();
             return res.status(400).json({ error: "All Pag-IBIG MPL fields and the Loan Voucher upload are mandatory." });
          }
       } else if (isEnrollment && agency === "Pag-IBIG" && loanType === "Calamity Loan") {
-         if (!amountRequested || !monthsToPay || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !amortizationStartMonth || !proof_File || !calamityArea) {
+         if (!amountRequested || !monthsToPay || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !effectiveAmortizationStartMonth || !proof_File || !calamityArea) {
             await t.rollback();
             return res.status(400).json({ error: "All Pag-IBIG Calamity Loan fields and the Loan Voucher upload are mandatory." });
          }
       } else if (isEnrollment && agency === "SSS" && loanType === "SSS Conso Loan") {
-         if (!totalOutstandingBalance || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !amortizationStartMonth || !totalLoanTerm || !proof_File) {
+         if (!totalOutstandingBalance || !monthlyAmortization || !loanReferenceNo || !loanApprovalDate || !effectiveAmortizationStartMonth || !totalLoanTerm || !proof_File) {
             console.log("[DEBUG_LOAN_ENROLLMENT] Failed Conso Loan Validation. Missing field:", {
                totalOutstandingBalance: !!totalOutstandingBalance,
                monthlyAmortization: !!monthlyAmortization,
                loanReferenceNo: !!loanReferenceNo,
                loanApprovalDate: !!loanApprovalDate,
-               amortizationStartMonth: !!amortizationStartMonth,
+               amortizationStartMonth: !!effectiveAmortizationStartMonth,
                totalLoanTerm: !!totalLoanTerm,
                proof_File: !!proof_File
             });
@@ -1097,7 +1237,7 @@ exports.UserCreateRequest = async (req, res) => {
             loanApprovalDate: loanApprovalDate || null,
             monthlyAmortization: monthlyAmortization || 0,
             totalLoanTerm: totalLoanTerm || 0,
-            amortizationStartMonth: amortizationStartMonth || null,
+            amortizationStartMonth: effectiveAmortizationStartMonth || null,
             totalOutstandingBalance: totalOutstandingBalance || 0,
             calamityArea: calamityArea || null,
             damageProof_File: damageProof_File || null,

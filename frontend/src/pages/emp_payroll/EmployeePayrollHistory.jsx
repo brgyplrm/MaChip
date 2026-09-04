@@ -17,9 +17,11 @@ import {
   LogOut,
   UserCheck,
   TrendingUp,
+  TrendingDown,
   Wallet,
   ArrowDownRight,
-  CalendarDays
+  CalendarDays,
+  HelpCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,61 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TablePagination } from "@/components/ui/table-pagination";
+
+const colorMap = {
+  "[#2A174E]": "border-[#2A174E]",
+  "emerald-500": "border-emerald-500",
+  "rose-500": "border-rose-500",
+  "amber-500": "border-amber-500",
+  "indigo-500": "border-indigo-500",
+  "blue-500": "border-blue-500"
+};
+
+function MetricCard({ label, value, color, description, icon: Icon, tooltip, loading }) {
+  return (
+    <Card className={`border-t-4 ${colorMap[color] || 'border-[#2A174E]'} bg-white py-0 h-full shadow-sm`}>
+      <CardContent className="p-5 flex flex-col justify-between h-full text-left">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+              {tooltip && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center justify-center cursor-help">
+                      <HelpCircle className="h-3 w-3 text-[#2A174E]/60 hover:text-[#2A174E]" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-[10px]">
+                    {tooltip}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+            {loading ? (
+              <Skeleton className="h-8 w-28 my-1" />
+            ) : (
+              <p className="text-2xl font-black text-[#2A174E]">{value}</p>
+            )}
+          </div>
+          {Icon && (
+            <div className={`p-2.5 rounded-xl ${
+              color === 'emerald-500' ? 'bg-emerald-50 text-emerald-600' :
+              color === 'blue-500' ? 'bg-blue-50 text-blue-600' :
+              color === 'amber-500' ? 'bg-amber-50 text-amber-600' :
+              color === 'rose-500' ? 'bg-rose-50 text-rose-600' :
+              color === 'indigo-500' ? 'bg-indigo-50 text-indigo-600' :
+              'bg-[#2A174E]/10 text-[#2A174E]'
+            }`}>
+              <Icon className="h-5 w-5" />
+            </div>
+          )}
+        </div>
+        <p className="text-[10px] text-slate-500 italic mt-3">{description}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 const EmployeePayrollHistory = () => {
   const [payrolls, setPayrolls] = useState([]);
@@ -229,61 +286,76 @@ const EmployeePayrollHistory = () => {
     <Sidebar>
       <TooltipProvider>
         <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                <CreditCard className="h-6 w-6 text-[#2A174E]" />
-                My Payroll History
-              </h1>
-              <p className="text-slate-500 text-sm">View and download your past payslips and benefits.</p>
+          <div className="group flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-0">
+              {/* Animated Back Button (Admin-style Hover Animation) */}
+              <div className="w-0 overflow-hidden group-hover:w-10 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button 
+                        asChild 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-[#2A174E] hover:bg-[#2A174E]/10 rounded-full"
+                      >
+                        <Link to="/employeeHome">
+                          <ChevronLeft className="h-6 w-6" />
+                        </Link>
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                    Back to Dashboard
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+
+              <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out">
+                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">My Payroll</h1>
+                <p className="text-slate-500 text-sm">View and download your past payslips and benefits.</p>
+              </div>
             </div>
           </div>
 
-          {/* YTD Overview Cards for Current / Selected Year */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border-none shadow-sm bg-white p-4 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                <TrendingUp className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium">YTD Gross ({targetYear})</p>
-                <p className="text-lg font-bold text-slate-800">{formatCurrency(ytdOverview.gross)}</p>
-                <p className="text-[11px] text-slate-400">{ytdOverview.count} Cutoffs Released</p>
-              </div>
-            </Card>
-
-            <Card className="border-none shadow-sm bg-white p-4 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-[#2A174E]/10 text-[#2A174E] flex items-center justify-center font-bold">
-                <Wallet className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium">YTD Net Pay ({targetYear})</p>
-                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(ytdOverview.net)}</p>
-                <p className="text-[11px] text-slate-400">Total Take-Home</p>
-              </div>
-            </Card>
-
-            <Card className="border-none shadow-sm bg-white p-4 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
-                <ArrowDownRight className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium">YTD Total Deductions</p>
-                <p className="text-lg font-bold text-rose-600">({formatCurrency(ytdOverview.deductions)})</p>
-                <p className="text-[11px] text-slate-400">Taxes & Contributions</p>
-              </div>
-            </Card>
-
-            <Card className="border-none shadow-sm bg-white p-4 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                <CalendarDays className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium">YTD Days Worked</p>
-                <p className="text-lg font-bold text-slate-800">{ytdOverview.daysWorked} Days</p>
-                <p className="text-[11px] text-slate-400">Accumulated Attendance</p>
-              </div>
-            </Card>
+          {/* YTD Overview Cards for Current / Selected Year (Admin MetricCard Pattern) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+            <MetricCard
+              label={`YTD Gross (${targetYear})`}
+              value={formatCurrency(ytdOverview.gross)}
+              color="emerald-500"
+              description={`${ytdOverview.count} regular cutoffs released in ${targetYear}`}
+              icon={TrendingUp}
+              tooltip={`Cumulative gross compensation earned across all processed payroll cutoffs in ${targetYear}.`}
+              loading={loading}
+            />
+            <MetricCard
+              label={`YTD Net Pay (${targetYear})`}
+              value={formatCurrency(ytdOverview.net)}
+              color="[#2A174E]"
+              description="Total net take-home pay disbursed"
+              icon={Wallet}
+              tooltip={`Total net take-home pay credited to your account after all deductions in ${targetYear}.`}
+              loading={loading}
+            />
+            <MetricCard
+              label={`YTD Deductions (${targetYear})`}
+              value={`-${formatCurrency(ytdOverview.deductions)}`}
+              color="rose-500"
+              description="Taxes, statutory shares & loans"
+              icon={TrendingDown}
+              tooltip={`Cumulative withholding taxes, SSS, PhilHealth, Pag-IBIG contributions, and loans in ${targetYear}.`}
+              loading={loading}
+            />
+            <MetricCard
+              label={`YTD Days Worked (${targetYear})`}
+              value={`${ytdOverview.daysWorked} Days`}
+              color="indigo-500"
+              description="Accumulated work attendance"
+              icon={CalendarDays}
+              tooltip={`Total recorded working days rendered and credited across payroll periods in ${targetYear}.`}
+              loading={loading}
+            />
           </div>
   
           <Card className="border-none shadow-sm overflow-hidden pt-1">

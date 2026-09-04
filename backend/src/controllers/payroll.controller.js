@@ -1811,6 +1811,108 @@ exports.resendPayrollEmail = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// ── Resend Batch Payroll Emails ──────────────────────────────────────────────
+exports.resendBatchPayrollEmails = async (req, res) => {
+  const { period_Start, period_End } = req.body;
+  if (!period_Start || !period_End) {
+    return res.status(400).json({ error: "period_Start and period_End are required." });
+  }
+
+  try {
+    const payrolls = await sequelize.query(
+      `SELECT p.*, u."user_FirstName", u."user_LastName", u."user_Email", b."account_Number"
+       FROM "Payroll" p
+       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       WHERE p."period_Start" = :period_Start AND p."period_End" = :period_End
+       ORDER BY p."user_Id"`,
+      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+
+    if (payrolls.length === 0) {
+      return res.status(404).json({ error: "No payroll records found for this period." });
+    }
+
+    let successCount = 0;
+    const errors = [];
+
+    for (const payroll of payrolls) {
+      try {
+        const earnings = await sequelize.query(
+          `SELECT * FROM "Payroll_Earnings" WHERE "payrollId" = :payrollId`,
+          { replacements: { payrollId: payroll.payrollId }, type: QueryTypes.SELECT }
+        );
+        const deductions = await sequelize.query(
+          `SELECT * FROM "Payroll_Deductions" WHERE "payrollId" = :payrollId`,
+          { replacements: { payrollId: payroll.payrollId }, type: QueryTypes.SELECT }
+        );
+
+        const fullStats = {
+          ...payroll,
+          ...(earnings[0] || {}),
+          ...(deductions[0] || {})
+        };
+
+        const dtrData = await getAttendanceReportInternal(payroll.period_Start, payroll.period_End, payroll.user_Id);
+
+        const pdfPassword = generatePayslipPassword({
+          period_Start: payroll.period_Start,
+          period_End: payroll.period_End,
+          user_LastName: payroll.user_LastName,
+          user_Id: payroll.user_Id
+        });
+
+        const payslipPayload = {
+          ...fullStats,
+          user_FirstName: payroll.user_FirstName,
+          user_LastName: payroll.user_LastName,
+          user_Position: payroll.position || payroll.user_Position,
+          accountNo: decrypt(payroll.account_Number) || "—"
+        };
+
+        const [payslipBuffer, detailedPayslipBuffer, dtrBuffer] = await Promise.all([
+          generatePayslipPDF(payslipPayload, pdfPassword),
+          generateDetailedPayslipPDF(payslipPayload, pdfPassword),
+          generateDTRPDF({
+            employee: payroll,
+            dtrData,
+            period_Start: payroll.period_Start,
+            period_End: payroll.period_End,
+            fullStats: fullStats
+          })
+        ]);
+
+        await sendPayrollEmail({
+          email: payroll.user_Email,
+          name: `${payroll.user_FirstName} ${payroll.user_LastName}`,
+          period: `${payroll.period_Start} to ${payroll.period_End}`,
+          netPay: payroll.netPay,
+          attachments: [
+            { filename: `Payslip_${payroll.user_LastName}.pdf`, content: payslipBuffer },
+            { filename: `Payslip_${payroll.user_LastName}_Detailed.pdf`, content: detailedPayslipBuffer },
+            { filename: `DTR_${payroll.user_LastName}.pdf`, content: dtrBuffer }
+          ]
+        });
+
+        successCount++;
+        await new Promise(r => setTimeout(r, 1000));
+      } catch (err) {
+        console.error(`[BATCH EMAIL ERROR] for payroll ${payroll.payrollId}:`, err.message);
+        errors.push({ payrollId: payroll.payrollId, user_Id: payroll.user_Id, error: err.message });
+      }
+    }
+
+    res.status(200).json({
+      message: `Successfully processed and sent ${successCount} of ${payrolls.length} payroll emails.`,
+      successCount,
+      totalCount: payrolls.length,
+      errors
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 exports.updatePayroll = async (req, res) => {
   const { payrollId } = req.params;
   const { status, netPay, totalEarnings, totalDeductions } = req.body;
@@ -3991,10 +4093,21 @@ exports.getMyPayrollHistory = async (req, res) => {
 exports.getMyPayrollById = async (req, res) => {
   const { payrollId } = req.params;
   const user_Id = req.user.user_Id;
+  const roleId = Number(req.user.user_RoleId);
 
   if (isNaN(parseInt(payrollId))) return res.status(400).json({ error: "Invalid ID" });
 
   try {
+    const isManagement = [1, 2, 4].includes(roleId);
+    let whereClause = `p."payrollId" = :payrollId`;
+    const replacements = { payrollId };
+
+    if (!isManagement) {
+      // Principle of Least Privilege: employees can ONLY access their own records AND only if officially Released (status = 5)
+      whereClause += ` AND p."user_Id" = :user_Id AND p."status" = 5`;
+      replacements.user_Id = user_Id;
+    }
+
     const payroll = await sequelize.query(
       `SELECT
          p.*,
@@ -4013,15 +4126,17 @@ exports.getMyPayrollById = async (req, res) => {
           COALESCE(d."globe_Deduction",0) +
           COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
          u."user_FirstName", u."user_LastName", u."position" AS "user_Position",
+         b."account_Number",
          ps."PaystatusName"
        FROM "Payroll" p
        LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
        LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
        LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
        LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
-       WHERE p."payrollId" = :payrollId AND p."user_Id" = :user_Id AND p."status" IN (2, 5)
+       WHERE ${whereClause}
        LIMIT 1`,
-      { replacements: { payrollId, user_Id }, type: QueryTypes.SELECT },
+      { replacements, type: QueryTypes.SELECT },
     );
 
     if (payroll.length === 0) return res.status(404).json({ error: "Payroll not found or access denied." });
@@ -4068,9 +4183,209 @@ exports.getMyPayrollById = async (req, res) => {
     res.status(200).json({
       ...currentPayroll,
       ...ytd,
-      holidayBreakdown
+      holidayBreakdown,
+      accountNo: decrypt(currentPayroll.account_Number) || "—"
     });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Downloads an individual standard or detailed payslip PDF.
+ * Enforces Principle of Least Privilege: employees can ONLY download their own RELEASED (status = 5) payslip.
+ */
+exports.downloadMyPayslipPDF = async (req, res) => {
+  const { payrollId } = req.params;
+  const { type } = req.query; // 'detailed' or 'standard'
+  const user_Id = req.user.user_Id;
+  const roleId = Number(req.user.user_RoleId);
+
+  if (isNaN(parseInt(payrollId))) return res.status(400).json({ error: "Invalid payroll ID" });
+
+  try {
+    const isManagement = [1, 2, 4].includes(roleId);
+    let whereClause = `p."payrollId" = :payrollId`;
+    const replacements = { payrollId };
+
+    if (!isManagement) {
+      // Least privilege: strictly own record and strictly Released status (status = 5)
+      whereClause += ` AND p."user_Id" = :user_Id AND p."status" = 5`;
+      replacements.user_Id = user_Id;
+    }
+
+    const payrollRows = await sequelize.query(
+      `SELECT
+         p.*,
+         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt",
+         e."nightOT_Hrs", e."nightOT_Amnt",
+         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
+         e."specialHol_Adj", e."incentives", e."allowance",
+         d."absence_Hrs", d."absence_Amnt", d."tardiness_Mins", d."tardiness_Amnt",
+         d."unpaidLeave_Days", d."unpaidLeave_Amnt", d."paidLeave_Days",
+         d."SSS_Ded", d."Philhealth_Ded", d."HDMF_Ded", 
+         d."SSS_Ded_ER", d."Philhealth_Ded_ER", d."HDMF_Ded_ER", 
+         d."Tax_Ded", d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", 
+         d."calamityLoan_Amnt", d."multiPurposeSavings", d."advances_Amnt", 
+         d."globe_Deduction", d."eastwest_Loan",
+         (COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
+          COALESCE(d."globe_Deduction",0) +
+          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
+         u."user_FirstName", u."user_LastName", u."position" AS "user_Position",
+         b."account_Number",
+         ps."PaystatusName"
+       FROM "Payroll" p
+       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
+       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
+       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
+       WHERE ${whereClause}
+       LIMIT 1`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    if (payrollRows.length === 0) {
+      return res.status(404).json({ error: "Payroll record not found or access denied." });
+    }
+
+    const currentPayroll = payrollRows[0];
+    const numericFields = [
+      "dailyRate", "previousDailyRate", "ratePerHr", "basicPay", "totalEarnings", 
+      "totalDeductions", "netPay", "OT_Amnt", "restDay_OT_Amnt", "nightOT_Amnt", 
+      "nightDiff_Amnt", "specialHol_Amnt", "legalHol_Amnt", "specialHol_Adj", 
+      "incentives", "allowance", "absence_Amnt", "tardiness_Amnt", "unpaidLeave_Amnt",
+      "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "SSS_Ded_ER", "Philhealth_Ded_ER", 
+      "HDMF_Ded_ER", "Tax_Ded", "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", 
+      "calamityLoan_Amnt", "multiPurposeSavings", "advances_Amnt", "globe_Deduction", 
+      "eastwest_Loan", "Other_Deductions"
+    ];
+    numericFields.forEach(field => {
+      if (currentPayroll[field] !== undefined) {
+        currentPayroll[field] = parseFloat(currentPayroll[field] || 0);
+      }
+    });
+
+    const ytd = await calculateYTD(
+      currentPayroll.user_Id,
+      currentPayroll.period_Start,
+      currentPayroll.period_End,
+      currentPayroll.totalEarnings,
+      currentPayroll.allowance,
+      currentPayroll.totalDeductions,
+      currentPayroll.Tax_Ded
+    );
+
+    const holidayBreakdown = await getHolidayBreakdown(
+      currentPayroll.user_Id,
+      currentPayroll.period_Start,
+      currentPayroll.period_End,
+      currentPayroll.dailyRate,
+      currentPayroll.ratePerHr,
+      currentPayroll.legalHol_Amnt,
+      currentPayroll.specialHol_Amnt
+    );
+
+    const fullStats = {
+      ...currentPayroll,
+      ...ytd,
+      holidayBreakdown,
+      accountNo: decrypt(currentPayroll.account_Number) || "—"
+    };
+
+    let pdfBuffer;
+    let filenameSuffix = "";
+    if (type === "detailed") {
+      pdfBuffer = await generateDetailedPayslipPDF(fullStats, null);
+      filenameSuffix = "_Detailed";
+    } else {
+      pdfBuffer = await generatePayslipPDF(fullStats, null);
+    }
+
+    const filename = `Payslip_${currentPayroll.user_LastName || "Employee"}_${payrollId}${filenameSuffix}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.end(pdfBuffer);
+  } catch (error) {
+    console.error("Error generating payslip PDF:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Downloads individual DTR PDF for an employee's released payroll.
+ * Enforces Principle of Least Privilege: employees can ONLY download their own RELEASED (status = 5) DTR.
+ */
+exports.downloadMyDTRPDF = async (req, res) => {
+  const { payrollId } = req.params;
+  const user_Id = req.user.user_Id;
+  const roleId = Number(req.user.user_RoleId);
+
+  if (isNaN(parseInt(payrollId))) return res.status(400).json({ error: "Invalid payroll ID" });
+
+  try {
+    const isManagement = [1, 2, 4].includes(roleId);
+    let whereClause = `p."payrollId" = :payrollId`;
+    const replacements = { payrollId };
+
+    if (!isManagement) {
+      whereClause += ` AND p."user_Id" = :user_Id AND p."status" = 5`;
+      replacements.user_Id = user_Id;
+    }
+
+    const payrollRows = await sequelize.query(
+      `SELECT
+         p.*,
+         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt",
+         e."nightOT_Hrs", e."nightOT_Amnt",
+         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", 
+         e."specialHol_Adj", e."incentives", e."allowance",
+         d."absence_Hrs", d."absence_Amnt", d."tardiness_Mins", d."tardiness_Amnt",
+         d."unpaidLeave_Days", d."unpaidLeave_Amnt", d."paidLeave_Days",
+         d."SSS_Ded", d."Philhealth_Ded", d."HDMF_Ded", 
+         d."SSS_Ded_ER", d."Philhealth_Ded_ER", d."HDMF_Ded_ER", 
+         d."Tax_Ded", d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", 
+         d."calamityLoan_Amnt", d."multiPurposeSavings", d."advances_Amnt", 
+         d."globe_Deduction", d."eastwest_Loan",
+         u."user_FirstName", u."user_LastName", u."position" AS "user_Position",
+         ps."PaystatusName"
+       FROM "Payroll" p
+       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
+       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
+       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
+       WHERE ${whereClause}
+       LIMIT 1`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    if (payrollRows.length === 0) {
+      return res.status(404).json({ error: "Payroll record not found or access denied." });
+    }
+
+    const currentPayroll = payrollRows[0];
+    const dtrData = await getAttendanceReportInternal(currentPayroll.period_Start, currentPayroll.period_End, currentPayroll.user_Id);
+
+    const fullStats = {
+      ...currentPayroll,
+      netPay: parseFloat(currentPayroll.netPay || 0),
+      basicPay: parseFloat(currentPayroll.basicPay || 0)
+    };
+
+    const dtrBuffer = await generateDTRPDF({
+      employee: currentPayroll,
+      dtrData,
+      period_Start: currentPayroll.period_Start,
+      period_End: currentPayroll.period_End,
+      fullStats
+    });
+
+    const filename = `DTR_${currentPayroll.user_LastName || "Employee"}_${payrollId}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.end(dtrBuffer);
+  } catch (error) {
+    console.error("Error generating DTR PDF:", error);
     res.status(500).json({ error: error.message });
   }
 };

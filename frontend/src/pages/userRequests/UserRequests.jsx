@@ -111,6 +111,19 @@ const UserRequests = () => {
 
   const payroll = useMemo(() => getPayrollDates(systemToday), [systemToday, getPayrollDates]);
   const [balance, setBalance] = useState(null);
+  const [holidays, setHolidays] = useState([]);
+
+  const fetchHolidays = async () => {
+    try {
+      const response = await fetchWithAuth("/api/system/holidays");
+      if (response.ok) {
+        const data = await response.json();
+        setHolidays(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error("Error fetching holidays:", error);
+    }
+  };
 
   const fetchPayrollPeriods = async () => {
     try {
@@ -353,9 +366,11 @@ const UserRequests = () => {
   useEffect(() => {
     fetchBalance();
     fetchPayrollPeriods();
+    fetchHolidays();
     const handleRefresh = () => {
       fetchBalance();
       fetchHistory();
+      fetchHolidays();
     };
     window.addEventListener("dataRefresh", handleRefresh);
     return () => window.removeEventListener("dataRefresh", handleRefresh);
@@ -367,17 +382,31 @@ const UserRequests = () => {
 
   useEffect(() => {
     if (["3", "4", "6", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && formData.leaveStartDate && formData.leaveEndDate) {
-      const start = new Date(formData.leaveStartDate);
-      const end = new Date(formData.leaveEndDate);
+      const start = new Date(formData.leaveStartDate + "T00:00:00");
+      const end = new Date(formData.leaveEndDate + "T00:00:00");
       let count = 0;
       let cur = new Date(start);
       while (cur <= end) {
-        if (cur.getDay() !== 0) count++;
+        const yyyy = cur.getFullYear();
+        const mm = String(cur.getMonth() + 1).padStart(2, "0");
+        const dd = String(cur.getDate()).padStart(2, "0");
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+
+        const isSunday = cur.getDay() === 0;
+        const isOfficialHoliday = holidays.some(h => {
+          const hDate = typeof h.date === "string" ? h.date.split("T")[0] : new Date(h.date).toISOString().split("T")[0];
+          return hDate === dateStr;
+        });
+
+        // Only count regular working days (skip Sundays and official holidays)
+        if (!isSunday && !isOfficialHoliday) {
+          count++;
+        }
         cur.setDate(cur.getDate() + 1);
       }
       setFormData((prev) => ({ ...prev, noDays: count }));
     }
-  }, [formData.leaveStartDate, formData.leaveEndDate, formData.emp_reqTypeId]);
+  }, [formData.leaveStartDate, formData.leaveEndDate, formData.emp_reqTypeId, holidays]);
 
   // Dynamic validation warnings for the active request form
   const formWarnings = useMemo(() => {
@@ -472,8 +501,99 @@ const UserRequests = () => {
       }
     }
 
+    // 6. Holiday Intervening & Sandwich Rule Checks
+    if (["3", "4", "6", "7", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && (formData.leaveStartDate || formData.leaveEndDate)) {
+      const sDateStr = formData.leaveStartDate || formData.leaveEndDate;
+      const eDateStr = formData.leaveEndDate || formData.leaveStartDate;
+      if (sDateStr && eDateStr) {
+        const sDateObj = new Date(sDateStr + "T00:00:00");
+        const eDateObj = new Date(eDateStr + "T00:00:00");
+
+        // A. Intervening holidays (spanned by leave)
+        const intervening = holidays.filter(h => {
+          const hDate = typeof h.date === "string" ? h.date.split("T")[0] : new Date(h.date).toISOString().split("T")[0];
+          return hDate >= sDateStr && hDate <= eDateStr;
+        });
+
+        if (intervening.length > 0) {
+          const holDetails = intervening.map(h => {
+            const hd = typeof h.date === "string" ? h.date.split("T")[0] : new Date(h.date).toISOString().split("T")[0];
+            return `${h.name} (${hd}) [${h.type}]`;
+          }).join(", ");
+          warnings.push({
+            type: "warning",
+            title: "Holiday Period Notice (Sandwich Rule)",
+            message: `Your requested leave schedule spans official holiday(s): ${holDetails}. Official holidays are not deducted from your remaining leave credits. However, company Sandwich Rule & holiday pay policies apply upon supervisor review.`,
+          });
+        }
+
+        // B. Adjacent holidays (before start or after end, accounting for weekends)
+        const nonIntervening = holidays.filter(h => {
+          const hDate = typeof h.date === "string" ? h.date.split("T")[0] : new Date(h.date).toISOString().split("T")[0];
+          return hDate < sDateStr || hDate > eDateStr;
+        });
+
+        for (const h of nonIntervening) {
+          const hDate = typeof h.date === "string" ? h.date.split("T")[0] : new Date(h.date).toISOString().split("T")[0];
+          const hDateObj = new Date(hDate + "T00:00:00");
+          const diffBeforeDays = Math.round((sDateObj - hDateObj) / (1000 * 60 * 60 * 24));
+          const diffAfterDays = Math.round((hDateObj - eDateObj) / (1000 * 60 * 60 * 24));
+
+          let isPreceding = false;
+          const startDayOfWeek = sDateObj.getDay();
+          if (diffBeforeDays === 1) isPreceding = true;
+          else if (startDayOfWeek === 1 && (diffBeforeDays === 2 || diffBeforeDays === 3)) isPreceding = true;
+          else if (startDayOfWeek === 0 && diffBeforeDays === 2) isPreceding = true;
+
+          let isFollowing = false;
+          const endDayOfWeek = eDateObj.getDay();
+          if (diffAfterDays === 1) isFollowing = true;
+          else if (endDayOfWeek === 5 && (diffAfterDays === 2 || diffAfterDays === 3)) isFollowing = true;
+          else if (endDayOfWeek === 6 && diffAfterDays === 2) isFollowing = true;
+
+          if (isPreceding) {
+            warnings.push({
+              type: "warning",
+              title: "Preceding Holiday Notice (Sandwich Rule)",
+              message: `This leave is immediately adjacent to preceding holiday ${h.name} (${hDate}) [${h.type}]. Company attendance and Sandwich Rule policy applies upon approval.`,
+            });
+          } else if (isFollowing) {
+            warnings.push({
+              type: "warning",
+              title: "Following Holiday Notice (Sandwich Rule)",
+              message: `This leave is immediately adjacent to following holiday ${h.name} (${hDate}) [${h.type}]. Company attendance and Sandwich Rule policy applies upon approval.`,
+            });
+          }
+        }
+      }
+    }
+
     return warnings;
-  }, [formData.emp_reqTypeId, formData.noDays, formData.leaveStartDate, formData.proofFile, balance]);
+  }, [formData.emp_reqTypeId, formData.noDays, formData.leaveStartDate, formData.leaveEndDate, formData.proofFile, balance, holidays]);
+
+  const calculateAmortizationStart = (dateStr, agency, loanType) => {
+    if (!dateStr) return "";
+    const approvalDate = new Date(dateStr + "T00:00:00");
+    if (isNaN(approvalDate.getTime())) return "";
+    let monthsToAdd = 1;
+    if (agency === "SSS") {
+      if (loanType === "Emergency Loan") {
+        monthsToAdd = 6;
+      } else {
+        monthsToAdd = 2; // SSS standard: 2nd month following month of approval
+      }
+    } else if (agency === "Pag-IBIG") {
+      if (loanType === "Calamity Loan") {
+        monthsToAdd = 4; // 3-month grace period (starts 4th month)
+      } else {
+        monthsToAdd = 1; // Pag-IBIG MPL: starts next month
+      }
+    }
+    const startMonth = new Date(approvalDate.getFullYear(), approvalDate.getMonth() + monthsToAdd, 1);
+    const yyyy = startMonth.getFullYear();
+    const mm = String(startMonth.getMonth() + 1).padStart(2, '0');
+    return `${yyyy}-${mm}`;
+  };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked, files } = e.target;
@@ -489,6 +609,12 @@ const UserRequests = () => {
 
     const newValue = type === "checkbox" ? checked : type === "file" ? files[0] : value;
     
+    // Auto-calculate Amortization Start Month if loanApprovalDate is changing
+    let calculatedStartMonth = undefined;
+    if (name === "loanApprovalDate" && value) {
+      calculatedStartMonth = calculateAmortizationStart(value, formData.agency, formData.loanType);
+    }
+
     // Auto-calculate for SSS Loans (Salary or Calamity)
     if (formData.agency === "SSS" && (formData.loanType === "Salary Loan" || formData.loanType === "Calamity Loan")) {
       // Principal could be entered in 'amountRequested' (Calamity/Other) or 'totalOutstandingBalance' (Salary)
@@ -508,7 +634,8 @@ const UserRequests = () => {
            setFormData(prev => ({ 
              ...prev, 
              [name]: newValue,
-             monthlyAmortization: Math.round(estimatedAmort)
+             monthlyAmortization: Math.round(estimatedAmort),
+             ...(calculatedStartMonth ? { amortizationStartMonth: calculatedStartMonth } : {})
            }));
            return;
         }
@@ -564,39 +691,21 @@ const UserRequests = () => {
           monthlyAmortization: Math.round(monthlyAmort * 100) / 100,
           serviceFeeAmount: Math.round(serviceFeeVal * 100) / 100,
           proRatedInterest: Math.round(proRatedVal * 100) / 100,
-          netDisbursement: Math.round(netProceeds * 100) / 100
+          netDisbursement: Math.round(netProceeds * 100) / 100,
+          ...(calculatedStartMonth ? { amortizationStartMonth: calculatedStartMonth } : {})
         }));
         return;
       }
     }
 
-    // Auto-calculate Amortization Start Month
+    // Auto-calculate Amortization Start Month if loanApprovalDate changed
     if (name === "loanApprovalDate" && value) {
-      const approvalDate = new Date(value);
-      if (!isNaN(approvalDate.getTime())) {
-        let monthsToAdd = 1;
-        
-        if (formData.agency === "SSS") {
-          // SSS Rule: 2nd month following the month of approval
-          monthsToAdd = 2;
-        } else if (formData.agency === "Pag-IBIG") {
-          if (formData.loanType === "Calamity Loan") {
-            // Pag-IBIG Calamity: 3-month grace period (starts 4th month)
-            monthsToAdd = 4;
-          } else {
-            // Pag-IBIG MPL: Starts following month
-            monthsToAdd = 1;
-          }
-        }
-
-        const startMonth = new Date(approvalDate.getFullYear(), approvalDate.getMonth() + monthsToAdd, 1);
-        const yyyy = startMonth.getFullYear();
-        const mm = String(startMonth.getMonth() + 1).padStart(2, '0');
-        
+      const autoMonth = calculateAmortizationStart(value, formData.agency, formData.loanType);
+      if (autoMonth) {
         setFormData(prev => ({ 
           ...prev, 
           [name]: newValue,
-          amortizationStartMonth: `${yyyy}-${mm}` 
+          amortizationStartMonth: autoMonth 
         }));
         return;
       }
@@ -676,6 +785,41 @@ const UserRequests = () => {
           updated.monthsToPay = "1";
         }
       }
+      
+      const effectiveAgency = name === "agency" ? val : updated.agency;
+      const effectiveLoanType = name === "loanType" ? val : updated.loanType;
+
+      // Recompute amortization start month if agency or loanType changed
+      if (updated.loanApprovalDate && (name === "agency" || name === "loanType")) {
+        const newStart = calculateAmortizationStart(updated.loanApprovalDate, effectiveAgency, effectiveLoanType);
+        if (newStart) updated.amortizationStartMonth = newStart;
+      }
+
+      // Recompute monthlyAmortization if monthsToPay changed via select dropdown
+      if (name === "monthsToPay" && updated.amountRequested) {
+        const principal = parseFloat(updated.amountRequested);
+        const term = parseInt(val);
+        if (principal > 0 && term > 0) {
+          let annualRate = 0;
+          if (effectiveAgency === 'SSS') {
+            annualRate = (effectiveLoanType === 'Calamity Loan') ? 0.06 : 0.10;
+          } else if (effectiveAgency === 'Pag-IBIG') {
+            annualRate = (effectiveLoanType === "Calamity Loan") ? 0.0595 : 0.105;
+          } else if (effectiveAgency === 'Company') {
+            annualRate = 0;
+          }
+          let monthlyAmort = 0;
+          if (annualRate > 0) {
+            const monthlyRate = annualRate / 12;
+            const factor = Math.pow(1 + monthlyRate, term);
+            monthlyAmort = (principal * monthlyRate * factor) / (factor - 1);
+          } else {
+            monthlyAmort = principal / term;
+          }
+          updated.monthlyAmortization = Math.round(monthlyAmort * 100) / 100;
+        }
+      }
+
       return updated;
     });
     
@@ -683,6 +827,16 @@ const UserRequests = () => {
       refreshLogDisplay(formData.logCorrDate, val, currentPeriodLogs);
     }
   };
+
+  // Auto-seed Amortization Start Month if loanApprovalDate is set but start month is blank
+  useEffect(() => {
+    if (formData.emp_reqTypeId === "14" && formData.loanApprovalDate && !formData.amortizationStartMonth) {
+      const autoMonth = calculateAmortizationStart(formData.loanApprovalDate, formData.agency, formData.loanType);
+      if (autoMonth) {
+        setFormData(prev => ({ ...prev, amortizationStartMonth: autoMonth }));
+      }
+    }
+  }, [formData.emp_reqTypeId, formData.loanApprovalDate, formData.agency, formData.loanType, formData.amortizationStartMonth]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -820,8 +974,11 @@ const UserRequests = () => {
       });
       const result = await response.json();
       if (response.ok) {
+        const sysRemark = result.data?.request?.system_remarks;
         let finalMessage = "Request submitted successfully!";
-        if (isInsufficient && isLateFiling) {
+        if (sysRemark) {
+          finalMessage = `Notice: ${sysRemark}`;
+        } else if (isInsufficient && isLateFiling) {
           finalMessage = "Warning: Insufficient balance & late filing. Extra days will have No Pay (LWOP) or risk AWOL if unapproved. Request submitted.";
         } else if (isInsufficient) {
           finalMessage = "Warning: Insufficient balance. Extra days exceeding your balance will have No Pay (LWOP) or be considered AWOL. Request submitted.";
@@ -829,7 +986,7 @@ const UserRequests = () => {
           finalMessage = "Warning: Vacation Leave must be filed 3 days in advance. Request submitted for supervisor review.";
         }
 
-        setToast({ message: finalMessage, type: (isInsufficient || isLateFiling) ? "error" : "success" });
+        setToast({ message: finalMessage, type: (isInsufficient || isLateFiling || sysRemark) ? "warning" : "success" });
         setFormData({
           user_Id: userData?.user_Id || "",
           emp_reqTypeId: "",
@@ -1037,30 +1194,7 @@ const UserRequests = () => {
             </CardContent>
           </Card>
  
-          {/* Card 4: Returned */}
-          <Card className="shadow-sm border-t-4 border-blue-500  py-0 h-full min-w-0">
-            <CardContent className="px-5 py-5 flex justify-between h-full text-left">
-              <div className="flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-blue-800 uppercase tracking-wider">Returned</p>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                        Requests returned by the administrator requiring revision, corrections, or additional attachments.
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <p className="text-4xl font-bold text-blue-800">{stats.returned}</p>
-                </div>
-              </div>
-              <div className="bg-blue-100 text-blue-800 p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <ReplyIcon className="h-6 w-6" />
-              </div>
-            </CardContent>
-          </Card>
+          
  
           {/* Card 2: Approved */}
           <Card className="shadow-sm border-t-4 border-[#3B4E17] py-0 h-full min-w-0">
@@ -1108,6 +1242,31 @@ const UserRequests = () => {
               </div>
               <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CancelOutlinedIcon className="h-6 w-6" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 4: Returned */}
+          <Card className="shadow-sm border-t-4 border-blue-500  py-0 h-full min-w-0">
+            <CardContent className="px-5 py-5 flex justify-between h-full text-left">
+              <div className="flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-blue-800 uppercase tracking-wider">Returned</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                        Requests returned by the administrator requiring revision, corrections, or additional attachments.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <p className="text-4xl font-bold text-blue-800">{stats.returned}</p>
+                </div>
+              </div>
+              <div className="bg-blue-100 text-blue-800 p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <ReplyIcon className="h-6 w-6" />
               </div>
             </CardContent>
           </Card>
@@ -1300,9 +1459,16 @@ const UserRequests = () => {
                           className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
                         >
                           <div className="flex justify-between items-center mb-2">
-                            <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
-                              {getShortType(req.reqTypeName)}
-                            </Badge>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
+                                {getShortType(req.reqTypeName)}
+                              </Badge>
+                              {req.system_remarks && (
+                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] px-1.5 py-0">
+                                  ⚠️ Notice
+                                </Badge>
+                              )}
+                            </div>
                             <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
                           </div>
                           <p className="font-bold text-slate-800 text-sm mb-1">{req.reqTypeName}</p>
@@ -1746,9 +1912,9 @@ const UserRequests = () => {
                                   <Input type="date" name="loanApprovalDate" value={formData.loanApprovalDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                                 </div>
                                 <div className="space-y-2">
-                                  <label className="text-sm font-bold text-slate-700">Amortization Start Month</label>
-                                  <Input type="month" name="amortizationStartMonth" value={formData.amortizationStartMonth} readOnly className="bg-slate-100 text-slate-500 font-bold" />
-                                  <p className="text-[10px] text-blue-600 font-medium">Auto-calculated: 6-month moratorium applied.</p>
+                                  <label className="text-sm font-bold text-slate-700">Amortization Start Month <span className="text-red-500">*</span></label>
+                                  <Input type="month" name="amortizationStartMonth" value={formData.amortizationStartMonth || ""} onChange={handleInputChange} required className="bg-slate-50/50" />
+                                  <p className="text-[10px] text-blue-600 font-medium">Auto-calculated: 6-month moratorium applied (can be manually adjusted).</p>
                                 </div>
                               </div>
                             </>
@@ -1934,9 +2100,9 @@ const UserRequests = () => {
                                   <Input type="date" name="loanApprovalDate" value={formData.loanApprovalDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                                 </div>
                                 <div className="space-y-2">
-                                  <label className="text-sm font-bold text-slate-700">Amortization Start Month</label>
-                                  <Input type="month" name="amortizationStartMonth" value={formData.amortizationStartMonth} readOnly className="bg-slate-100 text-slate-500 font-bold" />
-                                  <p className="text-[10px] text-emerald-600 font-medium">Starts the following month after approval.</p>
+                                  <label className="text-sm font-bold text-slate-700">Amortization Start Month <span className="text-red-500">*</span></label>
+                                  <Input type="month" name="amortizationStartMonth" value={formData.amortizationStartMonth || ""} onChange={handleInputChange} required className="bg-slate-50/50" />
+                                  <p className="text-[10px] text-emerald-600 font-medium">Auto-calculated: Starts following month after approval (can be manually adjusted).</p>
                                 </div>
                               </div>
                               <div className="space-y-2">
@@ -1997,9 +2163,9 @@ const UserRequests = () => {
                                   <Input type="date" name="loanApprovalDate" value={formData.loanApprovalDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                                 </div>
                                 <div className="space-y-2">
-                                  <label className="text-sm font-bold text-slate-700">Amortization Start Month</label>
-                                  <Input type="month" name="amortizationStartMonth" value={formData.amortizationStartMonth} readOnly className="bg-slate-100 text-slate-500 font-bold" />
-                                  <p className="text-[10px] text-orange-600 font-medium">Auto-calculated: 3-month grace period applied.</p>
+                                  <label className="text-sm font-bold text-slate-700">Amortization Start Month <span className="text-red-500">*</span></label>
+                                  <Input type="month" name="amortizationStartMonth" value={formData.amortizationStartMonth || ""} onChange={handleInputChange} required className="bg-slate-50/50" />
+                                  <p className="text-[10px] text-orange-600 font-medium">Auto-calculated: 3-month grace period applied (can be manually adjusted).</p>
                                 </div>
                               </div>
                               <div className="space-y-2">
