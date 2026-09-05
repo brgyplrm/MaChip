@@ -107,7 +107,7 @@ Follows the **MVC (Model-View-Controller)** pattern for structured data flow.
 ---
 
 ## 👥 Authors
-*   **Palermo, Borgy Misael K.** - Lead Researcher
+*   **Palermo, Borgy Misael K.** - Researcher
 *   **Lapido, Jhanna Lou R.** - Researcher
 *   **Pinto, Kathleen I.** - Researcher
 *   **Tomas, Cydoel M.** - Researcher
