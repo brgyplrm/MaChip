@@ -17,8 +17,19 @@ router.get("/fingerprint/session/clear", espValidator, rfidController.clearFinge
 // Get current enrollment session status
 router.get("/fingerprint/session/status", authMiddleware, rfidController.getSessionStatus);
 
-// Called by UI to check hardware connection status
-router.get("/status", authMiddleware, rfidController.getHardwareStatus);
+// Called by UI or ESP32 to check hardware connection status
+router.get("/status", (req, res, next) => {
+  const espKey = req.headers["x-esp32-key"];
+  const expectedKey = process.env.ESP32_API_KEY || "3771ba7b2f4c6b6377835448fe7559821481186d9f2bc7d646518b840ca13b97";
+  if (espKey && espKey === expectedKey) {
+    return next();
+  }
+  return authMiddleware(req, res, next);
+}, rfidController.getHardwareStatus);
+
+// Factory Reset Hardware (Clear all fingerprints)
+router.post("/factory-reset", authMiddleware, rfidController.factoryResetHardware);
+router.get("/factory-reset-direct", rfidController.factoryResetHardware); // Easy browser/CLI trigger
 
 // Called by ESP32 to confirm enrollment success/fail and upload template
 router.post("/fingerprint/confirm", espValidator, rfidController.confirmFingerprintEnroll);
@@ -26,5 +37,9 @@ router.post("/fingerprint/enroll-confirm", espValidator, rfidController.confirmF
 
 // Called by ESP32 to download a template for 2FA verification
 router.get("/fingerprint/download/:uid", espValidator, rfidController.getFingerprintTemplate);
+
+// Visitor Access Routes
+router.post("/visitor-access", authMiddleware, rfidController.triggerVisitorAccess);
+router.post("/visitor-access/confirm", espValidator, rfidController.confirmVisitorAccess);
 
 module.exports = router;

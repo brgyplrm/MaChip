@@ -12,8 +12,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import EmptyState from "../../components/EmptyState";
 import { Link } from "react-router-dom";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { ScanLine } from "lucide-react";
+import { ScanLine, ChevronLeft } from "lucide-react";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal"; // Core Scan Session Capture Modal
 
 // shadcn/ui components
@@ -25,11 +24,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const FingerprintManagement = () => {
   const [biometricList, setBiometricList] = useState([]);
   const [unassignedEmployees, setUnassignedEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingUnassigned, setLoadingUnassigned] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   
@@ -40,14 +41,15 @@ const FingerprintManagement = () => {
   const [scannedTemplate, setScannedTemplate] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [fingerprintError, setFingerprintError] = useState("");
+  const [localScannedId, setLocalScannedId] = useState(null); // Added for polling state
+  const [localScannedTemplate, setLocalScannedTemplate] = useState(null);
 
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [sensorFilter, setSensorFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Fetch biometric records registry
   const fetchBiometricData = useCallback(async () => {
     setLoading(true);
     try {
@@ -57,14 +59,15 @@ const FingerprintManagement = () => {
         setBiometricList(data);
       }
     } catch (err) {
-      console.error("Error connecting to hardware database:", err);
+      console.error("Error fetching biometric data:", err);
+      setToast({ message: "Failed to load biometric registry.", type: "error" });
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Fetch employees without assigned fingerprint IDs
   const fetchUnassignedEmployees = useCallback(async () => {
+    setLoadingUnassigned(true);
     try {
       const response = await fetchWithAuth("/api/users/unassigned-hardware?type=fingerprint");
       if (response.ok) {
@@ -72,7 +75,9 @@ const FingerprintManagement = () => {
         setUnassignedEmployees(data);
       }
     } catch (err) {
-      console.error("Error loading unassigned users:", err);
+      console.error("Error fetching unassigned employees:", err);
+    } finally {
+      setLoadingUnassigned(false);
     }
   }, []);
 
@@ -81,11 +86,20 @@ const FingerprintManagement = () => {
     fetchUnassignedEmployees();
   }, [fetchBiometricData, fetchUnassignedEmployees]);
 
+  // Refresh unassigned list when modal opens to ensure latest data
+  useEffect(() => {
+    if (showAssignModal) {
+      fetchUnassignedEmployees();
+    }
+  }, [showAssignModal, fetchUnassignedEmployees]);
+
   // Step 1: Open Scanner Module & Initialize Registration Session
   const handleStartFingerprintScan = async () => {
     setShowScanModal(true);
     setScannedSlotId("");
     setFingerprintError("");
+    setLocalScannedId(null);
+    setLocalScannedTemplate(null);
     
     try {
       await fetchWithAuth("/api/system/reg-session", {
@@ -93,21 +107,33 @@ const FingerprintManagement = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: "temp_reg", type: 'FP' })
       });
+
+      // Poll/Wait for hardware scan
+      const response = await fetchWithAuth("/api/users/generateFingerprint");
+      const data = await response.json();
+
+      if (response.ok && data.fingerprintId) {
+        setLocalScannedId(data.fingerprintId);
+        setLocalScannedTemplate(data.template);
+      } else if (response.status === 400 && data.error) {
+        setFingerprintError(data.error);
+        await fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
+        await fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
+      } else {
+        setFingerprintError(data.error || "Failed to scan Fingerprint. Please try again.");
+      }
     } catch (err) {
       console.error("Failed to establish biometric handshake session:", err);
+      setFingerprintError("An error occurred while communicating with the hardware.");
     }
   };
 
-  // Step 2: Triggered on successful capture from the AS608 peripheral sensor module
-  const handleFingerprintScanned = async (data) => {
-    // If the scanner passes an object containing index variables
-    const slotId = data?.fingerprintId || data;
-    const templateData = data?.template || "";
+  // Step 2: Transition from success modal to assign modal
+  const handleFingerprintConfirm = async () => {
+    const slotId = localScannedId;
+    const templateData = localScannedTemplate;
 
-    if (!slotId) {
-      setFingerprintError("Invalid slot response received from terminal.");
-      return;
-    }
+    if (!slotId) return;
 
     // Clean active tracking hardware hook sessions
     await fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
@@ -122,7 +148,7 @@ const FingerprintManagement = () => {
       setToast({ message: `Slot Address #${slotId} is already held by ${existingTemplate.userName}.`, type: "error" });
       setSearchQuery(`Slot #${slotId}`);
     } else {
-      // Transition to assignment overlay modal form matching reference card
+      // Transition to assignment overlay modal form
       setScannedSlotId(slotId);
       setScannedTemplate(templateData);
       setSelectedUserId("");
@@ -189,7 +215,7 @@ const FingerprintManagement = () => {
   const stats = useMemo(() => {
     return {
       registered: biometricList.filter(b => b.fingerprintIndex !== null).length,
-      availableSlots: 127 - biometricList.length // AS608 flash memory constraints up to 127 templates
+      availableSlots: 1000 - biometricList.length // R307 flash memory supports up to 1,000 templates
     };
   }, [biometricList]);
 
@@ -218,28 +244,35 @@ const FingerprintManagement = () => {
       <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
         
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div className="flex items-center gap-4">
-            <Link 
-              to="/users" 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-200 text-[#2A174E] transition-colors"
-            >
-              <ArrowBackIcon className="h-6 w-6" />
-            </Link>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Biometric Fingerprint Registry</h1>
-              <span className="text-sm text-slate-500 mt-1 block">Audit device memory allocations, flash signatures, and biometric slot maps.</span>
+        {/* Header Section with Hover-Back Button */}
+          <div className="group flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 transition-all">
+            <div className="flex items-center gap-0">
+              {/* Back Button: Hidden by default, slides and fades in on hover */}
+              <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  asChild 
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                >
+                  <Link to="/users">
+                    <ChevronLeft className="h-6 w-6" />
+                  </Link>
+                </Button>
+              </div>
+              
+              {/* Title: Adds left padding when hovered */}
+              <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
+                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Biometric Fingerprint Registry</h1>
+                <span className="text-sm text-slate-500 mt-1 block">Audit device memory allocations, flash signatures, and biometric slot maps.</span>
+              </div>
             </div>
+            
+            <Button onClick={handleStartFingerprintScan} className="bg-[#2A174E] hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
+              <ScanLine className="h-4 w-4 text-white" />
+              <span>Enroll Fingerprint</span>
+            </Button>
           </div>
-          <Button 
-            onClick={handleStartFingerprintScan} 
-            className="bg-[#2A174E] hover:bg-[#1a0e30] font-bold shadow-sm gap-2"
-          >
-            <ScanLine className="h-4 w-4 text-white" />
-            <span>Enroll Fingerprint</span>
-          </Button>
-        </div>
 
         {/* Statistics Widgets */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -325,14 +358,17 @@ const FingerprintManagement = () => {
             </Table>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between p-4 bg-slate-50/30 border-t border-slate-100">
-              <span className="text-xs font-medium text-slate-500">Showing {startIndex + 1} to {endIndex} of {totalItems} profiles</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1}>Previous</Button>
-                <div className="h-8 w-8 flex items-center justify-center bg-[#2A174E] text-white rounded text-xs font-bold">{currentPage}</div>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages}>Next</Button>
-              </div>
-            </div>
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              setItemsPerPage={setItemsPerPage}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              itemLabel="profiles"
+            />
           </CardContent>
         </Card>
       </div>
@@ -341,7 +377,9 @@ const FingerprintManagement = () => {
       <RfidScanModal 
         isOpen={showScanModal} 
         onClose={closeFingerprintModal} 
-        onScanSuccess={handleFingerprintScanned}
+        onConfirm={handleFingerprintConfirm}
+        onRescan={handleStartFingerprintScan}
+        scannedId={localScannedId}
         error={fingerprintError}
         title="Fingerprint Scanner"
       />
@@ -378,7 +416,11 @@ const FingerprintManagement = () => {
                   <SelectValue placeholder="Select an unassigned employee..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[220px]">
-                  {unassignedEmployees.length > 0 ? (
+                  {loadingUnassigned ? (
+                    <div className="p-4 text-center text-xs text-slate-400 italic animate-pulse">
+                      Searching for unassigned profiles...
+                    </div>
+                  ) : unassignedEmployees.length > 0 ? (
                     unassignedEmployees.map((emp) => (
                       <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
                         {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)})

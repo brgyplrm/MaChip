@@ -9,22 +9,32 @@ import { fetchWithAuth } from "../../utils/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const Notifications = () => {
-  const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
-  const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
+  const [userData, setUserData] = useState(() => JSON.parse(localStorage.getItem("userData")));
+  const roleId = userData?.user_RoleId;
+  const isManagement = roleId === 1 || roleId === 2 || roleId === 4;
+
+  const getInitialViewMode = () => {
+    if (!isManagement) return "employee";
+    return localStorage.getItem("viewMode") || "management";
+  };
+
+  const [viewMode, setViewMode] = useState(getInitialViewMode());
   const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
 
   // --- PAGINATION STATE ---
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage] = useState(10);
-  const [goToValue, setGoToValue] = useState("");
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const effectiveViewMode = isManagement ? (viewMode || "management") : "employee";
 
   const fetchNotifications = async () => {
     if (!userData?.user_Id) return;
     try {
-      const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}?viewMode=${viewMode}`);
+      const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}?viewMode=${effectiveViewMode}`);
       if (response.ok) {
         const data = await response.json();
         const formattedData = data.map(n => ({ ...n, id: n.notifId }));
@@ -36,31 +46,19 @@ const Notifications = () => {
   };
 
   // --- PAGINATION LOGIC ---
-  const indexOfLastItem = currentPage * rowsPerPage;
-  const indexOfFirstItem = indexOfLastItem - rowsPerPage;
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentNotifs = notifications.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(notifications.length / rowsPerPage) || 1;
-
-  const handleGoToPage = (e) => {
-    e.preventDefault();
-    const pageNum = parseInt(goToValue);
-    if (pageNum >= 1 && pageNum <= totalPages) {
-      setCurrentPage(pageNum);
-      setGoToValue("");
-    }
-  };
-
-  const pageNumbers = [];
-  for (let i = 1; i <= totalPages; i++) {
-    pageNumbers.push(i);
-  }
+  const totalPages = Math.ceil(notifications.length / itemsPerPage) || 1;
 
   useEffect(() => {
     fetchNotifications();
 
     const handleStorageChange = () => {
       const updatedUserData = JSON.parse(localStorage.getItem("userData"));
-      const updatedViewMode = localStorage.getItem("viewMode") || "management";
+      const updatedRoleId = updatedUserData?.user_RoleId;
+      const updatedIsManagement = updatedRoleId === 1 || updatedRoleId === 2 || updatedRoleId === 4;
+      const updatedViewMode = updatedIsManagement ? (localStorage.getItem("viewMode") || "management") : "employee";
       setUserData(updatedUserData);
       setViewMode(updatedViewMode);
     };
@@ -74,12 +72,12 @@ const Notifications = () => {
       window.removeEventListener("notificationRefresh", fetchNotifications);
       window.removeEventListener("dataRefresh", fetchNotifications);
     };
-  }, [userData?.user_Id, viewMode]);
+  }, [userData?.user_Id, effectiveViewMode]);
 
   // Reset to page 1 when the user switches view modes
   useEffect(() => {
     setCurrentPage(1);
-  }, [viewMode]);
+  }, [effectiveViewMode]);
 
   const handleMarkAllRead = async () => {
     if (!userData?.user_Id) return;
@@ -87,7 +85,7 @@ const Notifications = () => {
       const response = await fetchWithAuth("/api/notifications/mark-all-read", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: userData.user_Id }),
+        body: JSON.stringify({ userId: userData.user_Id, viewMode: effectiveViewMode }),
       });
       if (response.ok) {
         fetchNotifications();
@@ -115,7 +113,17 @@ const Notifications = () => {
       handleMarkAsRead(notif.notifId);
     }
 
-    if (notif.title === "Password Reset Request" && notif.targetId) {
+    const titleLower = (notif.title || "").toLowerCase();
+
+    // Reroute irregular logs and unrecognized/unauthorized card scans to the transaction log page
+    if (
+      titleLower.includes("irregular log") ||
+      titleLower.includes("unrecognized") ||
+      titleLower.includes("unauthorized") ||
+      titleLower.includes("suspicious")
+    ) {
+      navigate("/transactionLog");
+    } else if (notif.title === "Password Reset Request" && notif.targetId) {
       navigate(`/users/edit/${notif.targetId}`);
     } else if (notif.title === "New Request for Review") {
       navigate("/adminRequests");
@@ -177,59 +185,18 @@ const Notifications = () => {
         </Card>
 
         {/* Pagination Controls */}
-        {notifications.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border border-slate-100 bg-white shadow-sm rounded-xl">
-            <div className="flex gap-2 items-center w-full sm:w-auto justify-between sm:justify-start">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => prev - 1)}
-                className="text-slate-600"
-              >
-                Previous
-              </Button>
-              <div className="hidden md:flex gap-1">
-                {pageNumbers.map(n => (
-                  <Button 
-                    key={n} 
-                    variant={currentPage === n ? "default" : "outline"} 
-                    size="sm" 
-                    className={currentPage === n ? "bg-[#2A174E] text-white hover:bg-[#1a0e30]" : "text-slate-600"}
-                    onClick={() => setCurrentPage(n)}
-                  >
-                    {n}
-                  </Button>
-                ))}
-              </div>
-              <span className="md:hidden text-sm text-slate-500 mx-2">Page {currentPage} of {totalPages}</span>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => prev + 1)}
-                className="text-slate-600"
-              >
-                Next
-              </Button>
-            </div>
-            
-            <form onSubmit={handleGoToPage} className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0">
-              <span className="text-sm font-medium text-slate-500">Go to:</span>
-              <Input 
-                type="number" 
-                value={goToValue}
-                onChange={(e) => setGoToValue(e.target.value)}
-                placeholder={totalPages}
-                min="1"
-                max={totalPages}
-                required
-                className="w-16 h-8 text-center focus-visible:ring-[#2A174E]" 
-              />
-              <span className="text-sm font-medium text-slate-500">page</span>
-            </form>
-          </div>
-        )}
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          setCurrentPage={setCurrentPage}
+          totalItems={notifications.length}
+          itemsPerPage={itemsPerPage}
+          setItemsPerPage={setItemsPerPage}
+          startIndex={indexOfFirstItem}
+          endIndex={Math.min(indexOfLastItem, notifications.length)}
+          itemLabel="notifications"
+          className="rounded-xl border border-slate-100 bg-white shadow-sm"
+        />
 
       </div>
       </Sidebar>

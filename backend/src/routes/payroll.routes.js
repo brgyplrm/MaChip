@@ -1,49 +1,72 @@
 // payroll.routes.js
 const express = require("express");
 const router = express.Router();
-const {
-  generatePayroll,
-  generateBatchPayroll,
-  getEligibleEmployeesCount,
-  getPayrollPreview,
-  getPayrollByUser,
-  getAllPayrolls,
-  releasePayroll,
-  getPayrollById,
-  updatePayroll,
-  getPayrollReport,
-  getGovtDeductionsPreview,
-  downloadPayrollSummaryPDF,
-  downloadBatchZip,
-  getPayrollSummaryPreview,
-  updatePayrollFull,
-  getMaxicareHistory,
-  syncMaxicareHistory,
-  getLoanHistory,
-  syncLoanHistory,
-  resendPayrollEmail
-} = require("../controllers/payroll.controller");
+const payrollController = require("../controllers/payroll.controller");
 const { requireAdmin, requireStaff } = require("../middleware/roleCheck.js");
 
-router.post("/generate", requireAdmin, generatePayroll);
-router.post("/batch-generate", requireAdmin, generateBatchPayroll);
-router.get("/eligible-count", requireAdmin, getEligibleEmployeesCount);
-router.get("/preview", requireAdmin, getPayrollPreview);
-router.get("/govt-deductions-preview", requireAdmin, getGovtDeductionsPreview);
-router.get("/summary-pdf", requireAdmin, downloadPayrollSummaryPDF);
-router.get("/batch-zip", requireAdmin, downloadBatchZip);
-router.get("/summary-preview", requireAdmin, getPayrollSummaryPreview);
-router.get("/maxicare/history", requireAdmin, getMaxicareHistory);
-router.post("/maxicare/sync", requireAdmin, syncMaxicareHistory);
-router.get("/loans/history", requireAdmin, getLoanHistory);
-router.post("/loans/sync", requireAdmin, syncLoanHistory);
-router.get("/all", requireStaff, getAllPayrolls);
-router.get("/report", requireAdmin, getPayrollReport);
-router.get("/user/:user_Id", requireStaff, getPayrollByUser);
-router.get("/:payrollId", requireStaff, getPayrollById);
-router.put("/update/:payrollId", requireAdmin, updatePayroll);
-router.put("/update-full/:payrollId", requireAdmin, updatePayrollFull);
-router.put("/release/:payrollId", requireAdmin, releasePayroll);
-router.post("/resend-email/:payrollId", requireAdmin, resendPayrollEmail);
+// Management & Generation
+router.post("/generate", requireAdmin, payrollController.generatePayroll);
+router.post("/batch-generate", requireAdmin, payrollController.generateBatchPayroll);
+router.get("/eligible-count", requireAdmin, payrollController.getEligibleEmployeesCount);
+router.get("/preview", requireAdmin, payrollController.getPayrollPreview);
+router.get("/govt-deductions-preview", requireAdmin, payrollController.getGovtDeductionsPreview);
+router.get("/summary-pdf", requireAdmin, payrollController.downloadPayrollSummaryPDF);
+router.get("/batch-zip", requireAdmin, payrollController.downloadBatchZip);
+router.get("/summary-preview", requireAdmin, payrollController.getPayrollSummaryPreview);
+
+// Specific Ledgers & History
+router.get("/maxicare/history", requireAdmin, payrollController.getMaxicareHistory);
+router.post("/maxicare/sync", requireAdmin, payrollController.syncMaxicareHistory);
+router.get("/eastwest/history", requireAdmin, payrollController.getEastwestLoanHistory);
+router.get("/eastwest/history-pdf", requireAdmin, payrollController.downloadEastwestLoanReportPDF);
+router.get("/loans/history", requireAdmin, payrollController.getLoanHistory);
+router.get("/loans/history/all-gov", requireAdmin, payrollController.getGovLoanHistoryAll);
+router.get("/loans/history/all-gov-pdf", requireAdmin, payrollController.downloadGovLoanReportPDF);
+router.get("/loans/details/:id/pdf", requireAdmin, payrollController.downloadIndividualLoanPDF);
+router.post("/loans/sync", requireAdmin, payrollController.syncLoanHistory);
+router.get("/loans/active", requireAdmin, payrollController.getActiveLoans);
+router.get("/loans/details/:id", requireAdmin, payrollController.getLoanById);
+
+// 13th Month
+router.get("/thirteenth-month/preview", requireAdmin, payrollController.getThirteenthMonthPreview);
+router.post("/thirteenth-month/generate", requireAdmin, payrollController.generateThirteenthMonth);
+router.post("/thirteenth-month/release", requireAdmin, payrollController.releaseThirteenthMonth);
+router.get("/thirteenth-month/history", requireAdmin, payrollController.getThirteenthMonthHistory);
+router.delete("/thirteenth-month/drafts/:year", requireAdmin, payrollController.deleteThirteenthMonthDrafts);
+
+// Separation Pay
+router.get("/separation/preview", requireAdmin, payrollController.getSeparationPayPreview);
+router.get("/separation/causes", requireAdmin, payrollController.getSeparationCauses);
+router.post("/separation/generate", requireAdmin, payrollController.generateSeparationPay);
+router.put("/separation/release/:separationId", requireAdmin, payrollController.releaseSeparationPay);
+router.delete("/separation/cancel/:separationId", requireAdmin, payrollController.cancelSeparationPay);
+router.get("/separation/history", requireAdmin, payrollController.getSeparationPayHistory);
+
+// Retirement Pay
+router.get("/retirement/preview", requireAdmin, payrollController.getRetirementPayPreview);
+router.post("/retirement/generate", requireAdmin, payrollController.generateRetirementPay);
+router.put("/retirement/release/:retirementId", requireAdmin, payrollController.releaseRetirementPay);
+router.put("/retirement/update-date/:retirementId", requireAdmin, payrollController.updateRetirementDate);
+router.get("/retirement/history", requireAdmin, payrollController.getRetirementPayHistory);
+
+const authMiddleware = require("../middleware/auth.js");
+
+// User Records & Updates
+router.get("/all", requireStaff, payrollController.getAllPayrolls);
+router.get("/report", requireAdmin, payrollController.getPayrollReport);
+router.get("/my-history", authMiddleware, payrollController.getMyPayrollHistory);
+router.get("/my-payslip/:payrollId", authMiddleware, payrollController.getMyPayrollById);
+router.get("/my-payslip/:payrollId/pdf", authMiddleware, payrollController.downloadMyPayslipPDF);
+router.get("/my-payslip/:payrollId/dtr", authMiddleware, payrollController.downloadMyDTRPDF);
+router.get("/my-thirteenth-history", authMiddleware, payrollController.getMyThirteenthMonthHistory);
+router.get("/my-separation", authMiddleware, payrollController.getMySeparationPay);
+router.get("/my-retirement", authMiddleware, payrollController.getMyRetirementPay);
+router.get("/user/:user_Id", requireStaff, payrollController.getPayrollByUser);
+router.get("/:payrollId", requireStaff, payrollController.getPayrollById);
+router.put("/update/:payrollId", requireAdmin, payrollController.updatePayroll);
+router.put("/update-full/:payrollId", requireAdmin, payrollController.updatePayrollFull);
+router.put("/release/:payrollId", requireAdmin, payrollController.releasePayroll);
+router.post("/resend-email/:payrollId", requireAdmin, payrollController.resendPayrollEmail);
+router.post("/resend-batch-emails", requireAdmin, payrollController.resendBatchPayrollEmails);
 
 module.exports = router;

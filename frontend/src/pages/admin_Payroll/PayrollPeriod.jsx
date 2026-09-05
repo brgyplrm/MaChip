@@ -12,12 +12,16 @@ import { formatUserId } from "../../utils/formatUserId";
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ProcessPayrollModal from "../../components/procpayrollmodal/ProcessPayrollModal";
 import EditPayrollModal from "../../components/editPayrollModal/EditPayrollModal";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { fetchWithAuth } from "../../utils/api";
 import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
 import KeyboardDoubleArrowDownIcon from '@mui/icons-material/KeyboardDoubleArrowDown';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import { useSystemTime } from "../../context/SystemTimeContext";
+import SummarizeOutlinedIcon from '@mui/icons-material/SummarizeOutlined';
+import { EyeIcon, ChevronLeft, Mail } from "lucide-react";  
+import Toast from "../../components/toast/Toast";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -26,6 +30,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const PayrollPeriod = () => {
   const { systemToday } = useSystemTime();
@@ -55,6 +61,37 @@ const PayrollPeriod = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const [gracePeriodDays, setGracePeriodDays] = useState(7);
+  const [toast, setToast] = useState({ message: "", type: "success" });
+  const [isSendingBatchEmails, setIsSendingBatchEmails] = useState(false);
+
+  const handleResendBatchEmails = async () => {
+    if (!selectedPeriod) return;
+    if (!window.confirm(`Resend payroll emails with Payslips 1 & 2 and DTR to all employees for period ${selectedPeriod.startDate} to ${selectedPeriod.endDate}?`)) return;
+
+    setIsSendingBatchEmails(true);
+    try {
+      const res = await fetchWithAuth("/api/payroll/resend-batch-emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          period_Start: selectedPeriod.startDate,
+          period_End: selectedPeriod.endDate
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setToast({ message: data.message || "Payroll emails sent successfully!", type: "success" });
+      } else {
+        setToast({ message: data.error || "Failed to send batch emails", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Network error: " + err.message, type: "error" });
+    } finally {
+      setIsSendingBatchEmails(false);
+    }
+  };
+
   const isProcessingWindow = useMemo(() => {
     if (!selectedPeriod?.endDate || !systemToday) return false;
     
@@ -65,18 +102,27 @@ const PayrollPeriod = () => {
     const today = new Date(systemToday);
     today.setHours(0, 0, 0, 0);
 
-    // Window starts on endDate and ends 2 days after
+    // 1-week (7 days) post-period grace window after cutoff ends
     const windowEnd = new Date(end);
-    windowEnd.setDate(windowEnd.getDate() + 2);
+    windowEnd.setDate(windowEnd.getDate() + (gracePeriodDays || 7));
 
     return today >= end && today <= windowEnd;
-  }, [selectedPeriod, systemToday]);
+  }, [selectedPeriod, systemToday, gracePeriodDays]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const periodsRes = await fetchWithAuth("/api/system/payroll-periods");
+      const [periodsRes, settingsRes] = await Promise.all([
+        fetchWithAuth("/api/system/payroll-periods"),
+        fetchWithAuth("/api/system/settings")
+      ]);
       const periodsData = await periodsRes.json();
+      if (settingsRes.ok) {
+        const sData = await settingsRes.json();
+        if (sData.payrollGracePeriodDays) {
+          setGracePeriodDays(parseInt(sData.payrollGracePeriodDays));
+        }
+      }
 
       if (periodsRes.ok && periodsData.length > 0) {
         setPeriods(periodsData);
@@ -126,8 +172,11 @@ const PayrollPeriod = () => {
             period_End: period.endDate,
             NoDays_Worked: preview.NoDays_Worked,
             NoHrs_Worked: preview.NoHrs_Worked,
+            totalScheduledDays: preview.totalScheduledDays,
+            potentialBasicPay: preview.potentialBasicPay || (preview.totalScheduledDays ? preview.totalScheduledDays * emp.dailyRate : emp.dailyRate * 13),
             basicPay: preview.basicPay,
             totalEarnings: preview.totalEarnings,
+            grossEarnings: preview.grossEarnings || preview.totalEarnings,
             totalDeductions: preview.totalDeductions,
             netPay: preview.netPay,
             dailyRate: emp.dailyRate,
@@ -251,121 +300,192 @@ const PayrollPeriod = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header section with back button */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-          <div className="flex items-start md:items-center gap-4">
-            <Link 
-              to="/payroll" 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
-            >
-              <ArrowBackIcon className="h-6 w-6" />
-            </Link>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+
+        <div className="group flex items-start md:items-center gap-0transition-all">
+          {/* Back Button: Hidden by default, slides and fades in on hover */}
+          <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    asChild 
+                    className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                  >
+                    <Link to="/payroll">
+                      <ChevronLeft className="h-6 w-6" />
+                    </Link>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                Back to Payroll Management
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Title: Adds left padding when hovered */}
+          <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">
                 {selectedPeriod?.label} {selectedPeriod?.status === 'Draft' ? "Current Period" : "Previous Period"}
               </h1>
               <span className="text-sm text-slate-500 mt-1 block">
                 {selectedPeriod?.startDate ? new Date(selectedPeriod.startDate).toLocaleDateString() : "—"} to {selectedPeriod?.endDate ? new Date(selectedPeriod.endDate).toLocaleDateString() : "—"}
               </span>
-            </div>
           </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block w-full sm:w-auto">
+                  <Button 
+                    className="w-full bg-[#f8fafc] hover:text-[#2A174E] text-[#2A174E]/70 border border-slate-200 hover:bg-slate-100" 
+                    onClick={handlePreviewSummary}
+                    disabled={loading || payrolls.length === 0}
+                  >
+                    <SummarizeOutlinedIcon className="mr-2 h-4 w-4" /> Summary View
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                Generate and preview overall payroll summary report.
+              </TooltipContent>
+            </Tooltip>
 
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0">
-            <Button 
-              className="w-full sm:w-auto bg-[#f8fafc] text-[#2A174E] border border-slate-200 hover:bg-slate-100" 
-              onClick={handlePreviewSummary}
-              disabled={loading || payrolls.length === 0}
-            >
-              <VisibilityIcon className="mr-2 h-4 w-4" /> Summary View
-            </Button>
             {/* Updated Process Batch Button */}
-            <Button 
-              className={`w-full sm:w-auto bg-[#2A174E] text-white border border-[#b8daff] hover:bg-[#BA90E9] ${
-                (selectedPeriod?.status !== 'Draft' || !isProcessingWindow) ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              onClick={() => setIsConfirmOpen(true)}
-              disabled={selectedPeriod?.status !== 'Draft' || !isProcessingWindow}
-              title={
-                selectedPeriod?.status !== 'Draft' ? "Already Processed" :
-                !isProcessingWindow ? `Processing is available only from ${new Date(selectedPeriod?.endDate).toLocaleDateString()} to ${(() => {
-                  const d = new Date(selectedPeriod?.endDate);
-                  d.setDate(d.getDate() + 2);
-                  return d.toLocaleDateString();
-                })()}` : ""
-              }
-            >
-              <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> 
-              {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}
-            </Button>
-            
-            {/* <Button 
-              className="w-full sm:w-auto bg-green-600 text-white hover:bg-green-700" 
-              onClick={handleDownloadSummary}
-              disabled={loading || payrolls.length === 0 || selectedPeriod?.status === 'Draft'}
-            >
-              <DownloadIcon className="mr-2 h-4 w-4" /> Export PDF
-            </Button> */}
-            {/* <Button 
-              className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]" 
-              onClick={() => fetchData(true)}
-              disabled={refreshing}
-            >
-              <RefreshIcon className={` h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            </Button> */}
-          </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block w-full sm:w-auto">
+                  <Button 
+                    className={`w-full bg-[#2A174E] text-white border hover:bg-[#7A52B5] ${
+                      (selectedPeriod?.status !== 'Draft' || !isProcessingWindow) ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    onClick={() => setIsConfirmOpen(true)}
+                    disabled={selectedPeriod?.status !== 'Draft' || !isProcessingWindow}
+                    title={
+                      selectedPeriod?.status !== 'Draft' ? "Already Processed" :
+                      !isProcessingWindow ? `Processing is available from cutoff date (${new Date(selectedPeriod?.endDate).toLocaleDateString()}) up to 1 week after (${(() => {
+                        const d = new Date(selectedPeriod?.endDate);
+                        d.setDate(d.getDate() + (gracePeriodDays || 7));
+                        return d.toLocaleDateString();
+                      })()})` : ""
+                    }
+                  >
+                    <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> 
+                    {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                {selectedPeriod?.status === 'Draft' ? "Recalculate, lock, and archive payroll for all active employees." : "This payroll period is locked/processed."}
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Resend Batch Emails Button */}
+            {selectedPeriod?.status !== 'Draft' && payrolls.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block w-full sm:w-auto">
+                    <Button 
+                      variant="outline"
+                      className="w-full border-purple-300 text-[#2A174E] hover:bg-purple-50"
+                      onClick={handleResendBatchEmails}
+                      disabled={isSendingBatchEmails}
+                    >
+                      <Mail className="mr-2 h-4 w-4 text-purple-700" />
+                      {isSendingBatchEmails ? "Sending..." : "Resend Emails"}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                  Resend password-protected Payslips 1 & 2 and DTR via email to all employees in this period.
+                </TooltipContent>
+              </Tooltip>
+            )}
+        </div>
         </div>
 
          {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-            {/* Card 1: Total Active Users */}
-            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            {/* Card 1: Total Gross Pay */}
+            <Card className="border-t-5 border-green-600 bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                 <div className="flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-green-600 uppercase tracking-wider">Total Earnings</p>
+                    {/* <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Gross pay including OT and allowances.
+                      </TooltipContent>
+                    </Tooltip> */}
+                  </div>
+                  <p className="text-3xl font-bold text-green-600">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                </div>
+                <p className="text-xs text-green-600/70 italic mt-4">Gross pay including OT and allowances</p>
+              </div>
+              </CardContent>
+            </Card>
+            
+ 
+            {/* Card 2: Total Deductions */}
+            <Card className="border-t-5 border-red-500 bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Net Pay</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-red-500 uppercase tracking-wider">Total Deductions</p>
+                    {/* <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Withholdings including taxes and loans.
+                      </TooltipContent>
+                    </Tooltip> */}
+                  </div>
+                  <p className="text-3xl font-bold text-red-500">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                </div>
+                <p className="text-xs text-red-500/70 italic mt-4">Withholdings including taxes and loans</p>
+              </div>
+              {/* <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
+              </div> */}
+              </CardContent>
+            </Card>
+ 
+            {/* Card 3: Total Net Pay */}
+            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Net Pay</p>
+                    {/* <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Estimated total net payout amount for the selected draft cycle.
+                      </TooltipContent>
+                    </Tooltip> */}
+                  </div>
                   <p className="text-3xl font-bold text-[#2A174E]">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
                 <p className="text-xs text-[#2A174E]/70 italic mt-4">Calculated total distribution amount</p>
               </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <PaymentsIcon className="h-6 w-6" />
-              </div>
               </CardContent>
             </Card>
-
-            {/* Card 2: Employees */}
-            <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
-              <CardContent className="px-5 py-5 flex justify-between h-full">
-                 <div className="flex flex-col justify-between">
-                <div>
-                  <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Earnings</p>
-                  <p className="text-3xl font-bold text-[#3B4E17]">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                </div>
-                <p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross pay including OT and allowances</p>
-              </div>
-              <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <KeyboardDoubleArrowUpIcon className="h-6 w-6" />
-              </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 3: Admins & Supervisors */}
-            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
-              <CardContent className="px-5 py-5 flex justify-between h-full">
-                <div className="flex flex-col justify-between">
-                <div>
-                  <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Deductions</p>
-                  <p className="text-3xl font-bold text-[#BB8B26]">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                </div>
-                <p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings including taxes and loans</p>
-              </div>
-              <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
-              </div>
-              </CardContent>
-            </Card>
+            
           </div>
 
         {/* Filters Card */}
@@ -415,16 +535,154 @@ const PayrollPeriod = () => {
         <Card className="shadow-sm border-0 bg-white py-0">
           <CardContent className="p-0 overflow-x-auto">
             {loading ? (
-              <div className="p-12 text-center text-slate-400 italic">Loading payroll records...</div>
+              <Table className="min-w-[800px]">
+                <TableHeader className="bg-[#2B174F]">
+                  <TableRow className="hover:bg-transparent border-b-slate-200">
+                    <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        BASIC PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Fixed scheduled target base pay for the period (Scheduled Days × Daily Rate), before additions or deductions.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        GROSS PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Basic pay plus overtime earnings, night differential, holiday premiums, and other earned additions.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        DEDUCTIONS
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Withholdings including attendance penalties (absences/lates), government contributions, withholding tax, and loan repayments.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        NET PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            The actual take-home salary after subtracting total deductions from gross earnings.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">STATUS</TableHead>
+                    <TableHead className="font-semibold text-white py-4 text-right pr-6">ACTIONS</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[...Array(5)].map((_, i) => (
+                    <TableRow key={i} className="border-b-slate-100">
+                      <TableCell className="py-4 px-6">
+                        <Skeleton className="h-4 w-32 bg-slate-200" />
+                        <Skeleton className="h-3 w-16 bg-slate-200 mt-2" />
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Skeleton className="h-4 w-20 bg-slate-200" />
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Skeleton className="h-4 w-20 bg-slate-200" />
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Skeleton className="h-4 w-20 bg-slate-200" />
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Skeleton className="h-4 w-20 bg-slate-200" />
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Skeleton className="h-6 w-16 bg-slate-200 rounded" />
+                      </TableCell>
+                      <TableCell className="py-4 text-right pr-6">
+                        <div className="flex justify-end">
+                          <Skeleton className="h-8 w-8 bg-slate-200 rounded" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             ) : (
               <Table className="min-w-[800px]">
                 <TableHeader className="bg-[#2B174F]">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
-                    <TableHead className="font-semibold text-white py-4">BASIC PAY</TableHead>
-                    <TableHead className="font-semibold text-white py-4">EARNINGS</TableHead>
-                    <TableHead className="font-semibold text-white py-4">DEDUCTIONS</TableHead>
-                    <TableHead className="font-semibold text-white py-4">NET PAY</TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        BASIC PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Fixed scheduled target base pay for the period (Scheduled Days × Daily Rate), before additions or deductions.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        GROSS PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Basic pay plus overtime earnings, night differential, holiday premiums, and other earned additions.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        DEDUCTIONS
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Withholdings including attendance penalties (absences/lates), government contributions, withholding tax, and loan repayments.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-white py-4">
+                      <div className="flex items-center gap-1">
+                        NET PAY
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            The actual take-home salary after subtracting total deductions from gross earnings.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
                     <TableHead className="font-semibold text-white py-4">STATUS</TableHead>
                     <TableHead className="font-semibold text-white py-4 text-right pr-6">ACTIONS</TableHead>
                   </TableRow>
@@ -438,27 +696,38 @@ const PayrollPeriod = () => {
                         badgeStyle = "bg-green-100 text-green-800 hover:bg-green-200";
                       }
 
+                      const fixedBasic = p.potentialBasicPay ?? (p.totalScheduledDays && p.dailyRate ? p.totalScheduledDays * p.dailyRate : (p.dailyRate ? p.dailyRate * 13 : p.basicPay));
+
                       return (
                         <TableRow key={p.payrollId} className="border-b-slate-100 hover:bg-slate-50/50">
                           <TableCell className="py-4 px-6">
                             <div className="font-semibold text-[#2A174E]">{p.user_FirstName || p.userName} {p.user_LastName || ""}</div>
                             <div className="text-xs text-slate-400 font-mono">ID: {formatUserId(p.user_Id)}</div>
                           </TableCell>
-                          <TableCell className="py-4 text-slate-700">₱{parseFloat(p.basicPay).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
-                          <TableCell className="py-4 text-green-600 font-semibold">+₱{parseFloat(p.totalEarnings).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
-                          <TableCell className="py-4 text-red-500 font-semibold">-₱{parseFloat(p.totalDeductions).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
-                          <TableCell className="py-4 font-bold text-slate-900">₱{parseFloat(p.netPay).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="py-4 text-slate-700">₱{parseFloat(fixedBasic || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="py-4 text-green-600 font-semibold">+₱{parseFloat(p.grossEarnings || p.totalEarnings || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="py-4 text-red-500 font-semibold">-₱{parseFloat(p.totalDeductions || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="py-4 font-bold text-slate-900">₱{parseFloat(p.netPay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
                           <TableCell className="py-4">
                             <Badge variant="secondary" className={`font-semibold uppercase tracking-wide ${badgeStyle}`}>
                               {statusLabel}
                             </Badge>
                           </TableCell>
                           <TableCell className="py-4 text-right pr-6">
-                            <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-                              <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}`}>
-                                {/* <VisibilityIcon className="mr-1 h-4 w-4" />  */} View Details
-                              </Link>
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-block">
+                                  <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
+                                    <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}&periodId=${selectedPeriod.periodId}`}>
+                                      <EyeIcon className="h-4 w-4" />
+                                    </Link>
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                View Details
+                              </TooltipContent>
+                            </Tooltip>
                           </TableCell>
                         </TableRow>
                       );
@@ -479,56 +748,17 @@ const PayrollPeriod = () => {
             )}
 
             {/* Pagination Controls */}
-            {totalItems > 0 && !loading && (
-              <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
-                <div className="flex items-center gap-4 text-sm text-slate-500">
-                  <div className="flex items-center gap-2">
-                    <span className="hidden sm:inline">Rows per page:</span>
-                    <Select 
-                      value={itemsPerPage.toString()} 
-                      onValueChange={(val) => setItemsPerPage(Number(val))}
-                    >
-                      <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
-                        <SelectValue placeholder="10" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="font-medium">
-                    Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                  >
-                    Previous
-                  </Button>
-                  <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
-                    {currentPage}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              setItemsPerPage={setItemsPerPage}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              itemLabel="records"
+            />
           </CardContent>
         </Card>
       </div>
@@ -547,7 +777,7 @@ const PayrollPeriod = () => {
             <CardContent className="p-0 flex flex-col h-full">
               <div className="flex justify-between items-center p-4 bg-[#2A174E] text-white">
                 <h3 className="font-bold text-lg flex items-center gap-2">
-                  <VisibilityIcon /> Payroll Summary Preview - {selectedPeriod?.label}
+                   Payroll Summary Preview - {selectedPeriod?.label}
                 </h3>
                 <div className="flex gap-2">
                   <Button variant="secondary" size="sm" onClick={handleDownloadSummary} className="bg-green-600 hover:bg-green-700 text-white border-0">
@@ -581,6 +811,12 @@ const PayrollPeriod = () => {
           background: #94a3b8; 
         }
       `}} />
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast({ ...toast, message: "" })} 
+        />
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

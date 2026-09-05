@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
@@ -12,16 +12,23 @@ import AttachmentIcon from "@mui/icons-material/Attachment";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
 import { formatUserId } from "../../utils/formatUserId";
+import { formatDateTime, calculateDays } from "../../utils/formatTime";
 
 // shadcn/ui components
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import FileViewerModal from "../../components/FileViewerModal";
 
 const RequestDetails = () => {
   const navigate = useNavigate();
   const { requestId } = useParams();
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // File Viewer State
+  const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
+  const [viewingFileUrl, setViewingFileUrl] = useState("");
+  const [viewingFileName, setViewingFileName] = useState("");
 
   const formatTime = (time) => {
     if (!time) return "";
@@ -82,6 +89,7 @@ const RequestDetails = () => {
   const statusClass = request.status?.toLowerCase() || "pending";
   const isApproved = statusClass.includes("approve");
   const isRejected = statusClass.includes("reject");
+  const proofFile = request.SL_proof_File || request.OW_proof_File || request.LC_proof_File || request.ST_proof_File;
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
@@ -95,10 +103,10 @@ const RequestDetails = () => {
               onClick={() => navigate(-1)} 
               className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0"
             >
-              <ArrowBackIcon />
+              <ChevronLeft className="h-6 w-6" />
             </button>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Request Details</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Review {request.reqTypeName}</h1>
               <span className="text-sm text-slate-500 font-mono mt-1 block">Request #REQ-{request.emp_reqId}</span>
             </div>
           </div>
@@ -136,187 +144,173 @@ const RequestDetails = () => {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Submitted On</label>
-                <p className="font-semibold text-slate-800">{new Date(request.date_Filed).toLocaleDateString()}</p>
+                <p className="font-semibold text-slate-800">{formatDateTime(request.date_Filed)}</p>
               </div>
+              {/* Other dynamic fields... */}
+            </CardContent>
+          </Card>
 
+          {/* Schedule / Specific Details Section */}
+          <Card className="border-0 shadow-sm bg-white">
+            <CardHeader className="border-b border-slate-50 pb-4 mb-4">
+              <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
+                <CalendarTodayIcon className="text-slate-400 h-5 w-5" /> Request Details & Schedule
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {/* Overtime */}
               {request.emp_reqTypeId === 1 && (
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">OT Date</label>
-                  <p className="font-semibold text-slate-800">{request.OT_DateOf}</p>
-                </div>
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">OT Date</label>
+                    <p className="font-semibold text-slate-800">{request.OT_DateOf ? new Date(request.OT_DateOf).toLocaleDateString() : "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time Range</label>
+                    <p className="font-semibold text-slate-800">{formatTime(request.HrFrom)} – {formatTime(request.HrTo)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Hours</label>
+                    <p className="font-bold text-[#2A174E]">{request.Total_Hrs || 0} Hours</p>
+                  </div>
+                </>
               )}
+
+              {/* Onfield Work */}
               {request.emp_reqTypeId === 2 && (
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Field Work Date</label>
-                  <p className="font-semibold text-slate-800">{request.DateonField}</p>
-                </div>
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Date on Field</label>
+                    <p className="font-semibold text-slate-800">{request.DateonField ? new Date(request.DateonField).toLocaleDateString() : "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Destination</label>
+                    <p className="font-semibold text-slate-800">{request.destination || "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Duration</label>
+                    <p className="font-bold text-[#2A174E]">{request.OW_NoHrs || 0} Hours ({request.OW_NoDays || 1} Day)</p>
+                  </div>
+                </>
               )}
+
+              {/* Log Correction */}
               {request.emp_reqTypeId === 5 && (
                 <>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Log Date</label>
-                    <p className="font-semibold text-slate-800">{request.LC_logDate}</p>
+                    <p className="font-semibold text-slate-800">{request.LC_logDate ? new Date(request.LC_logDate).toLocaleDateString() : "—"}</p>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Category</label>
-                    <Badge variant="outline" className="mt-1">{request.LC_correctionCategory || "N/A"}</Badge>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Original Log</label>
+                    <p className="font-semibold text-slate-800">In: {request.LC_currentIn || "—"} | Out: {request.LC_currentOut || "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Claimed Corrected Log</label>
+                    <p className="font-bold text-[#2A174E]">In: {formatTime(request.LC_claimedIn) || "—"} | Out: {formatTime(request.LC_claimedOut) || "—"}</p>
+                  </div>
+                </>
+              )}
+
+              {/* Half Day */}
+              {request.emp_reqTypeId === 7 && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Half-Day Date</label>
+                    <p className="font-semibold text-slate-800">{request.HD_DateOfLeave ? new Date(request.HD_DateOfLeave).toLocaleDateString() : "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Period</label>
+                    <p className="font-semibold text-slate-800">{request.HD_period || "—"} {request.HD_timeRange ? `(${request.HD_timeRange})` : ""}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Payment Status</label>
+                    <p className="font-bold text-[#2A174E]">{request.HD_withPayName || "With Pay"}</p>
+                  </div>
+                </>
+              )}
+
+              {/* General Leaves (VL, SL, EL, Maternity, Paternity, Solo Parent, VAWC, Special) */}
+              {![1, 2, 5, 7].includes(request.emp_reqTypeId) && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Duration</label>
+                    <p className="font-bold text-[#2A174E]">
+                      {request.VL_NoDays || request.SL_NoDays || request.EL_NoDays || request.ST_NoDays || 1} Day(s)
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Start Date</label>
+                    <p className="font-semibold text-slate-800">
+                      {request.VL_StartDate ? new Date(request.VL_StartDate).toLocaleDateString() : 
+                       request.SL_StartDate ? new Date(request.SL_StartDate).toLocaleDateString() : 
+                       request.EL_DateOfLeave ? new Date(request.EL_DateOfLeave).toLocaleDateString() : 
+                       request.ST_StartDate ? new Date(request.ST_StartDate).toLocaleDateString() : "—"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">End Date</label>
+                    <p className="font-semibold text-slate-800">
+                      {request.VL_EndDate ? new Date(request.VL_EndDate).toLocaleDateString() : 
+                       request.SL_EndDate ? new Date(request.SL_EndDate).toLocaleDateString() : 
+                       request.EL_DateOfLeave ? new Date(request.EL_DateOfLeave).toLocaleDateString() : 
+                       request.ST_EndDate ? new Date(request.ST_EndDate).toLocaleDateString() : "—"}
+                    </p>
                   </div>
                 </>
               )}
             </CardContent>
           </Card>
 
-          {/* Requested Schedule Section */}
-          <Card className="border-0 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-50 pb-4 mb-4">
-              <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
-                <CalendarTodayIcon className="text-slate-400 h-5 w-5" /> Requested Schedule
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              
-              {/* Duration / Details */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Duration / Details</label>
-                <p className="font-bold text-[#2A174E]">
-                  {request.emp_reqTypeId === 1 && `${request.Total_Hrs} Hrs`}
-                  {request.emp_reqTypeId === 2 && `${request.OW_NoHrs} Hrs (${request.OW_NoDays} Day)`}
-                  {(request.emp_reqTypeId === 3 || request.emp_reqTypeId === 4) && `${request.VL_NoDays || request.SL_NoDays} Day(s)`}
-                  {request.emp_reqTypeId === 5 && `Correction: ${request.LC_correctionCategory}`}
-                </p>
-              </div>
-
-              {/* Time From */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time From</label>
-                <p className="font-semibold text-slate-800">
-                  {request.emp_reqTypeId === 1 ? formatTime(request.HrFrom) : 
-                   request.emp_reqTypeId === 5 ? formatTime(request.LC_claimedIn) : 
-                   (request.VL_StartDate || request.SL_StartDate || request.DateonField || "—")}
-                </p>
-              </div>
-
-              {/* Time To */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Time To</label>
-                <p className="font-semibold text-slate-800">
-                  {request.emp_reqTypeId === 1 ? formatTime(request.HrTo) : 
-                   request.emp_reqTypeId === 5 ? formatTime(request.LC_claimedOut) : 
-                   (request.VL_EndDate || request.SL_EndDate || "—")}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Attachments (If any) */}
-          {(request.SL_proof_File || request.OW_proof_File || request.LC_proof_File) && (
+          {/* Attachments */}
+          {proofFile && (
             <Card className="border-0 shadow-sm bg-white">
-              <CardHeader className="border-b border-slate-50 pb-4 mb-4">
-                <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
-                  <AttachmentIcon className="text-slate-400 h-5 w-5" /> Attachments
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Proof Document</label>
-                  <a 
-                    href={`/api/uploads/${request.SL_proof_File || request.OW_proof_File || request.LC_proof_File}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-[#2A174E] font-semibold hover:underline mt-1"
-                  >
-                    View Attached File
-                  </a>
-                </div>
+              <CardContent className="pt-6">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setViewingFileUrl(proofFile);
+                    setViewingFileName(`Attachment for REQ-${request.emp_reqId}`);
+                    setIsFileViewerOpen(true);
+                  }}
+                  className="inline-flex items-center text-[#2A174E] font-semibold hover:underline"
+                >
+                  <AttachmentIcon className="mr-1 h-4 w-4" /> View Supporting Attachment
+                </button>
               </CardContent>
             </Card>
           )}
 
-          {/* Reason / Remarks */}
-          <Card className="border-0 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-50 pb-4 mb-4">
-              <CardTitle className="text-lg text-slate-800">Employee Remarks / Purpose</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-slate-700 italic bg-slate-50 p-4 rounded-xl border border-slate-100">"{request.remarks || "No details provided."}"</p>
-            </CardContent>
-          </Card>
-
-          {/* Decision Section (Only if processed) */}
-          {request.emp_reqStatusId !== 1 && (
+          {/* Remarks Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="border-0 shadow-sm bg-white">
-              <CardHeader className="border-b border-slate-50 pb-4 mb-4">
-                <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
-                  <PersonIcon className="text-slate-400 h-5 w-5" /> Review Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Processed By</label>
-                    <p className="font-semibold text-slate-800">{request.approverName ? `${request.approverName} (${formatUserId(request.processedBy)})` : "System"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Processed On</label>
-                    <p className="font-medium text-slate-600">{request.date_Processed || "N/A"}</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-[#2A174E] uppercase tracking-wider block">Admin Note (Optional)</label>
-                  <p className="text-slate-700 bg-white p-4 rounded-xl border border-slate-200">
-                    {request.admin_remarks || "No additional notes provided."}
+              <CardContent className="pt-6">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Employee Purpose / Reason</label>
+                <p className="text-slate-700 italic bg-slate-50 p-4 rounded-xl border border-slate-100">"{request.remarks || "No reason provided."}"</p>
+              </CardContent>
+            </Card>
+
+            {(request.admin_remarks || request.system_remarks) && (
+              <Card className="border-0 shadow-sm bg-white">
+                <CardContent className="pt-6">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Management / Administrator Feedback</label>
+                  <p className="text-slate-700 bg-amber-50/60 p-4 rounded-xl border border-amber-100 font-medium">
+                    {request.admin_remarks || request.system_remarks}
                   </p>
-                </div>
-              </CardContent>
-            </Card>
-          ) || (
-            /* Show Admin Note section even if pending, but maybe empty or for editing if needed. 
-               The user prompt shows "Admin Note (Optional)" so I'll ensure it's visible or at least labeled correctly when processed.
-            */
-            null
-          )}
-
-          {/* Timeline */}
-          <Card className="border-0 shadow-sm bg-white overflow-hidden">
-            <CardHeader className="border-b border-slate-50 pb-4 mb-4 bg-slate-50/50">
-              <CardTitle className="text-lg text-slate-800">Request Timeline</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="ml-4 border-l-2 border-slate-200 space-y-8 py-2 relative">
-                
-                {/* Submit Event */}
-                <div className="relative pl-8">
-                  <div className="absolute -left-[17px] top-0.5 w-8 h-8 rounded-full bg-white border-2 border-blue-500 flex items-center justify-center shadow-sm">
-                    <AccessTimeIcon className="text-blue-500 h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-800">Request Submitted</p>
-                    <p className="text-sm text-slate-500 mt-0.5">{new Date(request.date_Filed).toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                {/* Process Event (if applicable) */}
-                {request.emp_reqStatusId !== 1 && (
-                  <div className="relative pl-8">
-                    <div className={`absolute -left-[17px] top-0.5 w-8 h-8 rounded-full bg-white border-2 flex items-center justify-center shadow-sm ${isApproved ? 'border-green-500' : 'border-red-500'}`}>
-                      {isApproved ? <CheckCircleIcon className="text-green-500 h-4 w-4" /> : <CancelIcon className="text-red-500 h-4 w-4" />}
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-800">Request {request.status}</p>
-                      <p className="text-sm text-slate-500 mt-0.5">{request.date_Processed}</p>
-                      <p className="text-xs text-slate-400 italic mt-1">Reviewed by {request.approverName} ({formatUserId(request.processedBy)})</p>
-                    </div>
-                  </div>
-                )}
-                
-              </div>
-            </CardContent>
-          </Card>
-
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
       </Sidebar>
+
+      <FileViewerModal
+        isOpen={isFileViewerOpen}
+        onClose={() => setIsFileViewerOpen(false)}
+        fileUrl={viewingFileUrl}
+        fileName={viewingFileName}
+      />
     </div>
   );
 };

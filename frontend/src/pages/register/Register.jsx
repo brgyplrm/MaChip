@@ -3,6 +3,8 @@ import { formatUserId } from '../../utils/formatUserId';
 import { fetchWithAuth } from '../../utils/api';
 import Sidebar from "../../components/Sidebar";
 import Toast from "../../components/toast/Toast";
+import ImageCropperModal from "../../components/ImageCropperModal";
+import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import "./register.scss";
 
 function Register() {
@@ -16,6 +18,10 @@ function Register() {
     user_MachipId: '',
     user_RoleId: '2' // 2 for Employee, 1 for Admin
   });
+
+  const [file, setFile] = useState(null);
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
+  const [tempImageSrc, setTempImageSrc] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
@@ -44,10 +50,17 @@ function Register() {
     e.preventDefault();
     setLoading(true);
     try {
+      const formDataToSend = new FormData();
+      Object.keys(userData).forEach(key => {
+        formDataToSend.append(key, userData[key]);
+      });
+      if (file) {
+        formDataToSend.append("user_ProfilePic", file);
+      }
+
       const response = await fetchWithAuth('/api/users/registerUser', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData)
+        body: formDataToSend
       });
 
       const data = await response.json();
@@ -65,6 +78,7 @@ function Register() {
           user_MachipId: '',
           user_RoleId: '2'
         });
+        setFile(null);
       } else {
         setToast({ message: "Error: " + (data.error || "Registration failed"), type: "error" });
       }
@@ -86,6 +100,38 @@ function Register() {
           <div className="register-card">
             <h3>Register New User</h3>
             <form onSubmit={handleSubmit}>
+              
+              <div className="profile-upload-section mb-6 flex flex-col items-center gap-2">
+                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-slate-200 shadow-sm relative group bg-white flex items-center justify-center">
+                  <img
+                    src={file ? URL.createObjectURL(file) : "https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <label htmlFor="file" className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white">
+                    <DriveFolderUploadOutlinedIcon />
+                  </label>
+                </div>
+                <input
+                  type="file"
+                  id="file"
+                  onChange={(e) => {
+                    const selectedFile = e.target.files[0];
+                    if (selectedFile) {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        setTempImageSrc(reader.result);
+                        setIsCropperOpen(true);
+                      };
+                      reader.readAsDataURL(selectedFile);
+                    }
+                  }}
+                  style={{ display: "none" }}
+                  accept="image/*"
+                />
+                <span className="text-xs font-semibold text-slate-500">Profile Picture</span>
+              </div>
+
               <div className="form-group">
                 <label>User ID (Auto-generated)</label>
                 <input 
@@ -141,8 +187,18 @@ function Register() {
           </div>
         </div>
       </div>
+
+      <ImageCropperModal
+        isOpen={isCropperOpen}
+        onClose={() => setIsCropperOpen(false)}
+        imageSrc={tempImageSrc}
+        onCropComplete={(croppedBlob) => {
+          setFile(croppedBlob);
+        }}
+      />
     </div>
   );
 }
 
 export default Register;
+

@@ -1,31 +1,72 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import Chart from "../../components/chart/Chart";
-import Table from "../../components/table/Table";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
 import { formatUserId } from "../../utils/formatUserId";
+import { formatTime12h } from "../../utils/formatTime";
 import { Link } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
 
-// shadcn/ui components
+// UI Components
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Memoized Pagination & Filtering Logic
+  const { paginatedLogs, totalItems, totalPages, startIndex, endIndex } = useMemo(() => {
+    // 1. Filter
+    const filtered = attendanceLogs.filter(log => {
+      const dateStr = log.log_Date ? new Date(log.log_Date).toLocaleDateString() : "";
+      return (
+        (log.logStatus?.toLowerCase().includes(searchQuery.toLowerCase())) || 
+        (log.attendanceStatus?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (dateStr.includes(searchQuery))
+      );
+    });
+
+    // 2. Paginate
+    const total = filtered.length;
+    const pages = Math.ceil(total / itemsPerPage) || 1;
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = Math.min(start + itemsPerPage, total);
+    
+    return {
+      paginatedLogs: filtered.slice(start, end),
+      totalItems: total,
+      totalPages: pages,
+      startIndex: start,
+      endIndex: end
+    };
+  }, [attendanceLogs, searchQuery, currentPage, itemsPerPage]);
+
+  // Reset page when filtering
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchProfileData = async () => {
       const userDataString = localStorage.getItem("userData");
-      const userData = userDataString ? JSON.parse(userDataString) : null;
-      const userId = userData?.user_Id;
+      const storedUserData = userDataString ? JSON.parse(userDataString) : null;
+      const userId = storedUserData?.user_Id;
 
       if (!userId) {
         setLoading(false);
@@ -33,24 +74,44 @@ const Profile = () => {
       }
 
       try {
-        const response = await fetchWithAuth(`/api/users/${userId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data);
-          // Optional: Update localStorage if backend data is newer
-          localStorage.setItem("userData", JSON.stringify(data));
-        } else {
-          console.error("Failed to fetch user data");
+        const [userRes, logsRes] = await Promise.all([
+          fetchWithAuth(`/api/users/${userId}`),
+          fetchWithAuth(`/api/attendance/logs/${userId}`)
+        ]);
+
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          setUser(userData);
+          localStorage.setItem("userData", JSON.stringify(userData));
+        }
+        
+        if (logsRes.ok) {
+          const logsData = await logsRes.json();
+          setAttendanceLogs(Array.isArray(logsData) ? logsData : []);
         }
       } catch (error) {
-        console.error("Error connecting to server:", error);
+        console.error("Error fetching profile data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProfile();
+    fetchProfileData();
   }, []);
+
+  const getLogStatusVariant = (status) => {
+    if (status?.includes("In")) return "success";
+    if (status?.includes("Out")) return "destructive";
+    return "secondary";
+  };
+
+  const getAttendanceVariant = (status) => {
+    const s = status?.toLowerCase();
+    if (s?.includes("present")) return "outline";
+    if (s?.includes("absent")) return "destructive";
+    if (s?.includes("late")) return "warning";
+    return "secondary";
+  };
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
@@ -89,7 +150,7 @@ const Profile = () => {
           ) : (
             <>
               {/* Hero Banner Section */}
-              <Card className="bg-white border-0 shadow-sm mb-6 relative overflow-hidden">
+              <Card className="bg-white border-0 shadow-sm mb-6 relative overflow-hidden py-0">
                 <div className="h-28 bg-gradient-to-r from-[#2A174E] to-[#45297e]"></div>
                 <CardContent className="px-6 pb-6 pt-0 relative">
                   <div className="flex flex-col md:flex-row items-center md:items-end gap-6 -mt-12">
@@ -117,8 +178,6 @@ const Profile = () => {
 
               {/* Dashboard Identity Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full animate-in fade-in zoom-in-95 duration-200">
-                
-                {/* Card 1: Account ID */}
                 <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
@@ -134,7 +193,6 @@ const Profile = () => {
                   </CardContent>
                 </Card>
 
-                {/* Card 2: Role */}
                 <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
@@ -150,7 +208,6 @@ const Profile = () => {
                   </CardContent>
                 </Card>
 
-                {/* Card 3: MaChip */}
                 <Card className="shadow-sm border-0 bg-[#FFFFF2] py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
@@ -170,15 +227,14 @@ const Profile = () => {
               </div>
 
               {/* Chart Section */}
-              <Card className="border-0 shadow-sm bg-white mb-6">
+              <Card className="bg-gradient-to-r from-[#F8FAFC] to-[#FAF2FF] border border-slate-200/80 shadow-sm mb-6 overflow-hidden">
                 <CardHeader className="border-b border-slate-100 pb-4">
-                  <CardTitle className="text-lg font-bold text-slate-800">Attendance Consistency (Last 6 Months)</CardTitle>
+                  <CardTitle className="text-lg font-bold text-[#2A174E]">Attendance Consistency (Last 6 Months)</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6 overflow-x-auto">
-                  <div className="min-w-[700px]">
+                <CardContent className="pt-6 pb-4 overflow-x-auto overflow-y-hidden">
+                  <div className="w-full h-[260px] min-w-[600px] overflow-hidden">
                     <Chart
-                      aspect={4 / 1}
-                      title="" // Title moved to CardHeader above
+                      title=""
                       userId={user.user_Id}
                     />
                   </div>
@@ -186,16 +242,120 @@ const Profile = () => {
               </Card>
 
               {/* Table Section */}
-              <Card className="border-0 shadow-sm bg-white py-0">
-                <CardHeader className="border-b border-slate-100 py-4">
-                  <CardTitle className="text-lg font-bold text-slate-800">Personal Activity Logs</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <div className="min-w-[800px]">
-                      <Table userId={user.user_Id} />
+              <Card className="border border-slate-200/80 shadow-sm bg-white mb-6 overflow-hidden">
+                <CardHeader className="border-b border-slate-100 py-4 px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
+                      <BadgeOutlinedIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg font-bold text-[#2A174E]">Personal Attendance Logs</CardTitle>
+                      <p className="text-xs text-slate-400 font-medium">Historical records of daily time ins, time outs, and attendance status</p>
                     </div>
                   </div>
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                      <Input 
+                        placeholder="Search date or status..." 
+                        className="pl-9 h-9 text-xs bg-white border-slate-200 focus-visible:ring-[#2A174E]"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)} 
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="p-0 flex flex-col justify-between min-h-[460px]">
+                  <div className="overflow-x-auto flex-1">
+                    <Table>
+                      <TableHeader className="bg-[#2A174E]">
+                        <TableRow className="h-11 hover:bg-transparent border-b-0">
+                          <TableHead className="font-bold text-white uppercase text-[10px] tracking-wider py-3.5 px-6">Date</TableHead>
+                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5">Time In</TableHead>
+                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5">Time Out</TableHead>
+                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5">Log Type</TableHead>
+                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5 px-6">Attendance Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedLogs.length > 0 ? (
+                          paginatedLogs.map((log, index) => {
+                            const rawStatus = (log.attendanceStatus || "").toLowerCase();
+                            const isPresent = rawStatus.includes("present") || rawStatus.includes("on time");
+                            const isLate = rawStatus.includes("late");
+                            const isAbsent = rawStatus.includes("absent");
+
+                            return (
+                              <TableRow key={log.sessionId || index} className="h-12 border-b border-slate-100 hover:bg-slate-50/70 transition-colors">
+                                <TableCell className="py-2.5 px-6">
+                                  <span className="font-bold text-[#2A174E] text-xs block">
+                                    {log.log_Date ? new Date(log.log_Date).toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" }) : "—"}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center py-2.5">
+                                  <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50/90 border border-emerald-200/80 px-2.5 py-1 rounded-md inline-block">
+                                    {formatTime12h(log.time_In)}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center py-2.5">
+                                  <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100/80 border border-slate-200/80 px-2.5 py-1 rounded-md inline-block">
+                                    {formatTime12h(log.time_Out)}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center py-2.5">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
+                                    log.logStatus?.includes("In")
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      : log.logStatus?.includes("Out")
+                                      ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                      : "bg-slate-100 text-slate-600 border-slate-200"
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                      log.logStatus?.includes("In") ? "bg-emerald-500" : log.logStatus?.includes("Out") ? "bg-indigo-500" : "bg-slate-400"
+                                    }`} />
+                                    {log.logStatus || "—"}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center py-2.5 px-6">
+                                  <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wide shadow-2xs ${
+                                    isPresent
+                                      ? "bg-emerald-500 text-white"
+                                      : isLate
+                                      ? "bg-amber-400 text-slate-950"
+                                      : isAbsent
+                                      ? "bg-rose-500 text-white"
+                                      : "bg-slate-100 text-slate-600 border border-slate-200"
+                                  }`}>
+                                    {log.attendanceStatus !== "—" ? log.attendanceStatus : "—"}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        ) : (
+                          <TableRow className="h-48">
+                            <TableCell colSpan={5} className="text-center py-12 text-slate-400 italic">
+                              No attendance records found.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  
+                  {/* Pagination Controls */}
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    setCurrentPage={setCurrentPage}
+                    totalItems={totalItems}
+                    itemsPerPage={itemsPerPage}
+                    setItemsPerPage={setItemsPerPage}
+                    startIndex={startIndex}
+                    endIndex={endIndex}
+                    itemLabel="records"
+                  />
                 </CardContent>
               </Card>
 

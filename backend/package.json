@@ -7,7 +7,11 @@
     "start": "nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:reset": "node db_reset.js",
-    "db:manager": "node db-manager.js"
+    "db:manager": "node seeds/seed_updated_AGAIN/manage_seeds.js",
+    "seed:users": "node seeds/seed_updated_AGAIN/seed_users.js",
+    "seed:all": "node seeds/seed_updated_AGAIN/manage_seeds.js --all",
+    "migrate": "sequelize db:migrate",
+    "migrate:undo": "sequelize db:migrate:undo"
   },
   "keywords": [],
   "author": "",
@@ -34,5 +38,8 @@
     "puppeteer": "^24.40.0",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "sequelize-cli": "^6.6.5"
   }
 }

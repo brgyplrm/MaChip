@@ -21,6 +21,7 @@ import { exportBatchToZip } from "../../utils/payrollExport";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
 import { exportToPDF } from "../../utils/pdfExport";
+import { useSystemTime } from "../../context/SystemTimeContext";
 import { FileInput } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 
@@ -35,29 +36,115 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import ShieldIcon from '@mui/icons-material/Shield';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TablePagination } from "@/components/ui/table-pagination";
+
+const MONTHS = [
+  { value: "1", label: "January" },
+  { value: "2", label: "February" },
+  { value: "3", label: "March" },
+  { value: "4", label: "April" },
+  { value: "5", label: "May" },
+  { value: "6", label: "June" },
+  { value: "7", label: "July" },
+  { value: "8", label: "August" },
+  { value: "9", label: "September" },
+  { value: "10", label: "October" },
+  { value: "11", label: "November" },
+  { value: "12", label: "December" }
+];
+
+const PERIOD_OPTIONS = [
+  { value: "1", label: "1st Period (1st – 15th)" },
+  { value: "2", label: "2nd Period (16th – End)" }
+];
+
+const computeCutoffDates = (yearStr, monthStr, periodStr) => {
+  const isYearValid = yearStr && yearStr !== "all";
+  const isMonthValid = monthStr && monthStr !== "all";
+  const isPeriodValid = periodStr && periodStr !== "all";
+
+  if (!isYearValid && !isMonthValid && !isPeriodValid) {
+    return { startDate: "", endDate: "" };
+  }
+
+  const currentY = new Date().getFullYear();
+  const y = isYearValid ? parseInt(yearStr, 10) : currentY;
+  const pad = (n) => String(n).padStart(2, '0');
+
+  if (isMonthValid) {
+    const m = parseInt(monthStr, 10);
+    if (periodStr === "1") {
+      return {
+        startDate: `${y}-${pad(m)}-01`,
+        endDate: `${y}-${pad(m)}-15`
+      };
+    } else if (periodStr === "2") {
+      const lastDay = new Date(y, m, 0).getDate();
+      return {
+        startDate: `${y}-${pad(m)}-16`,
+        endDate: `${y}-${pad(m)}-${pad(lastDay)}`
+      };
+    } else {
+      // Entire month (1st to last day)
+      const lastDay = new Date(y, m, 0).getDate();
+      return {
+        startDate: `${y}-${pad(m)}-01`,
+        endDate: `${y}-${pad(m)}-${pad(lastDay)}`
+      };
+    }
+  }
+
+  if (isYearValid) {
+    return {
+      startDate: `${y}-01-01`,
+      endDate: `${y}-12-31`
+    };
+  }
+
+  return { startDate: "", endDate: "" };
+};
 
 const AdminReports = () => {
-  // Constant Baseline Fallback Variable References
-  const defaultStartDate = useMemo(() => new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0], []);
-  const defaultEndDate = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const defaultEmployee = "All Employees";
-  const defaultPeriod = "custom";
-  const defaultEventType = "All Types";
+  const { systemToday } = useSystemTime();
+  const currentSysDate = useMemo(() => systemToday || new Date(), [systemToday]);
 
-  // --- Attendance & Payroll Filters ---
-  const [startDate, setStartDate] = useState(defaultStartDate);
-  const [endDate, setEndDate] = useState(defaultEndDate);
-  const [selectedEmployee, setSelectedEmployee] = useState(defaultEmployee);
+  // Constant Baseline Fallback Variable References
+  const defaultYear = useMemo(() => currentSysDate.getFullYear().toString(), [currentSysDate]);
+  const defaultMonth = useMemo(() => (currentSysDate.getMonth() + 1).toString(), [currentSysDate]);
+  const defaultPeriod = useMemo(() => (currentSysDate.getDate() <= 15 ? "1" : "2"), [currentSysDate]);
+  const defaultEmployee = "All Employees";
+  const defaultEventType = "All Types";
+  const defaultCalendarStartDate = useMemo(() => new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0], []);
+  const defaultCalendarEndDate = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const defaultRequestDate = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // Available years: current year + 1 down to 5 years past (7 years)
+  const availableYears = useMemo(() => {
+    const currentY = currentSysDate.getFullYear();
+    return Array.from({ length: 7 }, (_, i) => (currentY + 1 - i).toString());
+  }, [currentSysDate]);
+
+  // --- Attendance & Payroll Filters (Year, Month, Period, Employee) ---
+  const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
   const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
-  const [payrollPeriods, setPayrollPeriods] = useState([]);
+  const [selectedEmployee, setSelectedEmployee] = useState(defaultEmployee);
+
+  // Derive active attendance & payroll cutoff dates
+  const { startDate, endDate } = useMemo(() => {
+    return computeCutoffDates(selectedYear, selectedMonth, selectedPeriod);
+  }, [selectedYear, selectedMonth, selectedPeriod]);
   
   // --- Calendar/Events Specific Filters ---
-  const [calendarStartDate, setCalendarStartDate] = useState(defaultStartDate);
-  const [calendarEndDate, setCalendarEndDate] = useState(defaultEndDate);
+  const [calendarStartDate, setCalendarStartDate] = useState(defaultCalendarStartDate);
+  const [calendarEndDate, setCalendarEndDate] = useState(defaultCalendarEndDate);
   const [eventTypeFilter, setEventTypeFilter] = useState(defaultEventType);
 
   // --- Requests Tab Specific Filters ---
   const [searchQuery, setSearchQuery] = useState("");
+  const [requestDate, setRequestDate] = useState(defaultRequestDate);
   const [typeFilter, setTypeFilter] = useState("All Types");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
 
@@ -98,40 +185,23 @@ const AdminReports = () => {
     return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const fetchAllRequestsData = useCallback(async () => {
+  const fetchRequestsReport = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetchWithAuth("/api/request/all");
-      if (res.ok) {
-        const data = await res.json();
-        setRequests(data);
-      }
-    } catch (err) {
-      console.error("Failed to populate statistics summary rows:", err);
-    }
-  }, []);
-
-  const fetchPayrollPeriods = useCallback(async () => {
-    try {
-      const response = await fetchWithAuth("/api/system/payroll-periods");
+      const url = requestDate 
+        ? `/api/request/all?startDate=${requestDate}&endDate=${requestDate}`
+        : `/api/request/all`;
+      const response = await fetchWithAuth(url);
       if (response.ok) {
         const data = await response.json();
-        setPayrollPeriods(data);
+        setRequests(data);
       }
     } catch (error) {
-      console.error("Error fetching payroll periods:", error);
+      console.error("Error fetching requests report:", error);
+    } finally {
+      setLoading(false);
     }
-  }, []);
-
-  const handlePeriodChange = (val) => {
-    setSelectedPeriod(val);
-    if (val === "custom") return;
-
-    const period = payrollPeriods.find(p => p.periodId.toString() === val);
-    if (period) {
-      setStartDate(period.startDate);
-      setEndDate(period.endDate);
-    }
-  };
+  }, [requestDate]);
 
   const fetchEmployees = useCallback(async () => {
     try {
@@ -148,10 +218,18 @@ const AdminReports = () => {
   const fetchAttendanceReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/attendance/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      const params = new URLSearchParams();
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
+      if (selectedEmployee && selectedEmployee !== "All Employees" && selectedEmployee !== "all") {
+        params.append("user_Id", selectedEmployee);
+      } else {
+        params.append("user_Id", "All Employees");
+      }
+      const response = await fetchWithAuth(`/api/attendance/report?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        setAttendanceData(data);
+        setAttendanceData(Array.isArray(data) ? data : (data.logs || []));
       }
     } catch (error) {
       console.error("Error fetching attendance report:", error);
@@ -163,7 +241,15 @@ const AdminReports = () => {
   const fetchPayrollReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/payroll/report?startDate=${startDate}&endDate=${endDate}&user_Id=${selectedEmployee}`);
+      const params = new URLSearchParams();
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
+      if (selectedEmployee && selectedEmployee !== "All Employees" && selectedEmployee !== "all") {
+        params.append("user_Id", selectedEmployee);
+      } else {
+        params.append("user_Id", "All Employees");
+      }
+      const response = await fetchWithAuth(`/api/payroll/report?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setPayrollData(data);
@@ -178,7 +264,11 @@ const AdminReports = () => {
   const fetchCalendarReport = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/request/report/calendar?startDate=${calendarStartDate}&endDate=${calendarEndDate}&user_Id=All Employees`);
+      const params = new URLSearchParams();
+      if (calendarStartDate) params.append("startDate", calendarStartDate);
+      if (calendarEndDate) params.append("endDate", calendarEndDate);
+      params.append("user_Id", "All Employees");
+      const response = await fetchWithAuth(`/api/request/report/calendar?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setCalendarData(data);
@@ -192,15 +282,14 @@ const AdminReports = () => {
 
   useEffect(() => {
     fetchEmployees();
-    fetchPayrollPeriods();
-    fetchAllRequestsData();
-  }, [fetchEmployees, fetchPayrollPeriods, fetchAllRequestsData]);
+  }, [fetchEmployees]);
 
   useEffect(() => {
     if (activeReport === "attendance") fetchAttendanceReport();
     else if (activeReport === "payroll") fetchPayrollReport();
     else if (activeReport === "calendar") fetchCalendarReport();
-  }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport]);
+    else if (activeReport === "requests") fetchRequestsReport();
+  }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport, fetchRequestsReport]);
 
   useEffect(() => {
     if (location.state?.activeTab) {
@@ -210,20 +299,21 @@ const AdminReports = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeReport, startDate, endDate, selectedEmployee, calendarStartDate, calendarEndDate, eventTypeFilter, searchQuery, typeFilter, statusFilter, itemsPerPage]);
+  }, [activeReport, startDate, endDate, selectedEmployee, calendarStartDate, calendarEndDate, eventTypeFilter, requestDate, searchQuery, typeFilter, statusFilter, itemsPerPage]);
 
   const handleClearFilters = () => {
     if (activeReport === "attendance" || activeReport === "payroll") {
-      setSelectedEmployee(defaultEmployee);
-      setSelectedPeriod(defaultPeriod);
-      setStartDate(defaultStartDate);
-      setEndDate(defaultEndDate);
+      setSelectedYear("");
+      setSelectedMonth("");
+      setSelectedPeriod("");
+      setSelectedEmployee("All Employees");
     } else if (activeReport === "calendar") {
-      setCalendarStartDate(defaultStartDate);
-      setCalendarEndDate(defaultEndDate);
-      setEventTypeFilter(defaultEventType);
+      setCalendarStartDate("");
+      setCalendarEndDate("");
+      setEventTypeFilter("All Types");
     } else if (activeReport === "requests") {
       setSearchQuery("");
+      setRequestDate("");
       setTypeFilter("All Types");
       setStatusFilter("All Statuses");
     }
@@ -232,16 +322,43 @@ const AdminReports = () => {
 
   const isFiltering = useMemo(() => {
     if (activeReport === "attendance" || activeReport === "payroll") {
-      return selectedEmployee !== defaultEmployee || selectedPeriod !== defaultPeriod || startDate !== defaultStartDate || endDate !== defaultEndDate;
+      return Boolean(
+        (selectedYear && selectedYear !== "all") ||
+        (selectedMonth && selectedMonth !== "all") ||
+        (selectedPeriod && selectedPeriod !== "all") ||
+        (selectedEmployee && selectedEmployee !== "All Employees" && selectedEmployee !== "all")
+      );
     }
     if (activeReport === "calendar") {
-      return calendarStartDate !== defaultStartDate || calendarEndDate !== defaultEndDate || eventTypeFilter !== defaultEventType;
+      return Boolean(
+        calendarStartDate !== "" ||
+        calendarEndDate !== "" ||
+        (eventTypeFilter && eventTypeFilter !== "All Types" && eventTypeFilter !== "all")
+      );
     }
     if (activeReport === "requests") {
-      return searchQuery !== "" || typeFilter !== "All Types" || statusFilter !== "All Statuses";
+      return Boolean(
+        searchQuery !== "" ||
+        requestDate !== "" ||
+        (typeFilter && typeFilter !== "All Types" && typeFilter !== "all") ||
+        (statusFilter && statusFilter !== "All Statuses" && statusFilter !== "all")
+      );
     }
     return false;
-  }, [activeReport, selectedEmployee, selectedPeriod, startDate, endDate, calendarStartDate, calendarEndDate, eventTypeFilter, searchQuery, typeFilter, statusFilter, defaultStartDate, defaultEndDate, defaultEmployee, defaultPeriod, defaultEventType]);
+  }, [
+    activeReport,
+    selectedYear,
+    selectedMonth,
+    selectedPeriod,
+    selectedEmployee,
+    calendarStartDate,
+    calendarEndDate,
+    eventTypeFilter,
+    searchQuery,
+    requestDate,
+    typeFilter,
+    statusFilter
+  ]);
 
   const handleCSVExport = () => {
     let dataToExport = [];
@@ -301,6 +418,17 @@ const AdminReports = () => {
     } else if (activeReport === "calendar") {
       headers = ["Type", "Date", "Name/Employee", "Details"];
       dataToExport = filteredCalendarData.map(r => [r.type, r.date, r.name, r.details]);
+    } else if (activeReport === "requests") {
+      orientation = "l";
+      headers = ["REQ ID", "Employee", "Type", "Filed", "Status", "Processed By"];
+      dataToExport = filteredRequests.map(req => [
+        `REQ-${req.emp_reqId}`,
+        `${req.userName} (${formatUserId(req.user_Id)})`,
+        req.reqTypeName,
+        req.date_Filed,
+        req.status,
+        req.approverName || "—"
+      ]);
     }
 
     exportToPDF(title, headers, dataToExport, filename, { orientation });
@@ -320,27 +448,12 @@ const AdminReports = () => {
 
   const handleBatchExport = () => {
     if (payrollData.length === 0) return;
-    let label = "Payroll_Report";
-    let periodCode = "MAChipPayroll";
+    const [sY, sM, sD] = startDate.split('-').map(Number);
+    const [eY, eM, eD] = endDate.split('-').map(Number);
+    const month = new Date(sY, sM - 1, sD).toLocaleString('en-US', { month: 'long' });
+    const label = `${month}${String(sD).padStart(2, '0')}-${String(eD).padStart(2, '0')}`;
+    const periodCode = `${sY}_${String(sM).padStart(2, '0')}${String(sD).padStart(2, '0')}-${String(eD).padStart(2, '0')}MAChipPayroll`;
     
-    // FIXED: Corrected syntax scoping error where 'val' was unreferenced
-    if (selectedPeriod !== "custom") {
-      const period = payrollPeriods.find(p => p.periodId.toString() === selectedPeriod);
-      if (period) {
-        const [startY, startM, startD] = period.startDate.split('-').map(Number);
-        const [endY, endM, endD] = period.endDate.split('-').map(Number);
-        const month = new Date(startY, startM - 1, startD).toLocaleString('en-US', { month: 'long' });
-        label = `${month}${startD}-${endD}`;
-        const monthNum = String(startM).padStart(2, '0');
-        const pRange = `${String(startD).padStart(2, '0')}-${String(endD).padStart(2, '0')}`;
-        periodCode = `${startY}_${monthNum}${pRange}MAChipPayroll`;
-      }
-    } else {
-      label = `Payroll_${startDate}_to_${endDate}`;
-      const [sY, sM, sD] = startDate.split('-').map(Number);
-      const [eY, eM, eD] = endDate.split('-').map(Number);
-      periodCode = `${sY}_${String(sM).padStart(2, '0')}${String(sD).padStart(2, '0')}-${String(eD).padStart(2, '0')}MAChipPayroll`;
-    }
     setZipPassword(periodCode);
     setZipLabel(label);
     setShowBatchZipModal(true);
@@ -399,77 +512,375 @@ const AdminReports = () => {
 
   return (
     <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
-          
-          {/* Header */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Reports & Analytics</h1>
-              <span className="text-sm text-slate-500 mt-1 block">Generate, analyze, and export system attendance and payroll data.</span>
+      <TooltipProvider>
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+            
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Reports & Analytics</h1>
+                <span className="text-sm text-slate-500 mt-1 block">Generate, analyze, and export system attendance and payroll data.</span>
+              </div>
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                {/* <Button onClick={handleCSVExport} variant="outline" className="w-full md:w-auto border-slate-200 text-slate-700 bg-white hover:bg-slate-50 shadow-sm">
+                  <FileInput className="mr-2 h-4 w-4 text-slate-500" /> Export CSV
+                </Button> */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button onClick={handlePDFExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
+                      <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                    Export current report data to PDF format
+                  </TooltipContent>
+                </Tooltip>
+                {activeReport === "payroll" && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button onClick={handleBatchExport} disabled={payrollData.length === 0 || loading} className="w-full md:w-auto bg-green-600 text-white hover:bg-green-700 shadow-sm">
+                        <ReceiptLongIcon className="mr-2 h-4 w-4" /> Batch ZIP Payslips
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                      Batch download protected employee payslips in a ZIP archive
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              {/* <Button onClick={handleCSVExport} variant="outline" className="w-full md:w-auto border-slate-200 text-slate-700 bg-white hover:bg-slate-50 shadow-sm">
-                <FileInput className="mr-2 h-4 w-4 text-slate-500" /> Export CSV
-              </Button> */}
-              <Button onClick={handlePDFExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
-                <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
-              </Button>
-              {activeReport === "payroll" && (
-                <Button onClick={handleBatchExport} disabled={payrollData.length === 0 || loading} className="w-full md:w-auto bg-green-600 text-white hover:bg-green-700 shadow-sm">
-                  <ReceiptLongIcon className="mr-2 h-4 w-4" /> Batch ZIP Payslips
-                </Button>
-              )}
-            </div>
-          </div>
 
           {/* Navigation Tabs */}
           <Tabs value={activeReport} onValueChange={(val) => setActiveReport(val)} className="w-full mb-6">
-            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-4 h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0">
-              <TabsTrigger value="attendance" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-                <AssessmentIcon className="mr-2 h-4 w-4" /> Attendance Report
-              </TabsTrigger>
-              <TabsTrigger value="payroll" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-                <PaymentsIcon className="mr-2 h-4 w-4" /> Payroll Report
-              </TabsTrigger>
-              <TabsTrigger value="calendar" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-                <CalendarMonthIcon className="mr-2 h-4 w-4" /> Calendar / Events
-              </TabsTrigger>
-              <TabsTrigger value="requests" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-                <FileInput className="mr-2 h-4 w-4" /> Requests
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {/* TabsList container matches your layout switcher backgrounds perfectly */}
+          <TabsList className="grid grid-cols-1 sm:grid-cols-4 h-auto sm:h-10 bg-slate-100 rounded-lg border border-slate-200 gap-1 sm:gap-0 shrink-0">
+            
+            {/* Attendance Report Tab */}
+            <TabsTrigger 
+              value="attendance" 
+              className="text-xs font-bold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-[#2A174E]"
+            >
+              <AssessmentIcon className="mr-2 h-4 w-4 shrink-0" /> 
+              <span>Attendance Report</span>
+            </TabsTrigger>
+
+            {/* Payroll Report Tab */}
+            <TabsTrigger 
+              value="payroll" 
+              className="text-xs font-bold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-[#2A174E]"
+            >
+              <PaymentsIcon className="mr-2 h-4 w-4 shrink-0" /> 
+              <span>Payroll Report</span>
+            </TabsTrigger>
+
+            {/* Calendar / Events Tab */}
+            <TabsTrigger 
+              value="calendar" 
+              className="text-xs font-bold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-[#2A174E]"
+            >
+              <CalendarMonthIcon className="mr-2 h-4 w-4 shrink-0" /> 
+              <span>Calendar / Events</span>
+            </TabsTrigger>
+
+            {/* Requests Tab */}
+            <TabsTrigger 
+              value="requests" 
+              className="text-xs font-bold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-[#2A174E]"
+            >
+              <FileInput className="mr-2 h-4 w-4 shrink-0" /> 
+              <span>Requests</span>
+            </TabsTrigger>
+
+          </TabsList>
+        </Tabs>
 
           {/* Statistics Display Grid Area */}
           <div className="w-full animate-in fade-in zoom-in-95 duration-200">
             {activeReport === "attendance" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Present</p><p className="text-4xl font-bold text-[#2A174E]">{attStats.present}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Total present records</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><CheckCircleOutlineIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Hours</p><p className="text-4xl font-bold text-[#3B4E17]">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p></div><p className="text-xs text-[#3B4E17]/70 italic mt-4">Total working hours</p></div><div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AccessTimeIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Lates / Absences</p><p className="text-4xl font-bold text-[#BB8B26]">{attStats.late + attStats.absent}</p></div><p className="text-xs text-[#BB8B26]/70 italic mt-4">Recorded schedule infractions</p></div><div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AssignmentLateIcon /></div></CardContent></Card>
+                {/* Card 1: Total Present */}
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Present</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total count of attendance records marked as On-Time or Late.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#2A174E]">{attStats.present}</p>
+                      </div>
+                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Total present records</p>
+                    </div>
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><CheckCircleOutlineIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 2: Total Hours */}
+                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Total Hours</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Sum of all working hours recorded within the selected period.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#3B4E17]">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p>
+                      </div>
+                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Total working hours</p>
+                    </div>
+                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AccessTimeIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 3: Lates / Absences */}
+                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Lates / Absences</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total number of recorded schedule infractions (Late arrivals and Absent records).
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#BB8B26]">{attStats.late + attStats.absent}</p>
+                      </div>
+                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Recorded schedule infractions</p>
+                    </div>
+                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AssignmentLateIcon /></div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
             {activeReport === "payroll" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Net Pay</p><p className="text-4xl font-bold text-[#2A174E]">{peso(payStats.net)}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Distribution payload volume</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><PaymentsIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Total Earnings</p><p className="text-4xl font-bold text-[#3B4E17]">{peso(payStats.earn)}</p></div><p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross operational pay index</p></div><div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowUpIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Deductions</p><p className="text-4xl font-bold text-[#BB8B26]">{peso(payStats.ded)}</p></div><p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings ledger volume</p></div><div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowDownIcon /></div></CardContent></Card>
+                {/* Card 1: Total Net Pay */}
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Net Pay</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Sum of all employees' net take-home pay after deductions.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#2A174E]">{peso(payStats.net)}</p>
+                      </div>
+                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Distribution payload volume</p>
+                    </div>
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><PaymentsIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 2: Total Earnings */}
+                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Total Earnings</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Sum of gross wages (including Basic, OT, Night Differential, and Holiday pay) before deductions.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#3B4E17]">{peso(payStats.earn)}</p>
+                      </div>
+                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross operational pay index</p>
+                    </div>
+                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowUpIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 3: Total Deductions */}
+                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Total Deductions</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Sum of all employee deductions, excluding standard government-mandated taxes.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#BB8B26]">{peso(payStats.ded)}</p>
+                      </div>
+                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings ledger volume</p>
+                    </div>
+                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowDownIcon /></div>
+                  </CardContent>
+                </Card>
               </div> 
             )}
 
             {activeReport === "calendar" && (
               <div className="grid grid-cols-1 mb-6 w-full">
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Logged Events</p><p className="text-4xl font-bold text-[#2A174E]">{filteredCalendarData.length}</p></div><p className="text-xs text-[#2A174E]/70 italic mt-4">Holidays and leave logs active in window</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><EventNoteIcon /></div></CardContent></Card>
+                {/* Card 1: Total Logged Events */}
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Logged Events</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Count of holidays and employee leave records active in the current date range.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-bold text-[#2A174E]">{filteredCalendarData.length}</p>
+                      </div>
+                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Holidays and leave logs active in window</p>
+                    </div>
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><EventNoteIcon /></div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
             {activeReport === "requests" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6 w-full">
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-1">Queue Total</p><p className="text-4xl font-extrabold text-[#2A174E]">{requestStats.pending}</p></div><p className="text-xs text-[#2A174E]/70 font-medium italic mt-2">Pending review entries</p></div><div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0"><AccessTimeIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-1">Approved History</p><p className="text-4xl font-extrabold text-[#3B4E17]">{requestStats.approved}</p></div><p className="text-xs text-[#3B4E17]/70 font-medium italic mt-2">Accepted historical logs</p></div><div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0"><CheckCircleOutlineIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-1">Rejected Records</p><p className="text-4xl font-extrabold text-[#BB8B26]">{requestStats.rejected}</p></div><p className="text-xs text-[#BB8B26]/70 font-medium italic mt-2">Declined system entries</p></div><div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0"><AssignmentLateIcon /></div></CardContent></Card>
-                <Card className="border-t-5 border-[#475569] bg-white py-0 h-full"><CardContent className="px-5 py-5 flex justify-between h-full items-center"><div className="flex flex-col justify-between"><div><p className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1">Gross Logs Filed</p><p className="text-4xl font-extrabold text-slate-700">{requestStats.total}</p></div><p className="text-xs text-slate-400 font-medium italic mt-2">Operational ledger history volume</p></div><div className="bg-slate-100 text-slate-600 p-3 rounded-lg flex items-center justify-center shrink-0"><AssessmentIcon /></div></CardContent></Card>
+                {/* Card 1: Queue Total */}
+                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Queue Total</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total number of requests currently pending or recommended for approval.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-extrabold text-[#2A174E]">{requestStats.pending}</p>
+                      </div>
+                      <p className="text-xs text-[#2A174E]/70 font-medium italic mt-2">Pending review entries</p>
+                    </div>
+                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0"><AccessTimeIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 2: Approved History */}
+                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Approved History</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total number of approved employee requests.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-extrabold text-[#3B4E17]">{requestStats.approved}</p>
+                      </div>
+                      <p className="text-xs text-[#3B4E17]/70 font-medium italic mt-2">Accepted historical logs</p>
+                    </div>
+                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0"><CheckCircleOutlineIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 3: Rejected Records */}
+                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Rejected Records</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total number of rejected or declined employee requests.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-extrabold text-[#BB8B26]">{requestStats.rejected}</p>
+                      </div>
+                      <p className="text-xs text-[#BB8B26]/70 font-medium italic mt-2">Declined system entries</p>
+                    </div>
+                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0"><AssignmentLateIcon /></div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 4: Gross Logs Filed */}
+                <Card className="border-t-5 border-[#475569] bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Gross Logs Filed</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Sum total of all requests filed in the system (pending, approved, and rejected).
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-4xl font-extrabold text-slate-700">{requestStats.total}</p>
+                      </div>
+                      <p className="text-xs text-slate-400 font-medium italic mt-2">Operational ledger history volume</p>
+                    </div>
+                    <div className="bg-slate-100 text-slate-600 p-3 rounded-lg flex items-center justify-center shrink-0"><AssessmentIcon /></div>
+                  </CardContent>
+                </Card>
               </div>
             )}
           </div>
@@ -482,31 +893,51 @@ const AdminReports = () => {
                 <FilterListIcon className="text-slate-400 h-5 w-5" /> Filters
               </div>
 
-              {/* FILTER VIEW 1: Attendance & Payroll (Includes Period and Employee) */}
+              {/* FILTER VIEW 1: Attendance & Payroll (Year, Month, Period, Employee) */}
               {(activeReport === "attendance" || activeReport === "payroll") && (
-                <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto flex-wrap">
-                  <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
-                    <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 font-medium text-slate-700">
-                      <SelectValue placeholder="-- Select Period --" />
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto flex-wrap">
+                  {/* Year Selection */}
+                  <Select value={selectedYear || ""} onValueChange={(val) => setSelectedYear(val === "all" ? "" : val)}>
+                    <SelectTrigger className="w-full sm:w-[110px] border-slate-200 bg-slate-50 font-medium text-slate-700">
+                      <SelectValue placeholder="Year" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="custom">Custom Date Range</SelectItem>
-                      {payrollPeriods.map(p => (
-                        <SelectItem key={p.periodId} value={p.periodId.toString()}>{p.label}</SelectItem>
+                      <SelectItem value="all">All Years</SelectItem>
+                      {availableYears.map(year => (
+                        <SelectItem key={year} value={year}>{year}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
 
-                  {selectedPeriod === "custom" && (
-                    <>
-                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full sm:w-[150px] border-slate-200 bg-slate-50 font-medium text-slate-700" />
-                      <span className="hidden sm:block text-slate-400 font-bold">to</span>
-                      <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full sm:w-[150px] border-slate-200 bg-slate-50 font-medium text-slate-700" />
-                    </>
-                  )}
+                  {/* Month Selection */}
+                  <Select value={selectedMonth || ""} onValueChange={(val) => setSelectedMonth(val === "all" ? "" : val)}>
+                    <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50 font-medium text-slate-700">
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Months</SelectItem>
+                      {MONTHS.map(m => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                  <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                  {/* Period Selection (1st or 2nd) */}
+                  <Select value={selectedPeriod || ""} onValueChange={(val) => setSelectedPeriod(val === "all" ? "" : val)}>
                     <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 font-medium text-slate-700">
+                      <SelectValue placeholder="Period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Periods</SelectItem>
+                      {PERIOD_OPTIONS.map(p => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Employee Selection */}
+                  <Select value={selectedEmployee || "All Employees"} onValueChange={setSelectedEmployee}>
+                    <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="All Employees" />
                     </SelectTrigger>
                     <SelectContent>
@@ -564,6 +995,15 @@ const AdminReports = () => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-9 h-9 border-slate-200 focus-visible:ring-[#2A174E] w-full bg-slate-50"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      type="date" 
+                      value={requestDate} 
+                      onChange={(e) => setRequestDate(e.target.value)} 
+                      className="w-full sm:w-[150px] h-9 border-slate-200 bg-slate-50 text-slate-700 font-medium" 
                     />
                   </div>
 
@@ -642,7 +1082,7 @@ const AdminReports = () => {
                               <TableCell className="text-slate-600 py-4">{new Date(r.log_Date).toLocaleDateString()}</TableCell>
                               <TableCell className="text-slate-600 font-mono text-[13px] py-4">{r.time_In}</TableCell>
                               <TableCell className="text-slate-600 font-mono text-[13px] py-4">{r.time_Out}</TableCell>
-                              <TableCell className="text-slate-700 font-bold py-4">{r.hoursWorked}</TableCell>
+                              <TableCell className="text-slate-700 font-bold py-4">{r.hoursWorkedFormatted || r.hoursWorked}</TableCell>
                               <TableCell className="py-4">
                                 <Badge variant="secondary" className={badgeStyle}>{r.status}</Badge>
                               </TableCell>
@@ -698,11 +1138,18 @@ const AdminReports = () => {
                                 <Badge variant="secondary" className={badgeStyle}>{r.statusName}</Badge>
                               </TableCell>
                               <TableCell className="text-right pr-6 py-4">
-                                <Button variant="ghost" size="icon" asChild className="text-[#2A174E] hover:bg-[#f0ebfa]">
-                                  <Link title="View Payslip" to={`/adminReports/payslip/${r.payrollId}`} state={{ fromTab: activeReport }}>
-                                    <ReceiptLongIcon className="h-5 w-5" />
-                                  </Link>
-                                </Button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" asChild className="text-[#2A174E] hover:bg-[#f0ebfa]">
+                                      <Link to={`/adminReports/payslip/${r.payrollId}`} state={{ fromTab: activeReport }}>
+                                        <ReceiptLongIcon className="h-5 w-5" />
+                                      </Link>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                    View Payslip details
+                                  </TooltipContent>
+                                </Tooltip>
                               </TableCell>
                             </TableRow>
                           );
@@ -807,36 +1254,18 @@ const AdminReports = () => {
                 </div>
               )}
 
-              {/* Centralized Pagination Area */}
-              {totalItems > 0 && !loading && (
-                <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30 mt-auto">
-                  <div className="flex items-center gap-4 text-sm text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <span className="hidden sm:inline">Rows per page:</span>
-                      <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(Number(val))}>
-                        <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
-                          <SelectValue placeholder="10" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5">5</SelectItem>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="20">20</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="font-medium">
-                      Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1}>Previous</Button>
-                    <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">{currentPage}</div>
-                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0}>Next</Button>
-                  </div>
-                </div>
-              )}
+              {/* Pagination Controls */}
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                setCurrentPage={setCurrentPage}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                setItemsPerPage={setItemsPerPage}
+                startIndex={startIndex}
+                endIndex={endIndex}
+                itemLabel="records"
+              />
             </CardContent>
           </Card>
         </div>
@@ -857,9 +1286,16 @@ const AdminReports = () => {
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">File Encryption Password</p>
                 <div className="flex items-center justify-between gap-4 bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
                   <code className="text-lg font-black text-[#2A174E] tracking-tight">{zipPassword}</code>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5" onClick={() => navigator.clipboard.writeText(zipPassword)}>
-                    <ContentCopyIcon className="h-4 w-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5" onClick={() => navigator.clipboard.writeText(zipPassword)}>
+                        <ContentCopyIcon className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                      Copy password to clipboard
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
 
@@ -893,6 +1329,7 @@ const AdminReports = () => {
             background: #94a3b8; 
           }
         `}} />
+      </TooltipProvider>
     </Sidebar>
   );
 };

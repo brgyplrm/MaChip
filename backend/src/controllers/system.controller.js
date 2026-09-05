@@ -152,51 +152,150 @@ exports.getSystemSettings = async (req, res) => {
   }
 };
 
-exports.updateSystemSettings = async (req, res) => {
-  const { 
-    mockTimeEnabled, 
-    mockTimeValue, 
-    maxicareTotalGross, 
-    maxicareMonthsToPay, 
-    maxicareCycleStartDate,
-    maxicareDates,
-    vlRate,
-    slRate,
-    storageRootPath
-  } = req.body;
-
-  // Debug log for Maxicare configuration tracking
-  console.log("[DEBUG] UPDATE_SYSTEM_SETTINGS Received Payload:", JSON.stringify(req.body, null, 2));
-
+exports.updateMandatedWage = async (req, res) => {
+  const { mandatedMinimumWage, mandatedWageEffectiveDate } = req.body;
   try {
     const settings = await SystemSettings.findOne();
-    let oldSettings = null;
+    if (!settings) {
+      const newSettings = await SystemSettings.create({ mandatedMinimumWage, mandatedWageEffectiveDate });
+      return res.status(200).json(newSettings);
+    }
+    const oldData = settings.toJSON();
+    await settings.update({ mandatedMinimumWage, mandatedWageEffectiveDate });
+    
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "System Settings", "UPDATE_MANDATED_WAGE", "SystemSettings", settings.settingId, oldData, settings.toJSON());
+    
+    res.status(200).json(settings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateSystemSettings = async (req, res) => {
+  try {
+    const settings = await SystemSettings.findOne();
+    let oldSettings = settings ? settings.toJSON() : null;
     let newSettings;
 
-    const updateData = { 
-      mockTimeEnabled, 
-      mockTimeValue, 
-      maxicareTotalGross, 
-      maxicareMonthsToPay, 
-      maxicareCycleStartDate,
-      maxicareDates,
-      vlRate,
-      slRate,
-      storageRootPath
-    };
+    const updateData = {};
+
+    // 1. Time Simulation
+    if (req.body.useMockTime !== undefined || req.body.mockTimeEnabled !== undefined) {
+      updateData.mockTimeEnabled = req.body.useMockTime !== undefined ? Boolean(req.body.useMockTime) : Boolean(req.body.mockTimeEnabled);
+    }
+    if (req.body.mockDate !== undefined && req.body.mockTime !== undefined) {
+      updateData.mockTimeValue = (req.body.mockDate && req.body.mockTime) 
+        ? new Date(`${req.body.mockDate}T${req.body.mockTime}`) 
+        : null;
+    } else if (req.body.mockTimeValue !== undefined) {
+      updateData.mockTimeValue = req.body.mockTimeValue;
+    }
+
+    // 2. Storage & System Infrastructure
+    if (req.body.storageRootPath !== undefined) updateData.storageRootPath = req.body.storageRootPath;
+    if (req.body.archivedRetentionYears !== undefined && req.body.archivedRetentionYears !== null) {
+      updateData.archivedRetentionYears = parseInt(req.body.archivedRetentionYears, 10);
+    }
+    if (req.body.hardwareBufferWindow !== undefined && req.body.hardwareBufferWindow !== null) {
+      updateData.hardwareBufferWindow = parseInt(req.body.hardwareBufferWindow, 10);
+    }
+    if (req.body.vlRate !== undefined) updateData.vlRate = parseFloat(req.body.vlRate);
+    if (req.body.slRate !== undefined) updateData.slRate = parseFloat(req.body.slRate);
+
+    // 3. Shifts & Attendance Thresholds
+    if (req.body.morningShiftStart !== undefined) updateData.morningShiftStart = req.body.morningShiftStart;
+    if (req.body.morningShiftEnd !== undefined) updateData.morningShiftEnd = req.body.morningShiftEnd;
+    if (req.body.eveningShiftStart !== undefined) updateData.eveningShiftStart = req.body.eveningShiftStart;
+    if (req.body.eveningShiftEnd !== undefined) updateData.eveningShiftEnd = req.body.eveningShiftEnd;
+    if (req.body.gracePeriod !== undefined) updateData.gracePeriod = req.body.gracePeriod;
+    if (req.body.lunchStartThreshold !== undefined) updateData.lunchStartThreshold = req.body.lunchStartThreshold;
+    if (req.body.lunchEndThreshold !== undefined) updateData.lunchEndThreshold = req.body.lunchEndThreshold;
+    if (req.body.lunchDuration !== undefined) updateData.lunchDuration = parseInt(req.body.lunchDuration, 10);
+    if (req.body.flexibleBreakThreshold !== undefined) updateData.flexibleBreakThreshold = parseInt(req.body.flexibleBreakThreshold, 10);
+    if (req.body.workHourThreshold !== undefined) updateData.workHourThreshold = parseFloat(req.body.workHourThreshold);
+
+    // 4. Labor Multipliers
+    const multiplierFields = [
+      'ordinaryDayRate', 'specialDayRate', 'restDayRate', 'regularHolidayRate',
+      'nightDiffRate', 'overtimeRate', 'doubleRegularHolidayRate',
+      'specialDayRestDayRate', 'doubleSpecialDayRate', 'doubleSpecialDayRestDayRate',
+      'regularHolidayRestDayRate', 'doubleRegularHolidayRestDayRate'
+    ];
+    multiplierFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updateData[field] = parseFloat(req.body[field]);
+      }
+    });
+
+    // 5. Mandated Wage & Grace Period
+    if (req.body.mandatedMinimumWage !== undefined) updateData.mandatedMinimumWage = parseFloat(req.body.mandatedMinimumWage);
+    if (req.body.mandatedWageEffectiveDate !== undefined) updateData.mandatedWageEffectiveDate = req.body.mandatedWageEffectiveDate;
+    if (req.body.payrollGracePeriodDays !== undefined && req.body.payrollGracePeriodDays !== null) {
+      updateData.payrollGracePeriodDays = parseInt(req.body.payrollGracePeriodDays, 10);
+    }
+
+    // 6. Maxicare / HMO
+    if (req.body.maxicareTotalGross !== undefined) updateData.maxicareTotalGross = parseFloat(req.body.maxicareTotalGross);
+    if (req.body.maxicareMonthsToPay !== undefined) updateData.maxicareMonthsToPay = parseInt(req.body.maxicareMonthsToPay, 10);
+    if (req.body.maxicareCycleStartDate !== undefined) updateData.maxicareCycleStartDate = req.body.maxicareCycleStartDate;
+    if (req.body.maxicareDates !== undefined) {
+      let sanitizedMaxicareDates = req.body.maxicareDates;
+      if (sanitizedMaxicareDates && Array.isArray(sanitizedMaxicareDates.dates)) {
+        sanitizedMaxicareDates = {
+          ...sanitizedMaxicareDates,
+          dates: sanitizedMaxicareDates.dates.filter(d => {
+            if (!d || typeof d !== 'string') return false;
+            const parts = d.split('-');
+            return parts.length === 3 && parts[0].length === 4 && d.length === 10;
+          }).sort()
+        };
+      } else if (Array.isArray(sanitizedMaxicareDates)) {
+        sanitizedMaxicareDates = sanitizedMaxicareDates.filter(d => {
+          if (!d || typeof d !== 'string') return false;
+          const parts = d.split('-');
+          return parts.length === 3 && parts[0].length === 4 && d.length === 10;
+        }).sort();
+      }
+      updateData.maxicareDates = sanitizedMaxicareDates;
+    }
+
+    // 7. Payroll Rates (Deep Merge to prevent wiping statutoryConstants or otNightRates)
+    if (req.body.payrollRates !== undefined || req.body.payroll !== undefined) {
+      const existingRates = (settings && settings.payrollRates) ? settings.payrollRates : {};
+      const newRates = req.body.payrollRates || {};
+      const newStatutory = req.body.payroll || newRates.statutoryConstants || {};
+
+      const mergedStatutory = {
+        ...(existingRates.statutoryConstants || {}),
+        ...(newRates.statutoryConstants || {}),
+        ...newStatutory
+      };
+
+      updateData.payrollRates = {
+        ...existingRates,
+        ...newRates,
+        statutoryConstants: mergedStatutory
+      };
+    }
+
+    // If nothing to update, return current settings
+    if (Object.keys(updateData).length === 0) {
+      return res.status(200).json({ message: "No changes provided", data: settings });
+    }
 
     if (!settings) {
       newSettings = await SystemSettings.create(updateData);
     } else {
-      oldSettings = settings.toJSON();
       newSettings = await settings.update(updateData);
     }
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logAudit(req, currentAdminId, "System Settings", "UPDATE_SETTINGS", "SystemSettings", newSettings.settingId, oldSettings, newSettings.toJSON());
 
-    res.status(200).json({ message: "System settings updated successfully" });
+    res.status(200).json({ message: "System settings updated successfully", data: newSettings });
   } catch (error) {
+    console.error("[ERROR] updateSystemSettings FAILED:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -281,8 +380,8 @@ exports.getPayrollPeriods = async (req, res) => {
         await ensureCurrentPeriodExists();
 
         // Check if user is staff/admin (matching roleCheck.js logic)
-        const userRole = req.user.user_Role;
-        const userRoleId = parseInt(req.user.user_RoleId);
+        const userRole = req.user?.user_Role;
+        const userRoleId = parseInt(req.user?.user_RoleId || 0);
         const isStaff = [1, 2, 4].includes(userRoleId) || 
                         ["Admin Manager", "Supervisor", "Admin Accountant", "Admin"].includes(userRole);
 
@@ -326,7 +425,7 @@ exports.getAuditLogs = async (req, res) => {
     const logs = await sequelize.query(
       `SELECT
          a.*,
-         u."user_FirstName", u."user_LastName"
+         u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId"
        FROM "Audit_Log" a
        LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
        ORDER BY a."createdAt" DESC`,
@@ -359,10 +458,12 @@ exports.getTransactionLogs = async (req, res) => {
 
 exports.setRegistrationSession = async (req, res) => {
   const { userId, type } = req.body; // type: 'RFID' or 'FP'
+  const upperType = type ? type.toUpperCase() : null;
+
   try {
     const [session, created] = await System_State.findOrCreate({
       where: { key: 'REGISTRATION_SESSION' },
-      defaults: { value: JSON.stringify({ userId, type }) }
+      defaults: { value: JSON.stringify({ userId, type: upperType }) }
     });
 
     if (!session) {
@@ -370,7 +471,7 @@ exports.setRegistrationSession = async (req, res) => {
     }
 
     if (!created) {
-      await session.update({ value: JSON.stringify({ userId, type }) });
+      await session.update({ value: JSON.stringify({ userId, type: upperType }) });
     }
 
     res.status(200).json({ success: true, message: "Registration session started" });
@@ -562,6 +663,257 @@ exports.deleteDueDate = async (req, res) => {
     } else {
       res.status(404).json({ error: "Due Date not found." });
     }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getReferenceTableData = async (req, res) => {
+  const { tableType } = req.params;
+  try {
+    const { SSS_ContributionTable, Philhealth_ContributionTable, PagIBIG_ContributionTable, WithholdingTax_Table, ReferenceTable_Audit, sequelize } = require("../config/sequelize.js");
+    let model;
+    let dbTableName;
+    if (tableType === "sss") { model = SSS_ContributionTable; dbTableName = "SSS_ContributionTable"; }
+    else if (tableType === "philhealth") { model = Philhealth_ContributionTable; dbTableName = "Philhealth_ContributionTable"; }
+    else if (tableType === "pagibig") { model = PagIBIG_ContributionTable; dbTableName = "PagIBIG_ContributionTable"; }
+    else if (tableType === "tax") { model = WithholdingTax_Table; dbTableName = "WithholdingTax_Table"; }
+    else {
+      return res.status(400).json({ error: "Invalid reference table type." });
+    }
+
+    // Get ALL records sorted by range_Min (for active and historical preview)
+    const records = await model.findAll({
+      order: [["range_Min", "ASC"]]
+    });
+
+    // Get audit logs
+    const auditLogs = await ReferenceTable_Audit.findAll({
+      where: { tableName: dbTableName },
+      order: [["uploadDate", "DESC"]]
+    });
+
+    // Query active audit IDs (those having active rows in the main table)
+    const activeAudits = await model.findAll({
+      attributes: [[sequelize.fn('DISTINCT', sequelize.col('auditId')), 'auditId']],
+      where: { isActive: true }
+    });
+    
+    const activeAuditIds = activeAudits.map(a => a.auditId).filter(id => id !== null && id !== undefined);
+
+    res.status(200).json({ records, auditLogs, activeAuditIds });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.uploadReferenceTable = async (req, res) => {
+  const { tableType } = req.params;
+  const { effectiveDate, periodType } = req.body;
+
+  if (!req.file) {
+    return res.status(400).json({ error: "CSV file is required." });
+  }
+  if (!effectiveDate) {
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "Effective date is required." });
+  }
+
+  try {
+    const { sequelize, SSS_ContributionTable, Philhealth_ContributionTable, PagIBIG_ContributionTable, WithholdingTax_Table, ReferenceTable_Audit } = require("../config/sequelize.js");
+    const { parseCSV } = require("../utils/csvParser");
+    
+    let model;
+    let dbTableName;
+    let requiredFields = [];
+
+    if (tableType === "sss") {
+      model = SSS_ContributionTable;
+      dbTableName = "SSS_ContributionTable";
+      requiredFields = ["range_Min", "range_Max", "monthlySalaryCredit", "er_SS", "ee_SS"];
+    } else if (tableType === "philhealth") {
+      model = Philhealth_ContributionTable;
+      dbTableName = "Philhealth_ContributionTable";
+      requiredFields = ["range_Min", "range_Max", "rate", "employeeShareRatio"];
+    } else if (tableType === "pagibig") {
+      model = PagIBIG_ContributionTable;
+      dbTableName = "PagIBIG_ContributionTable";
+      requiredFields = ["range_Min", "range_Max", "ee_Rate", "er_Rate", "contributionCeiling"];
+    } else if (tableType === "tax") {
+      model = WithholdingTax_Table;
+      dbTableName = "WithholdingTax_Table";
+      requiredFields = ["range_Min", "range_Max", "baseTax", "excessRate", "excessOver"];
+    } else {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "Invalid reference table type." });
+    }
+
+    const csvContent = fs.readFileSync(req.file.path, "utf8");
+    const parsedRows = parseCSV(csvContent);
+
+    if (parsedRows.length === 0) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "The uploaded CSV file is empty or malformed." });
+    }
+
+    // Validate headers/fields in each row
+    for (let i = 0; i < parsedRows.length; i++) {
+      const row = parsedRows[i];
+      for (const field of requiredFields) {
+        if (row[field] === undefined || row[field] === null || isNaN(Number(row[field]))) {
+          if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+          return res.status(400).json({ error: `Validation failed at row ${i + 1}: field "${field}" is missing or not a valid number.` });
+        }
+      }
+    }
+
+    // Sort rows by range_Min
+    parsedRows.sort((a, b) => a.range_Min - b.range_Min);
+
+    // Validate boundaries and continuity
+    for (let i = 0; i < parsedRows.length; i++) {
+      const row = parsedRows[i];
+      if (row.range_Min < 0 || row.range_Max <= row.range_Min) {
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: `Validation failed at row ${i + 1}: range_Min must be >= 0 and range_Max must be > range_Min.` });
+      }
+
+      // Check continuity with next row
+      if (i < parsedRows.length - 1) {
+        const nextRow = parsedRows[i + 1];
+        if (nextRow.range_Min - row.range_Max > 1.05) {
+          if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+          return res.status(400).json({ 
+            error: `Gap detected between row ${i + 1} and ${i + 2}. Brackets must be continuous. (range_Max: ${row.range_Max}, next range_Min: ${nextRow.range_Min})`
+          });
+        }
+      }
+    }
+
+    // Run DB transaction
+    await sequelize.transaction(async (transaction) => {
+      // 1. Deactivate ALL existing versions across table so only new upload is active
+      await model.update(
+        { isActive: false },
+        { where: {}, transaction }
+      );
+
+      // 2. Create audit log entry
+      const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+      const auditRecord = await ReferenceTable_Audit.create({
+        tableName: dbTableName,
+        uploadedBy: currentAdminId,
+        uploadDate: new Date(),
+        effectiveDate,
+        fileName: req.file.originalname,
+        rowCount: parsedRows.length,
+        periodType: tableType === "tax" ? (periodType || "monthly") : null
+      }, { transaction });
+
+      const auditId = auditRecord.auditId;
+
+      // 3. Prepare payload with auditId and periodType
+      const recordsToInsert = parsedRows.map(row => ({
+        ...row,
+        effectiveDate,
+        isActive: true,
+        auditId,
+        periodType: tableType === "tax" ? (periodType || "monthly") : undefined
+      }));
+
+      // 4. Bulk create new records
+      await model.bulkCreate(recordsToInsert, { transaction });
+
+      // Log to system audit logs as well
+      await logAudit(req, currentAdminId, "System Settings", "UPLOAD_REF_TABLE", dbTableName, null, null, {
+        fileName: req.file.originalname,
+        rowCount: recordsToInsert.length,
+        effectiveDate,
+        auditId
+      });
+    });
+
+    // Cleanup CSV from disk
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    res.status(200).json({ success: true, count: parsedRows.length, message: `${dbTableName} uploaded successfully. ${parsedRows.length} rows inserted. Effective from ${effectiveDate}.` });
+  } catch (error) {
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    console.error("Reference table upload error:", error);
+    res.status(500).json({ error: "Failed to process upload: " + error.message });
+  }
+};
+
+exports.toggleReferenceTableVersion = async (req, res) => {
+  const { tableType } = req.params;
+  const { auditId, isActive } = req.body;
+
+  if (!auditId || isActive === undefined) {
+    return res.status(400).json({ error: "auditId and isActive status are required." });
+  }
+
+  try {
+    const { sequelize, SSS_ContributionTable, Philhealth_ContributionTable, PagIBIG_ContributionTable, WithholdingTax_Table, ReferenceTable_Audit } = require("../config/sequelize.js");
+    let model;
+    let dbTableName;
+
+    if (tableType === "sss") { model = SSS_ContributionTable; dbTableName = "SSS_ContributionTable"; }
+    else if (tableType === "philhealth") { model = Philhealth_ContributionTable; dbTableName = "Philhealth_ContributionTable"; }
+    else if (tableType === "pagibig") { model = PagIBIG_ContributionTable; dbTableName = "PagIBIG_ContributionTable"; }
+    else if (tableType === "tax") { model = WithholdingTax_Table; dbTableName = "WithholdingTax_Table"; }
+    else {
+      return res.status(400).json({ error: "Invalid reference table type." });
+    }
+
+    // Run transaction to update status
+    await sequelize.transaction(async (transaction) => {
+      if (isActive) {
+        if (tableType === "tax") {
+          const auditRec = await ReferenceTable_Audit.findByPk(parseInt(auditId), { transaction });
+          const pType = auditRec ? auditRec.periodType : null;
+          if (pType) {
+            await model.update(
+              { isActive: false },
+              { where: { periodType: pType }, transaction }
+            );
+          } else {
+            await model.update(
+              { isActive: false },
+              { where: {}, transaction }
+            );
+          }
+        } else {
+          // 1. Deactivate ALL versions across table so only one version is active at a time
+          await model.update(
+            { isActive: false },
+            { where: {}, transaction }
+          );
+        }
+        // 2. Activate ONLY the selected audit version
+        await model.update(
+          { isActive: true },
+          { where: { auditId: parseInt(auditId) }, transaction }
+        );
+      } else {
+        // Deactivate the target version
+        await model.update(
+          { isActive: false },
+          { where: { auditId: parseInt(auditId) }, transaction }
+        );
+      }
+    });
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(req, currentAdminId, "System Settings", "TOGGLE_REF_TABLE", dbTableName, null, null, {
+      auditId: parseInt(auditId),
+      isActive: !!isActive
+    });
+
+    res.status(200).json({ success: true, message: `Successfully updated active status for version #${auditId} to ${!!isActive}.` });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

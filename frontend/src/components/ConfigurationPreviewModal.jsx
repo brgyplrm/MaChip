@@ -1,30 +1,28 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Eye, X } from 'lucide-react';
 
-export default function ConfigurationPreviewModal() {
-  const [isOpen, setIsOpen] = useState(true);
-
-  // Reconstructed JSON object from your screenshots
+export default function ConfigurationPreviewModal({ onClose, data }) {
+  // Merge dynamic data from payrollRates with the structural template
   const configData = {
     "system_version": "2026.1.0",
     "effective_date": "2026-01-01",
     "status": "LIVE",
     "multipliers": {
-      "ordinary_day": 1,
-      "rest_day": 1.3,
-      "special_day": 1.3,
-      "special_day_rest_day": 1.5,
-      "regular_holiday": 2,
-      "regular_holiday_rest_day": 2.6,
-      "double_regular_holiday": 3,
-      "double_regular_holiday_rest_day": 3.9
+      "ordinary_day": data?.laborRates?.ordinary ?? 1,
+      "rest_day": data?.laborRates?.restDay ?? 1.3,
+      "special_day": data?.laborRates?.specialDay ?? 1.3,
+      "special_day_rest_day": data?.laborRates?.specialDayRestDay ?? 1.5,
+      "regular_holiday": data?.laborRates?.regularHoliday ?? 2,
+      "regular_holiday_rest_day": data?.laborRates?.regularHolidayRestDay ?? 2.6,
+      "double_regular_holiday": data?.laborRates?.doubleHoliday ?? 3,
+      "double_regular_holiday_rest_day": data?.laborRates?.doubleHolidayRestDay ?? 3.9
     },
     "premiums": {
-      "night_shift_differential_rate": 0.1,
-      "night_shift_start": "22:00",
-      "night_shift_end": "06:00",
-      "overtime_ordinary_rate": 0.25,
-      "overtime_premium_days_rate": 0.3
+      "night_shift_differential_rate": (data?.otNightRates?.nsdRate ?? 10) / 100,
+      "night_shift_start": data?.otNightRates?.shiftStart ?? "22:00",
+      "night_shift_end": data?.otNightRates?.shiftEnd ?? "06:00",
+      "overtime_ordinary_rate": (data?.otNightRates?.ordinaryOT ?? 25) / 100,
+      "overtime_premium_days_rate": (data?.otNightRates?.premiumOT ?? 30) / 100
     },
     "estimated_equivalent_monthly_rate_factors": {
       "paid_every_day": 365,
@@ -68,20 +66,6 @@ export default function ConfigurationPreviewModal() {
     }
   };
 
-  if (!isOpen) {
-    return (
-      <div className="p-8 flex justify-center">
-        <button 
-          onClick={() => setIsOpen(true)}
-          className="flex items-center space-x-2 px-4 py-2 bg-[#2A1B4E] text-white rounded-lg text-sm font-medium shadow transition hover:bg-[#3b276c]"
-        >
-          <Eye className="w-4 h-4" />
-          <span>Open Configuration Preview</span>
-        </button>
-      </div>
-    );
-  }
-
   return (
     // Backdrop overlay
     <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
@@ -96,7 +80,7 @@ export default function ConfigurationPreviewModal() {
             <h2 className="text-lg font-semibold tracking-wide">Configuration Preview</h2>
           </div>
           <button 
-            onClick={() => setIsOpen(false)}
+            onClick={onClose}
             className="text-white/70 hover:text-white transition rounded-lg p-1 hover:bg-white/10"
             aria-label="Close modal"
           >

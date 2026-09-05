@@ -13,10 +13,12 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import { formatUserId } from "../../utils/formatUserId";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Link } from "react-router-dom";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { fetchWithAuth } from "../../utils/api";
+import { Edit2, Edit2Icon, ChevronLeft } from "lucide-react";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import EditPayrollModal from "../../components/editPayrollModal/EditPayrollModal";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const PayrollEmployeeList = () => {
   const [employees, setEmployees] = useState([]);
@@ -35,12 +38,13 @@ const PayrollEmployeeList = () => {
   const [savingId, setSavingId] = useState(null);
   const [toast, setToast] = useState(null);
   const [visibleAccounts, setVisibleAccounts] = useState(new Set());
+  const [showInfo, setShowInfo] = useState(true);
   const isEditing = editingEmployee !== null;
 
   // Filter & Pagination States
   const [search, setSearch] = useState("");
-  const [filterRole, setFilterRole] = useState("All Roles");
-  const [statusFilter, setStatusFilter] = useState("All Statuses");
+  const [filterDepartment, setFilterDepartment] = useState("All Departments");
+  const [filterRateRange, setFilterRateRange] = useState("All Rates");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -55,8 +59,10 @@ const PayrollEmployeeList = () => {
 
   const maskAccountNumber = (acc) => {
     if (!acc) return "—";
-    if (acc.length <= 4) return acc;
-    return `**** ${acc.slice(-4)}`;
+    const str = String(acc).trim();
+    if (!str) return "—";
+    if (str.length <= 4) return str;
+    return `•••• •••• ${str.slice(-4)}`;
   };
 
   const fetchEmployees = async (isRefresh = false) => {
@@ -81,7 +87,7 @@ const PayrollEmployeeList = () => {
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filterRole, statusFilter, itemsPerPage]);
+  }, [search, filterDepartment, filterRateRange, itemsPerPage]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -163,21 +169,45 @@ const PayrollEmployeeList = () => {
 
   const handleClearFilters = () => {
     setSearch("");
-    setFilterRole("All Roles");
-    setStatusFilter("All Statuses");
+    setFilterDepartment("All Departments");
+    setFilterRateRange("All Rates");
     setCurrentPage(1);
   };
 
-  const isFiltering = search !== "" || filterRole !== "All Roles" || statusFilter !== "All Statuses";
+  const isFiltering = search !== "" || filterDepartment !== "All Departments" || filterRateRange !== "All Rates";
+
+  // Extract unique departments dynamically from employee dataset
+  const departmentsList = Array.from(
+    new Set(
+      employees
+        .map((e) => (e.positionDepartment || e.department || "").trim())
+        .filter(Boolean)
+    )
+  ).sort();
 
   // Filtering Logic
   const filtered = employees.filter((e) => {
     const fullName = `${e.user_FirstName} ${e.user_LastName}`.toLowerCase();
     const matchesSearch = fullName.includes(search.toLowerCase()) || String(formatUserId(e.user_Id)).includes(search);
-    const matchesRole = filterRole === "All Roles" || e.user_Role === filterRole;
-    const matchesStatus = statusFilter === "All Statuses" || e.user_EmploymentStatus === statusFilter;
 
-    return matchesSearch && matchesRole && matchesStatus;
+    const empDept = (e.positionDepartment || e.department || "").trim();
+    const matchesDepartment = filterDepartment === "All Departments" || empDept === filterDepartment;
+
+    const rate = parseFloat(e.dailyRate || 0);
+    let matchesRate = true;
+    if (filterRateRange === "0") {
+      matchesRate = rate === 0;
+    } else if (filterRateRange === "1-500") {
+      matchesRate = rate > 0 && rate <= 500;
+    } else if (filterRateRange === "501-1000") {
+      matchesRate = rate > 500 && rate <= 1000;
+    } else if (filterRateRange === "1001-1500") {
+      matchesRate = rate > 1000 && rate <= 1500;
+    } else if (filterRateRange === "1501+") {
+      matchesRate = rate > 1500;
+    }
+
+    return matchesSearch && matchesDepartment && matchesRate;
   });
 
   const changedCount = employees.filter(
@@ -194,45 +224,63 @@ const PayrollEmployeeList = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-          <div className="flex items-start md:items-center gap-4">
-            <Link 
-              to="/payroll" 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
-            >
-              <ArrowBackIcon className="h-6 w-6" />
-            </Link>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Masterlist</h1>
-              <span className="text-sm text-slate-500 mt-1 block">Manage employee records and daily compensation rates</span>
+        <div className="group flex items-start md:items-center gap-0 mb-6 transition-all">
+              {/* Back Button: Hidden by default, slides and fades in on hover */}
+              <div className="w-0 overflow-hidden group-hover:w-10 transition-all duration-300 ease-in-out">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        asChild 
+                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                      >
+                        <Link to="/payroll">
+                          <ChevronLeft className="h-6 w-6" />
+                        </Link>
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    Back to Payroll Management
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+
+              {/* Title: Adds left padding when hovered */}
+              <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
+                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Employee Masterlist</h1>
+                <span className="text-sm text-slate-500 mt-1 block">Manage employee records and daily compensation rates</span>
+              </div>
             </div>
-          </div>
-          <Button 
-            className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]" 
-            onClick={() => fetchEmployees(true)}
-            disabled={refreshing}
-          >
-            <RefreshIcon className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </Button>
-        </div>
 
         <div className="h-2"></div>
 
         {/* Info Alert */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
-          <div className="flex items-center gap-2 text-blue-800 font-bold mb-2">
-            <InfoOutlinedIcon className="h-5 w-5" /> 
-            <h3 className="text-base m-0">Employee Payroll Processing</h3>
+        {showInfo && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6 relative group/info">
+            <button 
+              onClick={() => setShowInfo(false)}
+              className="absolute top-4 right-4 text-blue-400 hover:text-blue-600 transition-colors p-1"
+              title="Dismiss information"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+            <div className="flex items-center gap-2 text-blue-800 font-bold mb-2">
+              <InfoOutlinedIcon className="h-5 w-5" /> 
+              <h3 className="text-base m-0">Employee Payroll Processing</h3>
+            </div>
+            <p className="text-blue-700 text-sm leading-relaxed m-0 pr-8">
+              Provide a daily rate to automatically calculate payroll for each employee. 
+              Employees without a daily rate will be excluded from payroll calculations.
+            </p>
           </div>
-          <p className="text-blue-700 text-sm leading-relaxed m-0">
-            Provide a daily rate to automatically calculate payroll for each employee. 
-            Employees without a daily rate will be excluded from payroll calculations.
-          </p>
-        </div>
+        )}
 
         {/* Dashboard-Style Widgets Row */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
@@ -241,7 +289,17 @@ const PayrollEmployeeList = () => {
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Employees</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Total Employees</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Total count of active employees registered in the database.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#2A174E]">{employees.length}</p>
                 </div>
                 <p className="text-xs text-[#2A174E]/70 italic mt-4">Active masterlist records</p>
@@ -257,15 +315,25 @@ const PayrollEmployeeList = () => {
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
-                  <p className={`text-xs font-bold uppercase tracking-wider mb-2 transition-colors ${changedCount > 0 ? "text-white" : "text-[slate-500]"}`}>
-                    Rate Changes
-                  </p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className={`text-xs font-bold uppercase tracking-wider transition-colors ${changedCount > 0 ? "text-white" : "text-slate-500"}`}>
+                      Rate Changes
+                    </p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className={`${changedCount > 0 ? "text-white/60 hover:text-white" : "text-slate-400 hover:text-slate-600"} cursor-help`} />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Number of employees whose live daily rates differ from their previous daily rate record.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className={`text-4xl font-bold transition-colors ${changedCount > 0 ? "text-white" : "text-slate-700"}`}>
                     {changedCount}
                   </p>
                 </div>
                 <p className={`text-xs italic mt-4 transition-colors ${changedCount > 0 ? "text-white/80" : "text-slate-400"}`}>
-                  Adjustments made this session
+                  Profiles with rate modifications
                 </p>
               </div>
               <div className={`p-3 rounded-lg flex items-center justify-center shrink-0 self-start transition-colors ${changedCount > 0 ? "bg-white/20 text-white" : "bg-slate-300/50 text-slate-500"}`}>
@@ -291,32 +359,37 @@ const PayrollEmployeeList = () => {
             </div>
             
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+              {/* Department Filter */}
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
-                <Select value={filterRole} onValueChange={setFilterRole}>
-                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                    <SelectValue placeholder="Filter by Role" />
+                <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+                  <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectValue placeholder="Filter by Department" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All Roles">All Roles</SelectItem>
-                    <SelectItem value="Employee">Employee</SelectItem>
-                    <SelectItem value="Supervisor">Supervisor</SelectItem>
-                    <SelectItem value="Admin Manager">Admin Manager</SelectItem>
-                    <SelectItem value="Admin Accountant">Admin Accountant</SelectItem>
+                    <SelectItem value="All Departments">All Departments</SelectItem>
+                    {departmentsList.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
+              {/* Daily Rate Range Filter */}
               <div className="flex items-center w-full sm:w-auto">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                    <SelectValue placeholder="Filter by Status" />
+                <Select value={filterRateRange} onValueChange={setFilterRateRange}>
+                  <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <SelectValue placeholder="Filter by Daily Rate" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All Statuses">All Statuses</SelectItem>
-                    <SelectItem value="Regular">Regular</SelectItem>
-                    <SelectItem value="Part-time">Part-time</SelectItem>
-                    <SelectItem value="Intern / OJT">Intern / OJT</SelectItem>
+                    <SelectItem value="All Rates">All Rates</SelectItem>
+                    <SelectItem value="0">No Rate (₱0)</SelectItem>
+                    <SelectItem value="1-500">₱1 - ₱500</SelectItem>
+                    <SelectItem value="501-1000">₱501 - ₱1,000</SelectItem>
+                    <SelectItem value="1001-1500">₱1,001 - ₱1,500</SelectItem>
+                    <SelectItem value="1501+">₱1,501+</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -391,20 +464,37 @@ const PayrollEmployeeList = () => {
                                     : maskAccountNumber(emp.account_Number)}
                                 </span>
                                 {emp.account_Number && (
-                                  <button 
-                                    onClick={() => toggleAccountVisibility(emp.user_Id)}
-                                    className="text-slate-400 hover:text-[#2A174E] transition-colors"
-                                    title={visibleAccounts.has(emp.user_Id) ? "Hide Account Number" : "Show Account Number"}
-                                  >
-                                    {visibleAccounts.has(emp.user_Id) 
-                                      ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> 
-                                      : <VisibilityIcon sx={{ fontSize: 16 }} />}
-                                  </button>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button 
+                                        onClick={() => toggleAccountVisibility(emp.user_Id)}
+                                        className="text-slate-400 hover:text-[#2A174E] transition-colors"
+                                      >
+                                        {visibleAccounts.has(emp.user_Id) 
+                                          ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> 
+                                          : <VisibilityIcon sx={{ fontSize: 16 }} />}
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                                      {visibleAccounts.has(emp.user_Id) ? "Hide Account Number" : "Show Account Number"}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 )}
                               </div>
                             </TableCell>
 
-                            <TableCell className="text-slate-600 text-sm py-4">{emp.user_Role || "—"}</TableCell>
+                            <TableCell className="text-slate-600 text-sm py-4">
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-slate-700">
+                                  {emp.positionTitle || emp.position || emp.user_Role || "—"}
+                                </span>
+                                {(emp.positionDepartment || emp.department) && (
+                                  <span className="text-[10px] text-slate-400 uppercase font-bold">
+                                    {emp.positionDepartment || emp.department}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
 
                             <TableCell className="py-4">
                               {hasChanged ? (
@@ -438,15 +528,23 @@ const PayrollEmployeeList = () => {
                             </TableCell>
 
                             <TableCell className="text-right pr-6 py-4">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(emp)}
-                                className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
-                                title="Edit daily rate"
-                              >
-                                <EditIcon className="h-4 w-4 mr-1" /> Edit Rate
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-block">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleEdit(emp)}
+                                      className="border-[#B8551F]/40 text-[#B8551F] hover:bg-[#FEE0C0] hover:border-[#E18C52]"
+                                    >
+                                      <Edit2Icon className="h-4 w-4" />
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                                  Edit daily rate and deductions
+                                </TooltipContent>
+                              </Tooltip>
                             </TableCell>
                           </TableRow>
                         );
@@ -466,56 +564,17 @@ const PayrollEmployeeList = () => {
                 </Table>
 
                 {/* Pagination Controls */}
-                {totalItems > 0 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
-                    <div className="flex items-center gap-4 text-sm text-slate-500">
-                      <div className="flex items-center gap-2">
-                        <span className="hidden sm:inline">Rows per page:</span>
-                        <Select 
-                          value={itemsPerPage.toString()} 
-                          onValueChange={(val) => setItemsPerPage(Number(val))}
-                        >
-                          <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
-                            <SelectValue placeholder="10" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="5">5</SelectItem>
-                            <SelectItem value="10">10</SelectItem>
-                            <SelectItem value="20">20</SelectItem>
-                            <SelectItem value="50">50</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="font-medium">
-                        Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
-                        className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                      >
-                        Previous
-                      </Button>
-                      <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
-                        {currentPage}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                        disabled={currentPage === totalPages || totalPages === 0}
-                        className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  setCurrentPage={setCurrentPage}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                  setItemsPerPage={setItemsPerPage}
+                  startIndex={startIndex}
+                  endIndex={endIndex}
+                  itemLabel="employees"
+                />
               </>
             )}
           </CardContent>
@@ -538,6 +597,7 @@ const PayrollEmployeeList = () => {
           {toast.message}
         </div>
       )}
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

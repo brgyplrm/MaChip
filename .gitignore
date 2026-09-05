@@ -13,7 +13,10 @@ seed_attendance.js
 uploads
 db_manager.js
 test_leave_insertion.js
-
+/seeds/
+/backend/seeds/*
+backend/db_reset.js
+seed_users.js
 sync_db.js
 seed_requests.js
 reproduce_500.js
@@ -24,3 +27,9 @@ check_config.js
 check_db.js
 request_debug.log
 backend/request_debug.log
+backend/seed_scenario.js
+backend/seed_leaves.js
+2024_mass_seed.js
+2025_mass_seed.js
+2026_mass_seed.js
+debugs

@@ -8,6 +8,7 @@
 //   const pdfBuffer = await generateDTRPDF({ employee, dtrData, period_Start, period_End, netPay });
 
 const puppeteer = require("puppeteer");
+const { formatDuration } = require("./systemTime.js");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -23,25 +24,43 @@ const formatPeriodLabel = (startStr, endStr) => {
 };
 
 /** Total hours across all DTR rows */
-const totalHours = (dtrData) =>
-  dtrData.reduce((sum, d) => sum + parseFloat(d.hoursWorked || 0), 0).toFixed(2);
+const totalHours = (dtrData) => {
+  const sum = dtrData.reduce((acc, d) => {
+    return acc + parseFloat(d.hoursWorked || 0);
+  }, 0);
+  return formatDuration(sum);
+};
 
 // ── HTML Builder ──────────────────────────────────────────────────────────────
 
 /**
- * Builds the complete DTR HTML string.
- *
  * @param {object}   employee    - { user_Id, user_FirstName, user_LastName }
  * @param {object[]} dtrData     - rows from getAttendanceReportInternal()
  * @param {string}   period_Start - "YYYY-MM-DD"
  * @param {string}   period_End   - "YYYY-MM-DD"
- * @param {number}   netPay       - computed net pay for the period
+ * @param {object}   fullStats    - computed payroll statistics
  */
-const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
+const buildDTRHTML = (employee, dtrData, period_Start, period_End, fullStats) => {
   const periodLabel = formatPeriodLabel(period_Start, period_End);
   const empId       = formatUserId(employee.user_Id);
   const empName     = `${employee.user_FirstName} ${employee.user_LastName}`;
   const totalHrs    = totalHours(dtrData);
+
+  // Map fullStats for summary table - be robust with property names (handle camelCase and lowercase)
+
+  const regHrs      = parseFloat(fullStats?.NoHrs_Worked || fullStats?.nohrs_worked || fullStats?.reg_hrs || 0).toFixed(2);
+  const hourlyRate  = parseFloat(fullStats?.ratePerHr || fullStats?.rateperhr || fullStats?.dailyRate / 8 || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  const bPayValue   = parseFloat(fullStats?.basicPay || fullStats?.basicpay || fullStats?.actualBasicPay || 0);
+  const basicPay    = bPayValue.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  const fineValue   = parseFloat(fullStats?.tardiness_Amnt || fullStats?.tardiness_amnt || 0);
+  const fines       = fineValue.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  const absValue    = parseInt(fullStats?.absence_Days || fullStats?.absence_days || 0);
+  
+  const netPayVal   = parseFloat(fullStats?.netPay || fullStats?.netpay || 0);
+  const netPay      = netPayVal.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+  const totalAtt    = (bPayValue - fineValue).toLocaleString("en-PH", { minimumFractionDigits: 2 });
+
+  console.log(`[DTR_GEN] Mapped -> regHrs: ${regHrs}, rate: ${hourlyRate}, basicPay: ${basicPay}, fines: ${fines}, netPay: ${netPay}`);
 
   // Build one <tr> per calendar day in the period
   const start    = new Date(period_Start + "T00:00:00");
@@ -52,17 +71,31 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
     const dayNum   = cur.getDate();
     const isSunday = cur.getDay() === 0;
 
+    // Manila-safe YYYY-MM-DD conversion
+    const curYYYY = cur.getFullYear();
+    const curMM   = String(cur.getMonth() + 1).padStart(2, '0');
+    const curDD   = String(cur.getDate()).padStart(2, '0');
+    const curDateStr = `${curYYYY}-${curMM}-${curDD}`;
+
     // Match the DTR row for this calendar day
     const log = dtrData.find((d) => {
-      const logDay = new Date(d.log_Date).getDate();
-      return logDay === dayNum;
+      if (!d.log_Date) return false;
+      const logDateOnly = String(d.log_Date).split('T')[0];
+      return logDateOnly === curDateStr;
     });
 
+    // Helper to hide 00:00 timestamps for system generated logs
+    const formatTime = (time, isSystem) => {
+      if (!time || time === "—" || time === "00:00") return "";
+      if (isSystem && time === "00:00") return "";
+      return time;
+    };
+
     const cell = (val) =>
-      `<td>${!isSunday && log && val && val !== "—" ? val : ""}</td>`;
+      `<td>${!isSunday && log ? formatTime(val, log.systemGenerated) : ""}</td>`;
 
     const dailyTotal =
-      !isSunday && log ? log.hoursWorked || "" : "";
+      !isSunday && log ? (log.hoursWorkedFormatted || formatDuration(log.hoursWorked) || "") : "";
 
     dayRows.push(`
       <tr class="${isSunday ? "weekend" : ""}">
@@ -254,23 +287,23 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
     <tbody>
       <tr>
         <td class="label">Reg.</td>
-        <td class="empty"></td>
-        <td class="empty"></td>
-        <td class="empty"></td>
+        <td class="empty">${regHrs}</td>
+        <td class="empty">₱${hourlyRate}</td>
+        <td class="empty">₱${basicPay}</td>
         <td class="label">Fines</td>
-        <td class="empty"></td>
+        <td class="empty">₱${fines}</td>
       </tr>
       <tr>
         <td class="label">Total Hrs</td>
         <td class="empty" colspan="3">${totalHrs} hrs</td>
-        <td class="label">Tax</td>
-        <td class="empty"></td>
+        <td class="label">Count</td>
+        <td class="empty">${absValue} days</td>
       </tr>
       <tr class="finalRow">
-        <td class="label" colspan="3">NET PAY</td>
-        <td class="empty">₱${parseFloat(netPay || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
-        <td class="label">TOTAL</td>
-        <td class="empty"></td>
+        <td class="label" colspan="3">NET PAY (Payroll Total)</td>
+        <td class="empty">₱${netPay}</td>
+        <td class="label">TOTAL (Attn.)</td>
+        <td class="empty">₱${totalAtt}</td>
       </tr>
     </tbody>
   </table>
@@ -310,28 +343,44 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, netPay) => {
 
 // ── Main Export ───────────────────────────────────────────────────────────────
 
+let _sharedBrowser = null;
+
+async function getSharedBrowser() {
+  if (!_sharedBrowser || !_sharedBrowser.isConnected()) {
+    _sharedBrowser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+    });
+  }
+  return _sharedBrowser;
+}
+
+async function closeSharedBrowser() {
+  if (_sharedBrowser && _sharedBrowser.isConnected()) {
+    try {
+      await _sharedBrowser.close();
+    } catch (e) {}
+    _sharedBrowser = null;
+  }
+}
+
 /**
- * Generates a DTR PDF buffer for a single employee.
- *
- * @param {object} params
+ * @param {object}   params
  * @param {object}   params.employee     - { user_Id, user_FirstName, user_LastName }
  * @param {object[]} params.dtrData      - rows from getAttendanceReportInternal()
  * @param {string}   params.period_Start - "YYYY-MM-DD"
  * @param {string}   params.period_End   - "YYYY-MM-DD"
- * @param {number}   params.netPay       - computed net pay
+ * @param {object}   params.fullStats    - computed payroll statistics
  * @returns {Promise<Buffer>} PDF buffer ready to attach to an email
  */
-const generateDTRPDF = async ({ employee, dtrData, period_Start, period_End, netPay }) => {
-  const html = buildDTRHTML(employee, dtrData, period_Start, period_End, netPay);
+const generateDTRPDF = async ({ employee, dtrData, period_Start, period_End, fullStats }) => {
+  const html = buildDTRHTML(employee, dtrData, period_Start, period_End, fullStats);
 
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
 
   try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
 
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -341,8 +390,10 @@ const generateDTRPDF = async ({ employee, dtrData, period_Start, period_End, net
 
     return pdfBuffer;
   } finally {
-    await browser.close();
+    try {
+      await page.close();
+    } catch (e) {}
   }
 };
 
-module.exports = { generateDTRPDF };
+module.exports = { generateDTRPDF, getSharedBrowser, closeSharedBrowser };

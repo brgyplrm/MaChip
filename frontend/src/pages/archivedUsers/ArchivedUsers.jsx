@@ -9,10 +9,11 @@ import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
 import PermanentDeleteModal from "../../components/permanentDeleteModal/PermanentDeleteModal";
+import RestoreUserModal from "../../components/restoreUserModal/RestoreUserModal";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 
@@ -23,10 +24,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const ArchivedUsers = () => {
   const [showPermDelete, setShowPermDelete] = useState(false);
   const [targetUser, setTargetUser] = useState(null);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [userToRestore, setUserToRestore] = useState(null);
+  const [restoring, setRestoring] = useState(false);
   const [archivedUsers, setArchivedUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
@@ -68,20 +75,33 @@ const ArchivedUsers = () => {
     setCurrentPage(1);
   }, [searchQuery, roleFilter, statusFilter, itemsPerPage]);
 
-  const handleRestore = async (user) => {
+  const initiateRestore = (user) => {
+    setUserToRestore(user);
+    setShowRestoreModal(true);
+  };
+
+  const handleConfirmRestore = async (formData) => {
+    if (!userToRestore) return;
+    setRestoring(true);
     try {
-      const response = await fetchWithAuth(`/api/users/restoreUser/${user.user_Id}`, {
+      const response = await fetchWithAuth(`/api/users/restoreUser/${userToRestore.user_Id}`, {
         method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData || {}),
       });
       if (response.ok) {
-        setArchivedUsers((prev) => prev.filter((u) => u.user_Id !== user.user_Id));
-        setToast({ message: `${user.user_FirstName} ${user.user_LastName} restored successfully.`, type: "success" });
+        setArchivedUsers((prev) => prev.filter((u) => u.user_Id !== userToRestore.user_Id));
+        setToast({ message: `${userToRestore.user_FirstName} ${userToRestore.user_LastName} restored successfully.`, type: "success" });
+        setShowRestoreModal(false);
+        setUserToRestore(null);
       } else {
         const err = await response.json();
-        setToast({ message: err.message || "Failed to restore user.", type: "error" });
+        setToast({ message: err.error || err.message || "Failed to restore user.", type: "error" });
       }
     } catch (err) {
       setToast({ message: "Network error.", type: "error" });
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -166,52 +186,111 @@ const ArchivedUsers = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+      <TooltipProvider>
+        <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
-        {/* Header section */}
-        <div className="flex items-start md:items-center gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Archived Users</h1>
-            <span className="text-sm text-slate-500 mt-1 block">Manage archived user records - restore or permanently delete</span>
+        {/* Header section with hover-back button */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6 mb-4">
+          <div className="group flex items-center gap-0 transition-all">
+            {/* Back Button: Hidden by default, slides and fades in on hover */}
+            <div className="w-0 overflow-hidden group-hover:w-12 transition-all duration-300 ease-in-out">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      asChild 
+                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                    >
+                      <Link to="/users">
+                        <ChevronLeft className="h-6 w-6" />
+                      </Link>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                  Back to User Management
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
+            {/* Title: Adds left padding when hovered */}
+            <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
+              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Archived Users</h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Manage archived user records - restore or permanently delete
+              </p>
+            </div>
           </div>
         </div>
 
         {/* Statistics Cards */}
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-                {/* Card 1: Total Active Users */}
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
-                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
-                    <div>
-                      <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Archived</p>
-                      <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
-                    </div>
-                    <p className="text-xs text-[#2A174E]/70 italic mt-4">Total registered active accounts</p>
-                  </CardContent>
-                </Card>
-        
-                {/* Card 2: Employees */}
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
-                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
-                    <div>
-                      <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Employees</p>
-                      <p className="text-4xl font-bold text-[#3B4E17]">{stats.employees}</p>
-                    </div>
-                    <p className="text-xs text-[#3B4E17]/70 italic mt-4">Active standard staff records</p>
-                  </CardContent>
-                </Card>
-        
-                {/* Card 3: Admins & Supervisors */}
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
-                  <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
-                    <div>
-                      <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Admin & Supervisor</p>
-                      <p className="text-4xl font-bold text-[#BB8B26]">{stats.admins}</p>
-                    </div>
-                    <p className="text-xs text-[#BB8B26]/70 italic mt-4">Active management records</p>
-                  </CardContent>
-                </Card>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          {/* Card 1: Total Active Users */}
+          <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Total Archived</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                      Total number of soft-deleted employee profiles currently held in the system database.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
               </div>
+              <p className="text-xs text-[#2A174E]/70 italic mt-4">Total registered active accounts</p>
+            </CardContent>
+          </Card>
+  
+          {/* Card 2: Employees */}
+          <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Employees</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                      Archived standard staff records.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <p className="text-4xl font-bold text-[#3B4E17]">{stats.employees}</p>
+              </div>
+              <p className="text-xs text-[#3B4E17]/70 italic mt-4">Active standard staff records</p>
+            </CardContent>
+          </Card>
+  
+          {/* Card 3: Admins & Supervisors */}
+          <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+            <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Admin & Supervisor</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                      Archived management accounts.
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <p className="text-4xl font-bold text-[#BB8B26]">{stats.admins}</p>
+              </div>
+              <p className="text-xs text-[#BB8B26]/70 italic mt-4">Active management records</p>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Filters Card */}
         <Card className="shadow-sm border-0 bg-white mb-6 py-0">
@@ -263,14 +342,23 @@ const ArchivedUsers = () => {
 
               {/* Conditionally Rendered Clear Button */}
               {isFiltering && (
-                <Button 
-                  variant="ghost" 
-                  onClick={handleClearFilters}
-                  className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold"
-                >
-                  <CloseIcon className="h-4 w-4 mr-1" />
-                  Clear
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block w-full sm:w-auto">
+                      <Button 
+                        variant="ghost" 
+                        onClick={handleClearFilters}
+                        className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold"
+                      >
+                        <CloseIcon className="h-4 w-4 mr-1" />
+                        Clear
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    Reset search and filter selections
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
           </CardContent>
@@ -283,11 +371,35 @@ const ArchivedUsers = () => {
               <Table className="min-w-[800px] md:min-w-full">
                 <TableHeader className="bg-[#2A174E]">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
-                    <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">User ID</TableHead>
+                    <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">
+                      <div className="flex items-center gap-1">
+                        User ID
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            Unique employee identifier linked to active shift logging.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
                     <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Name</TableHead>
                     <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Email</TableHead>
                     <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Role</TableHead>
-                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Archived Date</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">
+                      <div className="flex items-center gap-1">
+                        Archived Date
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                            The timestamp when this profile was soft-deleted (deletedAt).
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableHead>
                     <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider text-right pr-6">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -308,23 +420,41 @@ const ArchivedUsers = () => {
                         </TableCell>
                         <TableCell className="py-4 text-right pr-6">
                           <div className="flex items-center justify-end gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white transition-colors"
-                              onClick={() => handleRestore(user)}
-                            >
-                              <RestoreIcon className="mr-1 h-4 w-4" /> Restore
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-block">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white transition-colors"
+                                    onClick={() => initiateRestore(user)}
+                                  >
+                                    <RestoreIcon className="h-4 w-4" />
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                Restore employee access and recovery profile to active listings.
+                              </TooltipContent>
+                            </Tooltip>
                             {currentUser?.user_Id !== user.user_Id && (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors"
-                                onClick={() => initiatePermanentDelete(user)}
-                              >
-                                <DeleteOutlineIcon className="mr-1 h-4 w-4" /> Delete
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-block">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors"
+                                      onClick={() => initiatePermanentDelete(user)}
+                                    >
+                                      <DeleteOutlineIcon className="h-4 w-4" />
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 max-w-xs">
+                                  Permanently delete employee profile.
+                                </TooltipContent>
+                              </Tooltip>
                             )}
                           </div>
                         </TableCell>
@@ -368,61 +498,17 @@ const ArchivedUsers = () => {
             </div>
 
             {/* Pagination Controls */}
-            {totalItems > 0 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
-                
-                <div className="flex items-center gap-4 text-sm text-slate-500">
-                  <div className="flex items-center gap-2">
-                    <span className="hidden sm:inline">Rows per page:</span>
-                    <Select 
-                      value={itemsPerPage.toString()} 
-                      onValueChange={(val) => setItemsPerPage(Number(val))}
-                    >
-                      <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
-                        <SelectValue placeholder="10" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="font-medium">
-                    Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                  >
-                    Previous
-                  </Button>
-                  
-                  <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
-                    {currentPage}
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                  >
-                    Next
-                  </Button>
-                </div>
-
-              </div>
-            )}
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              setItemsPerPage={setItemsPerPage}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              itemLabel={totalItems === 1 ? "archived account" : "archived accounts"}
+            />
           </CardContent>
         </Card>
 
@@ -435,6 +521,22 @@ const ArchivedUsers = () => {
         itemName={targetUser ? `${targetUser.user_FirstName} ${targetUser.user_LastName}` : ""}
         loading={loading}
       />
+
+      <RestoreUserModal
+        isOpen={showRestoreModal}
+        onClose={() => {
+          if (!restoring) {
+            setShowRestoreModal(false);
+            setUserToRestore(null);
+          }
+        }}
+        onConfirm={handleConfirmRestore}
+        user={userToRestore}
+        itemName={userToRestore ? `${userToRestore.user_FirstName} ${userToRestore.user_LastName}` : ""}
+        userId={userToRestore ? formatUserId(userToRestore.user_Id) : ""}
+        loading={restoring}
+      />
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

@@ -44,6 +44,16 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         defaultValue: null,
       },
+      reason: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: null,
+      },
+      admin_id: {
+        type: DataTypes.SMALLINT,
+        allowNull: true,
+        defaultValue: null,
+      },
     },
     {
       timestamps: false,
@@ -114,6 +124,27 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.SMALLINT,
         allowNull: false,
         defaultValue: 1,
+      },
+      // Payable Units (Calculated per shift)
+      reg_hrs: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+      },
+      nd_hrs: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+      },
+      ot_hrs: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+      },
+      holiday_hrs: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+      },
+      total_payable_hrs: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
       },
     },
     {

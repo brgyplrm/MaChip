@@ -1,12 +1,14 @@
 const express = require("express");
 const router = express.Router();
+
 const systemController = require("../controllers/system.controller.js");
 const { requireAdmin, requireMaster, requireRole } = require("../middleware/roleCheck.js");
 const authMiddleware = require("../middleware/auth.js");
 const upload = require("../middleware/upload.js");
 
 router.get("/settings", requireAdmin, systemController.getSystemSettings);
-router.post("/settings", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateSystemSettings);
+router.put("/settings", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateSystemSettings);
+router.patch("/mandated-wage", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateMandatedWage);
 router.get("/time", systemController.getSystemTime);
 router.get("/holidays", authMiddleware, systemController.getHolidays);
 router.post("/holidays", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.createHoliday);
@@ -18,6 +20,11 @@ router.post("/due-dates", requireRole(1, 4, "Admin Manager", "Admin Accountant")
 router.delete("/due-dates/:dueDateId", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.deleteDueDate);
 
 router.post("/batch-calendar", requireRole(1, 4, "Admin Manager", "Admin Accountant"), upload.single("csvFile"), systemController.batchCalendar);
+
+// Reference Tables Routes
+router.get("/reference-data/:tableType", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.getReferenceTableData);
+router.post("/reference-data/upload/:tableType", requireRole(1, 4, "Admin Manager", "Admin Accountant"), upload.single("csvFile"), systemController.uploadReferenceTable);
+router.put("/reference-data/toggle/:tableType", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.toggleReferenceTableVersion);
 
 router.get("/browse", requireAdmin, systemController.browseDirectories);
 router.post("/create-folder", requireAdmin, systemController.createDirectory);

@@ -37,28 +37,21 @@ exports.loginUser = async (req, res) => {
 
     const user = result[0];
 
-    console.log(
-      "[AUTH] User found:",
-      user ? `yes (role: ${user.user_RoleId} - ${user.user_Role})` : "no",
-    );
-
     if (!user) {
       return res.status(401).json({ error: "Invalid user ID or password." });
     }
 
     const isMatch = await bcrypt.compare(password, user.user_Password);
-    console.log("[AUTH] Comparing password:", `"${password}"`, "length:", password.length);
-    console.log("[AUTH] Against hash:", user.user_Password.substring(0, 10) + "...", "length:", user.user_Password.length);
-    console.log("[AUTH] Password match result:", isMatch);
 
     if (!isMatch) {
       return res.status(401).json({ error: "Invalid user ID or password." });
     }
 
-    const allowedRoles = ["Admin Manager", "Admin Accountant", "Supervisor", "Employee", "Admin"];
-    if (!allowedRoles.includes(user.user_Role)) {
-      console.log("[AUTH] Role denied:", user.user_Role);
-      return res.status(403).json({ error: "Access denied." });
+    // Validate system role (strictly roleId 1 to 4: 1=Admin Manager, 2=Supervisor, 3=Employee, 4=Admin Accountant)
+    const roleId = parseInt(user.user_RoleId, 10);
+    if (![1, 2, 3, 4].includes(roleId)) {
+      console.log("[AUTH] Access denied: User has invalid roleId:", user.user_RoleId);
+      return res.status(403).json({ error: "Access denied. Invalid user role." });
     }
 
     // Generate JWT
@@ -139,3 +132,234 @@ exports.logoutUser = async (req, res) => {
     return res.status(500).json({ error: "Failed to log logout event." });
   }
 };
+
+exports.verifyPassword = async (req, res) => {
+  const { password } = req.body || {};
+  const userId = req.user ? req.user.user_Id : null;
+
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized session." });
+  }
+  if (!password) {
+    return res.status(400).json({ error: "Password is required." });
+  }
+
+  try {
+    const result = await sequelize.query(
+      `SELECT "user_Password" FROM "User" WHERE "user_Id" = :userId AND "deletedAt" IS NULL`,
+      {
+        replacements: { userId },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!result || result.length === 0) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const isMatch = await bcrypt.compare(password, result[0].user_Password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Incorrect password. Verification failed." });
+    }
+
+    return res.status(200).json({ success: true, message: "Password verified successfully." });
+  } catch (err) {
+    console.error("[VERIFY PASSWORD ERROR]:", err);
+    return res.status(500).json({ error: "Server error verifying password." });
+  }
+};
+
+const crypto = require("crypto");
+const { sendPasswordResetEmail, sendPasswordUpdateEmail } = require("../utils/emailService");
+
+// ── Self-Service Forgot Password ──────────────────────────────────────────────
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body || {};
+
+  if (!email || typeof email !== "string" || !email.trim()) {
+    return res.status(400).json({ error: "Email address is required." });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  try {
+    // 1. Look up user by email (case-insensitive & active only)
+    const users = await sequelize.query(
+      `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email" 
+       FROM "User" 
+       WHERE LOWER("user_Email") = :email AND "deletedAt" IS NULL`,
+      {
+        replacements: { email: cleanEmail },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!users || users.length === 0) {
+      return res.status(404).json({ error: "No active user found with that email address." });
+    }
+
+    const user = users[0];
+    const token = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour validity
+
+    // 2. Persist reset token
+    await sequelize.query(
+      `UPDATE "User"
+       SET "resetPasswordToken" = :token,
+           "resetPasswordExpires" = :expires
+       WHERE "user_Id" = :userId`,
+      {
+        replacements: { token, expires, userId: user.user_Id },
+        type: QueryTypes.UPDATE
+      }
+    );
+
+    // 3. Resolve frontend host URL
+    let clientUrl = "http://localhost:5173";
+    if (req.headers.origin) {
+      clientUrl = req.headers.origin;
+    } else if (req.headers.referer) {
+      try {
+        clientUrl = new URL(req.headers.referer).origin;
+      } catch (_) {}
+    } else if (process.env.CLIENT_URL) {
+      clientUrl = process.env.CLIENT_URL;
+    }
+
+    const resetLink = `${clientUrl}/reset-password?token=${token}`;
+
+    // 4. Send email via Nodemailer
+    await sendPasswordResetEmail({
+      email: user.user_Email,
+      name: `${user.user_FirstName} ${user.user_LastName}`,
+      resetLink,
+      expiresMinutes: 60
+    });
+
+    await logAudit(req, user.user_Id, "Authentication", "REQUEST_PASSWORD_RESET", "User", user.user_Id, null, {
+      email: user.user_Email,
+      expires
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Password reset instructions have been sent to ${user.user_Email}. Please check your inbox.`
+    });
+  } catch (err) {
+    console.error("[FORGOT PASSWORD ERROR]:", err);
+    return res.status(500).json({ error: "Failed to process password reset request. Please try again later." });
+  }
+};
+
+// ── Verify Reset Token Validity ───────────────────────────────────────────────
+exports.verifyResetToken = async (req, res) => {
+  const { token } = req.params;
+
+  if (!token) {
+    return res.status(400).json({ valid: false, error: "Reset token is required." });
+  }
+
+  try {
+    const users = await sequelize.query(
+      `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email", "resetPasswordExpires"
+       FROM "User"
+       WHERE "resetPasswordToken" = :token AND "deletedAt" IS NULL`,
+      {
+        replacements: { token },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!users || users.length === 0) {
+      return res.status(400).json({ valid: false, error: "This password reset link is invalid or has already been used." });
+    }
+
+    const user = users[0];
+    const now = new Date();
+    if (new Date(user.resetPasswordExpires) < now) {
+      return res.status(400).json({ valid: false, error: "This password reset link has expired. Please request a new one." });
+    }
+
+    return res.status(200).json({
+      valid: true,
+      email: user.user_Email,
+      name: `${user.user_FirstName} ${user.user_LastName}`
+    });
+  } catch (err) {
+    console.error("[VERIFY RESET TOKEN ERROR]:", err);
+    return res.status(500).json({ valid: false, error: "Error verifying reset token." });
+  }
+};
+
+// ── Complete Password Reset ───────────────────────────────────────────────────
+exports.resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body || {};
+
+  if (!token) {
+    return res.status(400).json({ error: "Reset token is required." });
+  }
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters long." });
+  }
+
+  try {
+    const users = await sequelize.query(
+      `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email", "resetPasswordExpires"
+       FROM "User"
+       WHERE "resetPasswordToken" = :token AND "deletedAt" IS NULL`,
+      {
+        replacements: { token },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!users || users.length === 0) {
+      return res.status(400).json({ error: "This password reset link is invalid or has already been used." });
+    }
+
+    const user = users[0];
+    const now = new Date();
+    if (new Date(user.resetPasswordExpires) < now) {
+      return res.status(400).json({ error: "This password reset link has expired. Please request a new one." });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await sequelize.query(
+      `UPDATE "User"
+       SET "user_Password" = :hashedPassword,
+           "resetPasswordToken" = NULL,
+           "resetPasswordExpires" = NULL,
+           "updatedAt" = NOW()
+       WHERE "user_Id" = :userId`,
+      {
+        replacements: { hashedPassword, userId: user.user_Id },
+        type: QueryTypes.UPDATE
+      }
+    );
+
+    await logAudit(req, user.user_Id, "Authentication", "RESET_PASSWORD_SELF", "User", user.user_Id, null, {
+      method: "Self-Service Email Reset"
+    });
+
+    // Send confirmation security alert email
+    try {
+      await sendPasswordUpdateEmail({
+        email: user.user_Email,
+        newPassword: newPassword,
+        name: `${user.user_FirstName} ${user.user_LastName}`
+      });
+    } catch (emailErr) {
+      console.error("[CONFIRMATION EMAIL ERROR]:", emailErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Your password has been successfully reset! You can now log in with your new password."
+    });
+  } catch (err) {
+    console.error("[RESET PASSWORD ERROR]:", err);
+    return res.status(500).json({ error: "Failed to reset password. Please try again." });
+  }
+};
+

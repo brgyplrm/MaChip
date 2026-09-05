@@ -11,15 +11,22 @@ const {
   getCalendarReport,
   DeleteRequest,
   getLeaveSummary,
+  UpdateUserRequest,
+  notifySupervisor,
 } = require("../controllers/userRequest.controlller");
 const { requireOps, requireStaff, requireRole } = require("../middleware/roleCheck.js");
 const authMiddleware = require("../middleware/auth.js");
 const upload = require("../middleware/upload");
 
-router.post("/", upload.single("proofFile"), UserCreateRequest);
+const uploadFields = upload.fields([
+  { name: "proofFile", maxCount: 1 },
+  { name: "damageProofFile", maxCount: 1 }
+]);
+
+router.post("/", uploadFields, UserCreateRequest);
 router.post(
   "/UserCreateRequest",
-  upload.single("proofFile"),
+  uploadFields,
   UserCreateRequest,
 );
 router.get("/all", requireStaff, GetAllRequests);
@@ -33,9 +40,11 @@ router.get("/balance/:userId", (req, res, next) => {
   }
   requireStaff(req, res, next);
 }, GetLeaveBalance);
-router.get("/details/:requestId", requireStaff, GetRequestDetails);
+router.get("/details/:requestId", authMiddleware, GetRequestDetails);
 router.get("/:userId", GetUserRequests);
 router.put("/update-status", requireOps, UpdateStatusRequest);
+router.put("/update/:requestId", authMiddleware, UpdateUserRequest);
+router.post("/notify-supervisor/:requestId", authMiddleware, notifySupervisor);
 router.delete("/delete/:requestId", DeleteRequest);
 
 module.exports = router;

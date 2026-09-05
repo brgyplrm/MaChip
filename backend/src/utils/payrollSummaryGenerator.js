@@ -1,11 +1,11 @@
 // backend/src/utils/payrollSummaryGenerator.js
-// Generates an 8-page Payroll Summary PDF replicating the Mac-J Excel format.
+// Generates a 7-page Payroll Summary PDF replicating the Mac-J Excel format.
 const puppeteer = require("puppeteer");
+const { formatDuration } = require("./systemTime.js");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const peso = (val) => {
-  const v = parseFloat(val);
-  if (isNaN(v)) return "0.00";
+  const v = Math.max(0, parseFloat(val) || 0);
   return v.toLocaleString("en-PH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -13,8 +13,7 @@ const peso = (val) => {
 };
 
 const thousandths = (val) => {
-  const v = parseFloat(val);
-  if (isNaN(v)) return "0.000";
+  const v = Math.max(0, parseFloat(val) || 0);
   return v.toLocaleString("en-PH", {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
@@ -55,7 +54,17 @@ const getPastMonth = (rows) => {
 };
 
 // ── HTML Builder ──────────────────────────────────────────────────────────────
-const build8PageReportHTML = (rawRows, periodLabel) => {
+const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
+  // Default signatures if not provided
+  const sigs = {
+    preparedBy: signatures.preparedBy || "Loonie Medina",
+    approvedBy: signatures.approvedBy || "Kael Voss",
+    checkedBy: signatures.checkedBy || "Jenny C. Galeon",
+    preparedByLabel: signatures.preparedByLabel || "Prepared by",
+    approvedByLabel: signatures.approvedByLabel || "Approved by",
+    checkedByLabel: signatures.checkedByLabel || "Checked by"
+  };
+
   // ── Pre-process rows to ensure "Worked Days" model consistency ─────────────
   const payrollRows = rawRows.map(r => {
     const dailyRate = parseFloat(r.dailyRate || 0);
@@ -78,6 +87,8 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
     return {
       ...r,
       basicPay: computedBasic,
+      NoHrs_Worked_Formatted: formatDuration(r.NoHrs_Worked),
+      OT_Hrs_Formatted: formatDuration(r.OT_Hrs),
       absence_Amnt: 0, // Set to 0 because absences are consolidated into tardiness_Amnt for deduction
       tardiness_Amnt: absTard_Amnt,
       absTardDisplay: absTard_Amnt,  // For Page 3 display
@@ -125,7 +136,7 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
     holidayPay: sum(payrollRows, "legalHol_Amnt") + sum(payrollRows, "specialHol_Amnt"),
     incentives: sum(payrollRows, "incentives"),
     allowance: sum(payrollRows, "allowance"),
-    // Page 7 specific totals
+    // Page 6 specific totals
     totalERShare: sum(payrollRows, "SSS_Ded_ER") + sum(payrollRows, "Philhealth_Ded_ER") + sum(payrollRows, "HDMF_Ded_ER"),
     remitSSS: sum(payrollRows, "SSS_Ded") + sum(payrollRows, "SSS_Ded_ER"),
     remitPH: sum(payrollRows, "Philhealth_Ded") + sum(payrollRows, "Philhealth_Ded_ER"),
@@ -145,15 +156,22 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
     </div>
   `;
 
-  const footerSigs = `
+  const footerSigsPages1to6 = `
     <div class="signature-area">
-      <div class="sig-block"><div class="sig-line"></div><div class="sig-name">Gracel Joy Monis</div><div class="sig-label">Prepared by</div></div>
-      <div class="sig-block"><div class="sig-line"></div><div class="sig-name">Jenny C. Galeon</div><div class="sig-label">Checked by</div></div>
-      <div class="sig-block"><div class="sig-line"></div><div class="sig-name">Myla Dawal</div><div class="sig-label">Approved by</div></div>
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-name">${sigs.preparedBy}</div><div class="sig-label">${sigs.preparedByLabel}</div></div>
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-name">${sigs.approvedBy}</div><div class="sig-label">${sigs.approvedByLabel}</div></div>
     </div>
   `;
 
-  const pageNum = (n) => `<div class="page-num">Page ${n} of 8</div>`;
+  const footerSigsPage7 = `
+    <div class="signature-area">
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-name">${sigs.preparedBy}</div><div class="sig-label">${sigs.preparedByLabel}</div></div>
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-name">${sigs.approvedBy}</div><div class="sig-label">${sigs.approvedByLabel}</div></div>
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-name">${sigs.checkedBy}</div><div class="sig-label">${sigs.checkedByLabel}</div></div>
+    </div>
+  `;
+
+  const pageNum = (n) => `<div class="page-num">Page ${n} of 7</div>`;
 
   // Page 1: Employee Info
   const page1 = `
@@ -172,7 +190,6 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
             </tr>`).join('')}
         </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(1)}
     </div>
   `;
@@ -197,12 +214,11 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
               <td class="center">${r.taxStatus || 'S'}</td><td>${r.position || ''}</td>
               <td class="amt">${peso(r.previousDailyRate)}</td><td class="amt">${peso(r.dailyRate)}</td>
               <td class="amt">${thousandths(r.ratePerHr)}</td><td class="center">${r.NoDays_Worked}</td>
-              <td class="center">${r.NoHrs_Worked}</td><td class="amt bold">${peso(r.basicPay)}</td>
+              <td class="center">${r.NoHrs_Worked_Formatted}</td><td class="amt bold">${peso(r.basicPay)}</td>
             </tr>`).join('')}
           <tr class="totals-row"><td colspan="9">TOTAL</td><td class="amt">${peso(totals.basicPay)}</td></tr>
         </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(2)}
     </div>
   `;
@@ -223,6 +239,7 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
             <th colspan="4">ADDITIONAL PAY</th>
             <th rowspan="3">Total<br> Additional Pay</th>
             <th rowspan="3">Total<br> Gross Pay</th>
+            <th rowspan="3">BASIC PAY</th>
           </tr>
           <tr class="group-header">
             <th rowspan="2">Minutes</th>
@@ -241,19 +258,20 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
           ${payrollRows.map(r => {
             const addPay = parseFloat(r.OT_Amnt || 0) + parseFloat(r.incentives || 0) + parseFloat(r.leaveCredits || 0) + parseFloat(r.holPay || 0);
             // actualGross formula: Basic Pay - Tardiness + Additional Pay (including Holidays)
-            // Absence is already excluded from basicPay
             const actualGross = parseFloat(r.basicPay || 0) - parseFloat(r.tardiness_Amnt || 0) + addPay;
+            const basicPayAfterTard = parseFloat(r.basicPay || 0) - parseFloat(r.tardiness_Amnt || 0);
             return `
             <tr>
               <td>${formatEmpId(r.user_Id)}</td><td>${formatShortName(r.user_LastName, r.user_FirstName)}</td>
               <td class="center">${r.taxStatus || 'S'}</td>
               <td class="center">${r.totalMins}</td><td class="amt">${peso(r.absTardDisplay)}</td>
               <td class="amt bold">${peso(r.absTardDisplay)}</td>
-              <td class="center">${r.OT_Hrs || 0}</td><td class="amt">${peso(r.OT_Amnt)}</td>
+              <td class="center">${r.OT_Hrs_Formatted}</td><td class="amt">${peso(r.OT_Amnt)}</td>
               <td class="amt">${peso(r.incentives)}</td>
               <td class="amt">${peso(r.leaveCredits)}</td>
               <td class="amt bold">${peso(addPay)}</td>
               <td class="amt bold" style="color:#1e3a8a">${peso(actualGross)}</td>
+              <td class="amt bold">${peso(basicPayAfterTard)}</td>
             </tr>`;
           }).join('')}
           <tr class="totals-row">
@@ -261,15 +279,15 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
             <td class="center">${sum(payrollRows, "totalMins")}</td>
             <td class="amt">${peso(totals.totalAbsTardDisplay)}</td>
             <td class="amt">${peso(totals.totalAbsTardDisplay)}</td>
-            <td class="center">${sum(payrollRows, "OT_Hrs")}</td><td class="amt">${peso(totals.OT_Amnt)}</td>
+            <td class="center">${formatDuration(sum(payrollRows, "OT_Hrs"))}</td><td class="amt">${peso(totals.OT_Amnt)}</td>
             <td class="amt">${peso(totals.incentives)}</td>
             <td class="amt">${peso(sum(payrollRows, "leaveCredits"))}</td>
             <td class="amt bold">${peso(totals.totalAdditionalPay)}</td>
             <td class="amt bold" style="color:#1e3a8a">${peso(totals.totalGrossPay)}</td>
+            <td class="amt bold">${peso(totals.basicPay - totals.totalAbsenceTardiness)}</td>
           </tr>
         </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(3)}
     </div>
   `;
@@ -327,11 +345,8 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
             <td class="amt">${peso(totals.mpSavings)}</td><td class="amt">${peso(totals.advances)}</td>
             <td class="amt bold">${peso(totals.totalOtherDed)}</td>
             </tr>
-            <tr class="totals-row">
-            </tr>
             </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(4)}
     </div>
   `;
@@ -346,12 +361,8 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
           <tr>
             <th>EMP#</th><th>NAME</th><th>TAX STATUS</th>
             <th>ALLOWANCES</th><th>NET PAY</th>
-            <th style="width:140px">Received by:</th>
             <th>Deduction<br/>EASTWEST Loan</th>
             <th>FOR DEPOSIT</th>
-            <th style="width:25px"></th>
-            <th>INTERNAL</th>
-            <th>BASIC PAY</th>
           </tr>
         </thead>
         <tbody>
@@ -363,98 +374,36 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
             const other = parseFloat(r.Tax_Ded || 0) + parseFloat(r.healthCard_Amnt || 0) + parseFloat(r.SSS_Loan || 0) + parseFloat(r.HDMF_Loan || 0) + parseFloat(r.multiPurposeSavings || 0) + parseFloat(r.advances_Amnt || 0);
             const formulaNetPay = taxableIncome - other + parseFloat(r.allowance || 0);
             
-            // Received by: mirrors Net Pay column exactly as requested
-            const receivedBy = formulaNetPay;
             // FOR DEPOSIT: Net Pay - EastWest
-            const forDeposit = receivedBy - parseFloat(r.eastwest_Loan || 0);
+            const forDeposit = formulaNetPay - parseFloat(r.eastwest_Loan || 0);
 
-            const basicMinusAbsTard = parseFloat(r.basicPay || 0) - parseFloat(r.tardiness_Amnt || 0);
-            const internalLabel = parseInt(r.user_Id) <= 24 ? "MAIN" : "";
-            
             return `
             <tr>
               <td>${formatEmpId(r.user_Id)}</td><td>${formatShortName(r.user_LastName, r.user_FirstName)}</td>
               <td class="center">${r.taxStatus || 'S'}</td>
               <td class="amt">${peso(r.allowance)}</td>
               <td class="amt bold">${peso(formulaNetPay)}</td>
-              <td class="amt">${peso(receivedBy)}</td>
               <td class="amt">${peso(r.eastwest_Loan)}</td>
               <td class="amt bold" style="color:#166534">${peso(forDeposit)}</td>
-              <td></td>
-              <td class="center">${internalLabel}</td>
-              <td class="amt">${peso(basicMinusAbsTard)}</td>
             </tr>`}).join('')}
           <tr class="totals-row">
             <td colspan="3">TOTAL</td>
             <td class="amt">${peso(totals.allowance)}</td>
             <td class="amt">${peso(totals.totalNetPay)}</td>
-            <td class="amt">${peso(totals.totalNetPay)}</td>
             <td class="amt">${peso(totals.eastwest)}</td>
             <td class="amt">${peso(totals.totalNetPay - totals.eastwest)}</td>
-            <td></td>
-            <td></td>
-            <td class="amt">${peso(totals.basicPay - totals.totalAbsenceTardiness)}</td>
           </tr>
         </tbody>
       </table>
-      ${footerSigs}
       ${pageNum(5)}
     </div>
   `;
 
-  // Page 6: Other Compensation & BIR
+  // Page 6: ER Share
   const page6 = `
     <div class="page">
       ${commonHeader}
-      <div class="doc-title">Additional Compensation & Tax Summary (Page 6)</div>
-      <table>
-        <thead>
-          <tr>
-            <th>EMP#</th><th>NAME</th><th>TAX STATUS</th>
-            <th>Holiday Pay</th>
-            <th>Overtime Pay</th>
-            <th>Night Diff. Pay</th>
-            <th>Hazard Pay</th>
-            <th>C-O-L-A</th>
-            <th>Other Compensation</th>
-            <th>BIR</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${payrollRows.map(r => `
-            <tr>
-              <td>${formatEmpId(r.user_Id)}</td><td>${formatShortName(r.user_LastName, r.user_FirstName)}</td>
-              <td class="center">${r.taxStatus || 'S'}</td>
-              <td class="amt">${peso(parseFloat(r.legalHol_Amnt||0)+parseFloat(r.specialHol_Amnt||0))}</td>
-              <td class="amt">${peso(r.OT_Amnt)}</td>
-              <td class="amt">${peso(r.nightDiff_Amnt)}</td>
-              <td class="amt">0.00</td>
-              <td class="amt">0.00</td>
-              <td class="amt">${peso(r.incentives)}</td>
-              <td class="amt">${r.Tax_Ded && parseFloat(r.Tax_Ded) !== 0 ? peso(r.Tax_Ded) : ""}</td>
-            </tr>`).join('')}
-          <tr class="totals-row">
-            <td colspan="3">TOTAL</td>
-            <td class="amt">${peso(totals.holidayPay)}</td>
-            <td class="amt">${peso(totals.OT_Amnt)}</td>
-            <td class="amt">${peso(totals.nightDiff)}</td>
-            <td class="amt">0.00</td>
-            <td class="amt">0.00</td>
-            <td class="amt">${peso(totals.incentives)}</td>
-            <td class="amt">${peso(totals.Tax_Ded)}</td>
-          </tr>
-        </tbody>
-      </table>
-      ${footerSigs}
-      ${pageNum(6)}
-    </div>
-  `;
-
-  // Page 7: ER Share
-  const page7 = `
-    <div class="page">
-      ${commonHeader}
-      <div class="doc-title">Employer Contributions & Remittances (Page 7)</div>
+      <div class="doc-title">Employer Contributions & Remittances (Page 6)</div>
       <table>
         <thead>
           <tr class="group-header">
@@ -507,20 +456,19 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
           </tr>
         </tbody>
       </table>
-      ${footerSigs}
-      ${pageNum(7)}
+      ${pageNum(6)}
     </div>
   `;
 
-  // Page 8: Journal Entry
-  const page8 = `
+  // Page 7: Journal Entry
+  const page7 = `
     <div class="page">
       ${commonHeader}
-      <div class="doc-title">Journal Entry Summary (Page 8)</div>
+      <div class="doc-title">Journal Entry Summary (Page 7)</div>
       <div class="journal-box">
         <table>
           <tr class="j-header"><th>Account Description</th><th class="amt">Debit</th><th class="amt">Credit</th></tr>
-          <tr><td>Salaries & allowances</td><td class="amt">${peso(totals.totalGrossPay + totals.allowance + totals.globe)}</td><td></td></tr>
+          <tr><td>Salaries & allowances</td><td class="amt">${peso(totals.totalGrossPay + totals.allowance)}</td><td></td></tr>
           <tr><td>SSS, Philhealth & HDMF contr</td><td class="amt">${peso(totals.totalERShare)}</td><td></td></tr>
           
           <tr><td>SSS contribution payable (EE+ER)</td><td></td><td class="amt">${peso(totals.remitSSS)}</td></tr>
@@ -532,19 +480,18 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
           <tr><td>SSS Loan payable</td><td></td><td class="amt">${peso(totals.SSS_Loan)}</td></tr>
           <tr><td>Healthcard-Maxicare</td><td></td><td class="amt">${peso(totals.healthCard)}</td></tr>
           <tr><td>Advances to employees</td><td></td><td class="amt">${peso(totals.advances)}</td></tr>
-          <tr><td>Globe Deduction</td><td></td><td class="amt">${peso(totals.globe)}</td></tr>
           
           <tr class="total-line"><td><strong>Cash in bank-BDO</strong></td><td></td><td class="amt"><strong>${peso(totals.totalNetPay)}</strong></td></tr>
           
           <tr class="final-row">
             <td><strong>TOTAL</strong></td>
-            <td class="amt"><strong>${peso(totals.totalGrossPay + totals.allowance + totals.globe + totals.totalERShare)}</strong></td>
-            <td class="amt"><strong>${peso(totals.remitSSS + totals.remitPH + totals.remitHDMF + totals.Tax_Ded + totals.mpSavings + totals.HDMF_Loan + totals.SSS_Loan + totals.healthCard + totals.advances + totals.globe + totals.totalNetPay)}</strong></td>
+            <td class="amt"><strong>${peso(totals.totalGrossPay + totals.allowance + totals.totalERShare)}</strong></td>
+            <td class="amt"><strong>${peso(totals.remitSSS + totals.remitPH + totals.remitHDMF + totals.Tax_Ded + totals.mpSavings + totals.HDMF_Loan + totals.SSS_Loan + totals.healthCard + totals.advances + totals.totalNetPay)}</strong></td>
           </tr>
         </table>
       </div>
-      ${footerSigs}
-      ${pageNum(8)}
+      ${footerSigsPage7}
+      ${pageNum(7)}
     </div>
   `;
 
@@ -560,7 +507,6 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
     page-break-after: always; 
     padding: 12mm 10mm; 
     width: 297mm; 
-    /* Removed min-height to allow extending downwards */
     background: white; 
     margin: 0 auto; 
     position: relative;
@@ -631,21 +577,19 @@ const build8PageReportHTML = (rawRows, periodLabel) => {
   ${page4} <div class="page-divider"></div>
   ${page5} <div class="page-divider"></div>
   ${page6} <div class="page-divider"></div>
-  ${page7} <div class="page-divider"></div>
-  ${page8}
+  ${page7}
 </body>
 </html>`;
 };
 
-exports.generatePayrollSummaryPDF = async (payrollRows, periodLabel) => {
-  const html = build8PageReportHTML(payrollRows, periodLabel);
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
-  });
+const { getSharedBrowser } = require("./dtrGenerator");
+
+exports.generatePayrollSummaryPDF = async (payrollRows, periodLabel, signatures = {}) => {
+  const html = buildReportHTML(payrollRows, periodLabel, signatures);
+  const browser = await getSharedBrowser();
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
     // Use A4 landscape for each page
     return await page.pdf({
       format: "A4",
@@ -654,8 +598,10 @@ exports.generatePayrollSummaryPDF = async (payrollRows, periodLabel) => {
       margin: { top: "0", bottom: "0", left: "0", right: "0" }
     });
   } finally {
-    await browser.close();
+    try {
+      await page.close();
+    } catch (e) {}
   }
 };
 
-exports.build8PageReportHTML = build8PageReportHTML;
+exports.build8PageReportHTML = buildReportHTML;

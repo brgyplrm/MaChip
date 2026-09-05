@@ -12,6 +12,9 @@ import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
+import HistoryIcon from '@mui/icons-material/History';
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import AddIcon from '@mui/icons-material/Add';
 import HmoCalculatorModal from "../../../components/HmoCalculatorModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -19,28 +22,49 @@ import SecurityIcon from '@mui/icons-material/Security';
 import GroupIcon from '@mui/icons-material/Group';
 import PieChartIcon from '@mui/icons-material/PieChart';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import InfoIcon from '@mui/icons-material/Info';
 import EventIcon from '@mui/icons-material/Event';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined';
-import HistoryIcon from "@mui/icons-material/History";
 import { Link, useSearchParams } from "react-router-dom";
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { User } from "lucide-react";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Table, TableHeader, TableRow, TableHead, TableBody } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
 
 const Maxicare = () => {
   const { systemToday } = useSystemTime();
   const [searchParams] = useSearchParams();
   const queryYear = searchParams.get("year");
+
+  const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
   
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const isAdmin = userData?.user_RoleId === 4 || 1;
+  const isAdmin = [1, 4].includes(userData?.user_RoleId);
 
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [isEditing, setIsEditing] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [showAddCalculator, setShowAddCalculator] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [showPolicyDetails, setShowPolicyDetails] = useState(false);
+  const [newConfig, setNewConfig] = useState({
+    totalGross: 0,
+    monthsToPay: 12,
+    cycleStartDate: "",
+    employerShare: 50
+  });
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [selectedYear, setSelectedYear] = useState(queryYear ? parseInt(queryYear) : new Date().getFullYear());
   const [file, setFile] = useState(null);
@@ -49,6 +73,8 @@ const Maxicare = () => {
   const [employerShare, setEmployerShare] = useState(50);
   const [initialSyncDone, setInitialSyncDone] = useState(false);
   const [excludedDates, setExcludedDates] = useState([]);
+
+  const [selectedSheetMonth, setSelectedSheetMonth] = useState("ALL");
   
   const [config, setConfig] = useState({
     totalGross: 0,
@@ -73,6 +99,15 @@ const Maxicare = () => {
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [editingCell, setEditingCell] = useState(null); 
   const [editValue, setEditValue] = useState("");
+
+  // Table View Controls
+  const [tableSearchQuery, setTableSearchQuery] = useState("");
+  const [tableCurrentPage, setTableCurrentPage] = useState(1);
+  const [tableItemsPerPage, setTableItemsPerPage] = useState(10);
+
+  useEffect(() => {
+    setTableCurrentPage(1);
+  }, [tableSearchQuery, tableItemsPerPage]);
   const [syncingCell, setSyncingCell] = useState(null); 
 
   const emptyColumn = async (empKey) => {
@@ -153,6 +188,9 @@ const Maxicare = () => {
 
   const generateExpectedDates = (startDateStr, months) => {
     if (!startDateStr || !months) return [];
+    // Only proceed if the date looks like a full YYYY-MM-DD
+    if (startDateStr.length < 10) return [];
+
     const dates = [];
     const start = new Date(startDateStr);
     if (isNaN(start.getTime())) return [];
@@ -189,6 +227,7 @@ const Maxicare = () => {
     }
     return dates;
   };
+
 
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -254,7 +293,7 @@ const Maxicare = () => {
 
   const currentVirtualDates = virtualExpectedDates();
 
-  const displayDates = [...new Set([
+  const rawDisplayDates = [...new Set([
     ...expectedDates,
     ...currentVirtualDates,
     ...data.map(d => d.date)
@@ -309,6 +348,21 @@ const Maxicare = () => {
     return false;
   }).sort();
 
+  // Canonical deduplication per payroll period (strictly 2 per month: 1st half and 2nd half)
+  const displayDates = useMemo(() => {
+    const periodMap = new Map();
+    rawDisplayDates.forEach(dStr => {
+      const dt = new Date(dStr);
+      const isFirstHalf = dt.getDate() <= 15;
+      const key = `${dt.getFullYear()}_${String(dt.getMonth() + 1).padStart(2, '0')}_${isFirstHalf ? 'H1' : 'H2'}`;
+      // Prefer true month-end date or 15th (e.g. 31 over 30, 15 over 14)
+      if (!periodMap.has(key) || dStr > periodMap.get(key)) {
+        periodMap.set(key, dStr);
+      }
+    });
+    return Array.from(periodMap.values()).sort();
+  }, [rawDisplayDates]);
+
   const getCycleLabel = () => {
     const months = cycleConfigs[selectedYear]?.monthsToPay || config.monthsToPay || 12;
     const endYear = selectedYear + Math.max(1, Math.ceil(months / 12));
@@ -320,6 +374,43 @@ const Maxicare = () => {
     const options = { month: 'short', day: 'numeric', year: 'numeric' };
     return `${cycle.start.toLocaleDateString('en-PH', options)} TO ${cycle.end.toLocaleDateString('en-PH', options)}`.toUpperCase();
   };
+
+  // ── Compute Columns Based on Policy Cycle (e.g. Aug 2023 - Aug 2024) ─────────
+  const cycleMonths = useMemo(() => {
+    if (!cycle) {
+      return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m, i) => ({
+        key: `${selectedYear}-${i}`,
+        name: m,
+        year: selectedYear,
+        monthIndex: i,
+        label: m,
+        fullLabel: `${m} ${selectedYear}`
+      }));
+    }
+
+    const months = [];
+    const startDate = new Date(cycle.start);
+    const startY = startDate.getFullYear();
+    const startM = startDate.getMonth();
+    const endDate = new Date(cycle.deductionEnd);
+
+    let cur = new Date(startY, startM, 1);
+    while (cur <= endDate && months.length < 14) {
+      const y = cur.getFullYear();
+      const mIdx = cur.getMonth();
+      const mName = cur.toLocaleDateString('en-PH', { month: 'short' });
+      months.push({
+        key: `${y}-${mIdx}`,
+        name: mName,
+        year: y,
+        monthIndex: mIdx,
+        label: `${mName} '${String(y).slice(-2)}`,
+        fullLabel: `${mName} ${y}`
+      });
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    return months;
+  }, [cycle, selectedYear]);
   // ──────────────────────────────────────────────────────────────────────────
 
   const fetchData = async () => {
@@ -368,8 +459,13 @@ const Maxicare = () => {
         }
 
         if (savedDates.length > 0) {
-          setExpectedDates(savedDates);
-        } else if (initialDate) {
+          const validSavedDates = savedDates.filter(d => {
+            if (!d) return false;
+            const parts = d.split('-');
+            return parts.length === 3 && parts[0].length === 4 && !isNaN(new Date(d).getTime());
+          });
+          setExpectedDates(validSavedDates);
+        } else if (initialDate && initialDate.length >= 10) {
           setExpectedDates(generateExpectedDates(initialDate, currentYearConfig.monthsToPay || settingsData.maxicareMonthsToPay));
         }
       }
@@ -629,10 +725,13 @@ const Maxicare = () => {
 
       if (isInScope) {
         Object.keys(item.values).forEach(empKey => {
-          const amt = item.values[empKey].amount;
+          const val = item.values[empKey];
+          const amt = val?.amount || 0;
           if (amt > 0) {
             subscribers.add(empKey);
-            totalPaid += amt;
+            if (val?.status === 'paid') {
+              totalPaid += amt;
+            }
           }
         });
       }
@@ -668,7 +767,7 @@ const Maxicare = () => {
       };
 
       const settingsRes = await fetchWithAuth("/api/system/settings", {
-        method: "POST",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           // ONLY update global fallback if no configs exist yet (initial setup)
@@ -792,14 +891,23 @@ const Maxicare = () => {
 
   // ── Auto-generate expected dates when config changes ──────────────────────
   useEffect(() => {
-    if (config.cycleStartDate && config.monthsToPay) {
+    // Only generate if the start date is fully typed (e.g., YYYY-MM-DD)
+    if (config.cycleStartDate && config.cycleStartDate.length >= 10 && config.monthsToPay) {
       const newDates = generateExpectedDates(config.cycleStartDate, config.monthsToPay);
       
       setExpectedDates(prev => {
         // We want to merge the new template dates with whatever is already there.
         // We don't want to strictly overwrite because the user might have added 
         // manual periods (like Aug 15/31 at the end of a cycle).
-        const merged = [...new Set([...prev, ...newDates])].sort();
+        
+        // Remove old generated dates for this cycle to avoid duplicate/invalid keystroke dates
+        const year = new Date(config.cycleStartDate).getFullYear();
+        const prevWithoutCurrentCycle = prev.filter(d => {
+           const dYear = new Date(d).getFullYear();
+           return isNaN(dYear) || (dYear !== year && dYear !== year + 1);
+        });
+
+        const merged = [...new Set([...prevWithoutCurrentCycle, ...newDates])].sort();
         
         if (JSON.stringify(merged) !== JSON.stringify(prev)) {
           return merged;
@@ -847,6 +955,7 @@ const Maxicare = () => {
 
   const downloadTemplate = () => {
     const templateId = "MAXICARE_HMO_TEMPLATE";
+    // emp.id already contains "MACJ-", so we just add the "#"
     const headers = [templateId, ...employeeList.map(emp => `${emp.name} #${emp.id}`)];
     const headerLine = headers.join(",");
 
@@ -880,12 +989,22 @@ const Maxicare = () => {
         const lines = text.split("\n").filter(line => line.trim() !== "");
         if (lines.length < 2) throw new Error("File is empty or missing data.");
 
-        const headers = lines[0].split(",");
+        // Auto-detect delimiter (comma, tab, or semicolon)
+        let delimiter = ",";
+        if (lines[0].includes("\t")) delimiter = "\t";
+        else if (lines[0].includes(";")) delimiter = ";";
+
+        console.log("[BATCH-DEBUG] Detected Delimiter:", delimiter === "\t" ? "TAB" : delimiter);
+        console.log("[BATCH-DEBUG] Raw Lines Count:", lines.length);
+
+        const headers = lines[0].split(delimiter);
+        console.log("[BATCH-DEBUG] Extracted Headers:", headers);
         const templateId = headers[0]?.trim();
 
-        if (templateId !== "MAXICARE_HMO_TEMPLATE") {
+        if (!templateId.includes("MAXICARE_HMO_TEMPLATE")) {
+          console.error("[BATCH-DEBUG] Template ID Mismatch. Found:", templateId);
           setToast({ 
-            message: `Invalid template. You are trying to upload a file for "${templateId.replace(/_/g, ' ')}" into the Maxicare HMO section. Please download the latest template.`, 
+            message: `Invalid template format. Please download the latest template.`, 
             type: "error" 
           });
           setLoading(false);
@@ -896,31 +1015,72 @@ const Maxicare = () => {
 
         for (let i = 1; i < headers.length; i++) {
           const header = headers[i];
-          const match = header.match(/#MACJ-(\d+)/i);
+          // Robustly find the ID: look for the last group of numbers in the header
+          const match = header.match(/(\d+)\s*$/);
           if (match) {
-            empMappings.push({ colIndex: i, user_Id: parseInt(match[1]) });
+            const userId = parseInt(match[1]);
+            empMappings.push({ colIndex: i, user_Id: userId });
+            console.log(`[BATCH-DEBUG] Mapped Header "${header}" to User ID: ${userId}`);
+          } else {
+            console.warn(`[BATCH-DEBUG] Skipping header (no ID found): "${header}"`);
           }
         }
 
         const updates = [];
         for (let i = 1; i < lines.length; i++) {
-          const columns = lines[i].split(",");
-          const date = columns[0]?.trim();
-          if (!date) continue;
+          const columns = lines[i].split(delimiter);
+          const rawDate = columns[0]?.trim();
+          if (!rawDate) continue;
+
+          // Philippine Date Parsing (Prioritize DD/MM/YYYY)
+          let date = rawDate;
+          if (rawDate.includes("/")) {
+            const parts = rawDate.split("/");
+            if (parts.length === 3) {
+              const p0 = parts[0].padStart(2, '0');
+              const p1 = parts[1].padStart(2, '0');
+              const p2 = parts[2].trim();
+              
+              // If the first part is > 12, it is definitely DD/MM/YYYY
+              // If the middle part is > 12, it is definitely MM/DD/YYYY
+              // Default to DD/MM/YYYY for PH context if ambiguous
+              if (parseInt(p0) > 12) {
+                date = `${p2}-${p1}-${p0}`;
+              } else if (parseInt(p1) > 12) {
+                date = `${p2}-${p0}-${p1}`;
+              } else {
+                // Ambiguous (e.g. 05/06/2025). Assume DD/MM/YYYY (June 5)
+                date = `${p2}-${p1}-${p0}`;
+              }
+            }
+          }
+
+          const parsedDate = new Date(date);
+          const isValidDate = !isNaN(parsedDate.getTime());
+
+          if (!isValidDate) {
+            console.error(`[BATCH-DEBUG] Row ${i}: Cannot parse date "${rawDate}". Expected DD/MM/YYYY.`);
+            continue;
+          }
+
+          // Use the standardized YYYY-MM-DD for the update payload
+          const finalDateStr = date.includes("-") && date.length === 10 ? date : formatDateLocal(parsedDate);
 
           empMappings.forEach(mapping => {
-            const amount = parseFloat(columns[mapping.colIndex]?.trim() || 0);
-            const isValidDate = !isNaN(new Date(date).getTime());
+            const valStr = columns[mapping.colIndex]?.trim() || "0";
+            const amount = parseFloat(valStr.replace(/[^\d.-]/g, ''));
 
-            if (amount > 0 && isValidDate) {
+            if (amount > 0) {
               updates.push({
-                date,
+                date: finalDateStr,
                 user_Id: mapping.user_Id,
                 amount
               });
             }
           });
         }
+
+        console.log("[BATCH-DEBUG] Final Updates to Sync:", updates);
 
         if (updates.length === 0) {
           setToast({ message: "No non-zero amounts found in CSV", type: "error" });
@@ -1099,10 +1259,99 @@ const Maxicare = () => {
     return today.getFullYear();
   }, [cycleConfigs, systemToday]);
 
+  const employeeCardsData = useMemo(() => {
+    return employeeList.map(emp => {
+      let totalCollectedInCycle = 0;
+      const individualLogMatrix = displayDates.map(dateStr => {
+        const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
+        let amount = 0;
+        let status = "unpaid";
+
+        if (actualRecord && actualRecord.values[emp.key]) {
+          const record = actualRecord.values[emp.key];
+          amount = record.amount;
+          status = record.status;
+        } else if (!isUnconfigured && dateStr >= (systemToday ? formatDateLocal(systemToday) : "")) {
+          amount = parseFloat(emp.expectedDeduction) || 0;
+          status = "estimated";
+        }
+
+        if (status === 'paid') {
+          totalCollectedInCycle += amount;
+        }
+
+        return { dateStr, amount, status };
+      });
+
+      const totalHistoricalPaid = displayDates
+        .filter(d => !currentCutoffDate || d < currentCutoffDate)
+        .reduce((acc, dateStr) => {
+          const period = data.find(d => isInSamePeriod(d.date, dateStr));
+          return acc + ((period && period.values[emp.key]) ? period.values[emp.key].amount : 0);
+        }, 0);
+
+      const balance = (parseFloat(emp.expectedDeduction) || 0) > 0 || totalHistoricalPaid > 0 
+        ? (employeeShareAmount - totalHistoricalPaid) 
+        : 0;
+
+      return {
+        ...emp,
+        totalCollectedInCycle,
+        totalHistoricalPaid,
+        balance,
+        logs: individualLogMatrix
+      };
+    });
+  }, [employeeList, displayDates, data, isUnconfigured, systemToday, employeeShareAmount]);
+  
+  // Add these for Card Layout controls
+  const [cardSearchQuery, setCardSearchQuery] = useState("");
+  const [cardCurrentPage, setCardCurrentPage] = useState(1);
+  const cardItemsPerPage = 6; // Fits cleanly into a balanced 3-column dashboard grid
+
+  // Reset page position if the search query changes
+  useEffect(() => {
+    setCardCurrentPage(1);
+  }, [cardSearchQuery]);
+
+  // Filter cards based on employee name or company system ID match
+  const filteredCardEmployees = useMemo(() => {
+    return employeeCardsData.filter(emp => 
+      emp.name.toLowerCase().includes(cardSearchQuery.toLowerCase()) ||
+      emp.id.toLowerCase().includes(cardSearchQuery.toLowerCase())
+    );
+  }, [employeeCardsData, cardSearchQuery]);
+
+  // Compute pagination limits
+  const totalCardPages = Math.ceil(filteredCardEmployees.length / cardItemsPerPage);
+  const cardStartIndex = (cardCurrentPage - 1) * cardItemsPerPage;
+  const cardEndIndex = Math.min(cardStartIndex + cardItemsPerPage, filteredCardEmployees.length);
+  
+  // Slice data for rendering on the active page frame
+  const paginatedCardEmployees = useMemo(() => {
+    return filteredCardEmployees.slice(cardStartIndex, cardStartIndex + cardItemsPerPage);
+  }, [filteredCardEmployees, cardStartIndex]);
+
+  // Handle local searching and pagination inside the Table Matrix Layout
+  const filteredTableEmployees = useMemo(() => {
+    return employeeList.filter(emp => 
+      emp.name.toLowerCase().includes(tableSearchQuery.toLowerCase()) ||
+      emp.id.toLowerCase().includes(tableSearchQuery.toLowerCase())
+    );
+  }, [employeeList, tableSearchQuery]);
+
+  const totalTablePages = Math.ceil(filteredTableEmployees.length / tableItemsPerPage) || 1;
+  const tableStartIndex = (tableCurrentPage - 1) * tableItemsPerPage;
+  const tableEndIndex = Math.min(tableStartIndex + tableItemsPerPage, filteredTableEmployees.length);
+
+  const paginatedTableEmployees = useMemo(() => {
+    return filteredTableEmployees.slice(tableStartIndex, tableStartIndex + tableItemsPerPage);
+  }, [filteredTableEmployees, tableStartIndex, tableItemsPerPage]);
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Dialog open={showCalculator} onOpenChange={setShowCalculator}>
-        <DialogContent className="max-w-4xl! p-0 overflow-hidden border-none bg-transparent shadow-none">
+        <DialogContent className="max-w-4xl! p-0 overflow-y-auto max-h-[95vh] border-none bg-transparent shadow-none custom-scrollbar">
           <HmoCalculatorModal 
             premium={config.totalGross}
             setPremium={setPremium}
@@ -1118,18 +1367,27 @@ const Maxicare = () => {
                 if (!isNaN(year)) setSelectedYear(year);
               }
             }}
+            onSave={saveSettings}
+            onSuccess={fetchData}
+            onClose={() => setShowCalculator(false)}
           />
-          <div className="flex justify-center pb-6">
-            <button 
-              onClick={async () => {
-                await saveSettings();
-                setShowCalculator(false);
-              }}
-              className="bg-[#2A174E] text-white px-8 py-3 rounded-lg font-bold hover:bg-[#1a0e30] transition-colors shadow-lg"
-            >
-              Continue to Maxicare Management
-            </button>
-          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddCalculator} onOpenChange={setShowAddCalculator}>
+        <DialogContent className="max-w-4xl! p-0 overflow-y-auto max-h-[95vh] border-none bg-transparent shadow-none custom-scrollbar">
+          <HmoCalculatorModal 
+            premium={newConfig.totalGross}
+            setPremium={(val) => setNewConfig(prev => ({ ...prev, totalGross: val }))}
+            cutoffs={newConfig.monthsToPay * 2}
+            setCutoffs={(val) => setNewConfig(prev => ({ ...prev, monthsToPay: val / 2 }))}
+            employerShare={newConfig.employerShare}
+            setEmployerShare={(val) => setNewConfig(prev => ({ ...prev, employerShare: val }))}
+            cycleStartDate={newConfig.cycleStartDate}
+            setCycleStartDate={(date) => setNewConfig(prev => ({ ...prev, cycleStartDate: date }))}
+            onSuccess={fetchData}
+            onClose={() => setShowAddCalculator(false)}
+          />
         </DialogContent>
       </Dialog>
 
@@ -1255,159 +1513,312 @@ const Maxicare = () => {
       </Dialog>
 
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {toast.message && <Toast message={toast.message} type={toast.type} onClose={dismissToast} />}
         
         {/* Header Section */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Maxicare HMO Management</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">HMO Management</h1>
             <span className="text-sm text-slate-500 mt-1 block">
-              Manage employee health insurance deductions, track employer/employee shares, and configure the billing cycle.
+              Manage employee health insurance deductions, track employer/employee shares, <br/>and configure the billing cycle.
             </span>
           </div>
-          <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E]">
-            <Link to="/maxicare/history">
-              <HistoryIcon className="mr-2 h-4 w-4" /> View Deduction History
-            </Link>
-          </Button>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-tight">Policy Cycle</span>
-            {queryYear && parseInt(queryYear) !== currentCycleYear ? (
-              <div className="flex items-center gap-2 bg-[#2A174E] text-white px-4 py-1.5 rounded-lg font-bold shadow-sm">
-                <HistoryIcon className="h-4 w-4 text-yellow-400" />
-                <span>Cycle {selectedYear} - {selectedYear + Math.max(1, Math.ceil((config.monthsToPay || 12) / 12))}</span>
-                <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded ml-1 uppercase">Historical View</span>
-              </div>
-            ) : (
-              <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
-                <SelectTrigger className="w-[200px] h-9 bg-white font-bold text-slate-700">
-                  <SelectValue placeholder="Select Cycle" />
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto xl:justify-end">
+            {/* Direct Cycle Selector Dropdown */}
+            <div className="w-full sm:w-auto">
+              <Select value={selectedYear.toString()} onValueChange={(val) => {
+                setSelectedYear(parseInt(val));
+                setExpectedDates([]);
+              }}>
+                <SelectTrigger className="w-full sm:w-[280px] h-10 bg-white border-[#2A174E]/30 font-bold text-xs text-[#2A174E] shadow-xs hover:border-[#2A174E]">
+                  <SelectValue placeholder="Select Policy Cycle" />
                 </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 5 }, (_, i) => Math.min(new Date().getFullYear(), currentCycleYear) + i).map(year => {
-                    const isCurrent = year === currentCycleYear;
-                    const endYear = year + Math.max(1, Math.ceil((config.monthsToPay || 12) / 12));
+                <SelectContent className="bg-white">
+                  {Object.keys(cycleConfigs).sort((a, b) => b - a).map(yr => {
+                    const cfg = cycleConfigs[yr];
+                    const eYear = parseInt(yr) + Math.max(1, Math.ceil((cfg?.monthsToPay || 12) / 12));
+                    const sDate = cfg?.cycleStartDate ? new Date(cfg.cycleStartDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : `Aug 11, ${yr}`;
                     return (
-                      <SelectItem key={year} value={year.toString()}>
-                        Cycle {year} - {endYear} {isCurrent ? "(Current)" : ""}
+                      <SelectItem key={yr} value={yr} className="text-xs font-semibold">
+                        Cycle {yr} - {eYear} ({sDate} to Aug 10, {eYear})
                       </SelectItem>
                     );
                   })}
                 </SelectContent>
               </Select>
-            )}
+            </div>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block w-full sm:w-auto">
+                  <Button 
+                    variant="outline" 
+                    asChild
+                    className="w-full border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+                  >
+                    <Link 
+                      to="/maxicare/history" 
+                      state={{ activeTab: "requests" }}
+                    >
+                    <HistoryIcon className="mr-1 h-4 w-4" /> View History
+                    </Link>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                View HMO deduction history and archive records
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
-        {/* Main Grid Architecture */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6 w-full text-left font-sans">
+        {/* Dashboard-Style Stats Grid matching EastwestLoan.jsx */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans">
           
-          {/* Domain A: Policy Overview */}
-          <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden border-t-5 border-[#2A174E] border-x border-x-slate-200">
-            <div className="flex justify-between items-start mb-6">
-              <div className="w-full max-w-xs">
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Total Gross Premium</p>
-                <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(config.totalGross)}</p>
+          {/* Card 1: Total Gross Premium */}
+          <div className="border-t-5 border-[#2A174E] bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4 relative overflow-hidden">
+            <div className="text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Total Gross Premium</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Total gross health insurance premium amount for the policy term.
+                  </TooltipContent>
+                </Tooltip>
               </div>
-              <div className={`text-right px-3 py-1.5 rounded-md border flex items-center gap-1 ${isUnconfigured ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
-                <SecurityIcon className={isUnconfigured ? 'text-amber-600 !text-sm' : 'text-blue-600 !text-sm'} />
-                <p className={`text-sm font-semibold ${isUnconfigured ? 'text-amber-700' : 'text-blue-700'}`}>
-                  {isUnconfigured ? 'Plan Preview' : 'Active Policy'}
+              <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{peso(config.totalGross)}</p>
+              <div className={`mt-2 text-right px-2 py-0.5 rounded-md border flex items-center gap-1 w-fit ${isUnconfigured ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
+                <SecurityIcon className={`!text-[11px] ${isUnconfigured ? 'text-amber-600' : 'text-blue-600'}`} />
+                <p className="text-[10px] font-semibold">{isUnconfigured ? 'Plan Preview' : 'Active Policy'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Active Subscribers */}
+          <div className="border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4">
+            <div className="text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">
+                  {activeSubscribers <= 1 ? "Active Subscriber" : "Active Subscribers"}
                 </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Count of employees currently covered under Maxicare.
+                  </TooltipContent>
+                </Tooltip>
               </div>
+              <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{activeSubscribers}</p>
+              <p className="text-[10px] text-slate-400 mt-2">({getCycleLabel()})</p>
             </div>
-            
-            <div className="flex flex-col md:flex-row gap-4 mt-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 w-fit">
-                <EventIcon className="text-slate-400 !text-base" />
-                <span>Cycle Start: 
-                  <span className="text-slate-900 font-semibold ml-1">
-                    {config.cycleStartDate ? new Date(config.cycleStartDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not Set'}
-                  </span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 w-fit">
-                <span>Renewal Period: <span className="text-slate-900 font-semibold">{getRenewalPeriod()}</span></span>
-              </div>
+            <div className="h-12 w-12 bg-[#2A174E]/5 rounded-full flex items-center justify-center border border-[#2A174E]/50 shrink-0">
+              <GroupIcon className="text-indigo-600" />
             </div>
           </div>
 
-          {/* Domain A.2: Active Subscribers */}
-          <div className="border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-col justify-center items-center text-center">
-            <div className="h-12 w-12 bg-[#2A174E]/5 rounded-full flex items-center justify-center mb-4 border border-[#2A174E]/50">
-              <GroupIcon className="text-[#2A174E]" />
+          {/* Card 3: Total Billed YTD */}
+          <div className="border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-row items-center justify-between gap-4">
+            <div className="absolute top-0 right-0 p-3 opacity-10">
+              <AccountBalanceWalletIcon style={{ fontSize: '70px' }} />
             </div>
-            <p className="text-5xl font-extrabold text-slate-900">{activeSubscribers}</p>
-            <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mt-2">Active Subscribers</p>
-            <p className="text-xs text-slate-400 mt-1">({getCycleLabel()})</p>
+            <div className="relative z-10 text-left">
+              <div className="flex items-center gap-1.5 mb-1">
+                <p className="text-xs font-bold text-purple-200 tracking-wider uppercase">Annual Billed YTD</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-purple-300 hover:text-white cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                    Total premium billed from payroll in this cycle.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <p className="text-4xl font-extrabold text-white tracking-tight">{peso(annualPremiumTotal)}</p>
+              <p className="text-[10px] text-purple-200 mt-2">Collected: {peso(stats.totalPaid)}</p>
+            </div>
           </div>
+        </div>
 
-          {/* Domain C: Amortization Details */}
-          <div className="border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <AccountBalanceWalletIcon style={{ fontSize: '100px' }} />
-            </div>
-            <div className="relative z-10 h-full flex flex-col justify-between">
+        {/* Dialog for Policy Specs and Splits */}
+        <Dialog open={showPolicyDetails} onOpenChange={setShowPolicyDetails}>
+          <DialogContent className="max-w-md bg-white p-6 rounded-xl shadow-2xl text-left border border-slate-100">
+            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
+              <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E]">
+                <InfoIcon className="h-5 w-5" />
+              </div>
               <div>
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1">Cut-off Deduction</p>
-                <p className="text-3xl font-bold text-white tracking-tight">{peso(deductionCutoff)}</p>
+                <h3 className="text-base font-black text-[#2A174E]">Policy Specs & Splits</h3>
+                <p className="text-xs text-slate-500 font-medium">Detailed schedule configuration</p>
               </div>
-              <div className="mt-6 pt-4 border-t border-slate-700/50">
-                <div className="text-sm text-slate-300 flex items-center gap-2">
-                  Amortized over: 
-                  <span className="text-white font-semibold">{config.monthsToPay}</span>
-                  Months
+            </div>
+
+            <div className="space-y-4">
+              {/* Sec 1: Deduction */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Deduction Details</span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Cut-off Deduction:</span>
+                    <span className="font-bold text-[#2A174E]">{peso(deductionCutoff)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Amortization Months:</span>
+                    <span className="font-bold text-slate-800">{config.monthsToPay} Months</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sec 2: Splits */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Premium Splits</span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Employer Share ({employerShare}%):</span>
+                    <span className="font-bold text-emerald-600">{peso(employerShareAmount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Employee Share ({100 - employerShare}%):</span>
+                    <span className="font-bold text-orange-600">{peso(employeeShareAmount)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sec 3: Schedule */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Schedule Periods</span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Cycle Start Date:</span>
+                    <span className="font-bold text-slate-800">
+                      {config.cycleStartDate ? new Date(config.cycleStartDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not Set'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Renewal Term:</span>
+                    <span className="font-bold text-slate-800">{getRenewalPeriod()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sec 4: Summary */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Premium & Collection Summary</span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Annual Premium Billed:</span>
+                    <span className="font-bold text-slate-800">{peso(annualPremiumTotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Total Collected via Payroll:</span>
+                    <span className="font-bold text-slate-800">{peso(stats.totalPaid)}</span>
+                  </div>
+                  <div className="flex justify-between pt-1.5 border-t border-slate-200 font-bold">
+                    <span className="text-slate-700">Remaining Balance:</span>
+                    <span className="text-rose-600">{peso(Math.max(0, annualPremiumTotal - stats.totalPaid))}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Domain B: Financial Split */}
-          <div className="md:col-span-2 border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white rounded-xl shadow-sm flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 h-full">
-            <div className="flex-1 p-6 flex flex-col justify-center">
-              <div className="flex items-center gap-2 mb-2">
-                <PieChartIcon className="text-emerald-500 !text-base" />
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Employer Share ({employerShare}%)</p>
-              </div>
-              <p className="text-3xl font-bold text-slate-800">{peso(employerShareAmount)}</p>
-            </div>
-            <div className="flex-1 p-6 flex flex-col justify-center">
-              <div className="flex items-center gap-2 mb-2">
-                <PieChartIcon className="text-orange-500 !text-base" />
-                <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Employee Share ({100 - employerShare}%)</p>
-              </div>
-              <p className="text-3xl font-bold text-slate-800">{peso(employeeShareAmount)}</p>
-            </div>
-          </div>
-
-          {/* Domain D: YTD Tracking */}
-         <div className="md:col-span-2 border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm h-full">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <TrendingUpIcon className="text-slate-400 !text-lg" />
-                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Cycle Tracking ({getCycleLabel()})</h2>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Annual Premium Billed</p>
-                <p className="text-2xl font-bold text-slate-800">{peso(annualPremiumTotal)}</p>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Total Collected via Payroll</p>
-                <p className="text-2xl font-bold text-slate-800">{peso(stats.totalPaid)}</p>
-              </div>
-            </div>
-          </div>
-
-        </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Matrix Table Section */}
+        <h3 className="text-xl font-bold text-[#2A174E]">Employee Deduction History ({getCycleLabel()})</h3>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4 mt-8">
-          <h3 className="text-xl font-bold text-[#2A174E]">Employee Deduction History ({getCycleLabel()})</h3>
-          <div className="flex flex-wrap gap-2">
+        
+        {/* Sub-container: Pushed to the right, spans full width on mobile, auto-width on desktop */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full">
+          
+          {/* Left Side: Layout View Switcher */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
+            
+            <Button
+              size="sm"
+              variant={displayLayout === "card" ? "default" : "ghost"}
+              onClick={() => setDisplayLayout("card")}
+              className={`h-7 text-xs font-bold transition-all ${
+                displayLayout === "card" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
+              }`}
+            >
+              Employee Cards
+            </Button>
+            <Button
+              size="sm"
+              variant={displayLayout === "table" ? "default" : "ghost"}
+              onClick={() => setDisplayLayout("table")}
+              className={`h-7 text-xs font-bold transition-all ${
+                displayLayout === "table" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
+              }`}
+            >
+              Matrix Table
+            </Button>
+          </div>
+
+          {displayLayout === "card" && (
+            <>
+            {/* Cards Action Subheader Tools */}
+            <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md mr-auto items-center">
+              <div className="relative w-full">
+                <Input
+                  placeholder="Search card profile name or ID..."
+                  value={cardSearchQuery}
+                  onChange={(e) => setCardSearchQuery(e.target.value)}
+                  className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E] pr-8 pl-3 h-9 text-xs"
+                />
+                {cardSearchQuery && (
+                  <button 
+                    onClick={() => setCardSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-rose-500 font-semibold transition-colors"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+            </>
+          )}
+
+          {/* Conditional Table Search Input Box */}
+          {displayLayout === "table" && (
+            <div className="relative w-full sm:w-[320px] animate-in fade-in slide-in-from-top-1 duration-200">
+              <Input
+                placeholder="Search matrix table employee..."
+                value={tableSearchQuery}
+                onChange={(e) => setTableSearchQuery(e.target.value)}
+                className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E] pr-8 pl-3 h-9 text-xs shadow-sm"
+              />
+              {tableSearchQuery && (
+                <button 
+                  onClick={() => setTableSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-rose-500 font-semibold transition-colors"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Right Side: Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowPolicyDetails(true)}
+              className="border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all h-9"
+              disabled={loading}
+            >
+              <InfoIcon className="mr-1 h-4 w-4 text-[#2A174E]" /> Policy Specs
+            </Button>
+            
             {isAdmin && (
               <>
                 <Button 
@@ -1417,10 +1828,10 @@ const Maxicare = () => {
                     setIsEditing(true);
                     setShowCalculator(true);
                   }}
-                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50"
+                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
                   disabled={loading}
                 >
-                  <EditIcon className="mr-1 h-4 w-4" /> Edit Config
+                  <EditIcon className="mr-1 h-4 w-4" /> Edit
                 </Button>
                 <Button 
                   variant="outline" 
@@ -1433,33 +1844,36 @@ const Maxicare = () => {
                     }));
                     setShowBatchModal(true);
                   }}
-                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50"
+                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
                   disabled={loading || displayDates.length === 0}
                 >
-                  <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
+                  <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    if (isEditingTable) {
-                      saveSettings();
-                    } else {
-                      setIsEditingTable(true);
-                    }
-                  }}
-                  className={`${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
-                >
-                  {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Table</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Table</>}
-                </Button>
+                
+                {displayLayout === "table" && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      if (isEditingTable) {
+                        saveSettings();
+                      } else {
+                        setIsEditingTable(true);
+                      }
+                    }}
+                    className={`h-9 ${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
+                  >
+                    {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Table</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Table</>}
+                  </Button>
+                )}
 
-                {isEditingTable && (
+                {isEditingTable && displayLayout === "table" && (
                   <>
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={addPeriod}
-                      className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                      className="border-blue-600 text-blue-600 hover:bg-blue-50 h-9"
                     >
                       Add Period
                     </Button>
@@ -1467,7 +1881,7 @@ const Maxicare = () => {
                       variant="outline" 
                       size="sm"
                       onClick={clearYearTemplate}
-                      className="border-rose-600 text-rose-600 hover:bg-rose-50"
+                      className="border-rose-600 text-rose-600 hover:bg-rose-50 h-9"
                     >
                       Empty Months
                     </Button>
@@ -1476,273 +1890,509 @@ const Maxicare = () => {
               </>
             )}
           </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-0">
-          <div className="relative max-h-[65vh] overflow-auto w-full bg-white rounded-xl">
-            <table className="w-full min-w-max border-collapse text-sm">
-              <thead className="sticky top-0 z-[50] shadow-sm">
-                <tr>
-                  <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-[#2A174E] p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                    <div className="flex flex-col leading-tight">
-                      <span className="text-[9px] font-black uppercase opacity-90">{getCycleLabel()}</span>
-                      <span className="text-xs text-white font-bold">MONTHS / DATE</span>
-                    </div>
-                  </th>
-                  {employeeList.map((emp) => (
-                    <th key={emp.key} className="sticky top-0 z-[50] bg-[#2A174E] text-white border-x border-b-2 border-[#3d2270] min-w-[140px] p-3 text-center align-middle">
-                      <div className="flex flex-col leading-tight items-center relative group">
-                        <span className="text-[11px] font-bold uppercase">{emp.name.split(',')[0]}</span>
-                        <span className="text-[9px] text-white/70 font-mono">{emp.id}</span>
-                        
-                        {isEditingTable && (
-                          <div className="flex gap-1 mt-2">
-                            <button 
-                              onClick={() => emptyColumn(emp.key)}
-                              className="bg-amber-500 hover:bg-amber-600 text-white p-1 rounded-sm transition-colors"
-                              title="Empty this column"
-                            >
-                              <FilterListIcon className="!text-[10px]" />
-                            </button>
-                            <button 
-                              onClick={() => deleteColumn(emp.key)}
-                              className="bg-rose-500 hover:bg-rose-600 text-white p-1 rounded-sm transition-colors"
-                              title="Delete this column"
-                            >
-                              <DeleteIcon className="!text-[10px]" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={employeeList.length + 1} className="h-32 text-center text-slate-500 italic p-6">
-                      Loading Maxicare data...
-                    </td>
-                  </tr>
-                ) : error ? (
-                  <tr>
-                    <td colSpan={employeeList.length + 1} className="h-32 text-center text-red-500 p-6">
-                      <p>Error: {error}</p>
-                      <Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
-                    </td>
-                  </tr>
-                ) : displayDates.length > 0 ? (
-                  <>
-                    {displayDates.map((dateStr, i) => {
-                      const dateObj = new Date(dateStr);
-                      const monthLabel = dateObj.toLocaleDateString('en-PH', { month: 'short' });
-                      const dayLabel = dateObj.getDate();
-                      const isCurrentRow = dateStr === currentCutoffDate;
-                      
-                      return (
-                        <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
-                          <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-[#2A174E] p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                            {isEditingTable && expectedDates.includes(dateStr) ? (
-                              <Input 
-                                type="date" 
-                                value={dateStr}
-                                onChange={(e) => handleHeaderChange(expectedDates.indexOf(dateStr), e.target.value)}
-                                className="h-8 text-xs font-bold text-[#2A174E] focus-visible:ring-blue-500"
-                              />
-                            ) : (
-                              <div className="flex flex-col">
-                                <div className="flex justify-between items-start">
-                                  <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel} ({dateObj.getFullYear()})</span>
-                                  {isEditingTable && (
-                                    <button 
-                                      onClick={() => removePeriod(dateStr)}
-                                      className="text-rose-500 hover:text-rose-700 p-0.5 -mt-1"
-                                      title="Remove this row"
-                                    >
-                                      <DeleteIcon className="!text-sm" />
-                                    </button>
-                                  )}
-                                </div>
-                                <span className="text-[10px] font-semibold text-slate-500">{dayLabel}</span>
-                                {isCurrentRow && <span className="bg-yellow-400 text-[#2A174E] text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
-                              </div>
-                            )}
-                          </td>
-                          {employeeList.map((emp) => {
-                            const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
-                            let amount = 0;
-                            let status = "unpaid";
-                            let isProjection = false;
-
-                            const userRate = parseFloat(emp.expectedDeduction) || 0;
-                            const todayStr = systemToday ? formatDateLocal(systemToday) : "";
-
-                            if (actualRecord && actualRecord.values[emp.key]) {
-                              const record = actualRecord.values[emp.key];
-                              if (record.status === 'paid' && record.amount > 0) {
-                                amount = record.amount;
-                                status = 'paid';
-                              } else if (record.amount === 0) {
-                                amount = 0;
-                                status = 'removed';
-                              } else if (!isUnconfigured) {
-                                amount = userRate;
-                                status = 'estimated';
-                                isProjection = true;
-                              }
-                            } else {
-                              if (!isUnconfigured && dateStr >= todayStr) {
-                                amount = userRate;
-                                status = 'estimated';
-                                isProjection = true;
-                              } else {
-                                amount = 0;
-                                status = 'unpaid';
-                              }
-                            }
-
-                            const isEditing = editingCell?.date === dateStr && editingCell?.empKey === emp.key;
-                            const isSyncing = syncingCell?.date === dateStr && syncingCell?.empKey === emp.key;
-
-                            let cellClass = "border-r border-b border-slate-100 p-2 text-center align-middle font-mono text-[13px] relative select-none cursor-pointer group ";
-                            if (isEditing) cellClass += "bg-white p-0 ";
-                            else if (isSyncing) cellClass += "bg-yellow-50 ";
-                            else if (status === 'paid') cellClass += "text-green-800 font-bold ";
-                            else if (status === 'estimated') cellClass += "text-slate-400 italic ";
-                            else if (status === 'removed') cellClass += "text-red-600 font-semibold opacity-80 ";
-                            else cellClass += "text-slate-300 ";
-
-                            return (
-                              <td 
-                                key={emp.key} 
-                                className={cellClass}
-                                onDoubleClick={() => handleCellDoubleClick(dateStr, emp.key, amount)}
-                              >
-                                {isEditing ? (
-                                  <input
-                                    type="text"
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    onBlur={() => handleCellSave(dateStr, emp.key)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        handleCellSave(dateStr, emp.key);
-                                      }
-                                    }}
-                                    autoFocus
-                                    className="w-full h-10 border-2 border-[#2A174E] bg-white text-center font-mono text-[13px] text-black font-bold outline-none"
-                                  />
-                                ) : isSyncing ? (
-                                  <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
-                                ) : (
-                                  <>
-                                    {isEditingTable && amount > 0 && (
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleCellSave(dateStr, emp.key, 0);
-                                        }}
-                                        className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-rose-700"
-                                        title="Clear this cell"
-                                      >
-                                        <DeleteIcon className="!text-[10px]" />
-                                      </button>
-                                    )}
-                                    {amount > 0 ? parseFloat(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
-                                    {isProjection && amount > 0 && <span className="absolute top-[2px] right-[2px] text-[8px] font-black bg-slate-200 text-slate-500 px-0.5 rounded leading-none not-italic">EST</span>}
-                                  </>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </>
-                ) : (
-                  <tr>
-                    <td colSpan={employeeList.length + 1} className="h-64 text-center p-12">
-                      <div className="flex flex-col items-center justify-center space-y-4">
-                        <div className="bg-slate-100 p-4 rounded-full">
-                           <EventIcon className="h-8 w-8 text-slate-400" />
-                        </div>
-                        <div className="max-w-md">
-                          <p className="text-slate-800 font-bold text-lg">No configuration found for {getCycleLabel()}</p>
-                          <p className="text-slate-500 text-sm mt-1">
-                            This renewal cycle has no planned periods or deduction history. You can initialize it using the 
-                            <span className="font-bold text-[#2A174E]"> Edit Config</span> button above, or manually add periods by clicking 
-                            <span className="font-bold text-[#2A174E]"> Edit Table</span>.
-                          </p>
-                        </div>
-                        <Button 
-                          onClick={() => setShowCalculator(true)}
-                          className="bg-[#2A174E] text-white hover:bg-[#1a0e30]"
-                        >
-                          Initialize Cycle
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-
-              {/* Footer Rows */}
-              {displayDates.length > 0 && !loading && !error && (
-                <tfoot className="sticky bottom-0 z-[50] shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
-                  {/* Subtotal Row */}
-                  <tr className="bg-slate-100 border-b border-slate-300">
-                    <td className="sticky left-0 z-[60] bg-slate-100 border-r-2 border-t-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                      <span className="text-[11px] font-black tracking-wider text-[#2A174E]">CYCLE TOTAL</span>
-                    </td>
-                    {employeeList.map((emp) => {
-                      const historicalDates = displayDates.filter(d => !currentCutoffDate || d < currentCutoffDate);
-                      const empSubtotal = historicalDates.reduce((acc, dateStr) => {
-                        const period = data.find(d => isInSamePeriod(d.date, dateStr));
-                        const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
-                        return acc + val;
-                      }, 0);
-                      return (
-                        <td key={emp.key} className="border-r border-t-2 border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
-                          {parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      );
-                    })}
-                  </tr>
-
-                  {/* Balance Row */}
-                  <tr className="bg-slate-50">
-                    <td className="sticky left-0 z-[60] bg-slate-50 border-r-2 border-t border-slate-300 p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                      <span className="text-[11px] font-black tracking-wider text-[#2A174E]">BALANCE</span>
-                    </td>
-                    {employeeList.map((emp) => {
-                      const historicalDates = displayDates.filter(d => !currentCutoffDate || d < currentCutoffDate);
-                      const empSubtotal = historicalDates.reduce((acc, dateStr) => {
-                        const period = data.find(d => isInSamePeriod(d.date, dateStr));
-                        const val = (period && period.values[emp.key]) ? period.values[emp.key].amount : 0;
-                        return acc + val;
-                      }, 0);
-                      
-                      const isSubscriber = (parseFloat(emp.expectedDeduction) || 0) > 0 || empSubtotal > 0;
-                      // Balance is usually against the whole cycle, but here we show it per year view.
-                      // For simplicity, we'll keep the logic consistent with current view.
-                      const balance = isSubscriber ? (employeeShareAmount - empSubtotal) : 0;
-
-                      return (
-                        <td key={emp.key} className={`border-r border-t border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-black ${balance < 0 ? 'text-rose-600' : 'text-green-600'}`}>
-                          {parseFloat(balance).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                </tfoot>
-              )}
-
-            </table>
           </div>
         </div>
-      </div>
+
+        {displayLayout === "table" ? (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-[#2A174E]">
+                  Policy Cycle Matrix Visual Table ({getRenewalPeriod()})
+                </h3>
+                <span className="text-xs text-slate-500 font-mono">
+                  Policy coverage period: {getRenewalPeriod()}. Hover over month chips for cutoff details.
+                </span>
+              </div>
+              <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-md border border-slate-200">
+                {employeeList.length} Covered Employees
+              </span>
+            </div>
+
+            <div className="w-full bg-white overflow-x-auto">
+              <table className="w-full min-w-max border-collapse text-xs">
+                <thead className="bg-[#2A174E] text-white">
+                  <tr>
+                    <th className="sticky left-0 top-0 z-[50] bg-[#1e1136] text-yellow-400 border-r border-b border-[#2A174E] p-2.5 text-left min-w-[170px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                      EMPLOYEE
+                    </th>
+                    <th className="text-white font-bold text-xs uppercase text-right p-2.5 min-w-[100px]">
+                      CUTOFF RATE
+                    </th>
+                    {cycleMonths.map(m => (
+                      <th key={m.key} className="text-white font-bold text-xs uppercase text-center p-2 min-w-[65px]">
+                        {m.label}
+                      </th>
+                    ))}
+                    <th className="text-white font-bold text-xs uppercase text-right p-2.5 min-w-[110px]">
+                      CYCLE TOTAL
+                    </th>
+                    <th className="text-white font-bold text-xs uppercase text-center p-2.5 min-w-[90px]">
+                      PROGRESS
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={16} className="h-32 text-center text-slate-500 italic p-6">
+                        Loading Maxicare matrix visual data...
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={16} className="h-32 text-center text-red-500 p-6">
+                        <p>Error: {error}</p>
+<Button variant="outline" size="sm" onClick={fetchData} className="mt-2">Retry Fetching Data</Button>
+                      </td>
+                    </tr>
+                  ) : filteredTableEmployees.length > 0 ? (
+                    <>
+                      {paginatedTableEmployees.map((emp) => {
+                        const monthlyData = cycleMonths.map((m) => {
+                          const mDates = displayDates.filter(dStr => {
+                            const dt = new Date(dStr);
+                            return dt.getMonth() === m.monthIndex && dt.getFullYear() === m.year;
+                          });
+                          let mAmount = 0;
+                          let cutoffsPaid = 0;
+                          let cutoffsPending = 0;
+                          mDates.forEach(dateStr => {
+                            const actualRecord = data.find(d => isInSamePeriod(d.date, dateStr));
+                            const val = actualRecord?.values[emp.key];
+                            const amt = val?.amount || 0;
+                            if (amt > 0) {
+                              mAmount += amt;
+                              if (val?.status === 'paid') {
+                                cutoffsPaid += 1;
+                              } else {
+                                cutoffsPending += 1;
+                              }
+                            }
+                          });
+                          return { ...m, mAmount, cutoffsPaid, cutoffsPending };
+                        });
+
+                        const empYtdPaid = displayDates.reduce((acc, dateStr) => {
+                          const period = data.find(d => isInSamePeriod(d.date, dateStr));
+                          const val = period?.values[emp.key];
+                          return acc + ((val && val.status === 'paid') ? val.amount : 0);
+                        }, 0);
+
+                        const userRate = parseFloat(emp.expectedDeduction) || 0;
+                        const empExpectedAnnual = userRate * (displayDates.length || 24);
+                        const completionPercent = empExpectedAnnual > 0 ? Math.min(100, (empYtdPaid / empExpectedAnnual) * 100) : 0;
+                        const targetMonthlyFull = userRate * 2;
+
+                        return (
+                          <tr key={emp.key} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                            {/* Sticky Left Employee Info */}
+                            <td className="sticky left-0 z-[40] bg-white border-r border-b border-slate-200 p-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                              <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-[#2A174E]/10 text-[#2A174E] rounded-md shrink-0">
+                                  <User className="h-3.5 w-3.5" />
+                                </div>
+                                <div className="text-left truncate">
+                                  <span className="font-bold text-[#2A174E] text-xs block truncate">{emp.name}</span>
+                                  <span className="text-[10px] font-mono text-slate-400">{emp.id}</span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Monthly Cutoff Rate */}
+                            <td className="p-2 text-right font-mono font-bold text-slate-700 border-r border-slate-100">
+                              {peso(userRate)}
+                            </td>
+
+                            {/* Policy Cycle Months Status Pills */}
+                            {monthlyData.map((m) => {
+                              const isFullPaid = m.cutoffsPaid > 0 && m.cutoffsPending === 0;
+                              const isPartialPaid = m.cutoffsPaid > 0 && m.cutoffsPending > 0;
+                              const isPending = m.cutoffsPending > 0 && m.cutoffsPaid === 0;
+
+                              return (
+                                <td key={m.key} className="p-1 text-center font-mono border-r border-slate-100 align-middle">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div
+                                        className={`py-1 px-1 rounded text-[10px] font-mono font-bold transition-all cursor-help ${
+                                          isFullPaid
+                                            ? "bg-emerald-500 text-white shadow-2xs"
+                                            : isPartialPaid
+                                            ? "bg-teal-600 text-white shadow-2xs"
+                                            : isPending
+                                            ? "bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs"
+                                            : "bg-slate-100 text-slate-300"
+                                        }`}
+                                      >
+                                        {m.mAmount > 0 ? peso(m.mAmount) : "—"}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white text-xs border-slate-800">
+                                      <p className="font-bold">{m.fullLabel}</p>
+                                      <p>Amount: {peso(m.mAmount)}</p>
+                                      {m.cutoffsPaid > 0 && <p className="text-emerald-400 font-semibold">Paid via Payroll: {m.cutoffsPaid} / 2 cutoffs</p>}
+                                      {m.cutoffsPending > 0 && <p className="text-amber-400 font-semibold">Pending Payroll: {m.cutoffsPending} / 2 cutoffs</p>}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </td>
+                              );
+                            })}
+
+                            {/* YTD Total Paid */}
+                            <td className="p-2 text-right font-mono font-bold text-xs text-emerald-700 bg-emerald-50/40 border-r border-slate-100">
+                              {peso(empYtdPaid)}
+                            </td>
+
+                            {/* Completion Progress Bar */}
+                            <td className="p-2 text-center align-middle">
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-[10px] font-bold text-[#2A174E]">
+                                  {completionPercent.toFixed(0)}%
+                                </span>
+                                <div className="w-14 bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                  <div
+                                    className="bg-emerald-500 h-full rounded-full"
+                                    style={{ width: `${completionPercent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {/* Footer Row (Monthly Totals for All Employees) */}
+                      <tr className="bg-slate-100 font-bold border-t-2 border-[#2A174E]">
+                        <td className="sticky left-0 z-[40] bg-slate-100 border-r border-[#2A174E] p-2.5 text-left font-black text-[#2A174E] text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                          TOTAL PAID
+                        </td>
+                        <td className="p-2.5 text-right font-mono text-xs text-slate-500">—</td>
+                        {cycleMonths.map((m) => {
+                          const mDates = displayDates.filter(dStr => {
+                            const dt = new Date(dStr);
+                            return dt.getMonth() === m.monthIndex && dt.getFullYear() === m.year;
+                          });
+                          const monthSumPaid = mDates.reduce((sum, dStr) => {
+                            const actualRecord = data.find(d => isInSamePeriod(d.date, dStr));
+                            if (!actualRecord) return sum;
+                            return sum + Object.values(actualRecord.values).reduce((acc, v) => acc + (v.status === 'paid' ? (v.amount || 0) : 0), 0);
+                          }, 0);
+
+                          return (
+                            <td key={m.key} className="p-1.5 text-center font-mono text-xs font-black text-[#2A174E] border-r border-slate-200">
+                              {monthSumPaid > 0 ? peso(monthSumPaid) : "—"}
+                            </td>
+                          );
+                        })}
+                        <td className="p-2.5 text-right font-mono text-xs font-black text-emerald-800 bg-emerald-100/60 border-r border-slate-200">
+                          {peso(stats.totalPaid)}
+                        </td>
+                        <td className="p-2.5 text-center text-[10px] text-slate-400 font-bold">CYCLE</td>
+                      </tr>
+                    </>
+                  ) : (
+                    <tr>
+                      <td colSpan={16} className="h-32 text-center text-slate-500 italic p-6">
+                        No periods defined.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Matrix Table Pagination Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-slate-100 border-t border-slate-200 gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 font-medium">
+                  Showing <strong className="text-slate-800">{filteredTableEmployees.length > 0 ? tableStartIndex + 1 : 0}</strong> to{" "}
+                  <strong className="text-slate-800">{tableEndIndex}</strong> of{" "}
+                  <strong className="text-slate-800">{filteredTableEmployees.length}</strong> employees
+                </span>
+
+                <Select value={tableItemsPerPage.toString()} onValueChange={(val) => setTableItemsPerPage(parseInt(val))}>
+                  <SelectTrigger className="w-[85px] h-7 text-xs bg-white border-slate-300 font-bold">
+                    <SelectValue placeholder="Per page" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / pg</SelectItem>
+                    <SelectItem value="25">25 / pg</SelectItem>
+                    <SelectItem value="50">50 / pg</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setTableCurrentPage(p => Math.max(1, p - 1))} 
+                  disabled={tableCurrentPage === 1}
+                  className="h-8 text-xs font-semibold px-3"
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-[#2A174E] bg-[#2A174E]/10 rounded-md px-2">
+                  {tableCurrentPage} / {totalTablePages}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setTableCurrentPage(p => Math.min(totalTablePages, p + 1))} 
+                  disabled={tableCurrentPage >= totalTablePages}
+                  className="h-8 text-xs font-semibold px-3"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Employee-First Cards View Framework Container */
+          <div className="space-y-4 mt-4 animate-in fade-in duration-200">
+
+            {paginatedCardEmployees.length === 0 ? (
+              <div className="text-center py-16 text-slate-400 font-medium border border-dashed rounded-xl bg-slate-50/50 text-sm">
+                No active employee card records found matching "{cardSearchQuery}".
+              </div>
+            ) : (
+              <>
+                {/* Responsive Card Deck */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {paginatedCardEmployees.map((emp) => {
+                    const progressPercentage = employeeShareAmount > 0 
+                      ? Math.min((emp.totalHistoricalPaid / employeeShareAmount) * 100, 100) 
+                      : 0;
+
+                    return (
+                      <Card key={emp.key} className="py-0 border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
+                        <CardHeader className="pt-6 bg-slate-50/60 pb-4 border-b border-slate-100 border-t-4 flex flex-row items-center justify-between space-y-0">
+                          <div className="flex items-center gap-3 truncate mr-2">
+                            <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
+                              <AccountCircleIcon />
+                            </div>
+                            <div className="truncate text-left">
+                              <CardTitle className="text-sm md:text-base font-bold text-[#2A174E] truncate">{emp.name}</CardTitle>
+                              <span className="text-xs font-mono text-slate-400 block mt-0.5">{emp.id}</span>
+                            </div>
+                          </div>
+
+                          <Sheet>
+                            <SheetTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0">
+                                <OpenInNewIcon fontSize="small" />
+                              </Button>
+                            </SheetTrigger>
+                            {/* Upgrades to 4xl (~896px) on desktop and 5xl (~1024px) on wide monitors */}
+                            <SheetContent className="w-full sm:max-w-2xl lg:max-w-xl! xl:max-w-5xl bg-white overflow-y-auto custom-scrollbar p-6">
+                              <SheetHeader className="pb-4 border-b border-slate-100 text-left">
+                                <SheetTitle className="text-xl font-bold text-[#2A174E]">
+                                  {emp.name}'s Premium History
+                                </SheetTitle>
+                                <SheetDescription className="text-xs text-slate-400 font-mono">
+                                  ID Ref: {emp.id} | Active Cycle Track: {getCycleLabel()}
+                                </SheetDescription>
+                              </SheetHeader>
+
+                              <div className="grid grid-cols-2 gap-4 my-6 text-left">
+                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide block">Cycle Subtotal Paid</span>
+                                  <span className="text-base font-bold text-green-700">₱{emp.totalHistoricalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide block">Remaining Balance</span>
+                                  <span className={`text-base font-bold ${emp.balance < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                                    ₱{emp.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-4">
+                                {/* Table Header Section containing Title and Filter Selector */}
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-1">
+                                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 text-left">Deductions Ledger Matrix</h3>
+                                  
+                                  {/* Interval Date Filter Dropdown */}
+                                  <div className="w-full sm:w-[160px]">
+                                    <Select value={selectedSheetMonth} onValueChange={setSelectedSheetMonth}>
+                                      <SelectTrigger className="h-8 text-[11px] bg-slate-50 border-slate-200 font-semibold text-slate-600 focus-visible:ring-[#2A174E]">
+                                        <SelectValue placeholder="Filter by Month" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="ALL">All Cut-offs</SelectItem>
+                                        <SelectItem value="0">January</SelectItem>
+                                        <SelectItem value="1">February</SelectItem>
+                                        <SelectItem value="2">March</SelectItem>
+                                        <SelectItem value="3">April</SelectItem>
+                                        <SelectItem value="4">May</SelectItem>
+                                        <SelectItem value="5">June</SelectItem>
+                                        <SelectItem value="6">July</SelectItem>
+                                        <SelectItem value="7">August</SelectItem>
+                                        <SelectItem value="8">September</SelectItem>
+                                        <SelectItem value="9">October</SelectItem>
+                                        <SelectItem value="10">November</SelectItem>
+                                        <SelectItem value="11">December</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                <div className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
+                                  <Table>
+                                    <TableHeader className="bg-[#2B174F]">
+                                      <TableRow className="hover:bg-transparent border-b-0">
+                                        <TableHead className="font-semibold text-white uppercase text-[10px] tracking-wider py-3 px-4">Payroll Interval Point</TableHead>
+                                        <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">Deduction Amount</TableHead>
+                                        <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">Posting Status</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {(() => {
+                                        // Context filter execution
+                                        const filteredLogs = emp.logs.filter(log => {
+                                          if (selectedSheetMonth === "ALL") return true;
+                                          const logDate = new Date(log.dateStr);
+                                          return logDate.getMonth().toString() === selectedSheetMonth;
+                                        });
+
+                                        if (filteredLogs.length === 0) {
+                                          return (
+                                            <TableRow>
+                                              <td colSpan={3} className="text-center py-8 text-xs text-slate-400 font-medium italic bg-slate-50/50">
+                                                No logs found for the selected month window.
+                                              </td>
+                                            </TableRow>
+                                          );
+                                        }
+
+                                        return filteredLogs.map((log) => {
+                                          const dObj = new Date(log.dateStr);
+                                          return (
+                                            <TableRow key={log.dateStr} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
+                                              <td className="font-bold text-[#2A174E] text-xs py-2.5 px-4 text-left">
+                                                {dObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                {log.dateStr === currentCutoffDate && <span className="bg-yellow-400 text-[#2A174E] text-[8px] font-black px-1.5 py-0.2 rounded ml-2">CURRENT</span>}
+                                              </td>
+                                              <td className="text-center text-xs font-mono font-bold text-slate-700">
+                                                {log.amount > 0 ? `₱${log.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "—"}
+                                              </td>
+                                              <td className="text-center text-xs">
+                                                <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                                                  log.status === 'paid' ? 'bg-green-50 text-green-700 border border-green-200' : 
+                                                  log.status === 'estimated' ? 'bg-amber-50 text-amber-600 italic border border-amber-100' : 
+                                                  'bg-slate-50 text-slate-400'
+                                                }`}>
+                                                  {log.status}
+                                                </span>
+                                              </td>
+                                            </TableRow>
+                                          );
+                                        });
+                                      })()}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            </SheetContent>
+                          </Sheet>
+                        </CardHeader>
+
+                        <CardContent className="p-5 space-y-4 flex-1 text-left">
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-xs font-medium">
+                              <span className="text-slate-500">Cycle Amortization Progress</span>
+                              <span className="text-slate-800 font-bold">
+                                {progressPercentage.toFixed(0)}% <span className="text-slate-400 font-normal">Complete</span>
+                              </span>
+                            </div>
+                            <Progress value={progressPercentage} className="h-1.5 bg-slate-100" />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex flex-col justify-between">
+                              <div className="flex items-center gap-1 text-[#2A174E] mb-1">
+                                <AccountBalanceWalletIcon className="!text-xs shrink-0" />
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Per Cut-Off</span>
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-slate-800 block">
+                                  ₱{emp.expectedDeduction.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex flex-col justify-between">
+                              <div className="flex items-center gap-1 text-orange-500 mb-1">
+                                <TrendingUpIcon className="!text-xs shrink-0" />
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total Remitted</span>
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-slate-800 block">
+                                  ₱{emp.totalHistoricalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className={`border rounded-lg p-2.5 flex items-center justify-between mt-1 ${
+                            emp.balance < 0 ? 'bg-rose-50/40 border-rose-100' : 'bg-emerald-50/40 border-emerald-100'
+                          }`}>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <SecurityIcon className={emp.balance < 0 ? 'text-rose-600 shrink-0' : 'text-emerald-600 shrink-0'} fontSize="small" />
+                              <span className={`text-[11px] font-semibold truncate ${emp.balance < 0 ? 'text-rose-800' : 'text-emerald-800'}`}>
+                                {emp.balance < 0 ? 'Overpaid Balance' : 'Remaining Cycle Balance'}
+                              </span>
+                            </div>
+                            <span className={`text-sm font-extrabold shrink-0 ${emp.balance < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                              ₱{Math.abs(emp.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                {/* Dashboard-Style Pagination Controls */}
+                <div className="flex flex-col sm:flex-row items-center justify-between pt-6 border-t border-slate-100 gap-4 mt-2">
+                  <div className="text-xs font-medium text-slate-500">
+                    Showing <span className="text-slate-800 font-bold">{cardStartIndex + 1}</span> to{" "}
+                    <span className="text-slate-800 font-bold">{cardEndIndex}</span> of{" "}
+                    <span className="text-slate-800 font-bold">{filteredCardEmployees.length}</span> profiles
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setCardCurrentPage(p => Math.max(1, p - 1))} 
+                      disabled={cardCurrentPage === 1}
+                      className="h-8 text-xs font-semibold px-3"
+                    >
+                      Previous
+                    </Button>
+                    <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-[#2A174E] bg-[#2A174E]/10 rounded-md px-2">
+                      {cardCurrentPage} / {totalCardPages || 1}
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setCardCurrentPage(p => Math.min(totalCardPages, p + 1))} 
+                      disabled={cardCurrentPage >= totalCardPages}
+                      className="h-8 text-xs font-semibold px-3"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        </div>
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

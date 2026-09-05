@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
+import ReplyIcon from "@mui/icons-material/Reply";
+import InfoIcon from "@mui/icons-material/Info";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import AttachmentIcon from "@mui/icons-material/Attachment";
 import SearchIcon from "@mui/icons-material/Search";
@@ -11,9 +13,14 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
+import { formatDateTime, calculateDays } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
 import { useNavigate, Link } from "react-router-dom";
 import AssessmentIcon  from "@mui/icons-material/Assessment";
+import EditIcon from "@mui/icons-material/Edit";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -23,6 +30,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import EditRequestModal from "../../components/EditRequestModal";
+import FileViewerModal from "../../components/FileViewerModal";
+import { TablePagination } from "@/components/ui/table-pagination";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const AdminRequests = () => {
   const navigate = useNavigate();
@@ -34,6 +45,20 @@ const AdminRequests = () => {
   const [adminNote, setAdminNote] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("2"); 
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [showHistoryBanner, setShowHistoryBanner] = useState(true);
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedRequestToEdit, setSelectedRequestToEdit] = useState(null);
+
+  // File Viewer Modal State
+  const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
+  const [viewingFileUrl, setViewingFileUrl] = useState("");
+  const [viewingFileName, setViewingFileName] = useState("");
+
+  // Approval Policy Warning Confirmation Modal State
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [pendingApprovalId, setPendingApprovalId] = useState(null);
 
   // History Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -45,25 +70,28 @@ const AdminRequests = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8; // Showing 8 items per page for a nice fit
 
-  const fetchRequests = async () => {
-    setLoading(true);
+  const fetchRequests = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const response = await fetchWithAuth("/api/request/all");
       const data = await response.json();
-      if (response.ok) {
+      if (response.ok && Array.isArray(data)) {
         setRequests(data);
+      } else {
+        console.warn("[AdminRequests] Failed to refresh requests:", response.status, data);
       }
     } catch (error) {
       console.error("Error fetching requests:", error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRequests();
-    window.addEventListener("dataRefresh", fetchRequests);
-    return () => window.removeEventListener("dataRefresh", fetchRequests);
+    fetchRequests(false);
+    const handleBackgroundRefresh = () => fetchRequests(true);
+    window.addEventListener("dataRefresh", handleBackgroundRefresh);
+    return () => window.removeEventListener("dataRefresh", handleBackgroundRefresh);
   }, []);
 
   // Reset states when changing tabs or filters
@@ -71,6 +99,7 @@ const AdminRequests = () => {
     setPaymentStatus("2"); 
     setCurrentPage(1);
     setSelectedReqId(null);
+    if (activeTab === "completed") setShowHistoryBanner(true);
   }, [activeTab, searchQuery, typeFilter, statusFilter]);
 
   const formatTime = (time) => {
@@ -103,8 +132,9 @@ const AdminRequests = () => {
       );
 
       if (response.ok) {
+        const actionLabel = statusId === 2 ? "Approved" : statusId === 3 ? "Rejected" : "Returned";
         setToast({
-          message: `Request ${statusId === 2 ? "Approved" : "Rejected"} successfully!`,
+          message: `Request ${actionLabel} successfully!`,
           type: "success",
         });
         setAdminNote("");
@@ -129,36 +159,67 @@ const AdminRequests = () => {
     }
   };
 
+  const handleApproveClick = (emp_reqId) => {
+    if (current?.system_remarks) {
+      setPendingApprovalId(emp_reqId);
+      setIsWarningModalOpen(true);
+    } else {
+      handleStatusUpdate(emp_reqId, 2);
+    }
+  };
+
+  const confirmApprovalWithWarning = () => {
+    if (pendingApprovalId) {
+      handleStatusUpdate(pendingApprovalId, 2);
+    }
+    setIsWarningModalOpen(false);
+    setPendingApprovalId(null);
+  };
+
   const getShortType = (typeName) => {
     if (!typeName) return "REQ";
     const name = typeName.toLowerCase();
     if (name.includes("vacation")) return "VL";
     if (name.includes("sick")) return "SL";
     if (name.includes("overtime")) return "OT";
-    if (name.includes("onfield")) return "OW";
+    if (name.includes("onfield") || name.includes("field")) return "OW";
     if (name.includes("correction")) return "LC";
     if (name.includes("emergency")) return "EL";
-    if (name.includes("half-day")) return "HD";
+    if (name.includes("half-day") || name.includes("half")) return "HD";
+    if (name.includes("maternity")) return "MAT";
+    if (name.includes("paternity")) return "PAT";
+    if (name.includes("solo parent")) return "SP";
+    if (name.includes("vawc")) return "VAW";
+    if (name.includes("special leave") || name.includes("special")) return "SPC";
+    if (name.includes("certification") || name.includes("loan cert")) return "LCERT";
+    if (name.includes("enrollment") || name.includes("loan enroll")) return "LENRL";
     return "REQ";
   };
 
   const filteredRequests = requests.filter((req) => {
-    const isPending = req.emp_reqStatusId === 1;
-    const isRecommended = req.emp_reqStatusId === 4;
-    const isCompleted = req.emp_reqStatusId === 2 || req.emp_reqStatusId === 3;
+    const userRole = Number(userData?.user_RoleId);
+    const reqStatus = Number(req.emp_reqStatusId);
+    const reqUserRole = Number(req.user_RoleId);
+    const requesterId = Number(req.user_Id);
+    const currentUserId = Number(userData?.user_Id);
+
+    const isPending = reqStatus === 1;
+    const isRecommended = reqStatus === 4;
+    const isCompleted = reqStatus === 2 || reqStatus === 3;
+    const isReturned = reqStatus === 5;
 
     let matchesTab = false;
     if (activeTab === "pending") {
-      if (userData?.user_RoleId === 1) { 
-        // Admins see everything pending, including Supervisor self-requests
-        matchesTab = isPending || isRecommended;
-      } else if (userData?.user_RoleId === 2) {
-        // Supervisors see pending requests from Employees (Role 3) AND Admins (Role 1),
-        // but NOT their own requests (those go to Admin)
-        matchesTab = isPending && req.user_Id !== userData.user_Id && (req.user_RoleId === 3 || req.user_RoleId === 1);
+      if (userRole === 1) { 
+        // Admins see everything in-progress: pending (1), recommended (4), and returned (5)
+        matchesTab = isPending || isRecommended || isReturned;
+      } else if (userRole === 2 || userRole === 4) {
+        // Supervisors and Accountants see pending and returned requests from others
+        matchesTab = (isPending || isReturned) && requesterId !== currentUserId;
       }
     } else { 
-      if (userData?.user_RoleId === 1) {
+      // History tab: strictly for completed records (Approved: 2, Rejected: 3)
+      if (userRole === 1) {
         matchesTab = isCompleted;
       } else { 
         matchesTab = isRecommended || isCompleted;
@@ -173,12 +234,20 @@ const AdminRequests = () => {
     // }
 
     if (activeTab === "completed") {
+      // Baseline History Filter: Only show current and previous month (total of 4 payroll periods)
+      const filedDate = new Date(req.date_Filed);
+      const today = new Date();
+      const cutoff = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      if (filedDate < cutoff) return false;
+
       const query = searchQuery.toLowerCase();
       
       // Search Name or ID
       const matchesSearch = 
         req.userName?.toLowerCase().includes(query) || 
-        req.emp_reqId?.toString().includes(query);
+        req.emp_reqId?.toString().includes(query) ||
+        (req.user_Id && formatUserId(req.user_Id).toLowerCase().includes(query)) ||
+        req.user_Id?.toString().includes(query);
       
       const shortType = getShortType(req.reqTypeName);
       const matchesType = typeFilter === "All" || shortType === typeFilter;
@@ -211,24 +280,27 @@ const AdminRequests = () => {
   const getDates = (req) => {
     if (!req) return "";
     return req.VL_StartDate
-      ? `${req.VL_StartDate} — ${req.VL_EndDate}`
+      ? `${new Date(req.VL_StartDate).toLocaleDateString()} — ${new Date(req.VL_EndDate).toLocaleDateString()}`
       : req.SL_StartDate
-        ? `${req.SL_StartDate} — ${req.SL_EndDate}`
-        : req.OT_DateOf
-          ? `${req.OT_DateOf} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
-          : req.LC_logDate
-            ? req.LC_logDate
-            : req.EL_DateOfLeave
-              ? req.EL_DateOfLeave
-              : req.HD_DateOfLeave
-                ? req.HD_DateOfLeave
-                : req.DateonField;
-  };
-
+        ? `${new Date(req.SL_StartDate).toLocaleDateString()} — ${new Date(req.SL_EndDate).toLocaleDateString()}`
+        : req.ST_StartDate
+          ? `${new Date(req.ST_StartDate).toLocaleDateString()} — ${new Date(req.ST_EndDate).toLocaleDateString()}`
+          : req.OT_DateOf
+            ? `${new Date(req.OT_DateOf).toLocaleDateString()} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
+            : req.LC_logDate
+              ? new Date(req.LC_logDate).toLocaleDateString()
+              : req.EL_DateOfLeave
+                ? new Date(req.EL_DateOfLeave).toLocaleDateString()
+                : req.HD_DateOfLeave
+                ? new Date(req.HD_DateOfLeave).toLocaleDateString()
+                : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : 
+                (req.emp_reqTypeId === 13 || req.emp_reqTypeId === 14) ? new Date(req.date_Filed).toLocaleDateString() : "";
+                };
   const getStatusColor = (statusId) => {
     if (statusId === 1 || statusId === 4) return "bg-orange-100 text-orange-800 hover:bg-orange-100";
     if (statusId === 2) return "bg-green-100 text-green-800 hover:bg-green-100";
     if (statusId === 3) return "bg-red-100 text-red-800 hover:bg-red-100";
+    if (statusId === 5) return "bg-orange-100 text-orange-800 hover:bg-orange-100";
     return "bg-slate-100 text-slate-800";
   };
 
@@ -238,6 +310,8 @@ const AdminRequests = () => {
       case "SL": return "bg-red-100 text-red-800 border-transparent";
       case "OW": return "bg-orange-100 text-orange-800 border-transparent";
       case "OT": return "bg-blue-100 text-blue-800 border-transparent";
+      case "LCERT": return "bg-sky-100 text-sky-800 border-transparent";
+      case "LENRL": return "bg-teal-100 text-teal-800 border-transparent";
       default: return "bg-slate-100 text-slate-800 border-transparent";
     }
   };
@@ -249,10 +323,16 @@ const AdminRequests = () => {
     setStatusFilter("All");
   };
 
+  const handleEditClick = (req) => {
+    setSelectedRequestToEdit(req);
+    setIsEditModalOpen(true);
+  };
+
   return (
     <Sidebar>
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+      <TooltipProvider>
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
 
         {/* Header Section */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-6">
@@ -266,10 +346,13 @@ const AdminRequests = () => {
             <Button 
             variant="outline" 
             asChild
-            className="w-full md:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#f0ebfa] font-semibold shadow-sm transition-all"
+            className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
           >
-            <Link to="/requestSum">
-              <AssessmentIcon className="mr-2 h-4 w-4" /> View Request Summary
+            <Link 
+              to="/adminReports" 
+              state={{ activeTab: "requests" }}
+            >
+            <AssessmentIcon className="mr-2 h-4 w-4" /> View Request Report
             </Link>
           </Button>
           
@@ -282,7 +365,17 @@ const AdminRequests = () => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Pending Requests</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Pending Requests</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Requests waiting for supervisor recommendation or final admin approval.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#2A174E]">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
                 </div>
                 <p className="text-xs text-[#2A174E]/70 italic mt-4">Awaiting review and approval</p>
@@ -298,7 +391,17 @@ const AdminRequests = () => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Approved Total</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Approved Total</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Total number of employee requests approved in this system cycle.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#3B4E17]">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
                 </div>
                 <p className="text-xs text-[#3B4E17]/70 italic mt-4">Processed and approved requests</p>
@@ -314,7 +417,17 @@ const AdminRequests = () => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Rejected Total</p>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Rejected Total</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                        Total number of employee requests rejected or declined.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-4xl font-bold text-[#BB8B26]">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
                 </div>
                 <p className="text-xs text-[#BB8B26]/70 italic mt-4">Declined and unapproved requests</p>
@@ -325,6 +438,27 @@ const AdminRequests = () => {
               </CardContent>
             </Card>
           </div>
+
+        {/* History Info Banner */}
+        {activeTab === "completed" && showHistoryBanner && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-start gap-3 text-blue-800 animate-in fade-in slide-in-from-top-2 duration-300 shadow-sm relative">
+            <InfoIcon className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+            <div className="space-y-1 pr-8">
+              <p className="text-sm font-bold">History Baseline Notice</p>
+              <p className="text-xs leading-relaxed opacity-90">
+                The listing below is limited to the <b>current and previous month</b> (approx. 4 payroll periods) to ensure optimal system performance. 
+                For comprehensive historical data, please refer to the <Link to="/adminReports" state={{ activeTab: "requests" }} className="underline font-bold hover:text-blue-900 transition-colors">Request Reports</Link>.
+              </p>
+            </div>
+            {/* Close Button */}
+            <button 
+              onClick={() => setShowHistoryBanner(false)}
+              className="absolute top-4 right-4 text-blue-400 hover:text-blue-600 transition-colors p-1"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Filters Card (Only visible when viewing History) */}
         {activeTab === "completed" && (
@@ -364,8 +498,18 @@ const AdminRequests = () => {
                       <SelectItem value="All">All Types</SelectItem>
                       <SelectItem value="VL">Vacation</SelectItem>
                       <SelectItem value="SL">Sick</SelectItem>
+                      <SelectItem value="EL">Emergency</SelectItem>
+                      <SelectItem value="HD">Half-Day</SelectItem>
                       <SelectItem value="OT">Overtime</SelectItem>
                       <SelectItem value="OW">Field Work</SelectItem>
+                      <SelectItem value="LC">Log Correct</SelectItem>
+                      <SelectItem value="SP">Solo Parent</SelectItem>
+                      <SelectItem value="MAT">Maternity</SelectItem>
+                      <SelectItem value="PAT">Paternity</SelectItem>
+                      <SelectItem value="VAW">VAWC</SelectItem>
+                      <SelectItem value="SPC">Special Leave</SelectItem>
+                      <SelectItem value="LCERT">Loan Cert</SelectItem>
+                      <SelectItem value="LENRL">Loan Enroll</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -422,7 +566,7 @@ const AdminRequests = () => {
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-3 py-0 custom-scrollbar">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1 mt-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1 mt-0">
                 {activeTab === "pending" ? "Queue" : "Past Requests"} ({totalItems})
               </h4>
               
@@ -438,9 +582,16 @@ const AdminRequests = () => {
                       className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
                     >
                       <div className="flex justify-between items-center mb-2">
-                        <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
-                          {getShortType(req.reqTypeName)}
-                        </Badge>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="outline" className={getTypeColor(getShortType(req.reqTypeName))}>
+                            {getShortType(req.reqTypeName)}
+                          </Badge>
+                          {req.system_remarks && (
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] px-1.5 py-0">
+                              ⚠️ Notice
+                            </Badge>
+                          )}
+                        </div>
                         <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
                       </div>
                       <p className="font-bold text-slate-800 text-sm mb-1">{req.userName}</p>
@@ -466,31 +617,17 @@ const AdminRequests = () => {
             </div>
 
             {/* Queue Pagination Footer */}
-            {totalItems > itemsPerPage && (
-              <div className="flex items-center justify-between p-3 border-t border-slate-100 bg-slate-50/50 shrink-0">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                  disabled={currentPage === 1}
-                  className="h-8 px-2"
-                >
-                  <ChevronLeftIcon className="h-4 w-4 text-slate-500" />
-                </Button>
-                <span className="text-xs font-semibold text-slate-500">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                  disabled={currentPage === totalPages}
-                  className="h-8 px-2"
-                >
-                  <ChevronRightIcon className="h-4 w-4 text-slate-500" />
-                </Button>
-              </div>
-            )}
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              itemLabel="requests"
+              compact={true}
+            />
           </Card>
 
           {/* Right: Detailed Review */}
@@ -501,37 +638,104 @@ const AdminRequests = () => {
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
                     <div>
                       <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {current.reqTypeName}</h3>
-                      <p className="text-sm text-slate-500 mt-1">Submitted on {current.date_Filed}</p>
+                      <p className="text-sm text-slate-500 mt-1">Submitted on {new Date(current.date_Filed).toLocaleDateString()}</p>
+                      {current.emp_reqStatusId === 5 && (
+                        <div className="mt-2">
+                          <Badge variant="secondary" className="px-3 py-1 text-xs justify-center bg-orange-100 text-orange-800 border border-orange-200 font-semibold w-fit">
+                            Currently Returned
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                     
-                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
-                      {(current.emp_reqStatusId === 1 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
-                        <>
-                          {current.user_Id === userData?.user_Id ? (
-                            <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-blue-100 text-blue-800">Your Self-Request</Badge>
-                          ) : (userData?.user_RoleId === 4) ? (
-                             <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-slate-100 text-slate-500 italic">View Only</Badge>
-                          ) : (
-                            <div className="flex gap-2 w-full">
-                              <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 2)}>
-                                <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
+                    {/* Right Side Grouping Wrapper */}
+                    <div className="flex flex-row items-center gap-2 ml-auto md:ml-0 shrink-0">
+                      
+                      <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
+                        {/* Pending / Returnable Requests Action Hub */}
+                        {(current.emp_reqStatusId === 1 || current.emp_reqStatusId === 5 || (current.emp_reqStatusId === 4 && userData?.user_RoleId === 1)) && (
+                          <>
+                            {current.user_Id === userData?.user_Id ? (
+                              <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-blue-100 text-blue-800">Your Self-Request</Badge>
+                            ) : (userData?.user_RoleId === 4) ? (
+                              <Badge variant="secondary" className="px-4 py-2 text-sm justify-center bg-slate-100 text-slate-500 italic">View Only</Badge>
+                            ) : (
+                              <div className="flex gap-2 w-full flex-wrap items-center">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex-1 min-w-[110px]">
+                                      <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveClick(current.emp_reqId)}>
+                                        <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                    Approve this request
+                                  </TooltipContent>
+                                </Tooltip>
+                                
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex-1 min-w-[110px]">
+                                      <Button className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
+                                        <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                    Reject this request
+                                  </TooltipContent>
+                                </Tooltip>
+
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex-1 min-w-[110px]">
+                                      <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 5)}>
+                                        <ReplyIcon className="mr-2 h-4 w-4" /> Return
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                    Return to employee for corrections
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        
+                        {/* Completed / Approved / Rejected / Recommended Request Badges */}
+                        {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || (current.emp_reqStatusId === 4 && userData?.user_RoleId !== 1)) && (
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(Number(current.emp_reqStatusId))}`}>
+                              {current.status}
+                            </Badge>
+                            {Number(current.emp_reqStatusId) === 4 && Number(userData?.user_RoleId) === 2 && (
+                              <span className="text-[10px] font-bold text-blue-600 uppercase italic">Awaiting Admin Final Action</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Edit Button: Placed immediately next to the active badges inside the root right-group flex wrapper */}
+                      {activeTab === "completed" && userData?.user_RoleId === 1 && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-block">
+                              <Button 
+                                variant="outline" 
+                                size="icon"
+                                className="text-[#2A174E]/70 border-transparent! hover:text-[#2A174E] font-bold h-9 w-9 shrink-0"
+                                onClick={() => handleEditClick(current)}
+                              >
+                                <EditIcon className="h-4 w-4" />
                               </Button>
-                              <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
-                                <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
-                              </Button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {(current.emp_reqStatusId === 2 || current.emp_reqStatusId === 3 || current.emp_reqStatusId === 4) && (
-                        <div className="flex flex-col items-end gap-2">
-                          <Badge variant="secondary" className={`px-4 py-2 text-sm justify-center ${getStatusColor(current.emp_reqStatusId)}`}>
-                            {current.status}
-                          </Badge>
-                          {current.emp_reqStatusId === 4 && userData?.user_RoleId === 2 && (
-                            <span className="text-[10px] font-bold text-blue-600 uppercase italic">Awaiting Admin Final Action</span>
-                          )}
-                        </div>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                            Edit request details
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
                   </div>
@@ -557,11 +761,21 @@ const AdminRequests = () => {
                             ? `${current.OW_NoDays || 0} Day(s) (${current.OW_NoHrs || 0} Hrs)`
                             : current.emp_reqTypeId === 5
                               ? `${current.LC_correctionCategory || "Correction"} for ${new Date(current.LC_logDate).toLocaleDateString()}`
-                              : current.emp_reqTypeId === 6 // Emergency
-                                ? `${current.EL_NoDays || 0} Day(s)`
+                              : [3, 4, 6, 8, 9, 10, 11, 12].includes(current.emp_reqTypeId)
+                                ? (() => {
+                                    const used = current.VL_NoDays || current.SL_NoDays || current.EL_NoDays || current.ST_NoDays || 0;
+                                    const start = current.VL_StartDate || current.SL_StartDate || current.EL_DateOfLeave || current.ST_StartDate;
+                                    const end = current.VL_EndDate || current.SL_EndDate || current.EL_DateOfLeave || current.ST_EndDate;
+                                    const original = calculateDays(start, end);
+                                    return used < original 
+                                      ? `${used} Day(s) Used (Original: ${original})` 
+                                      : `${used} Day(s)`;
+                                  })()
                                 : current.emp_reqTypeId === 7 // Half-day
                                   ? `Half-day (${current.HD_period})`
-                                  : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
+                                  : [13, 14].includes(current.emp_reqTypeId)
+                                    ? `${current.LR_agency} ${current.LR_loanType}`
+                                    : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
                       </p>
                     </div>
 
@@ -603,11 +817,11 @@ const AdminRequests = () => {
                       </>
                     )}
 
-                    {current.emp_reqTypeId !== 1 && current.emp_reqTypeId !== 5 && (
+                    {current.emp_reqTypeId !== 1 && current.emp_reqTypeId !== 5 && ![13, 14].includes(current.emp_reqTypeId) && (
                       <>
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Status</label>
-                          {current.emp_reqStatusId === 1 && (current.emp_reqTypeId === 3 || current.emp_reqTypeId === 4) ? (
+                          {current.emp_reqStatusId === 1 && (current.emp_reqTypeId === 3 || current.emp_reqTypeId === 4 || current.emp_reqTypeId === 10) ? (
                             <Select value={paymentStatus} onValueChange={setPaymentStatus}>
                               <SelectTrigger className="bg-white h-8 mt-1">
                                 <SelectValue />
@@ -622,20 +836,22 @@ const AdminRequests = () => {
                             </Select>
                           ) : (
                             <p className="font-semibold text-slate-800 mt-1">
-                              {current.VL_withPayName || current.SL_withPayName || "N/A"}
+                              {current.VL_withPayName || current.SL_withPayName || current.ST_withPayName || ([1, 4].includes(current.emp_reqStatusId) ? "Pending" : "N/A")}
                             </p>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            {current.emp_reqStatusId === 1 ? "Remaining Balance" : "Leave Used"}
+                            {[1, 4].includes(current.emp_reqStatusId) ? "Remaining Balance" : "Leave Used"}
                           </label>
-                          <p className={`font-semibold mt-1 ${(current.emp_reqStatusId === 1) && ((current.emp_reqTypeId === 3 && current.VL_balance < current.VL_NoDays) || (current.emp_reqTypeId === 4 && current.SL_balance < current.SL_NoDays)) ? "text-red-700 bg-red-100 px-2 py-0.5 rounded inline-block" : "text-slate-800"}`}>
-                            {current.emp_reqTypeId === 3 
-                              ? (current.emp_reqStatusId === 1 ? `${current.VL_balance || 0} VL Remaining` : `${current.VL_NoDays || 0} Day(s) Used`)
-                              : current.emp_reqTypeId === 4 
-                              ? (current.emp_reqStatusId === 1 ? `${current.SL_balance || 0} SL Remaining` : `${current.SL_NoDays || 0} Day(s) Used`)
-                              : "N/A"}
+                          <p className={`font-semibold mt-1 ${(current.emp_reqStatusId === 1) && ((current.emp_reqTypeId === 3 && current.VL_balance < current.VL_NoDays) || (current.emp_reqTypeId === 4 && current.SL_balance < current.SL_NoDays) || (current.emp_reqTypeId === 10 && current.SoloParent_balance < current.ST_NoDays)) ? "text-red-700 bg-red-100 px-2 py-0.5 rounded inline-block" : "text-slate-800"}`}>
+                            {current.emp_reqTypeId === 3
+                              ? ([1, 4].includes(current.emp_reqStatusId) ? `${current.VL_balance || 0} VL Remaining` : `${current.VL_NoDays || 0} Day(s) Used`)
+                              : current.emp_reqTypeId === 4
+                                ? ([1, 4].includes(current.emp_reqStatusId) ? `${current.SL_balance || 0} SL Remaining` : `${current.SL_NoDays || 0} Day(s) Used`)
+                                : current.emp_reqTypeId === 10
+                                  ? ([1, 4].includes(current.emp_reqStatusId) ? `${current.SoloParent_balance || 0} SP Remaining` : `${current.ST_NoDays || 0} Day(s) Used`)
+                                  : "N/A"}
                           </p>
                         </div>
                         <div className="space-y-1">
@@ -644,11 +860,23 @@ const AdminRequests = () => {
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
-                          <p className="font-semibold text-slate-800">{current.date_Processed || "Pending"}</p>
+                          <p className="font-semibold text-slate-800">{current.date_Processed ? formatDateTime(current.date_Processed) : "Pending"}</p>
                         </div>
                       </>
                     )}
 
+                    {[13, 14].includes(current.emp_reqTypeId) && (
+                      <>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Processed By</label>
+                          <p className="font-semibold text-slate-800">{current.approverName ? `${current.approverName} (${formatUserId(current.processedBy)})` : "Pending Review"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
+                          <p className="font-semibold text-slate-800">{current.date_Processed ? formatDateTime(current.date_Processed) : "Pending"}</p>
+                        </div>
+                      </>
+                    )}
                     {current.emp_reqTypeId === 5 && (
                       <>
                         <div className="space-y-1">
@@ -661,27 +889,106 @@ const AdminRequests = () => {
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
-                          <p className="font-semibold text-slate-800">{current.date_Processed || "Pending"}</p>
+                          <p className="font-semibold text-slate-800">{current.date_Processed ? formatDateTime(current.date_Processed) : "Pending"}</p>
                         </div>
                       </>
                     )}
 
-                    {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File) && (
-                      <div className="space-y-1 col-span-1 sm:col-span-2 xl:col-span-3">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachment</label>
-                        <div>
-                          <a 
-                            href={`/api/uploads/${current.SL_proof_File || current.OW_proof_File || current.LC_proof_File}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-[#2A174E] font-semibold hover:underline mt-1"
-                          >
-                            <AttachmentIcon className="mr-1 h-4 w-4" /> View Attachment
-                          </a>
+                    {[13, 14].includes(current.emp_reqTypeId) && (
+                      <>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Agency</label>
+                          <p className="font-semibold text-slate-800">{current.LR_agency}</p>
                         </div>
-                      </div>
-                    )}
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Loan Type</label>
+                          <p className="font-semibold text-slate-800">{current.LR_loanType}</p>
+                        </div>
+                        {current.emp_reqTypeId === 14 && (
+                          <>
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount / Balance</label>
+                              <p className="font-bold text-green-700">
+                                ₱{parseFloat(
+                                  (current.LR_agency === "Company" || !current.LR_balance || parseFloat(current.LR_balance) === 0) 
+                                    ? (current.LR_amount || 0) 
+                                    : current.LR_balance
+                                ).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Repayment Term</label>
+                              <p className="font-semibold text-slate-800">
+                                {current.LR_agency === "Company" ? "1 Month (Full)" : `${(current.LR_term && parseFloat(current.LR_term) > 0) ? current.LR_term : (current.LR_months || 0)} Months`}
+                              </p>
+                            </div>
+                            {current.LR_amortization && parseFloat(current.LR_amortization) > 0 && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Amortization</label>
+                                <p className="font-bold text-blue-700">₱{parseFloat(current.LR_amortization).toLocaleString()}</p>
+                              </div>
+                            )}                            {current.LR_reference && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reference No.</label>
+                                <p className="font-mono text-xs font-bold text-slate-700">{current.LR_reference}</p>
+                              </div>
+                            )}
+                            {current.LR_pagibigTAV > 0 && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pag-IBIG TAV</label>
+                                <p className="font-bold text-emerald-700">₱{parseFloat(current.LR_pagibigTAV).toLocaleString()}</p>
+                              </div>
+                            )}
+                            {current.LR_amortizationStart && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Starts On</label>
+                                <p className="font-bold text-slate-700">{current.LR_amortizationStart}</p>
+                              </div>
+                            )}
+                            {current.LR_calamityArea && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Declared Calamity Area</label>
+                                <p className="font-semibold text-orange-600">{current.LR_calamityArea}</p>
+                              </div>
+                            )}
+                            </>
+                            )}
+                            </>
+                            )}
 
+                            {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File || current.LR_damageProof) && (
+                            <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachments</label>
+                            <div className="flex flex-col gap-2">
+                            {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File) && (
+                            <button
+                            type="button"
+                            onClick={() => {
+                              setViewingFileUrl(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File);
+                              setViewingFileName(`Attachment for REQ-${current.emp_reqId}`);
+                              setIsFileViewerOpen(true);
+                            }}
+                            className="inline-flex items-center text-[#2A174E] font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
+                            >
+                            <AttachmentIcon className="mr-1 h-4 w-4" /> View Primary Document (Disclosure Statement/Medical Cert)
+                            </button>
+                            )}
+                            {current.LR_damageProof && (
+                            <button
+                            type="button"
+                            onClick={() => {
+                              setViewingFileUrl(current.LR_damageProof);
+                              setViewingFileName(`Damage Proof for REQ-${current.emp_reqId}`);
+                              setIsFileViewerOpen(true);
+                            }}
+                            className="inline-flex items-center text-orange-600 font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
+                            >
+                            <AttachmentIcon className="mr-1 h-4 w-4" /> View Property Damage Proof
+                            </button>
+                            )}
+                            </div>
+                            </div>
+                            )}
                     <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3 border-t border-slate-200 pt-4 mt-2">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employee Remarks / Purpose</label>
                       <p className="text-sm text-slate-700 italic bg-white p-4 rounded-lg border border-slate-200">"{current.remarks || "No details provided"}"</p>
@@ -702,13 +1009,13 @@ const AdminRequests = () => {
                     )}
                   </div>
 
-                  {current.emp_reqStatusId === 1 && userData?.user_RoleId !== 4 && (
+                  {[1, 5].includes(current.emp_reqStatusId) && userData?.user_RoleId !== 4 && (
                     <div className="space-y-3 mt-2">
                       <label className="text-sm font-bold text-slate-800">Admin Note (Optional)</label>
                       <Textarea
                         value={adminNote}
                         onChange={(e) => setAdminNote(e.target.value)}
-                        placeholder="Reason for approval or rejection..."
+                        placeholder="Reason for approval, rejection, or return..."
                         className="h-24 resize-none focus-visible:ring-[#2A174E]"
                       />
                     </div>
@@ -763,6 +1070,59 @@ const AdminRequests = () => {
           background: #cbd5e1; 
         }
       `}} />
+
+      <EditRequestModal 
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        request={selectedRequestToEdit}
+        onUpdate={fetchRequests}
+      />
+
+      <FileViewerModal
+        isOpen={isFileViewerOpen}
+        onClose={() => setIsFileViewerOpen(false)}
+        fileUrl={viewingFileUrl}
+        fileName={viewingFileName}
+      />
+
+      {/* Approval Policy Warning Confirmation Modal */}
+      <AlertDialog open={isWarningModalOpen} onOpenChange={setIsWarningModalOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 text-amber-600 mb-1">
+              <WarningAmberIcon className="h-6 w-6 shrink-0" />
+              <AlertDialogTitle className="text-lg font-bold text-slate-900">
+                Review Policy Warning Before Approval
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2 text-slate-600 text-sm">
+                <p>
+                  This request for <b>{current?.userName}</b> (REQ-{current?.emp_reqId}) has triggered the following policy flag(s):
+                </p>
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs leading-relaxed font-medium">
+                  "{current?.system_remarks}"
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Approving this request confirms you acknowledge the policy notice (such as Sandwich Rule, balance limitation, or tenure notice). Do you wish to approve anyway?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel onClick={() => { setIsWarningModalOpen(false); setPendingApprovalId(null); }}>
+              Cancel & Review
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmApprovalWithWarning} 
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+            >
+              Proceed & Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </TooltipProvider>
     </Sidebar>
   );
 };

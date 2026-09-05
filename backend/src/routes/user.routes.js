@@ -4,10 +4,13 @@ const userController = require("../controllers/user.controller.js");
 const rfidController = require("../controllers/rfid.controller.js");
 const authController = require("../controllers/auth.controller.js");
 const upload = require("../middleware/upload.js");
-const { requireAdmin, requireStaff } = require("../middleware/roleCheck.js");
+const { requireAdmin, requireStaff, requireRole } = require("../middleware/roleCheck.js");
 
 // URL will be: http://localhost:4000/api/users/registerUser
 router.post("/registerUser", requireAdmin, upload.single("user_ProfilePic"), userController.registerUser);
+
+// Batch Register Users from CSV
+router.post("/batch-register", requireAdmin, upload.single("csvFile"), userController.batchRegisterUsers);
 
 // Get the next auto-incremented user ID
 router.get("/nextId", requireAdmin, userController.getNextUserId);
@@ -27,15 +30,38 @@ router.get("/all", requireStaff, userController.viewAllUsers);
 // GET archived users (soft-deleted)
 router.get("/archived", requireAdmin, userController.viewArchivedUsers);
 
-// GET user by user_Id
-router.get("/:user_Id", userController.viewUserById);
-// DELETE user by user_Id (soft delete — sets deletedAt)
-router.delete("/deleteUser/:user_Id", requireAdmin, userController.deleteUser);
+// GET employees without hardware assigned
+router.get("/unassigned-hardware", requireStaff, userController.getUnassignedHardwareUsers);
+
+// GET employee masterlist with daily rate columns
+router.get("/employees/masterlist", requireAdmin, userController.getMasterlist);
+
+// GET audit and transaction logs
+router.get("/logs/audit", requireAdmin, userController.getAuditLogs);
+router.get("/logs/transaction", requireAdmin, userController.getTransactionLogs);
 
 // Password Reset Request
 router.post("/request-password-reset", userController.requestPasswordReset);
 
-// Force Delete
+// Bulk Update Maxicare Deductions
+router.patch("/bulk-maxicare", requireAdmin, userController.bulkUpdateMaxicare);
+
+// --- Parameterized Routes (Must be below static routes to prevent shadowing) ---
+
+// Check if MaChip exists
+router.get("/check-machip/:uid", requireStaff, userController.checkMaChip);
+
+// Check if Fingerprint slot exists
+router.get("/check-fingerprint/:slot", requireStaff, userController.checkFingerprint);
+
+// GET employee summary (tenure, payroll trends)
+router.get("/summary/:userId", requireStaff, userController.getEmployeeSummary);
+
+// GET user by user_Id
+router.get("/:user_Id", userController.viewUserById);
+
+// DELETE user by user_Id (soft delete — sets deletedAt)
+router.delete("/deleteUser/:user_Id", requireAdmin, userController.deleteUser);
 
 // RESTORE a soft-deleted user (clears deletedAt)
 router.patch("/restoreUser/:user_Id", requireAdmin, userController.restoreUser);
@@ -43,24 +69,10 @@ router.patch("/restoreUser/:user_Id", requireAdmin, userController.restoreUser);
 // PERMANENTLY delete a user (hard delete, cannot be undone)
 router.delete("/forceDelete/:user_Id", requireAdmin, userController.forceDeleteUser);
 
-//UPDATE user by user_Id
-router.put("/updateUser/:user_Id", requireAdmin, upload.single("user_ProfilePic"), userController.updateUser);
-
-// Check if MaChip exists
-router.get("/check-machip/:uid", requireAdmin, userController.checkMaChip);
-// Check if Fingerprint slot exists
-router.get("/check-fingerprint/:slot", requireAdmin, userController.checkFingerprint);
-
-// GET employee masterlist with daily rate columns
-router.get("/employees/masterlist", requireAdmin, userController.getMasterlist);
+// UPDATE user by user_Id
+router.put("/updateUser/:user_Id", requireRole(1, 2, 3, 4), upload.single("user_ProfilePic"), userController.updateUser);
 
 // PATCH employee daily rate
 router.patch("/employees/:user_Id/daily-rate", requireAdmin, userController.updateDailyRate);
-
-// Bulk Update Maxicare Deductions
-router.patch("/bulk-maxicare", requireAdmin, userController.bulkUpdateMaxicare);
-
-// Batch Register Users from CSV
-router.post("/batch-register", requireAdmin, upload.single("csvFile"), userController.batchRegisterUsers);
 
 module.exports = router;

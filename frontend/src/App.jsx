@@ -2,15 +2,17 @@ import Home from "./pages/admin/Home";
 import EmployeeHome from "./pages/employeeHome/EmployeeHome";
 import UserRequests from "./pages/userRequests/UserRequests"; 
 import Login from "./pages/login/Login";
+import ResetPassword from "./pages/resetPassword/ResetPassword";
 import List from "./pages/list/List";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
-import FingerprintManagement from "./pages/new/FingerprintManagement";
-import RfidManagement from "./pages/new/RfidManagement";
+import HardwareManagement from "./pages/new/HardwareManagement";
 import Edit from "./pages/editUser/Edit";
 import EditAttendance from "./pages/editAttendance/EditAttendance";
 import Logs from "./pages/logs-management/Logs";
+import VisitorLogs from "./pages/logs-management/VisitorLogs";
 import AdminRequests from "./pages/admin_Requests/AdminRequests";
+import AdminLoanEnrollment from "./pages/admin_Requests/AdminLoanEnrollment";
 import RequestSummary from "./pages/admin_Requests/RequestSummary";
 import RequestDetails from "./pages/request_Details/RequestDetails";
 import Payroll from "./pages/admin_Payroll/PayrollManagement";
@@ -28,6 +30,10 @@ import CashAdvancesHistory from "./pages/admin_Payroll/subtabs/CashAdvanceHistor
 import LoanModule from "./pages/admin_Payroll/subtabs/LoanModule";
 import LeaveSummary from "./pages/admin_Payroll/subtabs/LeaveSummary";
 import EmployeeCalendar from "./pages/emp_Calendar/EmployeeCalendar"; 
+import EmployeePayslip from "./pages/emp_payroll/EmployeePayslip";
+import EmployeePayrollHistory from "./pages/emp_payroll/EmployeePayrollHistory";
+import ThirteenthMonthDetails from "./pages/emp_payroll/ThirteenthMonthDetails";
+import PayrollComputationDetails from "./pages/emp_payroll/PayrollComputationDetails";
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
 import Settings from "./pages/settings/Settings";
@@ -42,19 +48,26 @@ import TransactionLog from "./components/transactionLog/TransactionLog";
 import AuditLog from "./components/auditLog/AuditLog";
 import ArchivedUsers from "./pages/archivedUsers/ArchivedUsers";
 import AdminRequestsOversight from "./pages/AdminRequestsOversight";
-import RequestsHistory from "./pages/RequestsHistory";
 import FAQ from "./components/FAQ";
 import LoanManagement from "./pages/admin_Payroll/subtabs/LoanManagement";
+import TransitionPlayground from "./pages/admin/TransitionPlayground";
 import LoanManagementHub from "./pages/admin_Payroll/subtabs/LoanManagementHub";
-import LM2 from "./pages/admin_Payroll/subtabs/LM2";
+import LoanDetails from "./pages/admin_Payroll/subtabs/LoanDetails";
 import LoanDetailsPage from "./components/LoanDetailsPage";
+import ThirteenthMonth from "./pages/admin_Payroll/subtabs/ThirteenthMonth";
+import SeparationPay from "./pages/admin_Payroll/subtabs/SeparationPay";
+import RetirementPay from "./pages/admin_Payroll/subtabs/RetirementPay";
+import LaborBenefits from "./pages/admin_Payroll/LaborBenefits";
+import PageTitle from "./components/PageTitle";
 
 function App() {
 
   return (
     <div className="app w-full">
+      <PageTitle />
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         <Route
           path="/employeeHome"
@@ -75,6 +88,15 @@ function App() {
         />
 
         <Route
+          path="/adminLoanEnrollment"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 4]}>
+              <AdminLoanEnrollment />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/requestSum"
           element={
             <ProtectedRoute allowedRoles={[1, 2, 4]}>
@@ -88,15 +110,6 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[4]}>
               <AdminRequestsOversight />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/requestsHistory"
-          element={
-            <ProtectedRoute allowedRoles={[4]}>
-              <RequestsHistory />
             </ProtectedRoute>
           }
         />
@@ -135,12 +148,29 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+         <Route
+          path="/laborBenefits"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <LaborBenefits />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/loanmod"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <LoanModule />
+            </ProtectedRoute>
+          }
+        />
         <Route 
-          path="/loanMan2" 
-          element={<ProtectedRoute allowedRoles={[1, 4]}><LM2 /></ProtectedRoute>} />
+          path="/loanManagement" 
+          element={<ProtectedRoute allowedRoles={[1, 4]}><LoanManagement /></ProtectedRoute>} />
         <Route 
-          path="/loanMan2/:id" 
-          element={<ProtectedRoute allowedRoles={[1, 4]}><LoanDetailsPage /></ProtectedRoute>} />
+          path="/loanDetails/:id" 
+          element={<ProtectedRoute allowedRoles={[1, 4]}><LoanDetails /></ProtectedRoute>} />
 
         <Route
           path="/loanManagementHub"
@@ -242,6 +272,33 @@ function App() {
         />
 
         <Route
+          path="/thirteenth-month"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <ThirteenthMonth />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/separation-pay"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <SeparationPay />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/retirement-pay"
+          element={
+            <ProtectedRoute allowedRoles={[1, 4]}>
+              <RetirementPay />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/payroll/payrollPeriod"
           element={
             <ProtectedRoute allowedRoles={[1, 4]}>
@@ -304,6 +361,47 @@ function App() {
           }
         />
 
+        <Route
+          path="/employee"
+          element={<Navigate to="/employee/payroll" replace />}
+        />
+
+        <Route
+          path="/employee/payroll"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <EmployeePayrollHistory />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employee/payslip/:id"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <EmployeePayslip />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employee/13th-month/:year"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <ThirteenthMonthDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employee/payroll-details/:id"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <PayrollComputationDetails />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Wrap all protected routes */}
         <Route
           path="/"
@@ -349,18 +447,10 @@ function App() {
             }
           />
           <Route
-            path="fingerprint"
+            path="hardware"
             element={
               <ProtectedRoute allowedRoles={[1, 2, 4]}>
-                <FingerprintManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="rfid"
-            element={
-              <ProtectedRoute allowedRoles={[1, 2, 4]}>
-                <RfidManagement />
+                <HardwareManagement />
               </ProtectedRoute>
             }
           />
@@ -380,6 +470,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 2, 4]}>
               <Logs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="visitorLogs"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 4]}>
+              <VisitorLogs />
             </ProtectedRoute>
           }
         />
@@ -441,6 +539,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
               <FAQ />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="transitions"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <TransitionPlayground />
             </ProtectedRoute>
           }
         />

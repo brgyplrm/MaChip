@@ -1,11 +1,12 @@
 import Sidebar from "../../components/Sidebar";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import { EyeIcon, SquarePen } from "lucide-react";  
 
 // Icons
 import SearchIcon from "@mui/icons-material/Search";
@@ -25,6 +26,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "recharts";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const formatDateStr = (dateStr) => {
   if (!dateStr) return "—";
@@ -33,10 +37,13 @@ const formatDateStr = (dateStr) => {
 };
 
 const Logs = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialView = searchParams.get("view") === "day" ? "day" : (searchParams.get("view") === "visitor" ? "visitor" : "raw");
   const { systemToday } = useSystemTime();
-  const [viewMode, setViewMode] = useState("raw"); // "raw" or "day"
+  const [viewMode, setViewMode] = useState(initialView); // "raw", "day", or "visitor"
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  
 
   // New Filter States
 const [filterDate, setFilterDate] = useState(""); // Specific date (YYYY-MM-DD)
@@ -81,7 +88,11 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
   const isAdminOrAccountant = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
 
   const systemDateKey = systemToday?.toDateString() || "";
-  const period = useMemo(() => getCurrentPeriod(systemToday), [systemDateKey, getCurrentPeriod]);
+  const period = useMemo(() => {
+    // If a specific date is filtered, show the period containing that date
+    const baseDate = filterDate ? new Date(filterDate) : systemToday;
+    return getCurrentPeriod(baseDate);
+  }, [systemDateKey, filterDate, getCurrentPeriod]);
 
   const [users, setUsers] = useState([]);
 
@@ -94,10 +105,13 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
     setSearchQuery("");
     setSelectedUser("all");
     setStatusFilter("All");
+    setFilterDate("");
+    setStartTime("");
+    setEndTime("");
     setCurrentPage(1);
   };
 
-  const isFiltering = searchQuery !== "" || selectedUser !== "all" || statusFilter !== "All";
+  const isFiltering = searchQuery !== "" || selectedUser !== "all" || statusFilter !== "All" || filterDate !== "" || startTime !== "" || endTime !== "";
 
   // Fetch Users
   const fetchUsers = useCallback(async () => {
@@ -120,7 +134,10 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
   // Fetch all logs from the backend (raw)
   const fetchLogs = useCallback(async () => {
     try {
-      const response = await fetchWithAuth(`/api/attendance/all?startDate=${period.startDate}&endDate=${period.endDate}`);
+      // Always fetch the whole period to allow period-wide stats in the cards
+      const start = period.startDate;
+      const end = period.endDate;
+      const response = await fetchWithAuth(`/api/attendance/all?startDate=${start}&endDate=${end}`);
       if (response.ok) {
         const logs = await response.json();
         const mapped = logs.map((log) => {
@@ -153,14 +170,17 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
   // Fetch day logs
   const fetchDayLogs = useCallback(async () => {
     try {
-      let url = `/api/attendance/report?startDate=${period.startDate}&endDate=${period.endDate}`;
+      const start = period.startDate;
+      const end = period.endDate;
+      let url = `/api/attendance/report?startDate=${start}&endDate=${end}`;
       if (selectedUser !== "all") url += `&user_Id=${selectedUser}`;
       else url += `&user_Id=All Employees`;
 
       const response = await fetchWithAuth(url);
       if (response.ok) {
         const data = await response.json();
-        const mapped = data.map(d => ({
+        const actualLogs = Array.isArray(data) ? data : (data.logs || []);
+        const mapped = actualLogs.map(d => ({
           ...d,
           log_Date: String(d.log_Date).split('T')[0]
         }));
@@ -190,6 +210,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
       };
     } else {
       fetchDayLogs();
+      fetchLogs(); // Pre-load raw logs to calculate system-generated counts
       const interval = setInterval(fetchDayLogs, 30000); 
       window.addEventListener("dataRefresh", handleRefresh);
       return () => {
@@ -197,7 +218,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
         window.removeEventListener("dataRefresh", handleRefresh);
       };
     }
-  }, [fetchLogs, fetchUsers, fetchDayLogs, viewMode]);
+  }, [fetchLogs, fetchUsers, fetchDayLogs, viewMode, period.startDate, period.endDate]);
 
   const handleGenerateLogs = async (forcedStatus) => {
     setLoading(true);
@@ -240,8 +261,13 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
 
   // 1. Filter Raw Data
   const filteredRawData = logData.filter((item) => {
-    // Date Filter - Safely extract YYYY-MM-DD from the log_Date string
-    const matchesDate = !filterDate || item.log_Date === filterDate;
+    // Date Filter - Ensure consistent string format for comparison (YYYY-MM-DD)
+    let matchesDate = true;
+    if (filterDate) {
+      // Assuming item.log_Date might be "2024-05-21" or "2024-05-21T00:00:00.000Z"
+      const itemDateStr = String(item.log_Date).split('T')[0];
+      matchesDate = itemDateStr === filterDate;
+    }
 
     // Time Range Filter Logic
     let matchesTime = true;
@@ -319,8 +345,11 @@ const sortedAndFilteredDayLogs = useMemo(() => {
 
     // 1. Specific Date Filter
     // Format the log_Date (ISO) to YYYY-MM-DD for comparison
-    const itemDate = String(item.log_Date).split('T')[0];
-    const matchesDate = !filterDate || itemDate === filterDate;
+    let matchesDate = true;
+    if (filterDate) {
+      const itemDateStr = String(item.log_Date).split('T')[0];
+      matchesDate = itemDateStr === filterDate;
+    }
 
     // 2. Time Range Filter (Applied to 'Morning In')
     let matchesTime = true;
@@ -361,19 +390,16 @@ const sortedAndFilteredDayLogs = useMemo(() => {
   const currentData = activeData.slice(startIndex, endIndex);
 
   // ------------------ STATISTICS CALCULATION ------------------
-  const todayRawLogs = useMemo(() => {
-    const todayStr = String(systemToday.toISOString()).split('T')[0];
-    return logData.filter(l => l.log_Date === todayStr);
-  }, [logData, systemToday]);
-
+  // Stats should reflect the entire period being viewed (Current or Filtered)
   const stats = {
-    total: viewMode === "raw" ? todayRawLogs.length : dayLogsData.length,
+    total: viewMode === "raw" ? logData.length : dayLogsData.length,
     metric1: viewMode === "raw" 
-      ? todayRawLogs.filter(l => l.log_type?.toLowerCase().includes("in")).length 
-      : dayLogsData.filter(l => l.status === "On Time").length,
+      ? logData.filter(l => l.log_type?.toLowerCase().includes("in")).length 
+      : dayLogsData.filter(l => l.status === "On Time" || l.status === "On-Field" || l.status === "On-time").length,
     metric2: viewMode === "raw"
-      ? todayRawLogs.filter(l => l.log_type?.toLowerCase().includes("out")).length
-      : dayLogsData.filter(l => l.status && l.status !== "On Time").length,
+      ? logData.filter(l => l.log_type?.toLowerCase().includes("out")).length
+      : dayLogsData.filter(l => l.status && !["On Time", "On-Field", "On-time"].includes(l.status)).length,
+    systemGenerated: logData.filter(l => l.log_type === "System Generated").length,
   };
 
   // State tracking visibility masking state mapped to log identifiers
@@ -388,10 +414,11 @@ const toggleMachipVisibility = (rowId) => {
 
   return (
     <Sidebar>
-      <div className="flex flex-col w-full min-h-screen bg-slate-50">
-        <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
-        
-        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+      <TooltipProvider>
+        <div className="flex flex-col w-full min-h-screen">
+          <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
+          
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
           
           {/* Header section with Actions & Tabs */}
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-6">
@@ -405,26 +432,29 @@ const toggleMachipVisibility = (rowId) => {
             <Button 
               variant="outline" 
               asChild
-              className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#f0ebfa] font-semibold"
+              className="w-full sm:w-auto border-[#2A174E]/30 text-[#2A174E]/80 hover:text-[#2A174E] font-semibold"
             >
               <Link to="/adminReports" state={{ activeTab: "attendance" }}>
                 <AssessmentIcon className="mr-2 h-4 w-4" /> View Detailed Reports
               </Link>
             </Button>
-          
+            {/* View Mode Toggle (Tabs integrated into Header) */}
+              <Tabs value={viewMode} onValueChange={(val) => {
+                setViewMode(val);
+                setSearchParams({ view: val });
+              }}  className="w-full sm:w-[250px] xl:w-[250px]">
+                <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 rounded-lg">
+                  <TabsTrigger value="raw" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
+                    Raw Logs
+                  </TabsTrigger>
+                  <TabsTrigger value="day" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
+                    Day Summaries
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-                {/* View Mode Toggle (Tabs integrated into Header) */}
-                <Tabs value={viewMode} onValueChange={(val) => setViewMode(val)} className="w-full sm:w-[320px] xl:w-[320px]">
-                  <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 p-1 rounded-lg">
-                    <TabsTrigger value="raw" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
-                      Raw Logs
-                    </TabsTrigger>
-                    <TabsTrigger value="day" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
-                      Day Summaries
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+              
             </div>
           <div className="h-6"></div>
  
@@ -435,17 +465,26 @@ const toggleMachipVisibility = (rowId) => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">
-                      {viewMode === "raw" ? "Total Log Events" : "Total Day Records"}
-                    </p>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">
+                        {viewMode === "raw" ? "Total Log Events" : "Total Day Records"}
+                      </p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          {viewMode === "raw" 
+                            ? "Total clock-in/out logging events registered in this pay period." 
+                            : "Total day summary listings registered in this pay period."}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
                   </div>
                   <p className="text-xs text-[#2A174E]/70 italic mt-4">
-                    {viewMode === "raw" ? "Total events captured today" : "All captured records for context"}
+                    {viewMode === "raw" ? "Total events captured in this period" : "All captured records for context"}
                   </p>
-                </div>
-                <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                  <FormatListBulletedIcon className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
@@ -455,37 +494,82 @@ const toggleMachipVisibility = (rowId) => {
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">
-                      {viewMode === "raw" ? "Clock In Events" : "On Time Days"}
-                    </p>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">
+                        {viewMode === "raw" ? "Clock In Events" : "On Time Days"}
+                      </p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          {viewMode === "raw" 
+                            ? "Total entry scans recorded in this period." 
+                            : "Total employee days arriving on or before the 8:00 AM shift start."}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <p className="text-4xl font-bold text-[#3B4E17]">{stats.metric1}</p>
                   </div>
                   <p className="text-xs text-[#3B4E17]/70 italic mt-4">
-                    {viewMode === "raw" ? "Entry scans recorded today" : "Employees arriving on or before 8:00 AM"}
+                    {viewMode === "raw" ? "Entry scans recorded in this period" : "Employees arriving on or before 8:00 AM"}
                   </p>
-                </div>
-                <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                  <AccessTimeIcon className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
 
             {/* Card 3: Admins & Supervisors */}
-            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+            <Card className="border-t-5 border-[#B06E16] bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">
-                      {viewMode === "raw" ? "Clock Out Events" : "Late & Absent"}
-                    </p>
-                    <p className="text-4xl font-bold text-[#BB8B26]">{stats.metric2}</p>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-[#B06E16] uppercase tracking-wider">
+                        {viewMode === "raw" ? "Clock Out Events" : "Late & Absent"}
+                      </p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#B06E16]/60 hover:text-[#B06E16] cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          {viewMode === "raw" 
+                            ? "Total exit scans recorded in this period." 
+                            : "Total day records containing a Late or Absent infraction."}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <p className="text-4xl font-bold text-[#B06E16]">{stats.metric2}</p>
                   </div>
-                  <p className="text-xs text-[#BB8B26]/70 italic mt-4">
-                    {viewMode === "raw" ? "Exit scans recorded today" : "Days recorded with infractions"}
+                  <p className="text-xs text-[#B06E16]/70 italic mt-4">
+                    {viewMode === "raw" ? "Exit scans recorded in this period" : "Days recorded with infractions"}
                   </p>
                 </div>
-                <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                  <AssignmentLateIcon className="h-6 w-6" />
+              </CardContent>
+            </Card>
+
+            {/* Card 4: System Generated Logs */}
+            <Card className="border-t-5 border-[#E11D48] bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-[#E11D48] uppercase tracking-wider">
+                        System Generated
+                      </p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#E11D48]/60 hover:text-[#E11D48] cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          Logs created automatically by the MAChip system (such as automated absence flags).
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <p className="text-4xl font-bold text-[#E11D48]">{stats.systemGenerated}</p>
+                  </div>
+                  <p className="text-xs text-[#E11D48]/70 italic mt-4">
+                    System markers in this period
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -532,7 +616,14 @@ const toggleMachipVisibility = (rowId) => {
                       {viewMode === "raw" ? (
                         <><SelectItem value="in">Clock In</SelectItem><SelectItem value="out">Clock Out</SelectItem></>
                       ) : (
-                        <><SelectItem value="On Time">On Time</SelectItem><SelectItem value="Late">Late</SelectItem><SelectItem value="Absent">Absent</SelectItem></>
+                        <>
+                          <SelectItem value="On Time">On Time</SelectItem>
+                          <SelectItem value="Late">Late</SelectItem>
+                          <SelectItem value="Absent">Absent</SelectItem>
+                          <SelectItem value="On Leave">On Leave</SelectItem>
+                          <SelectItem value="On-Field">On-Field</SelectItem>
+                          <SelectItem value="Half Day">Half Day</SelectItem>
+                        </>
                       )}
                     </SelectContent>
                   </Select>
@@ -588,13 +679,13 @@ const toggleMachipVisibility = (rowId) => {
                       <CloseIcon className="h-4 w-4 mr-1" /> Clear All
                     </Button>
                   )}
-                  <Button
+                  {/* <Button
                     className="bg-[#B91C1C] text-white hover:bg-[#991B1B] h-9 px-4 text-xs font-bold uppercase"
                     onClick={() => handleGenerateLogs(2)}
                     disabled={loading}
                   >
                     {loading ? "..." : "Manual Out"}
-                  </Button>
+                  </Button> */}
                 </div>
               </div>
             </CardContent>
@@ -612,7 +703,19 @@ const toggleMachipVisibility = (rowId) => {
                           <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">User ID</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Full Name</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Type</TableHead>
-                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider hidden sm:table-cell">MaChip ID</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider hidden sm:table-cell">
+                            <div className="flex items-center gap-1">
+                              MaChip ID
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                  Unique serial token read from the physical card.
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Date</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Time</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider text-right pr-6">Action</TableHead>
@@ -675,9 +778,20 @@ const toggleMachipVisibility = (rowId) => {
                                 <TableCell className="text-slate-600 py-4">{row.log_Date}</TableCell>
                                 <TableCell className="text-slate-600 py-4">{row.time}</TableCell>
                                 <TableCell className="py-4 text-right pr-6">
-                                  <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-                                    <Link to={`/users/${row.user_Id}`}>View</Link>
-                                  </Button>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="inline-block">
+                                        <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
+                                          <Link to={`/users/${row.user_Id}`}>
+                                            <EyeIcon className="h-4 w-4" />
+                                          </Link>
+                                        </Button>
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                      View Profile
+                                    </TooltipContent>
+                                  </Tooltip>
                                 </TableCell>
                               </TableRow>
                             );
@@ -708,11 +822,35 @@ const toggleMachipVisibility = (rowId) => {
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider cursor-pointer hover:bg-[#3B206D] transition-colors" onClick={() => handleSort('log_Date')}>
                             Date {sortConfig.key === 'log_Date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                           </TableHead>
-                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">AM In</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">
+                            <div className="flex items-center gap-0.5">
+                              AM In
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <HelpOutlineIcon sx={{ fontSize: 11 }} className="text-white/60 hover:text-white cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                  Morning Entry Clock-in (Default: 8:00 AM shift start).
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">AM Out</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">PM In</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">PM Out</TableHead>
-                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">OT In</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">
+                            <div className="flex items-center gap-0.5">
+                              OT In
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <HelpOutlineIcon sx={{ fontSize: 11 }} className="text-white/60 hover:text-white cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                  Overtime shift start mapping.
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">OT Out</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider cursor-pointer hover:bg-[#3B206D] transition-colors" onClick={() => handleSort('status')}>
                             Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
@@ -725,7 +863,11 @@ const toggleMachipVisibility = (rowId) => {
                           currentData.map((row, index) => {
                             let badgeStyle = "bg-slate-100 text-slate-800 hover:bg-slate-100";
                             if (row.status === "On Time") badgeStyle = "bg-green-100 text-green-800 hover:bg-green-100";
-                            else if (row.status?.toLowerCase().includes("absent") || row.status?.toLowerCase().includes("late")) badgeStyle = "bg-red-100 text-red-800 hover:bg-red-100";
+                            else if (row.status === "On-Field") badgeStyle = "bg-blue-100 text-blue-800 hover:bg-blue-100";
+                            else if (row.status === "On Leave" || row.status?.toLowerCase().includes("leave")) badgeStyle = "bg-sky-100 text-sky-800 hover:bg-sky-100";
+                            else if (row.status === "Half Day" || row.status?.toLowerCase().includes("half")) badgeStyle = "bg-orange-100 text-orange-800 hover:bg-orange-100";
+                            else if (row.status?.toLowerCase().includes("late")) badgeStyle = "bg-amber-100 text-amber-800 hover:bg-amber-100";
+                            else if (row.status?.toLowerCase().includes("absent")) badgeStyle = "bg-red-100 text-red-800 hover:bg-red-100";
 
                             return (
                               <TableRow key={`${row.user_Id}-${row.log_Date}-${index}`} className="border-b-slate-100 hover:bg-slate-50/50">
@@ -754,13 +896,33 @@ const toggleMachipVisibility = (rowId) => {
                                 </TableCell>
                                 <TableCell className="text-right py-4 pr-6">
                                   {isAdminOrAccountant ? (
-                                    <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-                                      <Link to={`/logs/edit/${row.user_Id}/${row.log_Date.split('T')[0]}?from=logs`}>Edit</Link>
-                                    </Button>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-block">
+                                          <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
+                                            <Link to={`/logs/edit/${row.user_Id}/${row.log_Date.split('T')[0]}?from=logs`}>
+                                              <SquarePen className="h-4 w-4" />
+                                            </Link>
+                                          </Button>
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                        Edit Log Times
+                                      </TooltipContent>
+                                    </Tooltip>
                                   ) : (
-                                    <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-                                      <Link to={`/users/${row.user_Id}`}>View</Link>
-                                    </Button>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-block">
+                                          <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+                                            <Link to={`/users/${row.user_Id}`}>View</Link>
+                                          </Button>
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                        View Profile
+                                      </TooltipContent>
+                                    </Tooltip>
                                   )}
                                 </TableCell>
                               </TableRow>
@@ -784,63 +946,22 @@ const toggleMachipVisibility = (rowId) => {
               </div>
 
               {/* Pagination Controls */}
-              {totalItems > 0 && (
-                <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
-                  <div className="flex items-center gap-4 text-sm text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <span className="hidden sm:inline">Rows per page:</span>
-                      <Select 
-                        value={itemsPerPage.toString()} 
-                        onValueChange={(val) => setItemsPerPage(Number(val))}
-                      >
-                        <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
-                          <SelectValue placeholder="10" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5">5</SelectItem>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="20">20</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="font-medium">
-                      Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1}
-                      className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                    >
-                      Previous
-                    </Button>
-                    
-                    <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
-                      {currentPage}
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages || totalPages === 0}
-                      className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                setCurrentPage={setCurrentPage}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                setItemsPerPage={setItemsPerPage}
+                startIndex={startIndex}
+                endIndex={endIndex}
+                itemLabel={totalItems === 1 ? "log entry" : "log entries"}
+              />
             </CardContent>
           </Card>
         </div>
       </div>
+      </TooltipProvider>
     </Sidebar>
   );
 };

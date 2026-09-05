@@ -8,6 +8,7 @@ export const exportLeaveSummaryPDF = (data, months, year, activeTab, rates) => {
 
   // Title mapping
   const titles = {
+    all: "Yearly Comprehensive Summary",
     vl: "Vacation Leaves",
     sl: "Sick Leaves",
     ot: "Overtime (Hours)",
@@ -22,31 +23,58 @@ export const exportLeaveSummaryPDF = (data, months, year, activeTab, rates) => {
   doc.setFont("helvetica", "bold");
   doc.text("MAC-J INT'L., FORWARDING LTD., CO.", width / 2, 15, { align: "center" });
   doc.setFontSize(12);
-  doc.text(`${title} Summary - Year ${year}`, width / 2, 22, { align: "center" });
+  doc.text(`${title} - Year ${year}`, width / 2, 22, { align: "center" });
 
   // Prepare table headers
+  let headers = [];
   const isTimeSummary = ["ot", "lates", "absences"].includes(activeTab);
   const showRemaining = activeTab === "vl" || activeTab === "sl";
   const showConversion = activeTab === "vl" || activeTab === "sl";
 
-  const headers = ["Employee Name", ...months];
-  if (isTimeSummary) {
-    headers.push("Total Minutes", "Total Hours");
+  if (activeTab === "all") {
+    headers = ["Employee Name", "VL Total", "SL Total", "OT Total", "Lates Total", "Abs Total", "Conversion"];
   } else {
-    headers.push("Total");
-    if (showRemaining) headers.push("Remaining");
-    if (showConversion) headers.push("Conversion");
+    headers = ["Employee Name", ...months];
+    if (isTimeSummary) {
+      headers.push("Total Minutes", "Total Hours");
+    } else {
+      headers.push("Total");
+      if (showRemaining) headers.push("Remaining");
+      if (showConversion) headers.push("Conversion");
+    }
   }
 
   // Prepare table data
   const tableData = data.map(row => {
+    // Format: Full Name (e.g., John Doe)
+    const formattedName = `${row.name}\n${formatUserId(row.user_Id)}`;
+    const rate = row.dailyRate;
+
+    if (activeTab === "all") {
+      const totalVl = (row.vl || []).reduce((a, b) => a + b, 0);
+      const totalSl = (row.sl || []).reduce((a, b) => a + b, 0);
+      const totalOt = (row.ot || []).reduce((a, b) => a + b, 0);
+      const totalLates = (row.lates || []).reduce((a, b) => a + b, 0);
+      const totalAbsences = (row.absences || []).reduce((a, b) => a + b, 0);
+      
+      const vlFinalAmount = row.vlRemaining * rate;
+      const slFinalAmount = row.slRemaining * rate;
+      const totalCombinedConversion = vlFinalAmount + slFinalAmount;
+
+      return [
+        formattedName,
+        totalVl > 0 ? `${totalVl}d` : "—",
+        totalSl > 0 ? `${totalSl}d` : "—",
+        totalOt > 0 ? `${totalOt.toFixed(1)}h` : "—",
+        totalLates > 0 ? `${totalLates}m` : "—",
+        totalAbsences > 0 ? `${totalAbsences}d` : "—",
+        `P${totalCombinedConversion.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      ];
+    }
+
     const monthlyValues = row[activeTab] || [];
     const total = monthlyValues.reduce((a, b) => a + b, 0);
     const remaining = activeTab === "vl" ? row.vlRemaining : row.slRemaining;
-    const rate = row.dailyRate;
-    
-    // Format: Full Name (e.g., John Doe)
-    const formattedName = `${row.name}\n${formatUserId(row.user_Id)}`;
     
     const bodyRow = [
       formattedName,
@@ -78,13 +106,23 @@ export const exportLeaveSummaryPDF = (data, months, year, activeTab, rates) => {
     theme: 'grid',
     headStyles: { fillColor: [42, 23, 78], textColor: 255, fontSize: 8, halign: 'center' },
     styles: { fontSize: 8, cellPadding: 2 },
-    columnStyles: {
+    columnStyles: activeTab === "all" ? {
+      0: { fontStyle: 'bold', minCellWidth: 40 },
+      1: { halign: 'center' },
+      2: { halign: 'center' },
+      3: { halign: 'center' },
+      4: { halign: 'center' },
+      5: { halign: 'center' },
+      6: { halign: 'right', fontStyle: 'bold', textColor: [22, 163, 74] }
+    } : {
       0: { fontStyle: 'bold', minCellWidth: 40 },
       // All month columns center aligned
       ...Object.fromEntries(months.map((_, i) => [i + 1, { halign: 'center' }])),
     },
     // Adjust right-most columns if they exist
     didParseCell: (data) => {
+      if (activeTab === "all") return; // Handled by columnStyles
+
       const isLastCol = data.column.index === headers.length - 1;
       const isSecondToLast = data.column.index === headers.length - 2;
 

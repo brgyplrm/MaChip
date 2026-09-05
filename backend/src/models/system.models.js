@@ -43,6 +43,58 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      // Shift Configurations
+      morningShiftStart: { type: DataTypes.TIME, defaultValue: "08:30:00" },
+      morningShiftEnd: { type: DataTypes.TIME, defaultValue: "17:30:00" },
+      eveningShiftStart: { type: DataTypes.TIME, defaultValue: "20:30:00" },
+      eveningShiftEnd: { type: DataTypes.TIME, defaultValue: "05:30:00" },
+
+      // Attendance Thresholds
+      gracePeriod: { type: DataTypes.TIME, defaultValue: "08:35:00" },
+      lunchStartThreshold: { type: DataTypes.TIME, defaultValue: "11:30:00" },
+      lunchEndThreshold: { type: DataTypes.TIME, defaultValue: "13:30:00" },
+      lunchDuration: { type: DataTypes.INTEGER, defaultValue: 60 },
+      flexibleBreakThreshold: { type: DataTypes.INTEGER, defaultValue: 300 }, // in minutes (e.g., 5 hours)
+      workHourThreshold: { type: DataTypes.FLOAT, defaultValue: 4.0 }, // Hours needed to not be marked as absent
+
+      // Labor Multipliers
+      ordinaryDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.0 },
+      specialDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.3 },
+      restDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.3 },
+      regularHolidayRate: { type: DataTypes.DOUBLE, defaultValue: 2.0 },
+      nightDiffRate: { type: DataTypes.DOUBLE, defaultValue: 1.1 },
+      overtimeRate: { type: DataTypes.DOUBLE, defaultValue: 1.25 },
+      doubleRegularHolidayRate: { type: DataTypes.DOUBLE, defaultValue: 3.0 },
+      specialDayRestDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.5 },
+      doubleSpecialDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.5 },
+      doubleSpecialDayRestDayRate: { type: DataTypes.DOUBLE, defaultValue: 1.95 },
+      regularHolidayRestDayRate: { type: DataTypes.DOUBLE, defaultValue: 2.6 },
+      doubleRegularHolidayRestDayRate: { type: DataTypes.DOUBLE, defaultValue: 3.9 },
+
+      payrollRates: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+      },
+      mandatedMinimumWage: {
+        type: DataTypes.DOUBLE,
+        defaultValue: 610.0,
+      },
+      mandatedWageEffectiveDate: {
+        type: DataTypes.DATEONLY,
+        defaultValue: '2025-07-18',
+      },
+      payrollGracePeriodDays: {
+        type: DataTypes.INTEGER,
+        defaultValue: 7,
+      },
+      archivedRetentionYears: {
+        type: DataTypes.INTEGER,
+        defaultValue: 5,
+      },
+      hardwareBufferWindow: {
+        type: DataTypes.INTEGER,
+        defaultValue: 5,
+      },
     },
     {
       timestamps: true,

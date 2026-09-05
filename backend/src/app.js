@@ -9,6 +9,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
 const { connectDB, sequelize } = require("./config/sequelize"); 
+const { QueryTypes } = require("sequelize"); 
 const { initSocket } = require("./config/socket");
 const { loginLimiter, generalLimiter, pollingLimiter, HIGH_FREQ_ROUTES } = require("./middleware/rateLimiter");
 const authMiddleware = require("./middleware/auth");
@@ -35,75 +36,82 @@ app.use(
 );
 
 const fs = require('fs');
+const { getClientIp, formatUserNumber } = require("./utils/logger");
 const logFile = path.join(__dirname, '../request_debug.log');
-app.use((req, res, next) => {
-  const logEntry = `${new Date().toISOString()} - ${req.method} ${req.url} - Origin: ${req.headers.origin}\n`;
-  fs.appendFileSync(logFile, logEntry);
-  next();
-});
 
-// 4. CORS — must be before rate limiters so OPTIONS preflight isn't rate-limited
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://192.168.1.19:5173",
-  "http://192.168.254.106:5173",
-  "http://192.168.254.100:5173",
-  "http://192.168.254.101:5173",
-  "http://192.168.254.102:5173",
-  "http://192.168.1.100:5173",
-  "http://192.168.1.106:5173",
-  "http://192.168.254.108:5173",
-  "http://192.168.254.112:5173",
-  "http://10.27.99.95:5173",
-  "http://10.153.146.95:5173",
-  "http://192.168.254.112:4000",
-  "http://10.228.201.95:5173",
-  "http://10.45.217.95:4000",
-  "http://10.45.217.95:5173",
-  "http://10.24.87.95:5173",
-  "http://192.168.1.18:5173"
-
+const SILENT_POLLING_ROUTES = [
+  "/api/esp/fingerprint/session",
+  "/api/notifications/unread-count",
+  "/api/system/time",
+  "/api/attendance/status",
+  "/api/attendance/occupancy"
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith(".trycloudflare.com")) {
-        callback(null, true);
-      } else {
-        console.warn(`[CORS] REJECTED: origin "${origin}" is not in whitelist.`);
-        callback(null, false);
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    credentials: true,
-  }),
-);
-
-// 5. Rate limiters (Now placed after body parsing and CORS)
-app.use("/api/auth/login", loginLimiter);
-
-HIGH_FREQ_ROUTES.forEach(route => {
-  app.use(route, pollingLimiter);
-});
-
-app.use("/api", generalLimiter);
-
-// 6. Debug middleware to log requests (after limiters to avoid logging rejected ones)
 app.use((req, res, next) => {
-  console.log(`[DEBUG] ${req.method} ${req.url}`);
-  const bodyToLog = { ...req.body };
-  if (bodyToLog.password) bodyToLog.password = "***";
-  console.log(`[DEBUG] Body:`, bodyToLog);
+  const start = Date.now();
+  const url = req.originalUrl || req.url;
+  const isSilentPolling = SILENT_POLLING_ROUTES.some((r) => url.startsWith(r));
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    const userNumber = req.user ? formatUserNumber(req.user.user_Id) : "ANONYMOUS";
+    const userIdStr = req.user ? ` (ID: ${req.user.user_Id})` : "";
+    const statusIcon = res.statusCode >= 400 ? "❌" : "✅";
+    
+    // Only output to VSCode terminal if it's not a silent 1-second heartbeat poll or if an error occurred
+    if (!isSilentPolling || res.statusCode >= 400) {
+      const timestamp = new Date().toLocaleString("en-US", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      });
+      const ip = getClientIp(req);
+
+      console.log(
+        `[${timestamp}] ${statusIcon} HTTP ${res.statusCode} ${req.method} ${url} | IP: ${ip} | User: ${userNumber}${userIdStr} | ${duration}ms`
+      );
+
+      if (req.method !== "GET" && req.body && Object.keys(req.body).length > 0) {
+        const sanitizedBody = { ...req.body };
+        ["password", "user_Password", "adminPassword", "token"].forEach(p => {
+          if (sanitizedBody[p]) sanitizedBody[p] = "***REDACTED***";
+        });
+        if (sanitizedBody.account_Number && typeof sanitizedBody.account_Number === "string") {
+          const acc = sanitizedBody.account_Number;
+          sanitizedBody.account_Number = acc.length > 4 ? `****${acc.slice(-4)}` : "****";
+        }
+        const formatted = JSON.stringify(sanitizedBody, null, 2)
+          .split("\n")
+          .map(line => `    ${line}`)
+          .join("\n");
+        console.log(` └─ Payload:\n${formatted}`);
+      }
+    }
+  });
+
   next();
 });
 
 // 7. Static files
 app.use(express.static("public"));
-app.use("/api/uploads", express.static("uploads"));
-app.use("/uploads", express.static("uploads"));
+
+// Dynamic mapping for uploads based on System Settings
+app.use("/api/uploads", async (req, res, next) => {
+  try {
+    const { SystemSettings } = require("./config/sequelize");
+    const settings = await SystemSettings.findOne();
+    const rootPath = settings?.storageRootPath || path.join(__dirname, "../uploads");
+    express.static(rootPath)(req, res, next);
+  } catch (err) {
+    express.static("uploads")(req, res, next);
+  }
+});
+app.use("/uploads", (req, res, next) => res.redirect(`/api/uploads${req.url}`));
 
 // 8. Public routes
 const authRoutes = require("./routes/auth.routes.js");
@@ -130,6 +138,8 @@ const requestRoutes = require("./routes/request.routes.js");
 const payrollRoutes = require("./routes/payroll.routes.js");
 const notificationRoutes = require("./routes/notification.routes.js");
 const systemRoutes = require("./routes/system.routes.js");
+const positionRoutes = require("./routes/position.routes.js");
+const hardwareRoutes = require("./routes/hardware.routes.js");
 
 app.use("/api/users", userRoutes);
 app.use("/api/attendance", attendanceRoutes);
@@ -137,6 +147,8 @@ app.use("/api/request", requestRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/system", systemRoutes);
+app.use("/api/positions", positionRoutes);
+app.use("/api/hardware", hardwareRoutes);
 
 // New route for testing database queries (now protected)
 app.get("/test-query", async (req, res) => {
@@ -158,6 +170,9 @@ const { checkPendingRequests } = require("./utils/requestEscalation");
 const { getSystemTime } = require("./utils/systemTime");
 const { checkAndTriggerArchival } = require("./utils/archiveService");
 const { initializeStorageStructure } = require("./utils/fileStorage");
+const { initializeAnnualLeaveBalances } = require("./utils/leaveBalanceHelper");
+const { processEmailQueue } = require("./utils/emailService");
+const { processAutoSeparations } = require("./utils/separationTask");
 
 // ── Database Connection and Background Tasks ──────────────────────────────────
 connectDB().then(async () => {
@@ -165,6 +180,13 @@ connectDB().then(async () => {
   const PORT = process.env.PORT || 4000;
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server is running on port ${PORT} (Listening on 0.0.0.0).`);
+    console.log("==========================================================");
+    console.log(" 🌐 ESP32 SECURED WEB SERIAL CONSOLE ACCESS INFO");
+    console.log(" └─ Direct URL:  http://192.168.1.86/console");
+    console.log(" └─ mDNS URL:    http://machip-esp32.local/console");
+    console.log(" └─ Admin User:  admin");
+    console.log(" └─ Admin Pass:  machip2026");
+    console.log("==========================================================");
   });
 
   // 2. Perform background initialization tasks
@@ -172,12 +194,33 @@ connectDB().then(async () => {
     // 2.0 Initialize Storage Folders
     await initializeStorageStructure();
 
-    // 2.1 Holiday Sync (Startup): Ensure holidays are up-to-date
-    console.log("[INIT] Synchronizing Philippine holidays...");
+    // 2.0.1 Initialize Annual Leave Balances
+    console.log("[INIT] Checking annual leave balances...");
     try {
-      await syncHolidaysService();
+      await initializeAnnualLeaveBalances();
     } catch (err) {
-      console.error("[INIT] Holiday sync failed:", err.message);
+      console.error("[INIT] Leave balance initialization failed:", err.message);
+    }
+
+    // 2.0.2 Verify and Auto-Sync Holidays
+    console.log("[INIT] Checking holiday records...");
+    try {
+      const now = await getSystemTime();
+      const currentYear = now.getFullYear();
+      const [holidayCheck] = await sequelize.query(
+        `SELECT COUNT(*) as count FROM "Holiday" WHERE EXTRACT(YEAR FROM "date") = :currentYear`,
+        { replacements: { currentYear }, type: QueryTypes.SELECT }
+      );
+      const count = parseInt(holidayCheck?.count || 0);
+      if (count === 0) {
+        console.log(`[INIT] No holidays found for ${currentYear}. Automatically fetching Philippine holidays...`);
+        const result = await syncHolidaysService();
+        console.log(`[INIT] Holiday sync complete: ${result.count} holidays processed.`);
+      } else {
+        console.log(`[INIT] Holidays for ${currentYear} are up to date (${count} holidays found).`);
+      }
+    } catch (err) {
+      console.error("[INIT] Holiday check/sync failed:", err.message);
     }
 
     // 2.2 Check for any pending monthly archives
@@ -199,9 +242,12 @@ connectDB().then(async () => {
       const day = now.getDate();
       let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
 
-      // Backfill from period start until today
+      // Backfill from period start until YESTERDAY (today is handled by 5:30 PM task)
+      let yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+
       let checkDate = new Date(periodStart);
-      while (checkDate <= now) {
+      while (checkDate <= yesterday) {
         await ensureAbsentsMarked(new Date(checkDate));
         checkDate.setDate(checkDate.getDate() + 1);
       }
@@ -231,7 +277,7 @@ connectDB().then(async () => {
         }
       }
 
-      // 2. Start-of-Day Sync (Daily 4:00 AM): Backfill the entire CURRENT PERIOD
+      // 2. Start-of-Day Sync (Daily 4:00 AM): Backfill the entire CURRENT PERIOD up to yesterday
       if (hour === 4 && minute === 0 && lastBackfillDate !== dateStr) {
         console.log(`[SCHEDULED] 4:00 AM: Running period-restricted backfill...`);
         lastBackfillDate = dateStr;
@@ -241,17 +287,27 @@ connectDB().then(async () => {
         const day = now.getDate();
         let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
 
+        let yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+
         let checkDate = new Date(periodStart);
-        while (checkDate <= now) {
+        while (checkDate <= yesterday) {
           await ensureAbsentsMarked(new Date(checkDate));
           checkDate.setDate(checkDate.getDate() + 1);
         }
       }
 
-      // 3. Yearly Holiday Sync (January 1st at 12:01 AM)
-      if (now.getMonth() === 0 && now.getDate() === 1 && hour === 0 && minute === 1) {
-        console.log("[SCHEDULED] January 1st: Syncing holidays for the new year...");
-        syncHolidaysService();
+      // 3. Yearly Holiday Sync & Periodic Auto-Check
+      if ((hour === 4 && minute === 5) || (now.getMonth() === 0 && now.getDate() === 1 && hour === 0 && minute === 1)) {
+        const currentYear = now.getFullYear();
+        const [holidayCheck] = await sequelize.query(
+          `SELECT COUNT(*) as count FROM "Holiday" WHERE EXTRACT(YEAR FROM "date") = :currentYear`,
+          { replacements: { currentYear }, type: QueryTypes.SELECT }
+        );
+        if (parseInt(holidayCheck?.count || 0) === 0) {
+          console.log(`[SCHEDULED] Missing holidays detected for ${currentYear}. Syncing now...`);
+          await syncHolidaysService();
+        }
       }
 
       // 4. Monthly Archival Check (Run once an hour to be safe)
@@ -260,6 +316,8 @@ connectDB().then(async () => {
       }
 
       checkPendingRequests();
+      processEmailQueue();
+      processAutoSeparations();
     } catch (err) {
       console.error("[SCHEDULED] Task error:", err.message);
     }

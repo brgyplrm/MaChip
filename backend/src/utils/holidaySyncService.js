@@ -1,7 +1,7 @@
 const { sequelize } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const scrapeHolidays = require("./holidayScraper");
-const { getSystemTime } = require("./systemTime");
+const { getSystemTime, formatDateLocal } = require("./systemTime");
 
 /**
  * Automatically synchronizes Philippine holidays for the current and next year.
@@ -11,7 +11,7 @@ const { getSystemTime } = require("./systemTime");
 async function syncHolidaysService() {
   try {
     const now = await getSystemTime();
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = formatDateLocal(now);
     const currentYear = now.getFullYear();
     const yearsToSync = [currentYear, currentYear + 1];
     let totalNewSyncCount = 0;

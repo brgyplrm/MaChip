@@ -18,6 +18,10 @@ import { Link } from "react-router-dom";
 import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodModal";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
+import { EyeIcon } from "lucide-react";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   BarChart, 
   Bar, 
@@ -39,6 +43,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 const Payroll = () => {
   const [yearFilter, setYearFilter] = useState("All Years");
@@ -265,9 +270,11 @@ const Payroll = () => {
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
-      <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+        <TooltipProvider>
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
         
         {/* Header */}
+        
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 min-w-0">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Payroll Management</h1>
@@ -275,11 +282,36 @@ const Payroll = () => {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
-            <Button variant="outline" asChild className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
-              <Link to="/payroll/employeeList">
-                <PeopleAltIcon className="mr-2 h-4 w-4" /> Employee List
-              </Link>
-            </Button>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block w-full sm:w-auto">
+                  <Button variant="outline" asChild className="w-full border-[#2A174E]/10 hover:text-[#2A174E] text-[#2A174E]/70 transition-colors">
+                    <Link to="/laborBenefits">
+                      <AssignmentTurnedInIcon className="mr-2 h-4 w-4" /> Labor Benefits
+                    </Link>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                Manage employee bonuses, thirteenth-month pay, and special benefits.
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block w-full sm:w-auto">
+                  <Button variant="outline" asChild className="w-full bg-[#2A174E] text-white hover:bg-[#7A52B5] hover:text-white transition-colors">
+                    <Link to="/payroll/employeeList">
+                      <PeopleAltIcon className="mr-2 h-4 w-4" /> Employee List
+                    </Link>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                View individual base daily rates, bank accounts, and payroll classifications.
+              </TooltipContent>
+            </Tooltip>
             {/* <Button 
               variant="outline" 
               className="w-full sm:w-auto bg-[#f0ebfa] text-[#2A174E] border-[#c4b5e8] hover:bg-[#e0d4f5] transition-colors"
@@ -287,13 +319,13 @@ const Payroll = () => {
             >
               <EventNoteIcon className="mr-2 h-4 w-4" /> Payroll Schedule
             </Button> */}
-            <Button 
+            {/* <Button 
               className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]"
               onClick={fetchActive}
               disabled={refreshing}
             >
               <RefreshIcon className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            </Button>
+            </Button> */}
           </div>
         </div>
 
@@ -338,16 +370,35 @@ const Payroll = () => {
                     <span className="font-bold text-slate-800 bg-slate-100 px-3 py-1 rounded-full">{activePeriod.employees}</span>
                   </div>
                   <div className="flex justify-between items-center px-2">
-                    <span className="text-slate-500 font-medium">Estimated Net Pay:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-slate-500 font-medium">Estimated Net Pay:</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          Estimated total net payout amount for the selected draft cycle.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <span className="font-bold text-[#2A174E] text-lg">{activePeriod.amount}</span>
                   </div>
                 </CardContent>
                 <div className="p-6 pt-0 mt-auto">
-                  <Button asChild className="w-full bg-[#2A174E] hover:bg-[#1a0e30] py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5">
-                    <Link to={`/payroll/payrollPeriod?periodId=${activePeriod.id}`}>
-                      <VisibilityIcon className="mr-2 h-4 w-4" /> Process Active Payroll
-                    </Link>
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-block w-full">
+                        <Button asChild className="w-full bg-[#2A174E] hover:bg-[#7A52B5] py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5">
+                          <Link to={`/payroll/payrollPeriod?periodId=${activePeriod.id}`}>
+                            <ReceiptOutlinedIcon className="mr-2 h-4 w-4" /> Process Active Payroll
+                          </Link>
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                      Recalculate, lock, or release payouts for the current period.
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               </Card>
             ) : (
@@ -513,16 +564,25 @@ const Payroll = () => {
                               <Badge variant="secondary" className={badgeStyle}>{p.status}</Badge>
                             </TableCell>
                             <TableCell className="text-right pr-6 py-4">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                asChild 
-                                className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors"
-                              >
-                                <Link to={`/payroll/payrollPeriod?periodId=${p.periodId}`}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-block">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      asChild 
+                                      className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors"
+                                    >
+                                      <Link to={`/payroll/payrollPeriod?periodId=${p.periodId}`}>
+                                        <EyeIcon className="h-4 w-4" />
+                                      </Link>
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
                                   View Details
-                                </Link>
-                              </Button>
+                                </TooltipContent>
+                              </Tooltip>
                             </TableCell>
                           </TableRow>
                         );
@@ -555,56 +615,17 @@ const Payroll = () => {
             </div>
 
             {/* Pagination Controls */}
-            {totalItems > 0 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-t border-slate-100 gap-4 bg-slate-50/30">
-                <div className="flex items-center gap-4 text-sm text-slate-500">
-                  <div className="flex items-center gap-2">
-                    <span className="hidden sm:inline">Rows per page:</span>
-                    <Select 
-                      value={itemsPerPage.toString()} 
-                      onValueChange={(val) => setItemsPerPage(Number(val))}
-                    >
-                      <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
-                        <SelectValue placeholder="10" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="font-medium">
-                    Showing <span className="text-slate-800">{startIndex + 1}</span> to <span className="text-slate-800">{endIndex}</span> of <span className="text-slate-800">{totalItems}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                  >
-                    Previous
-                  </Button>
-                  <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
-                    {currentPage}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              setItemsPerPage={setItemsPerPage}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              itemLabel="payroll records"
+            />
           </CardContent>
         </Card>
 
@@ -614,7 +635,8 @@ const Payroll = () => {
             <p className="mt-4 font-medium text-slate-600">Loading payroll data...</p>
           </DialogContent>
         </Dialog>
-      </div>
+        </div>
+      </TooltipProvider>
       </Sidebar>
     </div>
   );

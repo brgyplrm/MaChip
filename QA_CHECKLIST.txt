@@ -1,77 +1,285 @@
-# MaChip (Microchip Attendance & Chip Payroll) - COMPREHENSIVE QA Checklist
+# MaChip (Microchip Attendance & Chip Payroll)
+# COMPREHENSIVE END-TO-END SITUATIONAL QA CHECKLIST
 
-This checklist is an expanded version designed to catch edge cases, logic bugs, and security vulnerabilities.
-
----
-
-## 1. User Management & Authentication
-### Admin Role - Edge Cases
-- [ ] **MachipId Collisions:** Attempt to register two users with the same RFID UID. (Expected: Error message).
-- [ ] **Duplicate Emails:** Register users with the same email address.
-- [ ] **Rate Change Mid-Cycle:** Change a user's `dailyRate` halfway through an active payroll period. Verify that past logs use the old rate and future logs (after update) use the new rate *if* the system allows, or check if it correctly snapshots at payroll generation.
-- [ ] **Re-activating Archived Users:** Archive a user, then try to create a new user with the same MachipId. Then try to "Restore" the archived user.
-- [ ] **Large Avatar Uploads:** Upload a 10MB+ profile picture. (Check for crash or handled error).
-
-### Backend/Security
-- [ ] **Auth Bypass:** Attempt to access `/api/admin/...` endpoints using a User-level JWT token.
-- [ ] **Invalid JWT:** Send a request with an expired or malformed token.
-- [ ] **SQL Injection:** Enter `' OR 1=1 --` in the user search bar or registration fields.
+This checklist provides a structured, situational end-to-end testing guide covering every module of MaChip. It follows realistic user lifecycles—from onboarding to hardware scans, requests, loan amortizations, batch payroll, payslip generation, and final settlements.
 
 ---
 
-## 2. Attendance & Logging (The "Bug Hunters" Section)
-### Logic & Edge Cases
-- [ ] **The "Double In" Bug:** Use the frontend to Clock In, then immediately refresh and try to Clock In again before the system updates.
-- [ ] **Lunch Break Overlap:** Clock Out for lunch at 11:59 AM (Before the 12:00 window). Verify if it defaults to "Regular Out" instead of "Lunch Out".
-- [ ] **Midnight Shift/Late Out:** Clock Out at 1:00 AM the next day. Does it attribute the log to the previous day or create a mess in the current day?
-- [ ] **Sunday Scans:** Scan an RFID on a Sunday. Verify it logs but ensure Payroll ignores it (as per `GEMINI.md`).
-- [ ] **OT Auto-Transition:** If a user is clocked in and reaches 5:30 PM (17:30) with an approved OT request:
-    - [ ] Does the system automatically create the "Shift Out" and "OT In" logs?
-    - [ ] What if the user manual clocks out at 5:25 PM? (Should NOT trigger OT).
-
-### ESP32 Scanner Stress Test
-- [ ] **Rapid Fire Scans:** Scan the same card 5 times in 2 seconds. (Expected: Handle first scan, ignore/rate-limit others).
-- [ ] **Offline Mode:** Disconnect the ESP32 from WiFi, scan a card, then reconnect. (Verify if logs are cached or lost).
-- [ ] **Concurrent Scans:** Two different ESP32 devices scanning two different cards at the exact same millisecond.
+## 👥 System Personas for Testing
+* **Admin Manager:** Full administrative access (User registration, Settings, Holidays, Reference Tables).
+* **Admin Accountant:** Payroll, Loans, Statutory Deductions, 13th Month, Separation & Retirement.
+* **Supervisor:** Attendance oversight, DTR reviews, Overtime & Leave request approvals.
+* **Employee:** Clocking in/out, submitting requests, viewing personal DTR and released payslips.
 
 ---
 
-## 3. User Request Module (Leaves/OT/Field)
-### Negative Testing (Try to break it)
-- [ ] **Overlapping Leaves:** Apply for Vacation Leave (April 10-15) and then try to apply for Sick Leave (April 12-14). (Expected: Blocked by backend).
-- [ ] **Negative Days:** Enter "-1" in the "Number of Days" field for leave.
-- [ ] **Past Dated OT:** Apply for OT for a date that has already been processed in a closed payroll period.
-- [ ] **Zero Balance:** Try to apply for a "With Pay" leave when `VL_balance` is 0. Verify if `systemRemarks` flag it.
-- [ ] **Filing Deadline:** Apply for VL only 1 day before the start date. (Expected: Flagged in `systemRemarks` for admin review).
+## Module 1: User Onboarding & Masterlist Setup
 
-### File Handling
-- [ ] **Non-Image Proof:** Upload a `.exe` or `.zip` file as proof for a sick leave. (Expected: Rejected by Multer/Middleware).
-- [ ] **Filename Sanitization:** Upload a file named `my;secret'file.jpg`. Verify it's saved safely.
+### 🎭 Scenario 1.1: Onboarding a New Regular Employee
+> **Context:** Admin Manager onboards a new Declarant in the Operation Department.
+
+- [ ] **Step 1: Open New User Modal**
+  - Navigate: `Admin Dashboard` → `Employees / Masterlist` → Click `+ Add New User`.
+- [ ] **Step 2: Step 1 – Personal Information**
+  - **First Name:** `Juan`
+  - **Last Name:** `Dela Cruz`
+  - **Gender:** `Male`
+  - **Date of Birth:** `1995-06-15`
+  - **Civil Status:** `Single`
+  - **Email:** `juan.delacruz@machip.com`
+  - **Phone:** `09171234567`
+  - **Address:** `123 Pasay Road, Metro Manila`
+  - Click `Next`.
+- [ ] **Step 3: Step 2 – Employment & Banking Configuration**
+  - **Role:** `Employee` (Role ID: `3`)
+  - **Employment Status:** `Regular` (Status ID: `1`) *(Verify dropdown only presents "Regular" and "Probationary")*
+  - **Department:** `OPERATION`
+  - **Position:** `DECLARANT` (Position ID: `5`)
+  - **Date Hired:** `2024-01-15`
+  - **Daily Rate:** Enter `₱769.23` *(Statutory deduction previews must auto-populate)*
+  - **Bank Company:** `UnionBank of the Philippines`
+  - **Account Number:** `109612345678`
+  - **Shift:** `Morning Shift (08:30 - 17:30)`
+  - Click `Next`.
+- [ ] **Step 4: Step 3 – Hardware Identification & Credentials**
+  - **MaChip ID (RFID UID):** `MACHIP-099`
+  - **Fingerprint ID:** `99`
+  - **Password:** `Password123!`
+  - Click `Submit / Save Changes`.
+- [ ] **Verification Checks:**
+  - [ ] **No Execution Error:** User creates without `computeMonthlyShares is not a function` error.
+  - [ ] **Statutory Shares Initialized:** `User_Deduction_Profile` automatically receives SSS, PhilHealth, and HDMF based on `₱769.23 × 26 = ₱20,000.00` monthly equivalent.
+  - [ ] **Annual Leave Credits:** `Leave_Balance` is initialized with `VL_balance = 7`, `SL_balance = 7`.
+  - [ ] **Banking Security:** `User_Banking.account_Number` is stored as AES-256 encrypted (`iv:...:ciphertext`).
+
+### 🛡️ Edge Cases & Security
+- [ ] **RFID UID Collision:** Attempt to register another user with `MACHIP-099`. (Expected: Error returned).
+- [ ] **Duplicate Email:** Attempt to register another user with `juan.delacruz@machip.com`. (Expected: Rejected).
+- [ ] **Archived User Restore:** Archive a user, verify they disappear from active lists, then restore them.
 
 ---
 
-## 4. Payroll & Calculations (Financial Integrity)
-### Math & Edge Cases
-- [ ] **New Employee Mid-Period:** Hired on the 12th of the month. Run payroll for the 1st-15th. Verify they only get paid for 3 days.
-- [ ] **Zero Log Period:** Process payroll for a user who was on leave (Without Pay) for the entire period. (Expected: 0.00 Net Pay, no crash).
-- [ ] **Holiday & OT Stack:** Work OT on a Regular Holiday. Verify if it's (Daily Rate * 2) + (OT Rate).
-- [ ] **Rounding Errors:** Check for "Penny Off" bugs. If daily rate is 500.33, verify total for 11 days is exactly 5503.63 (or as per rounding policy).
-- [ ] **Immutable Snapshot:** 
-    1. Generate Payroll for March.
-    2. Change User's Daily Rate in April.
-    3. View/Print March Payslip. (Expected: March payslip STILL shows the OLD rate).
+## Module 2: RFID/Biometric Logging & Attendance Cycle
+
+### 🎭 Scenario 2.1: Full Workday Punch Lifecycle
+> **Context:** Testing live attendance punches, late arrivals, lunch breaks, and automated absence triggers.
+
+- [ ] **Case A: On-Time Arrival (Standard Shift)**
+  - Clock In: `08:25 AM` (Before `08:30 AM` start time)
+  - Lunch Out / In: `12:00 PM` - `01:00 PM`
+  - Clock Out: `05:31 PM`
+  - Expected: Status is `Present` (ID: 1); Regular Hours = `8.00`, Tardiness = `0`.
+- [ ] **Case B: Late Arrival with Penalty Calculation**
+  - Clock In: `08:45 AM` (15 minutes after shift start)
+  - Clock Out: `05:30 PM`
+  - Expected: Status is `Late` (ID: 2); Regular Hours = `7.75`, Tardiness = `15 mins`.
+- [ ] **Case C: Overtime Work Shift**
+  - Employee has an approved 2.0-hour OT request.
+  - Clock In: `08:30 AM` | Clock Out: `07:30 PM` (19:30)
+  - Expected: Regular Hours = `8.00` + Approved OT Hours = `2.00` (Rate: 125%).
+- [ ] **Case D: End-of-Day Automated Absence Marking**
+  - Employee does not scan for a scheduled workday.
+  - Trigger: System clock passes `5:30 PM` (17:30).
+  - Expected: Daily shift-end task generates a DTR record with status **`Absent` (ID: 3)** and `absence_Hrs = 8.0`.
+
+### 🛡️ Hardware & Logging Edge Cases
+- [ ] **Rapid Scans (Debounce):** Scan the same RFID card 5 times within 2 seconds. (Expected: 1st logged, rest debounced).
+- [ ] **Sunday Scans:** Scan card on a Sunday. Verify system logs event but excludes it from normal payroll workdays.
 
 ---
 
-## 5. System & UI/UX
-- [ ] **Timezone Sync:** Ensure server time (`getSystemTime`) matches the Philippine Standard Time, regardless of where the dev machine is hosted.
-- [ ] **Loading States:** Verify "Processing..." spinners appear during Payroll generation to prevent double-clicks.
-- [ ] **Responsive Forms:** Check if the Employee Request form is usable on a smartphone (for field workers).
-- [ ] **Notification Spam:** Does an admin get 100 notifications if a user clicks "Submit" 100 times? (Check for debouncing).
+## Module 3: Requests, Approvals & Leave Balance Ledger
+
+### 🎭 Scenario 3.1: Leave Filing, Deductions & Sandwich Rule
+> **Context:** Employee applies for leave, overtime, and time adjustments.
+
+- [ ] **Case A: Standard Vacation Leave (With Pay)**
+  - Employee files for 1 day VL on an ordinary workday.
+  - Supervisor clicks **Approve**.
+  - **Verification Checks:**
+    - [ ] `Leave_Balance` updates: `VL_balance` decrements from `7.0` to `6.0`; `VL_used` increments to `1.0`.
+    - [ ] DTR for that date updates to **`On Leave` (ID: 4)**.
+    - [ ] Payroll preview credits `1.0` Paid Leave Day (No salary deduction).
+- [ ] **Case B: Sandwich Rule (Holiday Adjacency Rejection)**
+  - Target Date: Day immediately before or after an official Holiday.
+  - Employee attempts to apply for unexcused leave or VL without prior clearance.
+  - **Verification:** System rejects request with: `"Filing leave before or after a holiday is strictly prohibited (Sandwich Rule)."`.
+- [ ] **Case C: Time Adjustment (Log Correction)**
+  - Employee missed Time Out punch on Tuesday.
+  - Submits Log Correction request: Time Out `17:30`.
+  - Admin approves request.
+  - **Verification:** DTR recalculates day from incomplete/absent to completed 8.0-hour workday.
 
 ---
 
-## 6. Database & Integrity
-- [ ] **Soft Delete Leak:** Check if archived users still appear in the "Create Payroll" dropdown. (Expected: Filtered out).
-- [ ] **Orphaned Records:** Try to delete a request type that is currently being used by 100 requests. (Expected: Restricted or Soft Deleted).
-- [ ] **Ghost Notifications:** Mark a notification as read, then refresh. Ensure it stays read.
+## Module 4: Government & Company Loan Enrollment
+
+### 🎭 Scenario 4.1: Setting Up Recurring Loan Amortizations
+> **Context:** Employee notifies Admin to enroll an approved SSS Salary Loan and Pag-IBIG Loan.
+
+- [ ] **Step 1: Employee Submits Loan Notice**
+  - Path: `Employee Portal` → `Requests` → `+ New Request`.
+  - Type: **`Loan Enrollment (Payroll Setup)` (ID: 14)** *(Verify Loan Nudge / Certification is not shown)*.
+  - Agency: `SSS`
+  - Monthly Amortization: `₱1,000.00`
+  - Attach loan approval proof and submit.
+- [ ] **Step 2: Admin Enrolls Loan into Payroll Ledger**
+  - Path: `Admin Dashboard` → `Payroll` → `Loan Management` tab.
+  - Select Employee: `Juan Dela Cruz`.
+  - Click `+ Add Loan Schedule`.
+  - **Loan Type:** `SSS Salary Loan`
+  - **Total Principal Amount:** `₱12,000.00`
+  - **Monthly Amortization:** `₱1,000.00`
+  - **Cutoff Amortization:** `₱500.00` per semi-monthly cutoff.
+  - **Term:** 12 Months (24 cutoffs).
+  - Click `Enroll Loan`.
+- [ ] **Verification Checks:**
+  - [ ] Amortization schedule generates 24 installment periods.
+  - [ ] Running balance starts at `₱12,000.00` with status `PENDING`.
+
+---
+
+## Module 5: Payroll Processing & Multi-Tier Deduction Verification
+
+### 🎭 Scenario 5.1: Generating & Auditing Batch Payroll
+> **Context:** Admin Accountant processes semi-monthly payroll for the cutoff.
+
+- [ ] **Step 1: Generate Batch Payroll**
+  - Path: `Admin Dashboard` → `Payroll` → `Generate Payroll`.
+  - Select Period: e.g. `2026-08-01` to `2026-08-15`.
+  - Confirm batch creation.
+- [ ] **Step 2: Confidentiality & CIA Triad Verification**
+  - [ ] The generated batch status is **`Draft` (ID: 1)**.
+  - [ ] Log in as Employee in another browser window: **The unreleased draft payslip MUST NOT appear in the employee portal**.
+- [ ] **Step 3: Multi-Tier Calculation Audit (DetailsPayroll.jsx)**
+  - Open Juan Dela Cruz’s payroll calculation card:
+  
+  $$\begin{aligned}
+  \text{Workdays in Cutoff} &= 11 \text{ days} \\
+  \text{Basic Pay} &= 11 \times ₱769.23 = \mathbf{₱8,461.53} \\
+  \text{Worked Days} &= 10 \text{ days (1 day unexcused absence)} \\
+  \text{Absence Deduction} &= 1 \times ₱769.23 = -\mathbf{₱769.23} \\
+  \text{Tardiness Deduction} &= 15 \text{ mins} = -\mathbf{₱24.04} \\
+  \text{Actual Gross Earnings} &= ₱8,461.53 - ₱769.23 - ₱24.04 = \mathbf{₱7,668.26}
+  \end{aligned}$$
+
+  - **Statutory Deductions (Semi-Monthly):**
+    - SSS EE Share: $\approx ₱475.00$
+    - PhilHealth EE Share: $\approx ₱200.00$
+    - Pag-IBIG EE Share: $\approx ₱100.00$
+    - Total Statutory: $₱775.00$
+  - **Taxable Base & BIR Tax Evaluation:**
+    - Taxable Base $= ₱7,668.26 - ₱775.00 = \mathbf{₱6,893.26}$
+    - BIR Bracket 1 ($< ₱20,833$) $\rightarrow$ **Exempt (₱0.00 Tax)**.
+  - **Post-Tax Loan Deductions:**
+    - SSS Salary Loan: $\mathbf{₱500.00}$ *(Verify loans DO NOT reduce taxable income)*.
+  - **Net Take-Home Pay:**
+    - $\text{Net Pay} = ₱7,668.26 - (₱775.00 + ₱0.00 + ₱500.00) = \mathbf{₱6,393.26}$.
+- [ ] **Step 4: Official Batch Release**
+  - Admin reviews and clicks **`Release Payroll Batch`**.
+  - Status updates to **`Released` (ID: 2)**.
+  - Payslips become accessible to employees and email notifications are sent.
+
+---
+
+## Module 6: Employee Portal & Payslip Access
+
+### 🎭 Scenario 6.1: Employee Payslip Inspection
+> **Context:** Employee logs in to inspect and download official payslip.
+
+- [ ] **Step 1: Check Employee Dashboard**
+  - Path: `Employee Portal` → `My Payroll`.
+  - [ ] Cutoff displays with badge **`Released`**.
+- [ ] **Step 2: View Payslip Receipt Modal**
+  - Click `View Payslip`.
+  - [ ] Earnings: Basic Pay, Overtime, and Gross Compensation correctly displayed.
+  - [ ] Deductions: SSS, PhilHealth, HDMF, Absence, Tardiness, and Withholding Tax.
+  - [ ] **Loans Breakdown:** SSS Loan displays exact deduction of `₱500.00`.
+  - [ ] Net Pay matches administrative audit: `₱6,393.26`.
+- [ ] **Step 3: Loans & Others Tab Verification (PayrollComputationDetails.jsx)**
+  - Open `Computation Details` → Navigate to `Loans & Others`.
+  - [ ] SSS Loan displays `₱500.00` cleanly (no blank or NaN).
+  - [ ] Loan running balance in database decrements from `₱12,000.00` to `₱11,500.00`.
+
+---
+
+## Module 7: Statutory Benefits & Final Settlement
+
+### 🎭 Scenario 7.1: 13th Month Pay Calculation
+> **Context:** Admin Accountant generates 13th Month Pay preview.
+
+- [ ] **Step 1: Open 13th Month Tab**
+  - Path: `Payroll` → `13th Month Pay`.
+  - Select Employee: `Jenny Galeon` (Daily Rate: `₱2,307.70`).
+- [ ] **Step 2: Formula Verification**
+  - [ ] YTD Basic Salary accrued from January 1 to November 30 is itemized month-by-month.
+  - [ ] Formula: $\text{13th Month Pay} = \frac{\sum \text{Basic Salaries Earned}}{12}$.
+  - [ ] Tax Exemption: If total $\le ₱90,000$, verify Tax = `₱0.00`.
+
+---
+
+### 🎭 Scenario 7.2: Separation Pay (Authorized Cause: Retrenchment)
+> **Context:** Employee separated after 3 years and 7 months of service.
+
+- [ ] **Step 1: Open Separation Pay Tab**
+  - Path: `Payroll` → `Separation Pay`.
+  - Cause: `Retrenchment / Redundancy / Business Closure`.
+- [ ] **Step 2: Statutory Breakdown Verification**
+  - [ ] **Tenure Rounding:** 3 years and 7 months rounds up to **4 full years** (fraction $\ge 6$ months).
+  - [ ] **Cause Multiplier:** 1.0 month per year of service for Redundancy; 0.5 month for Retrenchment/Closure.
+  - [ ] **Pro-rated 13th Month:** Accrued YTD basic salary $\div 12$ origin clearly shown.
+  - [ ] **Leave Encashment:** Unused VL credits $\times$ Daily Rate.
+  - [ ] **Final Package Grand Total Card:** Renders complete net settlement package.
+
+---
+
+### 🎭 Scenario 7.3: Retirement Pay (RA 7641 Compliance)
+> **Context:** Employee reaching 60+ years of age with 10 years of service.
+
+- [ ] **Step 1: Open Retirement Pay Tab**
+  - Path: `Payroll` → `Retirement Pay`.
+  - Select eligible senior employee.
+- [ ] **Step 2: RA 7641 22.5-Day Multiplier Formula Verification**
+  $$\text{Retirement Pay} = \left(\text{Daily Rate} \times 22.5\right) \times \text{Years of Service}$$
+  - [ ] Formula box itemizes:
+    - 15 days basic salary
+    - 5 days Service Incentive Leave (SIL)
+    - 2.5 days pro-rated 13th month pay (1/12 of 30 days)
+  - [ ] Multiplier confirms **22.5 days per year of service**.
+  - [ ] Grand total includes statutory retirement pay + prorated 13th month + leave conversion - outstanding loan balances.
+
+---
+
+## Module 8: System Settings, Statutory Tables & Audit Trail
+
+### 🎭 Scenario 8.1: Modifying Reference Tables & Version Locks
+> **Context:** Admin Manager updates BIR TRAIN law brackets or SSS contribution tables.
+
+- [ ] **Step 1: Navigate to Reference Data Management**
+  - Path: `Settings` → `Reference Tables`.
+  - Select: `BIR Withholding Tax Table`.
+- [ ] **Step 2: Confirmation Modal & Version Integrity**
+  - [ ] Modifying or uploading a new table prompts a confirmation modal to prevent accidental changes.
+  - [ ] Only **ONE** active version exists at any given time.
+  - [ ] Toggling an active version automatically deactivates previous versions (`isActive = false`).
+- [ ] **Step 3: Audit Trail Verification**
+  - Path: `Admin Dashboard` → `Audit Logs`.
+  - [ ] Action is logged with Admin ID, timestamp, and modification payload.
+
+---
+
+## Quick Reference: Test Execution Summary Sheet
+
+| Module | Key Verification Item | Expected Status / Result | Pass / Fail |
+| :--- | :--- | :--- | :---: |
+| **1. User Add** | Add Employee with Daily Rate | Auto-computes SSS/PH/HDMF; sets 7 VL/7 SL | [ ] |
+| **2. Attendance** | Clock in after 08:30 AM | Status: `Late`, Tardiness minutes logged | [ ] |
+| **2. Attendance** | No clock in by 17:30 | Status: `Absent`, 8.0 hrs absence deducted | [ ] |
+| **3. Requests** | VL Application & Approval | `VL_balance` decrements; DTR marked `On Leave` | [ ] |
+| **3. Requests** | Day before Holiday VL filing | Blocked with "Sandwich Rule" error | [ ] |
+| **4. Loans** | Enroll SSS / Pag-IBIG Loan | Generates diminishing balance ledger | [ ] |
+| **5. Payroll** | Batch Generation | Initial status is `Draft` (hidden from employee) | [ ] |
+| **5. Payroll** | Multi-Tier Deductions | Loans deducted AFTER tax; taxable base unaffected | [ ] |
+| **6. Employee** | View Released Payslip | Itemized earnings, taxes, and loan deduction | [ ] |
+| **7. Benefits** | Separation / Retirement | Accurate 22.5-day multiplier & grand total card | [ ] |
+| **8. Settings** | Reference Table updates | Security confirmation modal & single active version | [ ] |
