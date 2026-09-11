@@ -325,8 +325,19 @@ const New = ({ inputs = [], title }) => {
         newErrors.account_Number = `Account number must be 12 or 15 digits (${extra} digit${extra > 1 ? "s" : ""} over limit).`;
       }
     } else if (step === 3) {
-      if (!formData.user_Password || formData.user_Password.length < 6) {
-        newErrors.user_Password = "Min 6 characters required.";
+      const pwd = formData.user_Password || "";
+      if (!pwd) {
+        newErrors.user_Password = "Password is required.";
+      } else if (pwd.length < 8) {
+        newErrors.user_Password = "Password must be at least 8 characters.";
+      } else if (!/[A-Z]/.test(pwd)) {
+        newErrors.user_Password = "Password must include at least one uppercase letter (A-Z).";
+      } else if (!/[a-z]/.test(pwd)) {
+        newErrors.user_Password = "Password must include at least one lowercase letter (a-z).";
+      } else if (!/[0-9]/.test(pwd)) {
+        newErrors.user_Password = "Password must include at least one numeric digit (0-9).";
+      } else if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) {
+        newErrors.user_Password = "Password must include at least one special character (!@#$%^&*).";
       }
     }
     
@@ -614,6 +625,28 @@ const New = ({ inputs = [], title }) => {
           </div>
         )}
         {errors[input.id] && <span className="text-[10px] text-red-500 block font-medium">{errors[input.id]}</span>}
+        {input.id === "user_Password" && (
+          <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
+            <p className="text-slate-500 font-medium text-[11px] mb-1">Password Requirements:</p>
+            <div className="grid grid-cols-2 gap-1 text-[11px]">
+              <span className={`flex items-center gap-1 ${formData.user_Password?.length >= 8 ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                <span>{formData.user_Password?.length >= 8 ? "✓" : "○"}</span> At least 8 characters
+              </span>
+              <span className={`flex items-center gap-1 ${/[A-Z]/.test(formData.user_Password || "") ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                <span>{/[A-Z]/.test(formData.user_Password || "") ? "✓" : "○"}</span> Uppercase (A-Z)
+              </span>
+              <span className={`flex items-center gap-1 ${/[a-z]/.test(formData.user_Password || "") ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                <span>{/[a-z]/.test(formData.user_Password || "") ? "✓" : "○"}</span> Lowercase (a-z)
+              </span>
+              <span className={`flex items-center gap-1 ${/[0-9]/.test(formData.user_Password || "") ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                <span>{/[0-9]/.test(formData.user_Password || "") ? "✓" : "○"}</span> Number (0-9)
+              </span>
+              <span className={`flex items-center gap-1 col-span-2 ${/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.user_Password || "") ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                <span>{/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.user_Password || "") ? "✓" : "○"}</span> Special character (!@#$%^&*)
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

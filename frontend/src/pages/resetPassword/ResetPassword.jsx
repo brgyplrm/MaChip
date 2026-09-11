@@ -68,8 +68,8 @@ const ResetPassword = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setSubmitError("Password must be at least 6 characters long.");
+    if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      setSubmitError("Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.");
       return;
     }
 
@@ -220,7 +220,7 @@ const ResetPassword = () => {
                       setPassword(e.target.value);
                       if (submitError) setSubmitError("");
                     }}
-                    placeholder="Enter at least 6 characters"
+                    placeholder="Enter strong password (8+ chars)"
                     disabled={submitting}
                     required
                     className="w-full p-[11px_38px_11px_12px] border border-slate-300 rounded-lg text-sm outline-none focus:border-[#2A174E] focus:ring-2 focus:ring-[#2A174E]/15 transition-all disabled:bg-slate-100"
@@ -235,6 +235,28 @@ const ResetPassword = () => {
                     {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
                   </button>
                 </div>
+                {password && (
+                  <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1 text-slate-600">
+                    <p className="font-semibold text-[11px] mb-1">Password Requirements:</p>
+                    <div className="grid grid-cols-2 gap-1 text-[11px]">
+                      <span className={password.length >= 8 ? "text-emerald-600 font-medium" : "text-slate-400"}>
+                        {password.length >= 8 ? "✓" : "○"} At least 8 characters
+                      </span>
+                      <span className={/[A-Z]/.test(password) ? "text-emerald-600 font-medium" : "text-slate-400"}>
+                        {/[A-Z]/.test(password) ? "✓" : "○"} Uppercase (A-Z)
+                      </span>
+                      <span className={/[a-z]/.test(password) ? "text-emerald-600 font-medium" : "text-slate-400"}>
+                        {/[a-z]/.test(password) ? "✓" : "○"} Lowercase (a-z)
+                      </span>
+                      <span className={/[0-9]/.test(password) ? "text-emerald-600 font-medium" : "text-slate-400"}>
+                        {/[0-9]/.test(password) ? "✓" : "○"} Number (0-9)
+                      </span>
+                      <span className={`col-span-2 ${/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                        {/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) ? "✓" : "○"} Special character (!@#$%^&*)
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Confirm Password */}

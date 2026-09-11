@@ -129,6 +129,12 @@ exports.registerUser = async (req, res) => {
       });
     }
 
+    const { validatePassword } = require("../utils/passwordValidator");
+    const pwdValidation = validatePassword(user_Password);
+    if (!pwdValidation.isValid) {
+      return res.status(400).json({ error: pwdValidation.message });
+    }
+
     if (account_Number) {
       if (!/^\d+$/.test(account_Number)) {
         return res.status(400).json({ error: "Account Number must contain numbers only." });
@@ -1147,6 +1153,12 @@ exports.updateUser = async (req, res) => {
       }
 
       if (user_Password && user_Password.trim() !== "") {
+        const { validatePassword } = require("../utils/passwordValidator");
+        const pwdValidation = validatePassword(user_Password);
+        if (!pwdValidation.isValid) {
+          await transaction.rollback();
+          return res.status(400).json({ error: pwdValidation.message });
+        }
         const salt = await bcrypt.genSalt(10);
         replacements.hashedPass = await bcrypt.hash(user_Password, salt);
         sql += `, "user_Password" = :hashedPass`;
@@ -1654,6 +1666,12 @@ exports.batchRegisterUsers = async (req, res) => {
         // Validation
         if (!userData.user_FirstName || !userData.user_LastName || !userData.user_Email || !userData.user_Password) {
           throw new Error("Missing required data in row " + (i + 1));
+        }
+
+        const { validatePassword } = require("../utils/passwordValidator");
+        const pwdVal = validatePassword(userData.user_Password);
+        if (!pwdVal.isValid) {
+          throw new Error(`Row ${i + 1} password invalid: ${pwdVal.message}`);
         }
 
         // Check if email exists

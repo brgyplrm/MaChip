@@ -103,8 +103,17 @@ const validateForm = (formData) => {
 
   // Password is only required if user starts typing a new one
   if (formData.user_Password && formData.user_Password.trim() !== "") {
-    if (formData.user_Password.length < 6) {
-      errors.user_Password = "Password must be at least 6 characters.";
+    const pwd = formData.user_Password;
+    if (pwd.length < 8) {
+      errors.user_Password = "Password must be at least 8 characters.";
+    } else if (!/[A-Z]/.test(pwd)) {
+      errors.user_Password = "Password must include at least one uppercase letter (A-Z).";
+    } else if (!/[a-z]/.test(pwd)) {
+      errors.user_Password = "Password must include at least one lowercase letter (a-z).";
+    } else if (!/[0-9]/.test(pwd)) {
+      errors.user_Password = "Password must include at least one number (0-9).";
+    } else if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) {
+      errors.user_Password = "Password must include at least one special character (!@#$%^&*).";
     }
   }
 
@@ -489,12 +498,24 @@ const Edit = () => {
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
   const generatePassword = () => {
-    const length = 12;
-    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+~`|}{[]:;?><,./-=";
-    let password = "";
-    for (let i = 0, n = charset.length; i < length; ++i) {
-      password += charset.charAt(Math.floor(Math.random() * n));
+    const uppers = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const lowers = "abcdefghijkmnopqrstuvwxyz";
+    const numbers = "23456789";
+    const symbols = "!@#$%^&*";
+    const all = uppers + lowers + numbers + symbols;
+
+    let password = [
+      uppers[Math.floor(Math.random() * uppers.length)],
+      lowers[Math.floor(Math.random() * lowers.length)],
+      numbers[Math.floor(Math.random() * numbers.length)],
+      symbols[Math.floor(Math.random() * symbols.length)],
+    ];
+
+    for (let i = 4; i < 12; i++) {
+      password.push(all[Math.floor(Math.random() * all.length)]);
     }
+
+    password = password.sort(() => 0.5 - Math.random()).join("");
     setFormData((prev) => ({ ...prev, user_Password: password }));
     if (errors.user_Password) setErrors((prev) => ({ ...prev, user_Password: "" }));
   };
@@ -1170,6 +1191,28 @@ const Edit = () => {
                       </div>
                     </div>
                     {renderError("user_Password")}
+                    {formData.user_Password && formData.user_Password.trim() !== "" && (
+                      <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
+                        <p className="text-slate-500 font-medium text-[11px] mb-1">Password Requirements:</p>
+                        <div className="grid grid-cols-2 gap-1 text-[11px]">
+                          <span className={`flex items-center gap-1 ${formData.user_Password?.length >= 8 ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                            <span>{formData.user_Password?.length >= 8 ? "✓" : "○"}</span> At least 8 characters
+                          </span>
+                          <span className={`flex items-center gap-1 ${/[A-Z]/.test(formData.user_Password || "") ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                            <span>{/[A-Z]/.test(formData.user_Password || "") ? "✓" : "○"}</span> Uppercase (A-Z)
+                          </span>
+                          <span className={`flex items-center gap-1 ${/[a-z]/.test(formData.user_Password || "") ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                            <span>{/[a-z]/.test(formData.user_Password || "") ? "✓" : "○"}</span> Lowercase (a-z)
+                          </span>
+                          <span className={`flex items-center gap-1 ${/[0-9]/.test(formData.user_Password || "") ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                            <span>{/[0-9]/.test(formData.user_Password || "") ? "✓" : "○"}</span> Number (0-9)
+                          </span>
+                          <span className={`flex items-center gap-1 col-span-2 ${/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.user_Password || "") ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                            <span>{/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.user_Password || "") ? "✓" : "○"}</span> Special character (!@#$%^&*)
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-end">
                     <Button variant="outline" onClick={generatePassword} className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-slate-50">

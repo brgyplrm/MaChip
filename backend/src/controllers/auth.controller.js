@@ -298,8 +298,11 @@ exports.resetPassword = async (req, res) => {
   if (!token) {
     return res.status(400).json({ error: "Reset token is required." });
   }
-  if (!newPassword || newPassword.length < 6) {
-    return res.status(400).json({ error: "Password must be at least 6 characters long." });
+
+  const { validatePassword } = require("../utils/passwordValidator");
+  const pwdValidation = validatePassword(newPassword);
+  if (!pwdValidation.isValid) {
+    return res.status(400).json({ error: pwdValidation.message });
   }
 
   try {
