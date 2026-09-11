@@ -119,6 +119,8 @@ const EmployeeCalendar = () => {
 
     if (userData?.user_Id) {
       fetchEvents();
+    } else {
+      setLoading(false);
     }
   }, [year, userData?.user_Id]);
 

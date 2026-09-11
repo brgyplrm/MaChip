@@ -7,9 +7,10 @@ import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined
 // Using relative paths to ensure compatibility with the build environment
 import Breadcrumbs from "../Breadcrumbs";
 import { fetchWithAuth } from "../../utils/api";
+import { getStoredUser, setStoredUser, getStoredViewMode, setStoredViewMode } from "../../utils/authStorage";
 
 const Navbar = () => {
-  const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
+  const [userData, setUserData] = useState(() => getStoredUser());
   const [unreadCount, setUnreadCount] = useState(0);
   
   const isManagement = userData?.user_RoleId === 1 || userData?.user_RoleId === 2 || userData?.user_RoleId === 4;
@@ -17,7 +18,7 @@ const Navbar = () => {
   // Default to "employee" if user is not management, otherwise use stored mode or "management"
   const getInitialViewMode = () => {
     if (!isManagement) return "employee";
-    return localStorage.getItem("viewMode") || "management";
+    return getStoredViewMode("management");
   };
   
   const [viewMode, setViewMode] = useState(getInitialViewMode());
@@ -26,7 +27,7 @@ const Navbar = () => {
   const toggleViewMode = () => {
     if (!isManagement) return; // Non-management cannot toggle
     const newMode = viewMode === "management" ? "employee" : "management";
-    localStorage.setItem("viewMode", newMode);
+    setStoredViewMode(newMode);
     setViewMode(newMode);
     
     if (newMode === "employee") {
@@ -45,7 +46,7 @@ const Navbar = () => {
         const data = await response.json();
         const { user_Password, ...safeData } = data;
         setUserData(safeData);
-        localStorage.setItem("userData", JSON.stringify(safeData));
+        setStoredUser(safeData);
       }
     } catch (err) {
       console.error("Error syncing navbar profile:", err);
@@ -57,7 +58,7 @@ const Navbar = () => {
     try {
       // Logic: If user is an employee, always fetch employee-mode notifications.
       // If user is management, respect the current toggle.
-      const currentViewMode = isManagement ? (localStorage.getItem("viewMode") || "management") : "employee";
+      const currentViewMode = isManagement ? getStoredViewMode("management") : "employee";
       const response = await fetchWithAuth(`/api/notifications/unread-count/${userData.user_Id}?viewMode=${currentViewMode}`);
       if (response.ok) {
         const data = await response.json();
@@ -73,9 +74,9 @@ const Navbar = () => {
     fetchUnreadCount();
 
     const handleStorageChange = () => {
-      const updatedUserData = JSON.parse(localStorage.getItem("userData"));
+      const updatedUserData = getStoredUser();
       setUserData(updatedUserData);
-      const updatedViewMode = localStorage.getItem("viewMode") || "management";
+      const updatedViewMode = getStoredViewMode("management");
       setViewMode(updatedViewMode);
       fetchUnreadCount();
     };

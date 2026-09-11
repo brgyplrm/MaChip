@@ -1,24 +1,74 @@
+import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
+import { fetchWithAuth } from "../../utils/api";
+import { getStoredUser, setStoredUser, getStoredViewMode, clearStoredAuth } from "../../utils/authStorage";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const userDataString = localStorage.getItem("userData");
-  const userData = userDataString ? JSON.parse(userDataString) : null;
-  const viewMode = localStorage.getItem("viewMode") || "management";
-  
-  // Strict check: must have userData and a valid user_Id
-  const isAuthenticated = !!(userData && userData.user_Id);
+  const [isValidating, setIsValidating] = useState(true);
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser());
+  const viewMode = getStoredViewMode("management");
 
-  if (!isAuthenticated) {
-    // If not authenticated, clear any garbage and go to login
-    localStorage.removeItem("userData");
+  useEffect(() => {
+    let isMounted = true;
+
+    const verifyAuth = async () => {
+      try {
+        const response = await fetchWithAuth("/api/auth/verify");
+        if (response.ok) {
+          const data = await response.json();
+          if (isMounted) {
+            if (data?.user) {
+              setStoredUser(data.user);
+              setCurrentUser(data.user);
+            }
+            setIsValidating(false);
+          }
+        } else {
+          clearStoredAuth();
+          if (isMounted) {
+            setCurrentUser(null);
+            setIsValidating(false);
+          }
+        }
+      } catch (err) {
+        clearStoredAuth();
+        if (isMounted) {
+          setCurrentUser(null);
+          setIsValidating(false);
+        }
+      }
+    };
+
+    verifyAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // While validating session with backend, block rendering to prevent Flash of Unauthenticated Content (FOUC)
+  if (isValidating) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-[#2A174E]/20 border-t-[#2A174E] rounded-full animate-spin" />
+          <span className="text-xs text-slate-500 font-medium tracking-wide">Authenticating session...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Strict check: must have valid authenticated user
+  if (!currentUser || !currentUser.user_Id) {
+    clearStoredAuth();
     return <Navigate to="/login" replace />;
   }
 
-  const userRole = userData?.user_RoleId;
+  const userRole = currentUser?.user_RoleId;
 
-  // If we have an authenticated user but they have no role assigned, send to login
+  // If user has no valid role assigned, send to login
   if (!userRole) {
-    localStorage.removeItem("userData");
+    clearStoredAuth();
     return <Navigate to="/login" replace />;
   }
 
@@ -29,18 +79,11 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     const canAccessAsEmployee = isEmployeeMode && allowedRoles.includes(3);
 
     if (!hasRoleAccess && !canAccessAsEmployee) {
-      // If user is Employee (3) and tries to access Admin/Supervisor pages, redirect to profile
       if (userRole === 3) {
         return <Navigate to="/profile" replace />;
       }
       
-      // If user is Admin/Supervisor but trying to access an Employee-only page without viewMode="employee"
-      // or if they just don't have access to this specific admin page.
-      // We go to employeeHome for role 3, or root for others.
       const fallback = (userRole === 3) ? "/profile" : "/";
-      
-      // If we are already at the fallback destination, we have a problem (access denied to home).
-      // In that case, just go to login to be safe.
       if (window.location.pathname === fallback) {
          return <Navigate to="/login" replace />;
       }

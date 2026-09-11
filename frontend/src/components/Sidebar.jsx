@@ -24,6 +24,7 @@ import { Badge } from "./ui/badge";
 import TuneIcon from '@mui/icons-material/Tune';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { cn } from "../lib/utils";
+import { getStoredUser, getStoredViewMode, setStoredViewMode, clearStoredAuth } from "../utils/authStorage";
 
 import {
   Sidebar as ShadcnSidebar,
@@ -126,12 +127,12 @@ const Sidebar = ({ children }) => {
     location.pathname.startsWith("/loanManagementHub")
   );
   
-  const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
+  const [userData, setUserData] = useState(() => getStoredUser());
 
   // Refresh user data if updated elsewhere (e.g. Profile Edit)
   useEffect(() => {
     const refreshUserData = () => {
-      setUserData(JSON.parse(localStorage.getItem("userData")));
+      setUserData(getStoredUser());
     };
     window.addEventListener("userUpdate", refreshUserData);
     return () => window.removeEventListener("userUpdate", refreshUserData);
@@ -140,7 +141,7 @@ const Sidebar = ({ children }) => {
   const { isMockTime } = useSystemTime();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
-  const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
+  const [viewMode, setViewMode] = useState(() => getStoredViewMode("management"));
   
   // New Role Check Logic
   // Admin = 1, Supervisor = 2, Employee = 3, Accountant = 4
@@ -207,16 +208,23 @@ const Sidebar = ({ children }) => {
   }, []);
 
   // --- Auth & User Logic ---
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userData");
-    localStorage.removeItem("viewMode");
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_Id: userData?.user_Id }),
+        credentials: "include",
+      }).catch(() => {});
+    } finally {
+      clearStoredAuth();
+      navigate("/login");
+    }
   };
 
   const toggleViewMode = () => {
     const newMode = viewMode === "management" ? "employee" : "management";
-    localStorage.setItem("viewMode", newMode);
+    setStoredViewMode(newMode);
     setViewMode(newMode);
     navigate(newMode === "employee" ? "/employeeHome" : "/");
     window.dispatchEvent(new Event("storage"));

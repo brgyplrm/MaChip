@@ -58,7 +58,10 @@ const EmployeeHome = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       const storedUser = JSON.parse(localStorage.getItem("userData"));
-      if (!storedUser?.user_Id) return;
+      if (!storedUser?.user_Id) {
+        setLoading(false);
+        return;
+      }
       
       setUserData(storedUser);
       const currentId = storedUser.user_Id;

@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import ForgotPasswordModal from "../../components/forgotPassword/ForgotPasswordModal";
 import LoadingScreen from "@/components/LogisticsLoader";
+import { getStoredUser, setStoredUser, clearStoredAuth } from "../../utils/authStorage";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const parseMacjId = (value) => {
@@ -29,26 +30,58 @@ const Login = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const MIN_LOADING_TIME = 2500;
 
-  // ── Redirect if already logged in ──────────────────────────────────────────
+  // ── Show notification if redirected due to inactivity ──────────────────────
   useEffect(() => {
-    const userDataString = localStorage.getItem("userData");
-    if (userDataString) {
-      try {
-        const userData = JSON.parse(userDataString);
-        if (userData && userData.user_Id) {a
-          if (userData.user_RoleId === 3) {
-            navigate("/employeeHome", { replace: true });
-          } else {
-            navigate("/", { replace: true });
-          }
-        }
-      } catch (e) {
-        localStorage.removeItem("userData");
-      }
+    const reason = searchParams.get("reason");
+    if (reason === "inactivity") {
+      setToast({
+        message: "You have been logged out due to 15 minutes of inactivity.",
+        type: "error",
+      });
     }
+  }, [searchParams]);
+
+  // ── Verify session on load against backend before redirecting ───────────────
+  useEffect(() => {
+    const checkActiveSession = async () => {
+      const storedUser = getStoredUser();
+      if (!storedUser) return;
+
+      try {
+        const response = await fetch("/api/auth/verify", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache"
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.user) {
+            setStoredUser(data.user);
+            if (data.user.user_RoleId === 3) {
+              navigate("/employeeHome", { replace: true });
+            } else {
+              navigate("/", { replace: true });
+            }
+          }
+        } else {
+          // Token expired or server restarted: clear stale cache
+          clearStoredAuth();
+        }
+      } catch (err) {
+        clearStoredAuth();
+      }
+    };
+
+    checkActiveSession();
   }, [navigate]);
 
   const clearError = (field) => setErrors((prev) => ({ ...prev, [field]: "" }));
@@ -84,7 +117,7 @@ const Login = () => {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
-        localStorage.setItem("userData", JSON.stringify(data.data));
+        setStoredUser(data.data);
         setToast({ message: "Login successful! Redirecting…", type: "success" });
 
         setTimeout(() => {
