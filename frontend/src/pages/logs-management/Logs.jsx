@@ -156,8 +156,14 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
             machip_id: log.user_MachipId || "—",
             log_Date: log.log_Date ? String(log.log_Date).split('T')[0] : "—",
             time: formatTime12h(log.time_Logged),
-            log_type: log.loggedStatusName ?? "—",
+            log_type: (log.attendance_StatusId === 8 || log.attendanceStatusName === "Irregular")
+              ? (log.loggedStatusName?.startsWith("Irregular") 
+                  ? log.loggedStatusName 
+                  : `Irregular ${[1, 3, 5].includes(log.logged_StatusId) ? "Clock In" : "Clock Out"}`)
+              : (log.loggedStatusName ?? "—"),
             action: log.attendanceStatusName ?? "—",
+            attendance_StatusId: log.attendance_StatusId,
+            logged_StatusId: log.logged_StatusId,
           };
         });
         setLogData(mapped);
@@ -303,7 +309,10 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
       item.machip_id?.toLowerCase().includes(query);
 
     const matchesUser = selectedUser === "all" || item.user_Id?.toString() === selectedUser;
-    const matchesStatus = statusFilter === "All" || item.log_type?.toLowerCase().includes(statusFilter.toLowerCase());
+    const matchesStatus = statusFilter === "All" || 
+      (statusFilter.toLowerCase() === "irregular" 
+        ? (item.action?.toLowerCase() === "irregular" || item.attendance_StatusId === 8 || item.log_type?.toLowerCase().includes("irregular")) 
+        : item.log_type?.toLowerCase().includes(statusFilter.toLowerCase()));
 
     return matchesSearch && matchesUser && matchesStatus && matchesDate && matchesTime;
   });
@@ -614,7 +623,11 @@ const toggleMachipVisibility = (rowId) => {
                     <SelectContent>
                       <SelectItem value="All">All {viewMode === "raw" ? "Types" : "Statuses"}</SelectItem>
                       {viewMode === "raw" ? (
-                        <><SelectItem value="in">Clock In</SelectItem><SelectItem value="out">Clock Out</SelectItem></>
+                        <>
+                          <SelectItem value="in">Clock In</SelectItem>
+                          <SelectItem value="out">Clock Out</SelectItem>
+                          <SelectItem value="irregular">Irregular</SelectItem>
+                        </>
                       ) : (
                         <>
                           <SelectItem value="On Time">On Time</SelectItem>
@@ -623,6 +636,7 @@ const toggleMachipVisibility = (rowId) => {
                           <SelectItem value="On Leave">On Leave</SelectItem>
                           <SelectItem value="On-Field">On-Field</SelectItem>
                           <SelectItem value="Half Day">Half Day</SelectItem>
+                          <SelectItem value="Irregular">Irregular</SelectItem>
                         </>
                       )}
                     </SelectContent>
@@ -741,9 +755,19 @@ const toggleMachipVisibility = (rowId) => {
                                 <TableCell className="py-4">
                                   <Badge 
                                     variant="secondary" 
-                                    className={`font-semibold ${row.log_type.toLowerCase().includes("in") ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}`}
+                                    className={`font-semibold ${
+                                      (row.action === "Irregular" || row.attendance_StatusId === 8 || row.log_type.includes("Irregular"))
+                                        ? "bg-rose-100 text-rose-800 hover:bg-rose-100 border border-rose-200"
+                                        : row.log_type.toLowerCase().includes("in") 
+                                          ? "bg-green-100 text-green-800 hover:bg-green-100" 
+                                          : "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                                    }`}
                                   >
-                                    {row.log_type}
+                                    {(row.action === "Irregular" || row.attendance_StatusId === 8 || row.log_type.includes("Irregular"))
+                                      ? (row.log_type.startsWith("Irregular") 
+                                          ? row.log_type 
+                                          : `Irregular ${[1, 3, 5].includes(row.logged_StatusId) || row.log_type.toLowerCase().includes("in") ? "Clock In" : "Clock Out"}`)
+                                      : row.log_type}
                                   </Badge>
                                 </TableCell>
 
@@ -867,6 +891,7 @@ const toggleMachipVisibility = (rowId) => {
                             else if (row.status === "On Leave" || row.status?.toLowerCase().includes("leave")) badgeStyle = "bg-sky-100 text-sky-800 hover:bg-sky-100";
                             else if (row.status === "Half Day" || row.status?.toLowerCase().includes("half")) badgeStyle = "bg-orange-100 text-orange-800 hover:bg-orange-100";
                             else if (row.status?.toLowerCase().includes("late")) badgeStyle = "bg-amber-100 text-amber-800 hover:bg-amber-100";
+                            else if (row.status?.toLowerCase().includes("irregular")) badgeStyle = "bg-rose-100 text-rose-800 hover:bg-rose-100 border border-rose-200";
                             else if (row.status?.toLowerCase().includes("absent")) badgeStyle = "bg-red-100 text-red-800 hover:bg-red-100";
 
                             return (

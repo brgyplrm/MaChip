@@ -214,19 +214,37 @@ function mapLogsToBuckets(inArr, outArr, settings, otStartTime = null) {
     return mins >= timeToMins(irregularEnd) && mins < timeToMins(irregularStart);
   });
 
-  // Filter Outs: More lenient. Allow anything after the earliest possible shift start.
-  // This allows the 5:30 PM clock-out and even late clock-outs (e.g., 6:00 PM) to show up.
+  // Filter Outs: Allow shift clock-outs (up to 18:30 if no IN recorded, or 19:30 if IN recorded, or any time with approved OT)
   outs = outs.filter(time => {
+    if (otStartTime && time >= otStartTime) return true;
     const mins = timeToMins(time);
-    return mins >= timeToMins(irregularEnd);
+    if (ins.length === 0) {
+      return mins >= timeToMins(irregularEnd) && mins <= timeToMins("18:30");
+    }
+    return mins >= timeToMins(irregularEnd) && (otStartTime || mins <= timeToMins("19:30"));
   });
 
-  if (ins.length === 0 && outs.length === 0) return { morning_In: "—", morning_Out: "—", afternoon_In: "—", afternoon_Out: "—" };
-
-  const morning_In = ins[0] || "—";
+  let morning_In = "—";
   let morning_Out = "—";
   let afternoon_In = "—";
   let afternoon_Out = "—";
+
+  const lStartStr = settings?.lunchStartThreshold || "11:30";
+  const lunchMins = timeToMins(lStartStr);
+
+  // If first In is at or after lunch window, it is Afternoon In
+  if (ins.length > 0 && timeToMins(ins[0]) >= lunchMins) {
+    afternoon_In = ins[0];
+    const matchingOuts = outs.filter(o => timeToMins(o) > timeToMins(afternoon_In));
+    if (matchingOuts.length > 0) {
+      afternoon_Out = matchingOuts[matchingOuts.length - 1];
+    }
+    return { morning_In, morning_Out, afternoon_In, afternoon_Out };
+  }
+
+  if (ins.length > 0) {
+    morning_In = ins[0];
+  }
 
   // Identify Lunch Interval (Typically 30-70 minutes)
   let foundLunchBreak = false;

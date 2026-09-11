@@ -500,37 +500,64 @@ exports.scanRFID = async (req, res) => {
 
     const isLunchWindow = totalMinutes >= lStart && totalMinutes < lEnd;
 
-    if (action === "clock_in") {
-      nextStatus = (isLunchWindow || lastStatus === 2) ? 3 : (hasApprovedOT && isWithinOTWindow ? 5 : 1);
-    } else {
-      nextStatus = (isLunchWindow && [1, 3].includes(lastStatus)) ? 2 : (lastStatus === 5 ? 6 : 4);
-    }
-
-    // ... (rest of the code remains until recording attendance)
-
-    // 4. Record Attendance
-    const firstLoginToday = await sequelize.query(
+    // Check prior login today (Morning or Afternoon)
+    const priorLoginToday = await sequelize.query(
       `SELECT * FROM "user_logging"
        WHERE "user_id" = :target_user_Id
-       AND "logged_StatusId" = 1
+       AND "logged_StatusId" IN (1, 3)
        AND "log_Date" BETWEEN :todayStart AND :todayEnd
        LIMIT 1`,
       { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
     );
-    const hasPriorClockIn = !!firstLoginToday[0];
+    const hasPriorClockIn = !!priorLoginToday[0];
+
+    // Check if there was any prior scan flagged as Irregular today
+    const priorIrregular = await sequelize.query(
+      `SELECT 1 FROM "user_logging"
+       WHERE "user_id" = :target_user_Id
+       AND "attendance_StatusId" = 8
+       AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       LIMIT 1`,
+      { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+    );
+    const hadPriorIrregular = priorIrregular.length > 0;
 
     const isSuspiciousWindow = (now >= fivePMThirty || now < fiveAMThirty);
-    const isIrregular = (nextStatus === 1 && isSuspiciousWindow && !hasPriorClockIn && !isWithinOTWindow) ||
-                        (nextStatus === 1 && hasPriorClockIn && isSuspiciousWindow && !isWithinOTWindow) ||
-                        (nextStatus === 1 && hasApprovedOT && isPastOTWindow);
+    const isPastOT = hasApprovedOT && isPastOTWindow;
 
-    if (isIrregular) {
+    // Irregular if outside regular hours without approved OT, or past OT window, or prior irregular session
+    const isIrregular = (!isWithinOTWindow && isSuspiciousWindow && user.user_ShiftId !== 2) ||
+                        isPastOT ||
+                        hadPriorIrregular;
+
+    if (action === "clock_in") {
+      if (hasApprovedOT && isWithinOTWindow) {
+        nextStatus = 5; // Overtime IN
+      } else if (isLunchWindow || lastStatus === 2) {
+        nextStatus = 3; // Afternoon IN (from lunch)
+      } else if (totalMinutes >= lStart && !hasPriorClockIn && !isSuspiciousWindow) {
+        // Arrived in afternoon (>= 11:30 AM / 12:00 PM) without morning scan
+        nextStatus = 3; // Afternoon IN
+      } else {
+        nextStatus = 1; // Morning IN (or initial entry)
+      }
+    } else {
+      if (lastStatus === 5) {
+        nextStatus = 6; // Overtime OUT
+      } else if (isLunchWindow && [1, 3].includes(lastStatus)) {
+        nextStatus = 2; // Lunch Out (Morning OUT)
+      } else {
+        nextStatus = 4; // Clock Out (Afternoon OUT)
+      }
+    }
+
+    if (isIrregular && action === "clock_in") {
       const admins = await User.findAll({ where: { user_RoleId: 1 }, attributes: ["user_Id"] });
       const timeFmt = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       let msg = `Irregular log: ${user.user_FirstName} ${user.user_LastName} `;
-      if (nextStatus === 1 && hasApprovedOT && isPastOTWindow) msg += `clocked in at ${timeFmt}, past OT window (Ended ${approvedOT.HrTo}).`;
-      else if (nextStatus === 1 && isSuspiciousWindow && !hasPriorClockIn) msg += `logged in at ${timeFmt} (Outside 5:30 AM - 5:30 PM) without prior record or approved OT.`;
-      else if (nextStatus === 1 && hasPriorClockIn && isSuspiciousWindow) msg += `clocked in again at ${timeFmt} (Irregular Hours: 5:30 PM - 5:30 AM) after logging out, without approved OT.`;
+      if (hasApprovedOT && isPastOTWindow) msg += `clocked in at ${timeFmt}, past OT window (Ended ${approvedOT.HrTo}).`;
+      else if (isSuspiciousWindow && !hasPriorClockIn) msg += `logged in at ${timeFmt} (Outside 5:30 AM - 5:30 PM) without prior record or approved OT.`;
+      else if (hasPriorClockIn && isSuspiciousWindow) msg += `clocked in again at ${timeFmt} (Irregular Hours: 5:30 PM - 5:30 AM) after logging out, without approved OT.`;
       
       for (const admin of admins) await Notification.create({ user_Id: admin.user_Id, title: "Irregular logs", message: msg, isRead: false });
     }
@@ -538,25 +565,22 @@ exports.scanRFID = async (req, res) => {
     let attendanceVal = null;
     if (user.user_RoleId === 1 || user.is_time_exempt === true) {
       attendanceVal = 6; // Exempt
+    } else if (isIrregular) {
+      attendanceVal = 8; // Irregular (Applied to BOTH Clock In and Clock Out during irregular activity)
+    } else if (nextStatus === 5 && hasApprovedOT && isWithinOTWindow) {
+      attendanceVal = 1; // On-Time (for approved Overtime)
     } else if (nextStatus === 1) {
       // Dynamic Grace Period from Settings
       const graceTimeStr = settings?.gracePeriod || "08:35:00";
       const graceTime = new Date(`${workDate}T${graceTimeStr}`);
-      
-      // IRREGULAR CHECK: If within the 5:30 PM - 6:30 AM window and no approved OT
-      const hour = now.getHours();
-      const mins = now.getMinutes();
-      const isIrregular = (hour >= 17 && mins >= 30) || (hour < 6) || (hour === 6 && mins < 30);
-
-      if (isIrregular && !isWithinOTWindow) {
-        attendanceVal = 8; // Irregular
-      } else if (now <= graceTime) {
+      if (now <= graceTime) {
         attendanceVal = 1; // On-Time
       } else if (now > graceTime && now < fivePMThirty) {
         attendanceVal = 2; // Late
       }
-    } 
-
+    } else if (nextStatus === 3 && !hasPriorClockIn) {
+      attendanceVal = 4; // Half Day (PM arrival)
+    }
 
     await sequelize.query(
       `INSERT INTO "user_logging"
@@ -638,17 +662,19 @@ exports.scanRFID = async (req, res) => {
         .catch(err => console.error("[LEAVE-AUTO] Error resolving leave conflict:", err));
     }
 
-    const statusLabels = { 1: "Clock In", 2: "Clock Out", 3: "Out For Lunch", 4: "In From Lunch", 5: "Overtime-In", 6: "Overtime-Out" };
-    const attendanceResult = attendanceVal === 1 ? "On-Time" : attendanceVal === 2 ? "Late" : "N/A";
+    const statusLabels = { 1: "Clock In", 2: "Lunch Out", 3: "Lunch In", 4: "Clock Out", 5: "Overtime In", 6: "Overtime Out" };
+    const attendanceResult = attendanceVal === 1 ? "On-Time" : attendanceVal === 2 ? "Late" : attendanceVal === 8 ? "Irregular" : "N/A";
     const esp32Ip = req.ip || req.socket.remoteAddress || "Unknown ESP32";
 
     // 6. Log Transaction
     const method = action === "fingerprint_scan" ? "Fingerprint" : "RFID";
     const isIrregularEvent = isIrregular; // Use the isIrregular flag defined earlier
+    const punchLabel = [1, 3, 5].includes(nextStatus) ? "Clock In" : "Clock Out";
     
     if (isIrregularEvent) {
-      await logTransaction(target_user_Id, null, "IRREGULAR_LOG", `Irregular ${statusLabels[nextStatus]} at ${timeStr}`, { 
+      await logTransaction(target_user_Id, null, "IRREGULAR_LOG", `Irregular ${punchLabel} at ${timeStr}`, { 
         status: statusLabels[nextStatus], 
+        punchDirection: punchLabel,
         time: timeStr, 
         method: method,
         deviceIp: esp32Ip
@@ -666,14 +692,14 @@ exports.scanRFID = async (req, res) => {
 
     // [SOCKET] Trigger real-time UI updates
     const io = getIO();
-    io.emit("NEW_ATTENDANCE_LOG", { userId: target_user_Id, status: statusLabels[nextStatus] });
+    io.emit("NEW_ATTENDANCE_LOG", { userId: target_user_Id, status: isIrregularEvent ? `Irregular ${punchLabel}` : statusLabels[nextStatus] });
     io.to(`user_${target_user_Id}`).emit("NOTIFICATION_UPDATE");
 
     return res.status(200).json({
       success: true,
       employeeName: user.user_FirstName,
       name: user.user_FirstName,
-      message: statusLabels[nextStatus]
+      message: isIrregularEvent ? `Irregular ${punchLabel}` : statusLabels[nextStatus]
     });
 
   } catch (error) {

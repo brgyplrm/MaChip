@@ -161,8 +161,18 @@ exports.markAttendance = async (req, res) => {
     if (forcedStatus === 1 && [1, 3, 5].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-in` });
     if (forcedStatus === 2 && [2, 4, 6].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-out` });
 
-    const firstLoginToday = await sequelize.query(`SELECT * FROM "user_logging" WHERE "user_id" = :target_user_Id AND "logged_StatusId" = 1 AND "log_Date" BETWEEN :todayStart AND :todayEnd LIMIT 1`, { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT });
+    const firstLoginToday = await sequelize.query(`SELECT * FROM "user_logging" WHERE "user_id" = :target_user_Id AND "logged_StatusId" IN (1, 3) AND "log_Date" BETWEEN :todayStart AND :todayEnd LIMIT 1`, { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT });
     const hasPriorClockIn = !!firstLoginToday[0];
+
+    const priorIrregular = await sequelize.query(
+      `SELECT 1 FROM "user_logging"
+       WHERE "user_id" = :target_user_Id
+       AND "attendance_StatusId" = 8
+       AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       LIMIT 1`,
+      { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+    );
+    const hadPriorIrregular = priorIrregular.length > 0;
 
     const settings = await SystemSettings.findOne();
     const lStartStr = settings?.lunchStartThreshold || "11:30:00";
@@ -184,45 +194,62 @@ exports.markAttendance = async (req, res) => {
         : (timeStr > approvedOT.HrTo && timeStr < approvedOT.HrFrom)
     );
 
-    let nextStatus;
-    if (forcedStatus === 1) nextStatus = (lastStatus === 2 || isLunchWindow) ? 3 : (hasApprovedOT && isWithinOTWindow ? 5 : 1);
-    else if (forcedStatus === 2) nextStatus = (isLunchWindow && [1, 3].includes(lastStatus)) ? 2 : (lastStatus === 5 ? 6 : 4);
-    else nextStatus = (!lastStatus || [2, 4, 6].includes(lastStatus)) ? ((lastStatus === 2 || isLunchWindow) ? 3 : (hasApprovedOT && isWithinOTWindow ? 5 : 1)) : ((isLunchWindow && [1, 3].includes(lastStatus)) ? 2 : (lastStatus === 5 ? 6 : 4));
-
     const isSuspiciousWindow = (now >= fivePMThirty || now < fiveAMThirty);
-    const isLateNightFirstIn = (nextStatus === 1 && isSuspiciousWindow && !hasPriorClockIn && !isWithinOTWindow);
-    const isUnauthorizedReEntry = (nextStatus === 1 && hasPriorClockIn && isSuspiciousWindow && !isWithinOTWindow);
-    const isPastOTEntry = (nextStatus === 1 && hasApprovedOT && isPastOTWindow);
+    const isPastOT = hasApprovedOT && isPastOTWindow;
+    const isIrregular = (!isWithinOTWindow && isSuspiciousWindow && user.user_ShiftId !== 2) ||
+                        isPastOT ||
+                        hadPriorIrregular;
 
-    if (isLateNightFirstIn || isUnauthorizedReEntry || isPastOTEntry) {
+    let nextStatus;
+    if (forcedStatus === 1) {
+      if (hasApprovedOT && isWithinOTWindow) nextStatus = 5;
+      else if (isLunchWindow || lastStatus === 2) nextStatus = 3;
+      else if (totalMinutes >= lStart && !hasPriorClockIn && !isSuspiciousWindow) nextStatus = 3;
+      else nextStatus = 1;
+    } else if (forcedStatus === 2) {
+      if (lastStatus === 5) nextStatus = 6;
+      else if (isLunchWindow && [1, 3].includes(lastStatus)) nextStatus = 2;
+      else nextStatus = 4;
+    } else {
+      if (!lastStatus || [2, 4, 6].includes(lastStatus)) {
+        if (hasApprovedOT && isWithinOTWindow) nextStatus = 5;
+        else if (isLunchWindow || lastStatus === 2) nextStatus = 3;
+        else if (totalMinutes >= lStart && !hasPriorClockIn && !isSuspiciousWindow) nextStatus = 3;
+        else nextStatus = 1;
+      } else {
+        if (lastStatus === 5) nextStatus = 6;
+        else if (isLunchWindow && [1, 3].includes(lastStatus)) nextStatus = 2;
+        else nextStatus = 4;
+      }
+    }
+
+    if (isIrregular && [1, 3, 5].includes(nextStatus)) {
       const admins = await User.findAll({ where: { user_RoleId: 1 }, attributes: ["user_Id"] });
       const timeFmt = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      let msg = `[SYSTEM NOTICE] Suspicious activity: ${user.user_FirstName} ${user.user_LastName} `;
-      if (isPastOTEntry) msg += `clocked in at ${timeFmt}, past OT window (Ended ${approvedOT.HrTo}).`;
-      else if (isLateNightFirstIn) msg += `logged in at ${timeFmt} (Outside 5:30 AM - 5:30 PM) without prior record or approved OT.`;
-      else if (isUnauthorizedReEntry) msg += `clocked in again at ${timeFmt} (Suspicious Hours: 5:30 PM - 5:30 AM) after logging out, without approved OT.`;
-      for (const admin of admins) await Notification.create({ user_Id: admin.user_Id, title: "Suspicious Activity", message: msg, isRead: false });
+      let msg = `Irregular log: ${user.user_FirstName} ${user.user_LastName} `;
+      if (hasApprovedOT && isPastOTWindow) msg += `clocked in at ${timeFmt}, past OT window (Ended ${approvedOT.HrTo}).`;
+      else if (isSuspiciousWindow && !hasPriorClockIn) msg += `logged in at ${timeFmt} (Outside 5:30 AM - 5:30 PM) without prior record or approved OT.`;
+      else if (hasPriorClockIn && isSuspiciousWindow) msg += `clocked in again at ${timeFmt} (Irregular Hours: 5:30 PM - 5:30 AM) after logging out, without approved OT.`;
+      for (const admin of admins) await Notification.create({ user_Id: admin.user_Id, title: "Irregular logs", message: msg, isRead: false });
     }
 
     let attendanceVal = null;
     if (user.user_RoleId === 1 || user.is_time_exempt === true) {
       attendanceVal = 6; // Exempt
+    } else if (isIrregular) {
+      attendanceVal = 8; // Irregular
+    } else if (nextStatus === 5 && hasApprovedOT && isWithinOTWindow) {
+      attendanceVal = 1; // On-Time (for approved Overtime)
     } else if (nextStatus === 1) {
       const graceTimeStr = settings?.gracePeriod || "08:35:00";
       const graceTime = new Date(`${todayStr}T${graceTimeStr}`);
-      
-      // IRREGULAR CHECK: If within the 5:30 PM - 6:30 AM window and no approved OT
-      const hour = now.getHours();
-      const mins = now.getMinutes();
-      const isIrregular = (hour >= 17 && mins >= 30) || (hour < 6) || (hour === 6 && mins < 30);
-      
-      if (isIrregular && !isWithinOTWindow) {
-        attendanceVal = 8; // Irregular
-      } else if (now <= graceTime) {
+      if (now <= graceTime) {
         attendanceVal = 1; // On-Time
       } else if (now > graceTime && now < fivePMThirty) {
         attendanceVal = 2; // Late
       }
+    } else if (nextStatus === 3 && !hasPriorClockIn) {
+      attendanceVal = 4; // Half Day (PM arrival)
     }
 
     const newLogResult = await sequelize.query(`INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId") VALUES (:target_user_Id, :log_Date, :time_Logged, :logged_StatusId, :attendance_StatusId) RETURNING *`, { replacements: { target_user_Id, log_Date: todayStart, time_Logged: timeStr, logged_StatusId: nextStatus, attendance_StatusId: attendanceVal }, type: QueryTypes.INSERT });
@@ -264,12 +291,18 @@ exports.markAttendance = async (req, res) => {
         .catch(err => console.error("[ATTENDANCE-AUTO] Error in post-clockout tasks:", err));
     }
 
-    const labels = { 1: "Clock In", 2: "Clock Out", 3: "Out For Lunch", 4: "In From Lunch", 5: "Overtime-In", 6: "Overtime-Out" };
-    if (isLateNightFirstIn || isUnauthorizedReEntry || isPastOTEntry) await logTransaction(target_user_Id, null, "IRREGULAR_LOG", `Irregular ${labels[nextStatus]} at ${timeStr}`, { status: labels[nextStatus], time: timeStr, method: log_Type || "Manual/RFID" }, req);
-    else await logTransaction(target_user_Id, null, "ATTENDANCE_LOG", `${labels[nextStatus]} for user ${target_user_Id}`, { status: labels[nextStatus], time: timeStr, method: log_Type || "Manual/RFID" }, req);
+    const labels = { 1: "Clock In", 2: "Lunch Out", 3: "Lunch In", 4: "Clock Out", 5: "Overtime In", 6: "Overtime Out" };
+    const punchLabel = [1, 3, 5].includes(nextStatus) ? "Clock In" : "Clock Out";
+    if (isIrregular) {
+      await logTransaction(target_user_Id, null, "IRREGULAR_LOG", `Irregular ${punchLabel} at ${timeStr}`, { status: labels[nextStatus], punchDirection: punchLabel, time: timeStr, method: log_Type || "Manual/RFID" }, req);
+    } else {
+      await logTransaction(target_user_Id, null, "ATTENDANCE_LOG", `${labels[nextStatus]} for user ${target_user_Id}`, { status: labels[nextStatus], time: timeStr, method: log_Type || "Manual/RFID" }, req);
+    }
 
-    const io = getIO(); io.emit("NEW_ATTENDANCE_LOG", { userId: target_user_Id, status: labels[nextStatus] }); io.to(`user_${target_user_Id}`).emit("NOTIFICATION_UPDATE");
-    return res.status(201).json({ message: `${labels[nextStatus]} recorded successfully`, data: newLog });
+    const io = getIO(); 
+    io.emit("NEW_ATTENDANCE_LOG", { userId: target_user_Id, status: isIrregular ? `Irregular ${punchLabel}` : labels[nextStatus] }); 
+    io.to(`user_${target_user_Id}`).emit("NOTIFICATION_UPDATE");
+    return res.status(201).json({ message: `${isIrregular ? `Irregular ${punchLabel}` : labels[nextStatus]} recorded successfully`, data: newLog });
   } catch (error) { return res.status(500).json({ error: error.message }); }
 };
 
@@ -549,13 +582,21 @@ exports.viewAllAttendance = async (req, res) => {
         ? `MACJ-${String(plain.admin_id).padStart(3, "0")}`
         : null;
 
+      const isIrregular = plain.attendance_StatusId === 8;
+      const punchDirection = [1, 3, 5].includes(plain.logged_StatusId) ? "Clock In" : "Clock Out";
+      const loggedStatusName = isIrregular 
+        ? `Irregular ${punchDirection}` 
+        : plain.loggedStatus?.statusName;
+
       return {
         ...plain,
         log_Date: formatDateLocal(plain.log_Date),
         user_FirstName: plain.user?.user_FirstName,
         user_LastName: plain.user?.user_LastName,
         user_MachipId: plain.user?.hardware?.user_MachipId,
-        loggedStatusName: plain.loggedStatus?.statusName,
+        loggedStatusName,
+        punchDirection,
+        isIrregular,
         attendanceStatusName: (plain.attendanceStatus?.statusName === "Exempt" || plain.attendanceStatus?.statusName === "Present") ? "On Time" : plain.attendanceStatus?.statusName,
         reason: plain.reason || null,
         admin_id: plain.admin_id || null,
