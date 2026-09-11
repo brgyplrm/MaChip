@@ -34,8 +34,8 @@ import {
 
 const colorMap = {
   "[#2A174E]": "border-[#2A174E]",
-  "emerald-500": "border-emerald-500",
-  "rose-500": "border-rose-500",
+  "[#3B4E17]": "border-[#3B4E17]",
+  "[#BB8B26]": "border-[#BB8B26]",
   "amber-500": "border-amber-500",
   "indigo-500": "border-indigo-500",
   "blue-500": "border-blue-500"
@@ -238,7 +238,7 @@ const PayrollComputationDetails = () => {
             <MetricCard
               label="Gross Earnings"
               value={formatCurrency(payroll.totalEarnings)}
-              color="emerald-500"
+              color="[#2A174E]"
               description="Basic pay, OT, night diff & allowances"
               icon={TrendingUp}
               tooltip="Total gross compensation earned before statutory deductions and taxes."
@@ -246,7 +246,7 @@ const PayrollComputationDetails = () => {
             <MetricCard
               label="Total Deductions"
               value={`-${formatCurrency(payroll.totalDeductions)}`}
-              color="rose-500"
+              color="[#3B4E17]"
               description="Taxes, statutory shares, absences & loans"
               icon={TrendingDown}
               tooltip="Combined statutory contributions, withholding tax, attendance penalties, and loan amortizations."
@@ -254,7 +254,7 @@ const PayrollComputationDetails = () => {
             <MetricCard
               label="Net Retained"
               value={`${netRetainedPercent}%`}
-              color="[#2A174E]"
+              color="[#BB8B26]"
               description={`${formatCurrency(payroll.netPay)} take-home pay`}
               icon={Wallet}
               tooltip="Percentage of gross earnings retained as net take-home pay."
@@ -262,7 +262,7 @@ const PayrollComputationDetails = () => {
             <MetricCard
               label="Attendance Record"
               value={`${payroll.NoDays_Worked} Days`}
-              color="indigo-500"
+              color="blue-500"
               description={`${payroll.NoHrs_Worked || 0} hrs worked @ ${formatCurrency(payroll.dailyRate)}/day`}
               icon={CalendarDays}
               tooltip="Total logged work days and hours present during this payroll period."

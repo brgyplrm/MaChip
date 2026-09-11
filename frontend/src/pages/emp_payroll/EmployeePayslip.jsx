@@ -44,7 +44,8 @@ import {
 
 const colorMap = {
   "[#2A174E]": "border-[#2A174E]",
-  "emerald-500": "border-emerald-500",
+  "[#3B4E17]": "border-[#3B4E17]",
+  "[#BB8B26]": "border-[#BB8B26]",
   "rose-500": "border-rose-500",
   "amber-500": "border-amber-500",
   "indigo-500": "border-indigo-500",
@@ -273,7 +274,7 @@ const EmployeePayslip = () => {
                 <span>View Payslips</span>
               </Button>
 
-              {/* Download Payslip Dropdown Menu */}
+              {/* Download Payslip Dropdown Menu
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
@@ -338,7 +339,7 @@ const EmployeePayslip = () => {
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
-              </DropdownMenu>
+              </DropdownMenu> */}
             </div>
           </div>
 
@@ -347,7 +348,7 @@ const EmployeePayslip = () => {
             <MetricCard
               label="Gross Earnings"
               value={formatCurrency(payroll.totalEarnings)}
-              color="emerald-500"
+              color="[#2A174E]"
               description="Basic pay, OT, night diff & allowances"
               icon={TrendingUp}
               tooltip="Total gross compensation earned before statutory deductions and taxes."
@@ -355,7 +356,7 @@ const EmployeePayslip = () => {
             <MetricCard
               label="Total Deductions"
               value={`-${formatCurrency(payroll.totalDeductions)}`}
-              color="rose-500"
+              color="[#3B4E17]"
               description="Taxes, statutory shares, absences & loans"
               icon={TrendingDown}
               tooltip="Combined statutory contributions, withholding tax, attendance penalties, and loan amortizations."
@@ -363,7 +364,7 @@ const EmployeePayslip = () => {
             <MetricCard
               label="Net Take Home"
               value={formatCurrency(payroll.netPay)}
-              color="[#2A174E]"
+              color="[#BB8B26]"
               description={`${netRetainedPercent}% of gross earnings credited`}
               icon={Wallet}
               tooltip="Final net pay deposited to your account for this cutoff."
@@ -371,7 +372,7 @@ const EmployeePayslip = () => {
             <MetricCard
               label="Days Worked"
               value={`${payroll.NoDays_Worked} / ${payroll.totalScheduledDays || payroll.NoDays_Worked} Days`}
-              color="indigo-500"
+              color="blue-500"
               description={`${payroll.NoHrs_Worked || 0} hrs worked @ ${formatCurrency(payroll.dailyRate)}/day`}
               icon={CalendarDays}
               tooltip="Total logged work days and hours present during this payroll period."

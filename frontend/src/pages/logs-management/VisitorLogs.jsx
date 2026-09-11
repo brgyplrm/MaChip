@@ -573,11 +573,11 @@ const VisitorLogs = () => {
                     </CardContent>
                   </Card>
 
-                  <Card className="border-t-5 border-emerald-600 bg-white shadow-xs rounded-xl py-0">
+                  <Card className="border-t-5 border-[#3B4E17] bg-white shadow-xs rounded-xl py-0">
                     <CardContent className="p-5">
-                      <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-1">Authorized Openings</p>
+                      <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-1">Authorized Openings</p>
                       <div className="flex items-baseline gap-2 mt-1">
-                        <p className="text-3xl font-black text-emerald-700">{historyOpeningCount}</p>
+                        <p className="text-3xl font-black text-[#3B4E17]">{historyOpeningCount}</p>
                         <span className="text-slate-400 text-xs font-medium">entry unlocks</span>
                       </div>
                       <p className="text-xs text-slate-400 mt-2">Verified visitor door releases</p>

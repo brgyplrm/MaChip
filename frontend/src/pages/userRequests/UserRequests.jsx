@@ -2318,10 +2318,11 @@ const UserRequests = () => {
                   
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">
-                      {formData.emp_reqTypeId === "14" && formData.loanType === "Calamity Loan" ? "Disclosure Statement (Required)" : (
+                      {formData.emp_reqTypeId === "14" && formData.loanType === "Calamity Loan" ? <>Disclosure Statement <span className="text-red-500">*</span>
+                      </> : (
                         <>Attachment {["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company") ? <span className="text-red-500">*</span> : "(Optional)"}</>
                       )}
-                    </label>
+                     </label>
                     <Input 
                       type="file" 
                       name="proofFile" 

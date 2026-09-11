@@ -622,7 +622,7 @@ const UserLogs = () => {
                   <TooltipTrigger asChild>
                     <Button 
                       onClick={activeTab === "dtr" ? handleDownloadDTR : handleDownloadRawLogs}
-                      className="w-full sm:w-auto bg-green-600 text-white hover:bg-green-700 shadow-sm"
+                      className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-green-700 shadow-sm"
                     >
                       <FileDownloadIcon className="mr-2 h-4 w-4" /> Download PDF
                     </Button>

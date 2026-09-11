@@ -40,9 +40,9 @@ import { TablePagination } from "@/components/ui/table-pagination";
 
 const colorMap = {
   "[#2A174E]": "border-[#2A174E]",
-  "emerald-500": "border-emerald-500",
+  "[#3B4E17]": "border-[#3B4E17]",
   "rose-500": "border-rose-500",
-  "amber-500": "border-amber-500",
+  "[#BB8B26]": "border-[#BB8B26]",
   "indigo-500": "border-indigo-500",
   "blue-500": "border-blue-500"
 };
@@ -50,7 +50,7 @@ const colorMap = {
 function MetricCard({ label, value, color, description, icon: Icon, tooltip, loading }) {
   return (
     <Card className={`border-t-4 ${colorMap[color] || 'border-[#2A174E]'} bg-white py-0 h-full shadow-sm`}>
-      <CardContent className="p-5 flex flex-col justify-between h-full text-left">
+      <CardContent className="px-5 py-6 flex flex-col justify-between h-full text-left">
         <div className="flex justify-between items-start">
           <div>
             <div className="flex items-center gap-1.5 mb-2">
@@ -87,7 +87,7 @@ function MetricCard({ label, value, color, description, icon: Icon, tooltip, loa
             </div>
           )}
         </div>
-        <p className="text-[10px] text-slate-500 italic mt-3">{description}</p>
+        {/* <p className="text-[10px] text-slate-500 italic mt-3">{description}</p> */}
       </CardContent>
     </Card>
   );
@@ -323,7 +323,7 @@ const EmployeePayrollHistory = () => {
             <MetricCard
               label={`YTD Gross (${targetYear})`}
               value={formatCurrency(ytdOverview.gross)}
-              color="emerald-500"
+              color="[#2A174E]"
               description={`${ytdOverview.count} regular cutoffs released in ${targetYear}`}
               icon={TrendingUp}
               tooltip={`Cumulative gross compensation earned across all processed payroll cutoffs in ${targetYear}.`}
@@ -332,7 +332,7 @@ const EmployeePayrollHistory = () => {
             <MetricCard
               label={`YTD Net Pay (${targetYear})`}
               value={formatCurrency(ytdOverview.net)}
-              color="[#2A174E]"
+              color="[#3B4E17]"
               description="Total net take-home pay disbursed"
               icon={Wallet}
               tooltip={`Total net take-home pay credited to your account after all deductions in ${targetYear}.`}
@@ -341,7 +341,7 @@ const EmployeePayrollHistory = () => {
             <MetricCard
               label={`YTD Deductions (${targetYear})`}
               value={`-${formatCurrency(ytdOverview.deductions)}`}
-              color="rose-500"
+              color="[#BB8B26]"
               description="Taxes, statutory shares & loans"
               icon={TrendingDown}
               tooltip={`Cumulative withholding taxes, SSS, PhilHealth, Pag-IBIG contributions, and loans in ${targetYear}.`}
@@ -350,7 +350,7 @@ const EmployeePayrollHistory = () => {
             <MetricCard
               label={`YTD Days Worked (${targetYear})`}
               value={`${ytdOverview.daysWorked} Days`}
-              color="indigo-500"
+              color="blue-500"
               description="Accumulated work attendance"
               icon={CalendarDays}
               tooltip={`Total recorded working days rendered and credited across payroll periods in ${targetYear}.`}
