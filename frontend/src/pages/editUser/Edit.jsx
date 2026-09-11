@@ -8,6 +8,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import RfidScanModal from "../../components/rfidScanModal/RfidScanModal";
 import { fetchWithAuth } from "../../utils/api";
+import { getStoredUser, setStoredUser } from "../../utils/authStorage";
 import { ChevronLeft } from "lucide-react";
 import VpnKeyOutlinedIcon from '@mui/icons-material/VpnKeyOutlined';
 
@@ -591,12 +592,12 @@ const Edit = () => {
       if (response.ok) {
         const result = await response.json();
         
-        // If the updated user is the current logged-in user, update localStorage
-        const sessionUser = JSON.parse(localStorage.getItem("userData"));
+        // If the updated user is the current logged-in user, update session and local storage
+        const sessionUser = getStoredUser();
         if (sessionUser && parseInt(sessionUser.user_Id) === parseInt(userId)) {
           // Merge existing session data with updated data from server
           const updatedSessionData = { ...sessionUser, ...result.data };
-          localStorage.setItem("userData", JSON.stringify(updatedSessionData));
+          setStoredUser(updatedSessionData);
           
           // Trigger a custom event to notify other components (Sidebar/Navbar)
           window.dispatchEvent(new Event("userUpdate"));

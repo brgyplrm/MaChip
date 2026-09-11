@@ -151,47 +151,21 @@ const PayrollPeriod = () => {
 
   const fetchLivePreview = async (period) => {
     try {
-      const empRes = await fetchWithAuth("/api/users/all");
-      const employees = await empRes.json();
-      if (!empRes.ok) return;
-
-      const livePayrolls = [];
-      let totalNet = 0, totalEarn = 0, totalDed = 0;
-
-      for (const emp of employees.filter(e => e.dailyRate > 0)) {
-        const prevRes = await fetchWithAuth(`/api/payroll/preview?user_Id=${emp.user_Id}&period_Start=${period.startDate}&period_End=${period.endDate}`);
-        const preview = await prevRes.json();
-
-        if (prevRes.ok) {
-          livePayrolls.push({
-            payrollId: `preview-${emp.user_Id}`,
-            user_FirstName: emp.user_FirstName,
-            user_LastName: emp.user_LastName,
-            user_Id: emp.user_Id,
-            period_Start: period.startDate,
-            period_End: period.endDate,
-            NoDays_Worked: preview.NoDays_Worked,
-            NoHrs_Worked: preview.NoHrs_Worked,
-            totalScheduledDays: preview.totalScheduledDays,
-            potentialBasicPay: preview.potentialBasicPay || (preview.totalScheduledDays ? preview.totalScheduledDays * emp.dailyRate : emp.dailyRate * 13),
-            basicPay: preview.basicPay,
-            totalEarnings: preview.totalEarnings,
-            grossEarnings: preview.grossEarnings || preview.totalEarnings,
-            totalDeductions: preview.totalDeductions,
-            netPay: preview.netPay,
-            dailyRate: emp.dailyRate,
-            taxStatus: emp.taxStatus,
-            PaystatusName: "Draft"
-          });
-
-          totalNet += preview.netPay;
-          totalEarn += preview.totalEarnings;
-          totalDed += preview.totalDeductions;
-        }
+      const res = await fetchWithAuth(`/api/payroll/preview-batch?period_Start=${period.startDate}&period_End=${period.endDate}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPayrolls(data.employees || []);
+        setStats({
+          totalNetPay: data.totalNetPay || 0,
+          totalEarnings: data.totalEarnings || 0,
+          totalDeductions: data.totalDeductions || 0
+        });
+      } else {
+        console.error("Failed to load batch live preview.");
       }
-      setPayrolls(livePayrolls);
-      setStats({ totalNetPay: totalNet, totalEarnings: totalEarn, totalDeductions: totalDed });
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("fetchLivePreview error:", err);
+    }
   };
 
   const fetchSavedPayrolls = async (period) => {

@@ -603,9 +603,12 @@ exports.UserCreateRequest = async (req, res) => {
         `SELECT "user_Gender", "civil_status", "is_solo_parent", "hireDate" FROM "User" WHERE "user_Id" = :userId`,
         { replacements: { userId: finalUserId }, type: QueryTypes.SELECT, transaction: t }
       );
-      const user = userRes[0];
+      const user = userRes[0] || {};
+      const userGender = (user.user_Gender || "").trim().toLowerCase();
+      const civilStatus = (user.civil_status || "").trim().toLowerCase();
+      const isSoloParent = Boolean(user.is_solo_parent === true || user.is_solo_parent === "true" || user.is_solo_parent === 1 || user.is_solo_parent === "1");
 
-      if (finalReqTypeId === 8 && user.user_Gender !== "Female") {
+      if (finalReqTypeId === 8 && userGender !== "female") {
         await t.rollback();
         console.log(`[MATERNITY-DEBUG-ERROR] User ID ${finalUserId} failed Maternity eligibility: Gender is ${user.user_Gender}`);
         return res.status(400).json({ error: "Only female employees are eligible for Maternity Leave." });
@@ -613,12 +616,12 @@ exports.UserCreateRequest = async (req, res) => {
 
       // --- NEW: Maternity Leave DOLE Logic ---
       if (finalReqTypeId === 8) {
-        const maxDays = user.is_solo_parent ? 120 : 105;
+        const maxDays = isSoloParent ? 120 : 105;
         if (finalNoDays > maxDays) {
           await t.rollback();
           console.log(`[MATERNITY-DEBUG-ERROR] User ID ${finalUserId} requested ${finalNoDays} days, exceeding max ${maxDays} days.`);
           return res.status(400).json({ 
-            error: `Maternity leave duration cannot exceed ${maxDays} days (${user.is_solo_parent ? '105 days + 15 days Solo Parent' : '105 days'}). For miscarriage, please file for 60 days.` 
+            error: `Maternity leave duration cannot exceed ${maxDays} days (${isSoloParent ? '105 days + 15 days Solo Parent' : '105 days'}). For miscarriage, please file for 60 days.` 
           });
         }
 
@@ -656,7 +659,7 @@ exports.UserCreateRequest = async (req, res) => {
       // ----------------------------------------
 
       if (finalReqTypeId === 9) {
-        if (user.user_Gender !== "Male" || user.civil_status !== "Married") {
+        if (userGender !== "male" || civilStatus !== "married") {
           await t.rollback();
           console.log(`[PATERNITY-DEBUG-ERROR] User ID ${finalUserId} failed Paternity eligibility: Gender ${user.user_Gender}, Status ${user.civil_status}`);
           return res.status(400).json({ error: "Only married male employees are eligible for Paternity Leave (RA 8187)." });
@@ -672,7 +675,7 @@ exports.UserCreateRequest = async (req, res) => {
       }
 
       if (finalReqTypeId === 10) {
-        if (!user.is_solo_parent) {
+        if (!isSoloParent) {
           await t.rollback();
           console.log(`[SOLO-PARENT-DEBUG-ERROR] User ID ${finalUserId} failed: is_solo_parent is false.`);
           return res.status(400).json({ error: "You must be registered as a Solo Parent to avail of this leave." });
@@ -686,7 +689,7 @@ exports.UserCreateRequest = async (req, res) => {
       }
 
       if (finalReqTypeId === 11) {
-        if (user.user_Gender !== "Female") {
+        if (userGender !== "female") {
           await t.rollback();
           console.log(`[VAWC-DEBUG-ERROR] User ID ${finalUserId} failed: Gender is ${user.user_Gender}.`);
           return res.status(400).json({ error: "Only female employees are eligible for VAWC Leave (RA 9262)." });
@@ -700,7 +703,7 @@ exports.UserCreateRequest = async (req, res) => {
       }
 
       if (finalReqTypeId === 12) {
-        if (user.user_Gender !== "Female") {
+        if (userGender !== "female") {
           await t.rollback();
           console.log(`[SPECIAL-WOMEN-DEBUG-ERROR] User ID ${finalUserId} failed: Gender is ${user.user_Gender}.`);
           return res.status(400).json({ error: "Only female employees are eligible for Special Leave for Women (RA 9710)." });
@@ -2336,6 +2339,12 @@ exports.GetLeaveBalance = async (req, res) => {
     const now = await getSystemTime();
     const currentYear = now.getFullYear();
 
+    const [user] = await sequelize.query(
+      `SELECT "is_solo_parent" FROM "User" WHERE "user_Id" = :userId`,
+      { replacements: { userId }, type: QueryTypes.SELECT }
+    );
+    const isSoloParent = Boolean(user && (user.is_solo_parent === true || user.is_solo_parent === "true" || user.is_solo_parent === 1 || user.is_solo_parent === "1"));
+
     const balanceResult = await sequelize.query(
       `SELECT * FROM "Leave_Balance" WHERE "user_Id" = :userId and "year" = :year`,
       {
@@ -2346,28 +2355,44 @@ exports.GetLeaveBalance = async (req, res) => {
 
     if (balanceResult.length === 0) {
       // Return defaults if no balance record yet
-      return res.status(200).json({
+      const responseData = {
         VL_total: 7,
         VL_used: 0,
         VL_balance: 7,
         SL_total: 7,
         SL_used: 0,
         SL_balance: 7,
-      });
+      };
+      if (isSoloParent) {
+        responseData.SoloParent_total = 7;
+        responseData.SoloParent_used = 0;
+        responseData.SoloParent_balance = 7;
+      }
+      return res.status(200).json(responseData);
     }
 
     const balance = balanceResult[0];
-    res.status(200).json({
-      VL_total: (parseFloat(balance.VL_used) + parseFloat(balance.VL_balance)) || 7,
+    const spUsed = parseFloat(balance.SoloParent_used || 0);
+    const spBal = balance.SoloParent_balance !== null && balance.SoloParent_balance !== undefined ? parseFloat(balance.SoloParent_balance) : 0;
+    const effectiveSpBal = (isSoloParent && spBal === 0 && spUsed === 0) ? 7 : spBal;
+
+    const responseData = {
+      VL_total: (parseFloat(balance.VL_used || 0) + parseFloat(balance.VL_balance || 0)) || 7,
       VL_used: balance.VL_used || 0,
       VL_balance: balance.VL_balance,
-      SL_total: (parseFloat(balance.SL_used) + parseFloat(balance.SL_balance)) || 7,
+      SL_total: (parseFloat(balance.SL_used || 0) + parseFloat(balance.SL_balance || 0)) || 7,
       SL_used: balance.SL_used || 0,
       SL_balance: balance.SL_balance,
-      SoloParent_total: (parseFloat(balance.SoloParent_used) + parseFloat(balance.SoloParent_balance)) || 0,
-      SoloParent_used: balance.SoloParent_used || 0,
-      SoloParent_balance: balance.SoloParent_balance,
-    });
+    };
+
+    // Solo Parent balance strictly exclusive to registered Solo Parents
+    if (isSoloParent) {
+      responseData.SoloParent_total = (spUsed + effectiveSpBal) || 7;
+      responseData.SoloParent_used = spUsed;
+      responseData.SoloParent_balance = effectiveSpBal;
+    }
+
+    res.status(200).json(responseData);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

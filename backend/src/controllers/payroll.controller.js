@@ -187,7 +187,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
      SELECT "DateOfLeave" as "StartDate", "DateOfLeave" as "EndDate", "WithPayID", 0.5 as "amount" FROM "HalfDay_Leave" 
      WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)
      UNION
-     SELECT "StartDate", "EndDate", "WithPayID", "NoDays" as "amount" FROM "Statutory_Leave"
+     SELECT "StartDate", "EndDate", "WithPayID", 1.0 as "amount" FROM "Statutory_Leave"
      WHERE "user_Id" = :user_Id AND "emp_reqId" IN (SELECT "emp_reqId" FROM "emp_Request" WHERE "emp_reqStatusId" = 2)`,
     { replacements: { user_Id }, type: QueryTypes.SELECT }
   );
@@ -927,6 +927,97 @@ exports.getPayrollPreview = async (req, res) => {
 
     res.status(200).json({ ...fullStats, ...ytd });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Get Payroll Preview Batch (High Performance for Current/Draft Period) ───────
+exports.getPayrollPreviewBatch = async (req, res) => {
+  const { period_Start, period_End } = req.query;
+  if (!period_Start || !period_End) {
+    return res.status(400).json({ error: "period_Start and period_End are required." });
+  }
+
+  try {
+    // 1. Fetch all active employees eligible for payroll in this period
+    const employees = await sequelize.query(
+      `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."dailyRate", u."taxStatus"
+       FROM "User" u
+       WHERE (u."deletedAt" IS NULL OR u."deletedAt" >= :period_Start)
+         AND (u."hireDate" IS NULL OR u."hireDate" <= :period_End)
+         AND u."dailyRate" > 0
+         AND u."user_Id" != 999
+       ORDER BY u."user_LastName" ASC, u."user_FirstName" ASC`,
+      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+
+    if (employees.length === 0) {
+      return res.status(200).json({
+        employees: [],
+        totalNetPay: 0,
+        totalEarnings: 0,
+        totalDeductions: 0
+      });
+    }
+
+    // 2. Compute previews in concurrent chunks of 6 to protect database connection pool
+    const chunkSize = 6;
+    const results = [];
+
+    for (let i = 0; i < employees.length; i += chunkSize) {
+      const chunk = employees.slice(i, i + chunkSize);
+      const chunkResults = await Promise.all(
+        chunk.map(async (emp) => {
+          try {
+            const fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End);
+            return {
+              payrollId: `preview-${emp.user_Id}`,
+              user_FirstName: emp.user_FirstName,
+              user_LastName: emp.user_LastName,
+              user_Id: emp.user_Id,
+              period_Start,
+              period_End,
+              NoDays_Worked: fullStats.NoDays_Worked,
+              NoHrs_Worked: fullStats.NoHrs_Worked,
+              totalScheduledDays: fullStats.totalScheduledDays,
+              potentialBasicPay: fullStats.potentialBasicPay || (fullStats.totalScheduledDays ? fullStats.totalScheduledDays * emp.dailyRate : emp.dailyRate * 13),
+              basicPay: fullStats.basicPay,
+              totalEarnings: fullStats.totalEarnings,
+              grossEarnings: fullStats.grossEarnings || fullStats.totalEarnings,
+              totalDeductions: fullStats.totalDeductions,
+              netPay: fullStats.netPay,
+              dailyRate: emp.dailyRate,
+              taxStatus: emp.taxStatus,
+              PaystatusName: "Draft"
+            };
+          } catch (err) {
+            console.error(`[PREVIEW BATCH ERROR for User ${emp.user_Id}]:`, err.message);
+            return null;
+          }
+        })
+      );
+      results.push(...chunkResults.filter(Boolean));
+    }
+
+    // 3. Compute grand totals
+    let totalNetPay = 0;
+    let totalEarnings = 0;
+    let totalDeductions = 0;
+
+    for (const item of results) {
+      totalNetPay += parseFloat(item.netPay || 0);
+      totalEarnings += parseFloat(item.totalEarnings || 0);
+      totalDeductions += parseFloat(item.totalDeductions || 0);
+    }
+
+    res.status(200).json({
+      employees: results,
+      totalNetPay,
+      totalEarnings,
+      totalDeductions
+    });
+  } catch (error) {
+    console.error("[GET PAYROLL PREVIEW BATCH ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };

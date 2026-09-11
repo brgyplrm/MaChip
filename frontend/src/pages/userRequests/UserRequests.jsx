@@ -22,6 +22,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import { formatDateTime, calculateDays } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import { getStoredUser, setStoredUser } from "../../utils/authStorage";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,7 @@ const isSaturday = (dateStr) => {
 
 const UserRequests = () => {
   const { systemToday } = useSystemTime();
-  const userData = JSON.parse(localStorage.getItem("userData"));
+  const [userData, setUserData] = useState(() => getStoredUser() || {});
   const [activeTab, setActiveTab] = useState("submit"); // "submit" or "history"
   const [historyTab, setHistoryTab] = useState("pending"); // "pending", "returned", "past"
   const [historySearchQuery, setHistorySearchQuery] = useState("");
@@ -168,6 +169,46 @@ const UserRequests = () => {
     mscCount: "",
     avgMSC: "",
   });
+
+  // Sync profile details (gender, civil_status, is_solo_parent) from database
+  useEffect(() => {
+    const syncProfile = async () => {
+      const current = getStoredUser();
+      if (current?.user_Id) {
+        try {
+          const res = await fetchWithAuth(`/api/users/${current.user_Id}`);
+          if (res.ok) {
+            const data = await res.json();
+            const { user_Password, ...safeUser } = data;
+            const merged = { ...current, ...safeUser };
+            setUserData(merged);
+            setStoredUser(merged);
+            setFormData(prev => ({
+              ...prev,
+              user_Id: merged.user_Id || prev.user_Id
+            }));
+          }
+        } catch (err) {
+          console.error("[REQUESTS] Failed to sync user profile:", err);
+        }
+      }
+    };
+    syncProfile();
+  }, []);
+
+  // Demographic eligibility helpers for statutory leave benefits
+  const userGender = (userData?.user_Gender || "").toLowerCase().trim();
+  const civilStatus = (userData?.civil_status || "").toLowerCase().trim();
+  const isFemale = userGender === "female";
+  const isMale = userGender === "male";
+  const isMarriedMale = isMale && civilStatus === "married";
+  const isSoloParent = Boolean(
+    userData?.is_solo_parent === true ||
+    userData?.is_solo_parent === "true" ||
+    userData?.is_solo_parent === 1 ||
+    userData?.is_solo_parent === "1"
+  );
+  const hasAnyStatutory = isFemale || isMarriedMale || isSoloParent;
 
   const [currentPeriodLogs, setCurrentPeriodLogs] = useState([]);
   const [periodDates, setPeriodDates] = useState([]);
@@ -854,9 +895,16 @@ const UserRequests = () => {
       else if (formData.emp_reqTypeId === "7" && 0.5 > vlBal) isInsufficient = true;
     }
 
-    // Attachment validation for specific statutory leaves and government loans
+    // Attachment validation for statutory leaves and government loans
     const isGovLoan = formData.emp_reqTypeId === "14" && formData.agency !== "Company";
-    if ((["8", "11", "12"].includes(formData.emp_reqTypeId) || isGovLoan) && !formData.proofFile) {
+    const isStatutoryWithProof = ["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId);
+
+    if (isStatutoryWithProof && !formData.proofFile) {
+      setToast({ message: "Supporting documentation (Medical Cert/SPIC/Birth Cert/Barangay Cert) is mandatory for this statutory benefit.", type: "error" });
+      return;
+    }
+
+    if (isGovLoan && !formData.proofFile) {
       setToast({ message: "Voucher or Disclosure Statement is mandatory for government loan enrollment.", type: "error" });
       return;
     }
@@ -1394,7 +1442,7 @@ const UserRequests = () => {
                      <span className="text-sm font-semibold text-slate-700">Sick Leave (SL)</span>
                      <Badge className="bg-rose-100 text-rose-800">{balance ? balance.SL_balance : "..."} days</Badge>
                   </div>
-                  {userData?.is_solo_parent && (
+                  {isSoloParent && (
                     <div className="flex justify-between items-center">
                        <span className="text-sm font-semibold text-slate-700">Solo Parent Leave</span>
                        <Badge className="bg-amber-100 text-amber-800">{balance ? balance.SoloParent_balance : "..."} days</Badge>
@@ -1536,24 +1584,26 @@ const UserRequests = () => {
                           <SelectItem value="14">Loan Enrollment (Payroll Setup)</SelectItem>
                         </SelectGroup>
 
-                        <SelectGroup>
-                          <SelectLabel>Statutory Benefits</SelectLabel>
-                          {userData?.user_Gender === "Female" && (
-                            <SelectItem value="8">Maternity Leave</SelectItem>
-                          )}
-                          {userData?.user_Gender === "Male" && userData?.civil_status === "Married" && (
-                            <SelectItem value="9">Paternity Leave</SelectItem>
-                          )}
-                          {userData?.is_solo_parent && (
-                            <SelectItem value="10">Solo Parent Leave</SelectItem>
-                          )}
-                          {userData?.user_Gender === "Female" && (
-                            <>
-                              <SelectItem value="11">VAWC Leave</SelectItem>
-                              <SelectItem value="12">Special Leave for Women</SelectItem>
-                            </>
-                          )}
-                        </SelectGroup>
+                        {hasAnyStatutory && (
+                          <SelectGroup>
+                            <SelectLabel>Statutory Benefits</SelectLabel>
+                            {isFemale && (
+                              <SelectItem value="8">Maternity Leave</SelectItem>
+                            )}
+                            {isMarriedMale && (
+                              <SelectItem value="9">Paternity Leave</SelectItem>
+                            )}
+                            {isSoloParent && (
+                              <SelectItem value="10">Solo Parent Leave</SelectItem>
+                            )}
+                            {isFemale && (
+                              <>
+                                <SelectItem value="11">VAWC Leave</SelectItem>
+                                <SelectItem value="12">Special Leave for Women</SelectItem>
+                              </>
+                            )}
+                          </SelectGroup>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -2269,7 +2319,7 @@ const UserRequests = () => {
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">
                       {formData.emp_reqTypeId === "14" && formData.loanType === "Calamity Loan" ? "Disclosure Statement (Required)" : (
-                        <>Attachment {["8", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company") ? <span className="text-red-500">*</span> : "(Optional)"}</>
+                        <>Attachment {["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company") ? <span className="text-red-500">*</span> : "(Optional)"}</>
                       )}
                     </label>
                     <Input 
@@ -2278,7 +2328,7 @@ const UserRequests = () => {
                       onChange={handleInputChange} 
                       accept="image/png, image/jpeg, image/jpg, application/pdf" 
                       className="bg-slate-50/50 cursor-pointer" 
-                      required={["8", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company")} 
+                      required={["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company")} 
                     />
                     <p className="text-xs text-slate-400">
                       {formData.agency === "Company" ? "Optional: You may upload a supporting document or voucher if necessary." :
@@ -2286,8 +2336,8 @@ const UserRequests = () => {
                         ? "Mandatory: Please upload the official Disclosure Statement."
                         : formData.emp_reqTypeId === "14" 
                         ? "Mandatory: Please upload your Loan Voucher or Billing Statement."
-                        : ["8", "11", "12"].includes(formData.emp_reqTypeId) 
-                          ? "Mandatory for legal compliance (Medical Cert/Barangay Cert)." 
+                        : ["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) 
+                          ? "Mandatory for legal compliance (Medical Cert/SPIC/Birth Cert/Barangay Cert)." 
                           : "Required for Sick Leaves spanning more than 2 days."}
                     </p>
                   </div>

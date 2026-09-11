@@ -336,6 +336,22 @@ exports.registerUser = async (req, res) => {
         }
       );
 
+      // 5. Initialize Leave_Balance for the current year
+      const currentYear = now.getFullYear();
+      const isSoloParentBool = req.body.is_solo_parent === "true" || req.body.is_solo_parent === true;
+      const soloParentCredit = isSoloParentBool ? 7 : 0;
+      await sequelize.query(
+        `INSERT INTO "Leave_Balance" 
+         ("user_Id", "year", "VL_balance", "SL_balance", "SoloParent_balance", "VL_used", "SL_used", "SoloParent_used", "createdAt", "updatedAt")
+         VALUES (:user_Id, :currentYear, 7, 7, :soloParentCredit, 0, 0, 0, :now, :now)
+         ON CONFLICT ("user_Id", "year") DO NOTHING`,
+        {
+          replacements: { user_Id, currentYear, soloParentCredit, now: nowStr },
+          type: QueryTypes.INSERT,
+          transaction
+        }
+      );
+
       await transaction.commit();
       console.log(`[DATABASE SUCCESS] User ${req.body.user_FirstName} ${req.body.user_LastName} (ID: ${user_Id}) has been successfully saved to the database.`);
     } catch (err) {
@@ -1237,6 +1253,23 @@ exports.updateUser = async (req, res) => {
       
       await sequelize.query(hardwareSql, { replacements, type: QueryTypes.INSERT, transaction });
 
+      // 5. If employee is updated to Solo Parent, credit 7 days of annual Solo Parent leave if unused/uninitialized
+      if (replacements.is_solo_parent) {
+        const currentYear = now.getFullYear();
+        await sequelize.query(
+          `INSERT INTO "Leave_Balance" 
+           ("user_Id", "year", "VL_balance", "SL_balance", "SoloParent_balance", "VL_used", "SL_used", "SoloParent_used", "createdAt", "updatedAt")
+           VALUES (:targetId, :currentYear, 7, 7, 7, 0, 0, 0, :updatedAt, :updatedAt)
+           ON CONFLICT ("user_Id", "year") DO UPDATE SET
+             "SoloParent_balance" = CASE 
+               WHEN "Leave_Balance"."SoloParent_balance" = 0 AND "Leave_Balance"."SoloParent_used" = 0 THEN 7 
+               ELSE "Leave_Balance"."SoloParent_balance" 
+             END,
+             "updatedAt" = EXCLUDED."updatedAt"`,
+          { replacements: { targetId: user_Id, currentYear, updatedAt: nowStr }, type: QueryTypes.INSERT, transaction }
+        );
+      }
+
       await transaction.commit();
     } catch (err) {
       await transaction.rollback();
@@ -1652,6 +1685,7 @@ exports.batchRegisterUsers = async (req, res) => {
 
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
+    const currentYear = now.getFullYear();
 
     for (let i = 1; i < lines.length; i++) {
       const cols = lines[i].split(',').map(c => c.trim());
@@ -1784,6 +1818,21 @@ exports.batchRegisterUsers = async (req, res) => {
             `INSERT INTO "User_Deduction_Profile" ("user_Id", "createdAt", "updatedAt")
              VALUES (:user_Id, :now, :now)`,
             { replacements: { user_Id: nextId, now: nowStr }, type: QueryTypes.INSERT, transaction: trans }
+          );
+
+          // 5. Initialize Leave_Balance for the current year
+          const isSoloParentBool = userData.is_solo_parent === "true" || userData.is_solo_parent === true;
+          const soloParentCredit = isSoloParentBool ? 7 : 0;
+          await sequelize.query(
+            `INSERT INTO "Leave_Balance" 
+             ("user_Id", "year", "VL_balance", "SL_balance", "SoloParent_balance", "VL_used", "SL_used", "SoloParent_used", "createdAt", "updatedAt")
+             VALUES (:user_Id, :currentYear, 7, 7, :soloParentCredit, 0, 0, 0, :now, :now)
+             ON CONFLICT ("user_Id", "year") DO NOTHING`,
+            {
+              replacements: { user_Id: nextId, currentYear, soloParentCredit, now: nowStr },
+              type: QueryTypes.INSERT,
+              transaction: trans
+            }
           );
 
           await trans.commit();

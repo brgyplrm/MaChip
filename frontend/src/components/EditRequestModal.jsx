@@ -82,6 +82,8 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
 
   if (!isOpen || !request) return null;
 
+  const typeId = Number(request.emp_reqTypeId);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     let newFormData = { ...formData, [name]: value };
@@ -188,7 +190,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Conditional fields based on type */}
-            {request.emp_reqTypeId === 1 && (
+            {typeId === 1 && (
               <>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700">OT Date</label>
@@ -209,7 +211,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
               </>
             )}
 
-            {[3, 4, 6, 8, 9, 10, 11, 12].includes(request.emp_reqTypeId) && (
+            {[3, 4, 6, 8, 9, 10, 11, 12].includes(typeId) && (
               <>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700">Start Date</label>
@@ -241,7 +243,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
               </>
             )}
 
-            {request.emp_reqTypeId === 5 && (
+            {typeId === 5 && (
               <>
                 <div className="space-y-2 sm:col-span-2">
                   <label className="text-sm font-bold text-slate-700">Log Date</label>
@@ -258,7 +260,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
               </>
             )}
 
-            {request.emp_reqTypeId === 7 && (
+            {typeId === 7 && (
                <>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700">Date</label>
@@ -292,7 +294,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                </>
             )}
 
-            {[13, 14].includes(request.emp_reqTypeId) && (
+            {[13, 14].includes(typeId) && (
               <>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700">Agency</label>
@@ -338,7 +340,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                     </SelectContent>
                   </Select>
                 </div>
-                {request.emp_reqTypeId === 14 && (
+                {typeId === 14 && (
                   <>
                     <div className="space-y-2">
                       <label className="text-sm font-bold text-slate-700">Amount / Principal</label>

@@ -144,9 +144,10 @@ exports.verifySession = async (req, res) => {
 
   try {
     const [user] = await sequelize.query(
-      `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_Email", 
+      `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_MiddleName", u."user_Email", 
               u."user_RoleId", r."roleName" AS "user_Role", u."position", u."department",
-              u."is_time_exempt"
+              u."is_time_exempt", u."user_Gender", u."civil_status", u."is_solo_parent", u."hireDate",
+              u."user_ProfilePic"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        WHERE u."user_Id" = :userId AND u."deletedAt" IS NULL`,

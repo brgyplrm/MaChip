@@ -357,11 +357,17 @@ exports.viewUserLogs = async (req, res) => {
         SELECT er."user_Id", er."emp_reqTypeId", 
                vl."StartDate" as "vStart", vl."EndDate" as "vEnd", 
                sl."StartDate" as "sStart", sl."EndDate" as "sEnd", 
+               el."DateOfLeave" as "elDate",
+               hd."DateOfLeave" as "hdDate",
+               st."StartDate" as "stStart", st."EndDate" as "stEnd",
                ow."DateonField",
                ot."OT_DateOf", ot."HrFrom", ot."HrTo", ot."Total_Hrs"
         FROM "emp_Request" er
         LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
         LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+        LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+        LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+        LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId"
         LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
         LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
         WHERE er."user_Id" = :user_Id AND er."emp_reqStatusId" = 2
@@ -405,10 +411,14 @@ exports.viewUserLogs = async (req, res) => {
         // MIXED LOG/FILTER LOGIC: Only show the row if there's regular work OR a valid request OR explicitly absent
         const hasRegularWork = morning_In !== "—" || afternoon_Out !== "—" || (dayOT && outArr.length > 0);
         const hasRequest = approvedRequests.some(req => {
-          if (Number(req.emp_reqTypeId) === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
-          if (Number(req.emp_reqTypeId) === 2) return formatDateOnly(req.DateonField) === dateStr;
-          if (Number(req.emp_reqTypeId) === 3) return formatDateOnly(req.vStart) <= dateStr && formatDateOnly(req.vEnd) >= dateStr;
-          if (Number(req.emp_reqTypeId) === 4) return formatDateOnly(req.sStart) <= dateStr && formatDateOnly(req.sEnd) >= dateStr;
+          const reqType = Number(req.emp_reqTypeId);
+          if (reqType === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
+          if (reqType === 2) return formatDateOnly(req.DateonField) === dateStr;
+          if (reqType === 3) return formatDateOnly(req.vStart) <= dateStr && formatDateOnly(req.vEnd) >= dateStr;
+          if (reqType === 4) return formatDateOnly(req.sStart) <= dateStr && formatDateOnly(req.sEnd) >= dateStr;
+          if (reqType === 6) return formatDateOnly(req.elDate) === dateStr;
+          if (reqType === 7) return formatDateOnly(req.hdDate) === dateStr;
+          if ([8, 9, 10, 11, 12].includes(reqType)) return formatDateOnly(req.stStart) <= dateStr && formatDateOnly(req.stEnd) >= dateStr;
           return false;
         });
 
@@ -968,6 +978,33 @@ exports.getEmployeeDashboardStats = async (req, res) => {
       }
     }
 
+    // Query user solo parent eligibility
+    const [userRecord] = await sequelize.query(
+      `SELECT "is_solo_parent" FROM "User" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+    const isSoloParent = Boolean(userRecord && (userRecord.is_solo_parent === true || userRecord.is_solo_parent === "true" || userRecord.is_solo_parent === 1 || userRecord.is_solo_parent === "1"));
+
+    const lb = leaveBalance[0];
+    const spUsed = parseFloat(lb?.SoloParent_used || 0);
+    const spBal = lb?.SoloParent_balance !== null && lb?.SoloParent_balance !== undefined ? parseFloat(lb.SoloParent_balance) : 0;
+    const effectiveSpBal = (isSoloParent && spBal === 0 && spUsed === 0) ? 7 : spBal;
+
+    const formattedLeaveBalance = {
+      VL_total: lb ? (parseFloat(lb.VL_used || 0) + parseFloat(lb.VL_balance || 7)) : 7,
+      VL_used: lb ? parseFloat(lb.VL_used || 0) : 0,
+      VL_balance: lb ? parseFloat(lb.VL_balance || 0) : 7,
+      SL_total: lb ? (parseFloat(lb.SL_used || 0) + parseFloat(lb.SL_balance || 7)) : 7,
+      SL_used: lb ? parseFloat(lb.SL_used || 0) : 0,
+      SL_balance: lb ? parseFloat(lb.SL_balance || 0) : 7,
+    };
+
+    if (isSoloParent) {
+      formattedLeaveBalance.SoloParent_total = (spUsed + effectiveSpBal) || 7;
+      formattedLeaveBalance.SoloParent_used = spUsed;
+      formattedLeaveBalance.SoloParent_balance = effectiveSpBal;
+    }
+
     res.status(200).json({
       todayIn,
       attendance: {
@@ -976,14 +1013,7 @@ exports.getEmployeeDashboardStats = async (req, res) => {
         late: parseInt(attendanceStats[0]?.lateCount || 0),
         monthName: now.toLocaleString('default', { month: 'long' })
       },
-      leaveBalance: leaveBalance[0] ? {
-        ...leaveBalance[0],
-        VL_total: (parseFloat(leaveBalance[0].VL_used || 0) + parseFloat(leaveBalance[0].VL_balance || 7)),
-        SL_total: (parseFloat(leaveBalance[0].SL_used || 0) + parseFloat(leaveBalance[0].SL_balance || 7))
-      } : {
-        VL_total: 7, VL_used: 0, VL_balance: 7,
-        SL_total: 7, SL_used: 0, SL_balance: 7
-      },
+      leaveBalance: formattedLeaveBalance,
       recentLogs: recentLogs.filter(log => {
         const inArr = safeParseArray(log.time_Logged_inArr);
         const outArr = safeParseArray(log.time_Logged_outArr);
@@ -1266,11 +1296,17 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       SELECT er."user_Id", er."emp_reqTypeId", 
              vl."StartDate" as "vStart", vl."EndDate" as "vEnd", 
              sl."StartDate" as "sStart", sl."EndDate" as "sEnd", 
+             el."DateOfLeave" as "elDate",
+             hd."DateOfLeave" as "hdDate",
+             st."StartDate" as "stStart", st."EndDate" as "stEnd",
              ow."DateonField",
              ot."OT_DateOf", ot."HrFrom", ot."HrTo", ot."Total_Hrs"
       FROM "emp_Request" er
       LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+      LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+      LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+      LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId"
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
       LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
       WHERE er."emp_reqStatusId" = 2
@@ -1278,7 +1314,10 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
           (er."emp_reqTypeId" = 1 AND ot."OT_DateOf" BETWEEN :effectiveStart AND :effectiveEnd) OR
           (er."emp_reqTypeId" = 2 AND ow."DateonField" BETWEEN :effectiveStart AND :effectiveEnd) OR
           (er."emp_reqTypeId" = 3 AND (vl."StartDate" <= :effectiveEnd AND vl."EndDate" >= :effectiveStart)) OR
-          (er."emp_reqTypeId" = 4 AND (sl."StartDate" <= :effectiveEnd AND sl."EndDate" >= :effectiveStart))
+          (er."emp_reqTypeId" = 4 AND (sl."StartDate" <= :effectiveEnd AND sl."EndDate" >= :effectiveStart)) OR
+          (er."emp_reqTypeId" = 6 AND (el."DateOfLeave" BETWEEN :effectiveStart AND :effectiveEnd)) OR
+          (er."emp_reqTypeId" = 7 AND (hd."DateOfLeave" BETWEEN :effectiveStart AND :effectiveEnd)) OR
+          (er."emp_reqTypeId" IN (8, 9, 10, 11, 12) AND (st."StartDate" <= :effectiveEnd AND st."EndDate" >= :effectiveStart))
         )
   `;
 
@@ -1326,10 +1365,14 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       // MIXED LOG/FILTER LOGIC: Only show the row if there's regular work OR a valid request OR explicitly absent
       const hasRegularWork = morning_In !== "—" || afternoon_Out !== "—" || (dayOT && outArr.length > 0);
       const hasRequest = userReqs.some(req => {
-        if (Number(req.emp_reqTypeId) === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
-        if (Number(req.emp_reqTypeId) === 2) return formatDateOnly(req.DateonField) === dateStr;
-        if (Number(req.emp_reqTypeId) === 3) return formatDateOnly(req.vStart) <= dateStr && formatDateOnly(req.vEnd) >= dateStr;
-        if (Number(req.emp_reqTypeId) === 4) return formatDateOnly(req.sStart) <= dateStr && formatDateOnly(req.sEnd) >= dateStr;
+        const reqType = Number(req.emp_reqTypeId);
+        if (reqType === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
+        if (reqType === 2) return formatDateOnly(req.DateonField) === dateStr;
+        if (reqType === 3) return formatDateOnly(req.vStart) <= dateStr && formatDateOnly(req.vEnd) >= dateStr;
+        if (reqType === 4) return formatDateOnly(req.sStart) <= dateStr && formatDateOnly(req.sEnd) >= dateStr;
+        if (reqType === 6) return formatDateOnly(req.elDate) === dateStr;
+        if (reqType === 7) return formatDateOnly(req.hdDate) === dateStr;
+        if ([8, 9, 10, 11, 12].includes(reqType)) return formatDateOnly(req.stStart) <= dateStr && formatDateOnly(req.stEnd) >= dateStr;
         return false;
       });
 

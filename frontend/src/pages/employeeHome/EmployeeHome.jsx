@@ -133,6 +133,12 @@ const EmployeeHome = () => {
 
   const att = dashboardStats.attendance;
   const balance = dashboardStats.leaveBalance;
+  const isSoloParent = Boolean(
+    userData?.is_solo_parent === true ||
+    userData?.is_solo_parent === "true" ||
+    userData?.is_solo_parent === 1 ||
+    userData?.is_solo_parent === "1"
+  );
   const recentRequests = dashboardStats.monthlyRequests;
   const totalDays = (att.absent || 0) + (att.onTime || 0) + (att.late || 0);
   const totalTrackedDays = totalDays || 1;
@@ -438,7 +444,10 @@ const EmployeeHome = () => {
                             {(balance.VL_balance || 0) + (balance.SL_balance || 0)} <span className="text-xl opacity-80 font-medium">Days</span>
                           </p>
                         </div>
-                        <p className="text-xs font-semibold text-white/70 italic mt-4">VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance} Remaining Leaves</p>
+                        <p className="text-xs font-semibold text-white/70 italic mt-4">
+                          VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance}
+                          {isSoloParent && balance.SoloParent_balance !== undefined ? ` \u00A0|\u00A0 SP: ${balance.SoloParent_balance}` : ""} Remaining Leaves
+                        </p>
                       </CardContent>
                     </Card>
                   </TooltipTrigger>
@@ -798,7 +807,14 @@ const EmployeeHome = () => {
                   <CardContent className="py-0 flex-1 flex flex-col justify-center gap-6">
                     {[
                       { label: "Vacation Leave (VL)", bal: balance.VL_balance, total: balance.VL_total, color: "bg-[#8DB552]", light: "bg-[#8DB552]/20" },
-                      { label: "Sick Leave (SL)", bal: balance.SL_balance, total: balance.SL_total, color: "bg-[#C0E990]", light: "bg-[#C0E990]/30" }
+                      { label: "Sick Leave (SL)", bal: balance.SL_balance, total: balance.SL_total, color: "bg-[#C0E990]", light: "bg-[#C0E990]/30" },
+                      ...(isSoloParent && balance.SoloParent_balance !== undefined ? [{
+                        label: "Solo Parent Leave (SP)",
+                        bal: balance.SoloParent_balance,
+                        total: balance.SoloParent_total || ((parseFloat(balance.SoloParent_used || 0) + parseFloat(balance.SoloParent_balance || 0)) || 7),
+                        color: "bg-amber-500",
+                        light: "bg-amber-100"
+                      }] : [])
                     ].map((item, i) => (
                       <div key={i} className="bg-slate-50 p-5 rounded-xl border border-slate-100">
                         <div className="flex justify-between items-end mb-3">
