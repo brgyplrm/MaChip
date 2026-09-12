@@ -808,13 +808,13 @@ const GovLoans = () => {
                 >
                   Emergency Loan
                 </Button>
-                <Button
+                {/* <Button
                   variant="ghost"
                   className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_conso" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
                   onClick={() => {setActiveTab("sss_conso"); setIsEditingTable(false);}}
                 >
                   Conso Loan
-                </Button>
+                </Button> */}
               </>
             )}
             {activeMainTab === "pagibig" && (

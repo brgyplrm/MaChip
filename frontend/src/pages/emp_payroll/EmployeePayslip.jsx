@@ -182,16 +182,36 @@ const EmployeePayslip = () => {
   if (loading) {
     return (
       <Sidebar>
-        <div className="p-2 md:p-4 max-w-6xl mx-auto space-y-6">
-          <Skeleton className="h-10 w-48" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto space-y-6">
+          {/* Header Skeleton */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-8 w-44 rounded-lg" />
+                <Skeleton className="h-5 w-20 rounded-full" />
+              </div>
+              <Skeleton className="h-4 w-64 sm:w-80 rounded" />
+            </div>
+            <Skeleton className="h-10 w-36 rounded-xl" />
+          </div>
+
+          {/* Metric Cards Skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-28 rounded-xl" />
+              <Skeleton key={i} className="h-[124px] w-full rounded-xl" />
             ))}
           </div>
+
+          {/* Main Content Grid Skeleton */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Skeleton className="lg:col-span-2 h-96 rounded-xl" />
-            <Skeleton className="h-96 rounded-xl" />
+            {/* Main Payslip Summary Skeleton */}
+            <Skeleton className="lg:col-span-2 h-[340px] w-full rounded-xl" />
+
+            {/* Quick Stats Sidebar Skeletons */}
+            <div className="space-y-6">
+              <Skeleton className="h-[158px] w-full rounded-xl" />
+              <Skeleton className="h-[158px] w-full rounded-xl" />
+            </div>
           </div>
         </div>
       </Sidebar>
@@ -268,10 +288,10 @@ const EmployeePayslip = () => {
               <Button 
                 variant="outline" 
                 onClick={() => setIsPayslipModalOpen(true)}
-                className="border-slate-200 text-[#2A174E] hover:bg-[#2A174E]/5 hover:border-[#2A174E] font-semibold h-10 px-4 rounded-xl shadow-none transition-all flex items-center gap-2"
+                className="bg-[#2A174E] text-white hover:bg-[#7A52B5] hover:border-[#2A174E] font-semibold h-10 px-4 rounded-xl shadow-none transition-all flex items-center gap-2"
               >
-                <Eye className="h-4 w-4 text-[#2A174E]" />
-                <span>View Payslips</span>
+                <Eye className="h-4 w-4 text-white" />
+                <span className=" text-white">View Payslips</span>
               </Button>
 
               {/* Download Payslip Dropdown Menu

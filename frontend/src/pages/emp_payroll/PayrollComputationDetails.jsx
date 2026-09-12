@@ -120,14 +120,34 @@ const PayrollComputationDetails = () => {
   if (loading) {
     return (
       <Sidebar>
-        <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
-          <Skeleton className="h-12 w-64 rounded-xl" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto space-y-6">
+          {/* Top Header Skeleton */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-8 w-56 rounded-lg" />
+                <Skeleton className="h-5 w-20 rounded-full" />
+              </div>
+              <Skeleton className="h-4 w-72 sm:w-96 rounded" />
+            </div>
+            <Skeleton className="h-[62px] w-40 rounded-xl" />
+          </div>
+
+          {/* Overview Statistical Cards Skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-28 rounded-xl" />
+              <Skeleton key={i} className="h-[124px] w-full rounded-xl" />
             ))}
           </div>
-          <Skeleton className="h-[520px] w-full rounded-2xl" />
+
+          {/* Main Consolidated Ledger Statement Skeleton */}
+          <Skeleton className="h-[726px] w-full rounded-2xl" />
+
+          {/* Year-To-Date (YTD) Summary Card Skeleton */}
+          <Skeleton className="h-[140px] w-full rounded-2xl" />
+
+          {/* Notice on Discrepancies Card Skeleton */}
+          <Skeleton className="h-[84px] w-full rounded-xl" />
         </div>
       </Sidebar>
     );

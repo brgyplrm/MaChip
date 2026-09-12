@@ -1111,10 +1111,10 @@ exports.getDashboardStats = async (req, res) => {
 
     // Fetch Pending Requests Count
     let pendingCount = 0;
-    if (roleId === 1 || roleId === 2) {
+    if (roleId === 1 || roleId === 2 || roleId === 4) {
       let pendingQuery = "";
       let pendingReplacements = { currentUserId };
-      if (roleId === 1) { // Admin
+      if (roleId === 1 || roleId === 4) { // Admin or Accountant
         pendingQuery = `SELECT COUNT(*)::int as count FROM "emp_Request" er WHERE er."emp_reqStatusId" IN (1, 4) AND er."user_Id" != :currentUserId`;
       } else { // Supervisor
         pendingQuery = `SELECT COUNT(*)::int as count FROM "emp_Request" er JOIN "User" u ON er."user_Id" = u."user_Id" WHERE er."emp_reqStatusId" = 1 AND u."user_RoleId" = 3`;

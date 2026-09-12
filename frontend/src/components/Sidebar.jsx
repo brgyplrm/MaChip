@@ -152,6 +152,36 @@ const Sidebar = ({ children }) => {
   const isMaster = (roleId === 1 || roleId === 4) && viewMode === "management";
   const isAccountant = roleId === 4;
 
+  const getRoleBadge = () => {
+    const rawRole = userData?.user_Role;
+    const numericRoleId = Number(userData?.user_RoleId);
+
+    if (numericRoleId === 1 || rawRole === "Admin Manager" || rawRole === "Administrator" || rawRole === "Admin") {
+      return {
+        label: "Admin Manager",
+        className: "bg-[#2A174E]/10 text-[#2A174E] border-[#2A174E]/25"
+      };
+    }
+    if (numericRoleId === 4 || rawRole === "Admin Accountant" || rawRole === "Accountant") {
+      return {
+        label: "Admin Accountant",
+        className: "bg-[#B06E16]/10 text-[#8C550E] border-[#B06E16]/25"
+      };
+    }
+    if (numericRoleId === 2 || rawRole === "Supervisor") {
+      return {
+        label: "Supervisor",
+        className: "bg-[#3B4E17]/10 text-[#3B4E17] border-[#3B4E17]/25"
+      };
+    }
+    return {
+      label: rawRole || "Employee",
+      className: "bg-slate-100 text-slate-700 border-slate-200"
+    };
+  };
+
+  const roleBadge = getRoleBadge();
+
   const homePath = isManagement || isSupervisor ? "/" : "/employeeHome";
   const isActive = (path) => location.pathname === path;
 
@@ -649,13 +679,26 @@ const Sidebar = ({ children }) => {
     <SidebarProvider>
       <ShadcnSidebar collapsible="icon" className="bg-white border-r border-gray-200">
         <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:h-14 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center border-b border-gray-100 relative overflow-hidden transition-all duration-200">
-          <Link to={homePath} className="flex no-underline items-center justify-center">
-            <img 
-              src="/logo2.png" 
-              alt="MAC-J Logo" 
-              className="w-[150px] group-data-[collapsible=icon]:w-8 object-contain transition-all duration-200"
-            />
-          </Link>
+          <div className="flex flex-col items-center justify-center gap-1.5 w-full group-data-[collapsible=icon]:gap-0">
+            <Link to={homePath} className="flex no-underline items-center justify-center">
+              <img 
+                src="/logo2.png" 
+                alt="MAC-J Logo" 
+                className="w-[150px] group-data-[collapsible=icon]:w-8 object-contain transition-all duration-200"
+              />
+            </Link>
+            <div className="group-data-[collapsible=icon]:hidden flex items-center justify-center">
+              <Badge 
+                variant="outline" 
+                className={cn(
+                  "text-[10px] font-bold tracking-wider uppercase px-2.5 py-0.5 h-auto rounded-full border shadow-none select-none",
+                  roleBadge.className
+                )}
+              >
+                {roleBadge.label}
+              </Badge>
+            </div>
+          </div>
           {isMockTime && (
             <div className="absolute top-2 right-2 group-data-[collapsible=icon]:hidden">
               <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] px-1.5 h-4 border-none shadow-sm animate-pulse">

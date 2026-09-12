@@ -101,10 +101,28 @@ const Home = () => {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetchWithAuth("/api/attendance/stats");
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
+      const [statsRes, pendingRes] = await Promise.all([
+        fetchWithAuth("/api/attendance/stats"),
+        fetchWithAuth("/api/request/pending-count")
+      ]);
+
+      let pendingCount = null;
+      if (pendingRes && pendingRes.ok) {
+        const pendingData = await pendingRes.json();
+        pendingCount = Number(pendingData.count);
+      }
+
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setStats({
+          ...data,
+          pendingCount: pendingCount !== null && !isNaN(pendingCount) ? pendingCount : (data.pendingCount || 0)
+        });
+      } else if (pendingCount !== null && !isNaN(pendingCount)) {
+        setStats(prev => ({
+          ...prev,
+          pendingCount
+        }));
       }
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
