@@ -11,6 +11,17 @@ module.exports = {
       ON CONFLICT ("statusId") DO NOTHING;
     `);
 
+    // Ensure essential roles exist in user_Role table before referencing user_RoleId
+    await queryInterface.sequelize.query(`
+      INSERT INTO "user_Role" ("roleId", "roleName")
+      VALUES 
+        (1, 'Admin Manager'),
+        (2, 'Supervisor'),
+        (3, 'Employee'),
+        (4, 'Admin Accountant')
+      ON CONFLICT ("roleId") DO NOTHING;
+    `);
+
     // 2. Create a "Visitor" user if it doesn't exist
     // We'll use ID 999 for the Visitor user
     const [visitor] = await queryInterface.sequelize.query(
