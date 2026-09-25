@@ -299,6 +299,19 @@ const UserLogs = () => {
     }
   }, [userData?.user_Id, dtrStartDate, dtrEndDate, activeTab]);
 
+  // Real-time update listener for new RFID/biometric scans
+  useEffect(() => {
+    const handleDataRefresh = () => {
+      fetchDailyLogs();
+      fetchDTR();
+      fetchRawScans();
+    };
+    window.addEventListener("dataRefresh", handleDataRefresh);
+    return () => {
+      window.removeEventListener("dataRefresh", handleDataRefresh);
+    };
+  }, [userData?.user_Id, dtrStartDate, dtrEndDate]);
+
   useEffect(() => {
     if (activeTab === "raw_logs") {
       fetchRawScans();

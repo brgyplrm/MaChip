@@ -204,6 +204,12 @@ exports.updateSystemSettings = async (req, res) => {
     if (req.body.slRate !== undefined) updateData.slRate = parseFloat(req.body.slRate);
 
     // 3. Shifts & Attendance Thresholds
+    if (req.body.enableNightShift !== undefined) {
+      updateData.enableNightShift = Boolean(req.body.enableNightShift);
+      if (!updateData.enableNightShift) {
+        await sequelize.query('UPDATE "User" SET "user_ShiftId" = 1 WHERE "user_ShiftId" = 2');
+      }
+    }
     if (req.body.morningShiftStart !== undefined) updateData.morningShiftStart = req.body.morningShiftStart;
     if (req.body.morningShiftEnd !== undefined) updateData.morningShiftEnd = req.body.morningShiftEnd;
     if (req.body.eveningShiftStart !== undefined) updateData.eveningShiftStart = req.body.eveningShiftStart;

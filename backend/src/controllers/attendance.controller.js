@@ -194,32 +194,38 @@ exports.markAttendance = async (req, res) => {
         : (timeStr > approvedOT.HrTo && timeStr < approvedOT.HrFrom)
     );
 
+    const isNightShiftAllowed = Boolean(settings?.enableNightShift && user.user_ShiftId === 2);
     const isSuspiciousWindow = (now >= fivePMThirty || now < fiveAMThirty);
     const isPastOT = hasApprovedOT && isPastOTWindow;
-    const isIrregular = (!isWithinOTWindow && isSuspiciousWindow && user.user_ShiftId !== 2) ||
+    const isIrregular = (!isWithinOTWindow && isSuspiciousWindow && !isNightShiftAllowed) ||
                         isPastOT ||
                         hadPriorIrregular;
 
     let nextStatus;
+    const determineInStatus = () => {
+      if (hasApprovedOT && isWithinOTWindow) return 5;
+      if (lastStatus === 2) return 3;
+      if (!hasPriorClockIn) {
+        return totalMinutes < 720 ? 1 : 3;
+      }
+      return 1;
+    };
+
+    const determineOutStatus = () => {
+      if (lastStatus === 5) return 6;
+      if (lastStatus === 1 && totalMinutes < 780) return 2;
+      return 4;
+    };
+
     if (forcedStatus === 1) {
-      if (hasApprovedOT && isWithinOTWindow) nextStatus = 5;
-      else if (isLunchWindow || lastStatus === 2) nextStatus = 3;
-      else if (totalMinutes >= lStart && !hasPriorClockIn && !isSuspiciousWindow) nextStatus = 3;
-      else nextStatus = 1;
+      nextStatus = determineInStatus();
     } else if (forcedStatus === 2) {
-      if (lastStatus === 5) nextStatus = 6;
-      else if (isLunchWindow && [1, 3].includes(lastStatus)) nextStatus = 2;
-      else nextStatus = 4;
+      nextStatus = determineOutStatus();
     } else {
       if (!lastStatus || [2, 4, 6].includes(lastStatus)) {
-        if (hasApprovedOT && isWithinOTWindow) nextStatus = 5;
-        else if (isLunchWindow || lastStatus === 2) nextStatus = 3;
-        else if (totalMinutes >= lStart && !hasPriorClockIn && !isSuspiciousWindow) nextStatus = 3;
-        else nextStatus = 1;
+        nextStatus = determineInStatus();
       } else {
-        if (lastStatus === 5) nextStatus = 6;
-        else if (isLunchWindow && [1, 3].includes(lastStatus)) nextStatus = 2;
-        else nextStatus = 4;
+        nextStatus = determineOutStatus();
       }
     }
 
@@ -408,8 +414,9 @@ exports.viewUserLogs = async (req, res) => {
         const otStartTime = (dayOT && dayOT.HrFrom) ? dayOT.HrFrom.substring(0, 5) : null;
         const { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings, otStartTime);
         
-        // MIXED LOG/FILTER LOGIC: Only show the row if there's regular work OR a valid request OR explicitly absent
-        const hasRegularWork = morning_In !== "—" || afternoon_Out !== "—" || (dayOT && outArr.length > 0);
+        // MIXED LOG/FILTER LOGIC: Only show the row if there's regular work OR a valid request OR explicitly absent OR recognized attendance
+        const hasRegularWork = morning_In !== "—" || afternoon_In !== "—" || afternoon_Out !== "—" || (dayOT && outArr.length > 0);
+        const hasRecognizedStatus = [1, 2, 4, 5, 6].includes(Number(report.attendance_StatusId));
         const hasRequest = approvedRequests.some(req => {
           const reqType = Number(req.emp_reqTypeId);
           if (reqType === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
@@ -425,7 +432,7 @@ exports.viewUserLogs = async (req, res) => {
         const isAbsent = Number(report.attendance_StatusId) === 3;
         
         // Return null if this row should be hidden (Irregular only, no work, no request)
-        if (!hasRegularWork && !hasRequest && !isAbsent) return null;
+        if (!hasRegularWork && !hasRequest && !isAbsent && !hasRecognizedStatus) return null;
 
         const mStart = settings?.morningShiftStart?.substring(0, 5) || "08:30";
         const mEnd   = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
@@ -439,6 +446,7 @@ exports.viewUserLogs = async (req, res) => {
         // Final fallback for time_Out: pick the absolute last out if bucketed ones are missing
         const absoluteLastOut = outArr.length > 0 ? outArr[outArr.length - 1].substring(0, 5) : "—";
         const effectiveOut = (ot_Out !== "—" ? ot_Out : (afternoon_Out !== "—" ? afternoon_Out : (morning_Out !== "—" ? morning_Out : absoluteLastOut)));
+        const effectiveIn = morning_In !== "—" ? morning_In : (afternoon_In !== "—" ? afternoon_In : (inArr.length > 0 ? inArr[0].substring(0, 5) : "—"));
 
         // ── TIME-SLICING CALCULATION (Prefer Stored Values) ──
         let stats = {
@@ -454,30 +462,41 @@ exports.viewUserLogs = async (req, res) => {
           stats.totalPayableHours = 8.0;
         }
 
-        // Fallback for older records or if recalculation is needed
-        if (stats.totalPayableHours === 0 && !isOnField && inArr.length > 0 && outArr.length > 0) {
+        // Fallback for older records or if recalculation is needed (Skip if absent or irregular without approved OT)
+        if (stats.totalPayableHours === 0 && !isOnField && inArr.length > 0 && outArr.length > 0 && !isAbsent && Number(report.attendance_StatusId) !== 7 && Number(report.attendance_StatusId) !== 8) {
           let firstIn = inArr[0];
           let lastOut = outArr[outArr.length - 1];
 
+          const isNightShiftAllowed = Boolean(settings?.enableNightShift && report.user_ShiftId === 2);
           const mStartFull = settings?.morningShiftStart || "08:30:00";
           const mEndFull   = settings?.morningShiftEnd   || "17:30:00";
           const eStart = settings?.eveningShiftStart || "20:30:00";
           const eEnd   = settings?.eveningShiftEnd   || "05:30:00";
 
-          const shiftStart = (report.user_ShiftId === 2) ? eStart : mStartFull;
-          const shiftEnd   = (report.user_ShiftId === 2) ? eEnd : mEndFull;
+          const shiftStart = isNightShiftAllowed ? eStart : mStartFull;
+          const shiftEnd   = isNightShiftAllowed ? eEnd : mEndFull;
 
-          if (firstIn && firstIn < shiftStart && report.user_ShiftId !== 2) firstIn = shiftStart;
-          if (!dayOT && lastOut && lastOut > shiftEnd && report.user_ShiftId !== 2) lastOut = shiftEnd;
+          if (firstIn && firstIn < shiftStart && !isNightShiftAllowed) firstIn = shiftStart;
+          if (!dayOT && lastOut && lastOut > shiftEnd && !isNightShiftAllowed) lastOut = shiftEnd;
 
-          const hoursObj = await calculateMultiBucketHours(firstIn, lastOut, dateStr, report.user_ShiftId, settings, holidays);
-          stats = {
-            reg_hrs: hoursObj.reg_hrs,
-            nd_hrs: hoursObj.nd_hrs,
-            ot_hrs: hoursObj.ot_hrs,
-            holiday_hrs: hoursObj.hol_hrs,
-            totalPayableHours: hoursObj.totalPayableHours
-          };
+          if (isNightShiftAllowed || firstIn < shiftEnd || dayOT) {
+            const hoursObj = await calculateMultiBucketHours(firstIn, lastOut, dateStr, isNightShiftAllowed ? 2 : 1, settings, holidays);
+            stats = {
+              reg_hrs: hoursObj.reg_hrs,
+              nd_hrs: hoursObj.nd_hrs,
+              ot_hrs: hoursObj.ot_hrs,
+              holiday_hrs: hoursObj.hol_hrs,
+              totalPayableHours: hoursObj.totalPayableHours
+            };
+          }
+        }
+
+        if (isAbsent || Number(report.attendance_StatusId) === 7 || Number(report.attendance_StatusId) === 8) {
+          stats.reg_hrs = 0;
+          stats.nd_hrs = 0;
+          stats.ot_hrs = 0;
+          stats.holiday_hrs = 0;
+          stats.totalPayableHours = 0;
         }
         
         // Handle manual Overtime Request additions if any (Legacy Support)
@@ -494,7 +513,7 @@ exports.viewUserLogs = async (req, res) => {
           afternoon_Out,
           ot_In,
           ot_Out,
-          time_In: morning_In,
+          time_In: effectiveIn,
           time_Out: ot_Out !== "—" ? ot_Out : effectiveOut,
           inArr,
           outArr,
@@ -1362,8 +1381,9 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       const otStartTime = dayOT ? dayOT.HrFrom.substring(0, 5) : null;
       let { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(inArr, outArr, settings, otStartTime);
       
-      // MIXED LOG/FILTER LOGIC: Only show the row if there's regular work OR a valid request OR explicitly absent
-      const hasRegularWork = morning_In !== "—" || afternoon_Out !== "—" || (dayOT && outArr.length > 0);
+      // MIXED LOG/FILTER LOGIC: Only show the row if there's regular work OR a valid request OR explicitly absent OR recognized attendance
+      const hasRegularWork = morning_In !== "—" || afternoon_In !== "—" || afternoon_Out !== "—" || (dayOT && outArr.length > 0);
+      const hasRecognizedStatus = [1, 2, 4, 5, 6].includes(Number(r.attendance_StatusId));
       const hasRequest = userReqs.some(req => {
         const reqType = Number(req.emp_reqTypeId);
         if (reqType === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
@@ -1377,20 +1397,25 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       });
 
       const isAbsent = Number(r.attendance_StatusId) === 3;
-      if (!hasRegularWork && !hasRequest && !isAbsent) return null;
+      if (!hasRegularWork && !hasRequest && !isAbsent && !hasRecognizedStatus) return null;
 
       // Final fallback for time_Out: pick the absolute last out if bucketed ones are missing
       const absoluteLastOut = outArr.length > 0 ? outArr[outArr.length - 1].substring(0, 5) : "—";
       let effectiveOut = (afternoon_Out !== "—" ? afternoon_Out : (morning_Out !== "—" ? morning_Out : absoluteLastOut));
+      const effectiveIn = morning_In !== "—" ? morning_In : (afternoon_In !== "—" ? afternoon_In : (inArr.length > 0 ? inArr[0].substring(0, 5) : "—"));
 
       // ── TIME-SLICING CALCULATION ──
+      const isNightShiftAllowed = Boolean(settings?.enableNightShift && r.user_ShiftId === 2);
       let firstIn = inArr[0];
       let lastOut = outArr[outArr.length - 1];
 
-      if (firstIn && firstIn < mStart && r.user_ShiftId !== 2) firstIn = mStart;
-      if (!dayOT && lastOut && lastOut > mEnd && r.user_ShiftId !== 2) lastOut = mEnd;
+      if (firstIn && firstIn < mStart && !isNightShiftAllowed) firstIn = mStart;
+      if (!dayOT && lastOut && lastOut > mEnd && !isNightShiftAllowed) lastOut = mEnd;
 
-      const hoursObj = await calculateMultiBucketHours(firstIn, lastOut, dateStr, r.user_ShiftId, settings, holidays);
+      let hoursObj = { reg_hrs: 0, nd_hrs: 0, ot_hrs: 0, hol_hrs: 0, totalPayableHours: 0, formatted: "0h 0m" };
+      if (firstIn && lastOut && (isNightShiftAllowed || firstIn < mEnd || dayOT)) {
+        hoursObj = await calculateMultiBucketHours(firstIn, lastOut, dateStr, isNightShiftAllowed ? 2 : 1, settings, holidays);
+      }
 
       if (isOnField) {
         morning_In = mStart; morning_Out = lStart; afternoon_In = lEnd; afternoon_Out = mEnd;
@@ -1400,20 +1425,23 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         hoursObj.formatted = "8h 0m"; 
       }
 
-      // ── INCIDENTAL VISIT (7) OR IRREGULAR (8) OVERRIDE ──
-      if (parseInt(r.attendance_StatusId) === 7 || parseInt(r.attendance_StatusId) === 8) {
-        morning_In = "—"; morning_Out = "—"; afternoon_In = "—"; afternoon_Out = "—";
+      // ── INCIDENTAL VISIT (7), IRREGULAR (8), OR ABSENT (3) OVERRIDE ──
+      if (parseInt(r.attendance_StatusId) === 7 || parseInt(r.attendance_StatusId) === 8 || parseInt(r.attendance_StatusId) === 3) {
+        if (parseInt(r.attendance_StatusId) === 7 || parseInt(r.attendance_StatusId) === 8) {
+          morning_In = "—"; morning_Out = "—"; afternoon_In = "—"; afternoon_Out = "—";
+        }
         hoursObj.totalPayableHours = 0;
         hoursObj.reg_hrs = 0;
+        hoursObj.formatted = "0h 0m";
       }
       
       // Add Overtime manually if approved (apply multiplier from settings)
-      if (dayOT && dayOT.Total_Hrs && parseInt(r.attendance_StatusId) !== 7) {
+      if (dayOT && dayOT.Total_Hrs && parseInt(r.attendance_StatusId) !== 7 && parseInt(r.attendance_StatusId) !== 3) {
         hoursObj.totalPayableHours += parseFloat(dayOT.Total_Hrs) * (settings.overtimeRate || 1.25);
       }
 
-      const ot_In = (dayOT && dayOT.HrFrom && parseInt(r.attendance_StatusId) !== 7) ? dayOT.HrFrom.substring(0, 5) : "—";
-      const ot_Out = (dayOT && dayOT.HrFrom && parseInt(r.attendance_StatusId) !== 7 && outArr.length > 0 && outArr[outArr.length-1] && outArr[outArr.length-1].substring(0,5) > dayOT.HrFrom.substring(0,5)) ? outArr[outArr.length-1].substring(0,5) : "—";
+      const ot_In = (dayOT && dayOT.HrFrom && parseInt(r.attendance_StatusId) !== 7 && parseInt(r.attendance_StatusId) !== 3) ? dayOT.HrFrom.substring(0, 5) : "—";
+      const ot_Out = (dayOT && dayOT.HrFrom && parseInt(r.attendance_StatusId) !== 7 && parseInt(r.attendance_StatusId) !== 3 && outArr.length > 0 && outArr[outArr.length-1] && outArr[outArr.length-1].substring(0,5) > dayOT.HrFrom.substring(0,5)) ? outArr[outArr.length-1].substring(0,5) : "—";
 
       return {
         sessionId: `${r.user_id}-${dateStr}`,
@@ -1427,7 +1455,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         afternoon_Out,
         ot_In,
         ot_Out,
-        time_In: morning_In,
+        time_In: effectiveIn,
         time_Out: ot_Out !== "—" ? ot_Out : effectiveOut,
         inArr,
         outArr,

@@ -345,7 +345,8 @@ exports.scanRFID = async (req, res) => {
     const target_user_Id = user.user_Id;
 
     // --- APPLY LWD AFTER FINDING USER ---
-    if (user.user_ShiftId === 2 && hour < 10) {
+    const isNightShiftActive = Boolean(settings?.enableNightShift && user.user_ShiftId === 2);
+    if (isNightShiftActive && hour < 10) {
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
       workDate = formatDateLocal(yesterday);
@@ -522,31 +523,40 @@ exports.scanRFID = async (req, res) => {
     );
     const hadPriorIrregular = priorIrregular.length > 0;
 
+    const isNightShiftAllowed = Boolean(settings?.enableNightShift && user.user_ShiftId === 2);
     const isSuspiciousWindow = (now >= fivePMThirty || now < fiveAMThirty);
     const isPastOT = hasApprovedOT && isPastOTWindow;
 
     // Irregular if outside regular hours without approved OT, or past OT window, or prior irregular session
-    const isIrregular = (!isWithinOTWindow && isSuspiciousWindow && user.user_ShiftId !== 2) ||
+    const isIrregular = (!isWithinOTWindow && isSuspiciousWindow && !isNightShiftAllowed) ||
                         isPastOT ||
                         hadPriorIrregular;
 
     if (action === "clock_in") {
       if (hasApprovedOT && isWithinOTWindow) {
         nextStatus = 5; // Overtime IN
-      } else if (isLunchWindow || lastStatus === 2) {
+      } else if (lastStatus === 2) {
         nextStatus = 3; // Afternoon IN (from lunch)
-      } else if (totalMinutes >= lStart && !hasPriorClockIn && !isSuspiciousWindow) {
-        // Arrived in afternoon (>= 11:30 AM / 12:00 PM) without morning scan
-        nextStatus = 3; // Afternoon IN
+      } else if (!hasPriorClockIn) {
+        // First entry of the day
+        if (totalMinutes < 720) {
+          // Arrived before 12:00 PM noon -> Morning IN
+          nextStatus = 1;
+        } else {
+          // Arrived at or after 12:00 PM -> Afternoon IN (PM arrival)
+          nextStatus = 3;
+        }
       } else {
         nextStatus = 1; // Morning IN (or initial entry)
       }
     } else {
       if (lastStatus === 5) {
         nextStatus = 6; // Overtime OUT
-      } else if (isLunchWindow && [1, 3].includes(lastStatus)) {
+      } else if (lastStatus === 1 && totalMinutes < 780) {
+        // Clocking out in the morning or during lunch (< 1:00 PM) -> Morning OUT
         nextStatus = 2; // Lunch Out (Morning OUT)
       } else {
+        // Clocking out from Afternoon IN or end of day -> Afternoon OUT
         nextStatus = 4; // Clock Out (Afternoon OUT)
       }
     }

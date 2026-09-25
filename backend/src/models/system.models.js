@@ -44,6 +44,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       // Shift Configurations
+      enableNightShift: { type: DataTypes.BOOLEAN, defaultValue: false },
       morningShiftStart: { type: DataTypes.TIME, defaultValue: "08:30:00" },
       morningShiftEnd: { type: DataTypes.TIME, defaultValue: "17:30:00" },
       eveningShiftStart: { type: DataTypes.TIME, defaultValue: "20:30:00" },

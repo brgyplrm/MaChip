@@ -1,4 +1,4 @@
-const { sequelize } = require("../config/sequelize.js");
+const { sequelize, SystemSettings } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const fs = require('fs');
 const path = require('path');
@@ -226,6 +226,12 @@ exports.registerUser = async (req, res) => {
     const dailyRate = parseFloat(req.body.dailyRate) || 0;
     const shares = await computeMonthlyShares(dailyRate);
 
+    const settings = await SystemSettings.findOne();
+    let assignedShiftId = parseInt(req.body.user_ShiftId) || 1;
+    if (!settings?.enableNightShift && assignedShiftId === 2) {
+      assignedShiftId = 1;
+    }
+
     // Use a transaction for atomic insertion across normalized tables
     const transaction = await sequelize.transaction();
     try {
@@ -266,7 +272,7 @@ exports.registerUser = async (req, res) => {
             user_Address: req.body.user_Address || null,
             user_DOB: req.body.user_DOB || null,
             user_Gender: req.body.user_Gender || null,
-            user_ShiftId: parseInt(req.body.user_ShiftId) || 1,
+            user_ShiftId: assignedShiftId,
             dailyRate,
             civil_status: req.body.civil_status || "Single",
             is_solo_parent: req.body.is_solo_parent === "true" || req.body.is_solo_parent === true,
@@ -1069,6 +1075,12 @@ exports.updateUser = async (req, res) => {
         }
       }
 
+      const settings = await SystemSettings.findOne();
+      let resolvedShiftId = isMaster ? (parseInt(req.body.user_ShiftId) || oldUser.user_ShiftId || 1) : oldUser.user_ShiftId;
+      if (!settings?.enableNightShift && resolvedShiftId === 2) {
+        resolvedShiftId = 1;
+      }
+
       // Build replacements object with explicit types
       const replacements = {
         targetId: parseInt(user_Id),
@@ -1084,7 +1096,7 @@ exports.updateUser = async (req, res) => {
         address: req.body.user_Address !== undefined ? (req.body.user_Address || null) : oldUser.user_Address,
         dob: req.body.user_DOB !== undefined ? (req.body.user_DOB || null) : oldUser.user_DOB,
         gender: req.body.user_Gender !== undefined ? (req.body.user_Gender || null) : oldUser.user_Gender,
-        shiftId: isMaster ? (parseInt(req.body.user_ShiftId) || oldUser.user_ShiftId || 1) : oldUser.user_ShiftId,
+        shiftId: resolvedShiftId,
         accountNumber: account_Number !== undefined ? (encrypt(account_Number) || null) : oldUser.account_Number,
         bankCompany: req.body.bank_Company !== undefined ? (req.body.bank_Company || null) : oldUser.bank_Company,
         bankAccountName: req.body.bank_AccountName !== undefined ? (req.body.bank_AccountName || null) : oldUser.bank_AccountName,

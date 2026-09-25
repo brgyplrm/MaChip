@@ -57,8 +57,11 @@ const Settings = () => {
   const [showPicker, setShowPicker] = useState(false);
 
   // --- Attendance Configuration States ---
+  const [enableNightShift, setEnableNightShift] = useState(false);
   const [morningShiftStart, setMorningShiftStart] = useState("08:30");
   const [morningShiftEnd, setMorningShiftEnd] = useState("17:30");
+  const [eveningShiftStart, setEveningShiftStart] = useState("20:30");
+  const [eveningShiftEnd, setEveningShiftEnd] = useState("05:30");
   const [gracePeriod, setGracePeriod] = useState("08:35");
   const [lunchStartThreshold, setLunchStartThreshold] = useState("11:30");
   const [lunchEndThreshold, setLunchEndThreshold] = useState("13:30");
@@ -110,8 +113,11 @@ const Settings = () => {
         setArchivedRetentionYears(data.archivedRetentionYears !== undefined && data.archivedRetentionYears !== null ? data.archivedRetentionYears : 5);
 
         // Load Attendance Settings
+        setEnableNightShift(Boolean(data.enableNightShift));
         if (data.morningShiftStart) setMorningShiftStart(data.morningShiftStart.substring(0, 5));
         if (data.morningShiftEnd) setMorningShiftEnd(data.morningShiftEnd.substring(0, 5));
+        if (data.eveningShiftStart) setEveningShiftStart(data.eveningShiftStart.substring(0, 5));
+        if (data.eveningShiftEnd) setEveningShiftEnd(data.eveningShiftEnd.substring(0, 5));
         if (data.gracePeriod) setGracePeriod(data.gracePeriod.substring(0, 5)); 
         if (data.lunchStartThreshold) setLunchStartThreshold(data.lunchStartThreshold.substring(0, 5));
         if (data.lunchEndThreshold) setLunchEndThreshold(data.lunchEndThreshold.substring(0, 5));
@@ -217,8 +223,11 @@ const Settings = () => {
     };
 
     const payload = {
+      enableNightShift,
       morningShiftStart,
       morningShiftEnd,
+      eveningShiftStart,
+      eveningShiftEnd,
       gracePeriod,
       lunchStartThreshold,
       lunchEndThreshold,
@@ -540,8 +549,11 @@ const Settings = () => {
                 {/* Tab 3: Attendance Configuration Layout (Your Retained Storage Paths) */}
                 <TabsContent value="attendance" className=" mt-0 animate-in fade-in-50 duration-200">
                   <AttendanceConfiguration 
+                    enableNightShift={enableNightShift} setEnableNightShift={setEnableNightShift}
                     workStart={morningShiftStart} setWorkStart={setMorningShiftStart}
                     workEnd={morningShiftEnd} setWorkEnd={setMorningShiftEnd}
+                    eveningStart={eveningShiftStart} setEveningStart={setEveningShiftStart}
+                    eveningEnd={eveningShiftEnd} setEveningEnd={setEveningShiftEnd}
                     gracePeriod={gracePeriod} setGracePeriod={setGracePeriod}
                     lunchStart={lunchStartThreshold} setLunchStart={setLunchStartThreshold}
                     lunchEnd={lunchEndThreshold} setLunchEnd={setLunchEndThreshold}

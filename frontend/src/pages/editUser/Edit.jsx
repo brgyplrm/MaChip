@@ -193,9 +193,21 @@ const Edit = () => {
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loadingGovt, setLoadingGovt] = useState(false);
   const [userData, setUserData] = useState(null);
+  const [enableNightShift, setEnableNightShift] = useState(false);
   
   const [originalRole, setOriginalRole] = useState("");
   const isTargetAdminManager = Number(formData.user_RoleId) === 1 || formData.user_Role === "Admin Manager" || Number(userData?.user_RoleId) === 1 || originalRole === "Admin Manager";
+
+  useEffect(() => {
+    fetchWithAuth("/api/system/settings")
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.enableNightShift !== undefined) {
+          setEnableNightShift(Boolean(data.enableNightShift));
+        }
+      })
+      .catch(err => console.error("Error fetching system settings in Edit:", err));
+  }, []);
 // ... (rest of state)
 
   // ── Automatic Calculation ──────────────────────────────────────────────────
@@ -957,13 +969,18 @@ const Edit = () => {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Shift Schedule <span className="text-red-500">*</span></Label>
-                    <Select value={formData.user_ShiftId?.toString()} onValueChange={(val) => handleSelectChange("user_ShiftId", parseInt(val))}>
+                    <Select 
+                      value={(!enableNightShift && formData.user_ShiftId === 2 ? "1" : (formData.user_ShiftId?.toString() || "1"))} 
+                      onValueChange={(val) => handleSelectChange("user_ShiftId", parseInt(val))}
+                    >
                       <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
                         <SelectValue placeholder="Select Shift" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="1">Morning Shift (8:30 AM - 5:30 PM)</SelectItem>
-                        <SelectItem value="2">Evening Shift (8:30 PM - 5:30 AM)</SelectItem>
+                        {enableNightShift && (
+                          <SelectItem value="2">Evening Shift (8:30 PM - 5:30 AM)</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>

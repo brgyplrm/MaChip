@@ -103,9 +103,17 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
     holidayMap[dStr].types.push(h.type);
     holidayMap[dStr].count++;
   });
+  const isNightShiftAllowed = Boolean(settings?.enableNightShift && userShiftId === 2);
   const startCursor = new Date(`${logDate}T${firstIn}`);
   let endCursor = new Date(`${logDate}T${lastOut}`);
-  if (endCursor < startCursor) endCursor.setDate(endCursor.getDate() + 1);
+  if (endCursor < startCursor) {
+    if (isNightShiftAllowed) {
+      endCursor.setDate(endCursor.getDate() + 1);
+    } else {
+      // Day shift or night shift disabled: invalid backwards range, no overnight rollover!
+      return result;
+    }
+  }
   const totalMinutes = Math.floor((endCursor - startCursor) / 60000);
   result.totalRawMinutes = totalMinutes;
   if (totalMinutes <= 0) return result;
@@ -176,17 +184,23 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
     }
 
     let firstIn = inArr[0], lastOut = outArr[outArr.length - 1];
-    const shiftStart = (user?.user_ShiftId === 2) ? (settings?.eveningShiftStart || "20:30:00") : (settings?.morningShiftStart || "08:30:00");
-    const shiftEnd = (user?.user_ShiftId === 2) ? (settings?.eveningShiftEnd || "05:30:00") : (settings?.morningShiftEnd || "17:30:00");
+    const isNightShiftAllowed = Boolean(settings?.enableNightShift && user?.user_ShiftId === 2);
+    const shiftStart = isNightShiftAllowed ? (settings?.eveningShiftStart || "20:30:00") : (settings?.morningShiftStart || "08:30:00");
+    const shiftEnd = isNightShiftAllowed ? (settings?.eveningShiftEnd || "05:30:00") : (settings?.morningShiftEnd || "17:30:00");
     
     // Clamp to shift boundaries for REGULAR hours calculation
-    if (firstIn && firstIn < shiftStart && user?.user_ShiftId !== 2) firstIn = shiftStart;
-    if (!dayOT && lastOut && lastOut > shiftEnd && user?.user_ShiftId !== 2) lastOut = shiftEnd;
+    if (firstIn && firstIn < shiftStart && !isNightShiftAllowed) firstIn = shiftStart;
+    if (!dayOT && lastOut && lastOut > shiftEnd && !isNightShiftAllowed) lastOut = shiftEnd;
     
-    const stats = await calculateMultiBucketHours(firstIn, lastOut, logDate, user?.user_ShiftId, settings, holidays);
+    let stats = { reg_hrs: 0, nd_hrs: 0, ot_hrs: 0, hol_hrs: 0, totalPayableHours: 0 };
+    if (!firstIn || !lastOut || (firstIn >= shiftEnd && !dayOT && !isNightShiftAllowed)) {
+      // Outside shift hours without approved OT, 0 hours
+    } else {
+      stats = await calculateMultiBucketHours(firstIn, lastOut, logDate, isNightShiftAllowed ? 2 : 1, settings, holidays);
+    }
     
-    // If status is Incidental Visit (7) or Irregular (8), zero out the payable hours
-    if (report.attendance_StatusId === 7 || report.attendance_StatusId === 8) {
+    // If status is Incidental Visit (7), Irregular (8), or Absent (3), zero out the payable hours
+    if (report.attendance_StatusId === 7 || report.attendance_StatusId === 8 || report.attendance_StatusId === 3) {
       stats.reg_hrs = 0;
       stats.nd_hrs = 0;
       stats.ot_hrs = 0;
@@ -229,13 +243,10 @@ function mapLogsToBuckets(inArr, outArr, settings, otStartTime = null) {
   let afternoon_In = "—";
   let afternoon_Out = "—";
 
-  const lStartStr = settings?.lunchStartThreshold || "11:30";
-  const lunchMins = timeToMins(lStartStr);
-
-  // If first In is at or after lunch window, it is Afternoon In
-  if (ins.length > 0 && timeToMins(ins[0]) >= lunchMins) {
+  // If first In is at or after 12:00 PM noon, it is Afternoon In
+  if (ins.length > 0 && timeToMins(ins[0]) >= 720) {
     afternoon_In = ins[0];
-    const matchingOuts = outs.filter(o => timeToMins(o) > timeToMins(afternoon_In));
+    const matchingOuts = outs.filter(o => timeToMins(o) >= timeToMins(afternoon_In));
     if (matchingOuts.length > 0) {
       afternoon_Out = matchingOuts[matchingOuts.length - 1];
     }

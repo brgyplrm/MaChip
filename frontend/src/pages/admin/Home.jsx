@@ -36,6 +36,7 @@ import EmptyState from "../../components/EmptyState";
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 
 // shadcn/ui components
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -562,42 +563,62 @@ const Home = () => {
                 <h2 className="text-gray-500 font-medium">Pending Requests</h2>
                 <Link to="/adminRequests" className="text-xs text-[#3B4E17]/60 font-semibold hover:underline hover:text-[#3B4E17]/80">View All</Link>
               </div>
-              <div className="flex-1 space-y-4">
+              <div className="flex-1 space-y-3">
                 {pendingRequests.length > 0 ? (
-                  pendingRequests.map((req) => {
-                    const isLeave = req.reqTypeName?.includes("Leave");
-                    const isField = req.reqTypeName?.includes("Onfield");
-                    const isOvertime = req.reqTypeName?.includes("Overtime");
+                  <>
+                    <div className="space-y-3">
+                      {pendingRequests.map((req) => {
+                        const isLeave = req.reqTypeName?.includes("Leave");
+                        const isField = req.reqTypeName?.includes("Onfield");
+                        const isOvertime = req.reqTypeName?.includes("Overtime");
 
-                    let borderClass = "border-[#D4AF37]";
-                    let iconClass = "bg-[#D4AF37]/10 text-[#D4AF37] hover:bg-[#D4AF37]";
-                    
-                    if (isLeave) {
-                      borderClass = "border-green-500";
-                      iconClass = "bg-green-100 text-green-600 hover:bg-green-500";
-                    } else if (isField) {
-                      borderClass = "border-orange-500";
-                      iconClass = "bg-orange-100 text-orange-600 hover:bg-orange-500";
-                    } else if (isOvertime) {
-                      borderClass = "border-blue-500";
-                      iconClass = "bg-blue-100 text-blue-600 hover:bg-blue-500";
-                    }
+                        let borderClass = "border-[#D4AF37]";
+                        let iconClass = "bg-[#D4AF37]/10 text-[#D4AF37] hover:bg-[#D4AF37]";
+                        
+                        if (isLeave) {
+                          borderClass = "border-green-500";
+                          iconClass = "bg-green-100 text-green-600 hover:bg-green-500";
+                        } else if (isField) {
+                          borderClass = "border-orange-500";
+                          iconClass = "bg-orange-100 text-orange-600 hover:bg-orange-500";
+                        } else if (isOvertime) {
+                          borderClass = "border-blue-500";
+                          iconClass = "bg-blue-100 text-blue-600 hover:bg-blue-500";
+                        }
 
-                    return (
-                      <div key={req.emp_reqId} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${borderClass} min-w-0`}>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-[#2A174E] truncate">{req.userName}</p>
-                          <p className="text-[11px] text-gray-500">{req.reqTypeName} • {new Date(req.date_Filed).toLocaleDateString()}</p>
-                        </div>
+                        return (
+                          <div key={req.emp_reqId} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${borderClass} min-w-0`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-[#2A174E] truncate">{req.userName}</p>
+                              <p className="text-[11px] text-gray-500">{req.reqTypeName} • {new Date(req.date_Filed).toLocaleDateString()}</p>
+                            </div>
+                            <Link 
+                              to={`/adminRequests`} 
+                              className={`p-1.5 ${iconClass} rounded-md hover:text-white transition-all shrink-0`}
+                            >
+                              <RateReviewIcon sx={{ fontSize: 16 }} />
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {Number(stats.pendingCount) > 3 && (
+                      <div className="pt-1 flex items-center justify-center">
                         <Link 
-                          to={`/adminRequests`} 
-                          className={`p-1.5 ${iconClass} rounded-md hover:text-white transition-all shrink-0`}
+                          to="/adminRequests" 
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#3B4E17] hover:text-[#2A174E] hover:underline transition-colors py-1 px-3 rounded-md hover:bg-[#F8FFF2]"
                         >
-                          <RateReviewIcon sx={{ fontSize: 16 }} />
+                          <MoreHorizIcon sx={{ fontSize: 18 }} className="text-[#3B4E17]/70" />
+                          <span>See more</span>
+                          {Number(stats.pendingCount) > pendingRequests.length && (
+                            <span className="text-[11px] text-gray-500 font-normal">
+                              (+{Number(stats.pendingCount) - pendingRequests.length} more)
+                            </span>
+                          )}
                         </Link>
                       </div>
-                    );
-                  })
+                    )}
+                  </>
                 ) : (
                   <div className="space-y-3">
                     {[1, 2, 3].map((i) => (

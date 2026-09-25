@@ -210,9 +210,9 @@ const TransactionLog = () => {
                 </span>
               </div>
               <div className="flex items-center gap-2 w-full md:w-auto">
-                <Button variant="outline" className="w-full md:w-auto border-slate-200 text-slate-700 hover:bg-slate-100 text-xs" onClick={handleExportCSV}>
+                {/* <Button variant="outline" className="w-full md:w-auto border-slate-200 text-slate-700 hover:bg-slate-100 text-xs" onClick={handleExportCSV}>
                   CSV
-                </Button>
+                </Button> */}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm text-xs" onClick={handleExportPDF}>
