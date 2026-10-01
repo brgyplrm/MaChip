@@ -266,7 +266,7 @@ exports.computeMonthlyShares = async (dailyRate, periodEndDate = null) => {
  */
 const USE_MONTHLY_PROJECTION = false; // Set to false if client confirms Direct Cutoff Evaluation
 
-exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndDate = null, periodStartDate = null) => {
+exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndDate = null, periodStartDate = null, deductInFirstPeriodOnly = true) => {
   const periodTaxableIncome = grossPay - govtDeductionsTotal;
   if (periodTaxableIncome <= 0) return 0;
 
@@ -274,21 +274,34 @@ exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndD
 
   // Determine period frequency (semi-monthly or monthly) from period duration
   let periodType = "semi-monthly";
-  if (periodStartDate) {
+  let isFullMonth = false;
+  if (periodStartDate && periodEndDate) {
     const start = new Date(periodStartDate);
     const end = new Date(periodEndDate);
     const diffTime = Math.abs(end - start);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     if (diffDays > 20) {
       periodType = "monthly";
+      isFullMonth = true;
     }
   }
 
-  // Monthly Equivalent Taxable Income (Mode 1 vs Mode 2)
   const isSemiMonthly = (periodType === "semi-monthly");
-  const monthlyTaxable = (isSemiMonthly && USE_MONTHLY_PROJECTION) 
-    ? (periodTaxableIncome * 2) 
-    : periodTaxableIncome;
+
+  // Client Mandate: "The withholding using the Monthly Table but the deduction is in the First period only"
+  // For semi-monthly payroll:
+  // If period is 2nd period (ends on 28/29/30/31, not 15th), tax deduction is 0.
+  if (isSemiMonthly && deductInFirstPeriodOnly && periodEndDate) {
+    const endParts = String(periodEndDate).split('-');
+    const endDay = parseInt(endParts[endParts.length - 1], 10);
+    if (endDay !== 15) {
+      return 0;
+    }
+  }
+
+  // Monthly Equivalent Taxable Income:
+  // Evaluated against the Official Monthly Table brackets:
+  const monthlyTaxable = isSemiMonthly ? (periodTaxableIncome * 2) : periodTaxableIncome;
 
   try {
     const { WithholdingTax_Table } = require("../config/sequelize.js");
@@ -306,15 +319,10 @@ exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndD
       const latestEffectiveDate = brackets[0].effectiveDate;
       let activeBrackets = brackets.filter(b => b.effectiveDate === latestEffectiveDate);
 
-      // Match specific periodType (semi-monthly vs monthly) from the database table
-      const periodBrackets = activeBrackets.filter(b => b.periodType === periodType);
-      if (periodBrackets.length > 0) {
-        activeBrackets = periodBrackets;
-      } else {
-        const monthlyBrackets = activeBrackets.filter(b => b.periodType === 'monthly');
-        if (monthlyBrackets.length > 0) {
-          activeBrackets = monthlyBrackets;
-        }
+      // ALWAYS use the Monthly Table brackets per client mandate
+      const monthlyBrackets = activeBrackets.filter(b => b.periodType === 'monthly');
+      if (monthlyBrackets.length > 0) {
+        activeBrackets = monthlyBrackets;
       }
 
       let match = activeBrackets.find(b => monthlyTaxable >= b.range_Min && monthlyTaxable <= b.range_Max);
@@ -326,9 +334,12 @@ exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndD
       }
 
       const calculatedTax = match.baseTax + ((monthlyTaxable - match.excessOver) * match.excessRate);
-      const periodTax = (isSemiMonthly && USE_MONTHLY_PROJECTION) ? (calculatedTax / 2) : calculatedTax;
+      
+      // If deducted in the First period only, deduct the full calculated monthly tax in this 1st period.
+      // If NOT first-period-only, divide by 2 for semi-monthly.
+      const finalTax = (isSemiMonthly && !deductInFirstPeriodOnly) ? (calculatedTax / 2) : calculatedTax;
 
-      return Math.round(Math.max(0, periodTax) * 100) / 100;
+      return Math.round(Math.max(0, finalTax) * 100) / 100;
     }
   } catch (err) {
     console.warn("[DEDUCTIONS] Failed to compute tax from DB, using standard fallback:", err.message);
@@ -356,6 +367,8 @@ exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndD
     calculatedTax = 0;
   }
 
-  const periodTax = (isSemiMonthly && USE_MONTHLY_PROJECTION) ? (calculatedTax / 2) : calculatedTax;
-  return Math.round(Math.max(0, periodTax) * 100) / 100;
+  const finalTax = (isSemiMonthly && !deductInFirstPeriodOnly) ? (calculatedTax / 2) : calculatedTax;
+  return Math.round(Math.max(0, finalTax) * 100) / 100;
 };
+
+exports.computePeriodTax = exports.computePeriodTaxAsync;

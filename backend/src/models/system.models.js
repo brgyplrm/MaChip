@@ -15,6 +15,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      mockTimeSetAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       maxicareTotalGross: {
         type: DataTypes.FLOAT,
         defaultValue: 23410.67,

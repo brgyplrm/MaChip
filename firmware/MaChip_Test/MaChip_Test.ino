@@ -105,6 +105,7 @@ unsigned long fpEnrollStart = 0;
 String pendingUID = "";
 unsigned long pendingStart = 0;
 int pendingExpectedFingerID = -1;
+int pendingExpectedFingerID2 = -1;
 
 struct BackendQueue {
   String uid;
@@ -125,23 +126,28 @@ void clearSpiBusPins() {
 // ── LANDSCAPE OPTIMIZED NON-BLOCKING UI LAYOUT DRAWERS ───────────
 void updateFrontDisplay(String header, String message, uint16_t color) {
   clearSpiBusPins();
+  delayMicroseconds(50);
   digitalWrite(TFT_CS, LOW); // Claim bus cleanly for TFT output
   
   tft.fillScreen(ST77XX_BLACK);
+  // Wipe header and message bounding boxes in solid black to guarantee no ghosting/overlap
+  tft.fillRect(0, 42, 320, 60, ST77XX_BLACK);
+  tft.fillRect(0, 105, 320, 135, ST77XX_BLACK);
+
   tft.setCursor(15, 15);
-  tft.setTextColor(ST77XX_ORANGE);
+  tft.setTextColor(ST77XX_ORANGE, ST77XX_BLACK);
   tft.setTextSize(2);
-  tft.println("MACHIP CLOCK-IN STATION");
+  tft.println(F("MACHIP CLOCK-IN STATION"));
   
   tft.drawFastHLine(15, 38, 290, ST77XX_WHITE);
   
   tft.setCursor(15, 55);
-  tft.setTextColor(color);
+  tft.setTextColor(color, ST77XX_BLACK);
   tft.setTextSize(3); 
   tft.println(header);
   
   tft.setCursor(15, 115);
-  tft.setTextColor(ST77XX_WHITE);
+  tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
   tft.setTextSize(2);
   tft.println(message);
   
@@ -232,6 +238,7 @@ void updateLEDs() {
 void solenoidUnlock() {
   if (!solenoidActive) {
     clearSpiBusPins();
+    delay(20);
     digitalWrite(SOLENOID_PIN, LOW); // Pull Low to activate Relay shield
     solenoidActive = true;
     solenoidStartTime = millis();
@@ -251,6 +258,9 @@ void solenoidLock() {
 void updateSolenoid() {
   if (solenoidActive && (millis() - solenoidStartTime >= SOLENOID_DURATION)) {
     solenoidLock();
+    // Allow relay coil kickback & contact bounce to fully quench before driving SPI bus
+    delay(100);
+    clearSpiBusPins();
     updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
     updateBackDisplay("READY", "Scan Card Out");
   }
@@ -1209,6 +1219,7 @@ void loop() {
               provideFeedback(WAITING_SCAN);
               pendingUID = currentUID;
               pendingExpectedFingerID = resDoc["expectedFingerId"] | -1;
+              pendingExpectedFingerID2 = resDoc["expectedFingerId2"] | -1;
               pendingStart = millis();
             } else {
               String name = resDoc["employeeName"] | resDoc["name"] | "Employee";
@@ -1256,25 +1267,29 @@ void loop() {
         if (p == FINGERPRINT_OK) {
           if (finger.image2Tz(1) == FINGERPRINT_OK) {
             if (finger.fingerFastSearch() == FINGERPRINT_OK) {
-              if (pendingExpectedFingerID != -1 && finger.fingerID != pendingExpectedFingerID) {
+              bool matchPrimary = (pendingExpectedFingerID != -1 && finger.fingerID == pendingExpectedFingerID);
+              bool matchFallback = (pendingExpectedFingerID2 != -1 && finger.fingerID == pendingExpectedFingerID2);
+              bool hasExpectation = (pendingExpectedFingerID != -1 || pendingExpectedFingerID2 != -1);
+
+              if (hasExpectation && !matchPrimary && !matchFallback) {
                 updateFrontDisplay("SECURITY FAULT", "Token ID Mismatch\nEvent Dispatched!", ST77XX_RED);
                 provideFeedback(ERROR_FAIL);
                 queueTransaction(pendingUID + "|" + String(finger.fingerID), "suspicious_biometric_fail", "FRONT");
-                pendingUID = ""; pendingExpectedFingerID = -1;
+                pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1;
                 setLED(LED_SLOW_BLINK, LED_OFF);
               } else {
                 updateFrontDisplay("VERIFIED", "2FA Validated\nDoor Released", ST77XX_GREEN);
                 provideFeedback(SUCCESS_OK);
                 solenoidUnlock();
                 queueTransaction(pendingUID + "|" + String(finger.fingerID), "clock_in", "FRONT");
-                pendingUID = ""; pendingExpectedFingerID = -1;
+                pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1;
                 setLED(LED_SLOW_BLINK, LED_OFF);
               }
             } else {
               updateFrontDisplay("ACCESS FORBIDDEN", "Biometric Unknown", ST77XX_RED);
               provideFeedback(ERROR_FAIL);
               queueTransaction(pendingUID, "suspicious_biometric_fail", "FRONT");
-              pendingUID = ""; pendingExpectedFingerID = -1;
+              pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1;
               setLED(LED_SLOW_BLINK, LED_OFF);
             }
           }
@@ -1283,7 +1298,7 @@ void loop() {
         updateFrontDisplay("TIMEOUT", "2FA Verification Timeout", ST77XX_RED);
         provideFeedback(ERROR_FAIL);
         queueTransaction(pendingUID, "unenrolled_card_attempt", "FRONT");
-        pendingUID = ""; pendingExpectedFingerID = -1;
+        pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1;
         setLED(LED_SLOW_BLINK, LED_OFF);
       }
     }

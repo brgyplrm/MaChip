@@ -310,6 +310,9 @@ const Sidebar = ({ children }) => {
 
     // 3. Navigate to relevant destination
     const titleLower = (notif.title || "").toLowerCase();
+    const msg = notif.message || "";
+    const targetReqId = notif.targetId || msg.match(/#(\d+)/)?.[1] || notif.title?.match(/#(\d+)/)?.[1];
+
     if (
       titleLower.includes("irregular log") ||
       titleLower.includes("unrecognized") ||
@@ -319,12 +322,19 @@ const Sidebar = ({ children }) => {
       navigate("/transactionLog");
     } else if (notif.title === "Password Reset Request" && notif.targetId) {
       navigate(`/users/edit/${notif.targetId}`);
+    } else if (targetReqId) {
+      const userRole = Number(userData?.user_RoleId);
+      if (userRole === 1 || userRole === 2 || userRole === 4) {
+        navigate(`/adminRequests?requestId=${targetReqId}`, {
+          state: { selectedReqId: parseInt(targetReqId, 10) }
+        });
+      } else {
+        navigate(`/requests/${targetReqId}`);
+      }
     } else if (notif.title === "New Request for Review") {
       navigate("/adminRequests");
     } else if (userData?.user_RoleId === 3) {
       navigate("/userRequests");
-    } else if (notif.targetId) {
-      navigate(`/requests/${notif.targetId}`);
     }
   };
 

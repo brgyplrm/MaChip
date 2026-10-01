@@ -270,7 +270,16 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
                     
                     {/* Premium Pay Blocks */}
                     <tr>
-                      <td className="p-3 pl-5 border-r border-slate-200">Standard Overtime Pay</td>
+                      <td className="p-3 pl-5 border-r border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <span>Standard Overtime Pay</span>
+                          {payroll.rollover_ot_hrs > 0 && (
+                            <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200">
+                              incl. {payroll.rollover_ot_hrs}h rollover
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3 text-center border-r border-slate-200 font-mono">{payroll.OT_Hrs} hrs</td>
                       <td className="p-3 text-right font-semibold text-slate-900">₱{formatCurrency(payroll.OT_Amnt)}</td>
                     </tr>
@@ -280,7 +289,16 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
                       <td className="p-3 text-right font-semibold text-slate-900">₱{formatCurrency(payroll.nightOT_Amnt || 0)}</td>
                     </tr>
                     <tr>
-                      <td className="p-3 pl-5 border-r border-slate-200">Night Differential Premium</td>
+                      <td className="p-3 pl-5 border-r border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <span>Night Differential Premium</span>
+                          {payroll.rollover_nd_hrs > 0 && (
+                            <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200">
+                              incl. {payroll.rollover_nd_hrs}h rollover
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3 text-center border-r border-slate-200 font-mono">{payroll.nightDiff_Hrs || 0} hrs</td>
                       <td className="p-3 text-right font-semibold text-slate-900">₱{formatCurrency(payroll.nightDiff_Amnt)}</td>
                     </tr>

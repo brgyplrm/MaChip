@@ -131,6 +131,42 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     return dateObj.getUTCDay() !== 0; // 0 = Sunday
   }).length;
 
+  // 1.05 Standard semi-monthly 2-day cutoff attendance window & rollover configuration
+  const [sY, sM, sD] = period_Start.split("-").map(Number);
+  const [eY, eM, eD] = period_End.split("-").map(Number);
+
+  const isPeriod1 = (sD === 1 && eD === 15);
+  const isPeriod2 = (sD === 16);
+  const isStandardSemiMonthly = isPeriod1 || isPeriod2;
+
+  let evaluation_End = period_End;
+  let hasRollover = false;
+  let rollover_Start = null;
+  let rollover_End = null;
+
+  if (isPeriod1) {
+    // Period 1 (1st to 15th): attendance is evaluated from day 1 to 13.
+    evaluation_End = `${sY}-${String(sM).padStart(2, "0")}-13`;
+    hasRollover = true;
+    
+    // Rollover window from previous month tail (last 2 days of previous month)
+    const prevMonthLastDate = new Date(sY, sM - 1, 0);
+    const prevLastDay = prevMonthLastDate.getDate();
+    const prevMonth = prevMonthLastDate.getMonth() + 1;
+    const prevYear = prevMonthLastDate.getFullYear();
+    
+    rollover_Start = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(prevLastDay - 1).padStart(2, "0")}`;
+    rollover_End = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(prevLastDay).padStart(2, "0")}`;
+  } else if (isPeriod2) {
+    // Period 2 (16th to End): attendance is evaluated from day 16 to (End - 2).
+    evaluation_End = `${eY}-${String(eM).padStart(2, "0")}-${String(eD - 2).padStart(2, "0")}`;
+    hasRollover = true;
+    
+    // Rollover window from current month Period 1 tail (days 14 and 15)
+    rollover_Start = `${sY}-${String(sM).padStart(2, "0")}-14`;
+    rollover_End = `${sY}-${String(sM).padStart(2, "0")}-15`;
+  }
+
   // 1.1 Check if user has attendance exemption (is_time_exempt)
   const [empPosition] = await sequelize.query(
     `SELECT "position", "department", "is_time_exempt" FROM "User" WHERE "user_Id" = :user_Id LIMIT 1`,
@@ -237,6 +273,12 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     const dateStr = allDays[i];
     const isFuture = dateStr > todayStr;
     const isToday = dateStr === todayStr;
+
+    // 2-Day Cutoff attendance window: dates in the buffer tail are not penalized as absences
+    // and their variable premiums (OT/ND/Holidays) roll over into the next period.
+    if (isStandardSemiMonthly && dateStr > evaluation_End) {
+      continue;
+    }
 
     const holiday = holidayMap[dateStr];
     const log = logMap[dateStr];
@@ -418,6 +460,157 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     }
   }
 
+  // 7. Rollover Window Processing (Carry-over OT, Night Diff, and Holiday units from previous cutoff tail)
+  let rollover_ot_hrs = 0;
+  let rollover_nd_hrs = 0;
+  let rollover_hol_hrs = 0;
+  let rollover_legal_hol_hrs = 0;
+  let rollover_special_hol_hrs = 0;
+  const rolloverBreakdown = [];
+
+  if (hasRollover && rollover_Start && rollover_End) {
+    const rolloverLogs = await sequelize.query(
+      `SELECT
+         "log_Date"::text AS log_date,
+         "time_Logged_inArr",
+         "time_Logged_outArr",
+         "attendance_StatusId" as att_status,
+         COALESCE("reg_hrs", 0) as reg_hrs,
+         COALESCE("nd_hrs", 0) as nd_hrs,
+         COALESCE("ot_hrs", 0) as ot_hrs,
+         COALESCE("holiday_hrs", 0) as holiday_hrs,
+         COALESCE("total_payable_hrs", 0) as total_units
+       FROM "employee_Logging_report"
+       WHERE "user_id" = :user_Id
+       AND "log_Date" BETWEEN :rollover_Start AND :rollover_End`,
+      { replacements: { user_Id, rollover_Start, rollover_End }, type: QueryTypes.SELECT }
+    );
+    const rolloverLogMap = {};
+    rolloverLogs.forEach((l) => {
+      const dStr = typeof l.log_date === 'string' ? l.log_date : l.log_date.toISOString().split('T')[0];
+      rolloverLogMap[dStr] = l;
+    });
+
+    const rolloverHolidays = await sequelize.query(
+      `SELECT *, "date"::text FROM "Holiday" WHERE "date" BETWEEN :rollover_Start AND :rollover_End`,
+      { replacements: { rollover_Start, rollover_End }, type: QueryTypes.SELECT }
+    );
+    const rolloverHolidayMap = {};
+    rolloverHolidays.forEach((h) => {
+      const dStr = typeof h.date === 'string' ? h.date : h.date.toISOString().split('T')[0];
+      rolloverHolidayMap[dStr] = h;
+    });
+
+    const rolloverDaysResult = await sequelize.query(
+      `SELECT generate_series(
+         :rollover_Start::date,
+         :rollover_End::date,
+         '1 day'::interval
+       )::date::text AS work_date`,
+      { replacements: { rollover_Start, rollover_End }, type: QueryTypes.SELECT }
+    );
+    const rolloverDays = rolloverDaysResult.map(d => d.work_date);
+
+    for (const rDateStr of rolloverDays) {
+      const rLog = rolloverLogMap[rDateStr];
+      const rHoliday = rolloverHolidayMap[rDateStr];
+
+      if (rLog) {
+        const rOt = parseFloat(rLog.ot_hrs || 0);
+        const rNd = parseFloat(rLog.nd_hrs || 0);
+        const rRegHrs = parseFloat(rLog.reg_hrs || 0);
+
+        if (rOt > 0) {
+          rollover_ot_hrs += rOt;
+          total_ot_units += rOt;
+          total_payable_units += rOt;
+        }
+
+        if (rNd > 0) {
+          rollover_nd_hrs += rNd;
+          total_nd_units += rNd;
+        }
+
+        if (rHoliday) {
+          const isRegular = rHoliday.type === "Regular Holiday";
+          const loggedHolHours = parseFloat(rLog.holiday_hrs || 0);
+          const holHours = loggedHolHours > 0 ? loggedHolHours : (isRegular ? rRegHrs * 1.0 : rRegHrs * 0.3);
+
+          if (isRegular) {
+            legalHol_Days++;
+            rollover_legal_hol_hrs += holHours;
+            total_legal_hol_units += holHours;
+          } else {
+            specialHol_Days++;
+            rollover_special_hol_hrs += holHours;
+            total_special_hol_units += holHours;
+          }
+          rollover_hol_hrs += holHours;
+
+          holidayBreakdown.push({
+            holidayId: rHoliday.holidayId,
+            name: `${rHoliday.name || (isRegular ? "Regular Holiday" : "Special Holiday")} (Rollover from ${rDateStr})`,
+            date: rDateStr,
+            type: rHoliday.type,
+            worked: true,
+            hoursWorked: rRegHrs,
+            premiumHours: holHours,
+            multiplier: isRegular ? 2.0 : 1.3,
+            premiumRate: isRegular ? 1.0 : 0.3,
+            isRollover: true
+          });
+        }
+
+        if (rOt > 0 || rNd > 0 || (rHoliday && rRegHrs > 0)) {
+          rolloverBreakdown.push({
+            date: rDateStr,
+            ot_hrs: rOt,
+            nd_hrs: rNd,
+            reg_hrs: rRegHrs,
+            holidayName: rHoliday ? rHoliday.name : null
+          });
+        }
+      }
+    }
+
+    const rolloverOTRequests = await sequelize.query(
+      `SELECT ot.* FROM "Overtime_Request" ot
+       JOIN "emp_Request" er ON er."emp_reqId" = ot."emp_reqId"
+       WHERE ot."user_Id" = :user_Id
+       AND ot."OT_DateOf" BETWEEN :rollover_Start AND :rollover_End
+       AND er."emp_reqStatusId" = 2`,
+      { replacements: { user_Id, rollover_Start, rollover_End }, type: QueryTypes.SELECT }
+    );
+
+    for (const req of rolloverOTRequests) {
+      const dateStr = typeof req.OT_DateOf === 'string' ? req.OT_DateOf : req.OT_DateOf.toISOString().split('T')[0];
+      const rLog = rolloverLogMap[dateStr];
+      if (!rLog || parseFloat(rLog.ot_hrs || 0) === 0) {
+        const presenceLog = await sequelize.query(
+          `SELECT "time_Logged" FROM "user_logging"
+           WHERE "user_id" = :user_Id AND "log_Date"::date = :dateStr::date
+           AND "logged_StatusId" IN (2, 6)
+           AND "time_Logged" > :otStart
+           ORDER BY "time_Logged" DESC LIMIT 1`,
+          { replacements: { user_Id, dateStr, otStart: req.HrFrom }, type: QueryTypes.SELECT }
+        );
+        if (presenceLog.length > 0) {
+          const reqHrs = parseFloat(req.Total_Hrs || 0);
+          rollover_ot_hrs += reqHrs;
+          total_ot_units += reqHrs;
+          total_payable_units += reqHrs;
+          rolloverBreakdown.push({
+            date: dateStr,
+            ot_hrs: reqHrs,
+            nd_hrs: 0,
+            reg_hrs: 0,
+            isManual: true
+          });
+        }
+      }
+    }
+  }
+
   if (isPresident) {
     absence_Days = 0;
     tardiness_Mins = 0;
@@ -436,6 +629,12 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     holiday_hrs: Math.round(total_hol_units * 100) / 100,
     legal_hol_hrs: Math.round(total_legal_hol_units * 100) / 100,
     special_hol_hrs: Math.round(total_special_hol_units * 100) / 100,
+    rollover_ot_hrs: Math.round(rollover_ot_hrs * 100) / 100,
+    rollover_nd_hrs: Math.round(rollover_nd_hrs * 100) / 100,
+    rollover_hol_hrs: Math.round(rollover_hol_hrs * 100) / 100,
+    rollover_period: hasRollover ? { start: rollover_Start, end: rollover_End } : null,
+    rolloverBreakdown,
+    evaluation_End,
     totalScheduledDays,
     absence_Days,
     paidLeave_Days,
@@ -707,12 +906,12 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const otherTotal = grossEarnings > 0 ? (parseFloat(hCard || 0) + parseFloat(sLoan || 0) + parseFloat(hLoan || 0) + parseFloat(cLoan || 0) + personalLoanCombined + parseFloat(gDed || 0) + parseFloat(mpSave || 0)) : 0;
 
   let Tax_Ded_Final = 0;
-  if (grossEarnings > 0) {
+  if (grossEarnings > 0 && isMidMonth) {
     if (parseFloat(tax_Share || 0) > 0) {
       Tax_Ded_Final = parseFloat(tax_Share);
     } else {
       const { computePeriodTaxAsync } = require("../utils/govtDeductions");
-      Tax_Ded_Final = await computePeriodTaxAsync(grossEarnings, govtTotal, period_End, period_Start);
+      Tax_Ded_Final = await computePeriodTaxAsync(grossEarnings, govtTotal, period_End, period_Start, true);
     }
   }
  

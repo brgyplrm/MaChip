@@ -114,6 +114,8 @@ const Notifications = () => {
     }
 
     const titleLower = (notif.title || "").toLowerCase();
+    const msg = notif.message || "";
+    const targetReqId = notif.targetId || msg.match(/#(\d+)/)?.[1] || notif.title?.match(/#(\d+)/)?.[1];
 
     // Reroute irregular logs and unrecognized/unauthorized card scans to the transaction log page
     if (
@@ -125,10 +127,17 @@ const Notifications = () => {
       navigate("/transactionLog");
     } else if (notif.title === "Password Reset Request" && notif.targetId) {
       navigate(`/users/edit/${notif.targetId}`);
+    } else if (targetReqId) {
+      const userRole = Number(userData?.user_RoleId);
+      if (userRole === 1 || userRole === 2 || userRole === 4) {
+        navigate(`/adminRequests?requestId=${targetReqId}`, {
+          state: { selectedReqId: parseInt(targetReqId, 10) }
+        });
+      } else {
+        navigate(`/requests/${targetReqId}`);
+      }
     } else if (notif.title === "New Request for Review") {
       navigate("/adminRequests");
-    } else if (notif.targetId) {
-      navigate(`/requests/${notif.targetId}`);
     }
   };
 

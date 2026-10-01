@@ -13,6 +13,7 @@ const {
   getLeaveSummary,
   UpdateUserRequest,
   notifySupervisor,
+  pingApprover,
 } = require("../controllers/userRequest.controlller");
 const { requireOps, requireStaff, requireRole } = require("../middleware/roleCheck.js");
 const authMiddleware = require("../middleware/auth.js");
@@ -45,6 +46,8 @@ router.get("/:userId", GetUserRequests);
 router.put("/update-status", requireOps, UpdateStatusRequest);
 router.put("/update/:requestId", authMiddleware, UpdateUserRequest);
 router.post("/notify-supervisor/:requestId", authMiddleware, notifySupervisor);
+router.post("/ping-approver/:requestId", requireStaff, pingApprover);
+router.post("/:requestId/ping-approver", requireStaff, pingApprover);
 router.delete("/delete/:requestId", DeleteRequest);
 
 module.exports = router;

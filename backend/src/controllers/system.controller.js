@@ -181,15 +181,25 @@ exports.updateSystemSettings = async (req, res) => {
     const updateData = {};
 
     // 1. Time Simulation
+    let mockTimeChanged = false;
     if (req.body.useMockTime !== undefined || req.body.mockTimeEnabled !== undefined) {
-      updateData.mockTimeEnabled = req.body.useMockTime !== undefined ? Boolean(req.body.useMockTime) : Boolean(req.body.mockTimeEnabled);
+      const enabled = req.body.useMockTime !== undefined ? Boolean(req.body.useMockTime) : Boolean(req.body.mockTimeEnabled);
+      updateData.mockTimeEnabled = enabled;
+      if (enabled && (!oldSettings || !oldSettings.mockTimeEnabled)) {
+        mockTimeChanged = true;
+      }
     }
     if (req.body.mockDate !== undefined && req.body.mockTime !== undefined) {
       updateData.mockTimeValue = (req.body.mockDate && req.body.mockTime) 
         ? new Date(`${req.body.mockDate}T${req.body.mockTime}`) 
         : null;
+      mockTimeChanged = true;
     } else if (req.body.mockTimeValue !== undefined) {
-      updateData.mockTimeValue = req.body.mockTimeValue;
+      updateData.mockTimeValue = req.body.mockTimeValue ? new Date(req.body.mockTimeValue) : null;
+      mockTimeChanged = true;
+    }
+    if (mockTimeChanged) {
+      updateData.mockTimeSetAt = new Date();
     }
 
     // 2. Storage & System Infrastructure

@@ -41,6 +41,14 @@ const UserLogs = () => {
     return time;
   };
 
+  const isPMPunch = (timeStr) => {
+    if (!timeStr || timeStr === "—" || timeStr === "00:00") return false;
+    const parts = String(timeStr).substring(0, 5).split(":");
+    if (parts.length < 2) return false;
+    const mins = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+    return mins >= 720;
+  };
+
   const [toast, setToast] = useState({ message: "", type: "success" });
   
   // Data States
@@ -318,7 +326,10 @@ const UserLogs = () => {
     }
   }, [activeTab]);
 
-  const getDtrLogsForDay = (dayNum) => {
+  const getDtrLogsForDay = (dayNum, dateStrParam = null) => {
+    if (dateStrParam) {
+      return dtrData.find((d) => d.log_Date.split("T")[0] === dateStrParam);
+    }
     const targetDate = new Date(dtrStartDate + "T00:00:00");
     targetDate.setDate(dayNum);
     const dateStr = formatToYYYYMMDD(targetDate);
@@ -347,13 +358,37 @@ const UserLogs = () => {
       const cell = (val) => `<td>${!isSunday && log && val && val !== "—" ? val : ""}</td>`;
       const dailyTotal = !isSunday && log ? log.hoursWorked || "" : "";
 
+      const isIrregularDay = log?.status === "Irregular" || 
+                             log?.attendanceStatus === "Irregular" || 
+                             Number(log?.attendance_StatusId) === 8 || 
+                             Number(log?.attendanceStatusId) === 8 ||
+                             Number(log?.attendance_StatusId) === 7;
+
+      const morningInVal = isIrregularDay
+        ? ""
+        : ((log?.morning_In && log?.morning_In !== "—")
+            ? log.morning_In
+            : (log?.time_In && log?.time_In !== "—" ? log.time_In : (log?.inArr && log.inArr.length > 0 ? log.inArr[0] : "")));
+
+      const candidateOut = isIrregularDay
+        ? ""
+        : ((log?.afternoon_Out && log?.afternoon_Out !== "—")
+            ? log.afternoon_Out
+            : (log?.time_Out && log?.time_Out !== "—" && log.time_Out !== morningInVal && log.time_Out !== log?.morning_Out
+              ? log.time_Out
+              : (log?.outArr && log.outArr.length > 0 ? log.outArr[log.outArr.length - 1] : "")));
+
+      const afternoonOutVal = (candidateOut && isPMPunch(candidateOut) && candidateOut !== morningInVal && candidateOut !== log?.morning_Out)
+        ? candidateOut
+        : "";
+
       dayRowsHTML += `
         <tr class="${isSunday ? "weekend" : ""}">
           <td class="dayCol">${dayNum}</td>
-          ${cell(log?.morning_In)}
+          ${cell(morningInVal)}
           ${cell(log?.morning_Out)}
           ${cell(log?.afternoon_In)}
-          ${cell(log?.afternoon_Out)}
+          ${cell(afternoonOutVal)}
           ${cell(log?.ot_In)}
           ${cell(log?.ot_Out)}
           <td class="totalCol">${dailyTotal}</td>
@@ -1042,18 +1077,43 @@ const UserLogs = () => {
                                   const targetDate = new Date(dtrStartDate + "T00:00:00");
                                   targetDate.setDate(targetDate.getDate() + i);
                                   const dayNum = targetDate.getDate();
+                                  const dateStr = formatToYYYYMMDD(targetDate);
                                   const isSunday = targetDate.getDay() === 0;
   
-                                  const log = getDtrLogsForDay(dayNum);
+                                  const log = getDtrLogsForDay(dayNum, dateStr);
                                   const getCell = (val) => (!isSunday && log ? cleanTime(val, log.systemGenerated) : "");
+
+                                  const isIrregularDay = log?.status === "Irregular" || 
+                                                         log?.attendanceStatus === "Irregular" || 
+                                                         Number(log?.attendance_StatusId) === 8 || 
+                                                         Number(log?.attendanceStatusId) === 8 ||
+                                                         Number(log?.attendance_StatusId) === 7;
+
+                                  const morningInVal = isIrregularDay
+                                    ? ""
+                                    : ((log?.morning_In && log?.morning_In !== "—")
+                                        ? log.morning_In
+                                        : (log?.time_In && log?.time_In !== "—" ? log.time_In : (log?.inArr && log.inArr.length > 0 ? log.inArr[0] : "")));
+
+                                  const candidateOut = isIrregularDay
+                                    ? ""
+                                    : ((log?.afternoon_Out && log?.afternoon_Out !== "—")
+                                        ? log.afternoon_Out
+                                        : (log?.time_Out && log?.time_Out !== "—" && log.time_Out !== morningInVal && log.time_Out !== log?.morning_Out
+                                          ? log.time_Out
+                                          : (log?.outArr && log.outArr.length > 0 ? log.outArr[log.outArr.length - 1] : "")));
+
+                                  const afternoonOutVal = (candidateOut && isPMPunch(candidateOut) && candidateOut !== morningInVal && candidateOut !== log?.morning_Out)
+                                    ? candidateOut
+                                    : "";
   
                                   return (
                                     <tr key={dayNum} className={`text-center h-6 ${isSunday ? "bg-slate-200/50 text-slate-400" : ""}`}>
                                       <td className="border border-slate-400 font-bold bg-slate-50 w-8">{dayNum}</td>
-                                      <td className="border border-slate-400">{getCell(log?.morning_In)}</td>
+                                      <td className="border border-slate-400">{getCell(morningInVal)}</td>
                                       <td className="border border-slate-400">{getCell(log?.morning_Out)}</td>
                                       <td className="border border-slate-400">{getCell(log?.afternoon_In)}</td>
-                                      <td className="border border-slate-400">{getCell(log?.afternoon_Out)}</td>
+                                      <td className="border border-slate-400">{getCell(afternoonOutVal)}</td>
                                       <td className="border border-slate-400">{getCell(log?.ot_In)}</td>
                                       <td className="border border-slate-400">{getCell(log?.ot_Out)}</td>
                                       <td className="border border-slate-400 font-bold bg-slate-50">{!isSunday && log ? (log.hoursWorkedFormatted || log.hoursWorked) : ""}</td>

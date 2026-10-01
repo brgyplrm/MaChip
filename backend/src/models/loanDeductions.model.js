@@ -75,6 +75,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.SMALLINT,
         allowNull: true,
       },
+      deductionFrequency: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        defaultValue: 'semi-monthly',
+      },
       updatedBy: {
         type: DataTypes.SMALLINT,
         allowNull: true,

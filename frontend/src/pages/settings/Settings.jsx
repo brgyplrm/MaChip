@@ -102,7 +102,10 @@ const Settings = () => {
         
         if (data.mockTimeValue) {
           const dt = new Date(data.mockTimeValue);
-          setMockDate(dt.toISOString().split('T')[0]);
+          const YYYY = dt.getFullYear();
+          const MM = String(dt.getMonth() + 1).padStart(2, "0");
+          const DD = String(dt.getDate()).padStart(2, "0");
+          setMockDate(`${YYYY}-${MM}-${DD}`);
           setMockTime(dt.toTimeString().split(' ')[0].substring(0, 5));
         }
 
@@ -179,6 +182,7 @@ const Settings = () => {
       if (response.ok) {
         showNotification(successMessage);
         refreshSystemTime();
+        window.dispatchEvent(new Event("systemTimeRefresh"));
         await fetchSettings();
         return true;
       } else {

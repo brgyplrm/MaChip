@@ -4,7 +4,7 @@ import { fetchWithAuth } from "../../utils/api";
 import { getStoredUser, setStoredUser, getStoredViewMode, clearStoredAuth } from "../../utils/authStorage";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const [isValidating, setIsValidating] = useState(true);
+  const [isValidating, setIsValidating] = useState(() => !getStoredUser());
   const [currentUser, setCurrentUser] = useState(() => getStoredUser());
   const viewMode = getStoredViewMode("management");
 

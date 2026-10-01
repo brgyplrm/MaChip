@@ -111,13 +111,23 @@ const Datatable = () => {
 
   // Apply Filters
   const filteredData = data.filter(user => {
-    const formattedId = formatUserId(user.user_Id);
-    const matchesSearch = (
-      user.user_FirstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.user_LastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.user_Email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.user_Id?.toString().includes(searchTerm) ||
-      formattedId.toLowerCase().includes(searchTerm.toLowerCase())
+    const formattedId = formatUserId(user.user_Id).toLowerCase();
+    const searchLow = searchTerm.toLowerCase().trim();
+    const firstName = (user.user_FirstName || "").toLowerCase();
+    const lastName = (user.user_LastName || "").toLowerCase();
+    const fullName1 = `${firstName} ${lastName}`.trim();
+    const fullName2 = `${lastName} ${firstName}`.trim();
+    const email = (user.user_Email || "").toLowerCase();
+    const idStr = (user.user_Id || "").toString();
+
+    const matchesSearch = !searchLow || (
+      fullName1.includes(searchLow) ||
+      fullName2.includes(searchLow) ||
+      firstName.includes(searchLow) ||
+      lastName.includes(searchLow) ||
+      email.includes(searchLow) ||
+      idStr.includes(searchLow) ||
+      formattedId.includes(searchLow)
     );
 
     const matchesRole = roleFilter === "All Roles" || 
@@ -148,8 +158,12 @@ const Datatable = () => {
   const getStatusBadgeStyle = (status) => {
     const s = status?.toLowerCase() || "";
     if (s.includes("regular")) return "bg-emerald-50 text-emerald-700 border-emerald-100";
-    if (s.includes("part-time")) return "bg-blue-50 text-blue-700 border-blue-100";
-    return "bg-amber-50 text-amber-700 border-amber-100";
+    if (s.includes("probationary")) return "bg-blue-50 text-blue-700 border-blue-100";
+    if (s.includes("resigned")) return "bg-slate-100 text-slate-700 border-slate-200";
+    if (s.includes("terminated")) return "bg-rose-50 text-rose-700 border-rose-200";
+    if (s.includes("separated")) return "bg-amber-50 text-amber-700 border-amber-200";
+    if (s.includes("retired")) return "bg-purple-50 text-purple-700 border-purple-200";
+    return "bg-slate-50 text-slate-700 border-slate-100";
   };
 
   // State to track multiple visible row fields using their user_Id
@@ -391,7 +405,11 @@ const Datatable = () => {
                 <SelectContent>
                   <SelectItem value="All Statuses">All Statuses</SelectItem>
                   <SelectItem value="Regular">Regular</SelectItem>
-                  <SelectItem value="Intern / OJT">Intern / OJT</SelectItem>
+                  <SelectItem value="Probationary">Probationary</SelectItem>
+                  <SelectItem value="Resigned">Resigned</SelectItem>
+                  <SelectItem value="Terminated">Terminated</SelectItem>
+                  <SelectItem value="Separated">Separated</SelectItem>
+                  <SelectItem value="Retired">Retired</SelectItem>
                 </SelectContent>
               </Select>
             </div>

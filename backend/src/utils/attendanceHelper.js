@@ -172,21 +172,21 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
     const mEnd   = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
     
     // MIXED LOG LOGIC: Check if we should upgrade from Irregular (8) to a regular status
-    if (report.attendance_StatusId === 8) {
-      const firstRegularIn = inArr.find(t => t.substring(0, 5) >= "06:30" && t.substring(0, 5) < "17:30");
-      if (firstRegularIn) {
-        const graceTimeStr = settings?.gracePeriod || "08:35:00";
-        const graceTime = graceTimeStr.substring(0, 5);
-        const newStatus = (firstRegularIn.substring(0, 5) <= graceTime) ? 1 : 2;
-        await report.update({ attendance_StatusId: newStatus });
-        report.attendance_StatusId = newStatus;
-      }
-    }
-
-    let firstIn = inArr[0], lastOut = outArr[outArr.length - 1];
     const isNightShiftAllowed = Boolean(settings?.enableNightShift && user?.user_ShiftId === 2);
     const shiftStart = isNightShiftAllowed ? (settings?.eveningShiftStart || "20:30:00") : (settings?.morningShiftStart || "08:30:00");
     const shiftEnd = isNightShiftAllowed ? (settings?.eveningShiftEnd || "05:30:00") : (settings?.morningShiftEnd || "17:30:00");
+
+    const firstRegularIn = !isNightShiftAllowed ? inArr.find(t => t.substring(0, 5) >= "05:30" && t.substring(0, 5) < shiftEnd.substring(0, 5)) : inArr[0];
+    if (report.attendance_StatusId === 8 && firstRegularIn) {
+      const graceTimeStr = settings?.gracePeriod || "08:35:00";
+      const graceTime = graceTimeStr.substring(0, 5);
+      const newStatus = (firstRegularIn.substring(0, 5) <= graceTime) ? 1 : 2;
+      await report.update({ attendance_StatusId: newStatus });
+      report.attendance_StatusId = newStatus;
+    }
+
+    let firstIn = (!isNightShiftAllowed && firstRegularIn) ? firstRegularIn : inArr[0];
+    let lastOut = outArr[outArr.length - 1];
     
     // Clamp to shift boundaries for REGULAR hours calculation
     if (firstIn && firstIn < shiftStart && !isNightShiftAllowed) firstIn = shiftStart;
@@ -217,25 +217,22 @@ function mapLogsToBuckets(inArr, outArr, settings, otStartTime = null) {
   let ins = (inArr || []).map(t => t.substring(0, 5)).filter(t => t && t !== "—" && t !== "00:00").sort();
   let outs = (outArr || []).map(t => t.substring(0, 5)).filter(t => t && t !== "—" && t !== "00:00").sort();
   
-  // Define thresholds
-  const irregularStart = "17:30";
-  const irregularEnd = "06:30";
+  // Define thresholds (allow all valid timestamps across the 24-hour cycle)
+  const irregularStart = "23:59";
+  const irregularEnd = "00:00";
 
-  // Filter Ins: Must be within regular window OR approved OT
+  // Filter Ins: Keep all valid timestamps
   ins = ins.filter(time => {
     if (otStartTime && time >= otStartTime) return true;
     const mins = timeToMins(time);
-    return mins >= timeToMins(irregularEnd) && mins < timeToMins(irregularStart);
+    return mins >= timeToMins(irregularEnd) && mins <= timeToMins(irregularStart);
   });
 
-  // Filter Outs: Allow shift clock-outs (up to 18:30 if no IN recorded, or 19:30 if IN recorded, or any time with approved OT)
+  // Filter Outs: Allow shift clock-outs
   outs = outs.filter(time => {
     if (otStartTime && time >= otStartTime) return true;
     const mins = timeToMins(time);
-    if (ins.length === 0) {
-      return mins >= timeToMins(irregularEnd) && mins <= timeToMins("18:30");
-    }
-    return mins >= timeToMins(irregularEnd) && (otStartTime || mins <= timeToMins("19:30"));
+    return mins >= timeToMins(irregularEnd) && mins <= timeToMins(irregularStart);
   });
 
   let morning_In = "—";

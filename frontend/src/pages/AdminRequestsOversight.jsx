@@ -99,15 +99,21 @@ const AdminRequestsOversight = () => {
   const handleNotifyApprover = async (emp_reqId, statusId) => {
     try {
       setToast({ message: "Sending notification to approver...", type: "success" });
-      
-      setTimeout(() => {
+      const response = await fetchWithAuth(`/api/request/ping-approver/${emp_reqId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminNote, statusId })
+      });
+      const data = await response.json();
+      if (response.ok) {
         setNotifiedRequests(prev => new Set([...prev, emp_reqId]));
-        setToast({ message: "Reminder successfully sent to the pending approver!", type: "success" });
+        setToast({ message: data.message || "Reminder successfully sent to the pending approver!", type: "success" });
         setAdminNote(""); // Clear note after sending
-      }, 800);
-
+      } else {
+        setToast({ message: data.error || "Failed to send notification", type: "error" });
+      }
     } catch (error) {
-      setToast({ message: "Failed to send notification", type: "error" });
+      setToast({ message: "Failed to send notification: " + error.message, type: "error" });
     }
   };
 

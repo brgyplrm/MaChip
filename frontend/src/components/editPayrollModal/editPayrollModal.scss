@@ -32,18 +32,48 @@
   }
 
   .modalHeader {
-    padding: 20px 24px;
+    padding: 18px 24px;
     background: #f8fafc;
     border-bottom: 1px solid #e2e8f0;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
 
     h2 {
       margin: 0;
       font-size: 1.25rem;
       color: #1e293b;
       font-weight: 700;
+    }
+
+    .employeeSubtitle {
+      margin: 4px 0 0 0;
+      font-size: 0.8rem;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+
+      .empName {
+        font-weight: 600;
+        color: #2A174E;
+      }
+      .empId {
+        font-family: monospace;
+        font-weight: 600;
+        color: #4f46e5;
+        background: #eef2ff;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+      }
+      .empDivider {
+        color: #cbd5e1;
+      }
+      .empRole {
+        color: #64748b;
+      }
     }
 
     .closeBtn {
@@ -70,7 +100,7 @@
     flex: 1;
 
     .modalSection {
-      margin-bottom: 32px;
+      margin-bottom: 28px;
 
       &:last-child {
         margin-bottom: 0;
@@ -80,7 +110,7 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
         border-bottom: 2px solid #f1f5f9;
         padding-bottom: 8px;
 
@@ -88,7 +118,7 @@
           width: 8px;
           height: 8px;
           border-radius: 50%;
-          background: #3b82f6;
+          background: #10b981;
 
           &.blue { background: #0ea5e9; }
           &.orange { background: #f59e0b; }
@@ -96,33 +126,160 @@
 
         h3 {
           margin: 0;
-          font-size: 0.85rem;
+          font-size: 0.82rem;
           font-weight: 800;
           color: #64748b;
           letter-spacing: 0.05em;
         }
 
-        .calcBtn {
+        .badge {
           margin-left: auto;
-          background: #eff6ff;
-          border: 1px solid #bfdbfe;
-          color: #2563eb;
-          padding: 4px 10px;
-          border-radius: 4px;
-          font-size: 0.75rem;
-          font-weight: 600;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          transition: all 0.2s;
+          font-size: 0.68rem;
+          font-weight: 700;
+          padding: 2px 8px;
+          border-radius: 9999px;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
 
-          &:hover:not(:disabled) {
-            background: #dbeafe;
+          &.editable {
+            background: #ecfdf5;
+            color: #059669;
+            border: 1px solid #a7f3d0;
           }
-          &:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+          &.auto {
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+          }
+          &.readonly {
+            background: #f8fafc;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+          }
+        }
+      }
+
+      .loanSummaryBanner {
+        background: #faf5ff;
+        border: 1px solid #e9d5ff;
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin-bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        .summaryInfo {
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+          flex-wrap: wrap;
+
+          .summaryLabel {
+            font-size: 0.8rem;
+            color: #6b21a8;
+            font-weight: 500;
+          }
+
+          .summaryValue {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #581c87;
+            font-family: monospace;
+          }
+        }
+
+        .statusBadge {
+          font-size: 0.7rem;
+          font-weight: 700;
+          padding: 3px 10px;
+          border-radius: 9999px;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+
+          &.hasLoans {
+            background: #ede9fe;
+            color: #6d28d9;
+            border: 1px solid #ddd6fe;
+          }
+
+          &.noLoans {
+            background: #f1f5f9;
+            color: #94a3b8;
+            border: 1px solid #e2e8f0;
+          }
+        }
+      }
+
+      .activeLoansListContainer {
+        margin-bottom: 16px;
+
+        .activeLoansListTitle {
+          display: block;
+          font-size: 0.72rem;
+          font-weight: 700;
+          color: #6b21a8;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          margin-bottom: 6px;
+        }
+
+        .activeLoansList {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .activeLoanCard {
+          background: #faf5ff;
+          border: 1px solid #e9d5ff;
+          border-radius: 6px;
+          padding: 8px 12px;
+
+          .loanCardTop {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+
+            .loanCardTitle {
+              font-size: 0.8rem;
+              font-weight: 700;
+              color: #4a044e;
+            }
+
+            .loanCardBadge {
+              font-size: 0.65rem;
+              font-weight: 700;
+              padding: 1px 6px;
+              border-radius: 9999px;
+              background: #d8b4fe;
+              color: #581c87;
+              letter-spacing: 0.04em;
+            }
+          }
+
+          .loanCardDetails {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+
+            .detailRow {
+              display: flex;
+              gap: 4px;
+              font-size: 0.75rem;
+
+              .detailLabel {
+                color: #701a75;
+                font-weight: 500;
+              }
+
+              .detailVal {
+                color: #2e1065;
+                font-weight: 700;
+                font-family: monospace;
+              }
+            }
           }
         }
       }
@@ -139,7 +296,7 @@
       .inputGrid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 16px;
+        gap: 14px;
       }
 
       .field {
@@ -173,7 +330,7 @@
             color: #64748b;
             cursor: not-allowed;
             border-color: #cbd5e1;
-            opacity: 0.8;
+            opacity: 0.9;
           }
         }
 
@@ -199,6 +356,7 @@
               background: #f8fafc;
               color: #64748b;
               cursor: not-allowed;
+              border-color: #e2e8f0;
             }
           }
         }

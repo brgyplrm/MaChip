@@ -280,6 +280,16 @@ const AdminReports = () => {
     }
   }, [calendarStartDate, calendarEndDate]);
 
+  // Sync default filters if systemToday loads and user hasn't manually customized filters
+  const [hasManuallyFiltered, setHasManuallyFiltered] = useState(false);
+  useEffect(() => {
+    if (!hasManuallyFiltered && systemToday) {
+      setSelectedYear(systemToday.getFullYear().toString());
+      setSelectedMonth((systemToday.getMonth() + 1).toString());
+      setSelectedPeriod(systemToday.getDate() <= 15 ? "1" : "2");
+    }
+  }, [systemToday, hasManuallyFiltered]);
+
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
@@ -289,6 +299,18 @@ const AdminReports = () => {
     else if (activeReport === "payroll") fetchPayrollReport();
     else if (activeReport === "calendar") fetchCalendarReport();
     else if (activeReport === "requests") fetchRequestsReport();
+  }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport, fetchRequestsReport]);
+
+  // Real-time synchronization when RFID/Biometric scans or approvals occur
+  useEffect(() => {
+    const handleDataRefresh = () => {
+      if (activeReport === "attendance") fetchAttendanceReport();
+      else if (activeReport === "payroll") fetchPayrollReport();
+      else if (activeReport === "calendar") fetchCalendarReport();
+      else if (activeReport === "requests") fetchRequestsReport();
+    };
+    window.addEventListener("dataRefresh", handleDataRefresh);
+    return () => window.removeEventListener("dataRefresh", handleDataRefresh);
   }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport, fetchRequestsReport]);
 
   useEffect(() => {
@@ -461,9 +483,10 @@ const AdminReports = () => {
 
   // --- Reducer Operational Loops ---
   const attStats = attendanceData.reduce((acc, curr) => {
-    if (curr.status === "On-Time") acc.present++;
-    else if (curr.status === "Late") { acc.present++; acc.late++; }
-    else if (curr.status === "Absent") acc.absent++;
+    const s = (curr.status || "").toLowerCase().replace(/[^a-z]/g, "");
+    if (s === "ontime" || s === "present" || s === "exempt") acc.present++;
+    else if (s === "late") { acc.present++; acc.late++; }
+    else if (s === "absent") acc.absent++;
     acc.totalHours += parseFloat(curr.hoursWorked) || 0;
     return acc;
   }, { present: 0, absent: 0, late: 0, totalHours: 0 });
@@ -897,7 +920,7 @@ const AdminReports = () => {
               {(activeReport === "attendance" || activeReport === "payroll") && (
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto flex-wrap">
                   {/* Year Selection */}
-                  <Select value={selectedYear || ""} onValueChange={(val) => setSelectedYear(val === "all" ? "" : val)}>
+                  <Select value={selectedYear || ""} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedYear(val === "all" ? "" : val); }}>
                     <SelectTrigger className="w-full sm:w-[110px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="Year" />
                     </SelectTrigger>
@@ -910,7 +933,7 @@ const AdminReports = () => {
                   </Select>
 
                   {/* Month Selection */}
-                  <Select value={selectedMonth || ""} onValueChange={(val) => setSelectedMonth(val === "all" ? "" : val)}>
+                  <Select value={selectedMonth || ""} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedMonth(val === "all" ? "" : val); }}>
                     <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="Month" />
                     </SelectTrigger>
@@ -923,7 +946,7 @@ const AdminReports = () => {
                   </Select>
 
                   {/* Period Selection (1st or 2nd) */}
-                  <Select value={selectedPeriod || ""} onValueChange={(val) => setSelectedPeriod(val === "all" ? "" : val)}>
+                  <Select value={selectedPeriod || ""} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedPeriod(val === "all" ? "" : val); }}>
                     <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="Period" />
                     </SelectTrigger>
@@ -936,7 +959,7 @@ const AdminReports = () => {
                   </Select>
 
                   {/* Employee Selection */}
-                  <Select value={selectedEmployee || "All Employees"} onValueChange={setSelectedEmployee}>
+                  <Select value={selectedEmployee || "All Employees"} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedEmployee(val); }}>
                     <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="All Employees" />
                     </SelectTrigger>
@@ -1070,10 +1093,11 @@ const AdminReports = () => {
                       </TableHeader>
                       <TableBody>
                         {currentData.map((r, i) => {
+                          const sNorm = (r.status || "").toLowerCase().replace(/[^a-z]/g, "");
                           let badgeStyle = "bg-slate-100 text-slate-800 font-bold";
-                          if (r.status === "On-Time") badgeStyle = "bg-green-100 text-green-800 font-bold";
-                          else if (r.status === "Late") badgeStyle = "bg-amber-100 text-amber-800 font-bold";
-                          else if (r.status === "Absent") badgeStyle = "bg-red-100 text-red-800 font-bold";
+                          if (sNorm === "ontime" || sNorm === "present" || sNorm === "exempt") badgeStyle = "bg-green-100 text-green-800 font-bold";
+                          else if (sNorm === "late") badgeStyle = "bg-amber-100 text-amber-800 font-bold";
+                          else if (sNorm === "absent") badgeStyle = "bg-red-100 text-red-800 font-bold";
 
                           return (
                             <TableRow key={i} className="hover:bg-slate-50 transition-colors border-b-slate-100">

@@ -256,6 +256,7 @@ module.exports = (sequelize, DataTypes) => {
       serviceFee: { type: DataTypes.DOUBLE, defaultValue: 0.01 },
       proRatedInterest: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
       netDisbursement: { type: DataTypes.DECIMAL(12, 2) },
+      deductionFrequency: { type: DataTypes.STRING(20), defaultValue: 'semi-monthly', allowNull: true },
     },
     { timestamps: true, freezeTableName: true },
   );

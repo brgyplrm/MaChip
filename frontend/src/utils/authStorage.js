@@ -23,6 +23,9 @@ export const setStoredUser = (userData) => {
   const serialized = JSON.stringify(userData);
   sessionStorage.setItem("userData", serialized);
   localStorage.setItem("userData", serialized);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("userUpdate"));
+  }
 };
 
 export const getStoredViewMode = (defaultMode = "management") => {
@@ -42,5 +45,8 @@ export const clearStoredAuth = () => {
     localStorage.removeItem("userData");
     localStorage.removeItem("viewMode");
     localStorage.removeItem("token");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("userUpdate"));
+    }
   } catch (e) {}
 };

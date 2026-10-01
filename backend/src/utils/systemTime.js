@@ -7,7 +7,15 @@ async function getSystemTime() {
   try {
     const settings = await SystemSettings.findOne();
     if (settings && settings.mockTimeEnabled && settings.mockTimeValue) {
-      return new Date(settings.mockTimeValue);
+      const baseMockTime = new Date(settings.mockTimeValue).getTime();
+      const setAt = settings.mockTimeSetAt || settings.updatedAt || settings.createdAt;
+      if (setAt) {
+        const elapsed = Date.now() - new Date(setAt).getTime();
+        if (elapsed > 0) {
+          return new Date(baseMockTime + elapsed);
+        }
+      }
+      return new Date(baseMockTime);
     }
     return new Date();
   } catch (error) {

@@ -36,7 +36,7 @@ exports.notifySupervisor = async (req, res) => {
     }
 
     const admins = await sequelize.query(
-      `SELECT "user_Id", "user_Email" FROM "User" WHERE "user_RoleId" IN (1, 2) AND "deletedAt" IS NULL`,
+      `SELECT "user_Id", "user_Email" FROM "User" WHERE "user_RoleId" IN (1, 2) AND "deletedAt" IS NULL AND "user_Id" != 999`,
       { type: QueryTypes.SELECT }
     );
 
@@ -59,6 +59,202 @@ exports.notifySupervisor = async (req, res) => {
     res.status(200).json({ message: "Supervisors have been notified." });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+// ── Ping Approver (Admin / Accountant Oversight) ───────────────────────────
+exports.pingApprover = async (req, res) => {
+  const { requestId } = req.params;
+  const { adminNote } = req.body || {};
+  const currentAdmin = req.user;
+
+  try {
+    const requestRows = await sequelize.query(
+      `SELECT er.*, rt."reqTypeName", u."user_FirstName", u."user_LastName", u."user_Email", u."department"
+       FROM "emp_Request" er
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+       WHERE er."emp_reqId" = :requestId`,
+      { replacements: { requestId }, type: QueryTypes.SELECT }
+    );
+
+    if (!requestRows || requestRows.length === 0) {
+      return res.status(404).json({ error: "Request not found." });
+    }
+
+    const request = requestRows[0];
+
+    // Status 3/4 = Approved, 5 = Rejected, 6 = Cancelled
+    if ([3, 4, 5, 6].includes(request.emp_reqStatusId)) {
+      return res.status(400).json({ error: "Cannot ping approver for an already finalized request." });
+    }
+
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    const senderId = currentAdmin ? parseInt(currentAdmin.user_Id) : 0;
+
+    // Identify target approvers based on current bottleneck status
+    let approvers = [];
+    if (request.emp_reqStatusId === 1) {
+      // Status 1: Waiting for Supervisor / Department Head recommendation
+      if (request.department) {
+        approvers = await sequelize.query(
+          `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email"
+           FROM "User"
+           WHERE "user_RoleId" = 2 
+             AND "department" = :dept 
+             AND "deletedAt" IS NULL 
+             AND "user_Id" != 999 
+             AND "user_Id" != :senderId`,
+          { replacements: { dept: request.department, senderId }, type: QueryTypes.SELECT }
+        );
+      }
+
+      // If no department supervisor found, fall back to any active supervisor
+      if (!approvers || approvers.length === 0) {
+        approvers = await sequelize.query(
+          `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email"
+           FROM "User"
+           WHERE "user_RoleId" = 2 
+             AND "deletedAt" IS NULL 
+             AND "user_Id" != 999 
+             AND "user_Id" != :senderId`,
+          { replacements: { senderId }, type: QueryTypes.SELECT }
+        );
+      }
+
+      // If still no supervisor in the company, fall back to Admin Managers
+      if (!approvers || approvers.length === 0) {
+        approvers = await sequelize.query(
+          `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email"
+           FROM "User"
+           WHERE "user_RoleId" = 1 
+             AND "deletedAt" IS NULL 
+             AND "user_Id" != 999 
+             AND "user_Id" != :senderId`,
+          { replacements: { senderId }, type: QueryTypes.SELECT }
+        );
+      }
+    } else {
+      // Status 2 or others: Waiting for Admin / Accountant Approval
+      approvers = await sequelize.query(
+        `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email"
+         FROM "User"
+         WHERE "user_RoleId" IN (1, 4) 
+           AND "deletedAt" IS NULL 
+           AND "user_Id" != 999 
+           AND "user_Id" != :senderId`,
+        { replacements: { senderId }, type: QueryTypes.SELECT }
+      );
+
+      if (!approvers || approvers.length === 0) {
+        approvers = await sequelize.query(
+          `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email"
+           FROM "User"
+           WHERE "user_RoleId" = 1 
+             AND "deletedAt" IS NULL 
+             AND "user_Id" != 999 
+             AND "user_Id" != :senderId`,
+          { replacements: { senderId }, type: QueryTypes.SELECT }
+        );
+      }
+    }
+
+    if (!approvers || approvers.length === 0) {
+      return res.status(400).json({ error: "No pending approvers found to ping (all eligible recipients are either inactive or the sender)." });
+    }
+
+    let adminName = "Administrator";
+    if (senderId) {
+      const senderRows = await sequelize.query(
+        `SELECT "user_FirstName", "user_LastName" FROM "User" WHERE "user_Id" = :senderId LIMIT 1`,
+        { replacements: { senderId }, type: QueryTypes.SELECT }
+      );
+      if (senderRows && senderRows.length > 0 && senderRows[0].user_FirstName) {
+        adminName = `${senderRows[0].user_FirstName} ${senderRows[0].user_LastName || ""}`.trim();
+      }
+    }
+
+    const reqType = request.reqTypeName || "Request";
+    const empName = `${request.user_FirstName} ${request.user_LastName}`;
+    const dateFormatted = request.date_Filed ? new Date(request.date_Filed).toLocaleDateString() : new Date().toLocaleDateString();
+    const duration = request.Total_Hrs ? `${request.Total_Hrs} hrs` : (request.NoDays ? `${request.NoDays} days` : null);
+
+    const msg = `Attention: ${adminName} has pinged you regarding ${reqType} #${requestId} for ${empName}.${adminNote ? ` Note: "${adminNote}"` : ""}`;
+
+    // 1. Create in-app notifications
+    for (const approver of approvers) {
+      await Notification.create({
+        user_Id: approver.user_Id,
+        title: `Pending Action: ${reqType} #${requestId}`,
+        message: msg,
+        targetId: parseInt(requestId, 10),
+        isRead: false
+      });
+    }
+
+    // 2. Real-time WebSockets
+    try {
+      const io = getIO();
+      if (io) {
+        for (const approver of approvers) {
+          const notifPayload = {
+            title: `Pending Action: ${reqType} #${requestId}`,
+            message: msg,
+            requestId: parseInt(requestId, 10),
+            targetId: parseInt(requestId, 10),
+            targetUserId: parseInt(approver.user_Id, 10)
+          };
+          io.to(`user_${approver.user_Id}`).emit("new_notification", notifPayload);
+          io.to(`user_${approver.user_Id}`).emit("NOTIFICATION_UPDATE");
+          // Broadcast fallback with targetUserId check
+          io.emit("NEW_NOTIFICATION", notifPayload);
+        }
+      }
+    } catch (sockErr) {
+      console.warn("[SOCKET PING WARN]:", sockErr.message);
+    }
+
+    // 3. Send Email Notifications
+    for (const approver of approvers) {
+      if (approver.user_Email) {
+        try {
+          await sendRequestNotificationEmail({
+            toEmail: approver.user_Email,
+            approverName: `${approver.user_FirstName} ${approver.user_LastName}`,
+            requesterName: empName,
+            requestType: reqType,
+            dateStr: dateFormatted,
+            duration,
+            isEscalation: true
+          });
+        } catch (emailErr) {
+          console.warn(`[EMAIL PING WARN] for ${approver.user_Email}:`, emailErr.message);
+        }
+      }
+    }
+
+    // 4. Update request timestamp
+    await sequelize.query(
+      `UPDATE "emp_Request" SET "last_escalated_at" = :now WHERE "emp_reqId" = :requestId`,
+      { replacements: { now: nowStr, requestId }, type: QueryTypes.UPDATE }
+    );
+
+    // 5. Audit Log
+    const adminId = currentAdmin ? currentAdmin.user_Id : 1;
+    await logAudit(req, adminId, "Requests Oversight", "PING_APPROVER", "emp_Request", requestId, null, {
+      pingedApprovers: approvers.map(a => a.user_Id),
+      adminNote: adminNote || null
+    });
+
+    return res.status(200).json({
+      message: `Reminder successfully sent to ${approvers.length} pending approver(s)!`,
+      pingedCount: approvers.length
+    });
+  } catch (err) {
+    console.error("[PING APPROVER ERROR]:", err);
+    return res.status(500).json({ error: err.message });
   }
 };
 
@@ -170,7 +366,7 @@ exports.UpdateUserRequest = async (req, res) => {
         { 
           replacements: { 
             StartDate: StartDate || request.StartDate || request.DateOfLeave || null, 
-            NoDays: parseFloat(NoDays) || request.NoDays || 1,
+            NoDays: NoDays || request.NoDays || 1,
             reason: effectiveReason, 
             WithPayID: effectiveWithPay, 
             requestId 
@@ -233,7 +429,8 @@ exports.UpdateUserRequest = async (req, res) => {
         loanApprovalDate,
         amortizationStartMonth,
         calamityArea,
-        pagibigTAV
+        pagibigTAV,
+        deductionFrequency
       } = req.body;
 
       let effectiveAmortizationStartMonth = amortizationStartMonth;
@@ -268,6 +465,7 @@ exports.UpdateUserRequest = async (req, res) => {
           "amortizationStartMonth" = :amortizationStartMonth,
           "calamityArea" = :calamityArea,
           "pagibigTAV" = :pagibigTAV,
+          "deductionFrequency" = :deductionFrequency,
           "updatedAt" = :now 
         WHERE "emp_reqId" = :requestId`,
         { 
@@ -283,6 +481,7 @@ exports.UpdateUserRequest = async (req, res) => {
             amortizationStartMonth: effectiveAmortizationStartMonth || null,
             calamityArea: calamityArea || null,
             pagibigTAV: pagibigTAV || null,
+            deductionFrequency: deductionFrequency || request.deductionFrequency || 'semi-monthly',
             now: nowStr, 
             requestId 
           }, 
@@ -499,7 +698,9 @@ exports.UserCreateRequest = async (req, res) => {
     let systemRemarks = [];
 
     // --- HOLIDAY ADJACENCY & INTERVENING RULE (SANDWICH RULE) ---
-    if ([3, 4, 6, 7, 8, 9, 10, 11, 12].includes(finalReqTypeId)) {
+    // Applies strictly to discretionary company leaves: Vacation (3) and Half-day (7).
+    // Emergency Leave (6), statutory leaves (8-12), and Sick Leave (4) are strictly exempt.
+    if ([3, 7].includes(finalReqTypeId)) {
       const leaveDateStart = StartDate || req.body.DateOfLeave;
       const leaveDateEnd = EndDate || req.body.DateOfLeave;
 
@@ -736,9 +937,18 @@ exports.UserCreateRequest = async (req, res) => {
 
     let userLeaveBalance = null;
 
+    // Emergency Leave is strictly limited to 1 day per application
+    if (finalReqTypeId === 6) {
+      const requestedELDays = finalNoDays || parseFloat(req.body.NoDays) || parseFloat(req.body.noDays) || 1;
+      if (requestedELDays > 1) {
+        await t.rollback();
+        return res.status(400).json({ error: "Emergency Leave is strictly limited to a maximum of 1 day per application." });
+      }
+    }
+
     // Check Leave Balances if applicable before creating parent request
     if ([3, 4, 6, 7, 10].includes(finalReqTypeId)) {
-      const checkDays = [7, 10].includes(finalReqTypeId) ? 0.5 : finalNoDays;
+      const checkDays = [7, 10].includes(finalReqTypeId) ? 0.5 : (finalReqTypeId === 6 ? 1 : finalNoDays);
       if (!StartDate && !req.body.DateOfLeave) {
         await t.rollback();
         return res.status(400).json({ error: "Leave date is required" });
@@ -993,7 +1203,7 @@ exports.UserCreateRequest = async (req, res) => {
     else if (finalReqTypeId === 6) {
       const { DateOfLeave, reason: reqReason, StartDate: sDate } = req.body;
       const effectiveDateOfLeave = DateOfLeave || sDate || StartDate;
-      const effectiveNoDays = finalNoDays || parseFloat(req.body.NoDays) || parseFloat(req.body.noDays) || 1;
+      const effectiveNoDays = 1; // Strictly 1 day for Emergency Leave
       const elResult = await sequelize.query(
         `INSERT INTO "Emergency_Leave"
         ("emp_reqId", "user_Id", "DateOfLeave", "NoDays", "reason", "WithPayID")
@@ -1212,18 +1422,19 @@ exports.UserCreateRequest = async (req, res) => {
         mscCount,
         avgMSC,
         consoDP,
-        pagibigTAV
+        pagibigTAV,
+        deductionFrequency
       } = req.body;
 
       const loanReqResult = await sequelize.query(
         `INSERT INTO "Loan_Request"
         ("emp_reqId", "user_Id", "agency", "loanType", "amountRequested", "monthsToPay", "isEnrollment", "proof_File", 
          "loanReferenceNo", "loanApprovalDate", "monthlyAmortization", "totalLoanTerm", "amortizationStartMonth", "totalOutstandingBalance",
-         "calamityArea", "damageProof_File", "netPaySufficient", "mscCount", "avgMSC", "consoDP", "pagibigTAV",
+         "calamityArea", "damageProof_File", "netPaySufficient", "mscCount", "avgMSC", "consoDP", "pagibigTAV", "deductionFrequency",
          "createdAt", "updatedAt")
         VALUES (:emp_reqId, :userId, :agency, :loanType, :amountRequested, :monthsToPay, :isEnrollment, :proof_File, 
                 :loanReferenceNo, :loanApprovalDate, :monthlyAmortization, :totalLoanTerm, :amortizationStartMonth, :totalOutstandingBalance,
-                :calamityArea, :damageProof_File, :netPaySufficient, :mscCount, :avgMSC, :consoDP, :pagibigTAV,
+                :calamityArea, :damageProof_File, :netPaySufficient, :mscCount, :avgMSC, :consoDP, :pagibigTAV, :deductionFrequency,
                 :now, :now)
         RETURNING *`,
         {
@@ -1249,6 +1460,7 @@ exports.UserCreateRequest = async (req, res) => {
             avgMSC: avgMSC || 0,
             consoDP: consoDP || 0,
             pagibigTAV: pagibigTAV || 0,
+            deductionFrequency: deductionFrequency || 'semi-monthly',
             now: nowStr
           },
           type: QueryTypes.INSERT,
@@ -1499,6 +1711,8 @@ exports.GetUserRequests = async (req, res) => {
         lr."calamityArea" as "LR_calamityArea",
         lr."damageProof_File" as "LR_damageProof",
         lr."netPaySufficient" as "LR_netPaySufficient",
+        lr."pagibigTAV" as "LR_pagibigTAV",
+        lr."deductionFrequency" as "LR_deductionFrequency",
         lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
         lb."SL_balance",
@@ -1629,6 +1843,8 @@ exports.GetAllRequests = async (req, res) => {
         lr."calamityArea" as "LR_calamityArea",
         lr."damageProof_File" as "LR_damageProof",
         lr."netPaySufficient" as "LR_netPaySufficient",
+        lr."pagibigTAV" as "LR_pagibigTAV",
+        lr."deductionFrequency" as "LR_deductionFrequency",
         lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
         lb."SL_balance",
@@ -1977,8 +2193,11 @@ exports.UpdateStatusRequest = async (req, res) => {
         const { 
           agency, loanType, amountRequested, monthsToPay, proof_File,
           loanReferenceNo, loanApprovalDate, monthlyAmortization, totalLoanTerm,
-          amortizationStartMonth, totalOutstandingBalance
+          amortizationStartMonth, totalOutstandingBalance, deductionFrequency
         } = loanDetails[0];
+
+        const frequency = deductionFrequency || 'semi-monthly';
+        const isMonthlyFreq = (frequency === 'monthly');
         
         const totalAmount = parseFloat(amountRequested) || parseFloat(totalOutstandingBalance) || 0;
         const months = parseInt(monthsToPay) || parseInt(totalLoanTerm) || 12;
@@ -2010,6 +2229,7 @@ exports.UpdateStatusRequest = async (req, res) => {
         const schedule = generateSchedule(totalAmount, annualRate, months);
         const amortMonthly = schedule[0]?.totalPayment || (totalAmount / months);
         const perCutoff = amortMonthly / 2;
+        const effectiveDeductionPerCutoff = isMonthlyFreq ? amortMonthly : perCutoff;
 
         // Map agency/type to deductionType enum
         let dedType = 'multipurpose';
@@ -2055,16 +2275,17 @@ exports.UpdateStatusRequest = async (req, res) => {
         // 5. Insert into master Loan_Deductions table
         await sequelize.query(
           `INSERT INTO "Loan_Deductions" 
-            ("userId", "deductionType", "status", "contractDate", "monthsToPay", "deductionPerCutoff", "totalAmount", "remainingBalance", "provider", "reference", "notes", "createdBy", "createdAt", "updatedAt")
+            ("userId", "deductionType", "status", "contractDate", "monthsToPay", "deductionPerCutoff", "totalAmount", "remainingBalance", "provider", "reference", "notes", "deductionFrequency", "createdBy", "createdAt", "updatedAt")
           VALUES 
-            (:userId, :dedType, 'active', :contractDate, :months, :perCutoff, :total, :balance, :agency, :reference, :notes, :adminId, :now, :now)`,
+            (:userId, :dedType, 'active', :contractDate, :months, :perCutoff, :total, :balance, :agency, :reference, :notes, :frequency, :adminId, :now, :now)`,
           {
             replacements: {
               userId: requesterId, dedType,
               contractDate: loanApprovalDate || nowStr.split(' ')[0],
-              months, perCutoff, total: totalAmount, balance: totalAmount,
+              months, perCutoff: effectiveDeductionPerCutoff, total: totalAmount, balance: totalAmount,
               agency, reference: loanReferenceNo || null,
-              notes: `${agency} ${loanType} via Request #${emp_reqId}`,
+              notes: `${agency} ${loanType} (${isMonthlyFreq ? 'Monthly' : 'Semi-Monthly'}) via Request #${emp_reqId}`,
+              frequency,
               adminId: operatorId, now: nowStr
             },
             type: QueryTypes.INSERT
@@ -2121,7 +2342,8 @@ exports.UpdateStatusRequest = async (req, res) => {
               const d15 = `${year}-${String(month + 1).padStart(2, '0')}-15`;
               const dEnd = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
 
-              for (const sDate of [d15, dEnd]) {
+              if (isMonthlyFreq) {
+                // Monthly deduction: single deduction on 15th
                 await sequelize.query(
                   `INSERT INTO "Payroll_GovernmentLoans" 
                     ("user_Id", "government_type", "date", "amount", "principalPaid", "interestPaid", "createdAt", "updatedAt")
@@ -2129,13 +2351,31 @@ exports.UpdateStatusRequest = async (req, res) => {
                    ON CONFLICT ("user_Id", "date", "government_type") DO NOTHING`,
                   {
                     replacements: {
-                      userId: requesterId, govType: govDbType, date: sDate, 
-                      amount: perCutoff, pPaid: monthData.principalPortion / 2, iPaid: monthData.interestPortion / 2, 
+                      userId: requesterId, govType: govDbType, date: d15, 
+                      amount: amortMonthly, pPaid: monthData.principalPortion, iPaid: monthData.interestPortion, 
                       now: nowStr
                     },
                     type: QueryTypes.INSERT
                   }
                 );
+              } else {
+                // Semi-monthly deduction: split equally between 15th and end of month
+                for (const sDate of [d15, dEnd]) {
+                  await sequelize.query(
+                    `INSERT INTO "Payroll_GovernmentLoans" 
+                      ("user_Id", "government_type", "date", "amount", "principalPaid", "interestPaid", "createdAt", "updatedAt")
+                     VALUES (:userId, :govType, :date, :amount, :pPaid, :iPaid, :now, :now)
+                     ON CONFLICT ("user_Id", "date", "government_type") DO NOTHING`,
+                    {
+                      replacements: {
+                        userId: requesterId, govType: govDbType, date: sDate, 
+                        amount: perCutoff, pPaid: monthData.principalPortion / 2, iPaid: monthData.interestPortion / 2, 
+                        now: nowStr
+                      },
+                      type: QueryTypes.INSERT
+                    }
+                  );
+                }
               }
             }
           } catch (schedErr) {
@@ -2469,6 +2709,8 @@ exports.GetRequestDetails = async (req, res) => {
         lr."calamityArea" as "LR_calamityArea",
         lr."damageProof_File" as "LR_damageProof",
         lr."netPaySufficient" as "LR_netPaySufficient",
+        lr."pagibigTAV" as "LR_pagibigTAV",
+        lr."deductionFrequency" as "LR_deductionFrequency",
         lr."proof_File" as "LR_proof_File",
         lb."VL_balance",
         lb."SL_balance",

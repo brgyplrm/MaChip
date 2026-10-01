@@ -57,7 +57,20 @@ const HardwareManagement = () => {
   
   // Selection/Targets
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedSlotNumber, setSelectedSlotNumber] = useState("1");
   const [revokeTarget, setRevokeTarget] = useState(null);
+
+  const selectedEmp = useMemo(() => {
+    return unassignedEmployees.find(e => e.user_Id.toString() === selectedUserId.toString());
+  }, [unassignedEmployees, selectedUserId]);
+
+  const isDuplicateSlot = useMemo(() => {
+    if (activeTab !== 'fingerprint' || !selectedEmp || !scannedId) return false;
+    const parsedSlot = parseInt(scannedId);
+    if (selectedSlotNumber === "2" && selectedEmp.user_FingerprintId && selectedEmp.user_FingerprintId === parsedSlot) return true;
+    if (selectedSlotNumber === "1" && selectedEmp.user_FingerprintId2 && selectedEmp.user_FingerprintId2 === parsedSlot) return true;
+    return false;
+  }, [activeTab, selectedEmp, scannedId, selectedSlotNumber]);
 
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
@@ -219,7 +232,20 @@ const HardwareManagement = () => {
     setScannedId(uid);
     if (activeTab === 'fingerprint') setScannedTemplate(localScannedTemplate);
     setSelectedUserId("");
+    setSelectedSlotNumber("1");
     setShowAssignModal(true);
+  };
+
+  const handleSelectEmployee = (val) => {
+    setSelectedUserId(val);
+    if (activeTab === 'fingerprint') {
+      const emp = unassignedEmployees.find(e => e.user_Id.toString() === val.toString());
+      if (emp?.hasSlot1 && !emp?.hasSlot2) {
+        setSelectedSlotNumber("2");
+      } else {
+        setSelectedSlotNumber("1");
+      }
+    }
   };
 
   const handleAssignSubmit = async () => {
@@ -227,12 +253,21 @@ const HardwareManagement = () => {
       setToast({ message: "Please select an employee to link.", type: "error" });
       return;
     }
+    if (activeTab === 'fingerprint' && isDuplicateSlot) {
+      setToast({ message: "Fallback fingerprint cannot use the same slot or finger as the Primary fingerprint.", type: "error" });
+      return;
+    }
     setAssigning(true);
     try {
       const endpoint = activeTab === 'rfid' ? "/api/hardware/rfid/assign" : "/api/hardware/biometric/assign";
       const body = activeTab === 'rfid' 
         ? { user_Id: selectedUserId, machip_id: scannedId }
-        : { user_Id: selectedUserId, fingerprintIndex: parseInt(scannedId), fingerprintTemplate: scannedTemplate };
+        : { 
+            user_Id: selectedUserId, 
+            fingerprintIndex: parseInt(scannedId), 
+            fingerprintTemplate: scannedTemplate,
+            slotNumber: parseInt(selectedSlotNumber) || 1
+          };
 
       const response = await fetchWithAuth(endpoint, {
         method: "POST",
@@ -269,7 +304,9 @@ const HardwareManagement = () => {
     try {
       const endpoint = activeTab === 'rfid' 
         ? `/api/hardware/rfid/revoke/${revokeTarget.user_Id}`
-        : `/api/hardware/biometric/clear/${revokeTarget.user_Id}`;
+        : (revokeTarget.slotNumber 
+            ? `/api/hardware/biometric/clear/${revokeTarget.user_Id}?slotNumber=${revokeTarget.slotNumber}`
+            : `/api/hardware/biometric/clear/${revokeTarget.user_Id}`);
       
       const response = await fetchWithAuth(endpoint, { method: activeTab === 'rfid' ? "PUT" : "DELETE" });
       if (response.ok) {
@@ -560,10 +597,19 @@ const HardwareManagement = () => {
                     <TableBody>
                       {currentData.length > 0 ? (
                         currentData.map((row) => (
-                          <TableRow key={row.user_Id} className="border-b-slate-100 hover:bg-slate-50/50">
+                          <TableRow key={`${row.user_Id}-${row.slotNumber || 1}-${row.fingerprintIndex || row.machip_id || ''}`} className="border-b-slate-100 hover:bg-slate-50/50">
                             <TableCell className="px-6 py-4">
-                              <p className="font-bold text-[#2A174E] text-sm">{row.userName}</p>
-                              <p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p>
+                              <div className="flex items-center gap-2">
+                                <div>
+                                  <p className="font-bold text-[#2A174E] text-sm">{row.userName}</p>
+                                  <p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p>
+                                </div>
+                                {activeTab === 'fingerprint' && row.fingerprintType && (
+                                  <Badge variant="outline" className={`text-[10px] ml-1 font-semibold ${row.slotNumber === 2 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
+                                    {row.fingerprintType}
+                                  </Badge>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="font-mono text-xs font-semibold text-slate-700">
                               {activeTab === 'rfid' ? (row.machip_id || "—") : `Slot #${row.fingerprintIndex ?? "—"}`}
@@ -668,21 +714,54 @@ const HardwareManagement = () => {
                   {loadingUnassigned ? "Refreshing..." : "Refresh List"}
                 </button>
               </div>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <Select value={selectedUserId} onValueChange={handleSelectEmployee}>
                 <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-[#2A174E]"><SelectValue placeholder="Select an unassigned employee..." /></SelectTrigger>
                 <SelectContent className="max-h-[220px]">
                   {loadingUnassigned ? <div className="p-4 text-center text-xs text-slate-400 italic">Updating registry...</div> : 
                     unassignedEmployees.length > 0 ? unassignedEmployees.map((emp) => (
-                      <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>{emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)})</SelectItem>
+                      <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
+                        {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)}) {activeTab === 'fingerprint' ? (emp.hasSlot1 ? "• Secondary Fallback" : "• Primary") : ""}
+                      </SelectItem>
                     )) : <div className="p-4 text-center text-xs text-slate-400 italic">No unassigned employees found.</div>
                   }
                 </SelectContent>
               </Select>
             </div>
 
+            {activeTab === 'fingerprint' && selectedUserId && (
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Fingerprint Role / Slot</Label>
+                <Select value={selectedSlotNumber} onValueChange={setSelectedSlotNumber}>
+                  <SelectTrigger className="w-full h-11 bg-white border-slate-200 rounded-lg">
+                    <SelectValue placeholder="Select Slot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Primary Fingerprint (Slot 1)</SelectItem>
+                    <SelectItem value="2">Secondary Fallback Fingerprint (Slot 2)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-400 italic">
+                  Secondary fallback allows employees with worn or injured primary fingers to authenticate seamlessly.
+                </p>
+              </div>
+            )}
+
+            {isDuplicateSlot && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-medium flex items-center gap-2">
+                <BlockIcon className="h-4 w-4 text-red-500 shrink-0" />
+                <span>
+                  Slot #{scannedId} is already assigned as this employee's {selectedSlotNumber === "2" ? "Primary" : "Fallback"} fingerprint. Fallback must be a different finger.
+                </span>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-2">
               <Button variant="outline" className="flex-1 h-11 border-slate-200 text-slate-500 rounded-lg font-bold" onClick={() => setShowAssignModal(false)}>Cancel</Button>
-              <Button onClick={handleAssignSubmit} disabled={assigning || !selectedUserId} className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white rounded-lg font-bold shadow-md tracking-wide">
+              <Button 
+                onClick={handleAssignSubmit} 
+                disabled={assigning || !selectedUserId || (activeTab === 'fingerprint' && isDuplicateSlot)} 
+                className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white rounded-lg font-bold shadow-md tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {assigning ? "Linking..." : "Assign Hardware Link"}
               </Button>
             </div>

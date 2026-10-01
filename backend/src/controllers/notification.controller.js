@@ -13,6 +13,7 @@ const MANAGEMENT_TITLES = [
   'Unrecognized card or scan',
   'Irregular logs',
   'Pending Request Escalation',
+  'Pending Approver Reminder',
   'Loan Certification Nudge'
 ];
 
@@ -38,10 +39,10 @@ exports.GetUserNotifications = async (req, res) => {
 
     if (!isManagementRole || viewMode === "employee") {
       // Employee view: Show personal request status notifications
-      query += ` AND "title" NOT IN (:managementTitles)`;
+      query += ` AND ("title" NOT IN (:managementTitles) AND "title" NOT LIKE 'Pending Action%' AND "title" NOT LIKE 'Pending Request%' AND "title" NOT LIKE 'Pending Approver%')`;
     } else {
-      // Management view: Show ONLY administrative/review notifications
-      query += ` AND "title" IN (:managementTitles)`;
+      // Management view: Show administrative/review notifications
+      query += ` AND ("title" IN (:managementTitles) OR "title" LIKE 'Pending Action%' OR "title" LIKE 'Pending Request%' OR "title" LIKE 'Pending Approver%')`;
     }
 
     query += ` ORDER BY "createdAt" DESC`;
@@ -69,9 +70,9 @@ exports.MarkAllAsRead = async (req, res) => {
     let replacements = { userId, managementTitles: MANAGEMENT_TITLES };
 
     if (viewMode === "employee") {
-      query += ` AND "title" NOT IN (:managementTitles)`;
+      query += ` AND ("title" NOT IN (:managementTitles) AND "title" NOT LIKE 'Pending Action%' AND "title" NOT LIKE 'Pending Request%' AND "title" NOT LIKE 'Pending Approver%')`;
     } else if (viewMode === "management") {
-      query += ` AND "title" IN (:managementTitles)`;
+      query += ` AND ("title" IN (:managementTitles) OR "title" LIKE 'Pending Action%' OR "title" LIKE 'Pending Request%' OR "title" LIKE 'Pending Approver%')`;
     }
 
     await sequelize.query(query, {
@@ -137,9 +138,9 @@ exports.GetUnreadCount = async (req, res) => {
     const isManagementRole = roleId === 1 || roleId === 2 || roleId === 4;
 
     if (!isManagementRole || viewMode === "employee") {
-      query += ` AND "title" NOT IN (:managementTitles)`;
+      query += ` AND ("title" NOT IN (:managementTitles) AND "title" NOT LIKE 'Pending Action%' AND "title" NOT LIKE 'Pending Request%' AND "title" NOT LIKE 'Pending Approver%')`;
     } else {
-      query += ` AND "title" IN (:managementTitles)`;
+      query += ` AND ("title" IN (:managementTitles) OR "title" LIKE 'Pending Action%' OR "title" LIKE 'Pending Request%' OR "title" LIKE 'Pending Approver%')`;
     }
 
     const result = await sequelize.query(query, {

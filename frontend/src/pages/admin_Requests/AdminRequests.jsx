@@ -15,7 +15,7 @@ import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { formatDateTime, calculateDays } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import AssessmentIcon  from "@mui/icons-material/Assessment";
 import EditIcon from "@mui/icons-material/Edit";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
@@ -37,6 +37,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 const AdminRequests = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedReqId, setSelectedReqId] = useState(null); // Upgraded from selectedIdx
@@ -94,11 +95,37 @@ const AdminRequests = () => {
     return () => window.removeEventListener("dataRefresh", handleBackgroundRefresh);
   }, []);
 
-  // Reset states when changing tabs or filters
+  // Handle incoming requestId from URL or navigation state
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const targetIdRaw = searchParams.get("requestId") || location.state?.selectedReqId;
+    if (!targetIdRaw || requests.length === 0) return;
+
+    const targetId = parseInt(targetIdRaw, 10);
+    const targetReq = requests.find((r) => r.emp_reqId === targetId);
+
+    if (targetReq) {
+      const isCompleted = targetReq.emp_reqStatusId === 2 || targetReq.emp_reqStatusId === 3;
+      const targetTab = isCompleted ? "completed" : "pending";
+      
+      if (activeTab !== targetTab) {
+        setActiveTab(targetTab);
+      }
+      setSelectedReqId(targetId);
+    } else {
+      setSelectedReqId(targetId);
+    }
+  }, [location.search, location.state, requests]);
+
+  // Reset states when changing tabs or filters (preserving active deep-link target if present)
   useEffect(() => {
     setPaymentStatus("2"); 
-    setCurrentPage(1);
-    setSelectedReqId(null);
+    const searchParams = new URLSearchParams(location.search);
+    const deepLinkId = searchParams.get("requestId") || location.state?.selectedReqId;
+    if (!deepLinkId) {
+      setCurrentPage(1);
+      setSelectedReqId(null);
+    }
     if (activeTab === "completed") setShowHistoryBanner(true);
   }, [activeTab, searchQuery, typeFilter, statusFilter]);
 
@@ -264,6 +291,18 @@ const AdminRequests = () => {
 
     return true;
   });
+
+  // Automatically align current page so the selected request is visible in the list
+  useEffect(() => {
+    if (!selectedReqId || filteredRequests.length === 0) return;
+    const reqIndex = filteredRequests.findIndex((r) => r.emp_reqId === selectedReqId);
+    if (reqIndex !== -1) {
+      const targetPage = Math.floor(reqIndex / itemsPerPage) + 1;
+      if (targetPage !== currentPage) {
+        setCurrentPage(targetPage);
+      }
+    }
+  }, [selectedReqId, filteredRequests, itemsPerPage]);
 
   // Pagination Logic
   const totalItems = filteredRequests.length;

@@ -76,6 +76,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         loanApprovalDate: approvalDate,
         amortizationStartMonth: startMonth,
         calamityArea: request.LR_calamityArea || "",
+        deductionFrequency: request.LR_deductionFrequency || "semi-monthly",
       });
     }
   }, [request]);
@@ -373,6 +374,21 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                       ) : (
                         <Input type="number" name="monthsToPay" value={formData.monthsToPay} onChange={handleInputChange} required />
                       )}
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700">Deduction Frequency</label>
+                      <Select 
+                        value={formData.deductionFrequency || "semi-monthly"} 
+                        onValueChange={(val) => handleSelectChange('deductionFrequency', val)}
+                      >
+                        <SelectTrigger className="w-full h-10 border-slate-200">
+                          <SelectValue placeholder="Select Frequency" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[110]">
+                          <SelectItem value="semi-monthly">Semi-Monthly (Split 15th & 30th)</SelectItem>
+                          <SelectItem value="monthly">Monthly (15th Only)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     {formData.agency === "SSS" && (
                       <>

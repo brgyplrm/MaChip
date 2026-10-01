@@ -144,6 +144,8 @@ const hardwareRoutes = require("./routes/hardware.routes.js");
 app.use("/api/users", userRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/request", requestRoutes);
+app.use("/api/requests", requestRoutes);
+app.use("/api/userRequests", requestRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/system", systemRoutes);

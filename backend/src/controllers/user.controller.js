@@ -992,7 +992,7 @@ exports.updateUser = async (req, res) => {
         `SELECT h."user_Id" 
          FROM "User_Hardware" h
          JOIN "User" u ON h."user_Id" = u."user_Id"
-         WHERE h."user_FingerprintId" = :user_FingerprintId AND u."deletedAt" IS NULL AND u."user_Id" != :targetId`,
+         WHERE (h."user_FingerprintId" = :user_FingerprintId OR h."user_FingerprintId2" = :user_FingerprintId) AND u."deletedAt" IS NULL AND u."user_Id" != :targetId`,
         { replacements: { user_FingerprintId, targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
       );
 
@@ -1367,7 +1367,7 @@ exports.getMasterlist = async (req, res) => {
          d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
          d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
          d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
-         h."user_MachipId", h."user_FingerprintId",
+         h."user_MachipId", h."user_FingerprintId", h."user_FingerprintId2",
          r."roleName"          AS "user_Role",
          es."statusName"       AS "employmentStatus"
        FROM "User" u
@@ -1383,6 +1383,25 @@ exports.getMasterlist = async (req, res) => {
       { type: QueryTypes.SELECT },
     );
 
+    let activeLoans = [];
+    try {
+      activeLoans = await sequelize.query(
+        `SELECT "id", "userId", "deductionType", "notes", "totalAmount", "remainingBalance", "deductionPerCutoff", "status"
+         FROM "Loan_Deductions"
+         WHERE "status" ILIKE 'active'`,
+        { type: QueryTypes.SELECT }
+      );
+    } catch (loanErr) {
+      console.warn("[MASTERLIST LOANS FETCH WARN]:", loanErr.message);
+    }
+
+    const loansByEmp = {};
+    for (const loan of activeLoans) {
+      const uid = loan.userId;
+      if (!loansByEmp[uid]) loansByEmp[uid] = [];
+      loansByEmp[uid].push(loan);
+    }
+
     const decryptedEmployees = employees.map(emp => {
       try {
         if (emp.account_Number) {
@@ -1391,6 +1410,42 @@ exports.getMasterlist = async (req, res) => {
       } catch (decErr) {
         console.warn(`[MASTERLIST] Decryption failed for user ${emp.user_Id}:`, decErr.message);
       }
+
+      const empActiveLoans = loansByEmp[emp.user_Id] || [];
+      emp.activeLoansList = empActiveLoans;
+
+      let activeSSS = 0;
+      let activeHDMF = 0;
+      let activeCalamity = 0;
+      let activeEastWest = 0;
+      let activeAdvances = 0;
+      let activeMultiPurpose = 0;
+
+      for (const al of empActiveLoans) {
+        const perCutoff = parseFloat(al.deductionPerCutoff || 0);
+        const type = (al.deductionType || "").toLowerCase();
+        if (type === "sss_loan" || type === "sss_conso") {
+          activeSSS += perCutoff;
+        } else if (type === "hdmf_loan") {
+          activeHDMF += perCutoff;
+        } else if (type === "calamity" || type === "sss_calamity" || type === "hdmf_calamity" || type === "sss_emergency") {
+          activeCalamity += perCutoff;
+        } else if (type === "eastwest") {
+          activeEastWest += perCutoff;
+        } else if (type === "cash_advance") {
+          activeAdvances += perCutoff;
+        } else if (type === "multipurpose") {
+          activeMultiPurpose += perCutoff;
+        }
+      }
+
+      if (activeSSS > 0) emp.SSS_Loan = activeSSS;
+      if (activeHDMF > 0) emp.HDMF_Loan = activeHDMF;
+      if (activeCalamity > 0) emp.calamityLoan_Amnt = activeCalamity;
+      if (activeEastWest > 0) emp.eastwest_Loan = activeEastWest;
+      if (activeAdvances > 0) emp.advances_Amnt = activeAdvances;
+      if (activeMultiPurpose > 0) emp.multiPurposeSavings = activeMultiPurpose;
+
       return emp;
     });
 
@@ -1585,7 +1640,7 @@ exports.updateDailyRate = async (req, res) => {
          u."dailyRate", u."previousDailyRate", u."rateUpdatedAt",
          d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
          d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
-         d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings"
+         d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings"
        FROM "User" u
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        WHERE u."user_Id" = :user_Id`,
@@ -1593,6 +1648,34 @@ exports.updateDailyRate = async (req, res) => {
     );
 
     const updated = updatedResult[0];
+    try {
+      const activeLoans = await sequelize.query(
+        `SELECT "id", "userId", "deductionType", "notes", "totalAmount", "remainingBalance", "deductionPerCutoff", "status"
+         FROM "Loan_Deductions"
+         WHERE "userId" = :user_Id AND "status" ILIKE 'active'`,
+        { replacements: { user_Id }, type: QueryTypes.SELECT }
+      );
+      updated.activeLoansList = activeLoans;
+      let activeSSS = 0, activeHDMF = 0, activeCalamity = 0, activeEastWest = 0, activeAdvances = 0, activeMultiPurpose = 0;
+      for (const al of activeLoans) {
+        const perCutoff = parseFloat(al.deductionPerCutoff || 0);
+        const type = (al.deductionType || "").toLowerCase();
+        if (type === "sss_loan" || type === "sss_conso") activeSSS += perCutoff;
+        else if (type === "hdmf_loan") activeHDMF += perCutoff;
+        else if (type === "calamity" || type === "sss_calamity" || type === "hdmf_calamity" || type === "sss_emergency") activeCalamity += perCutoff;
+        else if (type === "eastwest") activeEastWest += perCutoff;
+        else if (type === "cash_advance") activeAdvances += perCutoff;
+        else if (type === "multipurpose") activeMultiPurpose += perCutoff;
+      }
+      if (activeSSS > 0) updated.SSS_Loan = activeSSS;
+      if (activeHDMF > 0) updated.HDMF_Loan = activeHDMF;
+      if (activeCalamity > 0) updated.calamityLoan_Amnt = activeCalamity;
+      if (activeEastWest > 0) updated.eastwest_Loan = activeEastWest;
+      if (activeAdvances > 0) updated.advances_Amnt = activeAdvances;
+      if (activeMultiPurpose > 0) updated.multiPurposeSavings = activeMultiPurpose;
+    } catch (loanErr) {
+      console.warn("[UPDATE DAILY RATE LOANS WARN]:", loanErr.message);
+    }
     const newRateData = { dailyRate: updated.dailyRate, previousDailyRate: updated.previousDailyRate };
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logAudit(req, currentAdminId, "User Management", "UPDATE_DAILY_RATE", "User", user_Id, oldRateData, newRateData);
@@ -1627,7 +1710,7 @@ exports.checkFingerprint = async (req, res) => {
   const { slot } = req.params;
   try {
     const results = await sequelize.query(
-      `SELECT "user_Id" FROM "User_Hardware" WHERE "user_FingerprintId" = :slot LIMIT 1`,
+      `SELECT "user_Id" FROM "User_Hardware" WHERE ("user_FingerprintId" = :slot OR "user_FingerprintId2" = :slot) LIMIT 1`,
       { replacements: { slot: parseInt(slot) }, type: QueryTypes.SELECT }
     );
     if (results.length > 0) {
@@ -1904,12 +1987,22 @@ exports.getUnassignedHardwareUsers = async (req, res) => {
         WHERE "user_MachipId" IS NOT NULL AND "user_MachipId" != '' AND "user_MachipId" NOT LIKE 'MACHIP-%'
       )`;
     } else if (type === 'fingerprint') {
-      sql += ` AND u."user_Id" NOT IN (
-        SELECT "user_Id" FROM "User_Hardware" 
-        WHERE "user_FingerprintId" IS NOT NULL 
-          AND "user_FingerprintTemplate" IS NOT NULL 
-          AND TRIM("user_FingerprintTemplate") != ''
-      )`;
+      sql = `
+        SELECT u."user_Id", u."user_FirstName", u."user_LastName",
+               uh."user_FingerprintId", uh."user_FingerprintId2",
+               (uh."user_FingerprintId" IS NOT NULL AND TRIM(COALESCE(uh."user_FingerprintTemplate", '')) != '') AS "hasSlot1",
+               (uh."user_FingerprintId2" IS NOT NULL AND TRIM(COALESCE(uh."user_FingerprintTemplate2", '')) != '') AS "hasSlot2"
+        FROM "User" u
+        LEFT JOIN "User_Hardware" uh ON u."user_Id" = uh."user_Id"
+        WHERE u."deletedAt" IS NULL
+        AND u."user_Id" != 999
+        AND (
+          uh."user_FingerprintId" IS NULL 
+          OR TRIM(COALESCE(uh."user_FingerprintTemplate", '')) = ''
+          OR uh."user_FingerprintId2" IS NULL 
+          OR TRIM(COALESCE(uh."user_FingerprintTemplate2", '')) = ''
+        )
+      `;
     }
 
     sql += ` ORDER BY u."user_LastName" ASC`;

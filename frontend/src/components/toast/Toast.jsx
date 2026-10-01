@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import "./toast.scss";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
@@ -13,22 +13,36 @@ import CloseIcon from "@mui/icons-material/Close";
  *  - message  : string  — the text to display
  *  - type     : "success" | "error" | "warning" | "info"
  *  - onClose  : () => void  — called when the toast is dismissed
+ *  - onClick  : () => void  — optional click handler
  *  - duration : number (ms, default 4000) — auto-dismiss after this delay
  */
-const Toast = ({ message, type = "success", onClose, duration = 4000 }) => {
+const Toast = ({ message, type = "success", onClose, onClick, duration = 4000 }) => {
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   // Auto-dismiss
   useEffect(() => {
     if (!message) return;
     const timer = setTimeout(() => {
-      onClose();
+      if (onCloseRef.current) {
+        onCloseRef.current();
+      }
     }, duration);
     return () => clearTimeout(timer);
-  }, [message, duration, onClose]);
+  }, [message, duration]);
 
   if (!message) return null;
 
   return (
-    <div className={`toast toast--${type}`}>
+    <div 
+      className={`toast toast--${type} ${onClick ? 'cursor-pointer select-none hover:opacity-95' : ''}`}
+      onClick={(e) => {
+        if (e.target.closest('.toast__close')) return;
+        if (onClick) onClick();
+      }}
+    >
       <span className="toast__icon">
         {type === "success" && <CheckCircleOutlineIcon fontSize="small" />}
         {type === "error" && <ErrorOutlineIcon fontSize="small" />}

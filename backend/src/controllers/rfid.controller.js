@@ -3,7 +3,7 @@ const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
-const { resolveLeaveConflict } = require("../utils/attendanceHelper.js");
+const { resolveLeaveConflict, calculateAndStoreAttendanceUnits } = require("../utils/attendanceHelper.js");
 const { decrypt } = require("../utils/encryption.js");
 
 const maskUid = (uid, isAuthorized) => {
@@ -273,11 +273,17 @@ exports.scanRFID = async (req, res) => {
     const settings = await SystemSettings.findOne();
 
     if (action === "fingerprint_scan") {
+      const { Op } = require("sequelize");
       user = await User.findOne({
         include: [{
           model: sequelize.models.User_Hardware,
           as: 'hardware',
-          where: { user_FingerprintId: parseInt(uid) }
+          where: {
+            [Op.or]: [
+              { user_FingerprintId: parseInt(uid) },
+              { user_FingerprintId2: parseInt(uid) }
+            ]
+          }
         }],
         where: { deletedAt: null }
       });
@@ -428,7 +434,7 @@ exports.scanRFID = async (req, res) => {
     }
 
     // ── 4. 2FA FLOW TRIGGER (STRICT 2FA ENFORCEMENT) ──────────────────────────
-    const hasTemplate = hardware && hardware.user_FingerprintTemplate;
+    const hasTemplate = hardware && (hardware.user_FingerprintTemplate || hardware.user_FingerprintTemplate2);
     if (!is2FA && action === "clock_in" && (terminalType === "FRONT" || !terminalType)) {
       if (hasTemplate) {
         console.log(`[2FA] Requesting Biometric Verification for ${user.user_FirstName}`);
@@ -438,7 +444,8 @@ exports.scanRFID = async (req, res) => {
           uid: rfidUid,
           userId: user.user_Id,
           userName: user.user_FirstName,
-          expectedFingerId: parseInt(hardware.user_FingerprintId)
+          expectedFingerId: parseInt(hardware.user_FingerprintId),
+          expectedFingerId2: hardware.user_FingerprintId2 ? parseInt(hardware.user_FingerprintId2) : null
         });
       } else {
         console.log(`[2FA REJECT] ${user.user_FirstName} has no enrolled fingerprint in database.`);
@@ -455,9 +462,12 @@ exports.scanRFID = async (req, res) => {
     // ── 5. 2FA Verification (FingerID Check) ─────────────────────────────────
     if (is2FA) {
       const dbFingerId = parseInt(hardware?.user_FingerprintId);
+      const dbFingerId2 = hardware?.user_FingerprintId2 ? parseInt(hardware.user_FingerprintId2) : null;
       const inputFingerId = parseInt(scannedFingerId);
 
-      if (isNaN(dbFingerId) || dbFingerId !== inputFingerId) {
+      const isMatch = (!isNaN(dbFingerId) && dbFingerId === inputFingerId) || (!isNaN(dbFingerId2) && dbFingerId2 === inputFingerId);
+
+      if (!isMatch) {
         console.log(`[2FA] Mismatch for ${user.user_FirstName}`);
         await logTransaction(user.user_Id, null, "UNAUTHORIZED_SCAN", `Unauthorized scan (2FA Mismatch).`, { uid: maskUid(rfidUid, true), scannedFingerId }, req);
         return res.status(200).json({ success: false, message: "2FA Verification Failed" });
@@ -501,11 +511,12 @@ exports.scanRFID = async (req, res) => {
 
     const isLunchWindow = totalMinutes >= lStart && totalMinutes < lEnd;
 
-    // Check prior login today (Morning or Afternoon)
+    // Check prior login today (Morning or Afternoon) - exclude irregular off-hours scans
     const priorLoginToday = await sequelize.query(
       `SELECT * FROM "user_logging"
        WHERE "user_id" = :target_user_Id
        AND "logged_StatusId" IN (1, 3)
+       AND ("attendance_StatusId" IS NULL OR "attendance_StatusId" != 8)
        AND "log_Date" BETWEEN :todayStart AND :todayEnd
        LIMIT 1`,
       { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
@@ -527,18 +538,18 @@ exports.scanRFID = async (req, res) => {
     const isSuspiciousWindow = (now >= fivePMThirty || now < fiveAMThirty);
     const isPastOT = hasApprovedOT && isPastOTWindow;
 
-    // Irregular if outside regular hours without approved OT, or past OT window, or prior irregular session
+    // Irregular if outside regular hours without approved OT, or past OT window, or prior irregular session during suspicious window
     const isIrregular = (!isWithinOTWindow && isSuspiciousWindow && !isNightShiftAllowed) ||
                         isPastOT ||
-                        hadPriorIrregular;
+                        (hadPriorIrregular && isSuspiciousWindow);
 
     if (action === "clock_in") {
       if (hasApprovedOT && isWithinOTWindow) {
         nextStatus = 5; // Overtime IN
-      } else if (lastStatus === 2) {
+      } else if (lastStatus === 2 && !isSuspiciousWindow && hasPriorClockIn) {
         nextStatus = 3; // Afternoon IN (from lunch)
       } else if (!hasPriorClockIn) {
-        // First entry of the day
+        // First regular entry of the day
         if (totalMinutes < 720) {
           // Arrived before 12:00 PM noon -> Morning IN
           nextStatus = 1;
@@ -639,6 +650,7 @@ exports.scanRFID = async (req, res) => {
           type: QueryTypes.INSERT,
         },
       );
+      calculateAndStoreAttendanceUnits(target_user_Id, workDate).catch(err => console.error("[RFID-CALC-ERR]", err));
     } else {
       const inArr  = JSON.parse(existingReport[0].time_Logged_inArr  || "[]");
       const outArr = JSON.parse(existingReport[0].time_Logged_outArr || "[]");
@@ -651,7 +663,7 @@ exports.scanRFID = async (req, res) => {
              "time_Logged_outArr" = :outArr,
              "logged_StatusId" = :reportLoggedStatus,
              "attendance_StatusId" = CASE 
-                WHEN "attendance_StatusId" IS NULL OR "attendance_StatusId" = 3 THEN :attendance_StatusId 
+                WHEN "attendance_StatusId" IS NULL OR "attendance_StatusId" = 3 OR ("attendance_StatusId" = 8 AND :attendance_StatusId IN (1, 2, 4, 6)) THEN :attendance_StatusId 
                 ELSE "attendance_StatusId" 
              END
          WHERE "user_id" = :target_user_Id AND "log_Date" = :workDate`,
@@ -660,6 +672,7 @@ exports.scanRFID = async (req, res) => {
           type: QueryTypes.UPDATE,
         },
       );
+      calculateAndStoreAttendanceUnits(target_user_Id, workDate).catch(err => console.error("[RFID-CALC-ERR]", err));
     }
 
     // ── 7. RESOLVE LEAVE CONFLICTS (VOID LOGIC) ──────────────────────────────
@@ -784,13 +797,21 @@ exports.generateFingerprint = async (req, res) => {
   
   try {
     const result = await sequelize.query(
-      `SELECT MAX(uh."user_FingerprintId") AS "maxSlot" 
-       FROM "User_Hardware" uh
-       INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
-       WHERE u."deletedAt" IS NULL 
-         AND uh."user_FingerprintId" IS NOT NULL 
-         AND uh."user_FingerprintTemplate" IS NOT NULL 
-         AND TRIM(uh."user_FingerprintTemplate") != ''`,
+      `SELECT MAX(slot) AS "maxSlot" FROM (
+         SELECT uh."user_FingerprintId" AS slot FROM "User_Hardware" uh
+         INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
+         WHERE u."deletedAt" IS NULL 
+           AND uh."user_FingerprintId" IS NOT NULL 
+           AND uh."user_FingerprintTemplate" IS NOT NULL 
+           AND TRIM(uh."user_FingerprintTemplate") != ''
+         UNION ALL
+         SELECT uh."user_FingerprintId2" AS slot FROM "User_Hardware" uh
+         INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
+         WHERE u."deletedAt" IS NULL 
+           AND uh."user_FingerprintId2" IS NOT NULL 
+           AND uh."user_FingerprintTemplate2" IS NOT NULL 
+           AND TRIM(uh."user_FingerprintTemplate2") != ''
+       ) sub`,
       { type: QueryTypes.SELECT }
     );
     const maxSlotValue = result[0] ? result[0].maxSlot : null;
@@ -859,10 +880,11 @@ exports.factoryResetHardware = async (req, res) => {
     // Clear orphan/stale fingerprint IDs and templates in User_Hardware
     await sequelize.query(
       `UPDATE "User_Hardware" 
-       SET "user_FingerprintId" = NULL, "user_FingerprintTemplate" = NULL 
+       SET "user_FingerprintId" = NULL, "user_FingerprintTemplate" = NULL,
+           "user_FingerprintId2" = NULL, "user_FingerprintTemplate2" = NULL 
        WHERE "user_Id" IN (SELECT "user_Id" FROM "User" WHERE "deletedAt" IS NOT NULL)
-          OR "user_FingerprintTemplate" IS NULL 
-          OR TRIM("user_FingerprintTemplate") = ''`
+          OR (("user_FingerprintTemplate" IS NULL OR TRIM("user_FingerprintTemplate") = '')
+              AND ("user_FingerprintTemplate2" IS NULL OR TRIM("user_FingerprintTemplate2") = ''))`
     );
 
     // Initialize special session for R307 sensor flash wipe
@@ -970,13 +992,21 @@ exports.getFingerprintSession = async (req, res) => {
         // ONLY promote if there isn't ALREADY an active session being tracked
         if (!fpCaptureSession.isCapturing || Date.now() > fpCaptureSession.expiresAt) {
           const result = await sequelize.query(
-            `SELECT MAX(uh."user_FingerprintId") AS "maxSlot" 
-             FROM "User_Hardware" uh
-             INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
-             WHERE u."deletedAt" IS NULL 
-               AND uh."user_FingerprintId" IS NOT NULL 
-               AND uh."user_FingerprintTemplate" IS NOT NULL 
-               AND TRIM(uh."user_FingerprintTemplate") != ''`,
+            `SELECT MAX(slot) AS "maxSlot" FROM (
+               SELECT uh."user_FingerprintId" AS slot FROM "User_Hardware" uh
+               INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
+               WHERE u."deletedAt" IS NULL 
+                 AND uh."user_FingerprintId" IS NOT NULL 
+                 AND uh."user_FingerprintTemplate" IS NOT NULL 
+                 AND TRIM(uh."user_FingerprintTemplate") != ''
+               UNION ALL
+               SELECT uh."user_FingerprintId2" AS slot FROM "User_Hardware" uh
+               INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
+               WHERE u."deletedAt" IS NULL 
+                 AND uh."user_FingerprintId2" IS NOT NULL 
+                 AND uh."user_FingerprintTemplate2" IS NOT NULL 
+                 AND TRIM(uh."user_FingerprintTemplate2") != ''
+             ) sub`,
             { type: QueryTypes.SELECT }
           );
           const maxSlotVal = result[0] ? result[0].maxSlot : null;
@@ -1045,35 +1075,62 @@ exports.confirmFingerprintEnroll = async (req, res) => {
       console.error("[FP-CONFIRM] Failed to clear REGISTRATION_SESSION:", err);
     }
 
-    if (success && template) {
-      // Check for deduplication signal from ESP32
-      if (template.startsWith("DUPLICATE:")) {
-        const duplicateSlotId = template.split(":")[1];
-        console.log(`[FP-CONFIRM] Duplicate detected! Slot: ${duplicateSlotId}`);
-        
-        fpCaptureSession.success = false;
-        fpCaptureSession.isCapturing = false;
+    // Check for deduplication signal from ESP32 (sent with success = false)
+    if (template && typeof template === "string" && template.startsWith("DUPLICATE:")) {
+      const duplicateSlotId = template.split(":")[1];
+      console.log(`[FP-CONFIRM] Duplicate detected! Slot: ${duplicateSlotId}`);
+      
+      fpCaptureSession.success = false;
+      fpCaptureSession.isCapturing = false;
 
-        try {
-          const [existingUser] = await sequelize.query(
-            `SELECT u."user_FirstName", u."user_LastName" 
-             FROM "User" u
-             INNER JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
-             WHERE h."user_FingerprintId" = :slotId AND u."deletedAt" IS NULL`,
-            { replacements: { slotId: duplicateSlotId }, type: QueryTypes.SELECT }
-          );
+      let targetUserIdRaw = userId || sessionUserId;
+      const targetUserId = (targetUserIdRaw && targetUserIdRaw !== "temp_registration" && !isNaN(parseInt(targetUserIdRaw))) 
+        ? parseInt(targetUserIdRaw) 
+        : null;
 
-          if (existingUser) {
-            fpCaptureSession.errorMessage = `This finger is already registered to ${existingUser.user_FirstName} ${existingUser.user_LastName}.`;
+      try {
+        const [existingUser] = await sequelize.query(
+          `SELECT u."user_Id", u."user_FirstName", u."user_LastName",
+                  h."user_FingerprintId", h."user_FingerprintId2"
+           FROM "User" u
+           INNER JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+           WHERE (h."user_FingerprintId" = :slotId OR h."user_FingerprintId2" = :slotId) AND u."deletedAt" IS NULL
+           LIMIT 1`,
+          { replacements: { slotId: duplicateSlotId }, type: QueryTypes.SELECT }
+        );
+
+        if (existingUser) {
+          if (targetUserId && existingUser.user_Id === targetUserId) {
+            if (existingUser.user_FingerprintId === parseInt(duplicateSlotId)) {
+              fpCaptureSession.errorMessage = `This finger is already registered as your Primary fingerprint (Slot #${duplicateSlotId}). Fallback must be a different finger.`;
+            } else if (existingUser.user_FingerprintId2 === parseInt(duplicateSlotId)) {
+              fpCaptureSession.errorMessage = `This finger is already registered as your Fallback fingerprint (Slot #${duplicateSlotId}).`;
+            } else {
+              fpCaptureSession.errorMessage = `This finger is already registered for your account (Slot #${duplicateSlotId}).`;
+            }
           } else {
-            fpCaptureSession.errorMessage = "This finger is already registered to another user (Slot " + duplicateSlotId + ").";
+            fpCaptureSession.errorMessage = `This finger is already registered to ${existingUser.user_FirstName} ${existingUser.user_LastName} (Slot #${duplicateSlotId}).`;
           }
-        } catch (err) {
-          fpCaptureSession.errorMessage = "Duplicate fingerprint detected.";
+        } else {
+          fpCaptureSession.errorMessage = `This finger is already registered in the scanner memory (Slot #${duplicateSlotId}).`;
         }
-        return res.status(200).json({ success: true });
+      } catch (err) {
+        console.error("[FP-CONFIRM] Error querying duplicate user:", err);
+        fpCaptureSession.errorMessage = `Duplicate fingerprint detected (Slot #${duplicateSlotId}).`;
       }
+      return res.status(200).json({ success: true, duplicateSlot: duplicateSlotId });
+    }
 
+    if (!success) {
+      fpCaptureSession.success = false;
+      fpCaptureSession.isCapturing = false;
+      if (!fpCaptureSession.errorMessage) {
+        fpCaptureSession.errorMessage = "Enrollment was cancelled or failed on the sensor. Please try again.";
+      }
+      return res.status(200).json({ success: false, message: fpCaptureSession.errorMessage });
+    }
+
+    if (success && template) {
       // ALWAYS store the template and slot in the session so the frontend polling endpoint can pick it up
       fpCaptureSession.template = template;
       fpCaptureSession.scannedSlot = finalSlotId;

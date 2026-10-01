@@ -168,6 +168,7 @@ const UserRequests = () => {
     consoDP: "",
     mscCount: "",
     avgMSC: "",
+    deductionFrequency: "semi-monthly",
   });
 
   // Sync profile details (gender, civil_status, is_solo_parent) from database
@@ -422,7 +423,7 @@ const UserRequests = () => {
   }, [activeTab]);
 
   useEffect(() => {
-    if (["3", "4", "6", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && formData.leaveStartDate && formData.leaveEndDate) {
+    if (["3", "4", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && formData.leaveStartDate && formData.leaveEndDate) {
       const start = new Date(formData.leaveStartDate + "T00:00:00");
       const end = new Date(formData.leaveEndDate + "T00:00:00");
       let count = 0;
@@ -446,6 +447,8 @@ const UserRequests = () => {
         cur.setDate(cur.getDate() + 1);
       }
       setFormData((prev) => ({ ...prev, noDays: count }));
+    } else if (formData.emp_reqTypeId === "6") {
+      setFormData((prev) => ({ ...prev, noDays: 1, leaveEndDate: prev.leaveStartDate }));
     }
   }, [formData.leaveStartDate, formData.leaveEndDate, formData.emp_reqTypeId, holidays]);
 
@@ -508,6 +511,13 @@ const UserRequests = () => {
 
     // 3. Emergency Leave (EL)
     else if (formData.emp_reqTypeId === "6") {
+      if (reqDays > 1) {
+        warnings.push({
+          type: "danger",
+          title: "Emergency Leave Limit Exceeded",
+          message: "Emergency Leave is strictly limited to a maximum of 1 day per application.",
+        });
+      }
       const combinedBal = vlBal + slBal;
       if (reqDays > 0 && reqDays > combinedBal) {
         const excess = (reqDays - combinedBal).toFixed(1).replace(/\.0$/, "");
@@ -543,7 +553,9 @@ const UserRequests = () => {
     }
 
     // 6. Holiday Intervening & Sandwich Rule Checks
-    if (["3", "4", "6", "7", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && (formData.leaveStartDate || formData.leaveEndDate)) {
+    // Applies strictly to discretionary company leaves: Vacation (3) and Half-day (7).
+    // Emergency Leave (6), statutory leaves (8-12), and Sick Leave (4) are strictly exempt from Sandwich Rule.
+    if (["3", "7"].includes(formData.emp_reqTypeId) && (formData.leaveStartDate || formData.leaveEndDate)) {
       const sDateStr = formData.leaveStartDate || formData.leaveEndDate;
       const eDateStr = formData.leaveEndDate || formData.leaveStartDate;
       if (sDateStr && eDateStr) {
@@ -819,6 +831,13 @@ const UserRequests = () => {
   const handleSelectChange = (name, val) => {
     setFormData((prev) => {
       const updated = { ...prev, [name]: val };
+      if (name === "emp_reqTypeId" && val === "6") {
+        updated.noDays = 1;
+        if (updated.leaveStartDate) {
+          updated.leaveEndDate = updated.leaveStartDate;
+        }
+      }
+
       if (name === "agency") {
         updated.loanType = "";
         if (val === "Company") {
@@ -947,8 +966,8 @@ const UserRequests = () => {
     } else if (formData.emp_reqTypeId === "6") {
       formDataToSubmit.append("DateOfLeave", formData.leaveStartDate);
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
-      formDataToSubmit.append("EndDate", formData.leaveEndDate || formData.leaveStartDate);
-      formDataToSubmit.append("NoDays", formData.noDays || 1);
+      formDataToSubmit.append("EndDate", formData.leaveStartDate);
+      formDataToSubmit.append("NoDays", 1);
       formDataToSubmit.append("reason", formData.remarks);
     } else if (formData.emp_reqTypeId === "7") {
       formDataToSubmit.append("DateOfLeave", formData.leaveStartDate);
@@ -959,6 +978,7 @@ const UserRequests = () => {
       formDataToSubmit.append("loanType", formData.loanType);
       formDataToSubmit.append("amountRequested", formData.amountRequested);
       formDataToSubmit.append("monthsToPay", formData.monthsToPay);
+      formDataToSubmit.append("deductionFrequency", formData.deductionFrequency || "semi-monthly");
       
       if (formData.agency === "SSS" && formData.loanType === "Salary Loan" && formData.emp_reqTypeId === "14") {
         formDataToSubmit.append("loanReferenceNo", formData.loanReferenceNo);
@@ -1057,6 +1077,7 @@ const UserRequests = () => {
           loanType: "",
           amountRequested: "",
           monthsToPay: "",
+          deductionFrequency: "semi-monthly",
         });
         fetchBalance();
         fetchHistory();
@@ -1744,7 +1765,32 @@ const UserRequests = () => {
                     </div>
                   )}
 
-                  {(["3", "4", "6", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) && (
+                  {formData.emp_reqTypeId === "6" && (
+                    <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Date of Emergency Leave</label>
+                        <Input 
+                          type="date" 
+                          name="leaveStartDate" 
+                          value={formData.leaveStartDate} 
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData((prev) => ({
+                              ...prev,
+                              leaveStartDate: val,
+                              leaveEndDate: val,
+                              noDays: 1
+                            }));
+                          }} 
+                          required 
+                          className="bg-slate-50/50" 
+                        />
+                        <p className="text-xs text-slate-500 italic">Emergency Leave is strictly limited to 1 day per application.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {(["3", "4", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) && (
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -1810,6 +1856,29 @@ const UserRequests = () => {
                             </SelectContent>
                           </Select>
                         </div>
+
+                        <div className="space-y-1.5 md:col-span-2">
+                          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Deduction Frequency
+                          </label>
+                          <Select 
+                            value={formData.deductionFrequency || "semi-monthly"} 
+                            onValueChange={(val) => handleSelectChange('deductionFrequency', val)}
+                          >
+                            <SelectTrigger className="bg-slate-50 border-slate-200">
+                              <SelectValue placeholder="Select deduction frequency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="semi-monthly">Semi-Monthly (Split equally on 15th & End of Month)</SelectItem>
+                              <SelectItem value="monthly">Monthly (Deducted once a month on 15th Cutoff)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-slate-500 italic">
+                            {formData.deductionFrequency === "monthly" 
+                              ? "The entire monthly amortization will be deducted once per month on the 15th cutoff." 
+                              : "The monthly amortization will be split equally between the 15th and end-of-month cutoffs."}
+                          </p>
+                        </div>
                       </div>
 
                       {/* NEW: HIGH ACCURACY FINANCIAL SUMMARY CARD */}
@@ -1828,7 +1897,11 @@ const UserRequests = () => {
                             <div className="text-right space-y-1">
                               <p className="text-[10px] text-indigo-300 font-bold uppercase">Monthly Amortization</p>
                               <p className="text-2xl font-black text-yellow-400 tracking-tight">₱{parseFloat(formData.monthlyAmortization || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</p>
-                              <p className="text-[8px] text-indigo-200 italic font-medium">Split across 2 cutoffs (₱{(parseFloat(formData.monthlyAmortization || 0) / 2).toLocaleString()}/ea)</p>
+                              <p className="text-[8px] text-indigo-200 italic font-medium">
+                                {formData.deductionFrequency === "monthly"
+                                  ? "Deducted once a month on 15th cutoff"
+                                  : `Split across 2 cutoffs (₱${(parseFloat(formData.monthlyAmortization || 0) / 2).toLocaleString('en-PH', {minimumFractionDigits: 2})}/ea)`}
+                              </p>
                             </div>
                           </div>
 

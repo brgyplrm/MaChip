@@ -97,13 +97,47 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, fullStats) =>
     const dailyTotal =
       !isSunday && log ? (log.hoursWorkedFormatted || formatDuration(log.hoursWorked) || "") : "";
 
+    // Helper to verify if punch belongs to afternoon/PM period (>= 12:00 PM)
+    const isPMPunch = (timeStr) => {
+      if (!timeStr || timeStr === "—" || timeStr === "00:00") return false;
+      const parts = String(timeStr).substring(0, 5).split(":");
+      if (parts.length < 2) return false;
+      const mins = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+      return mins >= 720;
+    };
+
+    const isIrregularDay = log?.status === "Irregular" || 
+                           log?.attendanceStatus === "Irregular" || 
+                           Number(log?.attendance_StatusId) === 8 || 
+                           Number(log?.attendanceStatusId) === 8 ||
+                           Number(log?.attendance_StatusId) === 7;
+
+    // Robust first-in / last-out fallback for DTR grid (suppressed for irregular days)
+    const morningInVal = isIrregularDay
+      ? ""
+      : ((log?.morning_In && log.morning_In !== "—")
+          ? log.morning_In
+          : (log?.afternoon_In && log.afternoon_In !== "—" ? "" : (log?.time_In && log.time_In !== "—" ? log.time_In : (log?.inArr?.[0]?.substring(0, 5) || ""))));
+
+    const candidateOut = isIrregularDay
+      ? ""
+      : ((log?.afternoon_Out && log.afternoon_Out !== "—")
+          ? log.afternoon_Out
+          : (log?.time_Out && log.time_Out !== "—" && log.time_Out !== morningInVal && log.time_Out !== log?.morning_Out
+            ? log.time_Out
+            : (log?.outArr?.[log.outArr.length - 1]?.substring(0, 5) || "")));
+
+    const afternoonOutVal = (candidateOut && isPMPunch(candidateOut) && candidateOut !== morningInVal && candidateOut !== log?.morning_Out)
+      ? candidateOut
+      : "";
+
     dayRows.push(`
       <tr class="${isSunday ? "weekend" : ""}">
         <td class="dayCol">${dayNum}</td>
-        ${cell(log?.morning_In)}
+        ${cell(morningInVal)}
         ${cell(log?.morning_Out)}
         ${cell(log?.afternoon_In)}
-        ${cell(log?.afternoon_Out)}
+        ${cell(afternoonOutVal)}
         ${cell(log?.ot_In)}
         ${cell(log?.ot_Out)}
         <td class="totalCol">${dailyTotal}</td>
