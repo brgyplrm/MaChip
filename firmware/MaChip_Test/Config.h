@@ -1,0 +1,142 @@
+#pragma once
+#include <SPI.h>
+#include <Wire.h>
+#include <MFRC522.h>
+#include <WiFi.h>
+#include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+#include <WebServer.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <Adafruit_Fingerprint.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7789.h>
+#include <Adafruit_SSD1306.h>
+#include "arduino_secrets.h"
+
+// ── HARDWARE LAYER PIN DEFINITIONS ──────────────────────────────
+#define GREEN_LED          12    // Physical UI Green Indicator
+#define RED_LED            13    // Physical UI Red Indicator
+#define SOLENOID_PIN       14    // Relay Control - LOW = UNLOCK, HIGH = LOCK
+#define BUZZER             27    // PWM Audio Feedback Pin
+#define FP_RX              16    // ESP32 UART2 RX <- R307S TX
+#define FP_TX              17    // ESP32 UART2 TX -> R307S RX
+
+// SPI Bus Mappings for Dual MFRC522 Modules
+#define SS_PIN_IN          5     // Front Door Select Pin
+#define SS_PIN_OUT         26    // Back Door Select Pin
+#define RST_PIN_IN         32    // Front Door Reset Pin
+#define RST_PIN_OUT        4     // Back Door Reset Pin
+
+// ── DISPLAY PIN DEFINITIONS ──────────────────────────────────────
+#define TFT_CS             33
+#define TFT_RST            25
+#define TFT_DC             2
+#define TFT_MOSI           23
+#define TFT_SCK            18
+
+// Back Terminal: 0.96" OLED (128x64 Landscape Layout) I2C
+#define OLED_RESET         -1
+#define SCREEN_WIDTH       128
+#define SCREEN_HEIGHT      64
+
+// ── TIMERS & FREQUENCY PROFILES ──────────────────────────────────
+#define BUZZER_FREQ        2500
+#define BUZZER_RES         8
+#define SOLENOID_DURATION  3000
+#define TIMEOUT_2FA        15000
+
+// ── ENUMS & DATA STRUCTURES ──────────────────────────────────────
+enum LedMode { LED_OFF, LED_SLOW_BLINK, LED_FAST_BLINK, LED_STEADY_GREEN, LED_STEADY_RED };
+
+enum FeedbackType {
+  SUCCESS_OK,
+  ERROR_FAIL,
+  WAITING_SCAN,
+  RFID_TAP,
+  SYSTEM_READY
+};
+
+struct NetworkConfig {
+  String ssid;
+  String pass;
+  String serverUrl;
+  String fpEnrollUrl;
+};
+
+struct BackendQueue {
+  String uid;
+  String action;
+  String terminalType;
+  bool pending;
+};
+
+// ── NETWORK CONFIGURATIONS ───────────────────────────────────────
+const NetworkConfig networks[] = {
+  { String(WIFI_SSID_1), String(WIFI_PASS_1), String(SERVER_URL_1), String(FP_ENROLL_1) },
+  { String(WIFI_SSID_2), String(WIFI_PASS_2), String(SERVER_URL_2), String(FP_ENROLL_2) },
+  { String(WIFI_SSID_3), String(WIFI_PASS_3), String(SERVER_URL_3), String(FP_ENROLL_3) },
+  { String(WIFI_SSID_4), String(WIFI_PASS_4), String(SERVER_URL_4), String(FP_ENROLL_4) },
+  { String(WIFI_SSID_6), String(WIFI_PASS_6), String(SERVER_URL_6), String(FP_ENROLL_6) }
+};
+const int NETWORK_COUNT = sizeof(networks) / sizeof(networks[0]);
+
+extern String currentServerUrl;
+extern String currentFpUrl;
+
+// ── HARDWARE CONTROLLER INSTANCES ────────────────────────────────
+extern MFRC522 rfidIN;
+extern MFRC522 rfidOUT;
+extern HardwareSerial fpSerial;
+extern Adafruit_Fingerprint finger;
+extern Adafruit_ST7789 tft;
+extern Adafruit_SSD1306 oled;
+extern WebServer webServer;
+
+// ── HARDWARE & LOGIC STATES ──────────────────────────────────────
+extern LedMode greenMode;
+extern LedMode redMode;
+extern unsigned long lastGreenToggle;
+extern unsigned long lastRedToggle;
+extern bool greenState;
+extern bool redState;
+
+extern bool solenoidActive;
+extern unsigned long solenoidStartTime;
+
+extern bool enrollmentMode;
+extern int fpEnrollStage;
+extern int enrollmentSlotId;
+extern String enrollmentUserId;
+extern String enrollmentType;
+extern unsigned long fpEnrollStart;
+
+extern String pendingUID;
+extern unsigned long pendingStart;
+extern int pendingExpectedFingerID;
+extern int pendingExpectedFingerID2;
+
+extern BackendQueue queuedTransaction;
+extern bool webServerStarted;
+extern bool otaInitialized;
+
+// ── WEB CONSOLE LOG BUFFER ───────────────────────────────────────
+#ifndef WEB_CONSOLE_USER
+#define WEB_CONSOLE_USER "admin"
+#endif
+#ifndef WEB_CONSOLE_PASS
+#define WEB_CONSOLE_PASS "machip2026"
+#endif
+
+const int LOG_MAX_ENTRIES = 60;
+extern String webLogBuffer[LOG_MAX_ENTRIES];
+extern int logHead;
+extern int logCount;
+
+// ── SPI BUS CONTROLLER SAFETY ENFORCEMENT ────────────────────────
+inline void clearSpiBusPins() {
+  digitalWrite(SS_PIN_IN, HIGH);
+  digitalWrite(SS_PIN_OUT, HIGH);
+  digitalWrite(TFT_CS, HIGH);
+}

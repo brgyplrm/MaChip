@@ -1,81 +1,11 @@
-#include <SPI.h>
-#include <Wire.h>
-#include <MFRC522.h>
-#include <WiFi.h>
-#include <ESPmDNS.h>
-#include <WiFiUdp.h>
-#include <ArduinoOTA.h>
-#include <WebServer.h>
-#include <HTTPClient.h>
-#include <ArduinoJson.h>
-#include <Adafruit_Fingerprint.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_ST7789.h> // For 2.4" TFT Front Display
-#include <Adafruit_SSD1306.h> // For 0.96" OLED Back Display
-#include "arduino_secrets.h"
+#include "Config.h"
+#include "DisplayManager.h"
+#include "HardwareDrivers.h"
+#include "NetworkManager.h"
+#include "BiometricSensor.h"
+#include "RfidDriver.h"
 
-// ── HARDWARE LAYER PIN DEFINITIONS ──────────────────────────────
-#define GREEN_LED          12    // Physical UI Green Indicator
-#define RED_LED            13    // Physical UI Red Indicator
-#define SOLENOID_PIN       14    // Relay Control - LOW = UNLOCK, HIGH = LOCK
-#define BUZZER             27    // PWM Audio Feedback Pin
-#define FP_RX              16    // ESP32 UART2 RX <- R307S TX
-#define FP_TX              17    // ESP32 UART2 TX -> R307S RX
-
-// SPI Bus Mappings for Dual MFRC522 Modules
-#define SS_PIN_IN          5     // Front Door Select Pin
-#define SS_PIN_OUT         26    // Back Door Select Pin
-#define RST_PIN_IN         32    // Front Door Reset Pin
-#define RST_PIN_OUT        4     // Back Door Reset Pin
-
-// ── DISPLAY PIN DEFINITIONS ──────────────────────────────────────
-#define TFT_CS             33
-#define TFT_RST            25
-#define TFT_DC             2
-#define TFT_MOSI           23
-#define TFT_SCK            18
-
-// Back Terminal: 0.96" OLED (128x64 Landscape Layout) I2C
-#define OLED_RESET         -1
-#define SCREEN_WIDTH       128
-#define SCREEN_HEIGHT      64
-
-// ── TIMERS & FREQUENCY PROFILES ──────────────────────────────────
-#define BUZZER_FREQ        2500
-#define BUZZER_RES         8
-#define SOLENOID_DURATION  3000
-#define TIMEOUT_2FA        15000
-
-enum LedMode { LED_OFF, LED_SLOW_BLINK, LED_FAST_BLINK, LED_STEADY_GREEN, LED_STEADY_RED };
-
-enum FeedbackType {
-  SUCCESS_OK,
-  ERROR_FAIL,
-  WAITING_SCAN,
-  RFID_TAP,
-  SYSTEM_READY
-};
-
-struct NetworkConfig {
-  String ssid;
-  String pass;
-  String serverUrl;
-  String fpEnrollUrl;
-};
-
-const NetworkConfig networks[] = {
-  { String(WIFI_SSID_1), String(WIFI_PASS_1), String(SERVER_URL_1), String(FP_ENROLL_1) },
-  { String(WIFI_SSID_2), String(WIFI_PASS_2), String(SERVER_URL_2), String(FP_ENROLL_2) },
-  { String(WIFI_SSID_3), String(WIFI_PASS_3), String(SERVER_URL_3), String(FP_ENROLL_3) },
-  { String(WIFI_SSID_4), String(WIFI_PASS_4), String(SERVER_URL_4), String(FP_ENROLL_4) },
-  { String(WIFI_SSID_6), String(WIFI_PASS_6), String(SERVER_URL_6), String(FP_ENROLL_6) }
-};
-const int NETWORK_COUNT = sizeof(networks) / sizeof(networks[0]);
-
-String currentServerUrl = "";
-String currentFpUrl = "";
-
-// ── HARDWARE CONTROLLERS ───────────────────────────────────────
+// ── GLOBAL HARDWARE CONTROLLER INSTANTIATIONS ─────────────────────
 MFRC522 rfidIN(SS_PIN_IN, RST_PIN_IN);
 MFRC522 rfidOUT(SS_PIN_OUT, RST_PIN_OUT);
 HardwareSerial fpSerial(2);
@@ -83,8 +13,12 @@ Adafruit_Fingerprint finger(&fpSerial);
 
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+WebServer webServer(80);
 
-// Hardware States
+// ── GLOBAL APPLICATION STATE INSTANTIATIONS ───────────────────────
+String currentServerUrl = "";
+String currentFpUrl = "";
+
 LedMode greenMode = LED_SLOW_BLINK;
 LedMode redMode = LED_OFF;
 unsigned long lastGreenToggle = 0;
@@ -96,10 +30,10 @@ bool solenoidActive = false;
 unsigned long solenoidStartTime = 0;
 
 bool enrollmentMode = false;
-String enrollmentUserId = "";
-int enrollmentSlotId = 0;
-String enrollmentType = "";
 int fpEnrollStage = 0;
+int enrollmentSlotId = 1;
+String enrollmentUserId = "";
+String enrollmentType = "FP";
 unsigned long fpEnrollStart = 0;
 
 String pendingUID = "";
@@ -107,609 +41,13 @@ unsigned long pendingStart = 0;
 int pendingExpectedFingerID = -1;
 int pendingExpectedFingerID2 = -1;
 
-struct BackendQueue {
-  String uid;
-  String action;
-  String terminalType;
-  bool pending;
-};
 BackendQueue queuedTransaction = {"", "", "", false};
+bool webServerStarted = false;
+bool otaInitialized = false;
 
-// ── SPI BUS CONTROLLER SAFETY ENFORCEMENT ────────────────────────
-void clearSpiBusPins() {
-  // Drive CS lines HIGH to prevent alternate devices from listening during I/O state transitions
-  digitalWrite(SS_PIN_IN, HIGH);
-  digitalWrite(SS_PIN_OUT, HIGH);
-  digitalWrite(TFT_CS, HIGH);
-}
-
-// ── LANDSCAPE OPTIMIZED NON-BLOCKING UI LAYOUT DRAWERS ───────────
-void updateFrontDisplay(String header, String message, uint16_t color) {
-  clearSpiBusPins();
-  delayMicroseconds(50);
-  digitalWrite(TFT_CS, LOW); // Claim bus cleanly for TFT output
-  
-  tft.fillScreen(ST77XX_BLACK);
-  // Wipe header and message bounding boxes in solid black to guarantee no ghosting/overlap
-  tft.fillRect(0, 42, 320, 60, ST77XX_BLACK);
-  tft.fillRect(0, 105, 320, 135, ST77XX_BLACK);
-
-  tft.setCursor(15, 15);
-  tft.setTextColor(ST77XX_ORANGE, ST77XX_BLACK);
-  tft.setTextSize(2);
-  tft.println(F("MACHIP CLOCK-IN STATION"));
-  
-  tft.drawFastHLine(15, 38, 290, ST77XX_WHITE);
-  
-  tft.setCursor(15, 55);
-  tft.setTextColor(color, ST77XX_BLACK);
-  tft.setTextSize(3); 
-  tft.println(header);
-  
-  tft.setCursor(15, 115);
-  tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
-  tft.setTextSize(2);
-  tft.println(message);
-  
-  digitalWrite(TFT_CS, HIGH); // Release bus back to general pool
-}
-
-void updateBackDisplay(String line1, String line2) {
-  oled.clearDisplay();
-  oled.setTextSize(1);
-  oled.setTextColor(SSD1306_WHITE);
-  oled.setCursor(0, 0);
-  oled.println("MACHIP CLOCK-OUT");
-  oled.drawFastHLine(0, 11, 128, SSD1306_WHITE);
-  
-  oled.setCursor(0, 20);
-  oled.setTextSize(2); 
-  oled.println(line1);
-  
-  oled.setCursor(0, 50);
-  oled.setTextSize(1);
-  oled.println(line2);
-  
-  oled.display();
-}
-
-// ── FEEDBACK ENGINE ──────────────────────────────────────────────
-void beep(int duration) {
-  ledcWriteTone(BUZZER, BUZZER_FREQ);
-  delay(duration);
-  ledcWriteTone(BUZZER, 0); 
-}
-
-void setLED(LedMode gMode, LedMode rMode) {
-  clearSpiBusPins(); // Isolate SPI line from direct state changes
-  greenMode = gMode;
-  redMode = rMode;
-  if (gMode == LED_OFF) { digitalWrite(GREEN_LED, LOW); greenState = false; }
-  if (gMode == LED_STEADY_GREEN) { digitalWrite(GREEN_LED, HIGH); greenState = true; }
-  if (rMode == LED_OFF) { digitalWrite(RED_LED, LOW); redState = false; }
-  if (rMode == LED_STEADY_RED) { digitalWrite(RED_LED, HIGH); redState = true; }
-}
-
-void provideFeedback(FeedbackType type) {
-  switch (type) {
-    case SUCCESS_OK:
-      setLED(LED_STEADY_GREEN, LED_OFF);
-      beep(80); delay(80);
-      beep(80);
-      break;
-
-    case ERROR_FAIL:
-      setLED(LED_OFF, LED_STEADY_RED);
-      beep(800); 
-      break;
-
-    case RFID_TAP:
-      beep(100); 
-      break;
-
-    case WAITING_SCAN:
-      setLED(LED_FAST_BLINK, LED_OFF);
-      break;
-
-    case SYSTEM_READY:
-      for (int i = 0; i < 3; i++) {
-        beep(50); delay(50);
-      }
-      break;
-  }
-}
-
-void updateLEDs() {
-  unsigned long now = millis();
-  // Safe toggles wrapped to ensure transient states don't trip display drivers
-  if (greenMode == LED_SLOW_BLINK && now - lastGreenToggle >= 1000) {
-    clearSpiBusPins(); greenState = !greenState; digitalWrite(GREEN_LED, greenState ? HIGH : LOW); lastGreenToggle = now;
-  } else if (greenMode == LED_FAST_BLINK && now - lastGreenToggle >= 100) {
-    clearSpiBusPins(); greenState = !greenState; digitalWrite(GREEN_LED, greenState ? HIGH : LOW); lastGreenToggle = now;
-  }
-  if (redMode == LED_SLOW_BLINK && now - lastRedToggle >= 1000) {
-    clearSpiBusPins(); redState = !redState; digitalWrite(RED_LED, redState ? HIGH : LOW); lastRedToggle = now;
-  } else if (redMode == LED_FAST_BLINK && now - lastRedToggle >= 100) {
-    clearSpiBusPins(); redState = !redState; digitalWrite(RED_LED, redState ? HIGH : LOW); lastRedToggle = now;
-  }
-}
-
-// ── SOLENOID CONTROL ──────────────────────────────────────────────
-void solenoidUnlock() {
-  if (!solenoidActive) {
-    clearSpiBusPins();
-    delay(20);
-    digitalWrite(SOLENOID_PIN, LOW); // Pull Low to activate Relay shield
-    solenoidActive = true;
-    solenoidStartTime = millis();
-    Serial.println(F("[SOLENOID] UNLOCKED"));
-  }
-}
-
-void solenoidLock() {
-  if (solenoidActive) {
-    clearSpiBusPins();
-    digitalWrite(SOLENOID_PIN, HIGH); // Pull High to return lock to rest
-    solenoidActive = false;
-    Serial.println(F("[SOLENOID] LOCKED"));
-  }
-}
-
-void updateSolenoid() {
-  if (solenoidActive && (millis() - solenoidStartTime >= SOLENOID_DURATION)) {
-    solenoidLock();
-    // Allow relay coil kickback & contact bounce to fully quench before driving SPI bus
-    delay(100);
-    clearSpiBusPins();
-    updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
-    updateBackDisplay("READY", "Scan Card Out");
-  }
-}
-
-// ── SECURED WEB SERIAL CONSOLE ─────────────────────────────────────
-#ifndef WEB_CONSOLE_USER
-#define WEB_CONSOLE_USER "admin"
-#endif
-#ifndef WEB_CONSOLE_PASS
-#define WEB_CONSOLE_PASS "machip2026"
-#endif
-
-WebServer webServer(80);
-static bool webServerStarted = false;
-
-const int LOG_MAX_ENTRIES = 60;
 String webLogBuffer[LOG_MAX_ENTRIES];
 int logHead = 0;
 int logCount = 0;
-
-void sysLog(const String &msg) {
-  Serial.println(msg);
-  
-  unsigned long ms = millis();
-  unsigned long sec = ms / 1000;
-  unsigned long min = (sec / 60) % 60;
-  unsigned long hr = (sec / 3600) % 24;
-  sec = sec % 60;
-  
-  char timeStr[16];
-  snprintf(timeStr, sizeof(timeStr), "[%02lu:%02lu:%02lu] ", hr, min, sec);
-  
-  webLogBuffer[logHead] = String(timeStr) + msg;
-  logHead = (logHead + 1) % LOG_MAX_ENTRIES;
-  if (logCount < LOG_MAX_ENTRIES) logCount++;
-}
-
-const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MAChip Hardware Console</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
-    body { background-color: #0f172a; color: #e2e8f0; display: flex; flex-direction: column; height: 100vh; padding: 16px; }
-    .header { display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 12px 20px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #334155; }
-    .title { font-size: 1.1rem; font-weight: 700; color: #f97316; display: flex; align-items: center; gap: 8px; }
-    .status-badge { background: #166534; color: #4ade80; font-size: 0.8rem; padding: 4px 10px; border-radius: 9999px; font-weight: 600; }
-    .toolbar { display: flex; gap: 12px; align-items: center; }
-    button { background: #ef4444; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
-    button:hover { opacity: 0.85; }
-    .label-check { font-size: 0.85rem; display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
-    .console-box { flex: 1; background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 14px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.9rem; line-height: 1.5; color: #22c55e; white-space: pre-wrap; word-break: break-all; }
-    .log-line { border-bottom: 1px solid #0f172a; padding: 2px 0; }
-    .log-err { color: #f87171; }
-    .log-warn { color: #fbbf24; }
-    .log-info { color: #38bdf8; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="title">⚡ MAChip ESP32 Live Terminal</div>
-    <div class="toolbar">
-      <span class="status-badge" id="status">● ESP32 ONLINE</span>
-      <span class="status-badge" id="server-status" style="background:#1e3a8a; color:#93c5fd;">● SERVER: CONNECTED</span>
-      <label class="label-check"><input type="checkbox" id="autoscroll" checked> Auto-Scroll</label>
-      <button onclick="clearLogs()">Clear Logs</button>
-    </div>
-  </div>
-  <div class="console-box" id="console">Loading live logs...</div>
-  <script>
-    const consoleBox = document.getElementById('console');
-    const autoScrollCheck = document.getElementById('autoscroll');
-    
-    async function fetchLogs() {
-      try {
-        const res = await fetch('/console/logs');
-        if (res.status === 401) { location.reload(); return; }
-        const logs = await res.json();
-        if (logs.length === 0) {
-          consoleBox.innerHTML = '<div class="log-line" style="color:#64748b;">No logs recorded yet.</div>';
-          return;
-        }
-        let html = '';
-        logs.forEach(msg => {
-          let cls = '';
-          if (msg.includes('FAILED') || msg.includes('Fail') || msg.includes('Error') || msg.includes('ERROR')) cls = 'log-err';
-          else if (msg.includes('WARN') || msg.includes('WARNING') || msg.includes('OTA UPDATE')) cls = 'log-warn';
-          else if (msg.includes('[WIFI]') || msg.includes('[SYSTEM]') || msg.includes('CONNECTED') || msg.includes('[OTA]') || msg.includes('[NET')) cls = 'log-info';
-          html += `<div class="log-line ${cls}">${escapeHtml(msg)}</div>`;
-
-          if (msg.includes('[NET-SERVER]') && msg.includes('ONLINE')) {
-            const sBadge = document.getElementById('server-status');
-            if (sBadge) {
-              sBadge.innerText = '● SERVER: ONLINE';
-              sBadge.style.background = '#166534'; sBadge.style.color = '#4ade80';
-            }
-          } else if (msg.includes('[NET-SERVER]') && msg.includes('WARNING')) {
-            const sBadge = document.getElementById('server-status');
-            if (sBadge) {
-              sBadge.innerText = '● SERVER: WARN';
-              sBadge.style.background = '#854d0e'; sBadge.style.color = '#fef08a';
-            }
-          }
-        });
-        consoleBox.innerHTML = html;
-        if (autoScrollCheck.checked) consoleBox.scrollTop = consoleBox.scrollHeight;
-      } catch (err) {
-        const st = document.getElementById('status');
-        if (st) {
-          st.innerText = '● DISCONNECTED';
-          st.style.background = '#991b1b';
-          st.style.color = '#fca5a5';
-        }
-      }
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    async function clearLogs() {
-      await fetch('/console/clear', { method: 'POST' });
-      fetchLogs();
-    }
-
-    setInterval(fetchLogs, 1500);
-    fetchLogs();
-  </script>
-</body>
-</html>
-)rawliteral";
-
-void handleConsoleUI() {
-  if (!webServer.authenticate(WEB_CONSOLE_USER, WEB_CONSOLE_PASS)) {
-    return webServer.requestAuthentication(BASIC_AUTH, "MAChip Admin Auth Required");
-  }
-  webServer.send(200, "text/html", CONSOLE_HTML);
-}
-
-void handleConsoleLogs() {
-  if (!webServer.authenticate(WEB_CONSOLE_USER, WEB_CONSOLE_PASS)) {
-    return webServer.requestAuthentication(BASIC_AUTH, "MAChip Admin Auth Required");
-  }
-  JsonDocument doc;
-  JsonArray array = doc.to<JsonArray>();
-
-  int start = (logCount < LOG_MAX_ENTRIES) ? 0 : logHead;
-  for (int i = 0; i < logCount; i++) {
-    int index = (start + i) % LOG_MAX_ENTRIES;
-    array.add(webLogBuffer[index]);
-  }
-
-  String response;
-  serializeJson(doc, response);
-  webServer.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  webServer.sendHeader("Pragma", "no-cache");
-  webServer.sendHeader("Expires", "0");
-  webServer.send(200, "application/json", response);
-}
-
-void handleConsoleClear() {
-  if (!webServer.authenticate(WEB_CONSOLE_USER, WEB_CONSOLE_PASS)) {
-    return webServer.requestAuthentication(BASIC_AUTH, "MAChip Admin Auth Required");
-  }
-  logHead = 0;
-  logCount = 0;
-  webServer.send(200, "application/json", "{\"success\":true}");
-}
-
-void setupWebConsole() {
-  if (webServerStarted) return;
-
-  webServer.on("/", HTTP_GET, handleConsoleUI);
-  webServer.on("/console", HTTP_GET, handleConsoleUI);
-  webServer.on("/console/logs", HTTP_GET, handleConsoleLogs);
-  webServer.on("/console/clear", HTTP_POST, handleConsoleClear);
-
-  webServer.begin();
-  webServerStarted = true;
-
-  sysLog(F("=========================================================="));
-  sysLog(F(" 🌐 MACHIP SECURED WEB SERIAL CONSOLE INITIALIZED"));
-  sysLog(" └─ URL:      http://" + WiFi.localIP().toString() + "/console");
-  sysLog(F(" └─ mDNS:     http://machip-esp32.local/console"));
-  sysLog(" └─ Username: " + String(WEB_CONSOLE_USER));
-  sysLog(" └─ Password: " + String(WEB_CONSOLE_PASS));
-  sysLog(F("=========================================================="));
-}
-
-// ── FAST WIFI CONNECTION ENGINE (SCAN & MATCH) ───────────────────
-bool autoConnectWiFi() {
-  if (WiFi.status() == WL_CONNECTED) return true;
-  
-  sysLog(F("[WIFI] Scanning for nearby configured networks..."));
-  updateFrontDisplay("NET CONFIG", "Scanning Wi-Fi...", ST77XX_YELLOW);
-  updateBackDisplay("WIFI LINK", "Scanning...");
-
-  WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false); // Max power / zero sleep latency for fastest link
-  
-  // Fast asynchronous scan (takes ~500ms)
-  int n = WiFi.scanNetworks(false, false, false, 150);
-  sysLog("[WIFI] Scan complete. Found " + String(n) + " access points.");
-
-  // 1. Primary Priority: Match scanned networks against our configured profiles
-  for (int j = 0; j < n; j++) {
-    String scannedSSID = WiFi.SSID(j);
-    int scannedRSSI = WiFi.RSSI(j);
-
-    for (int i = 0; i < NETWORK_COUNT; i++) {
-      if (networks[i].ssid == "") continue;
-      
-      if (scannedSSID == networks[i].ssid) {
-        sysLog("[WIFI] Visible AP detected: [" + networks[i].ssid + "] (" + String(scannedRSSI) + " dBm). Connecting...");
-        updateFrontDisplay("WIFI CONNECT", "Joining " + networks[i].ssid, ST77XX_YELLOW);
-        
-        WiFi.begin(networks[i].ssid.c_str(), networks[i].pass.c_str());
-        
-        int tries = 0;
-        while (WiFi.status() != WL_CONNECTED && tries < 20) { // 20 * 200ms = 4s max
-          updateLEDs();
-          delay(200);
-          tries++;
-        }
-
-        if (WiFi.status() == WL_CONNECTED) {
-          currentServerUrl = networks[i].serverUrl;
-          currentFpUrl = networks[i].fpEnrollUrl;
-          WiFi.scanDelete(); // Free scan memory
-          
-          sysLog("[WIFI] [CONNECTED] Linked to [" + networks[i].ssid + "] in " + String(tries * 200) + "ms!");
-          sysLog("[WIFI] ESP32 Local IP: " + WiFi.localIP().toString());
-          sysLog("[NET] Target Backend Server: " + currentServerUrl);
-          
-          // Immediate Server Health Verification
-          HTTPClient testHttp;
-          testHttp.begin(currentFpUrl + "/session");
-          testHttp.setTimeout(3000);
-          testHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
-          int testCode = testHttp.GET();
-          if (testCode == 200) {
-            sysLog("[NET-SERVER] [SUCCESS] Node.js Backend Server is ONLINE & Connected!");
-          } else {
-            sysLog("[NET-SERVER] [WARNING] Wi-Fi linked, but Server returned HTTP " + String(testCode));
-          }
-          testHttp.end();
-
-          updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
-          updateBackDisplay("ONLINE", WiFi.localIP().toString());
-          return true;
-        }
-      }
-    }
-  }
-
-  // 2. Direct fallback (in case SSID is hidden or missed in first scan pass)
-  sysLog(F("[WIFI] Running direct fallback connection..."));
-  for (int i = 0; i < NETWORK_COUNT; i++) {
-    if (networks[i].ssid == "") continue;
-    
-    WiFi.begin(networks[i].ssid.c_str(), networks[i].pass.c_str());
-    int tries = 0;
-    while (WiFi.status() != WL_CONNECTED && tries < 10) { // 2s timeout
-      updateLEDs(); delay(200); tries++;
-    }
-    
-    if (WiFi.status() == WL_CONNECTED) {
-      currentServerUrl = networks[i].serverUrl;
-      currentFpUrl = networks[i].fpEnrollUrl;
-      sysLog("[WIFI] [CONNECTED] Fallback linked to [" + networks[i].ssid + "]");
-      updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
-      updateBackDisplay("ONLINE", WiFi.localIP().toString());
-      return true;
-    }
-  }
-
-  sysLog(F("[WIFI] All network connection attempts failed. Entering offline mode."));
-  updateFrontDisplay("OFFLINE", "LAN Local Database Mode", ST77XX_RED);
-  updateBackDisplay("OFFLINE", "Local Base Mode");
-  return false;
-}
-
-void queueTransaction(String uid, String action, String terminalType) {
-  queuedTransaction.uid = uid;
-  queuedTransaction.action = action;
-  queuedTransaction.terminalType = terminalType;
-  queuedTransaction.pending = true;
-}
-
-void processQueuedTransaction() {
-  if (!queuedTransaction.pending || WiFi.status() != WL_CONNECTED) return;
-  HTTPClient http;
-  http.begin(currentServerUrl);
-  http.setTimeout(5000);
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("x-esp32-key", String(ESP32_API_KEY));
-
-  JsonDocument doc;
-  doc["uid"] = queuedTransaction.uid;
-  doc["action"] = queuedTransaction.action;
-  doc["terminalType"] = queuedTransaction.terminalType;
-
-  String payload;
-  serializeJson(doc, payload);
-  int httpCode = http.POST(payload);
-
-  if (httpCode == 200) {
-    queuedTransaction.pending = false;
-    Serial.println("[OK] Sync Finished");
-  }
-  http.end();
-}
-
-// ── BIOMETRIC EXTRACTOR ENGINE ────────────────────────────────────
-String downloadTemplate() {
-  while(fpSerial.available()) fpSerial.read();
-  uint8_t bufId = 0x01;
-  uint16_t packetLen = 1 + 3;
-  uint8_t packet[13];
-  packet[0] = 0xEF; packet[1] = 0x01;
-  packet[2] = 0xFF; packet[3] = 0xFF; packet[4] = 0xFF; packet[5] = 0xFF;
-  packet[6] = 0x01;
-  packet[7] = (packetLen >> 8) & 0xFF; packet[8] = packetLen & 0xFF;
-  packet[9] = 0x08; packet[10] = bufId;
-  uint16_t sum = 0x01 + (packetLen >> 8) + (packetLen & 0xFF) + 0x08 + bufId;
-  packet[11] = (sum >> 8) & 0xFF; packet[12] = sum & 0xFF;
-  
-  fpSerial.write(packet, 13);
-  unsigned long start = millis();
-  while (fpSerial.available() < 12 && millis() - start < 1000) delay(1);
-  if (fpSerial.available() < 12) return "";
-  
-  uint8_t ack[12];
-  for (int i = 0; i < 12; i++) ack[i] = fpSerial.read();
-  if (ack[9] != 0x00) return "";
-
-  byte templateData[512];
-  int totalBytes = 0;
-  unsigned long startTime = millis();
-  
-  for (int p = 0; p < 4; p++) {
-    bool found = false;
-    while (millis() - startTime < 5000) {
-      if (fpSerial.available() >= 2) {
-        if (fpSerial.read() == 0xEF && fpSerial.peek() == 0x01) {
-          fpSerial.read(); found = true; break;
-        }
-      }
-      delay(1);
-    }
-    if (!found) return "";
-    for (int i = 0; i < 7; i++) {
-      while (!fpSerial.available() && millis() - startTime < 5000) delay(1);
-      fpSerial.read();
-    }
-    for (int i = 0; i < 128; i++) {
-      while (!fpSerial.available() && millis() - startTime < 5000) delay(1);
-      templateData[p * 128 + i] = fpSerial.read();
-      totalBytes++;
-    }
-    for (int i = 0; i < 2; i++) {
-      while (!fpSerial.available() && millis() - startTime < 5000) delay(1);
-      fpSerial.read();
-    }
-  }
-
-  if (totalBytes < 512) return "";
-  String hex = "";
-  for (int i = 0; i < 512; i++) {
-    if (templateData[i] < 0x10) hex += "0";
-    hex += String(templateData[i], HEX);
-  }
-  hex.toUpperCase();
-  return hex;
-}
-
-void uploadEnrollment(int slotId, bool success, String userId, String templateHex) {
-  if (WiFi.status() != WL_CONNECTED) return;
-  HTTPClient http;
-  http.begin(currentFpUrl + "/enroll-confirm");
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("x-esp32-key", String(ESP32_API_KEY));
-  
-  JsonDocument doc;
-  doc["userId"] = userId;
-  doc["slotId"] = slotId;
-  doc["success"] = success;
-  doc["template"] = templateHex;
-  
-  String body;
-  serializeJson(doc, body);
-  http.POST(body);
-  http.end();
-}
-
-// ── ARDUINO OTA INITIALIZATION ─────────────────────────────────────
-static bool otaInitialized = false;
-
-void setupOTA() {
-  if (otaInitialized) return;
-
-  // Set Hostname for local mDNS resolution (machip-esp32.local)
-  ArduinoOTA.setHostname("machip-esp32");
-
-  // Optional: Password protection for network updates
-  // ArduinoOTA.setPassword("machip2026");
-
-  ArduinoOTA.onStart([]() {
-    String type;
-    if (ArduinoOTA.getCommand() == U_FLASH) {
-      type = "sketch";
-    } else { // U_SPIFFS / U_LITTLEFS
-      type = "filesystem";
-    }
-    Serial.println("[OTA] Firmware update started: " + type);
-    updateFrontDisplay("OTA UPDATE", "Flashing new firmware...", ST77XX_YELLOW);
-    updateBackDisplay("OTA UPDATE", "Do not power off!");
-  });
-
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\n[OTA] Firmware update complete!");
-    updateFrontDisplay("OTA COMPLETE", "Rebooting system...", ST77XX_GREEN);
-    updateBackDisplay("OTA COMPLETE", "Rebooting...");
-  });
-
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    int pct = (progress / (total / 100));
-    Serial.printf("[OTA] Progress: %u%%\r", pct);
-  });
-
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("[OTA] Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
-    updateFrontDisplay("OTA ERROR", "Update Failed!", ST77XX_RED);
-    updateBackDisplay("OTA ERROR", "Update Failed");
-  });
-
-  ArduinoOTA.begin();
-  otaInitialized = true;
-  Serial.println(F("[OTA] ArduinoOTA service initialized and listening on LAN"));
-}
 
 // ── INITIALIZATION ────────────────────────────────────────────────
 void setup() {
@@ -721,31 +59,23 @@ void setup() {
   pinMode(GREEN_LED, OUTPUT); 
   pinMode(RED_LED, OUTPUT);
   pinMode(SOLENOID_PIN, OUTPUT);
-  
   pinMode(TFT_CS, OUTPUT);
-  pinMode(TFT_DC, OUTPUT);
-  pinMode(TFT_RST, OUTPUT);
-  
   pinMode(SS_PIN_IN, OUTPUT);
-  pinMode(RST_PIN_IN, OUTPUT);
   pinMode(SS_PIN_OUT, OUTPUT);
+  pinMode(RST_PIN_IN, OUTPUT);
   pinMode(RST_PIN_OUT, OUTPUT);
+  pinMode(TFT_RST, OUTPUT);
 
-  // 2. Enforce clean locked/deselected states to prevent SPI bus contention
-  digitalWrite(TFT_CS, HIGH);
-  digitalWrite(TFT_RST, HIGH);
-  digitalWrite(SS_PIN_IN, HIGH);
-  digitalWrite(RST_PIN_IN, HIGH);
-  digitalWrite(SS_PIN_OUT, HIGH);
-  digitalWrite(RST_PIN_OUT, HIGH);
+  // 2. Set Safe Default States (Lock energized/High, CS Unselected/High)
   digitalWrite(SOLENOID_PIN, HIGH);
   solenoidActive = false;
+  clearSpiBusPins();
 
-  // 3. Initialize Shared SPI Bus FIRST
-  SPI.begin();
-  delay(50);
+  // 3. Hardware Master SPI Bus Setup
+  SPI.begin(TFT_SCK, -1, TFT_MOSI, -1);
+  Wire.begin(21, 22);
 
-  // 4. Hardware Reset & Initialize Front Display (2.4" TFT ST7789 SPI)
+  // 4. Reset & Initialize Front Display (ST7789 2.4" SPI 240x320)
   digitalWrite(TFT_RST, LOW);
   delay(50);
   digitalWrite(TFT_RST, HIGH);
@@ -985,11 +315,7 @@ void loop() {
   if (enrollmentMode && enrollmentType == "RFID") {
     clearSpiBusPins();
     if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
-      String cardUid = "";
-      for (byte i = 0; i < rfidIN.uid.size; i++) {
-        cardUid += (rfidIN.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidIN.uid.uidByte[i], HEX);
-      }
-      cardUid.toUpperCase();
+      String cardUid = getUIDString(rfidIN);
       rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
       clearSpiBusPins();
       
@@ -1183,11 +509,7 @@ void loop() {
     
     if (checkInScan) {
       provideFeedback(RFID_TAP);
-      String currentUID = "";
-      for (byte i = 0; i < rfidIN.uid.size; i++) {
-        currentUID += (rfidIN.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidIN.uid.uidByte[i], HEX);
-      }
-      currentUID.toUpperCase();
+      String currentUID = getUIDString(rfidIN);
       rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
       clearSpiBusPins();
 
@@ -1309,11 +631,7 @@ void loop() {
     
     if (checkOutScan) {
       provideFeedback(RFID_TAP);
-      String outUID = "";
-      for (byte i = 0; i < rfidOUT.uid.size; i++) {
-        outUID += (rfidOUT.uid.uidByte[i] < 0x10 ? "0" : "") + String(rfidOUT.uid.uidByte[i], HEX);
-      }
-      outUID.toUpperCase();
+      String outUID = getUIDString(rfidOUT);
       rfidOUT.PICC_HaltA(); rfidOUT.PCD_StopCrypto1();
       clearSpiBusPins();
 
