@@ -75,7 +75,6 @@ const HardwareManagement = () => {
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [memoryIdFilter, setMemoryIdFilter] = useState("All");
   const [selectedDate, setSelectedDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -144,7 +143,7 @@ const HardwareManagement = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, memoryIdFilter, selectedDate, activeTab]);
+  }, [searchQuery, statusFilter, selectedDate, activeTab]);
 
   // Track active scan request for instant cancellation
   const scanAbortControllerRef = useRef(null);
@@ -369,41 +368,73 @@ const HardwareManagement = () => {
 
   // ── Filtering & Stats ────────────────────────────────────────────────────
 
-  const uniqueMemoryIds = useMemo(() => {
-    const ids = biometricList
-      .map(b => b.fingerprintIndex)
-      .filter(id => id !== null && id !== undefined);
-    return [...new Set(ids)].sort((a, b) => a - b);
-  }, [biometricList]);
+  const combinedBiometricList = useMemo(() => {
+    // If backend already returned unassigned items with hardwareStatus, use it directly
+    const hasUnassigned = biometricList.some(b => b.hardwareStatus === "Unassigned" || b.fingerprintIndex === null);
+    if (hasUnassigned) {
+      return biometricList.map(item => ({
+        ...item,
+        hardwareStatus: item.hardwareStatus || (item.fingerprintIndex !== null && item.fingerprintIndex !== undefined ? "Assigned" : "Unassigned")
+      }));
+    }
+
+    // Otherwise augment with unassigned employees who have no active fingerprints
+    const assignedUserIds = new Set(
+      biometricList
+        .filter(b => b.fingerprintIndex !== null && b.fingerprintIndex !== undefined)
+        .map(b => Number(b.user_Id))
+    );
+
+    const unassignedRows = unassignedEmployees
+      .filter(u => !u.hasSlot1 && !assignedUserIds.has(Number(u.user_Id)))
+      .map(u => ({
+        user_Id: u.user_Id,
+        userName: `${u.user_FirstName || ''} ${u.user_LastName || ''}`.trim(),
+        fingerprintIndex: null,
+        slotNumber: null,
+        fingerprintType: null,
+        sensorNode: "Secure Node 01",
+        hardwareStatus: "Unassigned",
+        dateAligned: null
+      }));
+
+    const mappedAssigned = biometricList.map(item => ({
+      ...item,
+      hardwareStatus: item.hardwareStatus || "Assigned"
+    }));
+
+    return [...mappedAssigned, ...unassignedRows].sort((a, b) => (a.userName || "").localeCompare(b.userName || ""));
+  }, [biometricList, unassignedEmployees]);
 
   const filteredData = useMemo(() => {
-    const list = activeTab === 'rfid' ? rfidList : biometricList;
+    const list = activeTab === 'rfid' ? rfidList : combinedBiometricList;
     return list.filter(item => {
       const query = searchQuery.toLowerCase();
       const matchesSearch = 
         item.userName?.toLowerCase().includes(query) || 
         (activeTab === 'rfid' && item.machip_id?.toLowerCase().includes(query)) ||
-        formatUserId(item.user_Id).toLowerCase().includes(query);
+        formatUserId(item.user_Id).toLowerCase().includes(query) ||
+        (activeTab === 'fingerprint' && item.fingerprintIndex !== null && item.fingerprintIndex !== undefined && `slot #${item.fingerprintIndex}`.toLowerCase().includes(query));
 
-      if (activeTab === 'rfid') {
-        const matchesStatus = statusFilter === "All" || item.hardwareStatus === statusFilter;
-        let matchesDate = true;
-        if (selectedDate) {
-          const alignedDateRaw = item.dateAligned;
-          if (alignedDateRaw) {
-            try {
-              const alignedDate = new Date(alignedDateRaw).toISOString().split('T')[0];
-              matchesDate = alignedDate === selectedDate;
-            } catch (e) { matchesDate = false; }
-          } else matchesDate = false;
-        }
-        return matchesSearch && matchesStatus && matchesDate;
-      } else {
-        const matchesMemoryId = memoryIdFilter === "All" || (item.fingerprintIndex !== null && item.fingerprintIndex !== undefined && item.fingerprintIndex.toString() === memoryIdFilter);
-        return matchesSearch && matchesMemoryId;
+      const matchesStatus = statusFilter === "All" || 
+        ((statusFilter === "Active" || statusFilter === "Assigned")
+          ? (item.hardwareStatus === "Active" || item.hardwareStatus === "Assigned")
+          : item.hardwareStatus === statusFilter);
+
+      let matchesDate = true;
+      if (selectedDate && activeTab === 'rfid') {
+        const alignedDateRaw = item.dateAligned;
+        if (alignedDateRaw) {
+          try {
+            const alignedDate = new Date(alignedDateRaw).toISOString().split('T')[0];
+            matchesDate = alignedDate === selectedDate;
+          } catch (e) { matchesDate = false; }
+        } else matchesDate = false;
       }
+
+      return matchesSearch && matchesStatus && matchesDate;
     });
-  }, [activeTab, rfidList, biometricList, searchQuery, statusFilter, memoryIdFilter, selectedDate]);
+  }, [activeTab, rfidList, combinedBiometricList, searchQuery, statusFilter, selectedDate]);
 
   const stats = useMemo(() => {
     if (activeTab === 'rfid') {
@@ -415,13 +446,13 @@ const HardwareManagement = () => {
       };
     } else {
       return {
-        total: biometricList.filter(b => b.fingerprintIndex !== null).length,
+        total: combinedBiometricList.filter(b => b.fingerprintIndex !== null && b.fingerprintIndex !== undefined).length,
         unassigned: unassignedEmployees.length,
         icon: <FingerprintIcon />,
         color: "bg-brand-primary"
       };
     }
-  }, [activeTab, rfidList, biometricList, unassignedEmployees]);
+  }, [activeTab, rfidList, combinedBiometricList, unassignedEmployees]);
 
   const totalItems = filteredData.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
@@ -429,7 +460,7 @@ const HardwareManagement = () => {
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentData = filteredData.slice(startIndex, endIndex);
 
-  const isFiltering = searchQuery !== "" || statusFilter !== "All" || memoryIdFilter !== "All" || selectedDate !== "";
+  const isFiltering = searchQuery !== "" || statusFilter !== "All" || selectedDate !== "";
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -565,26 +596,39 @@ const HardwareManagement = () => {
                   </div>
                   <div className="flex gap-3 w-full xl:w-auto items-center">
                     <FilterListIcon className="text-slate-400 hidden sm:block" />
-                    {activeTab === 'rfid' ? (
-                      <>
-                        <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full sm:w-[160px] h-9 border-slate-200 bg-slate-50 text-slate-700 font-medium" />
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                          <SelectTrigger className="w-[160px] bg-slate-50"><SelectValue placeholder="Status" /></SelectTrigger>
-                          <SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Active">Active</SelectItem><SelectItem value="Unassigned">Unassigned</SelectItem></SelectContent>
-                        </Select>
-                      </>
-                    ) : (
-                      <Select value={memoryIdFilter} onValueChange={setMemoryIdFilter}>
-                        <SelectTrigger className="w-[160px] bg-slate-50"><SelectValue placeholder="Memory ID" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="All">All Slots</SelectItem>
-                          {uniqueMemoryIds.map(id => (
-                            <SelectItem key={id} value={id.toString()}>Slot #{id}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {activeTab === 'rfid' && (
+                      <Input 
+                        type="date" 
+                        value={selectedDate} 
+                        onChange={(e) => setSelectedDate(e.target.value)} 
+                        className="w-full sm:w-[160px] h-9 border-slate-200 bg-slate-50 text-slate-700 font-medium" 
+                      />
                     )}
-                    {isFiltering && <Button variant="ghost" onClick={() => { setSearchQuery(""); setStatusFilter("All"); setMemoryIdFilter("All"); setSelectedDate(""); }} className="text-slate-500 hover:text-red-600"><CloseIcon className="h-4 w-4 mr-1" /> Clear</Button>}
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-[160px] bg-slate-50">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="All">All Statuses</SelectItem>
+                        <SelectItem value={activeTab === 'rfid' ? 'Active' : 'Assigned'}>
+                          {activeTab === 'rfid' ? 'Active' : 'Assigned'}
+                        </SelectItem>
+                        <SelectItem value="Unassigned">Unassigned</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {isFiltering && (
+                      <Button 
+                        variant="ghost" 
+                        onClick={() => { 
+                          setSearchQuery(""); 
+                          setStatusFilter("All"); 
+                          setSelectedDate(""); 
+                        }} 
+                        className="text-slate-500 hover:text-red-600"
+                      >
+                        <CloseIcon className="h-4 w-4 mr-1" /> Clear
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -611,35 +655,35 @@ const HardwareManagement = () => {
                             </Tooltip>
                           </div>
                         </TableHead>
+                        <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
+                          <div className="flex items-center gap-1">
+                            Status
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                {activeTab === 'rfid' 
+                                  ? 'Alignment status of the RFID card.' 
+                                  : 'Alignment status of the biometric fingerprint slot.'}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableHead>
                         {activeTab === 'rfid' && (
-                          <>
-                            <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
-                              <div className="flex items-center gap-1">
-                                Status
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                                    Alignment status of the RFID card.
-                                  </TooltipContent>
-                                </Tooltip>
-                              </div>
-                            </TableHead>
-                            <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
-                              <div className="flex items-center gap-1">
-                                Synchronized
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                                    The date when the RFID card was mapped to the employee record.
-                                  </TooltipContent>
-                                </Tooltip>
-                              </div>
-                            </TableHead>
-                          </>
+                          <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
+                            <div className="flex items-center gap-1">
+                              Synchronized
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                  The date when the RFID card was mapped to the employee record.
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableHead>
                         )}
                         <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Action</TableHead>
                       </TableRow>
@@ -647,7 +691,7 @@ const HardwareManagement = () => {
                     <TableBody>
                       {currentData.length > 0 ? (
                         currentData.map((row) => (
-                          <TableRow key={`${row.user_Id}-${row.slotNumber || 1}-${row.fingerprintIndex || row.machip_id || ''}`} className="border-b-slate-100 hover:bg-slate-50/50">
+                          <TableRow key={`${row.user_Id}-${row.slotNumber || 1}-${row.fingerprintIndex || row.machip_id || 'unassigned'}`} className="border-b-slate-100 hover:bg-slate-50/50">
                             <TableCell className="px-6 py-4">
                               <div className="flex items-center gap-2">
                                 <div>
@@ -662,25 +706,28 @@ const HardwareManagement = () => {
                               </div>
                             </TableCell>
                             <TableCell className="font-mono text-xs font-semibold text-slate-700">
-                              {activeTab === 'rfid' ? (row.machip_id || "—") : `Slot #${row.fingerprintIndex ?? "—"}`}
+                              {activeTab === 'rfid' 
+                                ? (row.machip_id || "—") 
+                                : (row.fingerprintIndex !== null && row.fingerprintIndex !== undefined ? `Slot #${row.fingerprintIndex}` : "—")}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className={
+                                (row.hardwareStatus === "Active" || row.hardwareStatus === "Assigned") 
+                                  ? "bg-green-100 text-green-800 hover:bg-green-100" 
+                                  : row.hardwareStatus === "Unassigned" 
+                                    ? "bg-slate-100 text-slate-500 hover:bg-slate-100" 
+                                    : "bg-red-100 text-red-800 hover:bg-red-100"
+                              }>
+                                {row.hardwareStatus || (activeTab === 'rfid' ? (row.machip_id ? "Active" : "Unassigned") : (row.fingerprintIndex !== null && row.fingerprintIndex !== undefined ? "Assigned" : "Unassigned"))}
+                              </Badge>
                             </TableCell>
                             {activeTab === 'rfid' && (
-                              <>
-                                <TableCell>
-                                  <Badge variant="secondary" className={
-                                    row.hardwareStatus === "Active" ? "bg-green-100 text-green-800" : 
-                                    row.hardwareStatus === "Unassigned" ? "bg-slate-100 text-slate-500" : "bg-red-100 text-red-800"
-                                  }>
-                                    {row.hardwareStatus || "Unknown"}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-slate-600 text-sm">
-                                  {row.dateAligned ? new Date(row.dateAligned).toLocaleDateString() : "—"}
-                                </TableCell>
-                              </>
+                              <TableCell className="text-slate-600 text-sm">
+                                {row.dateAligned ? new Date(row.dateAligned).toLocaleDateString() : "—"}
+                              </TableCell>
                             )}
                             <TableCell className="text-right pr-6">
-                              {(activeTab === 'rfid' ? row.machip_id : row.fingerprintIndex !== null) ? (
+                              {(activeTab === 'rfid' ? row.machip_id : (row.fingerprintIndex !== null && row.fingerprintIndex !== undefined)) ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="inline-block">
@@ -700,7 +747,7 @@ const HardwareManagement = () => {
                           </TableRow>
                         ))
                       ) : (
-                        <TableRow><TableCell colSpan={activeTab === 'rfid' ? 5 : 3} className="p-6 border-0">
+                        <TableRow><TableCell colSpan={activeTab === 'rfid' ? 5 : 4} className="p-6 border-0">
                           <EmptyState icon={activeTab === 'rfid' ? <CreditCardIcon className="h-8 w-8 text-slate-300" /> : <FingerprintIcon className="h-8 w-8 text-slate-300" />} title="No mappings active" description="No registered nodes currently reside within hardware configuration filters." />
                         </TableCell></TableRow>
                       )}

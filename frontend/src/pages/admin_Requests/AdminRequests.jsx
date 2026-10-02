@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
@@ -41,6 +41,8 @@ const AdminRequests = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedReqId, setSelectedReqId] = useState(null); // Upgraded from selectedIdx
+  const handledDeepLinkRef = useRef(null);
+  const pageAlignedRef = useRef(null);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [adminNote, setAdminNote] = useState("");
@@ -102,6 +104,8 @@ const AdminRequests = () => {
     if (!targetIdRaw || requests.length === 0) return;
 
     const targetId = parseInt(targetIdRaw, 10);
+    if (handledDeepLinkRef.current === targetId) return;
+
     const targetReq = requests.find((r) => r.emp_reqId === targetId);
 
     if (targetReq) {
@@ -112,22 +116,33 @@ const AdminRequests = () => {
         setActiveTab(targetTab);
       }
       setSelectedReqId(targetId);
+      handledDeepLinkRef.current = targetId;
+
+      // Clean up URL/state so subsequent manual interactions (tab switching, paging) are not overridden
+      if (searchParams.has("requestId") || location.state?.selectedReqId) {
+        navigate(location.pathname, { replace: true, state: {} });
+      }
     } else {
       setSelectedReqId(targetId);
+      handledDeepLinkRef.current = targetId;
     }
-  }, [location.search, location.state, requests]);
+  }, [location.search, location.state, requests, activeTab, navigate, location.pathname]);
 
-  // Reset states when changing tabs or filters (preserving active deep-link target if present)
-  useEffect(() => {
-    setPaymentStatus("2"); 
-    const searchParams = new URLSearchParams(location.search);
-    const deepLinkId = searchParams.get("requestId") || location.state?.selectedReqId;
-    if (!deepLinkId) {
+  const handleTabChange = (newTab) => {
+    if (activeTab !== newTab) {
+      setActiveTab(newTab);
       setCurrentPage(1);
       setSelectedReqId(null);
+      setPaymentStatus("2");
+      if (newTab === "completed") setShowHistoryBanner(true);
     }
-    if (activeTab === "completed") setShowHistoryBanner(true);
-  }, [activeTab, searchQuery, typeFilter, statusFilter]);
+  };
+
+  // Reset states when changing filters
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedReqId(null);
+  }, [searchQuery, typeFilter, statusFilter, dateFilter]);
 
   const formatTime = (time) => {
     if (!time) return "";
@@ -223,84 +238,86 @@ const AdminRequests = () => {
     return "REQ";
   };
 
-  const filteredRequests = requests.filter((req) => {
-    const userRole = Number(userData?.user_RoleId);
-    const reqStatus = Number(req.emp_reqStatusId);
-    const reqUserRole = Number(req.user_RoleId);
-    const requesterId = Number(req.user_Id);
-    const currentUserId = Number(userData?.user_Id);
+  const filteredRequests = useMemo(() => {
+    return requests.filter((req) => {
+      const userRole = Number(userData?.user_RoleId);
+      const reqStatus = Number(req.emp_reqStatusId);
+      const requesterId = Number(req.user_Id);
+      const currentUserId = Number(userData?.user_Id);
 
-    const isPending = reqStatus === 1;
-    const isRecommended = reqStatus === 4;
-    const isCompleted = reqStatus === 2 || reqStatus === 3;
-    const isReturned = reqStatus === 5;
+      const isPending = reqStatus === 1;
+      const isRecommended = reqStatus === 4;
+      const isCompleted = reqStatus === 2 || reqStatus === 3;
+      const isReturned = reqStatus === 5;
 
-    let matchesTab = false;
-    if (activeTab === "pending") {
-      if (userRole === 1) { 
-        // Admins see everything in-progress: pending (1), recommended (4), and returned (5)
-        matchesTab = isPending || isRecommended || isReturned;
-      } else if (userRole === 2 || userRole === 4) {
-        // Supervisors and Accountants see pending and returned requests from others
-        matchesTab = (isPending || isReturned) && requesterId !== currentUserId;
-      }
-    } else { 
-      // History tab: strictly for completed records (Approved: 2, Rejected: 3)
-      if (userRole === 1) {
-        matchesTab = isCompleted;
+      let matchesTab = false;
+      if (activeTab === "pending") {
+        if (userRole === 1) { 
+          // Admins see everything in-progress: pending (1), recommended (4), and returned (5)
+          matchesTab = isPending || isRecommended || isReturned;
+        } else if (userRole === 2 || userRole === 4) {
+          // Supervisors and Accountants see pending and returned requests from others
+          matchesTab = (isPending || isReturned) && requesterId !== currentUserId;
+        }
       } else { 
-        matchesTab = isRecommended || isCompleted;
+        // History tab: strictly for completed records (Approved: 2, Rejected: 3)
+        if (userRole === 1) {
+          matchesTab = isCompleted;
+        } else { 
+          matchesTab = isRecommended || isCompleted;
+        }
       }
-    }
 
-    if (!matchesTab) return false;
+      if (!matchesTab) return false;
 
-    // Remove the redundant Role 2 check here since we handled it in matchesTab
-    // if (userData?.user_RoleId === 2) { 
-    //   if (req.user_RoleId !== 3 && req.user_RoleId !== 1) return false;
-    // }
+      // Remove the redundant Role 2 check here since we handled it in matchesTab
+      // if (userData?.user_RoleId === 2) { 
+      //   if (req.user_RoleId !== 3 && req.user_RoleId !== 1) return false;
+      // }
 
-    if (activeTab === "completed") {
-      // Baseline History Filter: Only show current and previous month (total of 4 payroll periods)
-      const filedDate = new Date(req.date_Filed);
-      const today = new Date();
-      const cutoff = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      if (filedDate < cutoff) return false;
+      if (activeTab === "completed") {
+        // Baseline History Filter: Only show current and previous month (total of 4 payroll periods)
+        const filedDate = new Date(req.date_Filed);
+        const today = new Date();
+        const cutoff = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        if (filedDate < cutoff) return false;
 
-      const query = searchQuery.toLowerCase();
-      
-      // Search Name or ID
-      const matchesSearch = 
-        req.userName?.toLowerCase().includes(query) || 
-        req.emp_reqId?.toString().includes(query) ||
-        (req.user_Id && formatUserId(req.user_Id).toLowerCase().includes(query)) ||
-        req.user_Id?.toString().includes(query);
-      
-      const shortType = getShortType(req.reqTypeName);
-      const matchesType = typeFilter === "All" || shortType === typeFilter;
-      
-      let matchesStatus = true;
-      if (statusFilter === "Approved") matchesStatus = req.emp_reqStatusId === 2;
-      if (statusFilter === "Rejected") matchesStatus = req.emp_reqStatusId === 3;
+        const query = searchQuery.toLowerCase();
+        
+        // Search Name or ID
+        const matchesSearch = 
+          req.userName?.toLowerCase().includes(query) || 
+          req.emp_reqId?.toString().includes(query) ||
+          (req.user_Id && formatUserId(req.user_Id).toLowerCase().includes(query)) ||
+          req.user_Id?.toString().includes(query);
+        
+        const shortType = getShortType(req.reqTypeName);
+        const matchesType = typeFilter === "All" || shortType === typeFilter;
+        
+        let matchesStatus = true;
+        if (statusFilter === "Approved") matchesStatus = req.emp_reqStatusId === 2;
+        if (statusFilter === "Rejected") matchesStatus = req.emp_reqStatusId === 3;
 
-      // NEW: Date Filter Logic
-      const matchesDate = !dateFilter || req.date_Filed?.includes(dateFilter);
+        // NEW: Date Filter Logic
+        const matchesDate = !dateFilter || req.date_Filed?.includes(dateFilter);
 
-      if (!matchesSearch || !matchesType || !matchesStatus || !matchesDate) return false;
-    }
+        if (!matchesSearch || !matchesType || !matchesStatus || !matchesDate) return false;
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [requests, userData?.user_RoleId, userData?.user_Id, activeTab, searchQuery, typeFilter, statusFilter, dateFilter]);
 
-  // Automatically align current page so the selected request is visible in the list
+  // Automatically align current page ONCE when a deep-linked request is loaded
   useEffect(() => {
     if (!selectedReqId || filteredRequests.length === 0) return;
+    if (pageAlignedRef.current === selectedReqId) return;
+
     const reqIndex = filteredRequests.findIndex((r) => r.emp_reqId === selectedReqId);
     if (reqIndex !== -1) {
       const targetPage = Math.floor(reqIndex / itemsPerPage) + 1;
-      if (targetPage !== currentPage) {
-        setCurrentPage(targetPage);
-      }
+      setCurrentPage(targetPage);
+      pageAlignedRef.current = selectedReqId;
     }
   }, [selectedReqId, filteredRequests, itemsPerPage]);
 
@@ -311,10 +328,17 @@ const AdminRequests = () => {
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentData = filteredRequests.slice(startIndex, endIndex);
 
-  // Derived current selection
-  const current = selectedReqId 
-    ? filteredRequests.find(r => r.emp_reqId === selectedReqId) 
-    : filteredRequests[0] || null;
+  // Clamp currentPage when totalPages decreases (e.g. after filtering or approval)
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(Math.max(1, totalPages));
+    }
+  }, [currentPage, totalPages]);
+
+  // Derived current selection: prefer selected item if on current page, otherwise fallback to first item on this page
+  const current = (selectedReqId && currentData.some(r => r.emp_reqId === selectedReqId))
+    ? currentData.find(r => r.emp_reqId === selectedReqId)
+    : (currentData[0] || null);
 
   const getDates = (req) => {
     if (!req) return "";
@@ -592,13 +616,13 @@ const AdminRequests = () => {
             <div className="flex border-b border-slate-100 bg-slate-50/50">
               <button
                 className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "pending" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
-                onClick={() => setActiveTab("pending")}
+                onClick={() => handleTabChange("pending")}
               >
                 Pending
               </button>
               <button
                 className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "completed" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
-                onClick={() => setActiveTab("completed")}
+                onClick={() => handleTabChange("completed")}
               >
                 History
               </button>
@@ -617,7 +641,10 @@ const AdminRequests = () => {
                   return (
                     <div
                       key={req.emp_reqId}
-                      onClick={() => setSelectedReqId(req.emp_reqId)}
+                      onClick={() => {
+                        setSelectedReqId(req.emp_reqId);
+                        pageAlignedRef.current = req.emp_reqId;
+                      }}
                       className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-brand-primary-light border-brand-primary shadow-sm" : "border-slate-200 bg-white hover:border-brand-primary/50"}`}
                     >
                       <div className="flex justify-between items-center mb-2">

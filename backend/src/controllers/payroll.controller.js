@@ -2814,12 +2814,7 @@ exports.getLoanHistory = async (req, res) => {
                 u."user_FirstName" || ' ' || u."user_LastName" as "userName"
          FROM "Payroll_Eastwest" pe
          JOIN "User" u ON pe."user_Id" = u."user_Id"
-         UNION ALL
-         SELECT pca."date", pca."user_Id", pca."amount", pca."payrollId", 'CashAdvance' as "source",
-                u."user_FirstName" || ' ' || u."user_LastName" as "userName"
-         FROM "Payroll_Cash_Advances" pca
-         JOIN "User" u ON pca."user_Id" = u."user_Id"
-         ORDER BY "date" ASC`,
+         ORDER BY pe."date" ASC`,
         { type: QueryTypes.SELECT }
       );
       return res.status(200).json(history);
@@ -4877,23 +4872,6 @@ exports.getEastwestLoanHistory = async (req, res) => {
         UNION ALL
 
         SELECT 
-          pca."date"::text as "date",
-          pca."user_Id",
-          pca."amount",
-          pca."payrollId",
-          'Cash Advance' as "source",
-          pca."notes",
-          u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
-        FROM "Payroll_Cash_Advances" pca
-        JOIN "User" u ON pca."user_Id" = u."user_Id"
-        WHERE NOT EXISTS (
-          SELECT 1 FROM "Payroll_Eastwest" pe2 
-          WHERE pe2."user_Id" = pca."user_Id" AND pe2."date" = pca."date"
-        )
-
-        UNION ALL
-
-        SELECT 
           p."period_End"::text as "date",
           p."user_Id",
           pd."eastwest_Loan" as "amount",
@@ -4908,10 +4886,6 @@ exports.getEastwestLoanHistory = async (req, res) => {
           AND NOT EXISTS (
             SELECT 1 FROM "Payroll_Eastwest" pe3 
             WHERE pe3."user_Id" = p."user_Id" AND (pe3."payrollId" = p."payrollId" OR pe3."date" = p."period_End")
-          )
-          AND NOT EXISTS (
-            SELECT 1 FROM "Payroll_Cash_Advances" pca2 
-            WHERE pca2."user_Id" = p."user_Id" AND (pca2."payrollId" = p."payrollId" OR pca2."date" = p."period_End")
           )
       ) combined
       WHERE 1=1
@@ -4953,23 +4927,6 @@ exports.downloadEastwestLoanReportPDF = async (req, res) => {
         UNION ALL
 
         SELECT 
-          pca."date"::text as "date",
-          pca."user_Id",
-          pca."amount",
-          pca."payrollId",
-          'Cash Advance' as "source",
-          pca."notes",
-          u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
-        FROM "Payroll_Cash_Advances" pca
-        JOIN "User" u ON pca."user_Id" = u."user_Id"
-        WHERE NOT EXISTS (
-          SELECT 1 FROM "Payroll_Eastwest" pe2 
-          WHERE pe2."user_Id" = pca."user_Id" AND pe2."date" = pca."date"
-        )
-
-        UNION ALL
-
-        SELECT 
           p."period_End"::text as "date",
           p."user_Id",
           pd."eastwest_Loan" as "amount",
@@ -4984,10 +4941,6 @@ exports.downloadEastwestLoanReportPDF = async (req, res) => {
           AND NOT EXISTS (
             SELECT 1 FROM "Payroll_Eastwest" pe3 
             WHERE pe3."user_Id" = p."user_Id" AND (pe3."payrollId" = p."payrollId" OR pe3."date" = p."period_End")
-          )
-          AND NOT EXISTS (
-            SELECT 1 FROM "Payroll_Cash_Advances" pca2 
-            WHERE pca2."user_Id" = p."user_Id" AND (pca2."payrollId" = p."payrollId" OR pca2."date" = p."period_End")
           )
       ) combined
       WHERE 1=1

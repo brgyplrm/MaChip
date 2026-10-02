@@ -1844,18 +1844,31 @@ const Maxicare = () => {
             
             {isAdmin && (
               <>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    setIsEditing(true);
-                    setShowCalculator(true);
-                  }}
-                  className="border-brand-primary text-brand-primary hover:bg-slate-50 h-9"
-                  disabled={loading}
-                >
-                  <EditIcon className="mr-1 h-4 w-4" /> Edit
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className={`inline-block ${!isRenewalNearing ? "cursor-not-allowed" : ""}`}>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setIsEditing(true);
+                          setShowCalculator(true);
+                        }}
+                        className="border-brand-primary text-brand-primary hover:bg-slate-50 h-9 disabled:opacity-50 disabled:pointer-events-none"
+                        disabled={loading || !isRenewalNearing}
+                      >
+                        <EditIcon className="mr-1 h-4 w-4" /> Edit
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                    {!isRenewalNearing ? (
+                      <span>This button will be enabled on the renewal date{cycle?.end ? ` (${renewalDateFormatted})` : ""}.</span>
+                    ) : (
+                      <span>Edit health insurance policy configuration and premium settings.</span>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
                 <Button 
                   variant="outline" 
                   size="sm"

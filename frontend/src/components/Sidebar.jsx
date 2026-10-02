@@ -652,6 +652,7 @@ const Sidebar = ({ children }) => {
   // Users active state variables
   const isViewAllUsersActive = location.pathname === "/users" || (location.pathname.startsWith("/users/") && !location.pathname.includes("newUser") && !location.pathname.includes("archived") && !location.pathname.includes("hardware"));
   const isNewUserActive = location.pathname === "/users/newUser";
+  const isHardwareRegistryActive = location.pathname === "/users/hardware";
   const isArchivedUsersActive = location.pathname === "/users/archived";
 
   // Access Logs active state variables
@@ -788,6 +789,13 @@ const Sidebar = ({ children }) => {
                               <SidebarMenuSubButton asChild isActive={isNewUserActive} className={subMenuButtonClass(isNewUserActive)}>
                                 <Link to="/users/newUser" className={cn("text-inherit font-medium", isNewUserActive ? "font-bold" : "")}>
                                   Add New User
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                            <SidebarMenuSubItem>
+                              <SidebarMenuSubButton asChild isActive={isHardwareRegistryActive} className={subMenuButtonClass(isHardwareRegistryActive)}>
+                                <Link to="/users/hardware" className={cn("text-inherit font-medium", isHardwareRegistryActive ? "font-bold" : "")}>
+                                  Hardware Registry
                                 </Link>
                               </SidebarMenuSubButton>
                             </SidebarMenuSubItem>

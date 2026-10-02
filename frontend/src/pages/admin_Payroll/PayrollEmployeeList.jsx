@@ -485,9 +485,34 @@ const PayrollEmployeeList = () => {
 
                             <TableCell className="text-slate-600 text-sm py-4">
                               <div className="flex flex-col">
-                                <span className="font-semibold text-slate-700">
-                                  {emp.positionTitle || emp.position || emp.user_Role || "—"}
-                                </span>
+                                {(() => {
+                                  const positionName = emp.positionTitle || emp.position || emp.user_Role || "—";
+                                  const isTruncated = positionName !== "—" && positionName.length > 20;
+
+                                  if (isTruncated) {
+                                    return (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span 
+                                            className="font-semibold text-slate-700 cursor-help inline-block w-fit"
+                                            title={positionName}
+                                          >
+                                            {positionName.slice(0, 20)}...
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                                          {positionName}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    );
+                                  }
+
+                                  return (
+                                    <span className="font-semibold text-slate-700">
+                                      {positionName}
+                                    </span>
+                                  );
+                                })()}
                                 {(emp.positionDepartment || emp.department) && (
                                   <span className="text-[10px] text-slate-400 uppercase font-bold">
                                     {emp.positionDepartment || emp.department}

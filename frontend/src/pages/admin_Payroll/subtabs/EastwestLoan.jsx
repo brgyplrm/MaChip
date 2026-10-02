@@ -435,24 +435,41 @@ const EastwestLoan = () => {
     : null;
 
   const getSummaryStats = () => {
-    const subscribers = new Set();
+    const activeBorrowers = new Set();
+    const annualBorrowers = new Set();
     let totalPaid = 0;
+
+    const todayStr = systemToday ? formatDateLocal(systemToday) : formatDateLocal(new Date());
 
     data.forEach(item => {
       const recordYear = new Date(item.date).getFullYear();
       if (recordYear === parseInt(selectedYear)) {
         Object.keys(item.values).forEach(empKey => {
-          const amt = item.values[empKey].amount;
+          const val = item.values[empKey];
+          const amt = val ? val.amount : 0;
           if (amt > 0) {
-            subscribers.add(empKey);
+            annualBorrowers.add(empKey);
             totalPaid += amt;
+
+            // Active borrower: has an un-deducted/pending record scheduled for current or future cutoffs
+            if (item.date >= todayStr && val.status !== 'paid') {
+              activeBorrowers.add(empKey);
+            }
           }
         });
       }
     });
 
+    // Also include any employee who has an active recurring deduction in their profile
+    employeeList.forEach(emp => {
+      if ((parseFloat(emp.eastwest_Loan) || 0) > 0) {
+        activeBorrowers.add(emp.key || emp.user_Id.toString());
+      }
+    });
+
     return {
-      subscribers: subscribers.size,
+      subscribers: activeBorrowers.size,
+      totalBorrowers: annualBorrowers.size,
       totalPaid: totalPaid
     };
   };
@@ -880,12 +897,16 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                     <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                    Count of employees currently repaying Eastwest loans.
+                    Count of employees with active or upcoming Eastwest loan deductions ({stats.totalBorrowers || 0} total in {selectedYear}).
                   </TooltipContent>
                 </Tooltip>
               </div>
               <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{stats.subscribers}</p>
-              <p className="text-[10px] text-slate-400 mt-2">({selectedYear} Cohort)</p>
+              <p className="text-[10px] text-slate-400 mt-2">
+                {stats.subscribers > 0 
+                  ? `${stats.subscribers} employee${stats.subscribers > 1 ? "s" : ""} active` 
+                  : "No active deductions scheduled"}
+              </p>
             </div>
             <div className="h-12 w-12 bg-brand-primary/5 rounded-full flex items-center justify-center border border-brand-primary/50 shrink-0">
               <GroupIcon className="text-indigo-600" />

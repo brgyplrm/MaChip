@@ -132,7 +132,9 @@ exports.getAllFingerprints = async (req, res) => {
         h."user_FingerprintId" as "fingerprintIndex",
         1 as "slotNumber",
         'Primary' as "fingerprintType",
-        'Secure Node 01' as "sensorNode"
+        'Secure Node 01' as "sensorNode",
+        'Assigned' as "hardwareStatus",
+        h."updatedAt" as "dateAligned"
       FROM "User" u
       JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
       WHERE u."deletedAt" IS NULL 
@@ -146,14 +148,32 @@ exports.getAllFingerprints = async (req, res) => {
         h."user_FingerprintId2" as "fingerprintIndex",
         2 as "slotNumber",
         'Secondary (Fallback)' as "fingerprintType",
-        'Secure Node 01' as "sensorNode"
+        'Secure Node 01' as "sensorNode",
+        'Assigned' as "hardwareStatus",
+        h."updatedAt" as "dateAligned"
       FROM "User" u
       JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
       WHERE u."deletedAt" IS NULL 
         AND h."user_FingerprintId2" IS NOT NULL
         AND h."user_FingerprintTemplate2" IS NOT NULL 
         AND TRIM(h."user_FingerprintTemplate2") != ''
-      ORDER BY "userName" ASC, "slotNumber" ASC`,
+      UNION ALL
+      SELECT 
+        u."user_Id", 
+        CONCAT(u."user_FirstName", ' ', u."user_LastName") as "userName",
+        NULL as "fingerprintIndex",
+        NULL as "slotNumber",
+        NULL as "fingerprintType",
+        'Secure Node 01' as "sensorNode",
+        'Unassigned' as "hardwareStatus",
+        NULL as "dateAligned"
+      FROM "User" u
+      LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+      WHERE u."deletedAt" IS NULL 
+        AND u."user_Id" != 999
+        AND (h."user_FingerprintId" IS NULL OR h."user_FingerprintTemplate" IS NULL OR TRIM(h."user_FingerprintTemplate") = '')
+        AND (h."user_FingerprintId2" IS NULL OR h."user_FingerprintTemplate2" IS NULL OR TRIM(h."user_FingerprintTemplate2") = '')
+      ORDER BY "userName" ASC, "slotNumber" ASC NULLS LAST`,
       { type: QueryTypes.SELECT }
     );
     res.status(200).json(results);
