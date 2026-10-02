@@ -13,7 +13,17 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7789.h>
 #include <Adafruit_SSD1306.h>
+#include <time.h>
+#include "mbedtls/md.h"
 #include "arduino_secrets.h"
+
+// ── CRYPTOGRAPHIC & RFID HARDWARE SECURITY ───────────────────────
+const byte MIFARE_KEY_MACJ[6] = { 0xB5, 0x2A, 0x49, 0x3B, 0x7B, 0x20 };
+const byte MIFARE_KEY_FACTORY[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+const byte MIFARE_ACCESS_BITS[4] = { 0xFF, 0x07, 0x80, 0x69 }; // Transport default configuration
+#define MIFARE_SECTOR_AUTH_BLOCK    4
+#define MIFARE_SECTOR_COUNTER_BLOCK 5
+#define MIFARE_SECTOR_TRAILER_BLOCK 7
 
 // ── HARDWARE LAYER PIN DEFINITIONS ──────────────────────────────
 #define GREEN_LED          12    // Physical UI Green Indicator
@@ -69,6 +79,7 @@ struct BackendQueue {
   String uid;
   String action;
   String terminalType;
+  uint32_t cardCounter;
   bool pending;
 };
 
@@ -116,10 +127,51 @@ extern String pendingUID;
 extern unsigned long pendingStart;
 extern int pendingExpectedFingerID;
 extern int pendingExpectedFingerID2;
+extern uint32_t pendingCardCounter;
 
 extern BackendQueue queuedTransaction;
 extern bool webServerStarted;
 extern bool otaInitialized;
+
+// ── CRYPTOGRAPHIC REQUEST SIGNER (HMAC-SHA256) ───────────────────
+inline uint32_t getCurrentTimestamp() {
+  time_t now;
+  time(&now);
+  if (now > 1700000000) {
+    return (uint32_t)now;
+  }
+  return (uint32_t)(millis() / 1000);
+}
+
+inline String computeHmacSha256(const String &data, const char *secretKey) {
+  byte hmacResult[32];
+  mbedtls_md_context_t ctx;
+  mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+  
+  mbedtls_md_init(&ctx);
+  mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1);
+  mbedtls_md_hmac_starts(&ctx, (const unsigned char *)secretKey, strlen(secretKey));
+  mbedtls_md_hmac_update(&ctx, (const unsigned char *)data.c_str(), data.length());
+  mbedtls_md_hmac_finish(&ctx, hmacResult);
+  mbedtls_md_free(&ctx);
+  
+  char hexBuffer[65];
+  for (int i = 0; i < 32; i++) {
+    sprintf(hexBuffer + (i * 2), "%02x", hmacResult[i]);
+  }
+  hexBuffer[64] = 0;
+  return String(hexBuffer);
+}
+
+inline void signHttpRequest(HTTPClient &http, const String &body = "") {
+  uint32_t ts = getCurrentTimestamp();
+  String stringToSign = String(ts) + body;
+  String sig = computeHmacSha256(stringToSign, SECRET_HMAC_KEY);
+
+  http.addHeader("x-esp32-key", String(ESP32_API_KEY));
+  http.addHeader("x-esp32-timestamp", String(ts));
+  http.addHeader("x-esp32-signature", sig);
+}
 
 // ── WEB CONSOLE LOG BUFFER ───────────────────────────────────────
 #ifndef WEB_CONSOLE_USER

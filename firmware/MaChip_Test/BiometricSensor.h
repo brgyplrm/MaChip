@@ -69,7 +69,6 @@ inline void uploadEnrollment(int slotId, bool success, String userId, String tem
   HTTPClient http;
   http.begin(currentFpUrl + "/enroll-confirm");
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("x-esp32-key", String(ESP32_API_KEY));
   
   JsonDocument doc;
   doc["userId"] = userId;
@@ -79,6 +78,8 @@ inline void uploadEnrollment(int slotId, bool success, String userId, String tem
   
   String body;
   serializeJson(doc, body);
+  signHttpRequest(http, body);
+
   http.POST(body);
   http.end();
 }

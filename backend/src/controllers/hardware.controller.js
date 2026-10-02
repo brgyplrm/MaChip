@@ -81,10 +81,11 @@ exports.assignRfidCard = async (req, res) => {
 
     // Upsert into User_Hardware
     await sequelize.query(
-      `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "createdAt", "updatedAt")
-       VALUES (:user_Id, :machip_id, :now, :now)
+      `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "card_counter", "createdAt", "updatedAt")
+       VALUES (:user_Id, :machip_id, 0, :now, :now)
        ON CONFLICT ("user_Id") DO UPDATE SET
         "user_MachipId" = EXCLUDED."user_MachipId",
+        "card_counter" = 0,
         "updatedAt" = EXCLUDED."updatedAt"`,
       { replacements: { user_Id, machip_id, now: nowStr }, type: QueryTypes.INSERT }
     );
@@ -108,7 +109,7 @@ exports.revokeRfidCard = async (req, res) => {
 
     await sequelize.query(
       `UPDATE "User_Hardware" 
-       SET "user_MachipId" = NULL, "updatedAt" = :now
+       SET "user_MachipId" = NULL, "card_counter" = 0, "updatedAt" = :now
        WHERE "user_Id" = :userId`,
       { replacements: { userId, now: nowStr }, type: QueryTypes.UPDATE }
     );

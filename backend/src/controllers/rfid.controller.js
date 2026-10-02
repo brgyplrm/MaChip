@@ -64,6 +64,12 @@ let lastEsp32Heartbeat = null;
 const recentTaps = new Map();
 const RAPID_TAP_COOLDOWN = 10000; // 10 seconds
 
+// Biometric brute-force tracking & card lockout cache (UID -> { count, lockedUntil, firstFailAt })
+const biometricFailures = new Map();
+const MAX_BIOMETRIC_FAILURES = 3;
+const BIOMETRIC_LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes
+const BIOMETRIC_WINDOW = 3 * 60 * 1000; // 3 minutes
+
 exports.getHardwareStatus = (req, res) => {
   const now = Date.now();
   const isConnected = lastEsp32Heartbeat && (now - lastEsp32Heartbeat < 10000); // Connected if seen in last 10s
@@ -144,13 +150,28 @@ exports.getSessionStatus = async (req, res) => {
 };
 
 exports.scanRFID = async (req, res) => {
-  let { uid, action, terminalType } = req.body; 
+  let { uid, action, terminalType, cardCounter } = req.body; 
 
   // Update heartbeat
   lastEsp32Heartbeat = Date.now();
 
   if (!uid) {
     return res.status(400).json({ success: false, message: "No UID provided" });
+  }
+
+  const baseCardUid = uid.split("|")[0].trim().toUpperCase();
+
+  // ── BIOMETRIC BRUTE-FORCE LOCKOUT CHECK ─────────────────────────────────
+  const lockout = biometricFailures.get(baseCardUid);
+  if (lockout && lockout.lockedUntil > Date.now()) {
+    const remainingSec = Math.ceil((lockout.lockedUntil - Date.now()) / 1000);
+    console.warn(`[SECURITY] Card ${baseCardUid} blocked: temporarily locked for ${remainingSec}s due to consecutive biometric failures.`);
+    return res.status(200).json({
+      success: false,
+      mode: "CARD_LOCKED",
+      message: `Card Locked (${remainingSec}s)`,
+      error: `Security Lockout: Too many failed biometric attempts. Wait ${remainingSec} seconds.`
+    });
   }
 
   // ── REGISTRATION / CAPTURE INTERCEPT (PRIORITY #1) ───────────────────────
@@ -212,8 +233,37 @@ exports.scanRFID = async (req, res) => {
     
     console.log(`[SECURITY-LOG] ${type} for UID: ${uid} on ${terminalType || "FRONT"}`);
     
-    const masked = maskUid(uid, false);
+    const masked = maskUid(baseCardUid, false);
     const deviceIp = req.ip || req.socket.remoteAddress || "Unknown ESP32";
+
+    if (isBiometric) {
+      const nowMs = Date.now();
+      let record = biometricFailures.get(baseCardUid);
+      if (!record || (nowMs - record.firstFailAt > BIOMETRIC_WINDOW)) {
+        record = { count: 1, lockedUntil: 0, firstFailAt: nowMs };
+      } else {
+        record.count++;
+      }
+
+      if (record.count >= MAX_BIOMETRIC_FAILURES) {
+        record.lockedUntil = nowMs + BIOMETRIC_LOCKOUT_DURATION;
+        console.error(`[SECURITY ALERT] Card ${baseCardUid} locked out for 5 minutes due to ${record.count} consecutive biometric failures!`);
+        
+        try {
+          const admins = await User.findAll({ where: { user_RoleId: 1, deletedAt: null } });
+          const notifications = admins.map(admin => ({
+            user_Id: admin.user_Id,
+            title: "Security Alert: Card Locked Out",
+            message: `Card ${masked} was temporarily locked for 5 minutes after ${record.count} consecutive failed biometric attempts at Front Terminal.`,
+            isRead: false
+          }));
+          await Notification.bulkCreate(notifications);
+        } catch (notifErr) {
+          console.error("[LOCKOUT] Failed to notify admins:", notifErr);
+        }
+      }
+      biometricFailures.set(baseCardUid, record);
+    }
 
     await logTransaction(null, null, eventType, `${type} detected on device ${deviceIp}`, { 
       uid: masked,
@@ -350,6 +400,64 @@ exports.scanRFID = async (req, res) => {
     const hardware = user.hardware;
     const target_user_Id = user.user_Id;
 
+    // ── RFID ROLLING CODE ANTI-REPLAY VERIFICATION ───────────────────────────
+    if (cardCounter !== undefined && cardCounter !== null) {
+      const parsedCounter = parseInt(cardCounter);
+      const dbCounter = hardware ? (hardware.card_counter || 0) : 0;
+
+      if (!isNaN(parsedCounter) && parsedCounter > 0) {
+        if (dbCounter > 0 && parsedCounter <= dbCounter) {
+          console.error(`[SECURITY ALERT] REPLAY ATTACK DETECTED for user ${user.user_FirstName} (ID: ${user.user_Id}). Received Counter: ${parsedCounter}, Stored Counter: ${dbCounter}`);
+          const masked = maskUid(rfidUid, false);
+          const deviceIp = req.ip || req.socket.remoteAddress || "Unknown ESP32";
+
+          await logTransaction(user.user_Id, null, "REPLAY_ATTACK_DETECTED", `Replay or clone attack detected on card ${masked}. Counter ${parsedCounter} <= ${dbCounter}`, {
+            uid: masked,
+            receivedCounter: parsedCounter,
+            storedCounter: dbCounter,
+            deviceIp,
+            threatLevel: "CRITICAL"
+          }, req);
+
+          try {
+            const admins = await User.findAll({ where: { user_RoleId: 1, deletedAt: null } });
+            for (const admin of admins) {
+              await Notification.create({
+                user_Id: admin.user_Id,
+                title: "Security Alert: RFID Replay Detected",
+                message: `CRITICAL: Potential RFID clone or replay attack detected for ${user.user_FirstName} ${user.user_LastName} (ID: ${masked}). Received counter: ${parsedCounter}, Expected: > ${dbCounter}. Access denied.`,
+                isRead: false
+              });
+            }
+          } catch (notifErr) {
+            console.error("[REPLAY] Failed to notify admins:", notifErr);
+          }
+
+          return res.status(200).json({
+            success: false,
+            mode: "REPLAY_ATTACK",
+            message: "Replay Attack Detected",
+            employeeName: user.user_FirstName,
+            name: user.user_FirstName,
+            error: "Security Alert: Counter replay detected."
+          });
+        }
+
+        // Counter is monotonic and valid! Update card_counter using raw SQL per GEMINI.md
+        await sequelize.query(
+          `UPDATE "User_Hardware" SET "card_counter" = :parsedCounter, "updatedAt" = NOW() WHERE "user_Id" = :target_user_Id`,
+          { replacements: { parsedCounter, target_user_Id: user.user_Id }, type: QueryTypes.UPDATE }
+        );
+      }
+    } else if (hardware && hardware.card_counter > 0) {
+      console.warn(`[SECURITY] Card ${rfidUid} has rolling code in DB (${hardware.card_counter}), but scan arrived without counter.`);
+      await logTransaction(user.user_Id, null, "SUSPICIOUS_SCAN", `Card scanned without rolling counter token despite having rolling protection active.`, {
+        uid: maskUid(rfidUid, true),
+        expectedMinCounter: hardware.card_counter + 1,
+        deviceIp: req.ip || "Unknown"
+      }, req);
+    }
+
     // --- APPLY LWD AFTER FINDING USER ---
     const isNightShiftActive = Boolean(settings?.enableNightShift && user.user_ShiftId === 2);
     if (isNightShiftActive && hour < 10) {
@@ -469,10 +577,24 @@ exports.scanRFID = async (req, res) => {
 
       if (!isMatch) {
         console.log(`[2FA] Mismatch for ${user.user_FirstName}`);
+        const nowMs = Date.now();
+        let record = biometricFailures.get(baseCardUid);
+        if (!record || (nowMs - record.firstFailAt > BIOMETRIC_WINDOW)) {
+          record = { count: 1, lockedUntil: 0, firstFailAt: nowMs };
+        } else {
+          record.count++;
+        }
+        if (record.count >= MAX_BIOMETRIC_FAILURES) {
+          record.lockedUntil = nowMs + BIOMETRIC_LOCKOUT_DURATION;
+          console.error(`[SECURITY ALERT] Card ${baseCardUid} locked out for 5 minutes due to ${record.count} consecutive biometric failures!`);
+        }
+        biometricFailures.set(baseCardUid, record);
+
         await logTransaction(user.user_Id, null, "UNAUTHORIZED_SCAN", `Unauthorized scan (2FA Mismatch).`, { uid: maskUid(rfidUid, true), scannedFingerId }, req);
         return res.status(200).json({ success: false, message: "2FA Verification Failed" });
       }
       console.log(`[2FA] Success for ${user.user_FirstName}`);
+      biometricFailures.delete(baseCardUid);
     }
 
     // ── 6. PROCESS ATTENDANCE RECORDING ──────────────────────────────────────
@@ -1153,10 +1275,11 @@ exports.confirmFingerprintEnroll = async (req, res) => {
 
           if (fpCaptureSession.type === 'RFID') {
             await sequelize.query(
-              `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "createdAt", "updatedAt")
-               VALUES (:targetUserId, :template, :now, :now)
+              `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "card_counter", "createdAt", "updatedAt")
+               VALUES (:targetUserId, :template, 0, :now, :now)
                ON CONFLICT ("user_Id") DO UPDATE SET
                 "user_MachipId" = EXCLUDED."user_MachipId",
+                "card_counter" = 0,
                 "updatedAt" = EXCLUDED."updatedAt"`,
               { replacements: { template, targetUserId, now: nowStr }, type: QueryTypes.INSERT }
             );

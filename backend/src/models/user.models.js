@@ -136,6 +136,7 @@ module.exports = (sequelize, DataTypes) => {
       user_FingerprintTemplate: { type: DataTypes.TEXT, allowNull: true },
       user_FingerprintId2: { type: DataTypes.INTEGER, allowNull: true, unique: true },
       user_FingerprintTemplate2: { type: DataTypes.TEXT, allowNull: true },
+      card_counter: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     },
     {
       timestamps: true,

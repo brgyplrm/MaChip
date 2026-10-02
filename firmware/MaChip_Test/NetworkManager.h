@@ -172,11 +172,15 @@ inline bool autoConnectWiFi() {
           sysLog("[WIFI] ESP32 Local IP: " + WiFi.localIP().toString());
           sysLog("[NET] Target Backend Server: " + currentServerUrl);
           
+          // Sync SNTP real-time clock (UTC+8 Manila)
+          configTime(8 * 3600, 0, "pool.ntp.org", "time.google.com");
+          sysLog(F("[NTP] Initialized SNTP synchronization (UTC+8 Manila)"));
+
           // Immediate Server Health Verification
           HTTPClient testHttp;
           testHttp.begin(currentFpUrl + "/session");
           testHttp.setTimeout(3000);
-          testHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+          signHttpRequest(testHttp, "");
           int testCode = testHttp.GET();
           if (testCode == 200) {
             sysLog("[NET-SERVER] [SUCCESS] Node.js Backend Server is ONLINE & Connected!");
@@ -207,6 +211,7 @@ inline bool autoConnectWiFi() {
     if (WiFi.status() == WL_CONNECTED) {
       currentServerUrl = networks[i].serverUrl;
       currentFpUrl = networks[i].fpEnrollUrl;
+      configTime(8 * 3600, 0, "pool.ntp.org", "time.google.com");
       sysLog("[WIFI] [CONNECTED] Fallback linked to [" + networks[i].ssid + "]");
       updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
       updateBackDisplay("ONLINE", WiFi.localIP().toString());

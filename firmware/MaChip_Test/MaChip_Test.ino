@@ -40,8 +40,9 @@ String pendingUID = "";
 unsigned long pendingStart = 0;
 int pendingExpectedFingerID = -1;
 int pendingExpectedFingerID2 = -1;
+uint32_t pendingCardCounter = 0;
 
-BackendQueue queuedTransaction = {"", "", "", false};
+BackendQueue queuedTransaction = {"", "", "", 0, false};
 bool webServerStarted = false;
 bool otaInitialized = false;
 
@@ -188,7 +189,7 @@ void loop() {
     HTTPClient checkHttp;
     checkHttp.begin(currentFpUrl + "/session");
     checkHttp.setTimeout(2500);
-    checkHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+    signHttpRequest(checkHttp, "");
     unsigned long startMs = millis();
     int sCode = checkHttp.GET();
     unsigned long latency = millis() - startMs;
@@ -209,7 +210,7 @@ void loop() {
     lastModalPoll = millis();
     HTTPClient http;
     http.begin(currentFpUrl + "/session");
-    http.addHeader("x-esp32-key", String(ESP32_API_KEY));
+    signHttpRequest(http, "");
     int code = http.GET();
     
     if (code == 200) {
@@ -245,7 +246,7 @@ void loop() {
           delay(2000);
           HTTPClient clearHttp;
           clearHttp.begin(currentFpUrl + "/session/clear");
-          clearHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+          signHttpRequest(clearHttp, "");
           clearHttp.GET(); clearHttp.end();
           updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
         }
@@ -263,14 +264,14 @@ void loop() {
           // Notify backend that door is closed/completed
           HTTPClient confirmHttp;
           confirmHttp.begin(currentFpUrl + "/visitor-access/confirm");
-          confirmHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+          signHttpRequest(confirmHttp, "{}");
           confirmHttp.POST("{}"); 
           confirmHttp.end();
 
           // Clear session explicitly
           HTTPClient clearHttp;
           clearHttp.begin(currentFpUrl + "/session/clear");
-          clearHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+          signHttpRequest(clearHttp, "");
           clearHttp.GET(); clearHttp.end();
 
           updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
@@ -290,7 +291,7 @@ void loop() {
           delay(1000);
           HTTPClient clearHttp;
           clearHttp.begin(currentFpUrl + "/session/clear");
-          clearHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+          signHttpRequest(clearHttp, "");
           clearHttp.GET(); clearHttp.end();
           updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
         }
@@ -327,7 +328,7 @@ void loop() {
       delay(1000);
       HTTPClient clearHttp;
       clearHttp.begin(currentFpUrl + "/session/clear");
-      clearHttp.addHeader("x-esp32-key", String(ESP32_API_KEY));
+      signHttpRequest(clearHttp, "");
       clearHttp.GET(); clearHttp.end();
       setLED(LED_SLOW_BLINK, LED_OFF);
       updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
@@ -342,7 +343,7 @@ void loop() {
       lastFPCheck = millis();
       HTTPClient httpCheck;
       httpCheck.begin(currentFpUrl + "/session");
-      httpCheck.addHeader("x-esp32-key", String(ESP32_API_KEY));
+      signHttpRequest(httpCheck, "");
       int cCode = httpCheck.GET();
       if (cCode == 200) {
         JsonDocument cDoc;
@@ -510,25 +511,29 @@ void loop() {
     if (checkInScan) {
       provideFeedback(RFID_TAP);
       String currentUID = getUIDString(rfidIN);
+      uint32_t cardCounter = readAndIncrementCardCounter(rfidIN);
       rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
       clearSpiBusPins();
 
-      sysLog("[FRONT READ] Card scanned: " + currentUID);
+      sysLog("[FRONT READ] Card scanned: " + currentUID + (cardCounter > 0 ? " [Ctr: " + String(cardCounter) + "]" : ""));
 
       if (WiFi.status() == WL_CONNECTED) {
         HTTPClient http;
         http.begin(currentServerUrl);
         http.setTimeout(4000);
         http.addHeader("Content-Type", "application/json");
-        http.addHeader("x-esp32-key", String(ESP32_API_KEY));
         
         JsonDocument doc;
         doc["uid"] = currentUID;
         doc["action"] = "clock_in";
         doc["terminalType"] = "FRONT";
+        if (cardCounter > 0) {
+          doc["cardCounter"] = cardCounter;
+        }
         
         String payload;
         serializeJson(doc, payload);
+        signHttpRequest(http, payload);
         int httpCode = http.POST(payload);
         
         if (httpCode == 200) {
@@ -540,6 +545,7 @@ void loop() {
               updateFrontDisplay("2FA CHALLENGE", "Scan biometric token now...", ST77XX_CYAN);
               provideFeedback(WAITING_SCAN);
               pendingUID = currentUID;
+              pendingCardCounter = cardCounter;
               pendingExpectedFingerID = resDoc["expectedFingerId"] | -1;
               pendingExpectedFingerID2 = resDoc["expectedFingerId2"] | -1;
               pendingStart = millis();
@@ -557,7 +563,13 @@ void loop() {
 
             sysLog("[ACCESS DENIED] Card " + currentUID + ": " + errMsg);
 
-            if (modeStr == "FINGERPRINT_REQUIRED" || errMsg.indexOf("Fingerprint") >= 0) {
+            if (modeStr == "CARD_LOCKED") {
+              updateFrontDisplay("LOCKED OUT", "Excessive 2FA Fails\nCard Locked 5 Mins", ST77XX_RED);
+              provideFeedback(ERROR_FAIL);
+            } else if (modeStr == "REPLAY_ATTACK") {
+              updateFrontDisplay("SECURITY FAULT", "Replay/Clone Card\nAccess Blocked!", ST77XX_RED);
+              provideFeedback(ERROR_FAIL);
+            } else if (modeStr == "FINGERPRINT_REQUIRED" || errMsg.indexOf("Fingerprint") >= 0) {
               updateFrontDisplay("DENIED", (name != "" ? name + "\n" : "") + "Fingerprint Required!", ST77XX_RED);
               provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
             } else if (modeStr == "ALREADY_INSIDE" || errMsg.indexOf("inside") >= 0 || errMsg.indexOf("Inside") >= 0 || errMsg.indexOf("Already") >= 0) {
@@ -597,21 +609,21 @@ void loop() {
                 updateFrontDisplay("SECURITY FAULT", "Token ID Mismatch\nEvent Dispatched!", ST77XX_RED);
                 provideFeedback(ERROR_FAIL);
                 queueTransaction(pendingUID + "|" + String(finger.fingerID), "suspicious_biometric_fail", "FRONT");
-                pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1;
+                pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
                 setLED(LED_SLOW_BLINK, LED_OFF);
               } else {
                 updateFrontDisplay("VERIFIED", "2FA Validated\nDoor Released", ST77XX_GREEN);
                 provideFeedback(SUCCESS_OK);
                 solenoidUnlock();
-                queueTransaction(pendingUID + "|" + String(finger.fingerID), "clock_in", "FRONT");
-                pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1;
+                queueTransaction(pendingUID + "|" + String(finger.fingerID), "clock_in", "FRONT", pendingCardCounter);
+                pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
                 setLED(LED_SLOW_BLINK, LED_OFF);
               }
             } else {
               updateFrontDisplay("ACCESS FORBIDDEN", "Biometric Unknown", ST77XX_RED);
               provideFeedback(ERROR_FAIL);
               queueTransaction(pendingUID, "suspicious_biometric_fail", "FRONT");
-              pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1;
+              pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
               setLED(LED_SLOW_BLINK, LED_OFF);
             }
           }
@@ -620,7 +632,7 @@ void loop() {
         updateFrontDisplay("TIMEOUT", "2FA Verification Timeout", ST77XX_RED);
         provideFeedback(ERROR_FAIL);
         queueTransaction(pendingUID, "unenrolled_card_attempt", "FRONT");
-        pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1;
+        pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
         setLED(LED_SLOW_BLINK, LED_OFF);
       }
     }
@@ -632,6 +644,7 @@ void loop() {
     if (checkOutScan) {
       provideFeedback(RFID_TAP);
       String outUID = getUIDString(rfidOUT);
+      uint32_t cardCounter = readAndIncrementCardCounter(rfidOUT);
       rfidOUT.PICC_HaltA(); rfidOUT.PCD_StopCrypto1();
       clearSpiBusPins();
 
@@ -640,9 +653,18 @@ void loop() {
         http.begin(currentServerUrl);
         http.setTimeout(4000);
         http.addHeader("Content-Type", "application/json");
-        http.addHeader("x-esp32-key", String(ESP32_API_KEY));
         
-        String payload = "{\"uid\":\"" + outUID + "\",\"action\":\"clock_out\",\"terminalType\":\"BACK\"}";
+        JsonDocument doc;
+        doc["uid"] = outUID;
+        doc["action"] = "clock_out";
+        doc["terminalType"] = "BACK";
+        if (cardCounter > 0) {
+          doc["cardCounter"] = cardCounter;
+        }
+
+        String payload;
+        serializeJson(doc, payload);
+        signHttpRequest(http, payload);
         int httpCode = http.POST(payload);
         
         if (httpCode == 200) {
@@ -658,7 +680,10 @@ void loop() {
             solenoidUnlock();
           } else {
             String errMsg = resDoc["message"] | "Rejected";
-            if (errMsg.indexOf("outside") >= 0 || errMsg.indexOf("Outside") >= 0) {
+            String modeStr = resDoc["mode"] | "";
+            if (modeStr == "REPLAY_ATTACK") {
+              updateBackDisplay("SECURITY", "Replay Blocked");
+            } else if (errMsg.indexOf("outside") >= 0 || errMsg.indexOf("Outside") >= 0) {
               updateBackDisplay("DENIED", "Already Outside");
             } else {
               updateBackDisplay("DENIED", errMsg);
