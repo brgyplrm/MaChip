@@ -477,6 +477,12 @@ exports.setRegistrationSession = async (req, res) => {
   const upperType = type ? type.toUpperCase() : null;
 
   try {
+    // Clear any previous in-memory session flags to ensure a clean transition
+    const rfidController = require("./rfid.controller.js");
+    if (rfidController && rfidController.resetAllEnrollmentSessions) {
+      await rfidController.resetAllEnrollmentSessions();
+    }
+
     const [session, created] = await System_State.findOrCreate({
       where: { key: 'REGISTRATION_SESSION' },
       defaults: { value: JSON.stringify({ userId, type: upperType }) }
@@ -499,6 +505,10 @@ exports.setRegistrationSession = async (req, res) => {
 exports.clearRegistrationSession = async (req, res) => {
   try {
     await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
+    const rfidController = require("./rfid.controller.js");
+    if (rfidController && rfidController.resetAllEnrollmentSessions) {
+      await rfidController.resetAllEnrollmentSessions();
+    }
     res.status(200).json({ success: true, message: "Registration session cleared" });
   } catch (error) {
     res.status(500).json({ error: error.message });

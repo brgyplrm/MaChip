@@ -68,7 +68,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
         <button
           type="button"
           disabled={loading}
-          className="absolute top-4 right-4 bg-transparent border-none cursor-pointer text-slate-400 hover:text-[#2A174E] transition-colors p-1 disabled:opacity-40"
+          className="absolute top-4 right-4 bg-transparent border-none cursor-pointer text-slate-400 hover:text-brand-primary transition-colors p-1 disabled:opacity-40"
           onClick={handleClose}
           aria-label="Close"
         >
@@ -82,11 +82,11 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
               <MarkEmailReadIcon sx={{ fontSize: 36 }} />
             </div>
 
-            <h2 className="text-[#2A174E] text-xl font-bold mb-2">Reset Link Sent!</h2>
+            <h2 className="text-brand-primary text-xl font-bold mb-2">Reset Link Sent!</h2>
             <p className="text-sm text-slate-600 mb-3 leading-relaxed">
               We have dispatched a password reset link to:
             </p>
-            <div className="bg-slate-50 border border-slate-200 rounded-lg py-2 px-4 mb-4 text-sm font-semibold text-[#2A174E] break-all max-w-full">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg py-2 px-4 mb-4 text-sm font-semibold text-brand-primary break-all max-w-full">
               {sentEmail}
             </div>
 
@@ -102,7 +102,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
               <button
                 type="button"
                 onClick={handleClose}
-                className="w-full py-3 px-5 bg-[#2A174E] text-white border-none rounded-lg font-bold text-sm cursor-pointer hover:bg-[#1a0e30] transition-all shadow-md active:scale-95"
+                className="w-full py-3 px-5 bg-brand-primary text-white border-none rounded-lg font-bold text-sm cursor-pointer hover:bg-brand-primary-hover transition-all shadow-md active:scale-95"
               >
                 Back to Login
               </button>
@@ -114,7 +114,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                   setEmail("");
                   setError("");
                 }}
-                className="w-full py-2 text-xs text-slate-500 hover:text-[#2A174E] font-medium transition-colors bg-transparent border-none cursor-pointer"
+                className="w-full py-2 text-xs text-slate-500 hover:text-brand-primary font-medium transition-colors bg-transparent border-none cursor-pointer"
               >
                 Need to try another email address?
               </button>
@@ -126,7 +126,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
             {/* Header */}
             <div className="text-center mb-6">
               <img src="/logo2.png" alt="MAC-J Logo" className="w-[170px] mx-auto mb-3" />
-              <h2 className="text-[#2A174E] text-xl font-bold m-0">Forgot Password</h2>
+              <h2 className="text-brand-primary text-xl font-bold m-0">Forgot Password</h2>
               <p className="text-sm text-slate-500 mt-2 leading-relaxed">
                 Enter your registered company email address and we will send you a secure link to reset your password.
               </p>
@@ -157,14 +157,14 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                   disabled={loading}
                   required
                   autoFocus
-                  className="w-full p-3 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#2A174E] focus:ring-2 focus:ring-[#2A174E]/15 transition-all disabled:bg-slate-100 disabled:cursor-not-allowed"
+                  className="w-full p-3 border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15 transition-all disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-5 bg-[#2A174E] text-white border-none rounded-lg font-bold text-sm cursor-pointer hover:bg-[#1a0e30] transition-all shadow-md active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 px-5 bg-brand-primary text-white border-none rounded-lg font-bold text-sm cursor-pointer hover:bg-brand-primary-hover transition-all shadow-md active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -181,7 +181,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                   type="button"
                   disabled={loading}
                   onClick={handleClose}
-                  className="text-xs text-slate-500 hover:text-[#2A174E] font-medium bg-transparent border-none cursor-pointer transition-colors"
+                  className="text-xs text-slate-500 hover:text-brand-primary font-medium bg-transparent border-none cursor-pointer transition-colors"
                 >
                   Cancel and Return to Login
                 </button>

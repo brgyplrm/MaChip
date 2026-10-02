@@ -28,7 +28,7 @@ const LaborBenefits = () => {
                         variant="ghost" 
                         size="icon" 
                         asChild 
-                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary"
                       >
                         <Link to="/payroll">
                           <ChevronLeft className="h-6 w-6" />
@@ -44,7 +44,7 @@ const LaborBenefits = () => {
 
             {/* Title: Adds left padding when hovered */}
             <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Labor Benefits Management</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">Labor Benefits Management</h1>
               <span className="text-sm text-slate-500 mt-1 block">Manage statutory benefits, separations, and retirement payouts.</span>
             </div>
           </div>

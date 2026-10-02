@@ -278,7 +278,7 @@ const VisitorLogs = () => {
                 <div className="flex items-center gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] tracking-tight">Visitor Access</h1>
+                      <h1 className="text-2xl md:text-3xl font-bold text-brand-primary tracking-tight">Visitor Access</h1>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
                       {activeTab === "live"
@@ -294,14 +294,14 @@ const VisitorLogs = () => {
                 <TabsList className="bg-slate-100 border border-slate-200/80 p-1 rounded-xl h-11 grid grid-cols-2 w-full sm:w-[280px]">
                   <TabsTrigger
                     value="live"
-                    className="rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-xs transition-all"
+                    className="rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs transition-all"
                   >
                     <LockOpenIcon sx={{ fontSize: 16 }} />
                     <span>Live Access</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="history"
-                    className="rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-xs transition-all"
+                    className="rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs transition-all"
                   >
                     <HistoryIcon sx={{ fontSize: 16 }} />
                     <span>Log History</span>
@@ -316,17 +316,17 @@ const VisitorLogs = () => {
             {activeTab === "live" && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 {/* Solenoid Control Banner */}
-                <div className="bg-gradient-to-br from-[#FAF2FF] via-white to-[#FAF2FF] rounded-2xl p-6 shadow-sm border border-purple-200/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 border-l-4 border-l-brand-primary flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className="relative flex h-2.5 w-2.5">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                       </span>
-                      <h2 className="text-lg font-bold tracking-tight text-[#2A174E]">Manual Hardware Solenoid Control</h2>
+                      <h2 className="text-lg font-bold tracking-tight text-brand-primary">Manual Hardware Solenoid Control</h2>
                     </div>
                     <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
-                      Momentarily triggers the physical ESP32 solenoid lock to allow authorized guests into the facility. All operations require password confirmation and are logged under <span className="inline-flex items-center font-mono font-bold text-[#2A174E] bg-purple-100/90 px-2 py-0.5 rounded-md border border-purple-200 text-[11px]">VISITOR-999</span>.
+                      Momentarily triggers the physical ESP32 solenoid lock to allow authorized guests into the facility. All operations require password confirmation and are logged under <span className="inline-flex items-center font-mono font-bold text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded-md border border-brand-primary/20 text-[11px]">VISITOR-999</span>.
                     </p>
                   </div>
 
@@ -335,7 +335,7 @@ const VisitorLogs = () => {
                       <Button
                         onClick={handleOpenDoorClick}
                         disabled={loading || confirming}
-                        className="w-full md:w-auto bg-[#2A174E] hover:bg-[#1f103a] text-white px-6 py-6 rounded-xl shadow-md flex items-center gap-3 transition-all transform active:scale-95 group font-bold border-0 cursor-pointer"
+                        className="w-full md:w-auto bg-brand-primary hover:bg-[#1f103a] text-white px-6 py-6 rounded-xl shadow-md flex items-center gap-3 transition-all transform active:scale-95 group font-bold border-0 cursor-pointer"
                       >
                         <LockOpenIcon className="group-hover:rotate-12 transition-transform text-white" />
                         <div className="flex flex-col items-start text-left">
@@ -355,14 +355,14 @@ const VisitorLogs = () => {
                 {/* 3 Metrics Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 w-full">
                   {/* Card 1: Today's Entries */}
-                  <Card className="border-t-5 border-[#2A174E] bg-white shadow-xs rounded-xl py-0">
+                  <Card className="border-t-5 border-brand-primary bg-white shadow-xs rounded-xl py-0">
                     <CardContent className="p-5 flex flex-col justify-between h-full">
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Today's Total Entries</p>
+                          <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Today's Total Entries</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-[#2A174E] cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-brand-primary cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800">
                               Count of successful visitor gate unlocks today.
@@ -370,7 +370,7 @@ const VisitorLogs = () => {
                           </Tooltip>
                         </div>
                         <div className="flex items-baseline gap-2 mt-1">
-                          <p className="text-4xl font-black text-[#2A174E]">{todayVisits}</p>
+                          <p className="text-4xl font-black text-brand-primary">{todayVisits}</p>
                           <span className="text-slate-400 text-xs font-medium">{todayVisits === 1 ? "visitor entry" : "visitor entries"}</span>
                         </div>
                       </div>
@@ -379,14 +379,14 @@ const VisitorLogs = () => {
                   </Card>
 
                   {/* Card 2: Last Entry Detected */}
-                  <Card className="border-t-5 border-[#3B4E17] bg-white shadow-xs rounded-xl py-0">
+                  <Card className="border-t-5 border-accent-green bg-white shadow-xs rounded-xl py-0">
                     <CardContent className="p-5 flex flex-col justify-between h-full">
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Last Entry Detected</p>
+                          <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Last Entry Detected</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-[#3B4E17] cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-accent-green cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800">
                               Precise timestamp of the latest guest entry today.
@@ -394,7 +394,7 @@ const VisitorLogs = () => {
                           </Tooltip>
                         </div>
                         <div className="flex items-baseline gap-2 mt-1">
-                          <p className="text-3xl font-black text-[#3B4E17]">{lastEntryTime}</p>
+                          <p className="text-3xl font-black text-accent-green">{lastEntryTime}</p>
                           <span className="text-slate-400 text-xs font-medium">PHST</span>
                         </div>
                       </div>
@@ -403,14 +403,14 @@ const VisitorLogs = () => {
                   </Card>
 
                   {/* Card 3: Virtual Account */}
-                  <Card className="border-t-5 border-[#BB8B26] bg-white shadow-xs rounded-xl py-0">
+                  <Card className="border-t-5 border-accent-gold bg-white shadow-xs rounded-xl py-0">
                     <CardContent className="p-5 flex flex-col justify-between h-full">
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">System User</p>
+                          <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">System User</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-[#BB8B26] cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-slate-400 hover:text-accent-gold cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800">
                               Virtual employee ID mapped to all visitor log entries.
@@ -418,7 +418,7 @@ const VisitorLogs = () => {
                           </Tooltip>
                         </div>
                         <div className="flex items-baseline gap-2 mt-1">
-                          <p className="text-3xl font-black text-[#BB8B26]">VISITOR-999</p>
+                          <p className="text-3xl font-black text-accent-gold">VISITOR-999</p>
                         </div>
                       </div>
                       <p className="text-xs font-semibold text-slate-400 italic mt-4">Standardized compliance entity</p>
@@ -434,7 +434,7 @@ const VisitorLogs = () => {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                       </span>
-                      <h3 className="text-sm font-bold text-[#2A174E] uppercase tracking-wide">
+                      <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wide">
                         Today's Access Stream
                       </h3>
                       <Badge variant="outline" className="bg-white text-slate-600 text-[10px] font-semibold border-slate-200">
@@ -452,12 +452,12 @@ const VisitorLogs = () => {
                     <Table>
                       <TableHeader className="bg-slate-50/50 border-b border-slate-100">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-[#2A174E] font-bold py-4 px-6 uppercase text-xs tracking-wider">Date</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider">Time</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider">Event Description</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider">Purpose / Reason</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider">Authorized By</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Status</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 px-6 uppercase text-xs tracking-wider">Date</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Time</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Event Description</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Purpose / Reason</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Authorized By</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -470,7 +470,7 @@ const VisitorLogs = () => {
                                 <TableCell className="py-4 font-mono text-slate-600 text-xs font-semibold">{log.time}</TableCell>
                                 <TableCell className="py-4">
                                   <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-full ${isOpening ? 'bg-purple-100 text-[#2A174E]' : 'bg-slate-100 text-slate-600'}`}>
+                                    <div className={`p-2 rounded-full ${isOpening ? 'bg-purple-100 text-brand-primary' : 'bg-slate-100 text-slate-600'}`}>
                                       <AccessTimeIcon sx={{ fontSize: 16 }} />
                                     </div>
                                     <span className="font-semibold text-slate-800 text-sm">{log.loggedStatusName}</span>
@@ -493,7 +493,7 @@ const VisitorLogs = () => {
                                   {isOpening ? (
                                     log.adminDisplayId || log.admin_id ? (
                                       <div className="flex flex-col items-start gap-0.5">
-                                        <Badge variant="outline" className="font-mono text-[11px] font-bold text-[#2A174E] bg-purple-50/80 border-purple-200">
+                                        <Badge variant="outline" className="font-mono text-[11px] font-bold text-brand-primary bg-purple-50/80 border-purple-200">
                                           {log.adminDisplayId || `ID #${log.admin_id}`}
                                         </Badge>
                                         {log.adminName && (
@@ -539,7 +539,7 @@ const VisitorLogs = () => {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handleTabChange("history")}
-                                  className="mt-2 text-xs font-bold text-[#2A174E] border-[#2A174E]/30 hover:bg-purple-50"
+                                  className="mt-2 text-xs font-bold text-brand-primary border-brand-primary/30 hover:bg-purple-50"
                                 >
                                   <HistoryIcon sx={{ fontSize: 14 }} className="mr-1" />
                                   View Past Visitor History
@@ -562,33 +562,33 @@ const VisitorLogs = () => {
               <div className="space-y-6 animate-in fade-in duration-200">
                 {/* 3 History Summary Metric Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 w-full">
-                  <Card className="border-t-5 border-[#2A174E] bg-white shadow-xs rounded-xl py-0">
+                  <Card className="border-t-5 border-brand-primary bg-white shadow-xs rounded-xl py-0">
                     <CardContent className="p-5">
-                      <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-1">Total Logs Filtered</p>
+                      <p className="text-xs font-bold text-brand-primary uppercase tracking-wider mb-1">Total Logs Filtered</p>
                       <div className="flex items-baseline gap-2 mt-1">
-                        <p className="text-3xl font-black text-[#2A174E]">{totalHistoryItems}</p>
+                        <p className="text-3xl font-black text-brand-primary">{totalHistoryItems}</p>
                         <span className="text-slate-400 text-xs font-medium">records</span>
                       </div>
                       <p className="text-xs text-slate-400 mt-2">Matching active search & filters</p>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-t-5 border-[#3B4E17] bg-white shadow-xs rounded-xl py-0">
+                  <Card className="border-t-5 border-accent-green bg-white shadow-xs rounded-xl py-0">
                     <CardContent className="p-5">
-                      <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-1">Authorized Openings</p>
+                      <p className="text-xs font-bold text-accent-green uppercase tracking-wider mb-1">Authorized Openings</p>
                       <div className="flex items-baseline gap-2 mt-1">
-                        <p className="text-3xl font-black text-[#3B4E17]">{historyOpeningCount}</p>
+                        <p className="text-3xl font-black text-accent-green">{historyOpeningCount}</p>
                         <span className="text-slate-400 text-xs font-medium">entry unlocks</span>
                       </div>
                       <p className="text-xs text-slate-400 mt-2">Verified visitor door releases</p>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-t-5 border-amber-600 bg-white shadow-xs rounded-xl py-0">
+                  <Card className="border-t-5 border-accent-gold bg-white shadow-xs rounded-xl py-0">
                     <CardContent className="p-5">
-                      <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Active Visitor Days</p>
+                      <p className="text-xs font-bold text-accent-gold uppercase tracking-wider mb-1">Active Visitor Days</p>
                       <div className="flex items-baseline gap-2 mt-1">
-                        <p className="text-3xl font-black text-amber-700">{historyUniqueDays}</p>
+                        <p className="text-3xl font-black text-accent-gold">{historyUniqueDays}</p>
                         <span className="text-slate-400 text-xs font-medium">distinct dates</span>
                       </div>
                       <p className="text-xs text-slate-400 mt-2">Days with logged visitor foot traffic</p>
@@ -634,7 +634,7 @@ const VisitorLogs = () => {
                     </div>
 
                     {/* Status Dropdown */}
-                    <div className="w-full lg:w-48">
+                    {/* <div className="w-full lg:w-48">
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
                         <SelectTrigger className="bg-slate-50 border-slate-200 rounded-xl text-xs font-semibold text-slate-700 h-10">
                           <SelectValue placeholder="Event Type" />
@@ -645,7 +645,7 @@ const VisitorLogs = () => {
                           <SelectItem value="closed">Door Closed</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
+                    </div> */}
 
                     {/* Reset & Export Buttons */}
                     <div className="flex items-center gap-2 shrink-0">
@@ -662,7 +662,7 @@ const VisitorLogs = () => {
                         </Button>
                       )}
 
-                      <Button
+                      {/* <Button
                         variant="outline"
                         size="sm"
                         onClick={handleExportCSV}
@@ -671,7 +671,7 @@ const VisitorLogs = () => {
                       >
                         <FileDownloadIcon sx={{ fontSize: 16 }} className="mr-1 text-slate-500" />
                         Export CSV
-                      </Button>
+                      </Button> */}
                     </div>
                   </div>
                 </Card>
@@ -680,8 +680,8 @@ const VisitorLogs = () => {
                 <Card className="shadow-xs border border-slate-200/80 bg-white rounded-2xl overflow-hidden py-2">
                   <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <div className="flex items-center gap-2">
-                      <HistoryIcon sx={{ fontSize: 18 }} className="text-[#2A174E]" />
-                      <h3 className="text-sm font-bold text-[#2A174E] uppercase tracking-wide">
+                      <HistoryIcon sx={{ fontSize: 18 }} className="text-brand-primary" />
+                      <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wide">
                         Historical Access Archive
                       </h3>
                       <Badge variant="outline" className="bg-white text-slate-600 text-[10px] font-semibold border-slate-200">
@@ -699,14 +699,14 @@ const VisitorLogs = () => {
                     <Table>
                       <TableHeader className="bg-slate-50/50 border-b border-slate-100">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-[#2A174E] font-bold py-4 px-6 uppercase text-xs tracking-wider">Log ID</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider">Date</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider">Time</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider">Event Description</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider">Purpose / Reason</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider">Authorized By</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider">Mapped Account</TableHead>
-                          <TableHead className="text-[#2A174E] font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Status</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 px-6 uppercase text-xs tracking-wider">Log ID</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Date</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Time</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Event Description</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Purpose / Reason</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Authorized By</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Mapped Account</TableHead>
+                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -722,7 +722,7 @@ const VisitorLogs = () => {
                                 <TableCell className="py-4 font-mono text-slate-600 text-xs font-semibold">{log.time}</TableCell>
                                 <TableCell className="py-4">
                                   <div className="flex items-center gap-2.5">
-                                    <div className={`p-1.5 rounded-full ${isOpening ? 'bg-purple-100 text-[#2A174E]' : 'bg-slate-100 text-slate-500'}`}>
+                                    <div className={`p-1.5 rounded-full ${isOpening ? 'bg-purple-100 text-brand-primary' : 'bg-slate-100 text-slate-500'}`}>
                                       <AccessTimeIcon sx={{ fontSize: 14 }} />
                                     </div>
                                     <span className="font-semibold text-slate-800 text-xs">{log.loggedStatusName}</span>
@@ -745,7 +745,7 @@ const VisitorLogs = () => {
                                   {isOpening ? (
                                     log.adminDisplayId || log.admin_id ? (
                                       <div className="flex flex-col items-start gap-0.5">
-                                        <Badge variant="outline" className="font-mono text-[11px] font-bold text-[#2A174E] bg-purple-50/80 border-purple-200">
+                                        <Badge variant="outline" className="font-mono text-[11px] font-bold text-brand-primary bg-purple-50/80 border-purple-200">
                                           {log.adminDisplayId || `ID #${log.admin_id}`}
                                         </Badge>
                                         {log.adminName && (
@@ -799,7 +799,7 @@ const VisitorLogs = () => {
                                     variant="outline"
                                     size="sm"
                                     onClick={handleClearHistoryFilters}
-                                    className="mt-2 text-xs font-bold text-[#2A174E] border-[#2A174E]/30"
+                                    className="mt-2 text-xs font-bold text-brand-primary border-brand-primary/30"
                                   >
                                     <RestartAltIcon sx={{ fontSize: 14 }} className="mr-1" />
                                     Reset Filters
@@ -837,7 +837,7 @@ const VisitorLogs = () => {
         {/* Manual Solenoid Door Release Confirmation Modal */}
         <Dialog open={isConfirmModalOpen} onOpenChange={(open) => !confirming && (open ? setIsConfirmModalOpen(true) : handleCloseConfirmModal())}>
           <DialogContent className="sm:max-w-[480px] p-0 border-0 overflow-hidden bg-white rounded-2xl shadow-2xl">
-            <DialogHeader className="bg-[#2A174E] text-white p-6 relative">
+            <DialogHeader className="bg-brand-primary text-white p-6 relative">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-white/10 rounded-xl">
                   <ShieldAlert className="h-6 w-6 text-purple-200" />
@@ -876,7 +876,7 @@ const VisitorLogs = () => {
                   }}
                   disabled={confirming}
                   rows={3}
-                  className="resize-none border-slate-200 focus:border-[#2A174E] text-slate-800 text-sm"
+                  className="resize-none border-slate-200 focus:border-brand-primary text-slate-800 text-sm"
                   autoFocus
                 />
                 <p className="text-[11px] text-slate-500">
@@ -900,7 +900,7 @@ const VisitorLogs = () => {
                       if (confirmError) setConfirmError("");
                     }}
                     disabled={confirming}
-                    className="pr-10 border-slate-200 focus:border-[#2A174E] text-slate-800 text-sm h-11"
+                    className="pr-10 border-slate-200 focus:border-brand-primary text-slate-800 text-sm h-11"
                   />
                   <button
                     type="button"
@@ -930,7 +930,7 @@ const VisitorLogs = () => {
                 <Button
                   type="submit"
                   disabled={confirming || !visitorReason.trim() || !adminPassword}
-                  className="bg-[#2A174E] hover:bg-[#1f103a] text-white font-bold flex items-center gap-2 shadow-sm disabled:opacity-50"
+                  className="bg-brand-primary hover:bg-[#1f103a] text-white font-bold flex items-center gap-2 shadow-sm disabled:opacity-50"
                 >
                   {confirming ? (
                     <>

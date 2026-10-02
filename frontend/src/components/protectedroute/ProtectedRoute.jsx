@@ -51,7 +51,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-3 border-[#2A174E]/20 border-t-[#2A174E] rounded-full animate-spin" />
+          <div className="w-8 h-8 border-3 border-brand-primary/20 border-t-brand-primary rounded-full animate-spin" />
           <span className="text-xs text-slate-500 font-medium tracking-wide">Authenticating session...</span>
         </div>
       </div>

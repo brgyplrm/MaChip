@@ -74,7 +74,7 @@ const CreatePeriodModal = ({ isOpen, onClose, onCreate }) => {
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-xl text-[#2A174E]">Create Payroll Period</DialogTitle>
+          <DialogTitle className="text-xl text-brand-primary">Create Payroll Period</DialogTitle>
           <DialogDescription className="text-slate-500">
             Only the current and next periods can be scheduled manually.
           </DialogDescription>
@@ -84,15 +84,15 @@ const CreatePeriodModal = ({ isOpen, onClose, onCreate }) => {
           <div 
             className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
               selectedOption === "current" 
-                ? "bg-[#f0ebfa] border-[#2A174E] ring-1 ring-[#2A174E]" 
+                ? "bg-brand-primary-light border-brand-primary ring-1 ring-brand-primary" 
                 : "bg-white border-slate-200 hover:border-slate-300"
             }`}
             onClick={() => setSelectedOption("current")}
           >
             <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mr-4 ${
-              selectedOption === "current" ? "border-[#2A174E]" : "border-slate-300"
+              selectedOption === "current" ? "border-brand-primary" : "border-slate-300"
             }`}>
-              {selectedOption === "current" && <div className="w-2 h-2 rounded-full bg-[#2A174E]" />}
+              {selectedOption === "current" && <div className="w-2 h-2 rounded-full bg-brand-primary" />}
             </div>
             <div>
               <span className="block text-sm font-semibold text-slate-800">Current Period</span>
@@ -103,15 +103,15 @@ const CreatePeriodModal = ({ isOpen, onClose, onCreate }) => {
           <div 
             className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
               selectedOption === "next" 
-                ? "bg-[#f0ebfa] border-[#2A174E] ring-1 ring-[#2A174E]" 
+                ? "bg-brand-primary-light border-brand-primary ring-1 ring-brand-primary" 
                 : "bg-white border-slate-200 hover:border-slate-300"
             }`}
             onClick={() => setSelectedOption("next")}
           >
             <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mr-4 ${
-              selectedOption === "next" ? "border-[#2A174E]" : "border-slate-300"
+              selectedOption === "next" ? "border-brand-primary" : "border-slate-300"
             }`}>
-              {selectedOption === "next" && <div className="w-2 h-2 rounded-full bg-[#2A174E]" />}
+              {selectedOption === "next" && <div className="w-2 h-2 rounded-full bg-brand-primary" />}
             </div>
             <div>
               <span className="block text-sm font-semibold text-slate-800">Next Period</span>
@@ -131,7 +131,7 @@ const CreatePeriodModal = ({ isOpen, onClose, onCreate }) => {
             Cancel
           </Button>
           <Button 
-            className="w-full sm:w-1/2 bg-[#2A174E] text-white hover:bg-[#1a0e30]" 
+            className="w-full sm:w-1/2 bg-brand-primary text-white hover:bg-brand-primary-hover" 
             disabled={!currentSelection}
             onClick={() => onCreate(currentSelection)}
           >

@@ -505,7 +505,7 @@ const GovLoans = () => {
     return (
       <Card key={typeObj.id} className="shadow-sm border-0 bg-white pb-0 pt-4">
         <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-slate-50">
-          <CardTitle className="text-base text-[#2A174E]">{typeObj.label} Summary</CardTitle>
+          <CardTitle className="text-base text-brand-primary">{typeObj.label} Summary</CardTitle>
           <Button variant="link" onClick={() => {
             if (typeObj.id.startsWith("sss")) setActiveMainTab("sss");
             else if (typeObj.id.startsWith("pagibig")) setActiveMainTab("pagibig");
@@ -517,17 +517,17 @@ const GovLoans = () => {
             <table className="w-full min-w-max border-collapse text-sm">
               <thead className="sticky top-0 z-[50] shadow-sm bg-[#1e1136]">
                 <tr>
-                  <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-white font-bold text-left min-w-[150px] p-3 border-b border-r border-[#2A174E] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                  <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-white font-bold text-left min-w-[150px] p-3 border-b border-r border-brand-primary shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                     Employee Name
                   </th>
                   {summaryDates.map(d => {
                     const dateObj = new Date(d);
                     const isCurrent = d === currentCutoffDate;
                     return (
-                      <th key={d} className={`sticky top-0 z-[50] p-3 text-center align-middle font-bold border-b border-[#2A174E] ${isCurrent ? "bg-[#2A174E] text-yellow-400" : "bg-[#1e1136] text-slate-300"}`}>
+                      <th key={d} className={`sticky top-0 z-[50] p-3 text-center align-middle font-bold border-b border-brand-primary ${isCurrent ? "bg-brand-primary text-yellow-400" : "bg-[#1e1136] text-slate-300"}`}>
                         <div className="flex flex-col relative pb-3">
                           {dateObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
-                          {isCurrent && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[8px] bg-yellow-400 text-[#2A174E] px-1 rounded">CURR</span>}
+                          {isCurrent && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[8px] bg-yellow-400 text-brand-primary px-1 rounded">CURR</span>}
                         </div>
                       </th>
                     );
@@ -585,7 +585,7 @@ const GovLoans = () => {
       <Dialog open={showBatchModal} onOpenChange={setShowBatchModal}>
         <DialogContent className="max-w-2xl bg-white p-6 rounded-xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-[#2A174E]">Batch Details Upload ({currentTypeName})</DialogTitle>
+            <DialogTitle className="text-2xl font-bold text-brand-primary">Batch Details Upload ({currentTypeName})</DialogTitle>
             <DialogDescription>
               Select a method to upload multiple employee loan repayment records at once.
             </DialogDescription>
@@ -618,8 +618,8 @@ const GovLoans = () => {
                           onClick={() => toggleDateSelection(dStr)}
                           className={`text-[11px] py-2 px-3 rounded-lg border transition-all text-left flex flex-col ${
                             isSelected 
-                              ? "bg-[#2A174E] border-[#2A174E] text-white shadow-md font-bold" 
-                              : "bg-white border-slate-200 text-slate-600 hover:border-[#2A174E] hover:text-[#2A174E]"
+                              ? "bg-brand-primary border-brand-primary text-white shadow-md font-bold" 
+                              : "bg-white border-slate-200 text-slate-600 hover:border-brand-primary hover:text-brand-primary"
                           }`}
                         >
                           <span className={isSelected ? "text-yellow-400" : "text-slate-400"}>
@@ -666,7 +666,7 @@ const GovLoans = () => {
                 </div>
               </div>
 
-              <Button onClick={handleBatchSave} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={loading}>
+              <Button onClick={handleBatchSave} className="w-full bg-brand-primary hover:bg-brand-primary-hover text-white" disabled={loading}>
                 {loading ? "Processing..." : "Apply Batch Update"}
               </Button>
             </TabsContent>
@@ -680,7 +680,7 @@ const GovLoans = () => {
               </div>
 
               <div className="space-y-4">
-                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-[#2A174E] transition-colors cursor-pointer relative">
+                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-brand-primary transition-colors cursor-pointer relative">
                   <Input 
                     type="file" 
                     accept=".csv" 
@@ -690,7 +690,7 @@ const GovLoans = () => {
                   <CloudUploadIcon className="text-slate-400 h-12 w-12 mb-2" />
                   <p className="text-sm font-medium text-slate-600">{file ? file.name : "Click or drag CSV file here"}</p>
                 </div>
-                <Button onClick={handleUpload} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={!file || loading}>
+                <Button onClick={handleUpload} className="w-full bg-brand-primary hover:bg-brand-primary-hover text-white" disabled={!file || loading}>
                   {loading ? "Uploading..." : "Upload and Process CSV"}
                 </Button>
               </div>
@@ -716,7 +716,7 @@ const GovLoans = () => {
               variant="ghost" 
               size="icon" 
               asChild 
-              className="text-[#2A174E]"
+              className="text-brand-primary"
             >
               <Link to="/loanmanagement">
                 <ChevronLeft className="h-6 w-6" />
@@ -726,7 +726,7 @@ const GovLoans = () => {
 
           {/* Title Group: Adds margin-left only when hovered */}
           <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out">
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Gov Loans Summary</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Gov Loans Summary</h1>
             <span className="text-sm text-slate-500 mt-1 block">
               Manage statutory loans like SSS, Pag-IBIG, and other government deductions.
             </span>
@@ -735,7 +735,7 @@ const GovLoans = () => {
 
         {/* Right Section: Actions */}
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-          {/* <Button variant="outline" asChild className="border-[#2A174E] text-[#2A174E]">
+          {/* <Button variant="outline" asChild className="border-brand-primary text-brand-primary">
             <Link to="/govloans/history">
               <HistoryIcon className="mr-2 h-4 w-4" /> View Agency History
             </Link>
@@ -761,21 +761,21 @@ const GovLoans = () => {
         <div className="flex flex-wrap gap-2 mb-2">
           <Button
             variant="ghost"
-            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "summary" ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
+            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "summary" ? "bg-brand-primary text-white hover:bg-brand-primary hover:text-white" : "text-slate-500 hover:text-brand-primary hover:bg-slate-100"}`}
             onClick={() => {setActiveMainTab("summary"); setActiveTab("summary"); setIsEditingTable(false);}}
           >
             <DashboardIcon className="mr-2 h-4 w-4" /> Summary Overview
           </Button>
           <Button
             variant="ghost"
-            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "sss" ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
+            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "sss" ? "bg-brand-primary text-white hover:bg-brand-primary hover:text-white" : "text-slate-500 hover:text-brand-primary hover:bg-slate-100"}`}
             onClick={() => {setActiveMainTab("sss"); setActiveTab("sss_salary"); setIsEditingTable(false);}}
           >
             <AccountBalanceIcon className="mr-2 h-4 w-4" /> SSS
           </Button>
           <Button
             variant="ghost"
-            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "pagibig" ? "bg-[#2A174E] text-white hover:bg-[#2A174E] hover:text-white" : "text-slate-500 hover:text-[#2A174E] hover:bg-slate-100"}`}
+            className={`h-9 text-sm font-semibold rounded-lg ${activeMainTab === "pagibig" ? "bg-brand-primary text-white hover:bg-brand-primary hover:text-white" : "text-slate-500 hover:text-brand-primary hover:bg-slate-100"}`}
             onClick={() => {setActiveMainTab("pagibig"); setActiveTab("pagibig_mpl"); setIsEditingTable(false);}}
           >
             <AccountBalanceIcon className="mr-2 h-4 w-4" /> Pag-IBIG
@@ -789,28 +789,28 @@ const GovLoans = () => {
               <>
                 <Button
                   variant="ghost"
-                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_salary" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_salary" ? "bg-slate-100 border-brand-primary text-brand-primary" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
                   onClick={() => {setActiveTab("sss_salary"); setIsEditingTable(false);}}
                 >
                   Salary Loan
                 </Button>
                 <Button
                   variant="ghost"
-                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_calamity" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_calamity" ? "bg-slate-100 border-brand-primary text-brand-primary" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
                   onClick={() => {setActiveTab("sss_calamity"); setIsEditingTable(false);}}
                 >
                   Calamity Loan
                 </Button>
                 <Button
                   variant="ghost"
-                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_emergency" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_emergency" ? "bg-slate-100 border-brand-primary text-brand-primary" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
                   onClick={() => {setActiveTab("sss_emergency"); setIsEditingTable(false);}}
                 >
                   Emergency Loan
                 </Button>
                 {/* <Button
                   variant="ghost"
-                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_conso" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "sss_conso" ? "bg-slate-100 border-brand-primary text-brand-primary" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
                   onClick={() => {setActiveTab("sss_conso"); setIsEditingTable(false);}}
                 >
                   Conso Loan
@@ -821,14 +821,14 @@ const GovLoans = () => {
               <>
                 <Button
                   variant="ghost"
-                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "pagibig_mpl" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "pagibig_mpl" ? "bg-slate-100 border-brand-primary text-brand-primary" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
                   onClick={() => {setActiveTab("pagibig_mpl"); setIsEditingTable(false);}}
                 >
                   MPL
                 </Button>
                 <Button
                   variant="ghost"
-                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "pagibig_calamity" ? "bg-slate-100 border-[#2A174E] text-[#2A174E]" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
+                  className={`h-8 text-xs font-semibold rounded-lg border ${activeTab === "pagibig_calamity" ? "bg-slate-100 border-brand-primary text-brand-primary" : "border-transparent text-slate-500 hover:bg-slate-50"}`}
                   onClick={() => {setActiveTab("pagibig_calamity"); setIsEditingTable(false);}}
                 >
                   Calamity Loan
@@ -844,52 +844,52 @@ const GovLoans = () => {
         {/* Loan Statistics Dashboard (Unified with LoanManagement) */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-8 w-full animate-in fade-in zoom-in-95 duration-200 text-left">
           {/* Card 1: Total Loans */}
-          <Card className="border-t-[5px] border-[#2A174E] bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
+          <Card className="border-t-[5px] border-brand-primary bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
-                <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Total Loans</p>
-                <p className="text-4xl font-bold text-[#2A174E]">{loading ? "..." : activeLoanStats.totalLoans}</p>
+                <p className="text-xs font-bold text-brand-primary uppercase tracking-wider mb-2">Total Loans</p>
+                <p className="text-4xl font-bold text-brand-primary">{loading ? "..." : activeLoanStats.totalLoans}</p>
               </div>
-              <p className="text-xs text-[#2A174E]/70 italic mt-4">Active & completed agreements</p>
+              <p className="text-xs text-brand-primary/70 italic mt-4">Active & completed agreements</p>
             </CardContent>
           </Card>
 
           {/* Card 2: Total Disbursed */}
-          <Card className="border-t-[5px] border-[#BB8B26] bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
+          <Card className="border-t-[5px] border-accent-gold bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
-                <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Total Disbursed</p>
-                <p className="text-4xl font-bold text-[#BB8B26]">
+                <p className="text-xs font-bold text-accent-gold uppercase tracking-wider mb-2">Total Disbursed</p>
+                <p className="text-4xl font-bold text-accent-gold">
                   {loading ? "₱0.00" : peso(activeLoanStats.totalDisbursed)}
                 </p>
               </div>
-              <p className="text-xs text-[#BB8B26]/70 italic mt-4">Cumulative loan principal</p>
+              <p className="text-xs text-accent-gold/70 italic mt-4">Cumulative loan principal</p>
             </CardContent>
           </Card>
 
           {/* Card 3: Total Collected */}
-          <Card className="border-t-[5px] border-[#174e4e] bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
+          <Card className="border-t-[5px] border-accent-green bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
-                <p className="text-xs font-bold text-[#174e4e] uppercase tracking-wider mb-2">Total Collected</p>
-                <p className="text-4xl font-bold text-[#174e4e]">
+                <p className="text-xs font-bold text-accent-green uppercase tracking-wider mb-2">Total Collected</p>
+                <p className="text-4xl font-bold text-accent-green">
                   {loading ? "₱0.00" : peso(activeLoanStats.totalCollected)}
                 </p>
               </div>
-              <p className="text-xs text-[#174e4e]/70 italic mt-4">Total payments received</p>
+              <p className="text-xs text-accent-green/70 italic mt-4">Total payments received</p>
             </CardContent>
           </Card>
 
           {/* Card 4: Outstanding */}
-          <Card className="border-t-[5px] border-[#a12626] bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
+          <Card className="border-t-[5px] border-status-danger bg-white py-0 h-full shadow-sm hover:shadow transition-shadow">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
-                <p className="text-xs font-bold text-[#a12626] uppercase tracking-wider mb-2">Outstanding</p>
-                <p className="text-4xl font-bold text-[#a12626]">
+                <p className="text-xs font-bold text-status-danger uppercase tracking-wider mb-2">Outstanding</p>
+                <p className="text-4xl font-bold text-status-danger">
                   {loading ? "₱0.00" : peso(activeLoanStats.outstanding)}
                 </p>
               </div>
-              <p className="text-xs text-[#a12626]/70 italic mt-4">Remaining balance to collect</p>
+              <p className="text-xs text-status-danger/70 italic mt-4">Remaining balance to collect</p>
             </CardContent>
           </Card>
         </div>
@@ -904,7 +904,7 @@ const GovLoans = () => {
             <>
               {/* Detailed View Table Header Actions */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4 mt-8">
-                <h3 className="text-xl font-bold text-[#2A174E]">{currentTypeName} History ({selectedYear})</h3>
+                <h3 className="text-xl font-bold text-brand-primary">{currentTypeName} History ({selectedYear})</h3>
                 <div className="flex flex-wrap gap-2">
                   {isAdmin && (
                     <>
@@ -915,7 +915,7 @@ const GovLoans = () => {
                           setBatchForm(prev => ({ ...prev, dates: [], amount: "" }));
                           setShowBatchModal(true);
                         }}
-                        className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
+                        className="border-brand-primary text-brand-primary hover:bg-slate-50 h-9"
                       >
                         <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
                       </Button> */}
@@ -923,7 +923,7 @@ const GovLoans = () => {
                         variant="outline" 
                         size="sm"
                         onClick={() => setIsEditingTable(!isEditingTable)}
-                        className={`h-9 ${isEditingTable ? "bg-green-500 hover:bg-green-600 text-white border-transparent" : "border-[#2A174E] text-[#2A174E] hover:bg-slate-50"}`}
+                        className={`h-9 ${isEditingTable ? "bg-green-500 hover:bg-green-600 text-white border-transparent" : "border-brand-primary text-brand-primary hover:bg-slate-50"}`}
                       >
                         {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Matrix</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Matrix</>}
                       </Button> */}
@@ -940,7 +940,7 @@ const GovLoans = () => {
                       <thead className="sticky top-0 z-[50] shadow-sm">
                         <tr>
                           {/* Top-Left Header Cell */}
-                          <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-[#2A174E] p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-brand-primary p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                             <div className="flex flex-col leading-tight">
                               <span className="text-[9px] font-black uppercase opacity-90">{selectedYear} Year</span>
                               <span className="text-xs text-white font-bold">MONTHS / DATE</span>
@@ -949,7 +949,7 @@ const GovLoans = () => {
                           
                           {/* Middle Header Cells (Employees) */}
                           {employeeList.map((emp) => (
-                            <th key={emp.key} className="sticky top-0 z-[50] bg-[#2A174E] text-white border-x border-b-2 border-[#3d2270] min-w-[140px] p-3 text-center align-middle">
+                            <th key={emp.key} className="sticky top-0 z-[50] bg-brand-primary text-white border-x border-b-2 border-[#3d2270] min-w-[140px] p-3 text-center align-middle">
                               <div className="flex flex-col leading-tight items-center">
                                 <span className="text-[11px] font-bold uppercase">{emp.name.split(',')[0]}</span>
                                 <span className="text-[9px] text-white/70 font-mono">{emp.id}</span>
@@ -958,7 +958,7 @@ const GovLoans = () => {
                           ))}
 
                           {/* Top-Right Header Cells (Totals) */}
-                          <th className="sticky right-[120px] top-0 z-[60] bg-[#1e1136] text-yellow-400 border-l-2 border-b-2 border-[#2A174E] min-w-[120px] p-3 text-center align-middle shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          <th className="sticky right-[120px] top-0 z-[60] bg-[#1e1136] text-yellow-400 border-l-2 border-b-2 border-brand-primary min-w-[120px] p-3 text-center align-middle shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                             <div className="flex flex-col leading-tight">
                               <span className="text-[9px] font-black uppercase">SUB</span>
                               <span className="text-xs text-white font-bold">TOTAL</span>
@@ -1024,19 +1024,19 @@ const GovLoans = () => {
                               return (
                                 <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
                                   {/* Left Column Cell */}
-                                  <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-[#2A174E] p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                  <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-brand-primary p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                                     {isEditingTable ? (
                                       <Input 
                                         type="date" 
                                         value={dateStr}
                                         onChange={(e) => handleHeaderChange(i, e.target.value)}
-                                        className="h-8 text-xs font-bold text-[#2A174E] focus-visible:ring-blue-500"
+                                        className="h-8 text-xs font-bold text-brand-primary focus-visible:ring-blue-500"
                                       />
                                     ) : (
                                       <div className="flex flex-col">
-                                        <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel}</span>
+                                        <span className="font-bold text-[13px] text-brand-primary">{monthLabel}</span>
                                         <span className="text-[10px] font-semibold text-slate-500">{dayLabel}</span>
-                                        {isCurrentRow && <span className="bg-yellow-400 text-[#2A174E] text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
+                                        {isCurrentRow && <span className="bg-yellow-400 text-brand-primary text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
                                       </div>
                                     )}
                                   </td>
@@ -1080,7 +1080,7 @@ const GovLoans = () => {
                                               }
                                             }} 
                                             autoFocus 
-                                            className="w-full h-10 border-2 border-[#2A174E] bg-white text-center font-mono text-[13px] text-black font-bold outline-none" 
+                                            className="w-full h-10 border-2 border-brand-primary bg-white text-center font-mono text-[13px] text-black font-bold outline-none" 
                                           />
                                         ) : isSyncing ? (
                                           <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
@@ -1095,10 +1095,10 @@ const GovLoans = () => {
                                   })}
 
                                   {/* Right Column Cells (Row Totals) */}
-                                  <td className={`sticky right-[120px] z-[40] border-l-2 border-b border-[#2A174E] p-3 text-center align-middle font-bold text-[#2A174E] min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isCurrentRow ? "bg-blue-50" : "bg-white"}`}>
+                                  <td className={`sticky right-[120px] z-[40] border-l-2 border-b border-brand-primary p-3 text-center align-middle font-bold text-brand-primary min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isCurrentRow ? "bg-blue-50" : "bg-white"}`}>
                                     {rowTotal > 0 ? parseFloat(rowTotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                                   </td>
-                                  <td className={`sticky right-0 z-[40] border-l border-b border-slate-200 p-3 text-center align-middle font-bold text-[#2A174E] min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isCurrentRow ? "bg-blue-50" : "bg-slate-50"}`}>
+                                  <td className={`sticky right-0 z-[40] border-l border-b border-slate-200 p-3 text-center align-middle font-bold text-brand-primary min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isCurrentRow ? "bg-blue-50" : "bg-slate-50"}`}>
                                     {monthlyTotal !== null && monthlyTotal > 0
                                       ? parseFloat(monthlyTotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                                       : monthlyTotal !== null ? "—" : ""}
@@ -1110,8 +1110,8 @@ const GovLoans = () => {
 
                             {/* Footer Row (Total Paid - Current Year) */}
                             <tr className="sticky bottom-[49px] z-[45] bg-slate-100 shadow-[0_-2px_4px_rgba(0,0,0,0.02)]">
-                              <td className="sticky left-0 z-[50] bg-slate-100 border-r-2 border-t-2 border-b border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                                <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL PAID ({selectedYear})</span>
+                              <td className="sticky left-0 z-[50] bg-slate-100 border-r-2 border-t-2 border-b border-brand-primary p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                                <span className="text-[11px] font-black tracking-wider text-brand-primary">TOTAL PAID ({selectedYear})</span>
                               </td>
                               {employeeList.map((emp) => {
                                 const typeData = allData[activeTab] || [];
@@ -1121,12 +1121,12 @@ const GovLoans = () => {
                                   return acc + (record?.payrollId ? (record.amount || 0) : 0);
                                 }, 0);
                                 return (
-                                  <td key={emp.key} className="border-r border-t-2 border-b border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
+                                  <td key={emp.key} className="border-r border-t-2 border-b border-brand-primary border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
                                     {empSubtotal > 0 ? parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                                   </td>
                                 );
                               })}
-                              <td className="sticky right-[120px] z-[50] bg-[#2A174E] text-yellow-400 border-l-2 border-t-2 border-b border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                              <td className="sticky right-[120px] z-[50] bg-brand-primary text-yellow-400 border-l-2 border-t-2 border-b border-brand-primary p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                                 {(() => {
                                    const typeData = allData[activeTab] || [];
                                    const stats = expectedDates.reduce((acc, dateStr) => {
@@ -1136,7 +1136,7 @@ const GovLoans = () => {
                                    return stats > 0 ? parseFloat(stats).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
                                 })()}
                               </td>
-                              <td className="sticky right-0 z-[50] bg-[#2A174E] text-yellow-400 border-l border-t-2 border-b border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                              <td className="sticky right-0 z-[50] bg-brand-primary text-yellow-400 border-l border-t-2 border-b border-brand-primary p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                                 {(() => {
                                    const typeData = allData[activeTab] || [];
                                    const stats = expectedDates.reduce((acc, dateStr) => {
@@ -1150,8 +1150,8 @@ const GovLoans = () => {
 
                             {/* Footer Row (Total Paid - All Time) */}
                             <tr className="sticky bottom-0 z-[45] bg-slate-200 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
-                              <td className="sticky left-0 z-[50] bg-slate-200 border-r-2 border-t border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                                <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL LOANS (ALL-TIME)</span>
+                              <td className="sticky left-0 z-[50] bg-slate-200 border-r-2 border-t border-brand-primary p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                                <span className="text-[11px] font-black tracking-wider text-brand-primary">TOTAL LOANS (ALL-TIME)</span>
                               </td>
                               {employeeList.map((emp) => {
                                 const typeData = allData[activeTab] || [];
@@ -1165,14 +1165,14 @@ const GovLoans = () => {
                                   </td>
                                 );
                               })}
-                              <td className="sticky right-[120px] z-[50] bg-white text-[#2A174E] border-l-2 border-t border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                              <td className="sticky right-[120px] z-[50] bg-white text-brand-primary border-l-2 border-t border-brand-primary p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                                 {(() => {
                                    const typeData = allData[activeTab] || [];
                                    const totalAllTimeDeducted = typeData.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.payrollId ? (v.amount || 0) : 0), 0), 0);
                                    return totalAllTimeDeducted > 0 ? parseFloat(totalAllTimeDeducted).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
                                 })()}
                               </td>
-                              <td className="sticky right-0 z-[50] bg-white text-[#2A174E] border-l border-t border-[#2A174E] p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                              <td className="sticky right-0 z-[50] bg-white text-brand-primary border-l border-t border-brand-primary p-3 text-center align-middle font-mono text-[13px] font-black min-w-[120px] shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                                 {(() => {
                                    const typeData = allData[activeTab] || [];
                                    const totalAllTimeDeducted = typeData.reduce((acc, item) => acc + Object.values(item.values).reduce((sum, v) => sum + (v.payrollId ? (v.amount || 0) : 0), 0), 0);

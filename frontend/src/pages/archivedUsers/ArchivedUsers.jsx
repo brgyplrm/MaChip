@@ -202,7 +202,7 @@ const ArchivedUsers = () => {
                       variant="ghost" 
                       size="icon" 
                       asChild 
-                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary"
                     >
                       <Link to="/users">
                         <ChevronLeft className="h-6 w-6" />
@@ -218,7 +218,7 @@ const ArchivedUsers = () => {
 
             {/* Title: Adds left padding when hovered */}
             <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Archived Users</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">Archived Users</h1>
               <p className="text-sm text-slate-500 mt-1">
                 Manage archived user records - restore or permanently delete
               </p>
@@ -229,65 +229,65 @@ const ArchivedUsers = () => {
         {/* Statistics Cards */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
           {/* Card 1: Total Active Users */}
-          <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+          <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Total Archived</p>
+                  <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Total Archived</p>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
                       Total number of soft-deleted employee profiles currently held in the system database.
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
+                <p className="text-4xl font-bold text-brand-primary">{stats.total}</p>
               </div>
-              <p className="text-xs text-[#2A174E]/70 italic mt-4">Total registered active accounts</p>
+              <p className="text-xs text-brand-primary/70 italic mt-4">Total registered active accounts</p>
             </CardContent>
           </Card>
   
           {/* Card 2: Employees */}
-          <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+          <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Employees</p>
+                  <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Employees</p>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
                       Archived standard staff records.
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-4xl font-bold text-[#3B4E17]">{stats.employees}</p>
+                <p className="text-4xl font-bold text-accent-green">{stats.employees}</p>
               </div>
-              <p className="text-xs text-[#3B4E17]/70 italic mt-4">Active standard staff records</p>
+              <p className="text-xs text-accent-green/70 italic mt-4">Active standard staff records</p>
             </CardContent>
           </Card>
   
           {/* Card 3: Admins & Supervisors */}
-          <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+          <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Admin & Supervisor</p>
+                  <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Admin & Supervisor</p>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
                       Archived management accounts.
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-4xl font-bold text-[#BB8B26]">{stats.admins}</p>
+                <p className="text-4xl font-bold text-accent-gold">{stats.admins}</p>
               </div>
-              <p className="text-xs text-[#BB8B26]/70 italic mt-4">Active management records</p>
+              <p className="text-xs text-accent-gold/70 italic mt-4">Active management records</p>
             </CardContent>
           </Card>
         </div>
@@ -304,7 +304,7 @@ const ArchivedUsers = () => {
                 placeholder="Search by ID, Name, or Email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
               />
             </div>
             
@@ -369,7 +369,7 @@ const ArchivedUsers = () => {
           <CardContent className="p-0 flex flex-col">
             <div className="overflow-x-auto">
               <Table className="min-w-[800px] md:min-w-full">
-                <TableHeader className="bg-[#2A174E]">
+                <TableHeader className="bg-brand-primary">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">
                       <div className="flex items-center gap-1">
@@ -407,7 +407,7 @@ const ArchivedUsers = () => {
                   {currentData.length > 0 ? (
                     currentData.map((user) => (
                       <TableRow key={user.user_Id} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                        <TableCell className="font-bold text-[#2A174E] py-4 px-6">{formatUserId(user.user_Id)}</TableCell>
+                        <TableCell className="font-bold text-brand-primary py-4 px-6">{formatUserId(user.user_Id)}</TableCell>
                         <TableCell className="font-semibold text-slate-800 py-4">{user.user_FirstName} {user.user_LastName}</TableCell>
                         <TableCell className="text-slate-600 py-4">{user.user_Email || "—"}</TableCell>
                         <TableCell className="py-4">

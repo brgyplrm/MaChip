@@ -21,8 +21,10 @@ router.get("/generateRfid", requireAdmin, rfidController.generateRfid);
 // Route for generating Fingerprint
 router.get("/generateFingerprint", requireAdmin, rfidController.generateFingerprint);
 
-// Clear Fingerprint Session
+// Clear Hardware / Enrollment Sessions
 router.delete("/clear-fingerprint-session", requireAdmin, rfidController.clearFingerprintSession);
+router.delete("/clear-rfid-session", requireAdmin, rfidController.clearFingerprintSession);
+router.delete("/clear-hardware-session", requireAdmin, rfidController.clearFingerprintSession);
 
 // This creates the URL: http://localhost:4000/api/users/all
 router.get("/all", requireStaff, userController.viewAllUsers);

@@ -71,7 +71,7 @@ inline void solenoidUnlock() {
     digitalWrite(SOLENOID_PIN, LOW); // Pull Low to activate Relay shield
     solenoidActive = true;
     solenoidStartTime = millis();
-    Serial.println(F("[SOLENOID] UNLOCKED"));
+    sysLog(F("[SOLENOID] UNLOCKED (Relay triggered)"));
   }
 }
 
@@ -80,7 +80,7 @@ inline void solenoidLock() {
     clearSpiBusPins();
     digitalWrite(SOLENOID_PIN, HIGH); // Pull High to return lock to rest
     solenoidActive = false;
-    Serial.println(F("[SOLENOID] LOCKED"));
+    sysLog(F("[SOLENOID] LOCKED (Rest position)"));
   }
 }
 

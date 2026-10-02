@@ -99,7 +99,7 @@
 
             .inputIcon {
               font-size: 16px;
-              color: #2A174E;
+              color: var(--color-brand-primary);
             }
 
             .req {
@@ -120,7 +120,7 @@
             transition: all 0.2s ease;
 
             &:focus {
-              border-color: #2A174E;
+              border-color: var(--color-brand-primary);
               box-shadow: 0 0 0 2px rgba(42, 23, 78, 0.1);
             }
 

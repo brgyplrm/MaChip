@@ -39,17 +39,18 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { TablePagination } from "@/components/ui/table-pagination";
 
 const colorMap = {
-  "[#2A174E]": "border-[#2A174E]",
-  "[#3B4E17]": "border-[#3B4E17]",
-  "rose-500": "border-rose-500",
-  "[#BB8B26]": "border-[#BB8B26]",
-  "indigo-500": "border-indigo-500",
-  "blue-500": "border-blue-500"
+  "brand-primary": "border-brand-primary",
+  "accent-green": "border-accent-green",
+  "accent-gold": "border-accent-gold",
+  "status-info": "border-status-info",
+  "rose-500": "border-status-danger",
+  "indigo-500": "border-status-info",
+  "blue-500": "border-status-info"
 };
 
 function MetricCard({ label, value, color, description, icon: Icon, tooltip, loading }) {
   return (
-    <Card className={`border-t-4 ${colorMap[color] || 'border-[#2A174E]'} bg-white py-0 h-full shadow-sm`}>
+    <Card className={`border-t-4 ${colorMap[color] || 'border-brand-primary'} bg-white py-0 h-full shadow-sm`}>
       <CardContent className="px-5 py-6 flex flex-col justify-between h-full text-left">
         <div className="flex justify-between items-start">
           <div>
@@ -59,7 +60,7 @@ function MetricCard({ label, value, color, description, icon: Icon, tooltip, loa
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex items-center justify-center cursor-help">
-                      <HelpCircle className="h-3 w-3 text-[#2A174E]/60 hover:text-[#2A174E]" />
+                      <HelpCircle className="h-3 w-3 text-brand-primary/60 hover:text-brand-primary" />
                     </span>
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-[10px]">
@@ -71,7 +72,7 @@ function MetricCard({ label, value, color, description, icon: Icon, tooltip, loa
             {loading ? (
               <Skeleton className="h-8 w-28 my-1" />
             ) : (
-              <p className="text-2xl font-black text-[#2A174E]">{value}</p>
+              <p className="text-2xl font-black text-brand-primary">{value}</p>
             )}
           </div>
           {Icon && (
@@ -81,7 +82,7 @@ function MetricCard({ label, value, color, description, icon: Icon, tooltip, loa
               color === 'amber-500' ? 'bg-amber-50 text-amber-600' :
               color === 'rose-500' ? 'bg-rose-50 text-rose-600' :
               color === 'indigo-500' ? 'bg-indigo-50 text-indigo-600' :
-              'bg-[#2A174E]/10 text-[#2A174E]'
+              'bg-brand-primary/10 text-brand-primary'
             }`}>
               <Icon className="h-5 w-5" />
             </div>
@@ -278,7 +279,7 @@ const EmployeePayrollHistory = () => {
       case "13th Month Pay": return "bg-pink-50 text-pink-600";
       case "Separation Pay": return "bg-orange-50 text-orange-600";
       case "Retirement Pay": return "bg-blue-50 text-blue-600";
-      default: return "bg-[#2A174E]/10 text-[#2A174E]";
+      default: return "bg-brand-primary/10 text-brand-primary";
     }
   };
 
@@ -297,7 +298,7 @@ const EmployeePayrollHistory = () => {
                         asChild 
                         variant="ghost" 
                         size="icon" 
-                        className="text-[#2A174E] hover:bg-[#2A174E]/10 rounded-full"
+                        className="text-brand-primary hover:bg-brand-primary/10 rounded-full"
                       >
                         <Link to="/employeeHome">
                           <ChevronLeft className="h-6 w-6" />
@@ -312,7 +313,7 @@ const EmployeePayrollHistory = () => {
               </div>
 
               <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out">
-                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">My Payroll</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">My Payroll</h1>
                 <p className="text-slate-500 text-sm">View and download your past payslips and benefits.</p>
               </div>
             </div>
@@ -323,7 +324,7 @@ const EmployeePayrollHistory = () => {
             <MetricCard
               label={`YTD Gross (${targetYear})`}
               value={formatCurrency(ytdOverview.gross)}
-              color="[#2A174E]"
+              color="brand-primary"
               description={`${ytdOverview.count} regular cutoffs released in ${targetYear}`}
               icon={TrendingUp}
               tooltip={`Cumulative gross compensation earned across all processed payroll cutoffs in ${targetYear}.`}
@@ -332,7 +333,7 @@ const EmployeePayrollHistory = () => {
             <MetricCard
               label={`YTD Net Pay (${targetYear})`}
               value={formatCurrency(ytdOverview.net)}
-              color="[#3B4E17]"
+              color="accent-green"
               description="Total net take-home pay disbursed"
               icon={Wallet}
               tooltip={`Total net take-home pay credited to your account after all deductions in ${targetYear}.`}
@@ -341,7 +342,7 @@ const EmployeePayrollHistory = () => {
             <MetricCard
               label={`YTD Deductions (${targetYear})`}
               value={`-${formatCurrency(ytdOverview.deductions)}`}
-              color="[#BB8B26]"
+              color="accent-gold"
               description="Taxes, statutory shares & loans"
               icon={TrendingDown}
               tooltip={`Cumulative withholding taxes, SSS, PhilHealth, Pag-IBIG contributions, and loans in ${targetYear}.`}
@@ -350,7 +351,7 @@ const EmployeePayrollHistory = () => {
             <MetricCard
               label={`YTD Days Worked (${targetYear})`}
               value={`${ytdOverview.daysWorked} Days`}
-              color="blue-500"
+              color="status-info"
               description="Accumulated work attendance"
               icon={CalendarDays}
               tooltip={`Total recorded working days rendered and credited across payroll periods in ${targetYear}.`}
@@ -528,7 +529,7 @@ const EmployeePayrollHistory = () => {
                               <TooltipTrigger asChild>
                                 <div className="text-right cursor-help">
                                   <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Net Pay</p>
-                                  <p className="text-lg font-black text-[#2A174E]">{formatCurrency(p.amount)}</p>
+                                  <p className="text-lg font-black text-brand-primary">{formatCurrency(p.amount)}</p>
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
@@ -538,7 +539,7 @@ const EmployeePayrollHistory = () => {
                             {p.link ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button asChild variant="outline" size="sm" className="rounded-full group-hover:bg-[#2A174E] group-hover:text-white hover:bg-[#1d0f3b] hover:text-white transition-all">
+                                  <Button asChild variant="outline" size="sm" className="rounded-full group-hover:bg-brand-primary group-hover:text-white hover:bg-[#1d0f3b] hover:text-white transition-all">
                                     <Link to={p.link}>
                                       View Details
                                       <ArrowUpRight className="ml-2 h-4 w-4" />
@@ -592,7 +593,7 @@ const EmployeePayrollHistory = () => {
                       : "You don't have any released payment records yet."}
                   </p>
                   {(searchTerm || selectedMonth !== "all" || selectedYear !== "all" || selectedType !== "all") && (
-                    <Button variant="link" onClick={clearFilters} className="mt-2 text-[#2A174E]">
+                    <Button variant="link" onClick={clearFilters} className="mt-2 text-brand-primary">
                       Clear all filters
                     </Button>
                   )}

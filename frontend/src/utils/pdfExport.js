@@ -17,7 +17,7 @@ export const exportToPDF = (title, headers, data, filename, options = {}) => {
   // Header Section
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(42, 23, 78); // #2A174E
+  doc.setTextColor(42, 23, 78); // brand-primary
   doc.text("MAC-J INT'L., FORWARDING LTD., CO.", width / 2, 15, { align: "center" });
 
   doc.setFontSize(10);

@@ -278,7 +278,7 @@ const AdminLoanEnrollment = () => {
           {/* Header Section */}
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">
                 Loan Applications & Certifications
               </h1>
               <span className="text-sm text-slate-500 mt-1 block">
@@ -288,7 +288,7 @@ const AdminLoanEnrollment = () => {
             <Button 
               variant="outline" 
               asChild
-              className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+              className="w-full md:w-auto border-brand-primary/20 hover:text-brand-primary text-brand-primary/70 font-semibold shadow-sm transition-all"
             >
               <Link 
                 to="/adminReports" 
@@ -303,41 +303,41 @@ const AdminLoanEnrollment = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             
             {/* Card 1: Pending Applications */}
-            <Card className="shadow-sm border-l-4 border-l-amber-500 bg-white hover:shadow-md transition-shadow">
+            <Card className="shadow-sm border-l-4 border-l-accent-gold bg-white hover:shadow-md transition-shadow">
               <CardContent className="p-5 flex items-center justify-between">
                 <div className="space-y-1.5">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pending Applications</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-extrabold text-slate-900">{pendingCount}</span>
-                    <span className="text-xs font-semibold text-amber-600">Awaiting Action</span>
+                    <span className="text-xs font-semibold text-accent-gold">Awaiting Action</span>
                   </div>
                   <p className="text-[11px] text-slate-400">Total Value: ₱{totalPendingAmount.toLocaleString()}</p>
                 </div>
-                <div className="h-12 w-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <div className="h-12 w-12 rounded-xl bg-accent-gold/10 text-accent-gold flex items-center justify-center shrink-0">
                   <HourglassEmptyIcon />
                 </div>
               </CardContent>
             </Card>
 
             {/* Card 2: Total Approved */}
-            <Card className="shadow-sm border-l-4 border-l-emerald-500 bg-white hover:shadow-md transition-shadow">
+            <Card className="shadow-sm border-l-4 border-l-accent-green bg-white hover:shadow-md transition-shadow">
               <CardContent className="p-5 flex items-center justify-between">
                 <div className="space-y-1.5">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Approved Loans</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-extrabold text-slate-900">{approvedCount}</span>
-                    <span className="text-xs font-semibold text-emerald-600">Enrolled</span>
+                    <span className="text-xs font-semibold text-accent-green">Enrolled</span>
                   </div>
                   <p className="text-[11px] text-slate-400">Disbursed Value: ₱{totalApprovedAmount.toLocaleString()}</p>
                 </div>
-                <div className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <div className="h-12 w-12 rounded-xl bg-accent-green/10 text-accent-green flex items-center justify-center shrink-0">
                   <CheckCircleOutlineIcon />
                 </div>
               </CardContent>
             </Card>
 
             {/* Card 3: Govt Agency Applications */}
-            <Card className="shadow-sm border-l-4 border-l-blue-500 bg-white hover:shadow-md transition-shadow">
+            <Card className="shadow-sm border-l-4 border-l-status-info bg-white hover:shadow-md transition-shadow">
               <CardContent className="p-5 flex items-center justify-between">
                 <div className="space-y-1.5">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Government Loans</p>
@@ -345,18 +345,18 @@ const AdminLoanEnrollment = () => {
                     <span className="text-3xl font-extrabold text-slate-900">
                       {requests.filter((r) => r.LR_agency && r.LR_agency !== "Company").length}
                     </span>
-                    <span className="text-xs font-semibold text-blue-600">SSS / Pag-IBIG</span>
+                    <span className="text-xs font-semibold text-status-info">SSS / Pag-IBIG</span>
                   </div>
                   <p className="text-[11px] text-slate-400">Statutory deductibles</p>
                 </div>
-                <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <div className="h-12 w-12 rounded-xl bg-sky-50 text-status-info flex items-center justify-center shrink-0">
                   <CorporateFareIcon />
                 </div>
               </CardContent>
             </Card>
 
             {/* Card 4: Company Internal Loans */}
-            <Card className="shadow-sm border-l-4 border-l-purple-500 bg-white hover:shadow-md transition-shadow">
+            <Card className="shadow-sm border-l-4 border-l-brand-primary bg-white hover:shadow-md transition-shadow">
               <CardContent className="p-5 flex items-center justify-between">
                 <div className="space-y-1.5">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Company Loans</p>
@@ -364,11 +364,11 @@ const AdminLoanEnrollment = () => {
                     <span className="text-3xl font-extrabold text-slate-900">
                       {requests.filter((r) => r.LR_agency === "Company").length}
                     </span>
-                    <span className="text-xs font-semibold text-purple-600">Internal Advances</span>
+                    <span className="text-xs font-semibold text-brand-primary">Internal Advances</span>
                   </div>
                   <p className="text-[11px] text-slate-400">Company loan program</p>
                 </div>
-                <div className="h-12 w-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                <div className="h-12 w-12 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0">
                   <MonetizationOnIcon />
                 </div>
               </CardContent>
@@ -384,7 +384,7 @@ const AdminLoanEnrollment = () => {
                 onClick={() => setActiveTab("all")}
                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                   activeTab === "all"
-                    ? "bg-[#2A174E] text-white shadow-sm"
+                    ? "bg-brand-primary text-white shadow-sm"
                     : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
@@ -394,7 +394,7 @@ const AdminLoanEnrollment = () => {
                 onClick={() => setActiveTab("government")}
                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                   activeTab === "government"
-                    ? "bg-[#2A174E] text-white shadow-sm"
+                    ? "bg-brand-primary text-white shadow-sm"
                     : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
@@ -404,7 +404,7 @@ const AdminLoanEnrollment = () => {
                 onClick={() => setActiveTab("company")}
                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                   activeTab === "company"
-                    ? "bg-[#2A174E] text-white shadow-sm"
+                    ? "bg-brand-primary text-white shadow-sm"
                     : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
@@ -414,7 +414,7 @@ const AdminLoanEnrollment = () => {
                 onClick={() => setActiveTab("certifications")}
                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                   activeTab === "certifications"
-                    ? "bg-[#2A174E] text-white shadow-sm"
+                    ? "bg-brand-primary text-white shadow-sm"
                     : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
@@ -429,7 +429,7 @@ const AdminLoanEnrollment = () => {
                   onClick={() => setStatusTab("pending")}
                   className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
                     statusTab === "pending"
-                      ? "bg-white text-[#2A174E] shadow-xs"
+                      ? "bg-white text-brand-primary shadow-xs"
                       : "text-slate-500 hover:text-slate-900"
                   }`}
                 >
@@ -439,7 +439,7 @@ const AdminLoanEnrollment = () => {
                   onClick={() => setStatusTab("completed")}
                   className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
                     statusTab === "completed"
-                      ? "bg-white text-[#2A174E] shadow-xs"
+                      ? "bg-white text-brand-primary shadow-xs"
                       : "text-slate-500 hover:text-slate-900"
                   }`}
                 >
@@ -451,7 +451,7 @@ const AdminLoanEnrollment = () => {
                 <button
                   onClick={() => setViewMode("grid")}
                   className={`p-2 transition-colors ${
-                    viewMode === "grid" ? "bg-[#2A174E] text-white" : "text-slate-500 hover:bg-slate-100"
+                    viewMode === "grid" ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-100"
                   }`}
                   title="Grid View"
                 >
@@ -460,7 +460,7 @@ const AdminLoanEnrollment = () => {
                 <button
                   onClick={() => setViewMode("table")}
                   className={`p-2 transition-colors ${
-                    viewMode === "table" ? "bg-[#2A174E] text-white" : "text-slate-500 hover:bg-slate-100"
+                    viewMode === "table" ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-100"
                   }`}
                   title="Table View"
                 >
@@ -480,7 +480,7 @@ const AdminLoanEnrollment = () => {
                   placeholder="Search Employee Name, ID, REQ ID, Agency..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-10 border-slate-200 focus-visible:ring-[#2A174E] text-xs"
+                  className="pl-9 h-10 border-slate-200 focus-visible:ring-brand-primary text-xs"
                 />
               </div>
 
@@ -562,7 +562,7 @@ const AdminLoanEnrollment = () => {
                   return (
                     <Card
                       key={req.emp_reqId}
-                      className="bg-white border border-slate-200 hover:border-[#2A174E] shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden group rounded-xl"
+                      className="bg-white border border-slate-200 hover:border-brand-primary shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden group rounded-xl"
                     >
                       {/* Card Top Banner */}
                       <div className="p-5 border-b border-slate-100 bg-gradient-to-b from-slate-50 to-white flex items-start justify-between">
@@ -581,7 +581,7 @@ const AdminLoanEnrollment = () => {
                               REQ-{req.emp_reqId}
                             </span>
                           </div>
-                          <p className="font-bold text-slate-900 text-base group-hover:text-[#2A174E] transition-colors line-clamp-1">
+                          <p className="font-bold text-slate-900 text-base group-hover:text-brand-primary transition-colors line-clamp-1">
                             {req.userName}
                           </p>
                           <p className="text-xs text-slate-500 font-medium">{req.user_Id ? formatUserId(req.user_Id) : "MACJ Employee"}</p>
@@ -624,7 +624,7 @@ const AdminLoanEnrollment = () => {
                         </div>
 
                         {(req.LR_proof_File || req.LR_damageProof) && (
-                          <div className="flex items-center gap-1.5 text-xs text-[#2A174E] font-semibold bg-purple-50 p-2 rounded-lg">
+                          <div className="flex items-center gap-1.5 text-xs text-brand-primary font-semibold bg-purple-50 p-2 rounded-lg">
                             <AttachmentIcon fontSize="small" className="text-purple-600" />
                             <span>Attachment Included</span>
                           </div>
@@ -639,7 +639,7 @@ const AdminLoanEnrollment = () => {
                         <Button
                           size="sm"
                           onClick={() => openReviewDrawer(req.emp_reqId)}
-                          className="bg-[#2A174E] hover:bg-[#1a0e30] text-white text-xs font-bold px-4 h-9 shadow-xs"
+                          className="bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold px-4 h-9 shadow-xs"
                         >
                           Audit & Review
                         </Button>
@@ -696,7 +696,7 @@ const AdminLoanEnrollment = () => {
                               size="sm"
                               variant="outline"
                               onClick={() => openReviewDrawer(req.emp_reqId)}
-                              className="h-8 border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white font-semibold text-xs"
+                              className="h-8 border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white font-semibold text-xs"
                             >
                               Review
                             </Button>
@@ -757,7 +757,7 @@ const AdminLoanEnrollment = () => {
               <Card className="w-full max-w-3xl max-h-[90vh] bg-white shadow-2xl border-0 overflow-hidden flex flex-col rounded-2xl animate-in zoom-in-95 duration-200 py-0">
                 
                 {/* Modal Header */}
-                <div className="p-5 bg-[#2A174E] text-white flex items-center justify-between shrink-0">
+                <div className="p-5 bg-brand-primary text-white flex items-center justify-between shrink-0">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <Badge className="bg-amber-400 text-slate-950 hover:bg-amber-400 font-bold text-[10px]">
@@ -782,13 +782,13 @@ const AdminLoanEnrollment = () => {
                   {/* Financial Breakdown Grid */}
                   <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-4">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 border-b border-slate-200 pb-2">
-                      <MonetizationOnIcon className="text-[#2A174E] h-4 w-4" /> Loan Financial Specification
+                      <MonetizationOnIcon className="text-brand-primary h-4 w-4" /> Loan Financial Specification
                     </h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
                       <div>
                         <span className="block text-slate-400 text-[10px] font-bold uppercase">Agency</span>
-                        <span className="font-bold text-[#2A174E] text-sm">{current.LR_agency || "Company"}</span>
+                        <span className="font-bold text-brand-primary text-sm">{current.LR_agency || "Company"}</span>
                       </div>
 
                       <div>
@@ -861,7 +861,7 @@ const AdminLoanEnrollment = () => {
                               setViewingFileName(`Loan Document REQ-${current.emp_reqId}`);
                               setIsFileViewerOpen(true);
                             }}
-                            className="border-slate-300 text-[#2A174E] font-semibold text-xs h-10"
+                            className="border-slate-300 text-brand-primary font-semibold text-xs h-10"
                           >
                             <AttachmentIcon className="mr-2 h-4 w-4 text-purple-600" /> View Disclosure Statement
                           </Button>
@@ -927,7 +927,7 @@ const AdminLoanEnrollment = () => {
                         value={adminNote}
                         onChange={(e) => setAdminNote(e.target.value)}
                         placeholder="State reason for approval, rejection, or return of loan application..."
-                        className="h-20 text-xs resize-none focus-visible:ring-[#2A174E]"
+                        className="h-20 text-xs resize-none focus-visible:ring-brand-primary"
                       />
                     </div>
                   )}

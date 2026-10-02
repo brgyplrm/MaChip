@@ -241,7 +241,7 @@ const Datatable = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">User Management</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">User Management</h1>
           <span className="text-sm text-muted-foreground mt-1 block">Manage user accounts and roles</span>
         </div>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -252,7 +252,7 @@ const Datatable = () => {
                 <Button
                   variant="ghost"
                   asChild
-                  className="text-slate-600 hover:text-[#2A174E] hover:bg-slate-100"
+                  className="text-slate-600 hover:text-brand-primary hover:bg-slate-100"
                 >
                   <Link to="/users/hardware"><SensorsIcon className="mr-2 h-4 w-4"/> Hardware Registry</Link>
                 </Button>
@@ -287,7 +287,7 @@ const Datatable = () => {
               {/* Primary Action */}
               <Button 
                 asChild 
-                className="flex-1 sm:flex-none bg-[#2A174E] text-white hover:bg-[#7A52B5] shadow-sm"
+                className="flex-1 sm:flex-none bg-brand-primary text-white hover:bg-[#7A52B5] shadow-sm"
               >
                 <Link to="/users/newUser">
                   <PersonAddIcon className="h-4 w-4 mr-1" /> Add User
@@ -301,65 +301,65 @@ const Datatable = () => {
       {/* Statistics Cards */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
         {/* Card 1: Total Active Users */}
-        <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+        <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
           <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
             <div>
               <div className="flex items-center gap-1.5 mb-2">
-                <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Total Active Users</p>
+                <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Total Active Users</p>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white border-slate-800">
                     Active employee and administrator records currently in the system database.
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
+              <p className="text-4xl font-bold text-brand-primary">{stats.total}</p>
             </div>
-            <p className="text-xs font-semibold text-[#2A174E]/70 italic mt-4">Total registered active accounts</p>
+            <p className="text-xs font-semibold text-brand-primary/70 italic mt-4">Total registered active accounts</p>
           </CardContent>
         </Card>
 
         {/* Card 2: Employees */}
-        <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+        <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
           <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
             <div>
               <div className="flex items-center gap-1.5 mb-2">
-                <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Employees</p>
+                <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Employees</p>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white border-slate-800">
                     Active standard staff records (eligible for shift logs, request filings, and payroll).
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <p className="text-4xl font-bold text-[#3B4E17]">{stats.employees}</p>
+              <p className="text-4xl font-bold text-accent-green">{stats.employees}</p>
             </div>
-            <p className="text-xs font-semibold text-[#3B4E17]/70 italic mt-4">Active standard staff records</p>
+            <p className="text-xs font-semibold text-accent-green/70 italic mt-4">Active standard staff records</p>
           </CardContent>
         </Card>
 
         {/* Card 3: Admins & Supervisors */}
-        <Card className="border-t-5 border-[#B06E16] bg-white py-0 h-full">
+        <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
           <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
             <div>
               <div className="flex items-center gap-1.5 mb-2">
-                <p className="text-xs font-bold text-[#B06E16] uppercase tracking-wider">Admin & Supervisor</p>
+                <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Admin & Supervisor</p>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#B06E16]/60 hover:text-[#B06E16] cursor-help" />
+                    <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white border-slate-800">
                     Accounts with management privileges (overseeing attendance logs, requests, and payroll periods).
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <p className="text-4xl font-bold text-[#B06E16]">{stats.admins}</p>
+              <p className="text-4xl font-bold text-accent-gold">{stats.admins}</p>
             </div>
-            <p className="text-xs font-semibold text-[#B06E16]/70 italic mt-4">Active management records</p>
+            <p className="text-xs font-semibold text-accent-gold/70 italic mt-4">Active management records</p>
           </CardContent>
         </Card>
       </div>
@@ -375,7 +375,7 @@ const Datatable = () => {
               placeholder="Search by ID, Name, or Email..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+              className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
             />
           </div>
           
@@ -397,7 +397,7 @@ const Datatable = () => {
               </Select>
             </div>
 
-            <div className="flex items-center w-full sm:w-auto">
+            {/* <div className="flex items-center w-full sm:w-auto">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full sm:w-40 border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
                   <SelectValue placeholder="Filter by Status" />
@@ -405,14 +405,13 @@ const Datatable = () => {
                 <SelectContent>
                   <SelectItem value="All Statuses">All Statuses</SelectItem>
                   <SelectItem value="Regular">Regular</SelectItem>
-                  <SelectItem value="Probationary">Probationary</SelectItem>
                   <SelectItem value="Resigned">Resigned</SelectItem>
                   <SelectItem value="Terminated">Terminated</SelectItem>
                   <SelectItem value="Separated">Separated</SelectItem>
                   <SelectItem value="Retired">Retired</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </div> */}
 
             {/* Conditionally Rendered Clear Button */}
             {isFiltering && (
@@ -435,7 +434,7 @@ const Datatable = () => {
         <CardContent className="p-0 flex flex-col">
           <div className="overflow-x-auto">
             <Table className="min-w-200 md:min-w-full">
-              <TableHeader className="bg-[#2B174F]">
+              <TableHeader className="bg-brand-primary">
                 <TableRow className="hover:bg-transparent border-b-slate-200">
                   <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider ">User ID</TableHead>
                   <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider ">Full Name</TableHead>
@@ -464,7 +463,7 @@ const Datatable = () => {
                     const isMachipRevealed = revealedMachipUsers[user.user_Id];
                     return (
                       <TableRow key={user.user_Id} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                      <TableCell className="font-bold text-[#2A174E] py-4 px-6">{formatUserId(user.user_Id)}</TableCell>
+                      <TableCell className="font-bold text-brand-primary py-4 px-6">{formatUserId(user.user_Id)}</TableCell>
                       <TableCell className="font-medium text-slate-800 py-4">
                           {user.user_FirstName || user.user_LastName ? (
                             <span 
@@ -500,7 +499,7 @@ const Datatable = () => {
                           <button
                             type="button"
                             onClick={() => handleToggleMachip(user.user_Id)}
-                            className="text-slate-400 hover:text-[#2A174E] transition-colors p-0.5 rounded focus:outline-none"
+                            className="text-slate-400 hover:text-brand-primary transition-colors p-0.5 rounded focus:outline-none"
                             title={isMachipRevealed ? "Hide MaChip ID" : "Verify Admin Password to View MaChip ID"}
                           >
                             {isMachipRevealed ? (
@@ -538,7 +537,7 @@ const Datatable = () => {
                                   variant="outline" 
                                   size="sm" 
                                   asChild 
-                                  className=" border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors"
+                                  className=" border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0] transition-colors"
                                 >
                                   <Link to={`/users/${user.user_Id}`}>
                                     <EyeIcon className="h-4 w-4" />
@@ -554,14 +553,14 @@ const Datatable = () => {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span className="inline-block">
-                                  <Button 
+                                  {/* <Button 
                                     variant="outline" 
                                     size="sm" 
                                     className="border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition-colors" 
                                     onClick={() => initiateArchive(user.user_Id)}
                                   >
-                                    <Archive className="h-4 w-4" />
-                                  </Button>
+                                    <Archive className="h-4 w-4" /> 
+                                  </Button> */}
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent className="bg-slate-900 text-white border-slate-800">
@@ -619,10 +618,10 @@ const Datatable = () => {
           <Card className="w-full max-w-md shadow-2xl border-0 animate-in zoom-in-95 duration-200 bg-white">
             <CardContent className="p-6">
               <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-purple-100 text-[#2A174E] rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <div className="w-14 h-14 bg-purple-100 text-brand-primary rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                   <CreditCardIcon className="h-7 w-7" />
                 </div>
-                <h2 className="text-xl font-bold text-[#2A174E]">Security Verification Required</h2>
+                <h2 className="text-xl font-bold text-brand-primary">Security Verification Required</h2>
                 <p className="text-xs text-slate-500 mt-2">
                   Please enter your admin password to reveal the hardware MaChip RFID credential.
                 </p>
@@ -642,7 +641,7 @@ const Datatable = () => {
                         setAdminPassword(e.target.value);
                         if (passwordError) setPasswordError("");
                       }}
-                      className={`h-11 border-slate-200 pr-10 focus-visible:ring-[#2A174E] ${passwordError ? "border-red-500" : ""}`}
+                      className={`h-11 border-slate-200 pr-10 focus-visible:ring-brand-primary ${passwordError ? "border-red-500" : ""}`}
                       autoFocus
                     />
                     <button
@@ -687,7 +686,7 @@ const Datatable = () => {
                   <Button
                     type="submit"
                     disabled={verifyingPassword}
-                    className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white font-medium"
+                    className="flex-1 h-11 bg-brand-primary hover:bg-brand-primary-hover text-white font-medium"
                   >
                     {verifyingPassword ? "Verifying..." : "Verify & View"}
                   </Button>

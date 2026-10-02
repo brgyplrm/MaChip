@@ -501,8 +501,8 @@ const UserLogs = () => {
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: Arial, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 20mm; }
-  .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2A174E; padding-bottom: 10px; }
-  .header h1 { font-size: 20px; color: #2A174E; text-transform: uppercase; margin-bottom: 5px; }
+  .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid var(--color-brand-primary); padding-bottom: 10px; }
+  .header h1 { font-size: 20px; color: var(--color-brand-primary); text-transform: uppercase; margin-bottom: 5px; }
   .header p { color: #666; font-size: 10px; }
   .info-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; margin-bottom: 30px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
   .info-item { display: flex; flex-direction: column; gap: 4px; }
@@ -517,7 +517,7 @@ const UserLogs = () => {
   .stat-value { font-size: 18px; font-weight: 800; }
   table { width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; }
   th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-  thead th { background-color: #2A174E; color: white; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; }
+  thead th { background-color: var(--color-brand-primary); color: white; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; }
   tbody tr:nth-child(even) { background-color: #f8fafc; }
   .footer { margin-top: 40px; font-style: italic; font-size: 9px; text-align: center; color: #94a3b8; }
 </style>
@@ -661,7 +661,7 @@ const UserLogs = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">My Attendance & Logs</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">My Attendance & Logs</h1>
                 <span className="text-sm text-slate-500 mt-1 block">View your official Daily Time Record and complete raw access logs.</span>
               </div>
               
@@ -670,7 +670,7 @@ const UserLogs = () => {
                   <TooltipTrigger asChild>
                     <Button 
                       onClick={activeTab === "dtr" ? handleDownloadDTR : handleDownloadRawLogs}
-                      className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#7A52B5] shadow-sm"
+                      className="w-full sm:w-auto bg-brand-primary text-white hover:bg-[#7A52B5] shadow-sm"
                     >
                       <FileDownloadIcon className="mr-2 h-4 w-4" /> Download PDF
                     </Button>
@@ -687,7 +687,7 @@ const UserLogs = () => {
             {/* Tabs Navigation */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full sm:w-[400px] grid-cols-2 h-11 bg-slate-200/60 rounded-lg mb-6 p-0.5">
-                <TabsTrigger value="dtr" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
+                <TabsTrigger value="dtr" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex items-center justify-center w-full h-full">
@@ -699,7 +699,7 @@ const UserLogs = () => {
                     </TooltipContent>
                   </Tooltip>
                 </TabsTrigger>
-                <TabsTrigger value="raw_logs" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
+                <TabsTrigger value="raw_logs" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex items-center justify-center w-full h-full">
@@ -719,12 +719,12 @@ const UserLogs = () => {
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   {/* Title / Info */}
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center text-[#2A174E] shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center text-brand-primary shrink-0">
                       <DateRangeIcon sx={{ fontSize: 20 }} />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-[#2A174E]">Attendance Period Filter</span>
+                        <span className="text-sm font-bold text-brand-primary">Attendance Period Filter</span>
                         {/* {selectedPeriodId === "current" && (
                           <Badge variant="secondary" className="bg-green-100 text-green-700 text-[10px] font-semibold">
                             Live Cutoff
@@ -778,12 +778,12 @@ const UserLogs = () => {
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-semibold text-slate-500">Cutoff:</span>
                       <Select value={selectedPeriodId} onValueChange={handlePeriodChange}>
-                        <SelectTrigger className="min-w-[170px] max-w-[240px] h-9 bg-white border-slate-200 font-bold text-[#2A174E] text-xs">
+                        <SelectTrigger className="min-w-[170px] max-w-[240px] h-9 bg-white border-slate-200 font-bold text-brand-primary text-xs">
                           <SelectValue placeholder="Select Cutoff" />
                         </SelectTrigger>
                         <SelectContent>
                           {isCurrentMonthView && (
-                            <SelectItem value="current" className="text-xs font-semibold text-[#2A174E]">
+                            <SelectItem value="current" className="text-xs font-semibold text-brand-primary">
                               Current Period (Live)
                             </SelectItem>
                           )}
@@ -809,7 +809,7 @@ const UserLogs = () => {
                             variant="ghost"
                             size="sm"
                             onClick={handleResetToCurrent}
-                            className="h-9 px-2.5 text-xs text-slate-500 hover:text-[#2A174E] hover:bg-purple-50 font-semibold transition-colors"
+                            className="h-9 px-2.5 text-xs text-slate-500 hover:text-brand-primary hover:bg-purple-50 font-semibold transition-colors"
                           >
                             Reset to Current
                           </Button>
@@ -873,7 +873,7 @@ const UserLogs = () => {
                     
                     {/* Left: Attendance History for the Period */}
                     <Card className="w-full lg:w-[45%] shadow-sm border-0 bg-white py-0">
-                      <CardHeader className="pb-3 border-b border-slate-50 bg-[#2A174E] pt-5" >
+                      <CardHeader className="pb-3 border-b border-slate-50 bg-brand-primary pt-5" >
                         <CardTitle className="text-lg text-white">Attendance History</CardTitle>
                       </CardHeader>
                       <CardContent className="p-0 overflow-x-auto custom-scrollbar">
@@ -907,7 +907,7 @@ const UserLogs = () => {
                                 }
   
                                 return (
-                                  <TableRow key={dateStr} className={`hover:bg-slate-50/50 ${dateStr === todayStr ? "bg-blue-50/30 border-l-4 border-[#2A174E]" : ""}`}>
+                                  <TableRow key={dateStr} className={`hover:bg-slate-50/50 ${dateStr === todayStr ? "bg-blue-50/30 border-l-4 border-brand-primary" : ""}`}>
                                     <TableCell className="font-medium text-slate-700">
                                       {targetDate.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
                                     </TableCell>
@@ -1181,7 +1181,7 @@ const UserLogs = () => {
                             placeholder="Search raw scans..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                            className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
                           />
                         </div>
                         
@@ -1225,7 +1225,7 @@ const UserLogs = () => {
                       <CardContent className="p-0 flex flex-col">
                         <div className="overflow-x-auto">
                           <Table className="min-w-[800px] md:min-w-full">
-                            <TableHeader className="bg-[#2B174F]">
+                            <TableHeader className="bg-brand-primary">
                               <TableRow className="hover:bg-transparent border-b-slate-200">
                                 <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Date</TableHead>
                                 <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Time Scanned</TableHead>
@@ -1241,7 +1241,7 @@ const UserLogs = () => {
                                   
                                   return (
                                     <TableRow key={i} className="hover:bg-slate-50/50 border-b-slate-100 transition-colors">
-                                      <TableCell className="font-bold text-[#2A174E] px-6 py-4">
+                                      <TableCell className="font-bold text-brand-primary px-6 py-4">
                                         {log.log_Date ? new Date(log.log_Date).toLocaleDateString() : "—"}
                                       </TableCell>
                                       <TableCell className="text-slate-600 font-mono text-[13px] py-4">

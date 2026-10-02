@@ -44,7 +44,7 @@ const ContactSupportModal = ({ isOpen, onClose }) => {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-[#2A174E] text-xl font-bold">Contact Support</DialogTitle>
+          <DialogTitle className="text-brand-primary text-xl font-bold">Contact Support</DialogTitle>
           <DialogDescription className="text-slate-500">
             Send us a message and we'll get back to you as soon as possible.
           </DialogDescription>
@@ -74,7 +74,7 @@ const ContactSupportModal = ({ isOpen, onClose }) => {
               value={formData.subject}
               onChange={handleChange}
               required
-              className="focus-visible:ring-[#2A174E] border-slate-200"
+              className="focus-visible:ring-brand-primary border-slate-200"
             />
           </div>
           <div className="space-y-1.5">
@@ -89,14 +89,14 @@ const ContactSupportModal = ({ isOpen, onClose }) => {
               onChange={handleChange}
               rows={5}
               required
-              className="focus-visible:ring-[#2A174E] border-slate-200 resize-none"
+              className="focus-visible:ring-brand-primary border-slate-200 resize-none"
             />
           </div>
           <DialogFooter className="pt-4 grid grid-cols-2 gap-2">
             <Button type="button" variant="outline" onClick={onClose} className="w-full border-slate-200 text-slate-600">
               Cancel
             </Button>
-            <Button type="submit" className="bg-[#2A174E] hover:bg-[#1a0e30] w-full text-white">
+            <Button type="submit" className="bg-brand-primary hover:bg-brand-primary-hover w-full text-white">
               Send Message
             </Button>
           </DialogFooter>

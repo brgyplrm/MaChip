@@ -298,7 +298,7 @@ const RfidManagement = () => {
                 variant="ghost"
                 size="icon" 
                 asChild 
-                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary"
               >
                 <Link to="/users">
                   <ChevronLeft className="h-6 w-6" />
@@ -308,12 +308,12 @@ const RfidManagement = () => {
             
             {/* Title: Adds left padding when hovered */}
             <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">RFID Card Registry</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">RFID Card Registry</h1>
               <span className="text-sm text-slate-500 mt-1 block">Manage MaChip hardware alignments, token authorizations, and card access states.</span>
             </div>
           </div>
           
-          <Button onClick={handleScanRFID} className="bg-[#2A174E] hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
+          <Button onClick={handleScanRFID} className="bg-brand-primary hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
             <ScanLine className="h-4 w-4 text-white" />
             <span>Scan RFID</span>
           </Button>
@@ -322,26 +322,26 @@ const RfidManagement = () => {
         {/* Statistics Dashboard Cards with Descriptions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {/* Card 1 */}
-          <Card className="border-t-5 border-[#2A174E] bg-white py-0">
+          <Card className="border-t-5 border-brand-primary bg-white py-0">
             <CardContent className="px-5 py-5 flex justify-between items-center">
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Paired Cards</p>
-                <p className="text-3xl font-bold text-[#2A174E]">{stats.total}</p>
+                <p className="text-3xl font-bold text-brand-primary">{stats.total}</p>
                 <p className="text-[10px] text-slate-400 mt-2 italic">Total number of RFID tokens currently registered in the system.</p>
               </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg"><CreditCardIcon /></div>
+              <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg"><CreditCardIcon /></div>
             </CardContent>
           </Card>
           
           {/* Card 2: Unassigned Employees */}
-          <Card className="border-t-5 border-orange-600 bg-white py-0">
+          <Card className="border-t-5 border-accent-gold bg-white py-0">
             <CardContent className="px-5 py-5 flex justify-between items-center">
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Unassigned Employees</p>
-                <p className="text-3xl font-bold text-orange-700">{unassignedEmployees.length}</p>
+                <p className="text-3xl font-bold text-accent-gold">{unassignedEmployees.length}</p>
                 <p className="text-[10px] text-slate-400 mt-2 italic">Employees pending rfid token alignment.</p>
               </div>
-              <div className="bg-orange-50 text-orange-600 p-3 rounded-lg"><SensorsIcon /></div>
+              <div className="bg-accent-gold/10 text-accent-gold p-3 rounded-lg"><SensorsIcon /></div>
             </CardContent>
             </Card>
           </div>
@@ -378,7 +378,7 @@ const RfidManagement = () => {
         <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
           <CardContent className="p-0 flex flex-col">
             <Table>
-              <TableHeader className="bg-[#2A174E]">
+              <TableHeader className="bg-brand-primary">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-white font-bold py-4 px-6 uppercase text-xs tracking-wider">Employee</TableHead>
                   <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">MaChip Card UID</TableHead>
@@ -392,7 +392,7 @@ const RfidManagement = () => {
                 {currentData.length > 0 ? (
                   currentData.map((row) => (
                     <TableRow key={row.user_Id} className="border-b-slate-100 hover:bg-slate-50/50">
-                      <TableCell className="px-6 py-4"><p className="font-bold text-[#2A174E] text-sm">{row.userName}</p><p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p></TableCell>
+                      <TableCell className="px-6 py-4"><p className="font-bold text-brand-primary text-sm">{row.userName}</p><p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p></TableCell>
                       <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.machip_id || "—"}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className={
@@ -456,7 +456,7 @@ const RfidManagement = () => {
       {/* STEP 2: Assign Scanned Token Modal Layout (Matches Uploaded Reference Design) */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
         <DialogContent className="sm:max-w-[460px] p-0 border-0 overflow-hidden bg-white rounded-2xl shadow-2xl">
-          <DialogHeader className="bg-[#2A174E] text-white p-6 relative">
+          <DialogHeader className="bg-brand-primary text-white p-6 relative">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <ScanLine className="h-5 w-5 text-purple-300" /> Assign Scanned Card
             </DialogTitle>
@@ -472,7 +472,7 @@ const RfidManagement = () => {
             {/* Captured Parameter Box */}
             <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
               <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scanned Card Unique identifier (UID)</Label>
-              <div className="font-mono text-sm font-black text-[#2A174E] bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
+              <div className="font-mono text-sm font-black text-brand-primary bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
                 {scannedUid}
               </div>
             </div>
@@ -493,7 +493,7 @@ const RfidManagement = () => {
               </div>
               
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-[#2A174E]">
+                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-brand-primary">
                   <SelectValue placeholder="Select an unassigned employee..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[220px]">
@@ -524,7 +524,7 @@ const RfidManagement = () => {
               <Button 
                 onClick={handleAssignCardSubmit}
                 disabled={assigning || !selectedUserId}
-                className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white rounded-lg font-bold shadow-md tracking-wide"
+                className="flex-1 h-11 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg font-bold shadow-md tracking-wide"
               >
                 {assigning ? "Linking Identity..." : "Assign Hardware Link"}
               </Button>
@@ -541,7 +541,7 @@ const RfidManagement = () => {
               <AlertTriangle className="h-8 w-8" />
             </div>
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-[#2A174E] text-center">Revoke Access Card?</DialogTitle>
+              <DialogTitle className="text-xl font-bold text-brand-primary text-center">Revoke Access Card?</DialogTitle>
               <DialogDescription className="text-slate-500 text-sm mt-2 text-center">
                 You are about to unlink the RFID card from <b className="text-slate-900">{revokeTarget?.userName}</b>. 
                 This employee will no longer be able to use this card for attendance.

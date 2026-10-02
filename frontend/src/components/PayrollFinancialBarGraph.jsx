@@ -31,7 +31,7 @@ const PayrollFinancialBarGraph = ({ payrolls }) => {
   return (
     <Card className="shadow-sm border-gray-200 w-full mb-8">
       <CardHeader>
-        <CardTitle className="text-[#2A174E]">Deductions Overview</CardTitle>
+        <CardTitle className="text-brand-primary">Deductions Overview</CardTitle>
         <CardDescription>Breakdown of disbursements for HMO, Loans, and other corporate deductions</CardDescription>
       </CardHeader>
       <CardContent className="h-[400px]">
@@ -64,7 +64,7 @@ const PayrollFinancialBarGraph = ({ payrolls }) => {
             <Bar 
               dataKey="hmo" 
               name="HMO (Maxicare)" 
-              fill="#2A174E" 
+              fill="var(--color-brand-primary)" 
               stackId="a"
               radius={[0, 0, 0, 0]} 
               barSize={40}
@@ -74,7 +74,7 @@ const PayrollFinancialBarGraph = ({ payrolls }) => {
             <Bar 
               dataKey="loans" 
               name="Total Loans" 
-              fill="#BB8B26" 
+              fill="var(--color-accent-gold)" 
               stackId="a"
               radius={[0, 0, 0, 0]} 
               barSize={40}
@@ -84,7 +84,7 @@ const PayrollFinancialBarGraph = ({ payrolls }) => {
             <Bar 
               dataKey="others" 
               name="Other Deductions" 
-              fill="#3B4E17" 
+              fill="var(--color-accent-green)" 
               stackId="a"
               radius={[4, 4, 0, 0]} 
               barSize={40}

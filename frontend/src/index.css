@@ -2,10 +2,35 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
+@import "./styles/theme-colors.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+    /* ── MaChip Unified Palette ── */
+    --color-brand-primary: var(--color-brand-primary);
+    --color-brand-primary-hover: var(--color-brand-primary-hover);
+    --color-brand-primary-light: var(--color-brand-primary-light);
+
+    --color-accent-green: var(--color-accent-green);
+    --color-accent-green-hover: var(--color-accent-green-hover);
+    --color-accent-green-light: var(--color-accent-green-light);
+
+    --color-accent-gold: var(--color-accent-gold);
+    --color-accent-gold-hover: var(--color-accent-gold-hover);
+    --color-accent-gold-light: var(--color-accent-gold-light);
+
+    --color-status-success: var(--color-status-success);
+    --color-status-warning: var(--color-status-warning);
+    --color-status-danger: var(--color-status-danger);
+    --color-status-info: var(--color-status-info);
+
+    --color-surface-bg: var(--color-surface-bg);
+    --color-surface-card: var(--color-surface-card);
+    --color-surface-border: var(--color-surface-border);
+    --color-text-main: var(--color-text-main);
+    --color-text-muted: var(--color-text-muted);
+
     --font-heading: var(--font-sans);
     --font-sans: 'Inter Variable', sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
@@ -77,7 +102,7 @@
     --sidebar-foreground: #555;
     --sidebar-primary: #555;
     --sidebar-primary-foreground: white;
-    --sidebar-accent: #2A174E;
+    --sidebar-accent: var(--color-brand-primary);
     --sidebar-accent-foreground: white;
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);

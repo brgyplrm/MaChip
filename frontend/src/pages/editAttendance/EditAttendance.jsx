@@ -123,7 +123,7 @@ const EditAttendance = () => {
   // Ultra-tightened input component layout to optimize vertical spacing
   const InputField = ({ label, id, value }) => (
     <div className="w-full sm:w-[calc(50%-8px)] flex flex-col gap-1 text-left">
-      <label htmlFor={id} className="text-xs font-bold text-[#2A174E]">
+      <label htmlFor={id} className="text-xs font-bold text-brand-primary">
         {label}
       </label>
       <input
@@ -131,7 +131,7 @@ const EditAttendance = () => {
         id={id}
         value={value}
         onChange={handleInput}
-        className="px-3 py-1.5 border border-gray-200 rounded-lg outline-none text-xs bg-slate-50 focus:bg-white focus:border-[#2A174E] focus:ring-1 focus:ring-[#2A174E]/20 transition-all"
+        className="px-3 py-1.5 border border-gray-200 rounded-lg outline-none text-xs bg-slate-50 focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 transition-all"
       />
     </div>
   );
@@ -149,7 +149,7 @@ const EditAttendance = () => {
                   <button
                   type="button"
                   onClick={() => navigate(backPath)}
-                  className="p-1.5 rounded-full text-slate-400 hover:text-[#2A174E] hover:bg-slate-100 transition-colors mr-1"
+                  className="p-1.5 rounded-full text-slate-400 hover:text-brand-primary hover:bg-slate-100 transition-colors mr-1"
                   title="Go back"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
@@ -157,7 +157,7 @@ const EditAttendance = () => {
                   </svg>
                 </button>
               </div>
-              <h1 className="text-xl md:text-2xl font-extrabold text-[#2A174E] transition-all duration-300 ease-in-out">
+              <h1 className="text-xl md:text-2xl font-extrabold text-brand-primary transition-all duration-300 ease-in-out">
                 Edit Attendance (ID: {formatUserId(userId)})
               </h1>
             </div>
@@ -179,7 +179,7 @@ const EditAttendance = () => {
                 {/* Left Column: Metadata Context Banner */}
                 <div className="w-full lg:w-1/4 flex flex-col items-center gap-4 p-4 border-b lg:border-b-0 lg:border-r border-gray-100 rounded-xl">
                   <div className="text-center w-full pb-3 border-b border-gray-100">
-                    <h2 className="text-lg font-semibold text-[#2A174E] tracking-tight break-words" title={formData.userName}>
+                    <h2 className="text-lg font-semibold text-brand-primary tracking-tight break-words" title={formData.userName}>
                       {formData.userName}
                     </h2>
                     <p className="text-xs font-mono text-slate-400 mt-0.5">
@@ -262,14 +262,14 @@ const EditAttendance = () => {
                         Attendance Status
                       </h3>
                       <div className="w-full flex flex-col gap-1 text-left">
-                        <label htmlFor="attendance_StatusId" className="text-xs font-bold text-[#2A174E]">
+                        <label htmlFor="attendance_StatusId" className="text-xs font-bold text-brand-primary">
                           Status Label
                         </label>
                         <select
                           id="attendance_StatusId"
                           value={formData.attendance_StatusId}
                           onChange={handleInput}
-                          className="w-full px-3 py-1.5 bg-slate-50 border border-gray-200 rounded-lg outline-none text-xs focus:bg-white focus:border-[#2A174E] focus:ring-1 focus:ring-[#2A174E]/20 transition-all font-semibold text-slate-700"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-gray-200 rounded-lg outline-none text-xs focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 transition-all font-semibold text-slate-700"
                         >
                           {statusOptions.map((opt) => (
                             <option key={opt.id} value={opt.id}>
@@ -285,14 +285,14 @@ const EditAttendance = () => {
                       <button
                         type="button"
                         onClick={() => navigate(backPath)}
-                        className="px-5 py-2 text-xs font-bold text-[#2A174E]/70 hover:text-[#2A174E] bg-white border border-[#2A174E]/20 rounded-lg hover:bg-slate-50 transition-all"
+                        className="px-5 py-2 text-xs font-bold text-brand-primary/70 hover:text-brand-primary bg-white border border-brand-primary/20 rounded-lg hover:bg-slate-50 transition-all"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
                         disabled={loading}
-                        className="px-5 py-2 text-xs font-bold text-white bg-[#2A174E] rounded-lg hover:bg-[#7A52B5] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-sm"
+                        className="px-5 py-2 text-xs font-bold text-white bg-brand-primary rounded-lg hover:bg-[#7A52B5] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-sm"
                       >
                         {loading ? "Saving..." : "Save Changes"}
                       </button>

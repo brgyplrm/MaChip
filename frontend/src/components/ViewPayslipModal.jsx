@@ -44,7 +44,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
         className="!max-w-none sm:!max-w-none md:!max-w-none lg:!max-w-none !w-screen !h-screen !m-0 !rounded-none !p-0 !gap-0 !border-none flex flex-col bg-slate-100 !top-0 !left-0 !translate-x-0 !translate-y-0"
       >
         {/* Header Block */}
-        <DialogHeader className="px-6 py-4 bg-[#2A174E] text-white sticky top-0 z-50 !rounded-none flex flex-row items-center justify-between shadow-md">
+        <DialogHeader className="px-6 py-4 bg-brand-primary text-white sticky top-0 z-50 !rounded-none flex flex-row items-center justify-between shadow-md">
           <DialogTitle className="text-xl font-bold tracking-wide">Employee Payslip Generation Engine</DialogTitle>
           <div className="flex items-center gap-2">
             {onDownload && (
@@ -56,7 +56,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
                   className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs font-semibold h-9 px-3 rounded-lg transition-colors flex items-center gap-1.5"
                 >
                   <FileText className="h-3.5 w-3.5" />
-                  <span>Standard PDF</span>
+                  <span>Download Standard</span>
                 </Button>
                 <Button 
                   variant="outline" 
@@ -65,7 +65,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
                   className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs font-semibold h-9 px-3 rounded-lg transition-colors flex items-center gap-1.5"
                 >
                   <Receipt className="h-3.5 w-3.5" />
-                  <span>Detailed PDF</span>
+                  <span>Download Detailed</span>
                 </Button>
               </div>
             )}
@@ -206,7 +206,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
               
               {/* New Centered Branding Header */}
               <div className="text-center border-b border-slate-100 pb-6 mb-6">
-                <h2 className="text-[#2A174E] text-xl font-bold uppercase tracking-tight mb-1">MAC-J INT'L., FORWARDING LTD., CO.</h2>
+                <h2 className="text-brand-primary text-xl font-bold uppercase tracking-tight mb-1">MAC-J INT'L., FORWARDING LTD., CO.</h2>
                 <div className="text-xs text-slate-600 space-y-1">
                   <p className="font-medium">Pay Period: {formatDate(payroll.period_Start)} - {formatDate(payroll.period_End)}</p>
                   <p className="font-medium text-slate-400">Payroll Date: {formatDate(payroll.updatedAt || payroll.createdAt)}</p>
@@ -253,7 +253,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
               <div className="border border-slate-200 rounded-xl overflow-hidden mb-5">
                 <table className="w-full text-xs border-collapse">
                   <thead>
-                    <tr className="bg-[#2A174E]/5 text-[#2A174E] font-bold border-b border-slate-200">
+                    <tr className="bg-brand-primary/5 text-brand-primary font-bold border-b border-slate-200">
                       <th className="p-3 text-left w-1/2 border-r border-slate-200">COMPUTATION METRIC CATEGORIES</th>
                       <th className="p-3 text-center w-1/6 border-r border-slate-200">RENDERED DATA</th>
                       <th className="p-3 text-right w-1/3">FINANCIAL IMPACT</th>
@@ -321,7 +321,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
                 <table className="w-full text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-50 font-bold border-b border-slate-200">
-                      <th className="p-3 text-left text-[#2A174E] uppercase tracking-wider" colSpan="2">Gross Earnings Analysis</th>
+                      <th className="p-3 text-left text-brand-primary uppercase tracking-wider" colSpan="2">Gross Earnings Analysis</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -420,7 +420,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
               <div className="border border-slate-200 rounded-xl overflow-hidden mb-5 shadow-sm">
                 <table className="w-full text-xs border-collapse">
                   <thead>
-                    <tr className="bg-[#2A174E] text-white font-bold border-b border-slate-200">
+                    <tr className="bg-brand-primary text-white font-bold border-b border-slate-200">
                       <th className="p-3 text-left uppercase tracking-wider" colSpan="2">Payroll Summary Statement</th>
                     </tr>
                   </thead>
@@ -442,8 +442,8 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
                       <td className="p-3 text-right font-bold text-rose-600">({formatCurrency(payroll.Tax_Ded)})</td>
                     </tr>
                     <tr className="bg-amber-50 font-black border-t-2 border-slate-200">
-                      <td className="p-3 pl-5 border-r border-slate-200 text-[#2A174E] uppercase text-[11px] tracking-tighter">Net Pay Record</td>
-                      <td className="p-3 text-right text-[#2A174E] text-lg font-mono">₱{formatCurrency(payroll.netPay)}</td>
+                      <td className="p-3 pl-5 border-r border-slate-200 text-brand-primary uppercase text-[11px] tracking-tighter">Net Pay Record</td>
+                      <td className="p-3 text-right text-brand-primary text-lg font-mono">₱{formatCurrency(payroll.netPay)}</td>
                     </tr>
                   </tbody>
                 </table>

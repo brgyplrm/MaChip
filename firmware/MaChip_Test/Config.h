@@ -17,6 +17,10 @@
 #include "mbedtls/md.h"
 #include "arduino_secrets.h"
 
+// ── FIRMWARE METADATA & BUILD VERSION ───────────────────────────
+#define FIRMWARE_VERSION   "v2.6.0-UI-TESTING"
+#define BUILD_TIMESTAMP    __DATE__ " " __TIME__
+
 // ── CRYPTOGRAPHIC & RFID HARDWARE SECURITY ───────────────────────
 const byte MIFARE_KEY_MACJ[6] = { 0xB5, 0x2A, 0x49, 0x3B, 0x7B, 0x20 };
 const byte MIFARE_KEY_FACTORY[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
@@ -45,6 +49,10 @@ const byte MIFARE_ACCESS_BITS[4] = { 0xFF, 0x07, 0x80, 0x69 }; // Transport defa
 #define TFT_DC             2
 #define TFT_MOSI           23
 #define TFT_SCK            18
+
+// Front Terminal: 2.4" ST7789 SPI TFT (320x240 Landscape Layout)
+#define TFT_INVERT_COLOR   false        // Adafruit_ST7789 hardcodes INVON by default; false sends INVOFF to restore true Black BG & White text
+#define RFID_PULSE_COLOR   ST77XX_WHITE // Pulse animation color (ST77XX_WHITE, ST77XX_CYAN, etc.)
 
 // Back Terminal: 0.96" OLED (128x64 Landscape Layout) I2C
 #define OLED_RESET         -1
@@ -132,6 +140,7 @@ extern uint32_t pendingCardCounter;
 extern BackendQueue queuedTransaction;
 extern bool webServerStarted;
 extern bool otaInitialized;
+extern bool isFrontDisplayInReady;
 
 // ── CRYPTOGRAPHIC REQUEST SIGNER (HMAC-SHA256) ───────────────────
 inline uint32_t getCurrentTimestamp() {
@@ -185,6 +194,31 @@ const int LOG_MAX_ENTRIES = 60;
 extern String webLogBuffer[LOG_MAX_ENTRIES];
 extern int logHead;
 extern int logCount;
+
+inline void sysLog(const String &msg) {
+  char timeStr[16];
+  time_t now;
+  time(&now);
+  if (now > 1700000000) {
+    struct tm timeinfo;
+    localtime_r(&now, &timeinfo);
+    snprintf(timeStr, sizeof(timeStr), "[%02d:%02d:%02d] ", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+  } else {
+    unsigned long ms = millis();
+    unsigned long sec = ms / 1000;
+    unsigned long min = (sec / 60) % 60;
+    unsigned long hr = (sec / 3600) % 24;
+    sec = sec % 60;
+    snprintf(timeStr, sizeof(timeStr), "[%02lu:%02lu:%02lu] ", hr, min, sec);
+  }
+  
+  String formatted = String(timeStr) + msg;
+  Serial.println(formatted);
+  
+  webLogBuffer[logHead] = formatted;
+  logHead = (logHead + 1) % LOG_MAX_ENTRIES;
+  if (logCount < LOG_MAX_ENTRIES) logCount++;
+}
 
 // ── SPI BUS CONTROLLER SAFETY ENFORCEMENT ────────────────────────
 inline void clearSpiBusPins() {

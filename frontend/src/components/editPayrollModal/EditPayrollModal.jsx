@@ -156,7 +156,7 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
               <div className="sectionTitle">
                 <span className="dot"></span>
                 <h3>DAILY RATE</h3>
-                <span className="badge editable">Editable</span>
+                {/* <span className="badge editable">Editable</span> */}
               </div>
               <div className="inputGroup row">
                 <div className="field">
@@ -243,7 +243,7 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
               <div className="sectionTitle">
                 <span className="dot orange"></span>
                 <h3>ACTIVE LOANS & COMPANY DEDUCTIONS</h3>
-                <span className="badge readonly">Display Only</span>
+                <span className="badge auto">Auto-Computed</span>
               </div>
 
               {/* Total Active Loans Banner */}

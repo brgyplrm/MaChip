@@ -64,7 +64,7 @@ export default function AttendanceConfiguration({
     <div className="min-h-screen text-slate-800 font-sans max-w-6xl mx-auto space-y-6">
       
       {/* --- TOP HEADER CARD --- */}
-      <div className="bg-[#2A1B4E] text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="bg-brand-primary text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-start space-x-4">
           <div className="p-3 bg-white/10 rounded-lg border border-white/10">
             <Clock className="w-6 h-6 text-purple-200" />

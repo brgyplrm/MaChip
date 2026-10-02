@@ -59,6 +59,31 @@ let visitorAccessSession = {
 
 // Heartbeat state to track ESP32 connectivity
 let lastEsp32Heartbeat = null;
+let lastEsp32Ip = null;
+
+function trackEsp32Ip(req) {
+  if (!req) return;
+  let ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip;
+  if (!ip) return;
+  if (ip.includes(',')) ip = ip.split(',')[0].trim();
+  if (ip.startsWith('::ffff:')) ip = ip.substring(7);
+  if (ip && ip !== "127.0.0.1" && ip !== "::1" && ip !== "localhost") {
+    lastEsp32Ip = ip;
+  }
+}
+
+function notifyEsp32Cancel() {
+  if (lastEsp32Ip && lastEsp32Ip !== "127.0.0.1" && lastEsp32Ip !== "::1" && lastEsp32Ip !== "localhost") {
+    const targetUrl = `http://${lastEsp32Ip}/api/cancel`;
+    console.log(`[HARDWARE] Pushing cancel signal directly to ESP32: ${targetUrl}`);
+    fetch(targetUrl, {
+      method: "POST",
+      signal: AbortSignal.timeout(1000)
+    }).catch(err => {
+      console.log(`[HARDWARE] Direct cancellation push status: ${err.message}`);
+    });
+  }
+}
 
 // Global anti-rapid tap cache (UID -> timestamp)
 const recentTaps = new Map();
@@ -84,8 +109,11 @@ exports.getHardwareStatus = (req, res) => {
 exports.clearFingerprintSession = async (req, res) => {
   console.log("[ENROLL] Clearing all enrollment sessions (RFID/FP)");
 
+  // Fire immediate cancel signal to ESP32 over LAN
+  notifyEsp32Cancel();
+
   // Only queue hardware rollback deletion IF the enrollment was cancelled/failed BEFORE completion
-  if (fpCaptureSession.scannedSlot && !fpCaptureSession.success) {
+  if (fpCaptureSession.scannedSlot && !fpCaptureSession.success && fpCaptureSession.type === "FP") {
     if (!pendingDeleteSlots.includes(fpCaptureSession.scannedSlot)) {
       pendingDeleteSlots.push(fpCaptureSession.scannedSlot);
     }
@@ -106,6 +134,7 @@ exports.clearFingerprintSession = async (req, res) => {
   // Clear in-memory RFID session
   captureSession.isCapturing = false;
   captureSession.scannedUid = null;
+  captureSession.userId = null;
   captureSession.expiresAt = null;
 
   // Clear in-memory Visitor session
@@ -133,6 +162,10 @@ exports.clearFingerprintSession = async (req, res) => {
     });
   }
 };
+
+exports.resetAllEnrollmentSessions = async () => {
+  return exports.clearFingerprintSession(null, null);
+};
 exports.getSessionStatus = async (req, res) => {
   const deviceId = req.headers["x-esp32-id"] || "esp32-01";
   
@@ -152,8 +185,9 @@ exports.getSessionStatus = async (req, res) => {
 exports.scanRFID = async (req, res) => {
   let { uid, action, terminalType, cardCounter } = req.body; 
 
-  // Update heartbeat
+  // Update heartbeat and ESP32 IP tracking
   lastEsp32Heartbeat = Date.now();
+  trackEsp32Ip(req);
 
   if (!uid) {
     return res.status(400).json({ success: false, message: "No UID provided" });
@@ -401,7 +435,8 @@ exports.scanRFID = async (req, res) => {
     const target_user_Id = user.user_Id;
 
     // ── RFID ROLLING CODE ANTI-REPLAY VERIFICATION ───────────────────────────
-    if (cardCounter !== undefined && cardCounter !== null) {
+    // Validated on initial RFID tap; 2FA completion step already passed validation
+    if (!is2FA && cardCounter !== undefined && cardCounter !== null) {
       const parsedCounter = parseInt(cardCounter);
       const dbCounter = hardware ? (hardware.card_counter || 0) : 0;
 
@@ -545,13 +580,16 @@ exports.scanRFID = async (req, res) => {
     const hasTemplate = hardware && (hardware.user_FingerprintTemplate || hardware.user_FingerprintTemplate2);
     if (!is2FA && action === "clock_in" && (terminalType === "FRONT" || !terminalType)) {
       if (hasTemplate) {
-        console.log(`[2FA] Requesting Biometric Verification for ${user.user_FirstName}`);
+        const fullName = `${user.user_FirstName || ''} ${user.user_LastName || ''}`.trim() || user.user_FirstName || "Employee";
+        console.log(`[2FA] Requesting Biometric Verification for ${fullName}`);
         return res.status(200).json({
           success: true,
           mode: "WAITING_FOR_FINGERPRINT_2FA",
           uid: rfidUid,
           userId: user.user_Id,
           userName: user.user_FirstName,
+          employeeName: fullName,
+          name: fullName,
           expectedFingerId: parseInt(hardware.user_FingerprintId),
           expectedFingerId2: hardware.user_FingerprintId2 ? parseInt(hardware.user_FingerprintId2) : null
         });
@@ -873,14 +911,43 @@ exports.generateRfid = async (req, res) => {
   
   const startTime = Date.now();
   let attempts = 0;
+  let isCleanedUp = false;
+
+  const cleanup = () => {
+    if (!isCleanedUp) {
+      isCleanedUp = true;
+      clearInterval(checkInterval);
+    }
+  };
+
+  req.on("close", () => {
+    cleanup();
+    if (captureSession.userId === targetUserId) {
+      console.log(`[RFID-ADMIN] Client closed connection for User: ${targetUserId}. Halting capture session.`);
+      captureSession.isCapturing = false;
+      captureSession.scannedUid = null;
+    }
+  });
+
   const checkInterval = setInterval(() => {
     attempts++;
+
+    // Check if capture was cancelled externally (via clearFingerprintSession or modal cancel)
+    if (!captureSession.isCapturing) {
+      console.log(`[RFID-ADMIN] Capture session cancelled for User: ${targetUserId}`);
+      cleanup();
+      if (!res.headersSent) {
+        return res.status(200).json({ cancelled: true, message: "RFID capture cancelled" });
+      }
+      return;
+    }
+
     if (captureSession.scannedUid) {
       const uid = captureSession.scannedUid;
       console.log(`[RFID-ADMIN] Detected UID: ${uid} after ${attempts} checks.`);
       captureSession.scannedUid = null;
       captureSession.isCapturing = false;
-      clearInterval(checkInterval);
+      cleanup();
       
       User.findOne({ 
         include: [{
@@ -905,7 +972,7 @@ exports.generateRfid = async (req, res) => {
 
     if (Date.now() - startTime > 25000) {
       console.log(`[RFID-ADMIN] Capture TIMEOUT after 25s.`);
-      clearInterval(checkInterval);
+      cleanup();
       captureSession.isCapturing = false;
       return res.status(408).json({ error: "Scan timeout. Please try again." });
     }
@@ -1047,6 +1114,7 @@ exports.getFingerprintSession = async (req, res) => {
     console.log(`[HARDWARE] ESP32 Heartbeat received at ${new Date(now).toLocaleTimeString()} from ${req.ip}`);
   }
   lastEsp32Heartbeat = now;
+  trackEsp32Ip(req);
 
   // 0. Check Visitor Access (High Priority)
   if (visitorAccessSession.isPending && Date.now() < visitorAccessSession.expiresAt) {
@@ -1061,29 +1129,9 @@ exports.getFingerprintSession = async (req, res) => {
     });
   }
 
-  // 1. Check in-memory session (Direct Scan via generateFingerprint)
-  if (fpCaptureSession.isCapturing && Date.now() < fpCaptureSession.expiresAt) {
-    return res.status(200).json({
-      active: true,
-      slotId: fpCaptureSession.scannedSlot,
-      userId: fpCaptureSession.userId || "temp_registration",
-      type: fpCaptureSession.type
-    });
-  }
-
-  // 1.5 Check RFID Capture mode (Direct Scan via generateRfid)
-  if (captureSession.isCapturing && Date.now() < captureSession.expiresAt) {
-     return res.status(200).json({
-      active: true,
-      slotId: 1,
-      userId: captureSession.userId || "temp_registration",
-      type: "RFID"
-    });
-  }
-
-  // 2. Check Database session (Proxy Scan via Registration Modal)
+  // 1. Check Database registration session (Primary authority for active enrollment sessions)
   try {
-    // 2.1 Check for System-wide Hardware Reset Signal (from db:reset)
+    // 1.1 Check for System-wide Hardware Reset Signal (from db:reset)
     const resetSignal = await System_State.findOne({ where: { key: 'HARDWARE_RESET_SIGNAL' } });
     if (resetSignal) {
       await System_State.destroy({ where: { key: 'HARDWARE_RESET_SIGNAL' } });
@@ -1111,48 +1159,77 @@ exports.getFingerprintSession = async (req, res) => {
     if (regSession) {
       const sessionData = JSON.parse(regSession.value);
       if (sessionData.type === 'FP' || sessionData.type === 'RFID') {
-        // ONLY promote if there isn't ALREADY an active session being tracked
-        if (!fpCaptureSession.isCapturing || Date.now() > fpCaptureSession.expiresAt) {
-          const result = await sequelize.query(
-            `SELECT MAX(slot) AS "maxSlot" FROM (
-               SELECT uh."user_FingerprintId" AS slot FROM "User_Hardware" uh
-               INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
-               WHERE u."deletedAt" IS NULL 
-                 AND uh."user_FingerprintId" IS NOT NULL 
-                 AND uh."user_FingerprintTemplate" IS NOT NULL 
-                 AND TRIM(uh."user_FingerprintTemplate") != ''
-               UNION ALL
-               SELECT uh."user_FingerprintId2" AS slot FROM "User_Hardware" uh
-               INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
-               WHERE u."deletedAt" IS NULL 
-                 AND uh."user_FingerprintId2" IS NOT NULL 
-                 AND uh."user_FingerprintTemplate2" IS NOT NULL 
-                 AND TRIM(uh."user_FingerprintTemplate2") != ''
-             ) sub`,
-            { type: QueryTypes.SELECT }
-          );
-          const maxSlotVal = result[0] ? result[0].maxSlot : null;
-          const nextSlot = (sessionData.type === 'FP') 
-            ? ((maxSlotVal && !isNaN(parseInt(maxSlotVal))) ? parseInt(maxSlotVal) + 1 : 1) 
-            : 1;
+        const isFp = sessionData.type === 'FP';
+
+        // Reconcile and clear cross-mode state when mode switches
+        if (isFp) {
+          captureSession.isCapturing = false;
+          captureSession.scannedUid = null;
+          captureSession.userId = null;
+        } else {
+          fpCaptureSession.isCapturing = false;
+          fpCaptureSession.template = null;
+        }
+
+        // Initialize or update in-memory session if type changed or session expired
+        if (!fpCaptureSession.isCapturing || Date.now() > fpCaptureSession.expiresAt || fpCaptureSession.type !== sessionData.type) {
+          let nextSlot = 1;
+          if (isFp) {
+            const result = await sequelize.query(
+              `SELECT MAX(slot) AS "maxSlot" FROM (
+                 SELECT uh."user_FingerprintId" AS slot FROM "User_Hardware" uh
+                 INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
+                 WHERE u."deletedAt" IS NULL 
+                   AND uh."user_FingerprintId" IS NOT NULL 
+                   AND uh."user_FingerprintTemplate" IS NOT NULL 
+                   AND TRIM(uh."user_FingerprintTemplate") != ''
+                 UNION ALL
+                 SELECT uh."user_FingerprintId2" AS slot FROM "User_Hardware" uh
+                 INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
+                 WHERE u."deletedAt" IS NULL 
+                   AND uh."user_FingerprintId2" IS NOT NULL 
+                   AND uh."user_FingerprintTemplate2" IS NOT NULL 
+                   AND TRIM(uh."user_FingerprintTemplate2") != ''
+               ) sub`,
+              { type: QueryTypes.SELECT }
+            );
+            const maxSlotVal = result[0] ? result[0].maxSlot : null;
+            nextSlot = (maxSlotVal && !isNaN(parseInt(maxSlotVal))) ? parseInt(maxSlotVal) + 1 : 1;
+          }
 
           fpCaptureSession = { 
             isCapturing: true, 
-            scannedSlot: sessionData.type === 'FP' ? nextSlot : 1, 
+            scannedSlot: isFp ? nextSlot : 1, 
             userId: sessionData.userId,
             expiresAt: Date.now() + 60000, 
             success: false,
             template: null,
             type: sessionData.type
           };
+
+          if (!isFp) {
+            captureSession.isCapturing = true;
+            captureSession.userId = sessionData.userId;
+            captureSession.expiresAt = Date.now() + 60000;
+          }
         }
 
         return res.status(200).json({
           active: true,
-          slotId: fpCaptureSession.scannedSlot,
+          slotId: fpCaptureSession.scannedSlot || 1,
           userId: sessionData.userId,
-          type: sessionData.type // Always return current session type from DB
+          type: sessionData.type
         });
+      }
+    } else {
+      // If DB has no active REGISTRATION_SESSION, flush any lingering in-memory capture flags
+      if (fpCaptureSession.isCapturing) {
+        fpCaptureSession.isCapturing = false;
+        fpCaptureSession.expiresAt = null;
+      }
+      if (captureSession.isCapturing) {
+        captureSession.isCapturing = false;
+        captureSession.expiresAt = null;
       }
     }
   } catch (err) {
@@ -1165,6 +1242,7 @@ exports.getFingerprintSession = async (req, res) => {
 exports.confirmFingerprintEnroll = async (req, res) => {
   const { slotId, success, template, userId } = req.body;
   const sessionUserId = fpCaptureSession.userId;
+  trackEsp32Ip(req);
   console.log(`[FP-RECEIVE] Slot: ${slotId}, Success: ${success}, User (from body): ${userId}, User (from session): ${sessionUserId}`);
   
   if (template) {

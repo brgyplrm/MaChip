@@ -232,14 +232,14 @@ const AuditLogs = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">System Audit Logs</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">System Audit Logs</h1>
                 <span className="text-sm text-slate-500 mt-1 block">
                   Detailed history of administrative changes, user numbers, IP addresses, and system modifications.
                 </span>
               </div>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm" onClick={handleExportPDF}>
+                  <Button className="w-full md:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm" onClick={handleExportPDF}>
                     <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF Log
                   </Button>
                 </TooltipTrigger>
@@ -252,12 +252,12 @@ const AuditLogs = () => {
             {/* Statistics Cards */}
             <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 w-full">
               {/* Card 1: Total Activities */}
-              <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+              <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
                 <CardContent className="px-5 py-5 flex justify-between h-full">
                   <div className="flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Activities</p>
+                        <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Activities</p>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -267,23 +267,23 @@ const AuditLogs = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-4xl font-bold text-[#2A174E]">{stats.totalActions}</p>
+                      <p className="text-4xl font-bold text-brand-primary">{stats.totalActions}</p>
                     </div>
-                    <p className="text-xs text-[#2A174E]/70 italic mt-4">All recorded system changes</p>
+                    <p className="text-xs text-brand-primary/70 italic mt-4">All recorded system changes</p>
                   </div>
-                  <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                  <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                     <FormatListBulletedIcon className="h-6 w-6" />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Card 2: User Updates */}
-              <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+              <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
                 <CardContent className="px-5 py-5 flex justify-between h-full">
                   <div className="flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">User Updates</p>
+                        <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">User Updates</p>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -293,23 +293,23 @@ const AuditLogs = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-4xl font-bold text-[#3B4E17]">{stats.userUpdates}</p>
+                      <p className="text-4xl font-bold text-accent-green">{stats.userUpdates}</p>
                     </div>
-                    <p className="text-xs text-[#3B4E17]/70 italic mt-4">Profile and rate modifications</p>
+                    <p className="text-xs text-accent-green/70 italic mt-4">Profile and rate modifications</p>
                   </div>
-                  <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                  <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                     <UpdateIcon className="h-6 w-6" />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Card 3: Active Admins */}
-              <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+              <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
                 <CardContent className="px-5 py-5 flex justify-between h-full">
                   <div className="flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Active Admins</p>
+                        <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider">Active Admins</p>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -319,23 +319,23 @@ const AuditLogs = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-4xl font-bold text-[#BB8B26]">{stats.activeAdmins}</p>
+                      <p className="text-4xl font-bold text-accent-gold">{stats.activeAdmins}</p>
                     </div>
-                    <p className="text-xs text-[#BB8B26]/70 italic mt-4">Unique administrators logged</p>
+                    <p className="text-xs text-accent-gold/70 italic mt-4">Unique administrators logged</p>
                   </div>
-                  <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                  <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                     <AdminPanelSettingsIcon className="h-6 w-6" />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Card 4: Security Alerts */}
-              <Card className="border-t-5 border-[#991b1b] bg-white py-0 h-full">
+              <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
                 <CardContent className="px-5 py-5 flex justify-between h-full">
                   <div className="flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <p className="text-[13px] font-bold text-[#991b1b] uppercase tracking-wider">Security Alerts</p>
+                        <p className="text-[13px] font-bold text-status-danger uppercase tracking-wider">Security Alerts</p>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -345,11 +345,11 @@ const AuditLogs = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-4xl font-bold text-[#991b1b]">{stats.securityAlerts}</p>
+                      <p className="text-4xl font-bold text-status-danger">{stats.securityAlerts}</p>
                     </div>
-                    <p className="text-xs text-[#991b1b]/70 italic mt-4">Sensitive updates</p>
+                    <p className="text-xs text-status-danger/70 italic mt-4">Sensitive updates</p>
                   </div>
-                  <div className="bg-[#991b1b]/10 text-[#991b1b] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                  <div className="bg-status-danger/10 text-status-danger p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                     <WarningAmberIcon className="h-6 w-6" />
                   </div>
                 </CardContent>
@@ -366,7 +366,7 @@ const AuditLogs = () => {
                     placeholder="Search Admin, User Number (MACJ-001), IP Address, Event..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full text-xs"
+                    className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full text-xs"
                   />
                 </div>
                 
@@ -401,7 +401,7 @@ const AuditLogs = () => {
               <CardContent className="p-0 overflow-x-auto">
                 {loading ? <div className="p-12 text-center text-slate-400 text-xs">Loading audit records...</div> : (
                   <Table className="min-w-[1000px] md:min-w-full">
-                    <TableHeader className="bg-[#2B174F]">
+                    <TableHeader className="bg-brand-primary">
                       <TableRow className="hover:bg-transparent border-b-0">
                         <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Timestamp</TableHead>
                         <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Administrator</TableHead>
@@ -430,7 +430,7 @@ const AuditLogs = () => {
 
                             {/* Administrator & User Number */}
                             <TableCell className="py-4">
-                              <p className="font-bold text-[#2A174E] text-xs">
+                              <p className="font-bold text-brand-primary text-xs">
                                 {log.user_FirstName ? `${log.user_FirstName} ${log.user_LastName}` : "System Automated"}
                               </p>
                               <span className="text-[10px] text-slate-400 font-mono font-semibold block mt-0.5">
@@ -468,7 +468,7 @@ const AuditLogs = () => {
                             <TableCell className="text-right pr-6 py-4">
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)} className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]">
+                                  <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)} className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0]">
                                     <EyeIcon className="h-4 w-4"/>
                                   </Button>
                                 </TooltipTrigger>
@@ -517,7 +517,7 @@ const AuditLogs = () => {
               {selectedLog && (
                 <div className="space-y-0">
                   {/* Modal Header */}
-                  <div className="bg-[#2A174E] text-white p-6">
+                  <div className="bg-brand-primary text-white p-6">
                     <div className="flex items-center justify-between mb-2">
                       <Badge className="bg-amber-400 text-slate-950 font-bold uppercase text-[10px] tracking-wider">
                         {selectedLog.module || "SYSTEM"} AUDIT TRAIL
@@ -543,13 +543,13 @@ const AuditLogs = () => {
                       {/* Initiator / User Number */}
                       <div className="space-y-1">
                         <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
-                          <PersonIcon fontSize="small" className="text-[#2A174E]" /> Administrator / User
+                          <PersonIcon fontSize="small" className="text-brand-primary" /> Administrator / User
                         </div>
                         <p className="font-bold text-slate-900 text-sm">
                           {selectedLog.user_FirstName ? `${selectedLog.user_FirstName} ${selectedLog.user_LastName}` : "System Process"}
                         </p>
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded bg-purple-100 text-[#2A174E] font-mono font-bold text-[11px]">
+                          <span className="px-2 py-0.5 rounded bg-purple-100 text-brand-primary font-mono font-bold text-[11px]">
                             {selectedLog.user_Id ? formatUserId(selectedLog.user_Id) : "SYS-000"}
                           </span>
                           {selectedLog.user_Id && (

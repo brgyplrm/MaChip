@@ -75,7 +75,7 @@ const Chart = ({ aspect, title, userId }) => {
             type="monotone"
             dataKey="OnTime"
             name="On Time"
-            stroke="#2A174E"
+            stroke="var(--color-brand-primary)"
             strokeWidth={2.5}
             fillOpacity={1}
             fill="url(#colorOnTime)"

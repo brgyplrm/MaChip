@@ -277,7 +277,7 @@ const Payroll = () => {
         
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 min-w-0">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Payroll Management</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Payroll Management</h1>
             <span className="text-sm text-slate-500 mt-1 block">Manage employee payroll and periods</span>
           </div>
           
@@ -286,7 +286,7 @@ const Payroll = () => {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
-                  <Button variant="outline" asChild className="w-full border-[#2A174E]/10 hover:text-[#2A174E] text-[#2A174E]/70 transition-colors">
+                  <Button variant="outline" asChild className="w-full border-brand-primary/10 hover:text-brand-primary text-brand-primary/70 transition-colors">
                     <Link to="/laborBenefits">
                       <AssignmentTurnedInIcon className="mr-2 h-4 w-4" /> Labor Benefits
                     </Link>
@@ -301,7 +301,7 @@ const Payroll = () => {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
-                  <Button variant="outline" asChild className="w-full bg-[#2A174E] text-white hover:bg-[#7A52B5] hover:text-white transition-colors">
+                  <Button variant="outline" asChild className="w-full bg-brand-primary text-white hover:bg-[#7A52B5] hover:text-white transition-colors">
                     <Link to="/payroll/employeeList">
                       <PeopleAltIcon className="mr-2 h-4 w-4" /> Employee List
                     </Link>
@@ -314,13 +314,13 @@ const Payroll = () => {
             </Tooltip>
             {/* <Button 
               variant="outline" 
-              className="w-full sm:w-auto bg-[#f0ebfa] text-[#2A174E] border-[#c4b5e8] hover:bg-[#e0d4f5] transition-colors"
+              className="w-full sm:w-auto bg-brand-primary-light text-brand-primary border-[#c4b5e8] hover:bg-[#e0d4f5] transition-colors"
               onClick={() => setIsCreateModalOpen(true)}
             >
               <EventNoteIcon className="mr-2 h-4 w-4" /> Payroll Schedule
             </Button> */}
             {/* <Button 
-              className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]"
+              className="w-full sm:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover"
               onClick={fetchActive}
               disabled={refreshing}
             >
@@ -336,19 +336,19 @@ const Payroll = () => {
           <div className="flex flex-col h-full">
             <h2 className="text-lg font-bold text-slate-700 mb-3">Active Period</h2>
             {activePeriod ? (
-              <Card className="flex flex-col flex-1 border-[#2A174E] ring-2 ring-[#2A174E]/50 shadow-md hover:shadow-lg transition-shadow bg-white">
+              <Card className="flex flex-col flex-1 border-brand-primary ring-2 ring-brand-primary/50 shadow-md hover:shadow-lg transition-shadow bg-white">
                 <CardHeader className="pb-4 border-b border-slate-100">
                   <div className="flex justify-between items-start">
                     <div className="flex gap-4 items-center">
-                      <div className="p-3 bg-[#2A174E]/10 text-[#2A174E] rounded-xl">
+                      <div className="p-3 bg-brand-primary/10 text-brand-primary rounded-xl">
                         <CalendarMonthIcon className="h-6 w-6" />
                       </div>
                       <div>
-                        <CardTitle className="text-xl text-[#2A174E]">{activePeriod.month} {activePeriod.year}</CardTitle>
+                        <CardTitle className="text-xl text-brand-primary">{activePeriod.month} {activePeriod.year}</CardTitle>
                         <CardDescription className="font-medium mt-1">{activePeriod.periodText}</CardDescription>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="bg-slate-100 text-[#2A174E] shadow-sm uppercase tracking-wider font-bold">
+                    <Badge variant="secondary" className="bg-slate-100 text-brand-primary shadow-sm uppercase tracking-wider font-bold">
                       {activePeriod.status}
                     </Badge>
                   </div>
@@ -381,14 +381,14 @@ const Payroll = () => {
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <span className="font-bold text-[#2A174E] text-lg">{activePeriod.amount}</span>
+                    <span className="font-bold text-brand-primary text-lg">{activePeriod.amount}</span>
                   </div>
                 </CardContent>
                 <div className="p-6 pt-0 mt-auto">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-block w-full">
-                        <Button asChild className="w-full bg-[#2A174E] hover:bg-[#7A52B5] py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5">
+                        <Button asChild className="w-full bg-brand-primary hover:bg-[#7A52B5] py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5">
                           <Link to={`/payroll/payrollPeriod?periodId=${activePeriod.id}`}>
                             <ReceiptOutlinedIcon className="mr-2 h-4 w-4" /> Process Active Payroll
                           </Link>
@@ -469,7 +469,7 @@ const Payroll = () => {
                 placeholder="Search by period label (e.g., January 1-15)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
               />
             </div>
             
@@ -535,7 +535,7 @@ const Payroll = () => {
           <CardContent className="p-0 flex flex-col">
             <div className="overflow-x-auto">
               <Table className="min-w-[800px] md:min-w-full">
-                <TableHeader className="bg-[#2B174F]">
+                <TableHeader className="bg-brand-primary">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Period Label</TableHead>
                     <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Date Range</TableHead>
@@ -554,7 +554,7 @@ const Payroll = () => {
                         
                         return (
                           <TableRow key={index} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                            <TableCell className="font-bold text-[#2A174E] py-4 px-6">{p.label}</TableCell>
+                            <TableCell className="font-bold text-brand-primary py-4 px-6">{p.label}</TableCell>
                             <TableCell className="text-slate-600 py-4 font-medium">
                               {new Date(p.startDate).toLocaleDateString()} - {new Date(p.endDate).toLocaleDateString()}
                             </TableCell>
@@ -571,7 +571,7 @@ const Payroll = () => {
                                       variant="outline" 
                                       size="sm" 
                                       asChild 
-                                      className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors"
+                                      className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0] transition-colors"
                                     >
                                       <Link to={`/payroll/payrollPeriod?periodId=${p.periodId}`}>
                                         <EyeIcon className="h-4 w-4" />
@@ -601,7 +601,7 @@ const Payroll = () => {
                             <Button 
                               variant="outline" 
                               onClick={handleClearFilters}
-                              className="text-[#2A174E] border-[#2A174E] hover:bg-[#f0ebfa]"
+                              className="text-brand-primary border-brand-primary hover:bg-brand-primary-light"
                             >
                               Clear Search
                             </Button>
@@ -631,7 +631,7 @@ const Payroll = () => {
 
         <Dialog open={loading && !refreshing}>
           <DialogContent className="sm:max-w-[425px] flex flex-col items-center justify-center p-10">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2A174E]"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
             <p className="mt-4 font-medium text-slate-600">Loading payroll data...</p>
           </DialogContent>
         </Dialog>

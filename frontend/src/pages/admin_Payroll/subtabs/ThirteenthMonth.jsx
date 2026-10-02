@@ -239,14 +239,14 @@ const ThirteenthMonth = () => {
           
           {showGuideline && (
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-2 w-full">
-              <Card className="bg-blue-50 border-blue-200 shadow-none mb-4 w-full py-0 relative">
+              <Card className="bg-sky-50 border border-sky-200 border-l-4 border-l-status-info shadow-none mb-4 w-full py-0 relative">
                 <CardContent className="flex items-start gap-4 p-4 pr-12">
-                  <div className="bg-blue-100 p-2 rounded-lg mt-0.5">
-                    <InfoOutlinedIcon className="h-5 w-5 text-[#005a9c]" />
+                  <div className="bg-sky-100 p-2 rounded-lg mt-0.5">
+                    <InfoOutlinedIcon className="h-5 w-5 text-status-info" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-[#005a9c] text-sm">Policy Guideline</h3>
-                    <p className="text-sm text-blue-900/80 mt-0.5">
+                    <h3 className="font-bold text-status-info text-sm">Policy Guideline</h3>
+                    <p className="text-sm text-sky-950/80 mt-0.5">
                       Calculate and process annual 13th-month bonuses based on Basic Salary according to Presidential Decree No. 851.
                     </p>
                   </div>
@@ -277,12 +277,12 @@ const ThirteenthMonth = () => {
             <TabsContent value="preview">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
                   {/* Card 1: Yearly Basis */}
-                  <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                  <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
                     <CardContent className="px-5 py-5 flex justify-between h-full">
                       <div className="flex flex-col justify-between">
                         <div>
                           <div className="flex items-center gap-1.5 mb-2">
-                            <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Yearly Basis</p>
+                            <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Yearly Basis</p>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -292,20 +292,20 @@ const ThirteenthMonth = () => {
                               </TooltipContent>
                             </Tooltip>
                           </div>
-                          <p className="text-4xl font-bold text-[#2A174E]">{currentYear}</p>
+                          <p className="text-4xl font-bold text-brand-primary">{currentYear}</p>
                         </div>
-                        <p className="text-xs text-[#2A174E]/70 italic mt-4">Calculation Period.</p>
+                        <p className="text-xs text-brand-primary/70 italic mt-4">Calculation Period.</p>
                       </div>
                     </CardContent>
                   </Card>
 
                   {/* Card 2: Eligible Employees */}
-                  <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                  <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
                     <CardContent className="px-5 py-5 flex justify-between h-full">
                       <div className="flex flex-col justify-between">
                         <div>
                           <div className="flex items-center gap-1.5 mb-2">
-                            <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Eligible Employees</p>
+                            <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Eligible Employees</p>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -315,20 +315,20 @@ const ThirteenthMonth = () => {
                               </TooltipContent>
                             </Tooltip>
                           </div>
-                          <p className="text-4xl font-bold text-[#3B4E17]">{previewData.filter(i => i.totalBasicEarned > 0).length}</p>
+                          <p className="text-4xl font-bold text-accent-green">{previewData.filter(i => i.totalBasicEarned > 0).length}</p>
                         </div>
-                        <p className="text-xs text-[#3B4E17]/70 italic mt-4">Employees eligible for payout.</p>
+                        <p className="text-xs text-accent-green/70 italic mt-4">Employees eligible for payout.</p>
                       </div>
                     </CardContent>
                   </Card>
 
                   {/* Card 3: Total Disbursement */}
-                  <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                  <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
                     <CardContent className="px-5 py-5 flex justify-between h-full">
                       <div className="flex flex-col justify-between">
                         <div>
                           <div className="flex items-center gap-1.5 mb-2">
-                            <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Total Disbursement</p>
+                            <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider">Total Disbursement</p>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -338,9 +338,9 @@ const ThirteenthMonth = () => {
                               </TooltipContent>
                             </Tooltip>
                           </div>
-                          <p className="text-4xl font-bold text-[#BB8B26]">{formatCurrency(previewData.reduce((acc, curr) => acc + (curr.computedAmount || 0), 0))}</p>
+                          <p className="text-4xl font-bold text-accent-gold">{formatCurrency(previewData.reduce((acc, curr) => acc + (curr.computedAmount || 0), 0))}</p>
                         </div>
-                        <p className="text-xs text-[#BB8B26]/70 italic mt-4">Total projected payout.</p>
+                        <p className="text-xs text-accent-gold/70 italic mt-4">Total projected payout.</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -362,7 +362,7 @@ const ThirteenthMonth = () => {
                   </Card>
 
               <Card className="shadow-sm border-0 bg-white mb-6 py-0">
-                <CardHeader className="bg-[#2A174E] pt-4! flex flex-row items-center justify-between border-b border-slate-100">
+                <CardHeader className="bg-brand-primary pt-4! flex flex-row items-center justify-between border-b border-slate-100">
                   <div>
                     <CardTitle className="text-lg font-bold text-white">Computation Table</CardTitle>
                     <CardDescription className="text-white/80">
@@ -375,10 +375,10 @@ const ThirteenthMonth = () => {
                         <DeleteOutlineIcon className="mr-2 h-4 w-4" /> Discard Drafts
                       </Button>
                     )}
-                    <Button onClick={handleGenerateDrafts} className="bg-[#2A174E] text-white hover:bg-[#BA90E9] border border-white/20">
+                    {/* <Button onClick={handleGenerateDrafts} className="bg-brand-primary text-white hover:bg-[#BA90E9] border border-white/20">
                       <SaveIcon className="mr-2 h-4 w-4" /> Save Drafts
-                    </Button>
-                    <Button onClick={handleRelease} variant="outline" className="border-green-400 text-green-300 hover:bg-green-900/40 hover:text-white">
+                    </Button> */}
+                    <Button onClick={handleRelease} variant="outline" className="border-green-400 text-brand-primary hover:bg-green-900/40 hover:text-white">
                       <CheckCircleIcon className="mr-2 h-4 w-4" /> Release All
                     </Button>
                   </div>
@@ -398,7 +398,7 @@ const ThirteenthMonth = () => {
                     <TableBody>
                       {paginatedData.length > 0 ? paginatedData.map((item) => (
                         <TableRow key={item.user_Id} className={item.deletedAt ? "bg-slate-50/50 grayscale-[0.2]" : ""}>
-                          <TableCell className="font-bold text-[#2A174E]">
+                          <TableCell className="font-bold text-brand-primary">
                             <div className="flex flex-col">
                               <span>{item.user_LastName}, {item.user_FirstName}</span>
                               {item.deletedAt && (
@@ -421,7 +421,7 @@ const ThirteenthMonth = () => {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={() => handleViewDetails(item)} title="View Breakdown" className=" border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]">
+                            <Button variant="ghost" size="sm" onClick={() => handleViewDetails(item)} title="View Breakdown" className=" border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0]">
                               <EyeIcon className="h-4 w-4 " />
                             </Button>
                           </TableCell>
@@ -470,7 +470,7 @@ const ThirteenthMonth = () => {
                           <KeyboardArrowRightIcon className="text-slate-400" />
                         )}
                         <div>
-                          <h3 className="text-lg font-bold text-[#2A174E]">{group.year}</h3>
+                          <h3 className="text-lg font-bold text-brand-primary">{group.year}</h3>
                           <p className="text-xs text-slate-500 uppercase font-semibold">Annual Disbursement</p>
                         </div>
                       </div>
@@ -543,7 +543,7 @@ const ThirteenthMonth = () => {
       <Dialog open={isBreakdownOpen} onOpenChange={setIsBreakdownOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-[#2A174E]">Earnings Breakdown - {selectedBreakdown?.year || currentYear}</DialogTitle>
+            <DialogTitle className="text-brand-primary">Earnings Breakdown - {selectedBreakdown?.year || currentYear}</DialogTitle>
             <DialogDescription>
               Calculation for {selectedBreakdown?.user_FirstName} {selectedBreakdown?.user_LastName}
             </DialogDescription>
@@ -572,8 +572,8 @@ const ThirteenthMonth = () => {
                       </TableRow>
                     ))}
                   <TableRow className="bg-slate-100 font-bold border-t-2">
-                    <TableCell className="font-bold text-[#2A174E]">Total Basic</TableCell>
-                    <TableCell className="text-right text-[#2A174E] font-bold font-mono">
+                    <TableCell className="font-bold text-brand-primary">Total Basic</TableCell>
+                    <TableCell className="text-right text-brand-primary font-bold font-mono">
                       {formatCurrency(
                         selectedBreakdown?.totalBasicEarned ||
                         selectedBreakdown?.breakdown?.reduce((sum, m) => sum + parseFloat(m.monthly_basic || 0), 0)
@@ -602,7 +602,7 @@ const ThirteenthMonth = () => {
           </div>
 
           <DialogFooter>
-            <Button onClick={() => setIsBreakdownOpen(false)} className="bg-[#2A174E]">Close</Button>
+            <Button onClick={() => setIsBreakdownOpen(false)} className="bg-brand-primary">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -622,7 +622,7 @@ const ThirteenthMonth = () => {
           <div className="py-6 space-y-4">
             <div className="flex justify-between p-3 bg-slate-50 rounded-md border border-slate-100">
               <span className="text-sm text-slate-600">Total Employees:</span>
-              <span className="text-sm font-bold text-[#2A174E]">
+              <span className="text-sm font-bold text-brand-primary">
                 {previewData.filter(i => i.totalBasicEarned > 0).length}
               </span>
             </div>

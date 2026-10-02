@@ -204,7 +204,7 @@ const TransactionLog = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">System Transaction Log</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">System Transaction Log</h1>
                 <span className="text-sm text-slate-500 mt-1 block">
                   Track system events, financial disbursements, hardware access logs, IP addresses, and user numbers.
                 </span>
@@ -215,7 +215,7 @@ const TransactionLog = () => {
                 </Button> */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm text-xs" onClick={handleExportPDF}>
+                    <Button className="w-full md:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm text-xs" onClick={handleExportPDF}>
                       <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
                     </Button>
                   </TooltipTrigger>
@@ -229,12 +229,12 @@ const TransactionLog = () => {
             {/* Statistics Cards */}
             <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 w-full">
               {/* Card 1: Total Events */}
-              <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+              <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
                 <CardContent className="px-5 py-5 flex justify-between h-full">
                   <div className="flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Events</p>
+                        <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Events</p>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -244,23 +244,23 @@ const TransactionLog = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
+                      <p className="text-4xl font-bold text-brand-primary">{stats.total}</p>
                     </div>
-                    <p className="text-xs text-[#2A174E]/70 italic mt-4">All recorded transactions</p>
+                    <p className="text-xs text-brand-primary/70 italic mt-4">All recorded transactions</p>
                   </div>
-                  <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                  <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                     <FormatListBulletedIcon className="h-6 w-6" />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Card 2: Payroll Releases */}
-              <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+              <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
                 <CardContent className="px-5 py-5 flex justify-between h-full">
                   <div className="flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Payroll Releases</p>
+                        <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Payroll Releases</p>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -270,23 +270,23 @@ const TransactionLog = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-4xl font-bold text-[#3B4E17]">{stats.payrollReleases}</p>
+                      <p className="text-4xl font-bold text-accent-green">{stats.payrollReleases}</p>
                     </div>
-                    <p className="text-xs text-[#3B4E17]/70 italic mt-4">Successful disbursements</p>
+                    <p className="text-xs text-accent-green/70 italic mt-4">Successful disbursements</p>
                   </div>
-                  <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                  <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                     <PaymentsIcon className="h-6 w-6" />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Card 3: Batch Runs */}
-              <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+              <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
                 <CardContent className="px-5 py-5 flex justify-between h-full">
                   <div className="flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Batch Runs</p>
+                        <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider">Batch Runs</p>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -296,23 +296,23 @@ const TransactionLog = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-4xl font-bold text-[#BB8B26]">{stats.batchRuns}</p>
+                      <p className="text-4xl font-bold text-accent-gold">{stats.batchRuns}</p>
                     </div>
-                    <p className="text-xs text-[#BB8B26]/70 italic mt-4">Automated bulk generations</p>
+                    <p className="text-xs text-accent-gold/70 italic mt-4">Automated bulk generations</p>
                   </div>
-                  <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                  <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                     <SyncIcon className="h-6 w-6" />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Card 4: Anomalies */}
-              <Card className="border-t-5 border-[#991b1b] bg-white py-0 h-full">
+              <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
                 <CardContent className="px-5 py-5 flex justify-between h-full">
                   <div className="flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
-                        <p className="text-[13px] font-bold text-[#991b1b] uppercase tracking-wider">Anomalies</p>
+                        <p className="text-[13px] font-bold text-status-danger uppercase tracking-wider">Anomalies</p>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -322,11 +322,11 @@ const TransactionLog = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-4xl font-bold text-[#991b1b]">{stats.unauthorizedScans}</p>
+                      <p className="text-4xl font-bold text-status-danger">{stats.unauthorizedScans}</p>
                     </div>
-                    <p className="text-xs text-[#991b1b]/70 italic mt-4">Unauthorized or failed scans</p>
+                    <p className="text-xs text-status-danger/70 italic mt-4">Unauthorized or failed scans</p>
                   </div>
-                  <div className="bg-[#991b1b]/10 text-[#991b1b] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                  <div className="bg-status-danger/10 text-status-danger p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                     <GppBadIcon className="h-6 w-6" />
                   </div>
                 </CardContent>
@@ -343,7 +343,7 @@ const TransactionLog = () => {
                     placeholder="Search User, User Number (MACJ-001), IP Address, Event..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full text-xs"
+                    className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full text-xs"
                   />
                 </div>
                 
@@ -378,7 +378,7 @@ const TransactionLog = () => {
               <CardContent className="p-0 overflow-x-auto">
                 {loading ? <div className="p-12 text-center text-slate-400 text-xs">Loading transaction records...</div> : (
                   <Table className="min-w-[1000px] md:min-w-full">
-                    <TableHeader className="bg-[#2B174F]">
+                    <TableHeader className="bg-brand-primary">
                       <TableRow className="hover:bg-transparent border-b-0">
                         <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Timestamp</TableHead>
                         <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Initiated By</TableHead>
@@ -425,7 +425,7 @@ const TransactionLog = () => {
 
                               {/* Initiated By & User Number */}
                               <TableCell className="py-4">
-                                <p className="font-bold text-[#2A174E] text-xs">
+                                <p className="font-bold text-brand-primary text-xs">
                                   {initiatorName}
                                 </p>
                                 <span className="text-[10px] text-slate-400 font-mono font-semibold block mt-0.5">
@@ -456,7 +456,7 @@ const TransactionLog = () => {
                               <TableCell className="text-right pr-6 py-4">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]">
+                                    <Button variant="ghost" size="sm" onClick={() => setSelectedLog(t)} className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0]">
                                       <EyeIcon className="h-4 w-4"/>
                                     </Button>
                                   </TooltipTrigger>
@@ -501,7 +501,7 @@ const TransactionLog = () => {
               {selectedLog && (
                 <div className="space-y-0">
                   {/* Modal Header */}
-                  <div className="bg-[#2A174E] text-white p-6">
+                  <div className="bg-brand-primary text-white p-6">
                     <div className="flex items-center justify-between mb-2">
                       <Badge className="bg-amber-400 text-slate-950 font-bold uppercase text-[10px] tracking-wider">
                         TRANSACTION RECORD #{selectedLog.transId}
@@ -527,7 +527,7 @@ const TransactionLog = () => {
                       {/* Initiated By / User Number */}
                       <div className="space-y-1">
                         <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
-                          <PersonIcon fontSize="small" className="text-[#2A174E]" /> Initiator / User
+                          <PersonIcon fontSize="small" className="text-brand-primary" /> Initiator / User
                         </div>
                         <p className="font-bold text-slate-900 text-sm">
                           {selectedLog.admin_FirstName 
@@ -537,7 +537,7 @@ const TransactionLog = () => {
                               : "System Process"}
                         </p>
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded bg-purple-100 text-[#2A174E] font-mono font-bold text-[11px]">
+                          <span className="px-2 py-0.5 rounded bg-purple-100 text-brand-primary font-mono font-bold text-[11px]">
                             {selectedLog.initiated_By 
                               ? formatUserId(selectedLog.initiated_By) 
                               : selectedLog.user_Id 

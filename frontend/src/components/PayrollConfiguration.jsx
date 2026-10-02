@@ -304,7 +304,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
       <main className="space-y-4">
         
         {/* Top Header Card */}
-        <div className="bg-[#2A1B4E] text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="bg-brand-primary text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-start space-x-4">
             <div className="p-3 bg-white/10 rounded-lg border border-white/10">
               <Landmark className="w-6 h-6 text-purple-200" />
@@ -408,7 +408,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
               value={localData.metadata?.cutoffScheme || "semi-monthly"}
               onChange={(e) => updateField('metadata', 'cutoffScheme', e.target.value)}
               disabled={!isEditing}
-              className={`font-bold text-[#2A1B4E] bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500 transition ${isEditing ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+              className={`font-bold text-brand-primary bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500 transition ${isEditing ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
             >
               <option value="semi-monthly">Semi-Monthly (1–15, 16–end)</option>
               <option value="weekly">Weekly Cutoff Interval</option>
@@ -437,7 +437,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center space-x-2 px-4 mx-1 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all duration-200 ${
                     isActive 
-                      ? 'bg-[#2A1B4E] text-white shadow-sm' 
+                      ? 'bg-brand-primary text-white shadow-sm' 
                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                   }`}
                 >
@@ -529,7 +529,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <form onSubmit={handleVerifyAndExecuteSave} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center space-x-2 text-[#2A1B4E]">
+              <div className="flex items-center space-x-2 text-brand-primary">
                 <Shield className="w-5 h-5" />
                 <h3 className="text-base font-bold text-slate-900">Admin Security Authorization</h3>
               </div>
@@ -743,7 +743,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
 
       {/* Auto-Compiled Compound Matrices */}
       <div className="border border-blue-100 rounded-xl overflow-hidden shadow-xs bg-white">
-        <div className="bg-[#2A1B4E] text-white px-5 py-3.5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="bg-brand-primary text-white px-5 py-3.5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="flex items-center space-x-2">
             <Info className="w-4 h-4 text-purple-200" />
             <span className="text-sm font-semibold tracking-wide">Auto-Compiled Compound Matrices (Read-Only Preview)</span>
@@ -753,7 +753,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             <button
               onClick={() => setViewFormat('table')}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                viewFormat === 'table' ? 'bg-white text-[#2A1B4E] shadow-xs' : 'text-purple-200 hover:text-white'
+                viewFormat === 'table' ? 'bg-white text-brand-primary shadow-xs' : 'text-purple-200 hover:text-white'
               }`}
             >
               <LayoutList className="w-3.5 h-3.5" />
@@ -762,7 +762,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             <button
               onClick={() => setViewFormat('card')}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                viewFormat === 'card' ? 'bg-white text-[#2A1B4E] shadow-xs' : 'text-purple-200 hover:text-white'
+                viewFormat === 'card' ? 'bg-white text-brand-primary shadow-xs' : 'text-purple-200 hover:text-white'
               }`}
             >
               <Grid className="w-3.5 h-3.5" />
@@ -954,7 +954,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
 
       {/* Dynamic Compound Reference Table */}
       <div className="border border-slate-100 rounded-xl overflow-hidden shadow-xs bg-white">
-        <div className="bg-[#2A1B4E] text-white px-5 py-3.5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="bg-brand-primary text-white px-5 py-3.5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="flex items-center space-x-2">
             <Info className="w-4 h-4 text-purple-200" />
             <span className="text-sm font-semibold tracking-wide">Auto-Compiled Compound Coefficient Matrix (Read-Only)</span>
@@ -964,7 +964,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
             <button
               onClick={() => setViewFormat('table')}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                viewFormat === 'table' ? 'bg-white text-[#2A1B4E] shadow-xs' : 'text-purple-200 hover:text-white'
+                viewFormat === 'table' ? 'bg-white text-brand-primary shadow-xs' : 'text-purple-200 hover:text-white'
               }`}
             >
               <LayoutList className="w-3.5 h-3.5" />
@@ -973,7 +973,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
             <button
               onClick={() => setViewFormat('card')}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                viewFormat === 'card' ? 'bg-white text-[#2A1B4E] shadow-xs' : 'text-purple-200 hover:text-white'
+                viewFormat === 'card' ? 'bg-white text-brand-primary shadow-xs' : 'text-purple-200 hover:text-white'
               }`}
             >
               <Grid className="w-3.5 h-3.5" />
@@ -1024,9 +1024,9 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
           <div className="p-5 bg-slate-50/50 max-h-[500px] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {matrixData.map((row, idx) => {
               const borderAccent = 
-                row.type === "Night Shift" ? "border-t-blue-500" :
-                row.type === "Overtime (OT)" ? "border-t-orange-500" :
-                "border-t-purple-500";
+                row.type === "Night Shift" ? "border-t-status-info" :
+                row.type === "Overtime (OT)" ? "border-t-accent-gold" :
+                "border-t-brand-primary";
 
               return (
                 <div key={idx} className={`bg-white border border-slate-100 border-t-2 ${borderAccent} p-4 rounded-xl shadow-xs flex flex-col justify-between space-y-3`}>
@@ -1146,8 +1146,8 @@ function LeaveCapsView() {
       </div>
 
       {/* SIL */}
-      <div className="border-l-4 border-purple-500 bg-purple-50/20 p-4 rounded-r-xl space-y-4">
-        <h4 className="text-sm font-bold text-purple-900">Service Incentive Leave (SIL)</h4>
+      <div className="border-l-4 border-brand-primary bg-brand-primary/5 p-4 rounded-r-xl space-y-4">
+        <h4 className="text-sm font-bold text-brand-primary">Service Incentive Leave (SIL)</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormInput label="Paid Annual Allowance (Days/Year)" value="5" />
           <FormInput label="Service Tenure Trigger (Months)" value="12" />
@@ -1155,8 +1155,8 @@ function LeaveCapsView() {
       </div>
 
       {/* Maternity Leave */}
-      <div className="border-l-4 border-pink-500 bg-pink-50/10 p-4 rounded-r-xl space-y-4">
-        <h4 className="text-sm font-bold text-pink-900">Expanded Maternity Leave (RA 11210)</h4>
+      <div className="border-l-4 border-accent-gold bg-accent-gold/5 p-4 rounded-r-xl space-y-4">
+        <h4 className="text-sm font-bold text-accent-gold">Expanded Maternity Leave (RA 11210)</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormInput label="Standard Live Birth (Days)" value="105" />
           <FormInput label="Solo Parent (Days)" value="120" />
@@ -1165,8 +1165,8 @@ function LeaveCapsView() {
       </div>
 
       {/* Paternity Leave */}
-      <div className="border-l-4 border-blue-500 bg-blue-50/10 p-4 rounded-r-xl space-y-4">
-        <h4 className="text-sm font-bold text-blue-900">Paternity Leave (RA 8187)</h4>
+      <div className="border-l-4 border-status-info bg-status-info/5 p-4 rounded-r-xl space-y-4">
+        <h4 className="text-sm font-bold text-status-info">Paternity Leave (RA 8187)</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormInput label="Paid Core Allowance (Days)" value="7" />
           <FormInput label="Max Deliveries Cap" value="4" subtext="First deliveries only" />

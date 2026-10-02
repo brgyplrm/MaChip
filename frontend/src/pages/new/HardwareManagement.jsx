@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -146,9 +146,38 @@ const HardwareManagement = () => {
     setCurrentPage(1);
   }, [searchQuery, statusFilter, memoryIdFilter, selectedDate, activeTab]);
 
+  // Track active scan request for instant cancellation
+  const scanAbortControllerRef = useRef(null);
+
+  useEffect(() => {
+    // Abort any pending scan when switching tabs
+    if (scanAbortControllerRef.current) {
+      scanAbortControllerRef.current.abort();
+      scanAbortControllerRef.current = null;
+    }
+    setShowScanModal(false);
+    fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
+    fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
+  }, [activeTab]);
+
+  useEffect(() => {
+    return () => {
+      if (scanAbortControllerRef.current) {
+        scanAbortControllerRef.current.abort();
+        scanAbortControllerRef.current = null;
+      }
+    };
+  }, []);
+
   // ── Hardware Operations ──────────────────────────────────────────────────
 
   const handleStartScan = async () => {
+    if (scanAbortControllerRef.current) {
+      scanAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    scanAbortControllerRef.current = abortController;
+
     setScanError("");
     setLocalScannedId(null);
     setLocalScannedTemplate(null);
@@ -159,12 +188,15 @@ const HardwareManagement = () => {
       await fetchWithAuth("/api/system/reg-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: activeTab === 'rfid' ? "rfid" : 'FP', userId: "temp_reg" })
+        body: JSON.stringify({ type: activeTab === 'rfid' ? "RFID" : 'FP', userId: "temp_reg" }),
+        signal: abortController.signal
       });
 
       // 2. Poll/Wait for hardware scan
       const endpoint = activeTab === 'rfid' ? "/api/users/generateRfid" : "/api/users/generateFingerprint";
-      const response = await fetchWithAuth(endpoint);
+      const response = await fetchWithAuth(endpoint, {
+        signal: abortController.signal
+      });
       const data = await response.json();
 
       if (response.ok) {
@@ -186,27 +218,36 @@ const HardwareManagement = () => {
         if (activeTab === 'rfid' && data.rfid) setLocalScannedId(data.rfid);
       }
     } catch (err) {
+      if (err.name === "AbortError") {
+        console.log(`[HARDWARE] ${activeTab.toUpperCase()} Scan aborted by user.`);
+        return;
+      }
       console.error(`${activeTab.toUpperCase()} Scan Error:`, err);
       setScanError("An error occurred while communicating with hardware.");
     }
   };
 
   const handleCloseScanModal = () => {
+    if (scanAbortControllerRef.current) {
+      scanAbortControllerRef.current.abort();
+      scanAbortControllerRef.current = null;
+    }
     setShowScanModal(false);
     fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
-    if (activeTab === 'fingerprint') {
-      fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
-    }
+    fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
   };
 
   const handleScanConfirm = () => {
     if (!localScannedId) return;
 
+    if (scanAbortControllerRef.current) {
+      scanAbortControllerRef.current.abort();
+      scanAbortControllerRef.current = null;
+    }
+
     // Cleanup sessions
     fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
-    if (activeTab === 'fingerprint') {
-      fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
-    }
+    fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
 
     setShowScanModal(false);
     
@@ -370,14 +411,14 @@ const HardwareManagement = () => {
         total: rfidList.filter(r => r.machip_id).length,
         unassigned: unassignedEmployees.length,
         icon: <CreditCardIcon />,
-        color: "bg-[#2A174E]"
+        color: "bg-brand-primary"
       };
     } else {
       return {
         total: biometricList.filter(b => b.fingerprintIndex !== null).length,
         unassigned: unassignedEmployees.length,
         icon: <FingerprintIcon />,
-        color: "bg-[#2A174E]"
+        color: "bg-brand-primary"
       };
     }
   }, [activeTab, rfidList, biometricList, unassignedEmployees]);
@@ -419,7 +460,7 @@ const HardwareManagement = () => {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-block">
-                        <Button variant="ghost" size="icon" asChild className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]">
+                        <Button variant="ghost" size="icon" asChild className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary">
                           <Link to="/users"><ChevronLeft className="h-6 w-6" /></Link>
                         </Button>
                       </span>
@@ -430,23 +471,32 @@ const HardwareManagement = () => {
                   </Tooltip>
                 </div>
                 <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-                  <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Hardware Registry</h1>
+                  <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Hardware Registry</h1>
                   <span className="text-sm text-slate-500 mt-1 block">Manage MaChip hardware alignments, biometric signatures, and access states.</span>
                 </div>
               </div>
-              <Button onClick={handleStartScan} className="bg-[#2A174E] hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
+              <Button onClick={handleStartScan} className="bg-brand-primary hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
                 <ScanLine className="h-4 w-4 text-white" />
                 <span>{activeTab === 'rfid' ? 'Scan RFID' : 'Enroll Fingerprint'}</span>
               </Button>
             </div>
 
             {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs 
+              value={activeTab} 
+              onValueChange={(val) => {
+                if (showScanModal) {
+                  handleCloseScanModal();
+                }
+                setActiveTab(val);
+              }} 
+              className="w-full"
+            >
               <TabsList className="grid w-full sm:w-[400px] grid-cols-2 h-11 bg-slate-200/60 rounded-lg mb-6 p-0.5">
-                <TabsTrigger value="rfid" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
+                <TabsTrigger value="rfid" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
                   <CreditCardIcon className="mr-2 h-4 w-4" /> RFID Cards
                 </TabsTrigger>
-                <TabsTrigger value="fingerprint" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
+                <TabsTrigger value="fingerprint" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
                   <FingerprintIcon className="mr-2 h-4 w-4" /> Biometrics
                 </TabsTrigger>
               </TabsList>
@@ -471,15 +521,15 @@ const HardwareManagement = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-3xl font-bold text-[#2A174E]">{stats.total}</p>
+                      <p className="text-3xl font-bold text-brand-primary">{stats.total}</p>
                       <p className="text-[10px] text-slate-400 mt-2 italic">
                         {activeTab === 'rfid' ? 'Registered RFID tokens in the system.' : 'Biometric slot maps active in module memory.'}
                       </p>
                     </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg">{stats.icon}</div>
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg">{stats.icon}</div>
                   </CardContent>
                 </Card>
-                <Card className="border-t-5 border-orange-600 bg-white py-0">
+                <Card className="border-t-5 border-accent-gold bg-white py-0">
                   <CardContent className="px-5 py-5 flex justify-between items-center">
                     <div>
                       <div className="flex items-center gap-1.5 mb-1">
@@ -493,10 +543,10 @@ const HardwareManagement = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-3xl font-bold text-orange-700">{stats.unassigned}</p>
+                      <p className="text-3xl font-bold text-accent-gold">{stats.unassigned}</p>
                       <p className="text-[10px] text-slate-400 mt-2 italic">Employees pending hardware alignment.</p>
                     </div>
-                    <div className="bg-orange-50 text-orange-600 p-3 rounded-lg"><SensorsIcon /></div>
+                    <div className="bg-accent-gold/10 text-accent-gold p-3 rounded-lg"><SensorsIcon /></div>
                   </CardContent>
                 </Card>
               </div>
@@ -543,7 +593,7 @@ const HardwareManagement = () => {
               <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
                 <CardContent className="p-0 flex flex-col">
                   <Table>
-                    <TableHeader className="bg-[#2A174E]">
+                    <TableHeader className="bg-brand-primary">
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="text-white font-bold py-4 px-6 uppercase text-xs tracking-wider">Employee</TableHead>
                         <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
@@ -601,7 +651,7 @@ const HardwareManagement = () => {
                             <TableCell className="px-6 py-4">
                               <div className="flex items-center gap-2">
                                 <div>
-                                  <p className="font-bold text-[#2A174E] text-sm">{row.userName}</p>
+                                  <p className="font-bold text-brand-primary text-sm">{row.userName}</p>
                                   <p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p>
                                 </div>
                                 {activeTab === 'fingerprint' && row.fingerprintType && (
@@ -689,7 +739,7 @@ const HardwareManagement = () => {
 
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
         <DialogContent className="sm:max-w-[460px] p-0 border-0 overflow-hidden bg-white rounded-2xl shadow-2xl">
-          <DialogHeader className="bg-[#2A174E] text-white p-6 relative">
+          <DialogHeader className="bg-brand-primary text-white p-6 relative">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <ScanLine className="h-5 w-5 text-purple-300" /> {activeTab === 'rfid' ? 'Assign Scanned Card' : 'Link Biometric Template'}
             </DialogTitle>
@@ -702,7 +752,7 @@ const HardwareManagement = () => {
           <div className="p-6 space-y-6">
             <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
               <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">{activeTab === 'rfid' ? 'Scanned Card UID' : 'Allocated Flash Memory Index'}</Label>
-              <div className="font-mono text-sm font-black text-[#2A174E] bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
+              <div className="font-mono text-sm font-black text-brand-primary bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
                 {activeTab === 'rfid' ? scannedId : `Slot Pool Location #${scannedId}`}
               </div>
             </div>
@@ -715,12 +765,12 @@ const HardwareManagement = () => {
                 </button>
               </div>
               <Select value={selectedUserId} onValueChange={handleSelectEmployee}>
-                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-[#2A174E]"><SelectValue placeholder="Select an unassigned employee..." /></SelectTrigger>
+                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-brand-primary"><SelectValue placeholder="Select an unassigned employee..." /></SelectTrigger>
                 <SelectContent className="max-h-[220px]">
                   {loadingUnassigned ? <div className="p-4 text-center text-xs text-slate-400 italic">Updating registry...</div> : 
                     unassignedEmployees.length > 0 ? unassignedEmployees.map((emp) => (
                       <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
-                        {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)}) {activeTab === 'fingerprint' ? (emp.hasSlot1 ? "• Secondary Fallback" : "• Primary") : ""}
+                        {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)}) {activeTab === 'fingerprint' ? emp.hasSlot1 : ""}
                       </SelectItem>
                     )) : <div className="p-4 text-center text-xs text-slate-400 italic">No unassigned employees found.</div>
                   }
@@ -760,7 +810,7 @@ const HardwareManagement = () => {
               <Button 
                 onClick={handleAssignSubmit} 
                 disabled={assigning || !selectedUserId || (activeTab === 'fingerprint' && isDuplicateSlot)} 
-                className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white rounded-lg font-bold shadow-md tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 h-11 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg font-bold shadow-md tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {assigning ? "Linking..." : "Assign Hardware Link"}
               </Button>
@@ -774,7 +824,7 @@ const HardwareManagement = () => {
           <div className="p-6 text-center">
             <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><AlertTriangle className="h-8 w-8" /></div>
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-[#2A174E] text-center">Revoke Hardware Access?</DialogTitle>
+              <DialogTitle className="text-xl font-bold text-brand-primary text-center">Revoke Hardware Access?</DialogTitle>
               <DialogDescription className="text-slate-500 text-sm mt-2 text-center">
                 You are about to unlink the {activeTab === 'rfid' ? 'RFID card' : 'biometric signature'} from <b className="text-slate-900">{revokeTarget?.userName}</b>. 
                 This employee will no longer be able to use this hardware for attendance.

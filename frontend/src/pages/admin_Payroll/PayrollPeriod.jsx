@@ -290,7 +290,7 @@ const PayrollPeriod = () => {
                     variant="ghost" 
                     size="icon" 
                     asChild 
-                    className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary"
                   >
                     <Link to="/payroll">
                       <ChevronLeft className="h-6 w-6" />
@@ -306,7 +306,7 @@ const PayrollPeriod = () => {
 
           {/* Title: Adds left padding when hovered */}
           <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">
                 {selectedPeriod?.label} {selectedPeriod?.status === 'Draft' ? "Current Period" : "Previous Period"}
               </h1>
               <span className="text-sm text-slate-500 mt-1 block">
@@ -319,7 +319,7 @@ const PayrollPeriod = () => {
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
                   <Button 
-                    className="w-full bg-[#f8fafc] hover:text-[#2A174E] text-[#2A174E]/70 border border-slate-200 hover:bg-slate-100" 
+                    className="w-full bg-[#f8fafc] hover:text-brand-primary text-brand-primary/70 border border-slate-200 hover:bg-slate-100" 
                     onClick={handlePreviewSummary}
                     disabled={loading || payrolls.length === 0}
                   >
@@ -337,7 +337,7 @@ const PayrollPeriod = () => {
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
                   <Button 
-                    className={`w-full bg-[#2A174E] text-white border hover:bg-[#7A52B5] ${
+                    className={`w-full bg-brand-primary text-white border hover:bg-[#7A52B5] ${
                       (selectedPeriod?.status !== 'Draft' || !isProcessingWindow) ? "opacity-50 cursor-not-allowed" : ""
                     }`}
                     onClick={() => setIsConfirmOpen(true)}
@@ -368,7 +368,7 @@ const PayrollPeriod = () => {
                   <span className="inline-block w-full sm:w-auto">
                     <Button 
                       variant="outline"
-                      className="w-full border-purple-300 text-[#2A174E] hover:bg-purple-50"
+                      className="w-full border-purple-300 text-brand-primary hover:bg-purple-50"
                       onClick={handleResendBatchEmails}
                       disabled={isSendingBatchEmails}
                     >
@@ -388,74 +388,58 @@ const PayrollPeriod = () => {
          {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
             {/* Card 1: Total Gross Pay */}
-            <Card className="border-t-5 border-green-600 bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                  <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-green-600 uppercase tracking-wider">Total Earnings</p>
-                    {/* <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                        Gross pay including OT and allowances.
-                      </TooltipContent>
-                    </Tooltip> */}
+                    <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Total Earnings</p>
                   </div>
-                  <p className="text-3xl font-bold text-green-600">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                  <p className="text-3xl font-bold text-accent-green">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
-                <p className="text-xs text-green-600/70 italic mt-4">Gross pay including OT and allowances</p>
+                <p className="text-xs text-accent-green/70 italic mt-4">Gross pay including OT and allowances</p>
               </div>
               </CardContent>
             </Card>
             
  
             {/* Card 2: Total Deductions */}
-            <Card className="border-t-5 border-red-500 bg-white py-0 h-full">
+            <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-red-500 uppercase tracking-wider">Total Deductions</p>
-                    {/* <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                        Withholdings including taxes and loans.
-                      </TooltipContent>
-                    </Tooltip> */}
+                    <p className="text-[13px] font-bold text-status-danger uppercase tracking-wider">Total Deductions</p>
                   </div>
-                  <p className="text-3xl font-bold text-red-500">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                  <p className="text-3xl font-bold text-status-danger">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
-                <p className="text-xs text-red-500/70 italic mt-4">Withholdings including taxes and loans</p>
+                <p className="text-xs text-status-danger/70 italic mt-4">Withholdings including taxes and loans</p>
               </div>
-              {/* <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              {/* <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
               </div> */}
               </CardContent>
             </Card>
  
             {/* Card 3: Total Net Pay */}
-            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Net Pay</p>
+                    <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Net Pay</p>
                     {/* <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                         Estimated total net payout amount for the selected draft cycle.
                       </TooltipContent>
                     </Tooltip> */}
                   </div>
-                  <p className="text-3xl font-bold text-[#2A174E]">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                  <p className="text-3xl font-bold text-brand-primary">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
-                <p className="text-xs text-[#2A174E]/70 italic mt-4">Calculated total distribution amount</p>
+                <p className="text-xs text-brand-primary/70 italic mt-4">Calculated total distribution amount</p>
               </div>
               </CardContent>
             </Card>
@@ -472,7 +456,7 @@ const PayrollPeriod = () => {
                 placeholder="Search by Employee Name or ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
               />
             </div>
             
@@ -510,7 +494,7 @@ const PayrollPeriod = () => {
           <CardContent className="p-0 overflow-x-auto">
             {loading ? (
               <Table className="min-w-[800px]">
-                <TableHeader className="bg-[#2B174F]">
+                <TableHeader className="bg-brand-primary">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
                     <TableHead className="font-semibold text-white py-4">
@@ -602,7 +586,7 @@ const PayrollPeriod = () => {
               </Table>
             ) : (
               <Table className="min-w-[800px]">
-                <TableHeader className="bg-[#2B174F]">
+                <TableHeader className="bg-brand-primary">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
                     <TableHead className="font-semibold text-white py-4">
@@ -675,7 +659,7 @@ const PayrollPeriod = () => {
                       return (
                         <TableRow key={p.payrollId} className="border-b-slate-100 hover:bg-slate-50/50">
                           <TableCell className="py-4 px-6">
-                            <div className="font-semibold text-[#2A174E]">{p.user_FirstName || p.userName} {p.user_LastName || ""}</div>
+                            <div className="font-semibold text-brand-primary">{p.user_FirstName || p.userName} {p.user_LastName || ""}</div>
                             <div className="text-xs text-slate-400 font-mono">ID: {formatUserId(p.user_Id)}</div>
                           </TableCell>
                           <TableCell className="py-4 text-slate-700">₱{parseFloat(fixedBasic || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
@@ -691,7 +675,7 @@ const PayrollPeriod = () => {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span className="inline-block">
-                                  <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
+                                  <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0] transition-colors">
                                     <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}&periodId=${selectedPeriod.periodId}`}>
                                       <EyeIcon className="h-4 w-4" />
                                     </Link>
@@ -749,7 +733,7 @@ const PayrollPeriod = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <Card className="w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl border-0 overflow-hidden py-0">
             <CardContent className="p-0 flex flex-col h-full">
-              <div className="flex justify-between items-center p-4 bg-[#2A174E] text-white">
+              <div className="flex justify-between items-center p-4 bg-brand-primary text-white">
                 <h3 className="font-bold text-lg flex items-center gap-2">
                    Payroll Summary Preview - {selectedPeriod?.label}
                 </h3>

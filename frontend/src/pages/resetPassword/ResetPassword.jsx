@@ -106,7 +106,7 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-5 box-border bg-[linear-gradient(90deg,#2a174e_0%,#ffffff_28%,#ffffff_72%,#ffae00_100%)]">
+    <div className="min-h-screen flex items-center justify-center p-5 box-border bg-[linear-gradient(90deg,var(--color-brand-primary)_0%,#ffffff_28%,#ffffff_72%,#ffae00_100%)]">
       <div className="w-full max-w-[420px] p-[35px_30px] flex flex-col items-center text-center bg-white rounded-[16px] shadow-[0px_10px_25px_rgba(0,0,0,0.1),0_4px_10px_rgba(0,0,0,0.05)] transition-transform duration-300 ease-in-out">
         
         {/* Top Logo */}
@@ -121,8 +121,8 @@ const ResetPassword = () => {
         {/* ── 1. Verifying Token State ── */}
         {verifying && (
           <div className="flex flex-col items-center py-8">
-            <CircularProgress size={42} sx={{ color: "#2a174e" }} />
-            <h3 className="text-base font-bold text-[#2a174e] mt-4 mb-1">Verifying Reset Link</h3>
+            <CircularProgress size={42} sx={{ color: "var(--color-brand-primary)" }} />
+            <h3 className="text-base font-bold text-brand-primary mt-4 mb-1">Verifying Reset Link</h3>
             <p className="text-xs text-slate-500">Please wait while we validate your security token...</p>
           </div>
         )}
@@ -134,7 +134,7 @@ const ResetPassword = () => {
               <ErrorOutlineIcon sx={{ fontSize: 36 }} />
             </div>
 
-            <h2 className="text-[#2A174E] text-xl font-bold mb-2">Invalid or Expired Link</h2>
+            <h2 className="text-brand-primary text-xl font-bold mb-2">Invalid or Expired Link</h2>
             <p className="text-xs text-slate-600 mb-4 leading-relaxed max-w-xs">
               {tokenError}
             </p>
@@ -151,7 +151,7 @@ const ResetPassword = () => {
             <button
               type="button"
               onClick={() => navigate("/login")}
-              className="w-full py-3 px-5 bg-[#2A174E] text-white border-none rounded-lg font-bold text-sm cursor-pointer hover:bg-[#1a0e30] transition-all shadow-md active:scale-95"
+              className="w-full py-3 px-5 bg-brand-primary text-white border-none rounded-lg font-bold text-sm cursor-pointer hover:bg-brand-primary-hover transition-all shadow-md active:scale-95"
             >
               Back to Login
             </button>
@@ -165,7 +165,7 @@ const ResetPassword = () => {
               <CheckCircleIcon sx={{ fontSize: 38 }} />
             </div>
 
-            <h2 className="text-[#2A174E] text-xl font-bold mb-2">Password Reset Complete!</h2>
+            <h2 className="text-brand-primary text-xl font-bold mb-2">Password Reset Complete!</h2>
             <p className="text-sm text-slate-600 mb-6 leading-relaxed max-w-xs">
               Your password has been successfully updated. You can now use your new password to sign in.
             </p>
@@ -173,7 +173,7 @@ const ResetPassword = () => {
             <button
               type="button"
               onClick={() => navigate("/login")}
-              className="w-full py-3 px-5 bg-[#2A174E] text-white border-none rounded-lg font-bold text-sm cursor-pointer hover:bg-[#1a0e30] transition-all shadow-md active:scale-95"
+              className="w-full py-3 px-5 bg-brand-primary text-white border-none rounded-lg font-bold text-sm cursor-pointer hover:bg-brand-primary-hover transition-all shadow-md active:scale-95"
             >
               Proceed to Login
             </button>
@@ -184,8 +184,8 @@ const ResetPassword = () => {
         {!verifying && tokenValid && !isSuccess && (
           <div className="w-full flex flex-col items-center animate-in fade-in duration-200">
             <div className="mb-4">
-              <h2 className="text-[#2A174E] text-xl font-bold m-0 flex items-center justify-center gap-1.5">
-                <LockResetIcon className="text-[#2A174E]" />
+              <h2 className="text-brand-primary text-xl font-bold m-0 flex items-center justify-center gap-1.5">
+                <LockResetIcon className="text-brand-primary" />
                 Set New Password
               </h2>
               {userInfo.name ? (
@@ -223,7 +223,7 @@ const ResetPassword = () => {
                     placeholder="Enter strong password (8+ chars)"
                     disabled={submitting}
                     required
-                    className="w-full p-[11px_38px_11px_12px] border border-slate-300 rounded-lg text-sm outline-none focus:border-[#2A174E] focus:ring-2 focus:ring-[#2A174E]/15 transition-all disabled:bg-slate-100"
+                    className="w-full p-[11px_38px_11px_12px] border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15 transition-all disabled:bg-slate-100"
                   />
                   <button
                     type="button"
@@ -275,7 +275,7 @@ const ResetPassword = () => {
                     placeholder="Re-enter your new password"
                     disabled={submitting}
                     required
-                    className="w-full p-[11px_38px_11px_12px] border border-slate-300 rounded-lg text-sm outline-none focus:border-[#2A174E] focus:ring-2 focus:ring-[#2A174E]/15 transition-all disabled:bg-slate-100"
+                    className="w-full p-[11px_38px_11px_12px] border border-slate-300 rounded-lg text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15 transition-all disabled:bg-slate-100"
                   />
                   <button
                     type="button"
@@ -309,7 +309,7 @@ const ResetPassword = () => {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3 px-5 mt-2 bg-[#2A174E] text-white border-none rounded-lg font-bold text-sm cursor-pointer hover:bg-[#1a0e30] transition-all shadow-md active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 px-5 mt-2 bg-brand-primary text-white border-none rounded-lg font-bold text-sm cursor-pointer hover:bg-brand-primary-hover transition-all shadow-md active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <>
@@ -325,7 +325,7 @@ const ResetPassword = () => {
                 <button
                   type="button"
                   onClick={() => navigate("/login")}
-                  className="text-xs text-slate-500 hover:text-[#2A174E] font-medium bg-transparent border-none cursor-pointer transition-colors"
+                  className="text-xs text-slate-500 hover:text-brand-primary font-medium bg-transparent border-none cursor-pointer transition-colors"
                 >
                   Cancel and Return to Login
                 </button>

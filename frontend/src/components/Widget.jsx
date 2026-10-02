@@ -11,7 +11,7 @@ const Widget = ({ type, amount, loading, description }) => {
     case "officeOccupancy":
       data = {
         title: "Office Occupancy",
-        color: "#2A174E",
+        color: "var(--color-brand-primary)",
         icon: (
           <PersonOutlinedIcon
             className="!text-[35px] p-1.5 rounded-md text-white"
@@ -22,7 +22,7 @@ const Widget = ({ type, amount, loading, description }) => {
     case "onTime":
       data = {
         title: "On time (8:00 AM)",
-        color: "#3B4E17",
+        color: "var(--color-accent-green)",
         icon: (
           <AccessTimeIcon
             className="!text-[35px] p-1.5 rounded-md text-white"
@@ -42,7 +42,7 @@ const Widget = ({ type, amount, loading, description }) => {
     case "pendingApprovals":
       data = {
         title: "Pending Approvals",
-        color: "#3B4E17",
+        color: "var(--color-accent-green)",
         icon: (
           <LibraryAddCheckIcon className="!text-[35px] p-1.5 rounded-md text-white" />
         ),
@@ -64,7 +64,7 @@ const Widget = ({ type, amount, loading, description }) => {
   return (
     <div 
       className="flex justify-between flex-1 p-3 shadow-[2px_4px_10px_1px_rgba(201,201,201,0.47)] rounded-xl h-[110px] transition-transform hover:scale-[1.02] duration-200"
-      style={{ backgroundColor: data?.color || "#2A174E" }}
+      style={{ backgroundColor: data?.color || "var(--color-brand-primary)" }}
     >
       <div className="flex flex-col justify-between p-2">
         <span className="font-bold text-sm text-white tracking-wider">{data?.title}</span>

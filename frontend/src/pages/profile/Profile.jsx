@@ -199,11 +199,11 @@ const Profile = () => {
           {/* Header Section */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">User Profile</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">User Profile</h1>
               <span className="text-sm text-slate-500 mt-1 block">View and manage your personal information and activity history.</span>
             </div>
             {user && (
-              <Button asChild className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm h-10">
+              <Button asChild className="w-full md:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm h-10">
                 <Link to={`/users/edit/${user.user_Id}`}>
                   <EditOutlinedIcon className="mr-2 h-4 w-4" /> Edit Profile
                 </Link>
@@ -229,11 +229,11 @@ const Profile = () => {
             <>
               {/* Hero Banner Section */}
               <Card className="bg-white border-0 shadow-sm mb-6 relative overflow-hidden py-0">
-                <div className="h-28 bg-gradient-to-r from-[#2A174E] to-[#45297e]"></div>
+                <div className="h-28 bg-gradient-to-r from-brand-primary to-[#45297e]"></div>
                 <CardContent className="px-6 pb-6 pt-0 relative">
                   <div className="flex flex-col md:flex-row items-center md:items-end gap-6 -mt-12">
                     <div className="w-28 h-28 rounded-full bg-white p-1.5 shadow-md">
-                      <div className="w-full h-full rounded-full bg-[#f0ebfa] text-[#4a2b8c] flex items-center justify-center text-4xl font-black uppercase tracking-widest">
+                      <div className="w-full h-full rounded-full bg-brand-primary-light text-[#4a2b8c] flex items-center justify-center text-4xl font-black uppercase tracking-widest">
                         {user.user_FirstName?.[0]}{user.user_LastName?.[0]}
                       </div>
                     </div>
@@ -260,12 +260,12 @@ const Profile = () => {
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Account Identifier</p>
-                        <p className="text-3xl font-bold text-[#2A174E] font-mono">{formatUserId(user.user_Id)}</p>
+                        <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider mb-2">Account Identifier</p>
+                        <p className="text-3xl font-bold text-brand-primary font-mono">{formatUserId(user.user_Id)}</p>
                       </div>
-                      <p className="text-xs text-[#2A174E]/70 italic mt-4">System generated employee ID</p>
+                      <p className="text-xs text-brand-primary/70 italic mt-4">System generated employee ID</p>
                     </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <BadgeOutlinedIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
@@ -275,12 +275,12 @@ const Profile = () => {
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">System Role</p>
-                        <p className="text-3xl font-bold text-[#3B4E17]">{user.user_Role}</p>
+                        <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider mb-2">System Role</p>
+                        <p className="text-3xl font-bold text-accent-green">{user.user_Role}</p>
                       </div>
-                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Current authorization access level</p>
+                      <p className="text-xs text-accent-green/70 italic mt-4">Current authorization access level</p>
                     </div>
-                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <AdminPanelSettingsOutlinedIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
@@ -290,14 +290,14 @@ const Profile = () => {
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">MaChip Biometrics</p>
-                        <p className="text-2xl font-bold text-[#BB8B26] font-mono leading-tight max-w-[200px] truncate">
+                        <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider mb-2">MaChip Biometrics</p>
+                        <p className="text-2xl font-bold text-accent-gold font-mono leading-tight max-w-[200px] truncate">
                           {user.user_MachipId || "Unlinked"}
                         </p>
                       </div>
-                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Hardware authentication token</p>
+                      <p className="text-xs text-accent-gold/70 italic mt-4">Hardware authentication token</p>
                     </div>
-                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <FingerprintOutlinedIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
@@ -305,7 +305,7 @@ const Profile = () => {
               </div>
 
               {/* Chart Section */}
-              <Card className="bg-gradient-to-r from-[#F8FAFC] to-[#FAF2FF] border border-slate-200/80 shadow-sm mb-6 overflow-hidden">
+              <Card className="bg-white border border-slate-200/80 shadow-sm mb-6 overflow-hidden">
                 <CardHeader className="border-b border-slate-100 pb-4">
                   <CardTitle className="text-lg font-bold text-slate-800">Attendance Consistency (Last 6 Months)</CardTitle>
                 </CardHeader>

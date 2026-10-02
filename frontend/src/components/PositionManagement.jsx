@@ -185,7 +185,7 @@ const PositionManagement = ({
   return (
     <div className="space-y-6">
       {/* Top Header Card matching PayrollConfiguration */}
-      <div className="bg-[#2A1B4E] text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="bg-brand-primary text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-start space-x-4">
           <div className="p-3 bg-white/10 rounded-lg border border-white/10">
             <Briefcase className="w-6 h-6 text-purple-200" />
@@ -244,14 +244,14 @@ const PositionManagement = ({
         </div>
       </div>
 
-      <Card className="border border-purple-100 shadow-sm bg-gradient-to-br from-[#FAF5FF] via-white to-[#FAF2FF] text-slate-800">
+      <Card className="border-t-4 border-brand-primary bg-white shadow-sm text-slate-800">
         <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-purple-100/80 rounded-full border border-purple-200 shadow-xs shrink-0">
-              <AlertTriangle className="w-6 h-6 text-[#2A174E]" />
+            <div className="p-3 bg-brand-primary/10 rounded-full border border-brand-primary/20 shadow-xs shrink-0">
+              <AlertTriangle className="w-6 h-6 text-brand-primary" />
             </div>
             <div className="min-w-[200px]">
-              <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider leading-none mb-1.5">Mandated Basic Rate</p>
+              <p className="text-xs font-bold text-brand-primary uppercase tracking-wider leading-none mb-1.5">Mandated Basic Rate</p>
               {isEditingWage && isEditing ? (
                 <div className="flex flex-col gap-2 mt-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -267,7 +267,7 @@ const PositionManagement = ({
                             setMandatedWage(raw);
                           }
                         }}
-                        className="bg-white border-slate-300 text-[#2A174E] pl-7 w-32 font-bold text-xl h-10 shadow-xs focus:border-purple-500 focus:ring-purple-200"
+                        className="bg-white border-slate-300 text-brand-primary pl-7 w-32 font-bold text-xl h-10 shadow-xs focus:border-purple-500 focus:ring-purple-200"
                         autoFocus
                       />
                     </div>
@@ -281,7 +281,7 @@ const PositionManagement = ({
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <h2 className="text-3xl font-black tracking-tight text-[#2A174E]">₱{parseFloat(mandatedWage || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
+                  <h2 className="text-3xl font-black tracking-tight text-brand-primary">₱{parseFloat(mandatedWage || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
                   <Button 
                     variant="ghost" 
                     size="icon" 
@@ -303,9 +303,9 @@ const PositionManagement = ({
           </div>
           <div className="hidden lg:block h-12 w-[1px] bg-purple-200/80 mx-4"></div>
           <div className="text-center md:text-left">
-            <p className="text-[11px] font-bold uppercase text-[#2A174E] tracking-wider mb-1">Compliance Status</p>
+            <p className="text-[11px] font-bold uppercase text-brand-primary tracking-wider mb-1">Compliance Status</p>
             <p className="text-sm font-medium text-slate-600">
-              System is monitoring <span className="font-bold text-[#2A174E]">{positions.length}</span> templates against this baseline.
+              System is monitoring <span className="font-bold text-brand-primary">{positions.length}</span> templates against this baseline.
             </p>
           </div>
         </CardContent>
@@ -313,8 +313,8 @@ const PositionManagement = ({
 
       <Card className="border-slate-200/80 shadow-sm bg-white pt-4">
         <CardHeader className="border-b border-slate-100 pb-4">
-          <CardTitle className="text-lg text-[#2A174E] flex items-center gap-2 font-bold">
-            <Briefcase className="text-[#2A174E]" /> Position Templates & Salary Grades
+          <CardTitle className="text-lg text-brand-primary flex items-center gap-2 font-bold">
+            <Briefcase className="text-brand-primary" /> Position Templates & Salary Grades
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -370,7 +370,7 @@ const PositionManagement = ({
             <div className="flex items-end gap-2">
               <Button 
                 onClick={handleSave}
-                className="bg-[#2A174E] hover:bg-[#3d2270] text-white flex-1 disabled:opacity-50"
+                className="bg-brand-primary hover:bg-[#3d2270] text-white flex-1 disabled:opacity-50"
                 disabled={!isEditing || !formData.title || !formData.department}
               >
                 {editingId ? <><Save className="w-4 h-4 mr-2" /> Update</> : <><Plus className="w-4 h-4 mr-2" /> Add Template</>}
@@ -387,11 +387,11 @@ const PositionManagement = ({
             <Table>
               <TableHeader className="bg-slate-50">
                 <TableRow>
-                  <TableHead className="font-bold text-[#2A174E]">Position Title</TableHead>
-                  <TableHead className="font-bold text-[#2A174E]">Department</TableHead>
-                  <TableHead className="font-bold text-[#2A174E]">Daily Rate</TableHead>
-                  <TableHead className="font-bold text-[#2A174E]">Status</TableHead>
-                  <TableHead className="text-right font-bold text-[#2A174E]">Actions</TableHead>
+                  <TableHead className="font-bold text-brand-primary">Position Title</TableHead>
+                  <TableHead className="font-bold text-brand-primary">Department</TableHead>
+                  <TableHead className="font-bold text-brand-primary">Daily Rate</TableHead>
+                  <TableHead className="font-bold text-brand-primary">Status</TableHead>
+                  <TableHead className="text-right font-bold text-brand-primary">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

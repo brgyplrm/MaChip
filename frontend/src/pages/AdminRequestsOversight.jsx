@@ -219,7 +219,7 @@ const AdminRequestsOversight = () => {
           {/* Header Section */}
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Requests Oversight</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">Requests Oversight</h1>
               <span className="text-sm text-slate-500 mt-1 block">
                 Monitor approval bottlenecks, review pending filings, and ping approvers.
               </span>
@@ -227,7 +227,7 @@ const AdminRequestsOversight = () => {
             <Button 
               variant="outline" 
               asChild
-              className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+              className="w-full md:w-auto border-brand-primary/20 hover:text-brand-primary text-brand-primary/70 font-semibold shadow-sm transition-all"
             >
               <Link 
                 to="/adminReports" 
@@ -241,78 +241,78 @@ const AdminRequestsOversight = () => {
           {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
             {/* Card 1: Total Pending Requests */}
-            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                      <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Total Pending Requests</p>
+                      <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Total Pending Requests</p>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           Total requests currently awaiting supervisor recommendation or final admin approval.
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-[#2A174E]">{requests.length}</p>
+                    <p className="text-4xl font-bold text-brand-primary">{requests.length}</p>
                   </div>
-                  <p className="text-xs text-[#2A174E]/70 italic mt-4">Actionable pending queue</p>
+                  <p className="text-xs text-brand-primary/70 italic mt-4">Actionable pending queue</p>
                 </div>
-                <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                   <HourglassEmptyIcon className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
 
             {/* Card 2: Awaiting Recommendation */}
-            <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                      <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Awaiting Recommendation</p>
+                      <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Awaiting Recommendation</p>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           Requests waiting for direct supervisor recommendation.
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-[#3B4E17]">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
+                    <p className="text-4xl font-bold text-accent-green">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
                   </div>
-                  <p className="text-xs text-[#3B4E17]/70 italic mt-4">Pending direct supervisor action</p>
+                  <p className="text-xs text-accent-green/70 italic mt-4">Pending direct supervisor action</p>
                 </div>
-                <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                   <GroupIcon className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
 
             {/* Card 3: Awaiting Final Approval */}
-            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                      <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Awaiting Final Approval</p>
+                      <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Awaiting Final Approval</p>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           Recommended requests waiting for final administrative sign-off.
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-[#BB8B26]">{requests.filter((r) => r.emp_reqStatusId === 4).length}</p>
+                    <p className="text-4xl font-bold text-accent-gold">{requests.filter((r) => r.emp_reqStatusId === 4).length}</p>
                   </div>
-                  <p className="text-xs text-[#BB8B26]/70 italic mt-4">Pending Admin sign-off</p>
+                  <p className="text-xs text-accent-gold/70 italic mt-4">Pending Admin sign-off</p>
                 </div>
-                <div className="bg-[#BB8B26]/10 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <div className="bg-accent-gold/10 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                   <AccessTimeIcon className="h-6 w-6" />
                 </div>
               </CardContent>
@@ -331,7 +331,7 @@ const AdminRequestsOversight = () => {
                   placeholder="Search Employee Name or REQ ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                  className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
                 />
               </div>
               
@@ -401,7 +401,7 @@ const AdminRequestsOversight = () => {
             {/* Left: Request Queue */}
             <Card className="w-full lg:w-1/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-0">
               <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                <h3 className="font-bold text-[#2A174E] text-base">Oversight Queue</h3>
+                <h3 className="font-bold text-brand-primary text-base">Oversight Queue</h3>
                 <Badge variant="secondary" className="bg-white border-slate-200 text-slate-700 font-semibold px-2.5 py-0.5">
                   {totalItems} Actionable
                 </Badge>
@@ -422,7 +422,7 @@ const AdminRequestsOversight = () => {
                       <div
                         key={req.emp_reqId}
                         onClick={() => setSelectedReqId(req.emp_reqId)}
-                        className={`p-4 border rounded-xl cursor-pointer transition-all relative overflow-hidden ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
+                        className={`p-4 border rounded-xl cursor-pointer transition-all relative overflow-hidden ${isSelected ? "bg-brand-primary-light border-brand-primary shadow-sm" : "border-slate-200 bg-white hover:border-brand-primary/50"}`}
                       >
                         {isNotified && (
                           <div className="absolute top-0 right-0 w-2 h-full bg-green-500" title="Reminder Sent" />
@@ -455,7 +455,7 @@ const AdminRequestsOversight = () => {
                     <div className="bg-green-100 text-green-600 p-4 rounded-full mb-4">
                       <CheckCircleOutlineIcon className="h-8 w-8" />
                     </div>
-                    <h5 className="font-bold text-[#2A174E] text-lg mb-2">Zero Bottlenecks</h5>
+                    <h5 className="font-bold text-brand-primary text-lg mb-2">Zero Bottlenecks</h5>
                     <p className="text-sm text-slate-500 max-w-[200px]">
                       {isFiltering 
                         ? "No pending requests match your active filters." 
@@ -487,7 +487,7 @@ const AdminRequestsOversight = () => {
                     {/* Header / Primary Action Area */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
                       <div>
-                        <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {current.reqTypeName}</h3>
+                        <h3 className="text-xl md:text-2xl font-bold text-brand-primary">Review {current.reqTypeName}</h3>
                         <p className="text-sm text-slate-500 mt-1">Submitted by <span className="font-semibold text-slate-700">{current.userName}</span> on {new Date(current.date_Filed).toLocaleDateString()}</p>
                       </div>
                       
@@ -498,7 +498,7 @@ const AdminRequestsOversight = () => {
                           </Button>
                         ) : (
                           <Button 
-                            className="w-full md:w-auto bg-[#2A174E] hover:bg-[#1f1138] text-white font-semibold shadow-md transition-all hover:shadow-lg" 
+                            className="w-full md:w-auto bg-brand-primary hover:bg-[#1f1138] text-white font-semibold shadow-md transition-all hover:shadow-lg" 
                             onClick={() => handleNotifyApprover(current.emp_reqId, current.emp_reqStatusId)}
                           >
                             <NotificationsActiveIcon className="mr-2 h-4 w-4 animate-pulse" /> Ping Approver
@@ -530,7 +530,7 @@ const AdminRequestsOversight = () => {
 
                       <div className="space-y-1 sm:col-span-2 xl:col-span-1 p-3 -m-3 rounded-lg">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Requested Schedule</label>
-                        <p className="font-bold text-[#2A174E]">{getDates(current)}</p>
+                        <p className="font-bold text-brand-primary">{getDates(current)}</p>
                       </div>
 
                       <div className="space-y-1">
@@ -598,7 +598,7 @@ const AdminRequestsOversight = () => {
                                   setViewingFileName(`Attachment for REQ-${current.emp_reqId}`);
                                   setIsFileViewerOpen(true);
                                 }}
-                                className="inline-flex items-center text-[#2A174E] font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
+                                className="inline-flex items-center text-brand-primary font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
                               >
                                 <AttachmentIcon className="mr-1 h-4 w-4" /> View Primary Document (Medical / Proof File)
                               </button>
@@ -643,7 +643,7 @@ const AdminRequestsOversight = () => {
                           value={adminNote}
                           onChange={(e) => setAdminNote(e.target.value)}
                           placeholder="e.g., 'Please review this urgently for payroll cut-off...'"
-                          className="h-20 resize-none focus-visible:ring-[#2A174E] bg-white border-slate-200"
+                          className="h-20 resize-none focus-visible:ring-brand-primary bg-white border-slate-200"
                         />
                       </div>
                     )}

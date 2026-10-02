@@ -677,7 +677,7 @@ const Edit = () => {
                         variant="ghost" 
                         size="icon" 
                         onClick={() => navigate(-1)} 
-                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E] hover:bg-slate-200/60 rounded-full h-10 w-10"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary hover:bg-slate-200/60 rounded-full h-10 w-10"
                       >
                         <ChevronLeft className="h-6 w-6" />
                       </Button>
@@ -689,27 +689,27 @@ const Edit = () => {
                 </Tooltip>
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Edit Profile | {formatUserId(userId)}</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Edit Profile | {formatUserId(userId)}</h1>
                 <span className="text-sm text-slate-500 mt-1 block">Update employee records, compensation, and security access.</span>
               </div>
             </div>
           </TooltipProvider>
-          <Button onClick={handleSubmit} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm h-11 px-6">
+          <Button onClick={handleSubmit} className="w-full md:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm h-11 px-6">
             Save Changes
           </Button>
         </div>
 
         <Tabs defaultValue="personal" className="w-full">
           <TabsList className={`grid w-full ${isMaster ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1"} h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0 mb-6`}>
-            <TabsTrigger value="personal" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
+            <TabsTrigger value="personal" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
               Personal Information
             </TabsTrigger>
             {isMaster && (
               <>
-                <TabsTrigger value="employment" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
+                <TabsTrigger value="employment" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
                   Employment & Comp
                 </TabsTrigger>
-                <TabsTrigger value="security" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
+                <TabsTrigger value="security" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
                   Security & Hardware
                 </TabsTrigger>
               </>
@@ -721,7 +721,7 @@ const Edit = () => {
             <div className="space-y-6">
               <Card className="shadow-sm border-0 bg-white">
                 <CardHeader className="border-b border-slate-100 pb-4">
-                  <CardTitle className="text-lg text-[#2A174E]">Personal Details</CardTitle>
+                  <CardTitle className="text-lg text-brand-primary">Personal Details</CardTitle>
                   <CardDescription>Basic contact and identity information.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-6">
@@ -741,7 +741,7 @@ const Edit = () => {
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full bg-[#2A174E] flex items-center justify-center text-white text-3xl font-bold tracking-wider select-none">
+                          <div className="w-full h-full bg-brand-primary flex items-center justify-center text-white text-3xl font-bold tracking-wider select-none">
                             {((formData.user_FirstName?.trim().charAt(0) || "") + (formData.user_LastName?.trim().charAt(0) || "")).toUpperCase() || "U"}
                           </div>
                         )}
@@ -784,7 +784,7 @@ const Edit = () => {
                           <button
                             type="button"
                             onClick={() => setIsFileViewerOpen(true)}
-                            className="text-[10px] text-[#2A174E] font-bold hover:underline"
+                            className="text-[10px] text-brand-primary font-bold hover:underline"
                           >
                             View Full Photo
                           </button>
@@ -796,42 +796,42 @@ const Edit = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full md:w-3/4">
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">First Name <span className="text-red-500">*</span></Label>
-                        <Input name="user_FirstName" value={formData.user_FirstName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        <Input name="user_FirstName" value={formData.user_FirstName} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
                         {renderError("user_FirstName")}
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Middle Name</Label>
-                        <Input name="user_MiddleName" placeholder="Optional" value={formData.user_MiddleName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        <Input name="user_MiddleName" placeholder="Optional" value={formData.user_MiddleName} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
                         {renderError("user_MiddleName")}
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Last Name <span className="text-red-500">*</span></Label>
-                        <Input name="user_LastName" value={formData.user_LastName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        <Input name="user_LastName" value={formData.user_LastName} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
                         {renderError("user_LastName")}
                       </div>
                       <div className="space-y-2 sm:col-span-1">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address <span className="text-red-500">*</span></Label>
-                        <Input name="user_Email" type="email" value={formData.user_Email} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        <Input name="user_Email" type="email" value={formData.user_Email} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
                         {renderError("user_Email")}
                       </div>
                       <div className="space-y-2 sm:col-span-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number <span className="text-red-500">*</span></Label>
-                        <Input name="user_Phone" value={formData.user_Phone} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        <Input name="user_Phone" value={formData.user_Phone} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
                         {renderError("user_Phone")}
                       </div>
                       <div className="space-y-2 sm:col-span-3">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address</Label>
-                        <Input name="user_Address" value={formData.user_Address} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        <Input name="user_Address" value={formData.user_Address} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
                         {renderError("user_Address")}
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date of Birth</Label>
-                        <Input name="user_DOB" type="date" value={formData.user_DOB} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]"/>
+                        <Input name="user_DOB" type="date" value={formData.user_DOB} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Gender</Label>
                         <Select value={formData.user_Gender} onValueChange={(val) => handleSelectChange("user_Gender", val)}>
-                          <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                          <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
                             <SelectValue placeholder="Select Gender" />
                           </SelectTrigger>
                           <SelectContent>
@@ -844,7 +844,7 @@ const Edit = () => {
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Civil Status</Label>
                         <Select value={formData.civil_status} onValueChange={(val) => handleSelectChange("civil_status", val)}>
-                          <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                          <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
                             <SelectValue placeholder="Select Status" />
                           </SelectTrigger>
                           <SelectContent>
@@ -861,7 +861,7 @@ const Edit = () => {
                           id="is_solo_parent" 
                           checked={formData.is_solo_parent} 
                           onChange={(e) => handleSelectChange("is_solo_parent", e.target.checked)}
-                          className="h-4 w-4 text-[#2A174E] focus:ring-[#2A174E] border-gray-300 rounded cursor-pointer"
+                          className="h-4 w-4 text-brand-primary focus:ring-brand-primary border-gray-300 rounded cursor-pointer"
                         />
                         <Label htmlFor="is_solo_parent" className="text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer">Solo Parent</Label>
                       </div>
@@ -875,14 +875,14 @@ const Edit = () => {
               {!isMaster && (
                 <Card className="shadow-sm border-0 bg-white">
                   <CardHeader className="border-b border-slate-100 pb-4">
-                    <CardTitle className="text-lg text-[#2A174E]">Bank Details</CardTitle>
+                    <CardTitle className="text-lg text-brand-primary">Bank Details</CardTitle>
                     <CardDescription>Payout information.</CardDescription>
                   </CardHeader>
                   <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bank Company <span className="text-red-500">*</span></Label>
                       <Select value={formData.bank_Company} onValueChange={(val) => handleSelectChange("bank_Company", val)}>
-                        <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
                           <SelectValue placeholder="Select Bank" />
                         </SelectTrigger>
                         <SelectContent>
@@ -895,13 +895,13 @@ const Edit = () => {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Name <span className="text-red-500">*</span></Label>
-                      <Input name="bank_AccountName" placeholder="Juan Dela Cruz" value={formData.bank_AccountName} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E]" />
+                      <Input name="bank_AccountName" placeholder="Juan Dela Cruz" value={formData.bank_AccountName} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary" />
                       {renderError("bank_AccountName")}
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Number <span className="text-red-500">*</span></Label>
                       <div className="relative">
-                        <Input name="account_Number" type={showAccountNumber ? "text" : "password"} placeholder="e.g. 00123456789" value={formData.account_Number} onChange={handleChange} className="pr-10 border-slate-200 focus-visible:ring-[#2A174E] font-mono" />
+                        <Input name="account_Number" type={showAccountNumber ? "text" : "password"} placeholder="e.g. 00123456789" value={formData.account_Number} onChange={handleChange} className="pr-10 border-slate-200 focus-visible:ring-brand-primary font-mono" />
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600" onClick={() => setShowAccountNumber(!showAccountNumber)}>
                           {showAccountNumber ? <VisibilityOffIcon fontSize="small"/> : <VisibilityIcon fontSize="small"/>}
                         </div>
@@ -919,7 +919,7 @@ const Edit = () => {
             <div className="space-y-6">
               <Card className="shadow-sm border-0 bg-white">
                 <CardHeader className="border-b border-slate-100 pb-4">
-                  <CardTitle className="text-lg text-[#2A174E]">Role & Status</CardTitle>
+                  <CardTitle className="text-lg text-brand-primary">Role & Status</CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <div className="space-y-2">
@@ -940,7 +940,7 @@ const Edit = () => {
                       />
                     ) : (
                       <Select value={formData.user_Role} onValueChange={(val) => handleSelectChange("user_Role", val)}>
-                        <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                        <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
                           <SelectValue placeholder="Select Role" />
                         </SelectTrigger>
                         <SelectContent>
@@ -956,7 +956,7 @@ const Edit = () => {
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employment Status <span className="text-red-500">*</span></Label>
                     <Select value={formData.user_EmploymentStatus} onValueChange={(val) => handleSelectChange("user_EmploymentStatus", val)}>
-                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
                         <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -973,7 +973,7 @@ const Edit = () => {
                       value={(!enableNightShift && formData.user_ShiftId === 2 ? "1" : (formData.user_ShiftId?.toString() || "1"))} 
                       onValueChange={(val) => handleSelectChange("user_ShiftId", parseInt(val))}
                     >
-                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
                         <SelectValue placeholder="Select Shift" />
                       </SelectTrigger>
                       <SelectContent>
@@ -995,7 +995,7 @@ const Edit = () => {
                         setFormData(prev => ({ ...prev, department: val, position: "", position_id: "" }));
                       }}
                     >
-                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
                         <SelectValue placeholder="Select Department" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1026,7 +1026,7 @@ const Edit = () => {
                       }}
                       disabled={!formData.department}
                     >
-                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
                         <SelectValue placeholder={formData.department ? "Select Position" : "Select Dept First"} />
                       </SelectTrigger>
                       <SelectContent>
@@ -1056,7 +1056,7 @@ const Edit = () => {
                         type="date" 
                         value={formData.hireDate} 
                         onChange={handleChange} 
-                        className="border-slate-200 focus-visible:ring-[#2A174E]"
+                        className="border-slate-200 focus-visible:ring-brand-primary"
                       />
                     ) : (
                       <Input 
@@ -1074,7 +1074,7 @@ const Edit = () => {
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tax Status</Label>
                     <Select value={formData.taxStatus} onValueChange={(val) => handleSelectChange("taxStatus", val)}>
-                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
                         <SelectValue placeholder="Select Tax Status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1089,7 +1089,7 @@ const Edit = () => {
                   {isAdmin && (
                     <div className="space-y-2 sm:col-span-3 bg-purple-50/70 p-4 rounded-xl border border-purple-100 flex items-center justify-between mt-1">
                       <div>
-                        <Label htmlFor="is_time_exempt" className="text-sm font-bold text-[#2A174E] cursor-pointer">
+                        <Label htmlFor="is_time_exempt" className="text-sm font-bold text-brand-primary cursor-pointer">
                           Attendance Time Exemption
                         </Label>
                         <p className="text-xs text-slate-500 mt-0.5">
@@ -1109,7 +1109,7 @@ const Edit = () => {
 
               <Card className="shadow-sm border-0 bg-white">
                 <CardHeader className="border-b border-slate-100 pb-4">
-                  <CardTitle className="text-lg text-[#2A174E]">Compensation & Deductions</CardTitle>
+                  <CardTitle className="text-lg text-brand-primary">Compensation & Deductions</CardTitle>
                   <CardDescription>Leave empty or 0 if not applicable.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
@@ -1117,7 +1117,7 @@ const Edit = () => {
                   {/* Daily Rate */}
                   <div className="space-y-2 sm:col-span-2 md:col-span-4 bg-slate-50 p-4 rounded-xl border border-slate-100 mb-2">
                     <Label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Base Daily Rate (₱)</Label>
-                    <Input name="dailyRate" type="number" step="0.01" value={formData.dailyRate} onChange={handleChange} className="border-slate-200 focus-visible:ring-[#2A174E] font-mono text-lg bg-white"/>
+                    <Input name="dailyRate" type="number" step="0.01" value={formData.dailyRate} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary font-mono text-lg bg-white"/>
                   </div>
 
                 </CardContent>
@@ -1125,7 +1125,7 @@ const Edit = () => {
 
               <Card className="shadow-sm border-0 bg-white">
                 <CardHeader className="border-b border-slate-100 pb-4">
-                  <CardTitle className="text-lg text-[#2A174E]">Bank & Payroll Details</CardTitle>
+                  <CardTitle className="text-lg text-brand-primary">Bank & Payroll Details</CardTitle>
                   <CardDescription>Configure payout destination.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -1133,7 +1133,7 @@ const Edit = () => {
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bank Company <span className="text-red-500">*</span></Label>
                     <Select value={formData.bank_Company} onValueChange={(val) => handleSelectChange("bank_Company", val)}>
-                      <SelectTrigger className="border-slate-200 focus-visible:ring-[#2A174E]">
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
                         <SelectValue placeholder="Select Bank" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1152,7 +1152,7 @@ const Edit = () => {
                       placeholder="Juan Dela Cruz" 
                       value={formData.bank_AccountName} 
                       onChange={handleChange} 
-                      className="border-slate-200 focus-visible:ring-[#2A174E]" 
+                      className="border-slate-200 focus-visible:ring-brand-primary" 
                     />
                     {renderError("bank_AccountName")}
                   </div>
@@ -1166,7 +1166,7 @@ const Edit = () => {
                         placeholder="e.g. 00123456789" 
                         value={formData.account_Number} 
                         onChange={handleChange} 
-                        className="pr-10 border-slate-200 focus-visible:ring-[#2A174E]" 
+                        className="pr-10 border-slate-200 focus-visible:ring-brand-primary" 
                       />
                       <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowAccountNumber(!showAccountNumber)}>
                         {showAccountNumber ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
@@ -1184,7 +1184,7 @@ const Edit = () => {
           <TabsContent value="security">
             <Card className="shadow-sm border-0 bg-white">
               <CardHeader className="border-b border-slate-100 pb-4">
-                <CardTitle className="text-lg text-[#2A174E]">Security & Access Configuration</CardTitle>
+                <CardTitle className="text-lg text-brand-primary">Security & Access Configuration</CardTitle>
                 <CardDescription>Manage password and biometric hardware tokens.</CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-8">
@@ -1199,7 +1199,7 @@ const Edit = () => {
                         name="user_Password"
                         value={formData.user_Password}
                         onChange={handleChange}
-                        className="pr-10 border-slate-200 focus-visible:ring-[#2A174E]"
+                        className="pr-10 border-slate-200 focus-visible:ring-brand-primary"
                       />
                       <div 
                         className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600" 
@@ -1233,7 +1233,7 @@ const Edit = () => {
                     )}
                   </div>
                   <div className="flex items-end">
-                    <Button variant="outline" onClick={generatePassword} className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-slate-50">
+                    <Button variant="outline" onClick={generatePassword} className="w-full sm:w-auto border-brand-primary text-brand-primary hover:bg-slate-50">
                       <VpnKeyOutlinedIcon className="mr-2 h-4 w-4" /> Auto-Generate
                     </Button>
                   </div>
@@ -1245,12 +1245,12 @@ const Edit = () => {
                     <div className="flex justify-between items-start">
                       <div>
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">MaChip Hardware Token</Label>
-                        <p className="text-lg font-mono font-bold text-[#2A174E] mt-1 break-all">
+                        <p className="text-lg font-mono font-bold text-brand-primary mt-1 break-all">
                           {formData.user_MachipId || "Unlinked"}
                         </p>
                       </div>
                     </div>
-                    <Button onClick={handleScanRFID} className="w-full bg-[#2A174E] text-white hover:bg-[#1a0e30]">
+                    <Button onClick={handleScanRFID} className="w-full bg-brand-primary text-white hover:bg-brand-primary-hover">
                       Scan / Assign MaChip
                     </Button>
                   </div>
@@ -1259,12 +1259,12 @@ const Edit = () => {
                     <div className="flex justify-between items-start">
                       <div>
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fingerprint Template</Label>
-                        <p className="text-lg font-mono font-bold text-[#2A174E] mt-1 break-all">
+                        <p className="text-lg font-mono font-bold text-brand-primary mt-1 break-all">
                           {formData.user_FingerprintId || "Unenrolled"}
                         </p>
                       </div>
                     </div>
-                    <Button onClick={handleScanFingerprint} className="w-full bg-[#2A174E] text-white hover:bg-[#1a0e30]">
+                    <Button onClick={handleScanFingerprint} className="w-full bg-brand-primary text-white hover:bg-brand-primary-hover">
                       Enroll Fingerprint
                     </Button>
                   </div>
@@ -1284,7 +1284,7 @@ const Edit = () => {
         }}>
           <DialogContent className="sm:max-w-md bg-white border-0 shadow-2xl rounded-xl">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-[#2A174E]">Verify Role Elevation</DialogTitle>
+              <DialogTitle className="text-xl font-bold text-brand-primary">Verify Role Elevation</DialogTitle>
               <DialogDescription className="text-slate-500 mt-2 leading-relaxed">
                 You are about to assign this user to <b>{formData.user_Role}</b>. This grants elevated administrative access. Please enter your account password to verify this action.
               </DialogDescription>
@@ -1297,7 +1297,7 @@ const Edit = () => {
                   placeholder="Enter your password..."
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
-                  className="h-12 border-slate-200 focus-visible:ring-[#2A174E]"
+                  className="h-12 border-slate-200 focus-visible:ring-brand-primary"
                   autoFocus
                 />
               </div>
@@ -1306,7 +1306,7 @@ const Edit = () => {
               <Button variant="outline" onClick={() => { setShowAdminConfirm(false); setAdminPassword(""); }} className="border-slate-200">
                 Cancel
               </Button>
-              <Button onClick={confirmAdminPromotion} className="bg-[#2A174E] hover:bg-[#1a0e30] text-white">
+              <Button onClick={confirmAdminPromotion} className="bg-brand-primary hover:bg-brand-primary-hover text-white">
                 Confirm Promotion
               </Button>
             </DialogFooter>

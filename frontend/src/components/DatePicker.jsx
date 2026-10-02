@@ -77,7 +77,7 @@ export const DatePicker = ({
           type="button"
           onClick={() => handleDateSelect(d)}
           className={`h-8 w-8 flex items-center justify-center rounded-full text-xs font-bold transition-all
-            ${isSelected ? "bg-[#2A174E] text-white shadow-md" : 
+            ${isSelected ? "bg-brand-primary text-white shadow-md" : 
               isToday ? "bg-orange-100 text-[#ff6d00]" : "text-gray-600 hover:bg-gray-100"}`}
         >
           {d}
@@ -88,11 +88,11 @@ export const DatePicker = ({
     return (
       <div className="p-4 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center mb-4">
-          <button type="button" onClick={() => changeMonth(-1)} className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-[#2A174E]">
+          <button type="button" onClick={() => changeMonth(-1)} className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-brand-primary">
             <ChevronLeftIcon fontSize="small" />
           </button>
-          <span className="text-sm font-black text-[#2A174E]">{monthName} {year}</span>
-          <button type="button" onClick={() => changeMonth(1)} className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-[#2A174E]">
+          <span className="text-sm font-black text-brand-primary">{monthName} {year}</span>
+          <button type="button" onClick={() => changeMonth(1)} className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-brand-primary">
             <ChevronRightIcon fontSize="small" />
           </button>
         </div>
@@ -113,9 +113,9 @@ export const DatePicker = ({
       {label && <label className="block text-sm font-bold text-gray-600 mb-1 ml-1">{label}</label>}
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-2xl cursor-pointer hover:border-[#2A174E] transition-all group"
+        className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-2xl cursor-pointer hover:border-brand-primary transition-all group"
       >
-        <CalendarMonthIcon className="!text-[20px] text-gray-400 group-hover:text-[#2A174E]" />
+        <CalendarMonthIcon className="!text-[20px] text-gray-400 group-hover:text-brand-primary" />
         <span className={`text-sm font-medium flex-1 ${value ? "text-gray-900" : "text-gray-400"}`}>
           {value ? formatDate(value) : placeholder}
         </span>
@@ -171,7 +171,7 @@ export const DateRangePicker = ({
     <div className={`relative ${className}`} ref={containerRef}>
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 px-4 py-2.5 bg-white border border-gray-200 rounded-xl cursor-pointer hover:border-[#2A174E] transition-all"
+        className="flex items-center gap-3 px-4 py-2.5 bg-white border border-gray-200 rounded-xl cursor-pointer hover:border-brand-primary transition-all"
       >
         <CalendarMonthIcon className="text-gray-400 !text-[20px]" />
         <span className="text-[13px] font-bold text-gray-700">

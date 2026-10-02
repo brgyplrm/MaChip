@@ -39,7 +39,7 @@ export default function LoanDetailsPage() {
     const formatCurrency = (val) => `₱${parseFloat(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const colorMap = {
-      "[#2A174E]": "border-[#2A174E]",
+      "brand-primary": "border-brand-primary",
       "emerald-500": "border-emerald-500",
       "rose-500": "border-rose-500",
       "amber-500": "border-amber-500",
@@ -64,7 +64,7 @@ export default function LoanDetailsPage() {
                             {metricTooltipMap[label] && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                                     </TooltipTrigger>
                                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-[10px]">
                                         {metricTooltipMap[label]}
@@ -72,7 +72,7 @@ export default function LoanDetailsPage() {
                                 </Tooltip>
                             )}
                         </div>
-                        <p className="text-2xl font-black text-[#2A174E]">{value}</p>
+                        <p className="text-2xl font-black text-brand-primary">{value}</p>
                     </div>
                     <p className="text-[10px] text-slate-500 italic mt-4">{description}</p>
                 </CardContent>
@@ -81,7 +81,7 @@ export default function LoanDetailsPage() {
     }
 
     const StyledCardHeader = ({ title, icon: Icon }) => (
-        <CardHeader className="border-b border-slate-50 py-4 bg-[#2A174E]">
+        <CardHeader className="border-b border-slate-50 py-4 bg-brand-primary">
             <CardTitle className="text-sm flex items-center gap-2 text-white font-bold uppercase tracking-tight">
                 <Icon className="h-4 w-4" /> {title}
             </CardTitle>
@@ -92,7 +92,7 @@ export default function LoanDetailsPage() {
         return (
             <div className="space-y-1 text-left">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</label>
-                <div className="text-sm font-bold text-[#2A174E]">{value}</div>
+                <div className="text-sm font-bold text-brand-primary">{value}</div>
             </div>
         );
     }
@@ -284,7 +284,7 @@ export default function LoanDetailsPage() {
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <span className="inline-block">
-                                            <Button variant="ghost" size="icon" asChild className="text-[#2A174E]">
+                                            <Button variant="ghost" size="icon" asChild className="text-brand-primary">
                                                 <Link to="/loanManagement"><ChevronLeft className="h-6 w-6" /></Link>
                                             </Button>
                                         </span>
@@ -295,7 +295,7 @@ export default function LoanDetailsPage() {
                                 </Tooltip>
                             </div>
                             <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out text-left">
-                                <h1 className="text-2xl font-black text-[#2A174E] tracking-tight uppercase">{loan.notes || 'Loan Details'}</h1>
+                                <h1 className="text-2xl font-black text-brand-primary tracking-tight uppercase">{loan.notes || 'Loan Details'}</h1>
                                 <p className="text-slate-400 font-mono text-[10px] font-bold uppercase tracking-widest">Agreement ID: L-{id}</p>
                             </div>
                         </div>
@@ -306,7 +306,7 @@ export default function LoanDetailsPage() {
                                         <Button 
                                             onClick={handleExportPDF}
                                             variant="outline" 
-                                            className="border-[#2A174E]/20 text-[#2A174E] font-bold h-9 text-xs"
+                                            className="border-brand-primary/20 text-brand-primary font-bold h-9 text-xs"
                                         >
                                           <Download className="mr-2 h-4 w-4" /> Export Ledger
                                         </Button>
@@ -330,7 +330,7 @@ export default function LoanDetailsPage() {
                         <MetricCard
                             label="Initial Principal"
                             value={formatCurrency(loan.totalAmount)}
-                            color="[#2A174E]"
+                            color="brand-primary"
                             description="Total disbursed amount" />
                         <MetricCard
                             label="Amount Collected"
@@ -405,7 +405,7 @@ export default function LoanDetailsPage() {
                                                 onClick={() => setSelectedYear(yr)}
                                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                                     isSelected
-                                                        ? "bg-[#2A174E] text-white shadow-xs"
+                                                        ? "bg-brand-primary text-white shadow-xs"
                                                         : "text-slate-600 hover:text-slate-900 hover:bg-slate-300/50"
                                                 }`}
                                             >
@@ -419,7 +419,7 @@ export default function LoanDetailsPage() {
                                             onClick={() => setSelectedYear("ALL")}
                                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                                 activeDisplayYear === "ALL"
-                                                    ? "bg-[#2A174E] text-white shadow-xs"
+                                                    ? "bg-brand-primary text-white shadow-xs"
                                                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-300/50"
                                             }`}
                                         >
@@ -437,7 +437,7 @@ export default function LoanDetailsPage() {
                                     <div className="text-left">
                                         <div className="flex items-center gap-2">
                                             <Clock className="h-5 w-5 text-indigo-600" />
-                                            <h2 className="font-black text-[#2A174E] text-base uppercase tracking-wider">
+                                            <h2 className="font-black text-brand-primary text-base uppercase tracking-wider">
                                                 Repayment Timeline
                                             </h2>
                                         </div>
@@ -447,7 +447,7 @@ export default function LoanDetailsPage() {
                                     </div>
 
                                     {/* Summary Badge */}
-                                    <Badge className="bg-[#2A174E]/10 text-[#2A174E] border-0 font-mono font-bold text-xs px-3 py-1.5 self-start md:self-auto">
+                                    <Badge className="bg-brand-primary/10 text-brand-primary border-0 font-mono font-bold text-xs px-3 py-1.5 self-start md:self-auto">
                                         {paidPercentage.toFixed(1)}% Amortized ({installmentsPaid} of {totalInstallments} Cutoffs)
                                     </Badge>
                                 </div>
@@ -509,7 +509,7 @@ export default function LoanDetailsPage() {
                                                         <span className="text-[10px] font-bold font-mono">Q{q.quarter}</span>
                                                     )}
                                                 </div>
-                                                <p className="font-black text-xs text-[#2A174E] whitespace-nowrap uppercase tracking-tight">
+                                                <p className="font-black text-xs text-brand-primary whitespace-nowrap uppercase tracking-tight">
                                                     {q.shortLabel || `Q${q.quarter}`} {activeDisplayYear === "ALL" ? `'${String(q.year).slice(-2)}` : ""}
                                                 </p>
                                                 <p className="text-[10px] text-slate-500 font-bold font-mono mt-0.5 whitespace-nowrap">
@@ -534,7 +534,7 @@ export default function LoanDetailsPage() {
 
                         <TabsContent value="amortization" className="mt-4">
                             <Card className="border-0 shadow-sm overflow-hidden py-0 rounded-xl bg-white text-left">
-                                <div className="bg-[#2A174E] p-4 text-white font-black text-xs uppercase tracking-widest flex justify-between items-center">
+                                <div className="bg-brand-primary p-4 text-white font-black text-xs uppercase tracking-widest flex justify-between items-center">
                                     <span>Full Amortization Ledger</span>
                                     <Badge className="bg-white/20 text-white border-0 text-[9px] uppercase">{loan.schedule?.length || 0} Installments</Badge>
                                 </div>
@@ -542,13 +542,13 @@ export default function LoanDetailsPage() {
                                     <Table>
                                         <TableHeader className="bg-slate-50/50 [&_tr]:border-0">
                                             <TableRow>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-left">#</TableHead>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-left">Due Date</TableHead>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-right">Principal</TableHead>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-right">Interest</TableHead>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-right">Total Pay</TableHead>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-right pr-8">Balance</TableHead>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-center">Status</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-left">#</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-left">Due Date</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-right">Principal</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-right">Interest</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-right">Total Pay</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-right pr-8">Balance</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-center">Status</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -574,7 +574,7 @@ export default function LoanDetailsPage() {
                                                           <FileText className="h-6 w-6 text-slate-200" />
                                                         </div>
                                                         <div className="space-y-1">
-                                                          <p className="font-black text-[#2A174E] text-xs uppercase tracking-wider">No Amortization Schedule Found</p>
+                                                          <p className="font-black text-brand-primary text-xs uppercase tracking-wider">No Amortization Schedule Found</p>
                                                           <p className="text-[10px] text-slate-400">The ledger for this loan has not been generated or is unavailable.</p>
                                                         </div>
                                                       </div>
@@ -598,7 +598,7 @@ export default function LoanDetailsPage() {
 
                         <TabsContent value="history" className="mt-4">
                             <Card className="border-0 shadow-sm overflow-hidden py-0 rounded-xl bg-white text-left">
-                                <div className="bg-[#2A174E] p-4 text-white font-black text-xs uppercase tracking-widest flex justify-between items-center">
+                                <div className="bg-brand-primary p-4 text-white font-black text-xs uppercase tracking-widest flex justify-between items-center">
                                     <span>Payment Collection History</span>
                                     <Badge className="bg-emerald-500 text-white border-0 text-[9px] uppercase">{loan.history?.length || 0} Collected</Badge>
                                 </div>
@@ -606,10 +606,10 @@ export default function LoanDetailsPage() {
                                     <Table>
                                         <TableHeader className="bg-slate-50/50 [&_tr]:border-0">
                                             <TableRow>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-left">Payment Ref</TableHead>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-left">Collection Date</TableHead>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-right pr-8">Amount</TableHead>
-                                                <TableHead className="font-black text-[#2A174E] py-4 uppercase text-[10px] tracking-wider text-center">Method</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-left">Payment Ref</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-left">Collection Date</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-right pr-8">Amount</TableHead>
+                                                <TableHead className="font-black text-brand-primary py-4 uppercase text-[10px] tracking-wider text-center">Method</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -628,7 +628,7 @@ export default function LoanDetailsPage() {
                                                           <DollarSign className="h-6 w-6 text-slate-200" />
                                                         </div>
                                                         <div className="space-y-1">
-                                                          <p className="font-black text-[#2A174E] text-xs uppercase tracking-wider">No payments collected yet</p>
+                                                          <p className="font-black text-brand-primary text-xs uppercase tracking-wider">No payments collected yet</p>
                                                           <p className="text-[10px] text-slate-400">Deductions will appear here once payroll is released.</p>
                                                         </div>
                                                       </div>

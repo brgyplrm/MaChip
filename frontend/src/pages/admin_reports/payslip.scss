@@ -1,5 +1,5 @@
 /* src/pages/adminReports/payslip.scss */
-$primary-purple: #2A174E;
+$primary-purple: var(--color-brand-primary);
 
 .payslipPage {
   display: flex;
@@ -29,8 +29,8 @@ $primary-purple: #2A174E;
 
       .titleWithBack {
         display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
-        .backLink { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background-color: transparent; color: #2A174E; transition: all 0.2s ease; text-decoration: none; &:hover { background-color: #f0ebfa; transform: translateX(-3px); } .backIcon { font-size: 22px; } }
-        h1 { font-size: 24px; font-weight: 700; color: #2A174E; margin-bottom: 4px; @media (max-width: 480px){ font-size: 20px;} }
+        .backLink { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background-color: transparent; color: var(--color-brand-primary); transition: all 0.2s ease; text-decoration: none; &:hover { background-color: var(--color-brand-primary-light); transform: translateX(-3px); } .backIcon { font-size: 22px; } }
+        h1 { font-size: 24px; font-weight: 700; color: var(--color-brand-primary); margin-bottom: 4px; @media (max-width: 480px){ font-size: 20px;} }
       }
 
       .downloadBtn {
@@ -169,7 +169,7 @@ $primary-purple: #2A174E;
     }
 
     h2 {
-      color: #2A174E;
+      color: var(--color-brand-primary);
       font-size: 24px;
       margin-bottom: 15px;
     }
@@ -215,7 +215,7 @@ $primary-purple: #2A174E;
       }
 
       .reportBtn {
-        background: #2A174E;
+        background: var(--color-brand-primary);
         color: white;
         border: none;
 

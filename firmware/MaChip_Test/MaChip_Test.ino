@@ -37,6 +37,8 @@ String enrollmentType = "FP";
 unsigned long fpEnrollStart = 0;
 
 String pendingUID = "";
+String pendingName = "";
+int last2FACountdownSec = -1;
 unsigned long pendingStart = 0;
 int pendingExpectedFingerID = -1;
 int pendingExpectedFingerID2 = -1;
@@ -45,6 +47,7 @@ uint32_t pendingCardCounter = 0;
 BackendQueue queuedTransaction = {"", "", "", 0, false};
 bool webServerStarted = false;
 bool otaInitialized = false;
+bool isFrontDisplayInReady = false;
 
 String webLogBuffer[LOG_MAX_ENTRIES];
 int logHead = 0;
@@ -53,8 +56,17 @@ int logCount = 0;
 // ── INITIALIZATION ────────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-  Serial.println(F("\n\n[SYSTEM] MAChip Booting Architecture..."));
+  delay(500);
+  Serial.println();
+  Serial.println(F("=========================================================="));
+  Serial.println(F(" [MACHIP] CTPAT ATTENDANCE ARCHITECTURE"));
+  Serial.println(" [+] Version:   " + String(FIRMWARE_VERSION));
+  Serial.println(" [+] Compiled:  " + String(BUILD_TIMESTAMP));
+  Serial.println(F(" [*] Security:  Sector 1 MACJ Key A | Rolling Code Anti-Replay"));
+  Serial.println(F("=========================================================="));
+  sysLog(F("[SYSTEM] MAChip Booting Architecture..."));
+  sysLog(" [+] Version:  " + String(FIRMWARE_VERSION));
+  sysLog(" [+] Compiled: " + String(BUILD_TIMESTAMP));
   
   // 1. Configure all Control, LED, Relay, and Chip-Select Pins
   pinMode(GREEN_LED, OUTPUT); 
@@ -86,6 +98,7 @@ void setup() {
   digitalWrite(TFT_CS, LOW);
   tft.init(240, 320);
   tft.setRotation(3);
+  tft.invertDisplay(TFT_INVERT_COLOR);
   digitalWrite(TFT_CS, HIGH);
 
   // 5. Init Back Display (0.96" OLED I2C)
@@ -139,21 +152,23 @@ void setup() {
 
   // 10. Comprehensive Hardware Self-Test Report
   sysLog(F("=========================================================="));
-  sysLog(F(" 🔍 MACHIP HARDWARE SELF-TEST DIAGNOSTICS"));
-  sysLog(" ├─ [OLED BACK]   " + String(oledOk ? "ONLINE (0x3C I2C)" : "FAILED/OFFLINE"));
-  sysLog(F(" ├─ [TFT FRONT]   INITIALIZED (ST7789 240x320 SPI CS:33)"));
-  sysLog(" ├─ [FP SENSOR]   " + String(fpOk ? "ONLINE (R307 UART2 RX:16 TX:17)" : "FAILED (Check RX:16 TX:17 5V GND)"));
+  sysLog(F(" [*] MACHIP HARDWARE SELF-TEST DIAGNOSTICS"));
+  sysLog("  +-- [OLED BACK]   " + String(oledOk ? "ONLINE (0x3C I2C)" : "FAILED/OFFLINE"));
+  sysLog(F("  +-- [TFT FRONT]   INITIALIZED (ST7789 240x320 SPI CS:33)"));
+  sysLog("  +-- [FP SENSOR]   " + String(fpOk ? "ONLINE (R307 UART2 RX:16 TX:17)" : "FAILED (Check RX:16 TX:17 5V GND)"));
   
-  if (vFront == 0x91 || vFront == 0x92) {
-    sysLog(" ├─ [RFID FRONT]  ONLINE (MFRC522 v0x" + String(vFront, HEX) + " CS:5 RST:32)");
+  bool isFrontOk = (vFront == 0x91 || vFront == 0x92 || vFront == 0x82 || vFront == 0x88 || vFront == 0x90);
+  if (isFrontOk) {
+    sysLog("  +-- [RFID FRONT]  ONLINE (MFRC522 v0x" + String(vFront, HEX) + " CS:5 RST:32)");
   } else {
-    sysLog(" ├─ [RFID FRONT]  [ERROR] FAILED! (Reg: 0x" + String(vFront, HEX) + " - Check CS:5, SCK:18, MOSI:23, MISO:19, RST:32)");
+    sysLog("  +-- [RFID FRONT]  [ERROR] FAILED! (Reg: 0x" + String(vFront, HEX) + " - Check CS:5, SCK:18, MOSI:23, MISO:19, RST:32)");
   }
 
-  if (vBack == 0x91 || vBack == 0x92) {
-    sysLog(" └─ [RFID BACK]   ONLINE (MFRC522 v0x" + String(vBack, HEX) + " CS:26 RST:4)");
+  bool isBackOk = (vBack == 0x91 || vBack == 0x92 || vBack == 0x82 || vBack == 0x88 || vBack == 0x90);
+  if (isBackOk) {
+    sysLog("  \\-- [RFID BACK]   ONLINE (MFRC522 v0x" + String(vBack, HEX) + " CS:26 RST:4)");
   } else {
-    sysLog(" └─ [RFID BACK]   [ERROR] FAILED! (Reg: 0x" + String(vBack, HEX) + " - Check CS:26, SCK:18, MOSI:23, MISO:19, RST:4)");
+    sysLog("  \\-- [RFID BACK]   [ERROR] FAILED! (Reg: 0x" + String(vBack, HEX) + " - Check CS:26, SCK:18, MOSI:23, MISO:19, RST:4)");
   }
   sysLog(F("=========================================================="));
   
@@ -170,6 +185,7 @@ void loop() {
 
   updateLEDs();
   updateSolenoid();
+  tickRfidPulseAnimation();
 
   if (WiFi.status() != WL_CONNECTED) {
     static unsigned long lastWiFiCheck = 0;
@@ -251,7 +267,7 @@ void loop() {
           updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
         }
         else if (type == "VISITOR_OPEN") {
-          Serial.println(F("[VISITOR] REMOTE UNLOCK TRIGGERED"));
+          sysLog(F("[VISITOR] REMOTE UNLOCK TRIGGERED"));
           updateFrontDisplay("VISITOR ACCESS", "Authorized Remote Open\nWelcome!", ST77XX_CYAN);
           updateBackDisplay("VISITOR", "Remote Authorized");
           
@@ -280,7 +296,7 @@ void loop() {
         else if (type == "DELETE_SLOT") {
           int targetSlot = doc["slotId"] | 0;
           if (targetSlot > 0) {
-            Serial.printf("[FP] CANCELLED ENROLLMENT: PURGING SLOT %d FROM R307 SENSOR...\n", targetSlot);
+            sysLog("[FP] CANCELLED ENROLLMENT: PURGING SLOT " + String(targetSlot) + " FROM R307 SENSOR...");
             updateFrontDisplay("ROLLBACK", "Purging cancelled slot " + String(targetSlot), ST77XX_YELLOW);
             if (finger.deleteModel(targetSlot) == FINGERPRINT_OK) {
               sysLog("[FP] Slot " + String(targetSlot) + " successfully deleted from R307 memory.");
@@ -306,6 +322,16 @@ void loop() {
           provideFeedback(WAITING_SCAN);
           updateFrontDisplay("ENROLL ACTIVE", "ID: " + enrollmentUserId + " | Mode: " + enrollmentType, ST77XX_ORANGE);
           updateBackDisplay("LOCKED", "Admin Management");
+
+          if (enrollmentType == "RFID") {
+            clearSpiBusPins();
+            SPI.setFrequency(4000000);
+            rfidIN.PCD_Init();
+            rfidIN.PCD_SetAntennaGain(rfidIN.RxGain_max);
+            rfidOUT.PCD_Init();
+            rfidOUT.PCD_SetAntennaGain(rfidOUT.RxGain_max);
+            clearSpiBusPins();
+          }
         }
       }
     }
@@ -314,12 +340,68 @@ void loop() {
 
   // ── ENROLLMENT PIPELINE: RFID CAPTURE ────────────────────────────
   if (enrollmentMode && enrollmentType == "RFID") {
+    // 1. Check for web app cancellation or mode switch during RFID enrollment
+    static unsigned long lastRFIDCheck = 0;
+    if (millis() - lastRFIDCheck > 1000) {
+      lastRFIDCheck = millis();
+      HTTPClient httpCheck;
+      httpCheck.begin(currentFpUrl + "/session");
+      httpCheck.setTimeout(1200);
+      signHttpRequest(httpCheck, "");
+      int cCode = httpCheck.GET();
+      if (cCode == 200) {
+        JsonDocument cDoc;
+        deserializeJson(cDoc, httpCheck.getString());
+        bool active = cDoc["active"] | false;
+        String cType = cDoc["type"] | "";
+        if (!active || cType != "RFID") {
+          sysLog("[RFID-CANCEL] Session cancelled or switched by web application (Type: " + cType + ", Active: " + String(active) + ")");
+          enrollmentMode = false;
+          setLED(LED_SLOW_BLINK, LED_OFF);
+          updateFrontDisplay("CANCELLED", "Enrollment Aborted", ST77XX_YELLOW);
+          delay(1000);
+          updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+          updateBackDisplay("READY", "Scan Card Out");
+          httpCheck.end();
+          return;
+        }
+      }
+      httpCheck.end();
+    }
+
+    // 2. Timeout protection: 30 seconds
+    if (millis() - fpEnrollStart > 30000) {
+      sysLog(F("[RFID-TIMEOUT] RFID enrollment timed out after 30s."));
+      enrollmentMode = false;
+      provideFeedback(ERROR_FAIL);
+      updateFrontDisplay("TIMEOUT", "RFID Scan Timed Out", ST77XX_RED);
+      delay(1500);
+      setLED(LED_SLOW_BLINK, LED_OFF);
+      updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+      updateBackDisplay("READY", "Scan Card Out");
+      return;
+    }
+
+    // 3. Check BOTH Front (rfidIN) and Back (rfidOUT) readers
     clearSpiBusPins();
-    if (rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial()) {
-      String cardUid = getUIDString(rfidIN);
-      rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
+    bool cardOnFront = rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial();
+    clearSpiBusPins();
+    bool cardOnBack = !cardOnFront && (rfidOUT.PICC_IsNewCardPresent() && rfidOUT.PICC_ReadCardSerial());
+    clearSpiBusPins();
+
+    if (cardOnFront || cardOnBack) {
+      MFRC522 &activeReader = cardOnFront ? rfidIN : rfidOUT;
+      String cardUid = getUIDString(activeReader);
+      uint32_t initCounter = readAndIncrementCardCounter(activeReader);
+      activeReader.PICC_HaltA(); activeReader.PCD_StopCrypto1();
       clearSpiBusPins();
       
+      sysLog("[ENROLL-RFID] Card detected on " + String(cardOnFront ? "FRONT" : "BACK") + " reader: " + cardUid);
+      if (initCounter > 0) {
+        sysLog("[ENROLL-RFID] Card provisioned with Sector 1 key. Initial Counter: " + String(initCounter));
+      } else {
+        sysLog(F("[ENROLL-RFID] Card UID registered (Sector 1 not provisioned)."));
+      }
       uploadEnrollment(enrollmentSlotId, true, enrollmentUserId, cardUid);
       provideFeedback(SUCCESS_OK);
       updateFrontDisplay("SUCCESS", "RFID Credential Active", ST77XX_GREEN);
@@ -332,6 +414,7 @@ void loop() {
       clearHttp.GET(); clearHttp.end();
       setLED(LED_SLOW_BLINK, LED_OFF);
       updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+      updateBackDisplay("READY", "Scan Card Out");
     }
   }
 
@@ -339,10 +422,11 @@ void loop() {
   else if (enrollmentMode && enrollmentType == "FP") {
     // Check for web app cancellation during enrollment
     static unsigned long lastFPCheck = 0;
-    if (millis() - lastFPCheck > 2000) {
+    if (millis() - lastFPCheck > 1000) {
       lastFPCheck = millis();
       HTTPClient httpCheck;
       httpCheck.begin(currentFpUrl + "/session");
+      httpCheck.setTimeout(1200);
       signHttpRequest(httpCheck, "");
       int cCode = httpCheck.GET();
       if (cCode == 200) {
@@ -542,13 +626,15 @@ void loop() {
           if (resDoc["success"] | false) {
             if (resDoc["mode"] == "WAITING_FOR_FINGERPRINT_2FA") {
               sysLog("[2FA] Challenge triggered for Card " + currentUID);
-              updateFrontDisplay("2FA CHALLENGE", "Scan biometric token now...", ST77XX_CYAN);
-              provideFeedback(WAITING_SCAN);
+              pendingName = resDoc["employeeName"] | resDoc["name"] | resDoc["userName"] | "Employee";
               pendingUID = currentUID;
               pendingCardCounter = cardCounter;
               pendingExpectedFingerID = resDoc["expectedFingerId"] | -1;
               pendingExpectedFingerID2 = resDoc["expectedFingerId2"] | -1;
               pendingStart = millis();
+              last2FACountdownSec = TIMEOUT_2FA / 1000;
+              draw2FAChallengeUI(pendingName, last2FACountdownSec);
+              provideFeedback(WAITING_SCAN);
             } else {
               String name = resDoc["employeeName"] | resDoc["name"] | "Employee";
               sysLog("[ACCESS APPROVED] Clocked in: " + name + " (" + currentUID + ")");
@@ -596,7 +682,14 @@ void loop() {
 
     // ── FRONT INTERFACE: BIOMETRIC MATCH EVALUATION ────────────────
     if (pendingUID != "") {
-      if (millis() - pendingStart < TIMEOUT_2FA) {
+      unsigned long elapsed = millis() - pendingStart;
+      if (elapsed < TIMEOUT_2FA) {
+        int secondsLeft = (TIMEOUT_2FA - elapsed + 999) / 1000;
+        if (secondsLeft != last2FACountdownSec) {
+          last2FACountdownSec = secondsLeft;
+          update2FACountdown(secondsLeft);
+        }
+
         int p = finger.getImage();
         if (p == FINGERPRINT_OK) {
           if (finger.image2Tz(1) == FINGERPRINT_OK) {
@@ -609,21 +702,24 @@ void loop() {
                 updateFrontDisplay("SECURITY FAULT", "Token ID Mismatch\nEvent Dispatched!", ST77XX_RED);
                 provideFeedback(ERROR_FAIL);
                 queueTransaction(pendingUID + "|" + String(finger.fingerID), "suspicious_biometric_fail", "FRONT");
-                pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
+                pendingUID = ""; pendingName = ""; last2FACountdownSec = -1;
+                pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
                 setLED(LED_SLOW_BLINK, LED_OFF);
               } else {
-                updateFrontDisplay("VERIFIED", "2FA Validated\nDoor Released", ST77XX_GREEN);
+                updateFrontDisplay("VERIFIED", (pendingName != "" ? pendingName + "\n" : "") + "Door Released", ST77XX_GREEN);
                 provideFeedback(SUCCESS_OK);
                 solenoidUnlock();
                 queueTransaction(pendingUID + "|" + String(finger.fingerID), "clock_in", "FRONT", pendingCardCounter);
-                pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
+                pendingUID = ""; pendingName = ""; last2FACountdownSec = -1;
+                pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
                 setLED(LED_SLOW_BLINK, LED_OFF);
               }
             } else {
               updateFrontDisplay("ACCESS FORBIDDEN", "Biometric Unknown", ST77XX_RED);
               provideFeedback(ERROR_FAIL);
               queueTransaction(pendingUID, "suspicious_biometric_fail", "FRONT");
-              pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
+              pendingUID = ""; pendingName = ""; last2FACountdownSec = -1;
+              pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
               setLED(LED_SLOW_BLINK, LED_OFF);
             }
           }
@@ -632,7 +728,8 @@ void loop() {
         updateFrontDisplay("TIMEOUT", "2FA Verification Timeout", ST77XX_RED);
         provideFeedback(ERROR_FAIL);
         queueTransaction(pendingUID, "unenrolled_card_attempt", "FRONT");
-        pendingUID = ""; pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
+        pendingUID = ""; pendingName = ""; last2FACountdownSec = -1;
+        pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
         setLED(LED_SLOW_BLINK, LED_OFF);
       }
     }

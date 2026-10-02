@@ -142,56 +142,56 @@ const RequestSummary = () => {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Request Data Summary</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">Request Data Summary</h1>
             <span className="text-sm text-slate-500 mt-1 block">Analyze and review the complete history of all user-filed requests</span>
           </div>
-          <Button onClick={handlePDFExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
+          <Button onClick={handlePDFExport} className="w-full md:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm">
             <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
           </Button>
         </div>
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider mb-2">Queue Total</p>
-                    <p className="text-4xl font-bold text-[#2A174E]">{stats.pending}</p>
+                    <p className="text-xs font-bold text-brand-primary uppercase tracking-wider mb-2">Queue Total</p>
+                    <p className="text-4xl font-bold text-brand-primary">{stats.pending}</p>
                   </div>
-                  <p className="text-xs text-[#2A174E]/70 italic mt-4">Active and recommended requests</p>
+                  <p className="text-xs text-brand-primary/70 italic mt-4">Active and recommended requests</p>
                 </div>
-                <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                   <HourglassEmptyIcon className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider mb-2">Approved History</p>
-                    <p className="text-4xl font-bold text-[#3B4E17]">{stats.approved}</p>
+                    <p className="text-xs font-bold text-accent-green uppercase tracking-wider mb-2">Approved History</p>
+                    <p className="text-4xl font-bold text-accent-green">{stats.approved}</p>
                   </div>
-                  <p className="text-xs text-[#3B4E17]/70 italic mt-4">Total processed and accepted</p>
+                  <p className="text-xs text-accent-green/70 italic mt-4">Total processed and accepted</p>
                 </div>
-                <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                   <CheckCircleOutlineIcon className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider mb-2">Rejected Records</p>
-                    <p className="text-4xl font-bold text-[#BB8B26]">{stats.rejected}</p>
+                    <p className="text-xs font-bold text-accent-gold uppercase tracking-wider mb-2">Rejected Records</p>
+                    <p className="text-4xl font-bold text-accent-gold">{stats.rejected}</p>
                   </div>
-                  <p className="text-xs text-[#BB8B26]/70 italic mt-4">Declined historical records</p>
+                  <p className="text-xs text-accent-gold/70 italic mt-4">Declined historical records</p>
                 </div>
-                <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                   <CancelOutlinedIcon className="h-6 w-6" />
                 </div>
               </CardContent>
@@ -208,7 +208,7 @@ const RequestSummary = () => {
                 placeholder="Search by ID, Name, or Request Type..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
               />
             </div>
 
@@ -276,7 +276,7 @@ const RequestSummary = () => {
                 <div className="p-12 text-center text-muted-foreground animate-pulse">Loading report data...</div>
               ) : (
                 <Table className="min-w-[1000px] md:min-w-full">
-                  <TableHeader className="bg-[#2A174E]">
+                  <TableHeader className="bg-brand-primary">
                     <TableRow className="hover:bg-transparent border-b-slate-200">
                       <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">REQ ID</TableHead>
                       <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Employee</TableHead>
@@ -290,7 +290,7 @@ const RequestSummary = () => {
                     {currentData.length > 0 ? (
                       currentData.map((req) => (
                         <TableRow key={req.emp_reqId} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                          <TableCell className="font-bold text-[#2A174E] py-4 px-6">REQ-{req.emp_reqId}</TableCell>
+                          <TableCell className="font-bold text-brand-primary py-4 px-6">REQ-{req.emp_reqId}</TableCell>
                           <TableCell className="py-4">
                             <p className="font-semibold text-slate-800">{req.userName}</p>
                             <p className="text-[10px] text-slate-500 font-medium">{formatUserId(req.user_Id)}</p>

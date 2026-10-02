@@ -232,7 +232,7 @@ const EmployeeCalendar = () => {
 
               {/* Calendar Card Skeleton */}
               <Card className="py-0 overflow-hidden border-0 shadow-sm bg-white">
-                <div className="bg-[#2A174E]/10 p-4 flex justify-between items-center rounded-t-xl">
+                <div className="bg-brand-primary/10 p-4 flex justify-between items-center rounded-t-xl">
                   <Skeleton className="h-6 w-6 rounded" />
                   <Skeleton className="h-6 w-44 rounded" />
                   <Skeleton className="h-6 w-6 rounded" />
@@ -290,7 +290,7 @@ const EmployeeCalendar = () => {
               {/* Header */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 mt-2">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">My Calendar</h1>
+                  <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">My Calendar</h1>
                   <p className="text-muted-foreground text-sm mt-1">
                     View upcoming holidays, your approved leaves, and scheduled field work assignments.
                   </p>
@@ -373,11 +373,11 @@ const EmployeeCalendar = () => {
                 {/* Full-Width Calendar */}
                 <div className="w-full">
                   {selectedEvent && (
-                    <div className="mb-4 flex items-center justify-between bg-[#2A174E]/10 border border-[#2A174E]/25 text-[#2A174E] px-4 py-2.5 rounded-lg shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="mb-4 flex items-center justify-between bg-brand-primary/10 border border-brand-primary/25 text-brand-primary px-4 py-2.5 rounded-lg shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
                       <div className="flex items-center gap-2 flex-wrap text-xs md:text-sm font-medium">
                         <span className="font-bold flex items-center gap-1">Showing on calendar:</span>
                         <span className="font-semibold text-slate-800">{selectedEvent.name || selectedEvent.details}</span>
-                        <Badge variant="secondary" className="text-[10px] bg-white border border-[#2A174E]/30 text-[#2A174E] font-bold">
+                        <Badge variant="secondary" className="text-[10px] bg-white border border-brand-primary/30 text-brand-primary font-bold">
                           {selectedEvent.type}
                         </Badge>
                         <span className="text-xs text-slate-500">
@@ -389,7 +389,7 @@ const EmployeeCalendar = () => {
                         size="sm" 
                         variant="ghost" 
                         onClick={() => setSelectedEvent(null)}
-                        className="h-7 px-2 text-xs font-semibold text-[#2A174E] hover:bg-[#2A174E]/15 hover:text-[#2A174E]"
+                        className="h-7 px-2 text-xs font-semibold text-brand-primary hover:bg-brand-primary/15 hover:text-brand-primary"
                       >
                         Clear Highlight
                       </Button>
@@ -397,7 +397,7 @@ const EmployeeCalendar = () => {
                   )}
 
                   <Card ref={calendarRef} className="py-0 overflow-hidden border-0 shadow-sm bg-white scroll-mt-6">
-                    <div className="bg-[#2A174E] text-white flex justify-between items-center p-3 md:p-4 rounded-t-xl">
+                    <div className="bg-brand-primary text-white flex justify-between items-center p-3 md:p-4 rounded-t-xl">
                       <ChevronLeftIcon className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => changeMonth(-1)} />
                       
                       {/* Clickable Header for Date Picker */}
@@ -465,7 +465,7 @@ const EmployeeCalendar = () => {
                           else if (hasDueDate) bgClass = "bg-teal-50/60 hover:bg-teal-50";
                           
                           if (isToday) {
-                            bgClass = "bg-[#2A174E]/30 hover:bg-[#2A174E]/100 ring-2 ring-[#BA90E9] ring-inset z-10 label";
+                            bgClass = "bg-brand-primary/30 hover:bg-brand-primary/100 ring-2 ring-[#BA90E9] ring-inset z-10 label";
                           }
 
                           return (
@@ -487,7 +487,7 @@ const EmployeeCalendar = () => {
                                       setSelectedEvent(null);
                                     }}
                                     title="Click to clear"
-                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] md:text-[9px] font-bold bg-[#2A174E] text-white shadow-md animate-bounce shrink-0 select-none cursor-pointer hover:bg-red-600 transition-colors"
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] md:text-[9px] font-bold bg-brand-primary text-white shadow-md animate-bounce shrink-0 select-none cursor-pointer hover:bg-red-600 transition-colors"
                                   >
                                     📍 Here
                                   </span>
@@ -521,7 +521,7 @@ const EmployeeCalendar = () => {
                               })}
                               {/* "More" indicator */}
                               {dayEvents.length > 2 && (
-                                <div className="text-[9px] font-bold text-slate-500 mt-1 pl-1 cursor-pointer hover:text-[#2A174E]">
+                                <div className="text-[9px] font-bold text-slate-500 mt-1 pl-1 cursor-pointer hover:text-brand-primary">
                                   +{dayEvents.length - 2} more
                                 </div>
                               )}
@@ -539,13 +539,13 @@ const EmployeeCalendar = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   
                   {/* Holidays List Card */}
-                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-[#2A174E] py-0 overflow-hidden">
+                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-brand-primary py-0 overflow-hidden">
                     <CardHeader className="pb-0 pt-5">
-                      <CardTitle className="text-lg text-[#2A174E] flex items-center gap-1.5">
+                      <CardTitle className="text-lg text-brand-primary flex items-center gap-1.5">
                         <span>Holidays</span>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <HelpOutlinedIcon className="text-slate-400 hover:text-[#2A174E] cursor-pointer !text-[16px] transition-colors" />
+                            <HelpOutlinedIcon className="text-slate-400 hover:text-brand-primary cursor-pointer !text-[16px] transition-colors" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                             Upcoming regular and special non-working holidays in the Philippines.
@@ -564,7 +564,7 @@ const EmployeeCalendar = () => {
                               <div 
                                 className={`group relative cursor-pointer transition-all flex items-center justify-between p-3 rounded-lg border ${
                                   isSelected 
-                                    ? "border-[#2A174E] bg-purple-50 ring-2 ring-[#BA90E9] shadow-sm" 
+                                    ? "border-brand-primary bg-purple-50 ring-2 ring-[#BA90E9] shadow-sm" 
                                     : "bg-white border-slate-100 hover:bg-slate-50"
                                 }`} 
                                 key={idx} 
@@ -574,7 +574,7 @@ const EmployeeCalendar = () => {
                                   <div className="flex items-center gap-1.5">
                                     <p className="font-bold text-sm text-slate-800 truncate">{holiday.name}</p>
                                     {isSelected && (
-                                      <span className="text-[9px] text-[#2A174E] font-bold bg-[#2A174E]/10 px-1.5 py-0.5 rounded">
+                                      <span className="text-[9px] text-brand-primary font-bold bg-brand-primary/10 px-1.5 py-0.5 rounded">
                                         Showing
                                       </span>
                                     )}
@@ -607,13 +607,13 @@ const EmployeeCalendar = () => {
                   </Card>
 
                   {/* Personnel Actions Card (Leaves & Overtime) */}
-                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-green-600 py-0 overflow-hidden">
+                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-accent-green py-0 overflow-hidden">
                     <CardHeader className="pb-0 pt-5">
-                      <CardTitle className="text-lg text-green-700 flex items-center gap-1.5">
+                      <CardTitle className="text-lg text-accent-green flex items-center gap-1.5">
                         <span>My Actions</span>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <HelpOutlinedIcon className="text-slate-400 hover:text-green-700 cursor-pointer !text-[16px] transition-colors" />
+                            <HelpOutlinedIcon className="text-slate-400 hover:text-accent-green cursor-pointer !text-[16px] transition-colors" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                             Records of your approved leaves and scheduled overtime logs.
@@ -709,13 +709,13 @@ const EmployeeCalendar = () => {
                   </Card>
 
                   {/* Operational Tasks Card (Field Work & Due Dates) */}
-                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-orange-500 py-0 overflow-hidden">
+                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-accent-gold py-0 overflow-hidden">
                     <CardHeader className="pb-0 pt-5">
-                      <CardTitle className="text-lg text-orange-700 flex items-center gap-1.5">
+                      <CardTitle className="text-lg text-accent-gold flex items-center gap-1.5">
                         <span>My Tasks</span>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <HelpOutlinedIcon className="text-slate-400 hover:text-orange-700 cursor-pointer !text-[16px] transition-colors" />
+                            <HelpOutlinedIcon className="text-slate-400 hover:text-accent-gold cursor-pointer !text-[16px] transition-colors" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                             Operational tasks assigned to you, including field work logs and due dates.
@@ -822,7 +822,7 @@ const EmployeeCalendar = () => {
         }}>
           <DialogContent className="sm:max-w-[360px]">
             <DialogHeader>
-              <DialogTitle className="text-[#2A174E] text-lg font-bold text-center">Jump to Date</DialogTitle>
+              <DialogTitle className="text-brand-primary text-lg font-bold text-center">Jump to Date</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-5 py-4">
               <div className="flex flex-col gap-2">
@@ -869,7 +869,7 @@ const EmployeeCalendar = () => {
               </Button>
               <Button 
                 type="button" 
-                className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" 
+                className="w-full bg-brand-primary hover:bg-brand-primary-hover text-white" 
                 onClick={handleApplyDatePicker}
               >
                 Apply
@@ -893,7 +893,7 @@ const EmployeeCalendar = () => {
             return (
               <DialogContent className={`${isSingleCategory ? "sm:max-w-lg" : "sm:max-w-3xl"} max-h-[90vh] flex flex-col transition-all duration-200`}>
                 <DialogHeader className="border-b pb-4">
-                  <DialogTitle className="text-lg font-bold text-[#2A174E]">
+                  <DialogTitle className="text-lg font-bold text-brand-primary">
                     Schedule for {selectedDayDetails?.date}
                   </DialogTitle>
                 </DialogHeader>

@@ -74,7 +74,7 @@ export default function ConfigurationPreviewModal({ onClose, data }) {
       <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header Bar */}
-        <div className="bg-[#2A1B4E] text-white px-6 py-4 flex items-center justify-between">
+        <div className="bg-brand-primary text-white px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
             <Eye className="w-5 h-5 text-purple-200" />
             <h2 className="text-lg font-semibold tracking-wide">Configuration Preview</h2>

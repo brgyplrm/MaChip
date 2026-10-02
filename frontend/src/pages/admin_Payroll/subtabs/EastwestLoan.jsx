@@ -512,7 +512,7 @@ const EastwestLoan = () => {
                 <XAxis dataKey="date" />
                 <YAxis />
                 <RechartsTooltip />
-                <Bar dataKey="amount" fill="#2A174E" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="amount" fill="var(--color-brand-primary)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -543,7 +543,7 @@ const HeatmapLoanMatrix = ({ data, employeeList, expectedDates, isInSamePeriod }
     if (amount === 0) return "bg-slate-50";
     if (amount < 5000) return "bg-blue-100";
     if (amount < 15000) return "bg-blue-300";
-    return "bg-[#2A174E] text-white"; // High impact
+    return "bg-brand-primary text-white"; // High impact
   };
 
   return (
@@ -553,7 +553,7 @@ const HeatmapLoanMatrix = ({ data, employeeList, expectedDates, isInSamePeriod }
           <tr>
             <th className="p-2 text-[10px] uppercase text-slate-400">Date</th>
             {employeeList.map(emp => (
-              <th key={emp.key} className="p-2 text-[10px] text-[#2A174E]">{emp.name.split(',')[0]}</th>
+              <th key={emp.key} className="p-2 text-[10px] text-brand-primary">{emp.name.split(',')[0]}</th>
             ))}
           </tr>
         </thead>
@@ -674,7 +674,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
       <Dialog open={showBatchModal} onOpenChange={setShowBatchModal}>
         <DialogContent className="max-w-2xl bg-white p-6 rounded-xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-[#2A174E]">Batch Details Upload ({type})</DialogTitle>
+            <DialogTitle className="text-2xl font-bold text-brand-primary">Batch Details Upload ({type})</DialogTitle>
             <DialogDescription>
               Select a method to upload multiple employee loan repayment records at once.
             </DialogDescription>
@@ -707,8 +707,8 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                           onClick={() => toggleDateSelection(dStr)}
                           className={`text-[11px] py-2 px-3 rounded-lg border transition-all text-left flex flex-col ${
                             isSelected 
-                              ? "bg-[#2A174E] border-[#2A174E] text-white shadow-md font-bold" 
-                              : "bg-white border-slate-200 text-slate-600 hover:border-[#2A174E] hover:text-[#2A174E]"
+                              ? "bg-brand-primary border-brand-primary text-white shadow-md font-bold" 
+                              : "bg-white border-slate-200 text-slate-600 hover:border-brand-primary hover:text-brand-primary"
                           }`}
                         >
                           <span className={isSelected ? "text-yellow-400" : "text-slate-400"}>
@@ -755,7 +755,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                 </div>
               </div>
 
-              <Button onClick={handleBatchSave} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={loading}>
+              <Button onClick={handleBatchSave} className="w-full bg-brand-primary hover:bg-brand-primary-hover text-white" disabled={loading}>
                 {loading ? "Processing..." : "Apply Batch Update"}
               </Button>
             </TabsContent>
@@ -769,7 +769,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
               </div>
 
               <div className="space-y-4">
-                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-[#2A174E] transition-colors cursor-pointer relative">
+                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-brand-primary transition-colors cursor-pointer relative">
                   <Input 
                     type="file" 
                     accept=".csv" 
@@ -779,7 +779,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                   <CloudUploadIcon className="text-slate-400 h-12 w-12 mb-2" />
                   <p className="text-sm font-medium text-slate-600">{file ? file.name : "Click or drag CSV file here"}</p>
                 </div>
-                <Button onClick={handleUpload} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={!file || loading}>
+                <Button onClick={handleUpload} className="w-full bg-brand-primary hover:bg-brand-primary-hover text-white" disabled={!file || loading}>
                   {loading ? "Uploading..." : "Upload and Process CSV"}
                 </Button>
               </div>
@@ -798,7 +798,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
   
         {/* Header Text Group */}
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Personal Loan Management</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Employee Personal Loan Management</h1>
           <span className="text-sm text-slate-500 mt-1 block">
             Manage employee company loan deductions, track repayments, and configure matrix schedules.
           </span>
@@ -812,7 +812,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                 <Button 
                   variant="outline" 
                   asChild
-                  className="w-full border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+                  className="w-full border-brand-primary/20 hover:text-brand-primary text-brand-primary/70 font-semibold shadow-sm transition-all"
                 >
                   <Link 
                     to="/eastwestloan/history" 
@@ -847,7 +847,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans">
           
           {/* Card 1: Total Repaid This Year */}
-          <div className="border-t-5 border-[#2A174E] bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4 relative overflow-hidden">
+          <div className="border-t-5 border-brand-primary bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4 relative overflow-hidden">
             <div className="text-left">
               <div className="flex items-center gap-1.5 mb-1">
                 <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Total Repaid ({selectedYear})</p>
@@ -869,7 +869,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
           </div>
 
           {/* Card 2: Active Borrowers */}
-          <div className="border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4">
+          <div className="border-t-5 border-brand-primary border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4">
             <div className="text-left">
               <div className="flex items-center gap-1.5 mb-1">
                 <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">
@@ -887,13 +887,13 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
               <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{stats.subscribers}</p>
               <p className="text-[10px] text-slate-400 mt-2">({selectedYear} Cohort)</p>
             </div>
-            <div className="h-12 w-12 bg-[#2A174E]/5 rounded-full flex items-center justify-center border border-[#2A174E]/50 shrink-0">
+            <div className="h-12 w-12 bg-brand-primary/5 rounded-full flex items-center justify-center border border-brand-primary/50 shrink-0">
               <GroupIcon className="text-indigo-600" />
             </div>
           </div>
 
           {/* Card 3: Total Expected Collections (selectedYear) */}
-          <div className="border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-row items-center justify-between gap-4">
+          <div className="border border-slate-200 bg-brand-primary text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-row items-center justify-between gap-4">
             <div className="absolute top-0 right-0 p-3 opacity-10">
               <AccountBalanceWalletIcon style={{ fontSize: '70px' }} />
             </div>
@@ -916,7 +916,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
         </div>
 
         {/* Matrix Table Toolbar Section */}
-        <h3 className="text-xl font-bold text-[#2A174E] mb-4">Employee Deduction ({selectedYear})</h3>
+        <h3 className="text-xl font-bold text-brand-primary mb-4">Employee Deduction ({selectedYear})</h3>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full mt-4 mb-6">
           
           {/* Left Side Grouping: Layout Switcher + Search Field stacked vertically */}
@@ -929,7 +929,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                 variant={displayLayout === "card" ? "default" : "ghost"}
                 onClick={() => setDisplayLayout("card")}
                 className={`h-7 text-xs font-bold transition-all ${
-                  displayLayout === "card" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
+                  displayLayout === "card" ? "bg-white text-brand-primary shadow-sm hover:bg-white" : "text-slate-500 hover:text-brand-primary"
                 }`}
               >
                 Employee Cards
@@ -939,7 +939,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                 variant={displayLayout === "table" ? "default" : "ghost"}
                 onClick={() => setDisplayLayout("table")}
                 className={`h-7 text-xs font-bold transition-all ${
-                  displayLayout === "table" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
+                  displayLayout === "table" ? "bg-white text-brand-primary shadow-sm hover:bg-white" : "text-slate-500 hover:text-brand-primary"
                 }`}
               >
                 Matrix Table
@@ -952,7 +952,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                   placeholder="Search card profile name or ID..."
                   value={cardSearchQuery}
                   onChange={(e) => setCardSearchQuery(e.target.value)}
-                  className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E] pr-8 pl-3 h-9 text-xs shadow-sm"
+                  className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-brand-primary pr-8 pl-3 h-9 text-xs shadow-sm"
                 />
                 {cardSearchQuery && (
                   <button 
@@ -972,7 +972,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                   placeholder="Search matrix table employee..."
                   value={tableSearchQuery}
                   onChange={(e) => setTableSearchQuery(e.target.value)}
-                  className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E] pr-8 pl-3 h-9 text-xs shadow-sm"
+                  className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-brand-primary pr-8 pl-3 h-9 text-xs shadow-sm"
                 />
                 {tableSearchQuery && (
                   <button 
@@ -996,7 +996,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                   setBatchForm(prev => ({ ...prev, dates: [], amount: "" }));
                   setShowBatchModal(true);
                 }}
-                className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
+                className="border-brand-primary text-brand-primary hover:bg-slate-50 h-9"
               >
                 <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch Upload
               </Button> */}
@@ -1004,7 +1004,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                 variant="outline" 
                 size="sm"
                 onClick={() => setIsEditingTable(!isEditingTable)}
-                className={`h-9 ${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
+                className={`h-9 ${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-brand-primary text-brand-primary hover:bg-slate-50'}`}
               >
                 {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Matrix</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Matrix</>}
               </Button> */}
@@ -1016,7 +1016,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-[#2A174E]">
+                <h3 className="text-sm font-bold text-brand-primary">
                   12-Month Matrix Visual Table ({selectedYear})
                 </h3>
                 <span className="text-xs text-slate-500 font-mono">
@@ -1030,9 +1030,9 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
 
             <div className="w-full bg-white overflow-x-auto">
               <table className="w-full min-w-max border-collapse text-xs">
-                <thead className="bg-[#2A174E] text-white">
+                <thead className="bg-brand-primary text-white">
                   <tr>
-                    <th className="sticky left-0 top-0 z-[50] bg-[#1e1136] text-yellow-400 border-r border-b border-[#2A174E] p-2.5 text-left min-w-[170px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                    <th className="sticky left-0 top-0 z-[50] bg-[#1e1136] text-yellow-400 border-r border-b border-brand-primary p-2.5 text-left min-w-[170px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
                       EMPLOYEE
                     </th>
                     <th className="text-white font-bold text-xs uppercase text-right p-2.5 min-w-[100px]">
@@ -1098,11 +1098,11 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                             {/* Sticky Left Employee Info */}
                             <td className="sticky left-0 z-[40] bg-white border-r border-b border-slate-200 p-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
                               <div className="flex items-center gap-2">
-                                <div className="p-1.5 bg-[#2A174E]/10 text-[#2A174E] rounded-md shrink-0">
+                                <div className="p-1.5 bg-brand-primary/10 text-brand-primary rounded-md shrink-0">
                                   <User className="h-3.5 w-3.5" />
                                 </div>
                                 <div className="text-left truncate">
-                                  <span className="font-bold text-[#2A174E] text-xs block truncate">{emp.name}</span>
+                                  <span className="font-bold text-brand-primary text-xs block truncate">{emp.name}</span>
                                   <span className="text-[10px] font-mono text-slate-400">{emp.id}</span>
                                 </div>
                               </div>
@@ -1152,7 +1152,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                             {/* Completion Progress Bar */}
                             <td className="p-2 text-center align-middle">
                               <div className="flex flex-col items-center gap-1">
-                                <span className="text-[10px] font-bold text-[#2A174E]">
+                                <span className="text-[10px] font-bold text-brand-primary">
                                   {completionPercent.toFixed(0)}%
                                 </span>
                                 <div className="w-14 bg-slate-200 h-1.5 rounded-full overflow-hidden">
@@ -1168,8 +1168,8 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                       })}
 
                       {/* Footer Row (Monthly Totals for All Employees) */}
-                      <tr className="bg-slate-100 font-bold border-t-2 border-[#2A174E]">
-                        <td className="sticky left-0 z-[40] bg-slate-100 border-r border-[#2A174E] p-2.5 text-left font-black text-[#2A174E] text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                      <tr className="bg-slate-100 font-bold border-t-2 border-brand-primary">
+                        <td className="sticky left-0 z-[40] bg-slate-100 border-r border-brand-primary p-2.5 text-left font-black text-brand-primary text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
                           TOTAL PAID ({selectedYear})
                         </td>
                         <td className="p-2.5 text-right font-mono text-xs text-slate-500">—</td>
@@ -1203,12 +1203,12 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                               {monthSum > 0 ? (
                                 <Tooltip>
                                   <TooltipTrigger>
-                                    <div className={`py-1 px-1 rounded text-[10px] font-mono font-bold transition-all cursor-help bg-[#2A174E] text-white shadow-sm`}>
+                                    <div className={`py-1 px-1 rounded text-[10px] font-mono font-bold transition-all cursor-help bg-brand-primary text-white shadow-sm`}>
                                       {peso(monthSum)}
                                     </div>
                                   </TooltipTrigger>
                                   <TooltipContent className="bg-slate-900 text-white text-xs border-slate-800 p-0 overflow-hidden min-w-[200px]">
-                                    <p className="font-bold px-3 py-2 bg-[#2A174E] text-yellow-300 text-[11px] uppercase tracking-wide">
+                                    <p className="font-bold px-3 py-2 bg-brand-primary text-yellow-300 text-[11px] uppercase tracking-wide">
                                       {mName} {selectedYear} — Who paid
                                     </p>
                                     <div className="px-3 py-2 space-y-1">
@@ -1275,7 +1275,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                 >
                   Previous
                 </Button>
-                <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-[#2A174E] bg-[#2A174E]/10 rounded-md px-2">
+                <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-brand-primary bg-brand-primary/10 rounded-md px-2">
                   {tableCurrentPage} / {totalTablePages}
                 </div>
                 <Button 
@@ -1306,11 +1306,11 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                       <Card key={emp.key} className="py-0 border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
                         <CardHeader className="pt-6 bg-slate-50/60 pb-4 border-b border-slate-100 border-t-4 flex flex-row items-center justify-between space-y-0">
                           <div className="flex items-center gap-3 truncate mr-2">
-                            <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
+                            <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary shrink-0">
                               <User className="h-5 w-5" />
                             </div>
                             <div className="truncate text-left">
-                              <CardTitle className="text-sm md:text-base font-bold text-[#2A174E] truncate">{emp.name}</CardTitle>
+                              <CardTitle className="text-sm md:text-base font-bold text-brand-primary truncate">{emp.name}</CardTitle>
                               <span className="text-xs font-mono text-slate-400 block mt-0.5">{emp.id}</span>
                             </div>
                           </div>
@@ -1318,13 +1318,13 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                           {/* Individual Matrix Sliders Drawer */}
                           <Sheet>
                             <SheetTrigger asChild>
-                              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0">
+                              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-brand-primary hover:bg-brand-primary/5 rounded-full shrink-0">
                                 <OpenInNewIcon fontSize="small" />
                               </Button>
                             </SheetTrigger>
                             <SheetContent className="w-full sm:max-w-2xl lg:max-w-xl! xl:max-w-xl! bg-white overflow-y-auto custom-scrollbar p-6">
                               <SheetHeader className="pb-4 border-b border-slate-100 text-left">
-                                <SheetTitle className="text-xl font-bold text-[#2A174E]">
+                                <SheetTitle className="text-xl font-bold text-brand-primary">
                                   {emp.name}'s Repayment Ledger
                                 </SheetTitle>
                                 <SheetDescription className="text-xs text-slate-400 font-mono">
@@ -1347,7 +1347,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                                   {/* Interval Date Filter Dropdown */}
                                   <div className="w-full sm:w-[160px]">
                                     <Select value={selectedSheetMonth} onValueChange={setSelectedSheetMonth}>
-                                      <SelectTrigger className="h-8 text-[11px] bg-slate-50 border-slate-200 font-semibold text-slate-600 focus-visible:ring-[#2A174E]">
+                                      <SelectTrigger className="h-8 text-[11px] bg-slate-50 border-slate-200 font-semibold text-slate-600 focus-visible:ring-brand-primary">
                                         <SelectValue placeholder="Filter by Month" />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -1371,7 +1371,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
 
                                 <div className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
                                   <Table>
-                                    <TableHeader className="bg-[#2B174F]">
+                                    <TableHeader className="bg-brand-primary">
                                       <TableRow className="hover:bg-transparent border-b-0">
                                         <TableHead className="font-semibold text-white uppercase text-[10px] tracking-wider py-3 px-4">Payroll Interval Point</TableHead>
                                         <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">Deduction Amount</TableHead>
@@ -1399,9 +1399,9 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                                           const dObj = new Date(log.dateStr);
                                           return (
                                             <TableRow key={log.dateStr} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                                              <td className="font-bold text-[#2A174E] text-xs py-2.5 px-4 text-left">
+                                              <td className="font-bold text-brand-primary text-xs py-2.5 px-4 text-left">
                                                 {dObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                {log.dateStr === currentCutoffDate && <span className="bg-yellow-400 text-[#2A174E] text-[8px] font-black px-1.5 py-0.2 rounded ml-2">CURRENT</span>}
+                                                {log.dateStr === currentCutoffDate && <span className="bg-yellow-400 text-brand-primary text-[8px] font-black px-1.5 py-0.2 rounded ml-2">CURRENT</span>}
                                               </td>
                                               <td className="text-center text-xs font-mono font-bold text-slate-700">
                                                 {log.amount > 0 ? `₱${log.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "—"}
@@ -1462,7 +1462,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                     >
                       Previous
                     </Button>
-                    <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-[#2A174E] bg-[#2A174E]/10 rounded-md px-2">
+                    <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-brand-primary bg-brand-primary/10 rounded-md px-2">
                       {cardCurrentPage} / {totalCardPages || 1}
                     </div>
                     <Button 

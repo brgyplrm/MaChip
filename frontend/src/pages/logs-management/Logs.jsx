@@ -432,7 +432,7 @@ const toggleMachipVisibility = (rowId) => {
           {/* Header section with Actions & Tabs */}
           <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">User Logging Activity</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">User Logging Activity</h1>
               <span className="text-sm text-slate-500 mt-1 block">
                 {viewMode === "raw" ? "Real-time biometric and manual clock events" : "Aggregated Day Logs"} ({period.startDate} to {period.endDate})
               </span>
@@ -441,7 +441,7 @@ const toggleMachipVisibility = (rowId) => {
             <Button 
               variant="outline" 
               asChild
-              className="w-full sm:w-auto border-[#2A174E]/30 text-[#2A174E]/80 hover:text-[#2A174E] font-semibold"
+              className="w-full sm:w-auto border-brand-primary/30 text-brand-primary/80 hover:text-brand-primary font-semibold"
             >
               <Link to="/adminReports" state={{ activeTab: "attendance" }}>
                 <AssessmentIcon className="mr-2 h-4 w-4" /> View Detailed Reports
@@ -458,10 +458,10 @@ const toggleMachipVisibility = (rowId) => {
                 setSearchParams({ view: val });
               }}  className="w-full sm:w-[250px] xl:w-[250px]">
                 <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 rounded-lg">
-                  <TabsTrigger value="raw" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
+                  <TabsTrigger value="raw" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
                     Raw Logs
                   </TabsTrigger>
-                  <TabsTrigger value="day" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
+                  <TabsTrigger value="day" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
                     Day Summaries
                   </TabsTrigger>
                 </TabsList>
@@ -471,17 +471,17 @@ const toggleMachipVisibility = (rowId) => {
           {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
             {/* Card 1: Total Active Users */}
-            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                      <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">
+                      <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">
                         {viewMode === "raw" ? "Total Log Events" : "Total Day Records"}
                       </p>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           {viewMode === "raw" 
@@ -490,9 +490,9 @@ const toggleMachipVisibility = (rowId) => {
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-[#2A174E]">{stats.total}</p>
+                    <p className="text-4xl font-bold text-brand-primary">{stats.total}</p>
                   </div>
-                  <p className="text-xs text-[#2A174E]/70 italic mt-4">
+                  <p className="text-xs text-brand-primary/70 italic mt-4">
                     {viewMode === "raw" ? "Total events captured in this period" : "All captured records for context"}
                   </p>
                 </div>
@@ -500,17 +500,17 @@ const toggleMachipVisibility = (rowId) => {
             </Card>
 
             {/* Card 2: Employees */}
-            <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                      <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">
+                      <p className="text-xs font-bold text-accent-green uppercase tracking-wider">
                         {viewMode === "raw" ? "Clock In Events" : "On Time Days"}
                       </p>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           {viewMode === "raw" 
@@ -519,27 +519,27 @@ const toggleMachipVisibility = (rowId) => {
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-[#3B4E17]">{stats.metric1}</p>
+                    <p className="text-4xl font-bold text-accent-green">{stats.metric1}</p>
                   </div>
-                  <p className="text-xs text-[#3B4E17]/70 italic mt-4">
+                  <p className="text-xs text-accent-green/70 italic mt-4">
                     {viewMode === "raw" ? "Entry scans recorded in this period" : "Employees arriving on or before 8:00 AM"}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Card 3: Admins & Supervisors */}
-            <Card className="border-t-5 border-[#B06E16] bg-white py-0 h-full">
+            {/* Card 3: Late & Absent / Clock Out */}
+            <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                      <p className="text-xs font-bold text-[#B06E16] uppercase tracking-wider">
+                      <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">
                         {viewMode === "raw" ? "Clock Out Events" : "Late & Absent"}
                       </p>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#B06E16]/60 hover:text-[#B06E16] cursor-help" />
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           {viewMode === "raw" 
@@ -548,9 +548,9 @@ const toggleMachipVisibility = (rowId) => {
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-[#B06E16]">{stats.metric2}</p>
+                    <p className="text-4xl font-bold text-accent-gold">{stats.metric2}</p>
                   </div>
-                  <p className="text-xs text-[#B06E16]/70 italic mt-4">
+                  <p className="text-xs text-accent-gold/70 italic mt-4">
                     {viewMode === "raw" ? "Exit scans recorded in this period" : "Days recorded with infractions"}
                   </p>
                 </div>
@@ -558,26 +558,26 @@ const toggleMachipVisibility = (rowId) => {
             </Card>
 
             {/* Card 4: System Generated Logs */}
-            <Card className="border-t-5 border-[#E11D48] bg-white py-0 h-full">
+            <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                      <p className="text-xs font-bold text-[#E11D48] uppercase tracking-wider">
+                      <p className="text-xs font-bold text-status-danger uppercase tracking-wider">
                         System Generated
                       </p>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#E11D48]/60 hover:text-[#E11D48] cursor-help" />
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-status-danger/60 hover:text-status-danger cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           Logs created automatically by the MAChip system (such as automated absence flags).
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-[#E11D48]">{stats.systemGenerated}</p>
+                    <p className="text-4xl font-bold text-status-danger">{stats.systemGenerated}</p>
                   </div>
-                  <p className="text-xs text-[#E11D48]/70 italic mt-4">
+                  <p className="text-xs text-status-danger/70 italic mt-4">
                     System markers in this period
                   </p>
                 </div>
@@ -598,7 +598,7 @@ const toggleMachipVisibility = (rowId) => {
                     placeholder="Search logs..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                    className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
                   />
                 </div>
                 
@@ -713,7 +713,7 @@ const toggleMachipVisibility = (rowId) => {
                 <Table className="min-w-[800px] md:min-w-full">
                   {viewMode === "raw" ? (
                     <>
-                      <TableHeader className="bg-[#2B174F]">
+                      <TableHeader className="bg-brand-primary">
                         <TableRow className="hover:bg-transparent border-b-slate-200">
                           <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">User ID</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Full Name</TableHead>
@@ -742,7 +742,7 @@ const toggleMachipVisibility = (rowId) => {
                             const isMachipRevealed = revealedMachipRows[row.user_loggingId];
                             return (
                               <TableRow key={row.user_loggingId} className="border-b-slate-100 hover:bg-slate-50/50">
-                                <TableCell className="font-bold text-[#2A174E] py-4 px-6">{row.user_Id_formatted}</TableCell>
+                                <TableCell className="font-bold text-brand-primary py-4 px-6">{row.user_Id_formatted}</TableCell>
                                 
                                 {/* Truncated Full Name (Raw View) */}
                                 <TableCell className="font-medium text-slate-800 py-4">
@@ -782,7 +782,7 @@ const toggleMachipVisibility = (rowId) => {
                                       <button
                                         type="button"
                                         onClick={() => toggleMachipVisibility(row.user_loggingId)}
-                                        className="text-slate-400 hover:text-[#2A174E] transition-colors p-0.5 rounded focus:outline-none"
+                                        className="text-slate-400 hover:text-brand-primary transition-colors p-0.5 rounded focus:outline-none"
                                         title={isMachipRevealed ? "Hide MaChip ID" : "Show MaChip ID"}
                                       >
                                         {isMachipRevealed ? (
@@ -806,7 +806,7 @@ const toggleMachipVisibility = (rowId) => {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="inline-block">
-                                        <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
+                                        <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0] transition-colors">
                                           <Link to={`/users/${row.user_Id}`}>
                                             <EyeIcon className="h-4 w-4" />
                                           </Link>
@@ -836,7 +836,7 @@ const toggleMachipVisibility = (rowId) => {
                     </>
                   ) : (
                     <>
-                      <TableHeader className="bg-[#2B174F]">
+                      <TableHeader className="bg-brand-primary">
                         <TableRow className="hover:bg-transparent border-b-slate-200">
                           <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider cursor-pointer hover:bg-[#3B206D] transition-colors" onClick={() => handleSort('user_Id')}>
                             # {sortConfig.key === 'user_Id' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
@@ -897,7 +897,7 @@ const toggleMachipVisibility = (rowId) => {
 
                             return (
                               <TableRow key={`${row.user_Id}-${row.log_Date}-${index}`} className="border-b-slate-100 hover:bg-slate-50/50">
-                                <TableCell className="font-bold text-[#2A174E] py-4 px-6">{formatUserId(row.user_Id)}</TableCell>
+                                <TableCell className="font-bold text-brand-primary py-4 px-6">{formatUserId(row.user_Id)}</TableCell>
                                 
                                 {/* Truncated Name (Structured View) */}
                                 <TableCell className="font-medium text-slate-800 py-4">
@@ -925,7 +925,7 @@ const toggleMachipVisibility = (rowId) => {
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span className="inline-block">
-                                          <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
+                                          <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0] transition-colors">
                                             <Link to={`/logs/edit/${row.user_Id}/${row.log_Date.split('T')[0]}?from=logs`}>
                                               <SquarePen className="h-4 w-4" />
                                             </Link>
@@ -940,7 +940,7 @@ const toggleMachipVisibility = (rowId) => {
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span className="inline-block">
-                                          <Button variant="outline" size="sm" asChild className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors">
+                                          <Button variant="outline" size="sm" asChild className="border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white transition-colors">
                                             <Link to={`/users/${row.user_Id}`}>View</Link>
                                           </Button>
                                         </span>

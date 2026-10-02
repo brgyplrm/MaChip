@@ -39,17 +39,21 @@ const ThirteenthMonthDetails = () => {
   const [error, setError] = useState(null);
 
   const colorMap = {
-    "[#2A174E]": "border-[#2A174E]",
-    "emerald-500": "border-emerald-500",
-    "rose-500": "border-rose-500",
-    "amber-500": "border-amber-500",
-    "indigo-500": "border-indigo-500",
-    "blue-500": "border-blue-500"
+    "brand-primary": "border-brand-primary",
+    "accent-green": "border-accent-green",
+    "accent-gold": "border-accent-gold",
+    "status-info": "border-status-info",
+    "status-danger": "border-status-danger",
+    "emerald-500": "border-accent-green",
+    "rose-500": "border-status-danger",
+    "amber-500": "border-accent-gold",
+    "indigo-500": "border-status-info",
+    "blue-500": "border-status-info"
   };
 
   function MetricCard({ label, value, color, description, icon: Icon, tooltip }) {
     return (
-      <Card className={`border-t-4 ${colorMap[color] || 'border-[#2A174E]'} bg-white py-0 h-full shadow-sm`}>
+      <Card className={`border-t-4 ${colorMap[color] || 'border-brand-primary'} bg-white py-0 h-full shadow-sm`}>
         <CardContent className="p-5 flex flex-col justify-between h-full text-left">
           <div className="flex justify-between items-start">
             <div>
@@ -58,7 +62,7 @@ const ThirteenthMonthDetails = () => {
                 {tooltip && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                      <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-[10px]">
                       {tooltip}
@@ -66,7 +70,7 @@ const ThirteenthMonthDetails = () => {
                   </Tooltip>
                 )}
               </div>
-              <p className="text-2xl font-black text-[#2A174E]">{value}</p>
+              <p className="text-2xl font-black text-brand-primary">{value}</p>
             </div>
             {Icon && (
               <div className={`p-2.5 rounded-xl ${
@@ -75,7 +79,7 @@ const ThirteenthMonthDetails = () => {
                 color === 'amber-500' ? 'bg-amber-50 text-amber-600' :
                 color === 'rose-500' ? 'bg-rose-50 text-rose-600' :
                 color === 'indigo-500' ? 'bg-indigo-50 text-indigo-600' :
-                'bg-[#2A174E]/10 text-[#2A174E]'
+                'bg-brand-primary/10 text-brand-primary'
               }`}>
                 <Icon className="h-5 w-5" />
               </div>
@@ -164,7 +168,7 @@ const ThirteenthMonthDetails = () => {
             <p className="text-slate-500 text-sm mt-1 max-w-sm">
               We couldn't find a 13th month pay record for the year {year}.
             </p>
-            <Button asChild className="mt-6 bg-[#2A174E] hover:bg-[#2A174E]/90 text-white font-bold text-xs" size="sm">
+            <Button asChild className="mt-6 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold text-xs" size="sm">
               <Link to="/employee/payroll" className="flex items-center gap-1.5">
                 <ChevronLeft className="h-4 w-4" /> Back to History
               </Link>
@@ -193,7 +197,7 @@ const ThirteenthMonthDetails = () => {
                         asChild 
                         variant="ghost" 
                         size="icon" 
-                        className="text-[#2A174E] hover:bg-[#2A174E]/10 rounded-full"
+                        className="text-brand-primary hover:bg-brand-primary/10 rounded-full"
                       >
                         <Link to="/employee/payroll">
                           <ChevronLeft className="h-6 w-6" />
@@ -210,7 +214,7 @@ const ThirteenthMonthDetails = () => {
               <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out text-left space-y-0.5">
                 <div className="flex items-center gap-2">
                   <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <Gift className="h-6 w-6 text-[#2A174E]" />
+                    <Gift className="h-6 w-6 text-brand-primary" />
                     {data.year} Year-End Bonus
                   </h1>
                   <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-bold text-xs">
@@ -226,7 +230,7 @@ const ThirteenthMonthDetails = () => {
             {/* Net Bonus Banner Card */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="bg-[#2A174E] text-white p-4 px-6 rounded-xl shadow-lg flex flex-col items-start md:items-end cursor-help self-start md:self-auto min-w-[220px]">
+                <div className="bg-brand-primary text-white p-4 px-6 rounded-xl shadow-lg flex flex-col items-start md:items-end cursor-help self-start md:self-auto min-w-[220px]">
                   <span className="text-xs text-slate-300 uppercase font-semibold tracking-wider">Total Net Bonus</span>
                   <span className="text-2xl font-bold">{formatCurrency(data.amount)}</span>
                 </div>
@@ -242,7 +246,7 @@ const ThirteenthMonthDetails = () => {
             <MetricCard
               label="Total Basic Earned"
               value={formatCurrency(data.totalBasicEarned)}
-              color="emerald-500"
+              color="brand-primary"
               description="Sum of released basic compensation"
               icon={TrendingUp}
               tooltip="Total cumulative basic earnings from all released payrolls in this calendar year."
@@ -250,7 +254,7 @@ const ThirteenthMonthDetails = () => {
             <MetricCard
               label="Statutory Basis"
               value="Total ÷ 12"
-              color="[#2A174E]"
+              color="accent-green"
               description="Prescribed by PH Labor Law (PD 851)"
               icon={Banknote}
               tooltip="Statutory formula dividing annual basic compensation by 12 calendar months."
@@ -258,7 +262,7 @@ const ThirteenthMonthDetails = () => {
             <MetricCard
               label="Tax Exemption (TRAIN)"
               value={data.taxable_Excess > 0 ? formatCurrency(data.taxable_Excess) : "100% Exempt"}
-              color={data.taxable_Excess > 0 ? "amber-500" : "blue-500"}
+              color={data.taxable_Excess > 0 ? "accent-gold" : "status-info"}
               description={data.taxable_Excess > 0 ? "Taxable excess above ₱90,000" : "Within ₱90,000 statutory threshold"}
               icon={Receipt}
               tooltip="Under the TRAIN Law, 13th month pay up to ₱90,000 is fully exempt from withholding tax."
@@ -266,7 +270,7 @@ const ThirteenthMonthDetails = () => {
             <MetricCard
               label="Credited Months"
               value={`${creditedMonths} of 12 Months`}
-              color="indigo-500"
+              color="status-info"
               description="Months with active payroll earnings"
               icon={Calendar}
               tooltip="Number of calendar months where basic earnings were credited towards 13th month."
@@ -278,7 +282,7 @@ const ThirteenthMonthDetails = () => {
             <CardHeader className="border-b border-slate-100 p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  <Receipt className="h-5 w-5 text-[#2A174E]" />
+                  <Receipt className="h-5 w-5 text-brand-primary" />
                   Monthly Contribution Breakdown
                 </CardTitle>
                 <CardDescription className="text-xs text-slate-500 mt-0.5">
@@ -309,7 +313,7 @@ const ThirteenthMonthDetails = () => {
                           <TableRow key={idx} className="hover:bg-slate-50/60 transition-colors group">
                             <TableCell className="py-3.5 px-6">
                               <div className="flex items-center gap-3">
-                                <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-[#2A174E]/10 group-hover:text-[#2A174E] transition-colors">
+                                <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-brand-primary/10 group-hover:text-brand-primary transition-colors">
                                   <Calendar className="h-4 w-4" />
                                 </div>
                                 <span className="font-semibold text-slate-800 text-sm">{m.month_name}</span>
@@ -322,7 +326,7 @@ const ThirteenthMonthDetails = () => {
                               <div className="inline-flex items-center gap-2">
                                 <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden hidden sm:block">
                                   <div 
-                                    className="bg-[#2A174E] h-full rounded-full transition-all duration-500" 
+                                    className="bg-brand-primary h-full rounded-full transition-all duration-500" 
                                     style={{ width: `${Math.min(100, Math.max(0, sharePercent))}%` }} 
                                   />
                                 </div>
@@ -346,7 +350,7 @@ const ThirteenthMonthDetails = () => {
                     )}
                   </TableBody>
                   {/* Summary Row */}
-                  <TableRow className="bg-[#2A174E] text-white hover:bg-[#2A174E] font-bold">
+                  <TableRow className="bg-brand-primary text-white hover:bg-brand-primary font-bold">
                     <TableCell className="py-4 px-6 uppercase tracking-wider text-xs font-bold text-slate-200">
                       Total Annual Basic
                     </TableCell>
@@ -368,7 +372,7 @@ const ThirteenthMonthDetails = () => {
           {/* Statutory Policy & Guideline Card */}
           <Card className="border border-slate-200/80 bg-white shadow-xs p-5 rounded-xl">
             <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-xl bg-[#2A174E]/10 text-[#2A174E] flex items-center justify-center shrink-0">
+              <div className="h-10 w-10 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0">
                 <Info className="h-5 w-5" />
               </div>
               <div className="space-y-1 text-sm">

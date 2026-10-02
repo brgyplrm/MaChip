@@ -43,18 +43,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const colorMap = {
-  "[#2A174E]": "border-[#2A174E]",
-  "[#3B4E17]": "border-[#3B4E17]",
-  "[#BB8B26]": "border-[#BB8B26]",
-  "rose-500": "border-rose-500",
+  "brand-primary": "border-brand-primary",
+  "accent-green": "border-accent-green",
+  "accent-gold": "border-accent-gold",
+  "status-info": "border-status-info",
+  "status-danger": "border-status-danger",
+  "rose-500": "border-status-danger",
   "amber-500": "border-amber-500",
-  "indigo-500": "border-indigo-500",
-  "blue-500": "border-blue-500"
+  "indigo-500": "border-status-info",
+  "blue-500": "border-status-info"
 };
 
 function MetricCard({ label, value, color, description, icon: Icon, tooltip }) {
   return (
-    <Card className={`border-t-4 ${colorMap[color] || 'border-[#2A174E]'} bg-white py-0 h-full shadow-sm`}>
+    <Card className={`border-t-4 ${colorMap[color] || 'border-brand-primary'} bg-white py-0 h-full shadow-sm`}>
       <CardContent className="p-5 flex flex-col justify-between h-full text-left">
         <div className="flex justify-between items-start">
           <div>
@@ -64,7 +66,7 @@ function MetricCard({ label, value, color, description, icon: Icon, tooltip }) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex items-center justify-center cursor-help">
-                      <HelpCircle className="h-3 w-3 text-[#2A174E]/60 hover:text-[#2A174E]" />
+                      <HelpCircle className="h-3 w-3 text-brand-primary/60 hover:text-brand-primary" />
                     </span>
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-[10px]">
@@ -73,7 +75,7 @@ function MetricCard({ label, value, color, description, icon: Icon, tooltip }) {
                 </Tooltip>
               )}
             </div>
-            <p className="text-2xl font-black text-[#2A174E]">{value}</p>
+            <p className="text-2xl font-black text-brand-primary">{value}</p>
           </div>
           {Icon && (
             <div className={`p-2.5 rounded-xl ${
@@ -82,7 +84,7 @@ function MetricCard({ label, value, color, description, icon: Icon, tooltip }) {
               color === 'amber-500' ? 'bg-amber-50 text-amber-600' :
               color === 'rose-500' ? 'bg-rose-50 text-rose-600' :
               color === 'indigo-500' ? 'bg-indigo-50 text-indigo-600' :
-              'bg-[#2A174E]/10 text-[#2A174E]'
+              'bg-brand-primary/10 text-brand-primary'
             }`}>
               <Icon className="h-5 w-5" />
             </div>
@@ -257,7 +259,7 @@ const EmployeePayslip = () => {
                         asChild 
                         variant="ghost" 
                         size="icon" 
-                        className="text-[#2A174E] hover:bg-[#2A174E]/10 rounded-full"
+                        className="text-brand-primary hover:bg-brand-primary/10 rounded-full"
                       >
                         <Link to="/employee/payroll">
                           <ChevronLeft className="h-6 w-6" />
@@ -288,7 +290,7 @@ const EmployeePayslip = () => {
               <Button 
                 variant="outline" 
                 onClick={() => setIsPayslipModalOpen(true)}
-                className="bg-[#2A174E] text-white hover:bg-[#7A52B5] hover:border-[#2A174E] font-semibold h-10 px-4 rounded-xl shadow-none transition-all flex items-center gap-2"
+                className="bg-brand-primary text-white hover:bg-[#7A52B5] hover:border-brand-primary font-semibold h-10 px-4 rounded-xl shadow-none transition-all flex items-center gap-2"
               >
                 <Eye className="h-4 w-4 text-white" />
                 <span className=" text-white">View Payslips</span>
@@ -299,7 +301,7 @@ const EmployeePayslip = () => {
                 <DropdownMenuTrigger asChild>
                   <Button 
                     disabled={Boolean(isDownloading)}
-                    className="bg-[#2A174E] hover:bg-[#3d236e] text-white font-semibold h-10 px-4 rounded-xl shadow-none transition-all flex items-center gap-2"
+                    className="bg-brand-primary hover:bg-[#3d236e] text-white font-semibold h-10 px-4 rounded-xl shadow-none transition-all flex items-center gap-2"
                   >
                     {isDownloading ? (
                       <Loader2 className="h-4 w-4 animate-spin text-white" />
@@ -364,11 +366,11 @@ const EmployeePayslip = () => {
           </div>
 
           {/* Overview Statistical Cards (Admin MetricCard Pattern) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
             <MetricCard
               label="Gross Earnings"
               value={formatCurrency(payroll.totalEarnings)}
-              color="[#2A174E]"
+              color="brand-primary"
               description="Basic pay, OT, night diff & allowances"
               icon={TrendingUp}
               tooltip="Total gross compensation earned before statutory deductions and taxes."
@@ -376,7 +378,7 @@ const EmployeePayslip = () => {
             <MetricCard
               label="Total Deductions"
               value={`-${formatCurrency(payroll.totalDeductions)}`}
-              color="[#3B4E17]"
+              color="accent-green"
               description="Taxes, statutory shares, absences & loans"
               icon={TrendingDown}
               tooltip="Combined statutory contributions, withholding tax, attendance penalties, and loan amortizations."
@@ -384,7 +386,7 @@ const EmployeePayslip = () => {
             <MetricCard
               label="Net Take Home"
               value={formatCurrency(payroll.netPay)}
-              color="[#BB8B26]"
+              color="accent-gold"
               description={`${netRetainedPercent}% of gross earnings credited`}
               icon={Wallet}
               tooltip="Final net pay deposited to your account for this cutoff."
@@ -392,17 +394,17 @@ const EmployeePayslip = () => {
             <MetricCard
               label="Days Worked"
               value={`${payroll.NoDays_Worked} / ${payroll.totalScheduledDays || payroll.NoDays_Worked} Days`}
-              color="blue-500"
+              color="status-info"
               description={`${payroll.NoHrs_Worked || 0} hrs worked @ ${formatCurrency(payroll.dailyRate)}/day`}
               icon={CalendarDays}
               tooltip="Total logged work days and hours present during this payroll period."
             />
-          </div>
+          </div> */}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Payslip Summary Card */}
             <Card className="lg:col-span-2 overflow-hidden border-none shadow-sm rounded-xl py-0">
-              <CardHeader className="bg-[#2A174E] text-white p-6">
+              <CardHeader className="bg-brand-primary text-white p-6">
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="text-2xl font-bold flex items-center gap-2">
@@ -459,7 +461,7 @@ const EmployeePayslip = () => {
                       </div>
                       <div className="flex justify-between items-center pt-1">
                         <span className="font-bold text-slate-800 text-lg">Net Pay</span>
-                        <span className="font-bold text-[#2A174E] text-2xl">{formatCurrency(payroll.netPay)}</span>
+                        <span className="font-bold text-brand-primary text-2xl">{formatCurrency(payroll.netPay)}</span>
                       </div>
                     </div>
                   </div>
@@ -470,7 +472,7 @@ const EmployeePayslip = () => {
                     <Info className="h-4 w-4" />
                     Detailed itemized computation is available on the next page.
                   </div>
-                  <Button asChild variant="link" className="text-[#2A174E] font-semibold gap-1 px-0">
+                  <Button asChild variant="link" className="text-brand-primary font-semibold gap-1 px-0">
                     <Link to={`/employee/payroll-details/${id}`}>
                       View Full Computation
                       <ArrowRight className="h-4 w-4" />
@@ -482,10 +484,10 @@ const EmployeePayslip = () => {
 
             {/* Quick Stats / Info Sidebar (Admin Card Styling) */}
             <div className="space-y-6">
-              <Card className="border-t-4 border-[#2A174E] shadow-sm rounded-xl overflow-hidden bg-white py-0">
+              <Card className="border-t-4 border-brand-primary shadow-sm rounded-xl overflow-hidden bg-white py-0">
                 <CardHeader className="bg-white border-b border-slate-100 p-4">
                   <CardTitle className="text-sm font-bold uppercase tracking-wide flex items-center gap-2 text-slate-800">
-                    <Banknote className="h-4 w-4 text-[#2A174E]" />
+                    <Banknote className="h-4 w-4 text-brand-primary" />
                     Rate Information
                   </CardTitle>
                 </CardHeader>
@@ -501,10 +503,10 @@ const EmployeePayslip = () => {
                 </CardContent>
               </Card>
 
-              <Card className="border-t-4 border-indigo-500 shadow-sm rounded-xl overflow-hidden bg-white py-0">
+              <Card className="border-t-4 border-status-info shadow-sm rounded-xl overflow-hidden bg-white py-0">
                 <CardHeader className="bg-white border-b border-slate-100 p-4">
                   <CardTitle className="text-sm font-bold uppercase tracking-wide flex items-center gap-2 text-slate-800">
-                    <Calendar className="h-4 w-4 text-indigo-600" />
+                    <Calendar className="h-4 w-4 text-status-info" />
                     Attendance Record
                   </CardTitle>
                 </CardHeader>

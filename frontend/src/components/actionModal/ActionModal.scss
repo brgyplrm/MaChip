@@ -27,9 +27,9 @@
     // DEFAULT / PRIMARY (Purple)
       &.primary {
         .iconWrapper { background-color: rgba(42, 23, 78, 0.1); }
-        .mainIcon { color: #2A174E; }
+        .mainIcon { color: var(--color-brand-primary); }
         .confirmBtn { 
-            background: #2A174E; 
+            background: var(--color-brand-primary); 
             &:hover { background: #1f113a; }
         }
       }
@@ -53,7 +53,7 @@
       border: none;
       cursor: pointer;
       color: #999;
-      &:hover { color: #2A174E; }
+      &:hover { color: var(--color-brand-primary); }
     }
 
     .modalContent {

@@ -199,14 +199,14 @@ const RetirementPay = () => {
 
           {showGuideline && (
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-4 w-full">
-              <Card className="bg-blue-50 border-blue-200 shadow-none mb-4 w-full py-0 relative">
+              <Card className="bg-sky-50 border border-sky-200 border-l-4 border-l-status-info shadow-none mb-4 w-full py-0 relative">
                 <CardContent className="flex items-start gap-4 p-4 pr-12">
-                  <div className="bg-blue-100 p-2 rounded-lg mt-0.5">
-                    <InfoOutlinedIcon className="h-5 w-5 text-[#005a9c]" />
+                  <div className="bg-sky-100 p-2 rounded-lg mt-0.5">
+                    <InfoOutlinedIcon className="h-5 w-5 text-status-info" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-[#005a9c] text-sm">Policy Guideline</h3>
-                    <p className="text-sm text-blue-900/80 mt-0.5">
+                    <h3 className="font-bold text-status-info text-sm">Policy Guideline</h3>
+                    <p className="text-sm text-sky-950/80 mt-0.5">
                       Calculate and process statutory retirement benefits according to Article 302 (RA 7641).
                     </p>
                   </div>
@@ -239,7 +239,7 @@ const RetirementPay = () => {
                 {/* Configuration Card */}
                 <Card className="lg:col-span-1 shadow-sm border-0 bg-white">
                   <CardHeader>
-                    <CardTitle className="text-lg font-bold text-[#2A174E]">Employee Selection</CardTitle>
+                    <CardTitle className="text-lg font-bold text-brand-primary">Employee Selection</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -268,7 +268,7 @@ const RetirementPay = () => {
                     </div>
                     <Button 
                       onClick={handlePreview} 
-                      className="w-full bg-[#2A174E] text-white"
+                      className="w-full bg-brand-primary text-white"
                       disabled={loading || !selectedUser}
                     >
                       <SearchIcon className="mr-2 h-4 w-4" /> Compute Retirement
@@ -314,37 +314,37 @@ const RetirementPay = () => {
                           </CardContent>
                         </Card>
 
-                        <Card className="shadow-sm border-0 bg-[#2A174E] text-white">
+                        <Card className="shadow-sm border-t-5 border-brand-primary bg-white">
                           <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-bold text-purple-200 uppercase flex items-center gap-2">
+                            <CardTitle className="text-sm font-bold text-brand-primary uppercase flex items-center gap-2">
                               <ReceiptIcon className="h-4 w-4" /> Final Computation
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <p className="text-3xl font-black">{formatCurrency(preview.totalAmount)}</p>
-                            <p className="text-[10px] text-purple-200/70 mt-1">Formula: Daily Rate ({formatCurrency(preview.dailyRate)}) × 22.5 Days × {preview.yearsOfService} Yrs</p>
+                            <p className="text-3xl font-black text-brand-primary">{formatCurrency(preview.totalAmount)}</p>
+                            <p className="text-[10px] text-slate-400 mt-1">Formula: Daily Rate ({formatCurrency(preview.dailyRate)}) × 22.5 Days × {preview.yearsOfService} Yrs</p>
                           </CardContent>
                         </Card>
                       </div>
 
-                      <Card className="shadow-sm border-t-6 border-[#2A174E] bg-white">
+                      <Card className="shadow-sm border-t-5 border-brand-primary bg-white">
                         <CardHeader>
-                          <CardTitle className="text-lg font-bold text-[#2A174E]">Computation Breakdown (1/2 Month Salary)</CardTitle>
+                          <CardTitle className="text-lg font-bold text-brand-primary">Computation Breakdown (1/2 Month Salary)</CardTitle>
                           <CardDescription>Legal components per RA 7641 comprising the 22.5-day multiplier.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase">15 Days Salary</p>
-                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.components.salary15Days)}</p>
+                                <p className="text-lg font-bold text-brand-primary">{formatCurrency(preview.components.salary15Days)}</p>
                             </div>
                             <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase">5 Days SIL</p>
-                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.components.sil5Days)}</p>
+                                <p className="text-lg font-bold text-brand-primary">{formatCurrency(preview.components.sil5Days)}</p>
                             </div>
                             <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase">2.5 Days (1/12 of 13th)</p>
-                                <p className="text-lg font-bold text-[#2A174E]">{formatCurrency(preview.components.thirteenthMonth2_5Days)}</p>
+                                <p className="text-lg font-bold text-brand-primary">{formatCurrency(preview.components.thirteenthMonth2_5Days)}</p>
                             </div>
                           </div>
 
@@ -354,7 +354,7 @@ const RetirementPay = () => {
 
                           {/* Comprehensive Retirement Pay Formula Breakdown Box */}
                           <div className="p-4 bg-purple-50/60 border border-purple-100 rounded-xl space-y-3 text-left">
-                            <div className="flex items-center space-x-2 text-[#2A174E] font-bold text-xs uppercase tracking-wide">
+                            <div className="flex items-center space-x-2 text-brand-primary font-bold text-xs uppercase tracking-wide">
                               <InfoOutlinedIcon className="w-4 h-4 text-purple-600" />
                               <span>Comprehensive Retirement Benefit Formula Breakdown (RA 7641)</span>
                             </div>
@@ -379,7 +379,7 @@ const RetirementPay = () => {
                               <span className="text-slate-600">
                                 Formula: {formatCurrency(preview.dailyRate)} × 22.5 Days × {preview.yearsOfService} Yrs
                               </span>
-                              <span className="font-bold text-[#2A174E] text-sm">
+                              <span className="font-bold text-brand-primary text-sm">
                                 = {formatCurrency(preview.totalAmount)}
                               </span>
                             </div>
@@ -389,12 +389,12 @@ const RetirementPay = () => {
                         </CardContent>
                       </Card>
 
-                      <Card className="shadow-sm border-t-6 border-[#2A174E] bg-white overflow-hidden text-left py-0">
-                        <CardHeader className=" text-[#2A174E] pt-6">
-                          <CardTitle className="text-base font-bold text-[#2A174E] flex items-center gap-2">
+                      <Card className="shadow-sm border-t-6 border-brand-primary bg-white overflow-hidden text-left py-0">
+                        <CardHeader className=" text-brand-primary pt-6">
+                          <CardTitle className="text-base font-bold text-brand-primary flex items-center gap-2">
                             <span>Final Settlement Breakdown & Mathematical Basis</span>
                           </CardTitle>
-                          <CardDescription className="text-[#2A174E] text-xs mt-0.5">
+                          <CardDescription className="text-brand-primary text-xs mt-0.5">
                             Itemized mathematical origin for pro-rated 13th month, leave encashment, and final worked days.
                           </CardDescription>
                         </CardHeader>
@@ -472,19 +472,19 @@ const RetirementPay = () => {
                           )}
 
                           {/* FINAL PAY COMPUTATION GRAND TOTAL CARD */}
-                          <div className="p-5 bg-gradient-to-br from-[#2A174E] to-indigo-950 text-white rounded-2xl shadow-md border border-indigo-800 space-y-4">
-                            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                          <div className="p-5 bg-white border-t-5 border-brand-primary text-slate-800 rounded-2xl shadow-sm border border-slate-200/80 space-y-4">
+                            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                               <div>
-                                <p className="text-xs font-bold text-purple-200 uppercase tracking-widest">Final Retirement Pay Settlement Package Grand Total</p>
-                                <p className="text-[10px] text-slate-300">Consolidated back pay components + statutory retirement benefit (RA 7641) minus outstanding loans</p>
+                                <p className="text-xs font-bold text-brand-primary uppercase tracking-widest">Final Retirement Pay Settlement Package Grand Total</p>
+                                <p className="text-[10px] text-slate-500">Consolidated back pay components + statutory retirement benefit (RA 7641) minus outstanding loans</p>
                               </div>
-                              <Badge className="bg-emerald-500 text-white font-bold text-xs">Final Retirement Summary</Badge>
+                              <Badge className="bg-accent-green text-slate-900 font-bold text-xs">Final Retirement Summary</Badge>
                             </div>
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                              <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
-                                <p className="text-[9px] font-bold text-purple-200 uppercase">Gross Back Pay</p>
-                                <p className="font-bold text-white text-sm">
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                <p className="text-[9px] font-bold text-slate-500 uppercase">Gross Back Pay</p>
+                                <p className="font-bold text-slate-800 text-sm">
                                   {formatCurrency(
                                     parseFloat(preview.backPay.prorated13thMonth || 0) + 
                                     parseFloat(preview.backPay.leaveConversion || 0) + 
@@ -492,21 +492,21 @@ const RetirementPay = () => {
                                   )}
                                 </p>
                               </div>
-                              <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
-                                <p className="text-[9px] font-bold text-purple-200 uppercase">Retirement Pay (RA 7641)</p>
-                                <p className="font-bold text-purple-300 text-sm">
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                <p className="text-[9px] font-bold text-slate-500 uppercase">Retirement Pay (RA 7641)</p>
+                                <p className="font-bold text-brand-primary text-sm">
                                   {formatCurrency(preview.totalAmount || 0)}
                                 </p>
                               </div>
-                              <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
-                                <p className="text-[9px] font-bold text-purple-200 uppercase">Outstanding Loans</p>
-                                <p className="font-bold text-rose-300 text-sm">
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                <p className="text-[9px] font-bold text-slate-500 uppercase">Outstanding Loans</p>
+                                <p className="font-bold text-status-danger text-sm">
                                   -{formatCurrency(preview.loanDeductions || 0)}
                                 </p>
                               </div>
-                              <div className="bg-emerald-500/20 p-2.5 rounded-lg border border-emerald-400/40">
-                                <p className="text-[9px] font-bold text-emerald-300 uppercase">Net Settlement Payable</p>
-                                <p className="font-black text-emerald-400 text-base">
+                              <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+                                <p className="text-[9px] font-bold text-emerald-700 uppercase">Net Settlement Payable</p>
+                                <p className="font-black text-emerald-700 text-base">
                                   {formatCurrency(preview.netAmount || 0)}
                                 </p>
                               </div>
@@ -555,7 +555,7 @@ const RetirementPay = () => {
                 </div>
               </Card>
               <Card className="shadow-sm border-0 bg-white py-0">
-                <CardHeader className="pt-6 pb-4 bg-[#2A174E]">
+                <CardHeader className="pt-6 pb-4 bg-brand-primary">
                   <CardTitle className="text-lg font-bold text-white">Retirement Records</CardTitle>
                 </CardHeader>
                 <CardContent className="px-4">
@@ -574,7 +574,7 @@ const RetirementPay = () => {
                     <TableBody>
                       {paginatedHistory.length > 0 ? paginatedHistory.map((h) => (
                         <TableRow key={h.retirementId}>
-                          <TableCell className="font-bold text-[#2A174E]">{h.user_LastName}, {h.user_FirstName}</TableCell>
+                          <TableCell className="font-bold text-brand-primary">{h.user_LastName}, {h.user_FirstName}</TableCell>
                           <TableCell>{new Date(h.retirementDate).toLocaleDateString()}</TableCell>
                           <TableCell>{h.yearsOfService} Years</TableCell>
                           <TableCell>
@@ -616,7 +616,7 @@ const RetirementPay = () => {
                                   <Button 
                                     size="sm" 
                                     onClick={() => handleRelease(h.retirementId)}
-                                    className="bg-[#2A174E] text-white"
+                                    className="bg-brand-primary text-white"
                                   >
                                     Release
                                   </Button>
@@ -660,7 +660,7 @@ const RetirementPay = () => {
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#2A174E]">Adjust Retirement Date</DialogTitle>
+            <DialogTitle className="text-brand-primary">Adjust Retirement Date</DialogTitle>
             <DialogDescription>
               Update the retirement date for {editRecord?.user_FirstName} {editRecord?.user_LastName}. 
               All benefits will be re-calculated based on this new date.
@@ -687,7 +687,7 @@ const RetirementPay = () => {
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleUpdateDate} disabled={loading} className="bg-[#2A174E] text-white">
+            <Button onClick={handleUpdateDate} disabled={loading} className="bg-brand-primary text-white">
               {loading ? "Re-calculating..." : "Update & Re-calculate"}
             </Button>
           </DialogFooter>

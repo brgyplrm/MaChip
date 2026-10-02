@@ -207,7 +207,7 @@ const Edit = ({ inputs, title }) => {
       <div className="flex-1 p-4 md:p-8 w-full max-w-4xl mx-auto overflow-x-hidden min-w-0">
         
         <div className="mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">
+          <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">
             {title} <span className="text-slate-500 font-medium text-xl md:text-2xl ml-2">(ID: {formatUserId(userId)})</span>
           </h1>
         </div>
@@ -233,7 +233,7 @@ const Edit = ({ inputs, title }) => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full bg-[#2A174E] flex items-center justify-center text-white text-2xl font-bold tracking-wider select-none">
+                    <div className="w-full h-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold tracking-wider select-none">
                       {((formData.user_FirstName?.trim().charAt(0) || "") + (formData.user_LastName?.trim().charAt(0) || "")).toUpperCase() || "U"}
                     </div>
                   )}
@@ -274,7 +274,7 @@ const Edit = ({ inputs, title }) => {
                           value={formData[input.id] || ""}
                           onChange={handleInput}
                           readOnly={isReadOnly}
-                          className={`flex-1 ${isReadOnly ? "bg-slate-100 text-slate-500 cursor-not-allowed focus-visible:ring-0" : "bg-white focus-visible:ring-[#2A174E]"}`}
+                          className={`flex-1 ${isReadOnly ? "bg-slate-100 text-slate-500 cursor-not-allowed focus-visible:ring-0" : "bg-white focus-visible:ring-brand-primary"}`}
                         />
                         
                         {input.label === "MaChip ID" && isAdmin && (
@@ -282,7 +282,7 @@ const Edit = ({ inputs, title }) => {
                             type="button"   
                             variant="secondary"
                             onClick={handleScanRFID}
-                            className="shrink-0 bg-[#2A174E] text-white hover:bg-[#1a0e30] transition-colors"
+                            className="shrink-0 bg-brand-primary text-white hover:bg-brand-primary-hover transition-colors"
                           >
                             RE-SCAN
                           </Button>
@@ -293,7 +293,7 @@ const Edit = ({ inputs, title }) => {
                             type="button" 
                             variant="secondary"
                             onClick={handleScanFingerprint}
-                            className="shrink-0 bg-[#2A174E] text-white hover:bg-[#1a0e30] transition-colors"
+                            className="shrink-0 bg-brand-primary text-white hover:bg-brand-primary-hover transition-colors"
                           >
                             RE-SCAN
                           </Button>
@@ -316,7 +316,7 @@ const Edit = ({ inputs, title }) => {
                 <Button 
                   type="submit" 
                   disabled={loading}
-                  className="bg-[#2A174E] hover:bg-[#1a0e30] text-white w-full sm:w-auto"
+                  className="bg-brand-primary hover:bg-brand-primary-hover text-white w-full sm:w-auto"
                 >
                   {loading ? "Updating..." : "Update Profile"}
                 </Button>

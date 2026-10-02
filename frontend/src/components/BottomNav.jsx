@@ -27,20 +27,20 @@ const BottomNav = () => {
                 transition-all duration-500 ease-in-out transform
                 ${isOpen ? 'opacity-100 scale-100 translate-y-0 w-[320px]' : 'opacity-0 scale-50 translate-y-10 w-0 pointer-events-none'}
             `}>
-                <Link to="/newUser" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
+                <Link to="/newUser" className="p-2 text-[#777] hover:text-brand-primary hover:bg-white/10 rounded-full transition-all">
                     <PersonAddIcon />
                 </Link>
-                <Link to="/logs" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
+                <Link to="/logs" className="p-2 text-[#777] hover:text-brand-primary hover:bg-white/10 rounded-full transition-all">
                     <HistoryIcon />
                 </Link>
                 
                 {/* Spacer for the toggle button */}
                 <div className="w-12 h-12"></div>
 
-                <Link to="/payroll" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
+                <Link to="/payroll" className="p-2 text-[#777] hover:text-brand-primary hover:bg-white/10 rounded-full transition-all">
                     <PaymentsIcon />
                 </Link>
-                <Link to="/adminRequests" className="p-2 text-[#777] hover:text-[#2A174E] hover:bg-white/10 rounded-full transition-all">
+                <Link to="/adminRequests" className="p-2 text-[#777] hover:text-brand-primary hover:bg-white/10 rounded-full transition-all">
                     <RateReviewIcon />
                 </Link>
             </div>
@@ -53,7 +53,7 @@ const BottomNav = () => {
                     w-12 h-12 rounded-full flex items-center justify-center
                     shadow-[0_0_20px_rgba(186,144,233,0.1)]
                     transition-all duration-300 transform active:scale-95
-                    ${isOpen ? 'bg-[#2A174E] rotate-45 text-[#FAF2FF]' : 'bg-[#FAF2FF] text-[#2A174E] hover:bg-[#3d2170] hover:border-[#BA90E9] hover:shadow-[0_0_20px_rgba(186,144,233,0.3)] hover:text-[#FAF2FF]'}
+                    ${isOpen ? 'bg-brand-primary rotate-45 text-[#FAF2FF]' : 'bg-[#FAF2FF] text-brand-primary hover:bg-[#3d2170] hover:border-[#BA90E9] hover:shadow-[0_0_20px_rgba(186,144,233,0.3)] hover:text-[#FAF2FF]'}
                     border-4 border-white
                 `}
             >

@@ -376,7 +376,7 @@ const AdminRequests = () => {
         {/* Header Section */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">User Requests</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">User Requests</h1>
               <span className="text-sm text-slate-500 mt-1 block">
                 Monitor and process employee requests, leave filings, and log correction tickets.
               </span>
@@ -385,7 +385,7 @@ const AdminRequests = () => {
             <Button 
             variant="outline" 
             asChild
-            className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+            className="w-full md:w-auto border-brand-primary/20 hover:text-brand-primary text-brand-primary/70 font-semibold shadow-sm transition-all"
           >
             <Link 
               to="/adminReports" 
@@ -400,78 +400,78 @@ const AdminRequests = () => {
          {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
             {/* Card 1: Total Active Users */}
-            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Pending Requests</p>
+                    <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Pending Requests</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                         Requests waiting for supervisor recommendation or final admin approval.
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#2A174E]">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
+                  <p className="text-4xl font-bold text-brand-primary">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
                 </div>
-                <p className="text-xs text-[#2A174E]/70 italic mt-4">Awaiting review and approval</p>
+                <p className="text-xs text-brand-primary/70 italic mt-4">Awaiting review and approval</p>
               </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <HourglassEmptyIcon className="h-6 w-6" />
               </div>
               </CardContent>
             </Card>
 
             {/* Card 2: Employees */}
-            <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Approved Total</p>
+                    <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Approved Total</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                         Total number of employee requests approved in this system cycle.
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#3B4E17]">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
+                  <p className="text-4xl font-bold text-accent-green">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
                 </div>
-                <p className="text-xs text-[#3B4E17]/70 italic mt-4">Processed and approved requests</p>
+                <p className="text-xs text-accent-green/70 italic mt-4">Processed and approved requests</p>
               </div>
-              <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CheckCircleOutlineIcon className="h-6 w-6" />
               </div>
               </CardContent>
             </Card>
 
             {/* Card 3: Admins & Supervisors */}
-            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Rejected Total</p>
+                    <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Rejected Total</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                         Total number of employee requests rejected or declined.
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#BB8B26]">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
+                  <p className="text-4xl font-bold text-accent-gold">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
                 </div>
-                <p className="text-xs text-[#BB8B26]/70 italic mt-4">Declined and unapproved requests</p>
+                <p className="text-xs text-accent-gold/70 italic mt-4">Declined and unapproved requests</p>
               </div>
-              <div className="bg-white/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-white/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CancelOutlinedIcon className="h-6 w-6" />
               </div>
               </CardContent>
@@ -512,7 +512,7 @@ const AdminRequests = () => {
                   placeholder="Search Employee Name or REQ ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                  className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
                 />
               </div>
               
@@ -591,13 +591,13 @@ const AdminRequests = () => {
           <Card className="w-full lg:w-1/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-0">
             <div className="flex border-b border-slate-100 bg-slate-50/50">
               <button
-                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "pending" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "pending" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
                 onClick={() => setActiveTab("pending")}
               >
                 Pending
               </button>
               <button
-                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "completed" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "completed" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
                 onClick={() => setActiveTab("completed")}
               >
                 History
@@ -618,7 +618,7 @@ const AdminRequests = () => {
                     <div
                       key={req.emp_reqId}
                       onClick={() => setSelectedReqId(req.emp_reqId)}
-                      className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
+                      className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-brand-primary-light border-brand-primary shadow-sm" : "border-slate-200 bg-white hover:border-brand-primary/50"}`}
                     >
                       <div className="flex justify-between items-center mb-2">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -643,7 +643,7 @@ const AdminRequests = () => {
                   <div className="bg-green-100 text-green-600 p-4 rounded-full mb-4">
                     <CheckCircleOutlineIcon className="h-8 w-8" />
                   </div>
-                  <h5 className="font-bold text-[#2A174E] text-lg mb-2">
+                  <h5 className="font-bold text-brand-primary text-lg mb-2">
                     {activeTab === "pending" ? "All Caught Up!" : "No Records Found"}
                   </h5>
                   <p className="text-sm text-slate-500 max-w-[200px]">
@@ -676,7 +676,7 @@ const AdminRequests = () => {
                 <>
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
                     <div>
-                      <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {current.reqTypeName}</h3>
+                      <h3 className="text-xl md:text-2xl font-bold text-brand-primary">Review {current.reqTypeName}</h3>
                       <p className="text-sm text-slate-500 mt-1">Submitted on {new Date(current.date_Filed).toLocaleDateString()}</p>
                       {current.emp_reqStatusId === 5 && (
                         <div className="mt-2">
@@ -764,7 +764,7 @@ const AdminRequests = () => {
                               <Button 
                                 variant="outline" 
                                 size="icon"
-                                className="text-[#2A174E]/70 border-transparent! hover:text-[#2A174E] font-bold h-9 w-9 shrink-0"
+                                className="text-brand-primary/70 border-transparent! hover:text-brand-primary font-bold h-9 w-9 shrink-0"
                                 onClick={() => handleEditClick(current)}
                               >
                                 <EditIcon className="h-4 w-4" />
@@ -788,7 +788,7 @@ const AdminRequests = () => {
 
                     <div className="space-y-1 sm:col-span-2 xl:col-span-1 p-3 -m-3 rounded-lg ">
                       <label className="text-xs font-bold text-slate-500 uppercase">Requested Schedule</label>
-                      <p className="font-bold text-[#2A174E]">{getDates(current)}</p>
+                      <p className="font-bold text-brand-primary">{getDates(current)}</p>
                     </div>
 
                     <div className="space-y-1">
@@ -1007,7 +1007,7 @@ const AdminRequests = () => {
                               setViewingFileName(`Attachment for REQ-${current.emp_reqId}`);
                               setIsFileViewerOpen(true);
                             }}
-                            className="inline-flex items-center text-[#2A174E] font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
+                            className="inline-flex items-center text-brand-primary font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
                             >
                             <AttachmentIcon className="mr-1 h-4 w-4" /> View Primary Document (Disclosure Statement/Medical Cert)
                             </button>
@@ -1055,7 +1055,7 @@ const AdminRequests = () => {
                         value={adminNote}
                         onChange={(e) => setAdminNote(e.target.value)}
                         placeholder="Reason for approval, rejection, or return..."
-                        className="h-24 resize-none focus-visible:ring-[#2A174E]"
+                        className="h-24 resize-none focus-visible:ring-brand-primary"
                       />
                     </div>
                   )}

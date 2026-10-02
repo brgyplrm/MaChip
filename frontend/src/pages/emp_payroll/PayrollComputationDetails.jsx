@@ -33,17 +33,19 @@ import {
 } from "@/components/ui/tooltip";
 
 const colorMap = {
-  "[#2A174E]": "border-[#2A174E]",
-  "[#3B4E17]": "border-[#3B4E17]",
-  "[#BB8B26]": "border-[#BB8B26]",
+  "brand-primary": "border-brand-primary",
+  "accent-green": "border-accent-green",
+  "accent-gold": "border-accent-gold",
+  "status-info": "border-status-info",
+  "status-danger": "border-status-danger",
   "amber-500": "border-amber-500",
-  "indigo-500": "border-indigo-500",
-  "blue-500": "border-blue-500"
+  "indigo-500": "border-status-info",
+  "blue-500": "border-status-info"
 };
 
 function MetricCard({ label, value, color, description, icon: Icon, tooltip }) {
   return (
-    <Card className={`border-t-4 ${colorMap[color] || 'border-[#2A174E]'} bg-white py-0 h-full shadow-sm`}>
+    <Card className={`border-t-4 ${colorMap[color] || 'border-brand-primary'} bg-white py-0 h-full shadow-sm`}>
       <CardContent className="p-5 flex flex-col justify-between h-full text-left">
         <div className="flex justify-between items-start">
           <div>
@@ -53,7 +55,7 @@ function MetricCard({ label, value, color, description, icon: Icon, tooltip }) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex items-center justify-center cursor-help">
-                      <HelpCircle className="h-3 w-3 text-[#2A174E]/60 hover:text-[#2A174E]" />
+                      <HelpCircle className="h-3 w-3 text-brand-primary/60 hover:text-brand-primary" />
                     </span>
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-[10px]">
@@ -62,7 +64,7 @@ function MetricCard({ label, value, color, description, icon: Icon, tooltip }) {
                 </Tooltip>
               )}
             </div>
-            <p className="text-2xl font-black text-[#2A174E]">{value}</p>
+            <p className="text-2xl font-black text-brand-primary">{value}</p>
           </div>
           {Icon && (
             <div className={`p-2.5 rounded-xl ${
@@ -71,7 +73,7 @@ function MetricCard({ label, value, color, description, icon: Icon, tooltip }) {
               color === 'amber-500' ? 'bg-amber-50 text-amber-600' :
               color === 'rose-500' ? 'bg-rose-50 text-rose-600' :
               color === 'indigo-500' ? 'bg-indigo-50 text-indigo-600' :
-              'bg-[#2A174E]/10 text-[#2A174E]'
+              'bg-brand-primary/10 text-brand-primary'
             }`}>
               <Icon className="h-5 w-5" />
             </div>
@@ -164,7 +166,7 @@ const PayrollComputationDetails = () => {
           <p className="text-slate-500 text-sm mt-1 max-w-md">
             The requested payroll record could not be loaded or is not yet released for viewing.
           </p>
-          <Button asChild className="mt-6 bg-[#2A174E] hover:bg-[#3d236e] text-white">
+          <Button asChild className="mt-6 bg-brand-primary hover:bg-[#3d236e] text-white">
             <Link to="/employee/payroll">Return to Payroll History</Link>
           </Button>
         </div>
@@ -212,7 +214,7 @@ const PayrollComputationDetails = () => {
                         asChild 
                         variant="ghost" 
                         size="icon" 
-                        className="text-[#2A174E] hover:bg-[#2A174E]/10 rounded-full"
+                        className="text-brand-primary hover:bg-brand-primary/10 rounded-full"
                       >
                         <Link to={`/employee/payslip/${id}`}>
                           <ChevronLeft className="h-6 w-6" />
@@ -242,7 +244,7 @@ const PayrollComputationDetails = () => {
             {/* Net Take Home Card */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="bg-[#2A174E] text-white px-5 py-2.5 rounded-xl shadow-sm flex flex-col items-end justify-center min-w-[160px] cursor-help">
+                <div className="bg-brand-primary text-white px-5 py-2.5 rounded-xl shadow-sm flex flex-col items-end justify-center min-w-[160px] cursor-help">
                   <span className="text-[10px] text-slate-300 uppercase font-bold tracking-wider">Net Take Home</span>
                   <span className="text-2xl font-bold tracking-tight text-white">{formatCurrency(payroll.netPay)}</span>
                 </div>
@@ -258,7 +260,7 @@ const PayrollComputationDetails = () => {
             <MetricCard
               label="Gross Earnings"
               value={formatCurrency(payroll.totalEarnings)}
-              color="[#2A174E]"
+              color="brand-primary"
               description="Basic pay, OT, night diff & allowances"
               icon={TrendingUp}
               tooltip="Total gross compensation earned before statutory deductions and taxes."
@@ -266,7 +268,7 @@ const PayrollComputationDetails = () => {
             <MetricCard
               label="Total Deductions"
               value={`-${formatCurrency(payroll.totalDeductions)}`}
-              color="[#3B4E17]"
+              color="accent-green"
               description="Taxes, statutory shares, absences & loans"
               icon={TrendingDown}
               tooltip="Combined statutory contributions, withholding tax, attendance penalties, and loan amortizations."
@@ -274,7 +276,7 @@ const PayrollComputationDetails = () => {
             <MetricCard
               label="Net Retained"
               value={`${netRetainedPercent}%`}
-              color="[#BB8B26]"
+              color="accent-gold"
               description={`${formatCurrency(payroll.netPay)} take-home pay`}
               icon={Wallet}
               tooltip="Percentage of gross earnings retained as net take-home pay."
@@ -282,7 +284,7 @@ const PayrollComputationDetails = () => {
             <MetricCard
               label="Attendance Record"
               value={`${payroll.NoDays_Worked} Days`}
-              color="blue-500"
+              color="status-info"
               description={`${payroll.NoHrs_Worked || 0} hrs worked @ ${formatCurrency(payroll.dailyRate)}/day`}
               icon={CalendarDays}
               tooltip="Total logged work days and hours present during this payroll period."
@@ -294,7 +296,7 @@ const PayrollComputationDetails = () => {
             <CardHeader className="bg-slate-50/70 border-b border-slate-100/80 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  <Receipt className="h-5 w-5 text-[#2A174E]" />
+                  <Receipt className="h-5 w-5 text-brand-primary" />
                   Itemized Statement of Earnings & Deductions
                 </CardTitle>
                 <CardDescription className="text-xs text-slate-500 mt-0.5">
@@ -432,7 +434,7 @@ const PayrollComputationDetails = () => {
                             onClick={() => setIsHolidayExpanded(!isHolidayExpanded)}
                           >
                             <div className="flex items-center gap-1.5">
-                              <span className="text-slate-600 group-hover:text-[#2A174E]">Holiday Pay</span>
+                              <span className="text-slate-600 group-hover:text-brand-primary">Holiday Pay</span>
                               <Tooltip>
                                 <TooltipTrigger><HelpCircle className="h-3.5 w-3.5 text-slate-300 cursor-help" /></TooltipTrigger>
                                 <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
@@ -440,16 +442,16 @@ const PayrollComputationDetails = () => {
                                 </TooltipContent>
                               </Tooltip>
                               {isHolidayExpanded ? (
-                                <ChevronUp className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#2A174E]" />
+                                <ChevronUp className="h-3.5 w-3.5 text-slate-400 group-hover:text-brand-primary" />
                               ) : (
-                                <ChevronDown className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#2A174E]" />
+                                <ChevronDown className="h-3.5 w-3.5 text-slate-400 group-hover:text-brand-primary" />
                               )}
                             </div>
                             <span className="font-medium text-slate-800">{formatCurrency(totalHoliday)}</span>
                           </div>
 
                           {isHolidayExpanded && (
-                            <div className="mt-2 ml-1 pl-3 border-l-2 border-[#2A174E]/30 space-y-1.5 text-xs">
+                            <div className="mt-2 ml-1 pl-3 border-l-2 border-brand-primary/30 space-y-1.5 text-xs">
                               {Array.isArray(payroll.holidayBreakdown) && payroll.holidayBreakdown.length > 0 ? (
                                 payroll.holidayBreakdown.map((item, idx) => (
                                   <div key={idx} className="bg-slate-50/90 p-2 rounded-lg space-y-0.5">
@@ -624,7 +626,7 @@ const PayrollComputationDetails = () => {
               {/* Card Footer: Net Pay Reconciliation Bar */}
               <div className="bg-slate-50/90 border-t border-slate-100 p-5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="bg-[#2A174E] text-white p-2.5 rounded-xl">
+                  <div className="bg-brand-primary text-white p-2.5 rounded-xl">
                     <Receipt className="h-5 w-5" />
                   </div>
                   <div>
@@ -637,12 +639,12 @@ const PayrollComputationDetails = () => {
                 <div className="flex items-center gap-4">
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Final Net Pay Credited</span>
-                    <span className="text-2xl font-bold text-[#2A174E]">{formatCurrency(payroll.netPay)}</span>
+                    <span className="text-2xl font-bold text-brand-primary">{formatCurrency(payroll.netPay)}</span>
                   </div>
                   <Button 
                     asChild
                     variant="ghost" 
-                    className="text-[#2A174E] hover:bg-[#2A174E]/10 font-semibold text-xs gap-1.5 hidden md:flex"
+                    className="text-brand-primary hover:bg-brand-primary/10 font-semibold text-xs gap-1.5 hidden md:flex"
                   >
                     <Link to={`/employee/payslip/${id}`}>
                       <span>Back to Payslip Details</span>
@@ -654,30 +656,30 @@ const PayrollComputationDetails = () => {
             </CardContent>
           </Card>
 
-          {/* Year-To-Date (YTD) Summary Card (Borderless) */}
-          <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-gradient-to-r from-slate-900 via-[#2A174E] to-slate-900 text-white py-0">
-            <CardHeader className="p-5 pb-3 border-b border-white/10">
-              <CardTitle className="text-base flex items-center gap-2 text-white font-semibold">
-                <CalendarDays className="h-5 w-5 text-amber-400" />
+          {/* Year-To-Date (YTD) Summary Card (Border-only) */}
+          <Card className="bg-white border-t-5 border-brand-primary shadow-sm rounded-xl py-0 text-slate-800">
+            <CardHeader className="p-5 pb-3 border-b border-slate-100">
+              <CardTitle className="text-base flex items-center gap-2 text-slate-800 font-semibold">
+                <CalendarDays className="h-5 w-5 text-accent-gold" />
                 Year-To-Date (YTD) Accumulated Totals ({new Date(payroll.period_Start).getFullYear()})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">YTD Gross Earnings</p>
-                <p className="text-xl font-bold text-emerald-400 mt-0.5">{formatCurrency(payroll.ytdGross)}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">YTD Gross Earnings</p>
+                <p className="text-xl font-bold text-emerald-600 mt-0.5">{formatCurrency(payroll.ytdGross)}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">YTD Non-Taxable</p>
-                <p className="text-xl font-bold text-blue-300 mt-0.5">{formatCurrency(payroll.ytdNonTaxable)}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">YTD Non-Taxable</p>
+                <p className="text-xl font-bold text-blue-600 mt-0.5">{formatCurrency(payroll.ytdNonTaxable)}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">YTD Total Deductions</p>
-                <p className="text-xl font-bold text-rose-300 mt-0.5">({formatCurrency(payroll.ytdDeductions)})</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">YTD Total Deductions</p>
+                <p className="text-xl font-bold text-rose-600 mt-0.5">({formatCurrency(payroll.ytdDeductions)})</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">YTD Withholding Tax</p>
-                <p className="text-xl font-bold text-amber-300 mt-0.5">({formatCurrency(payroll.ytdBIR)})</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">YTD Withholding Tax</p>
+                <p className="text-xl font-bold text-amber-600 mt-0.5">({formatCurrency(payroll.ytdBIR)})</p>
               </div>
             </CardContent>
           </Card>

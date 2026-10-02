@@ -116,7 +116,7 @@ const Navbar = () => {
             <div className="relative cursor-pointer transition-all duration-200 flex items-center">
               {/* "group-hover:animate-bell-shake" triggers the animation defined in config */}
               <NotificationsNoneOutlinedIcon 
-                className="!text-[28px] text-[#555] transition-all duration-200 group-hover:scale-110 group-hover:text-[#2A174E] group-hover:animate-bell-shake" 
+                className="!text-[28px] text-[#555] transition-all duration-200 group-hover:scale-110 group-hover:text-brand-primary group-hover:animate-bell-shake" 
               />
               {unreadCount > 0 && (
                 <div className="min-w-[16px] h-4 bg-red-600 rounded-full text-white flex items-center justify-center text-[10px] font-bold absolute -top-1 -right-1 px-1">
@@ -131,7 +131,7 @@ const Navbar = () => {
             <img 
               src={userData?.user_ProfilePic ? `/api/uploads/${userData.user_ProfilePic}` : "/avatar.webp"} 
               alt="Profile" 
-              className="w-10 h-10 rounded-full object-cover shrink-0 block transition-transform duration-200 group-hover:scale-105 border-2 border-transparent group-hover:border-[#2A174E]" 
+              className="w-10 h-10 rounded-full object-cover shrink-0 block transition-transform duration-200 group-hover:scale-105 border-2 border-transparent group-hover:border-brand-primary" 
             />
             
             {/* Dropdown Menu alignment fixed to trigger correctly */}
@@ -139,17 +139,17 @@ const Navbar = () => {
               invisible opacity-0 translate-y-2 transition-all duration-200 ease-in-out pointer-events-none 
               group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto">
               
-              <Link to="/profile" className="flex items-center gap-3 px-5 py-3.5 no-underline text-[#4a5568] border-b border-[#f1f3f5] transition-colors hover:bg-[#f0ebfa] hover:text-[#2A174E] group/item">
-                <AccountCircleOutlinedIcon className="!text-[20px] text-[#2A174E] transition-transform duration-200 group-hover/item:scale-110" />
+              <Link to="/profile" className="flex items-center gap-3 px-5 py-3.5 no-underline text-[#4a5568] border-b border-[#f1f3f5] transition-colors hover:bg-brand-primary-light hover:text-brand-primary group/item">
+                <AccountCircleOutlinedIcon className="!text-[20px] text-brand-primary transition-transform duration-200 group-hover/item:scale-110" />
                 <span className="text-sm font-semibold">Profile</span>
               </Link>
               
               {isManagement && (
                 <div 
-                  className="flex items-center gap-3 px-5 py-3.5 no-underline text-[#4a5568] transition-colors hover:bg-[#f0ebfa] hover:text-[#2A174E] group/item" 
+                  className="flex items-center gap-3 px-5 py-3.5 no-underline text-[#4a5568] transition-colors hover:bg-brand-primary-light hover:text-brand-primary group/item" 
                   onClick={toggleViewMode}
                 >
-                  <SwitchAccountIcon className="!text-[20px] text-[#2A174E] transition-transform duration-200 group-hover/item:scale-110" />
+                  <SwitchAccountIcon className="!text-[20px] text-brand-primary transition-transform duration-200 group-hover/item:scale-110" />
                   <span className="text-sm font-semibold">
                     {viewMode === "management" 
                       ? "Switch to Employee" 

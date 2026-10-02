@@ -3,23 +3,6 @@
 #include "DisplayManager.h"
 #include "HardwareDrivers.h"
 
-// ── LOGGING ENGINE ───────────────────────────────────────────────
-inline void sysLog(const String &msg) {
-  Serial.println(msg);
-  
-  unsigned long ms = millis();
-  unsigned long sec = ms / 1000;
-  unsigned long min = (sec / 60) % 60;
-  unsigned long hr = (sec / 3600) % 24;
-  sec = sec % 60;
-  
-  char timeStr[16];
-  snprintf(timeStr, sizeof(timeStr), "[%02lu:%02lu:%02lu] ", hr, min, sec);
-  
-  webLogBuffer[logHead] = String(timeStr) + msg;
-  logHead = (logHead + 1) % LOG_MAX_ENTRIES;
-  if (logCount < LOG_MAX_ENTRIES) logCount++;
-}
 
 // ── WEB CONSOLE HTML UI ───────────────────────────────────────────
 const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
@@ -107,6 +90,20 @@ inline void handleConsoleClear() {
   webServer.send(200, "application/json", "{\"success\":true}");
 }
 
+inline void handleCancelEnrollment() {
+  sysLog(F("[REMOTE-CANCEL] Direct cancellation signal received from server"));
+  if (enrollmentMode) {
+    enrollmentMode = false;
+    fpEnrollStage = 0;
+    updateFrontDisplay("CANCELLED", "Enrollment Cancelled", ST77XX_YELLOW);
+    delay(500);
+    updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+    updateBackDisplay("READY", "Scan Card Out");
+    setLED(LED_SLOW_BLINK, LED_OFF);
+  }
+  webServer.send(200, "application/json", "{\"success\":true,\"cancelled\":true}");
+}
+
 inline void setupWebConsole() {
   if (webServerStarted) return;
 
@@ -114,16 +111,19 @@ inline void setupWebConsole() {
   webServer.on("/console", HTTP_GET, handleConsoleUI);
   webServer.on("/console/logs", HTTP_GET, handleConsoleLogs);
   webServer.on("/console/clear", HTTP_POST, handleConsoleClear);
+  webServer.on("/api/cancel", HTTP_ANY, handleCancelEnrollment);
+  webServer.on("/cancel", HTTP_ANY, handleCancelEnrollment);
 
   webServer.begin();
   webServerStarted = true;
 
   sysLog(F("=========================================================="));
-  sysLog(F(" 🌐 MACHIP SECURED WEB SERIAL CONSOLE INITIALIZED"));
-  sysLog(" └─ URL:      http://" + WiFi.localIP().toString() + "/console");
-  sysLog(F(" └─ mDNS:     http://machip-esp32.local/console"));
-  sysLog(" └─ Username: " + String(WEB_CONSOLE_USER));
-  sysLog(" └─ Password: " + String(WEB_CONSOLE_PASS));
+  sysLog(" [*] MACHIP SECURED WEB CONSOLE (" + String(FIRMWARE_VERSION) + ")");
+  sysLog("  +-- Build:    " + String(BUILD_TIMESTAMP));
+  sysLog("  +-- URL:      http://" + WiFi.localIP().toString() + "/console");
+  sysLog(F("  +-- mDNS:     http://machip-esp32.local/console"));
+  sysLog("  +-- Username: " + String(WEB_CONSOLE_USER));
+  sysLog("  \\-- Password: " + String(WEB_CONSOLE_PASS));
   sysLog(F("=========================================================="));
 }
 
@@ -242,13 +242,13 @@ inline void setupOTA() {
     } else { // U_SPIFFS / U_LITTLEFS
       type = "filesystem";
     }
-    Serial.println("[OTA] Firmware update started: " + type);
+    sysLog("[OTA] Firmware update started: " + type);
     updateFrontDisplay("OTA UPDATE", "Flashing new firmware...", ST77XX_YELLOW);
     updateBackDisplay("OTA UPDATE", "Do not power off!");
   });
 
   ArduinoOTA.onEnd([]() {
-    Serial.println("\n[OTA] Firmware update complete!");
+    sysLog(F("[OTA] Firmware update complete! Rebooting..."));
     updateFrontDisplay("OTA COMPLETE", "Rebooting system...", ST77XX_GREEN);
     updateBackDisplay("OTA COMPLETE", "Rebooting...");
   });
@@ -259,17 +259,18 @@ inline void setupOTA() {
   });
 
   ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("[OTA] Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    String errStr = "Unknown";
+    if (error == OTA_AUTH_ERROR) errStr = "Auth Failed";
+    else if (error == OTA_BEGIN_ERROR) errStr = "Begin Failed";
+    else if (error == OTA_CONNECT_ERROR) errStr = "Connect Failed";
+    else if (error == OTA_RECEIVE_ERROR) errStr = "Receive Failed";
+    else if (error == OTA_END_ERROR) errStr = "End Failed";
+    sysLog("[OTA] Error[" + String(error) + "]: " + errStr);
     updateFrontDisplay("OTA ERROR", "Update Failed!", ST77XX_RED);
     updateBackDisplay("OTA ERROR", "Update Failed");
   });
 
   ArduinoOTA.begin();
   otaInitialized = true;
-  Serial.println(F("[OTA] ArduinoOTA service initialized and listening on LAN"));
+  sysLog(F("[OTA] ArduinoOTA service initialized and listening on LAN"));
 }

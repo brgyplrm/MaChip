@@ -33,6 +33,8 @@ backend/seed_leaves.js
 2025_mass_seed.js
 2026_mass_seed.js
 debugs
+bitmap_previewer.html
+login_proposals.html
 
 # Arduino / Firmware build outputs
 firmware/**/build/

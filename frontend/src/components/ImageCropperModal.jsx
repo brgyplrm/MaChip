@@ -109,7 +109,7 @@ const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete }) => {
             <Button variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>
-            <Button onClick={handleSave} className="flex-1 bg-[#2A174E] hover:bg-[#1a0e30]">
+            <Button onClick={handleSave} className="flex-1 bg-brand-primary hover:bg-brand-primary-hover">
               Save & Apply
             </Button>
           </DialogFooter>

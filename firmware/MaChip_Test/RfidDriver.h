@@ -32,14 +32,35 @@ inline uint32_t readAndIncrementCardCounter(MFRC522 &rfid) {
   bool isAuth = authenticateCardSector(rfid, MIFARE_SECTOR_COUNTER_BLOCK, MIFARE_KEY_MACJ);
   
   if (!isAuth) {
+    // Transient RF jitter during card placement: re-select and retry MACJ Key once
+    rfid.PCD_StopCrypto1();
+    rfid.PICC_HaltA();
+    delay(10);
+    byte bufferATQA[2];
+    byte bufferSize = sizeof(bufferATQA);
+    rfid.PICC_WakeupA(bufferATQA, &bufferSize);
+    rfid.PICC_Select(&(rfid.uid));
+    isAuth = authenticateCardSector(rfid, MIFARE_SECTOR_COUNTER_BLOCK, MIFARE_KEY_MACJ);
+  }
+
+  if (!isAuth) {
+    // Both MACJ attempts failed: Halt & re-select before checking factory default key
+    rfid.PCD_StopCrypto1();
+    rfid.PICC_HaltA();
+    delay(10);
+    byte bufferATQA[2];
+    byte bufferSize = sizeof(bufferATQA);
+    rfid.PICC_WakeupA(bufferATQA, &bufferSize);
+    rfid.PICC_Select(&(rfid.uid));
+
     // 2. Try authenticating with factory default key (0xFF * 6) for first-time provisioning
     isAuth = authenticateCardSector(rfid, MIFARE_SECTOR_COUNTER_BLOCK, MIFARE_KEY_FACTORY);
     if (isAuth) {
-      Serial.println(F("[RFID-SEC] Unprovisioned MIFARE Classic detected. Initializing Sector 1..."));
+      sysLog(F("[RFID-SEC] Unprovisioned MIFARE Classic detected. Initializing Sector 1..."));
       
       // Block 4: Organization Header / Verification Token ("MACJ")
       byte headerBlock[16] = { 0x4D, 0x41, 0x43, 0x4A, 0x01, 0x00, 0x00, 0x00, 0xAA, 0x55, 0xAA, 0x55, 0x00, 0x00, 0x00, 0x00 };
-      rfid.MIFARE_Write(MIFARE_SECTOR_AUTH_BLOCK, headerBlock, 16);
+      MFRC522::StatusCode s4 = rfid.MIFARE_Write(MIFARE_SECTOR_AUTH_BLOCK, headerBlock, 16);
 
       // Block 5: Monotonic Counter = 1 with inverted verification bytes
       byte counterBlock[16] = { 0 };
@@ -54,19 +75,24 @@ inline uint32_t readAndIncrementCardCounter(MFRC522 &rfid) {
       counterBlock[7] = ~counterBlock[3];
       counterBlock[8] = 'R'; counterBlock[9] = 'O'; counterBlock[10] = 'L'; counterBlock[11] = 'L';
       counterBlock[12] = '_'; counterBlock[13] = 'C'; counterBlock[14] = 'O'; counterBlock[15] = 'D';
-      rfid.MIFARE_Write(MIFARE_SECTOR_COUNTER_BLOCK, counterBlock, 16);
+      MFRC522::StatusCode s5 = rfid.MIFARE_Write(MIFARE_SECTOR_COUNTER_BLOCK, counterBlock, 16);
 
       // Block 7: Sector Trailer (Write MACJ Key A so future reads are protected)
       byte trailerBlock[16] = { 0 };
       for (byte i = 0; i < 6; i++) trailerBlock[i] = MIFARE_KEY_MACJ[i];
       for (byte i = 0; i < 4; i++) trailerBlock[6 + i] = MIFARE_ACCESS_BITS[i];
       for (byte i = 0; i < 6; i++) trailerBlock[10 + i] = MIFARE_KEY_FACTORY[i]; // Keep Key B accessible
-      rfid.MIFARE_Write(MIFARE_SECTOR_TRAILER_BLOCK, trailerBlock, 16);
+      MFRC522::StatusCode s7 = rfid.MIFARE_Write(MIFARE_SECTOR_TRAILER_BLOCK, trailerBlock, 16);
 
-      Serial.println(F("[RFID-SEC] Sector 1 securely provisioned with MACJ Key A & Counter = 1"));
-      return initialCounter;
+      if (s4 == MFRC522::STATUS_OK && s5 == MFRC522::STATUS_OK && s7 == MFRC522::STATUS_OK) {
+        sysLog(F("[RFID-SEC] Sector 1 securely provisioned with MACJ Key A & Counter = 1"));
+        return initialCounter;
+      } else {
+        sysLog("[RFID-SEC] Provisioning write failed! s4: " + String(rfid.GetStatusCodeName(s4)) + " s5: " + String(rfid.GetStatusCodeName(s5)) + " s7: " + String(rfid.GetStatusCodeName(s7)));
+        return 0;
+      }
     } else {
-      Serial.println(F("[RFID-SEC] Sector 1 authentication failed (unrecognized key)."));
+      sysLog(F("[RFID-SEC] Sector 1 authentication failed (unrecognized key)."));
       return 0;
     }
   }
@@ -77,7 +103,7 @@ inline uint32_t readAndIncrementCardCounter(MFRC522 &rfid) {
   MFRC522::StatusCode status = rfid.MIFARE_Read(MIFARE_SECTOR_COUNTER_BLOCK, readBuffer, &bufferSize);
   
   if (status != MFRC522::STATUS_OK) {
-    Serial.printf("[RFID-SEC] Read Block %d Failed: %s\n", MIFARE_SECTOR_COUNTER_BLOCK, rfid.GetStatusCodeName(status));
+    sysLog("[RFID-SEC] Read Block " + String(MIFARE_SECTOR_COUNTER_BLOCK) + " Failed: " + String(rfid.GetStatusCodeName(status)));
     return 0;
   }
 
@@ -93,7 +119,7 @@ inline uint32_t readAndIncrementCardCounter(MFRC522 &rfid) {
 
   // Validate integrity checksum
   if ((currentCounter ^ invCounter) != 0xFFFFFFFF) {
-    Serial.println(F("[RFID-SEC] Counter checksum mismatch, resetting counter baseline..."));
+    sysLog(F("[RFID-SEC] Counter checksum mismatch, resetting counter baseline..."));
     currentCounter = 0;
   }
 
@@ -112,9 +138,9 @@ inline uint32_t readAndIncrementCardCounter(MFRC522 &rfid) {
 
   status = rfid.MIFARE_Write(MIFARE_SECTOR_COUNTER_BLOCK, writeBuffer, 16);
   if (status != MFRC522::STATUS_OK) {
-    Serial.printf("[RFID-SEC] Counter update write failed: %s\n", rfid.GetStatusCodeName(status));
+    sysLog("[RFID-SEC] Counter update write failed: " + String(rfid.GetStatusCodeName(status)));
   } else {
-    Serial.printf("[RFID-SEC] Counter successfully advanced to %u\n", nextCounter);
+    sysLog("[RFID-SEC] Authenticated with MACJ Key A. Rolling counter: " + String(nextCounter));
   }
 
   return nextCounter;
@@ -151,7 +177,7 @@ inline void processQueuedTransaction() {
 
   if (httpCode == 200) {
     queuedTransaction.pending = false;
-    Serial.println(F("[OK] Sync Finished"));
+    sysLog(F("[OFFLINE-QUEUE] Sync Finished successfully"));
   }
   http.end();
 }

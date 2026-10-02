@@ -179,7 +179,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-6 border-b flex justify-between items-center bg-slate-50">
           <div>
-            <h2 className="text-xl font-bold text-[#2A174E]">Edit Request #REQ-{request.emp_reqId}</h2>
+            <h2 className="text-xl font-bold text-brand-primary">Edit Request #REQ-{request.emp_reqId}</h2>
             <p className="text-sm text-slate-500">{request.reqTypeName} for {request.userName}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
@@ -476,7 +476,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
 
           <div className="pt-4 border-t flex justify-end gap-3">
             <Button type="button" variant="outline" onClick={onClose} disabled={loading} className="px-6 border-slate-300">Cancel</Button>
-            <Button type="submit" className="bg-[#2A174E] text-white hover:bg-[#1a0e30] px-8 shadow-md" disabled={loading}>
+            <Button type="submit" className="bg-brand-primary text-white hover:bg-brand-primary-hover px-8 shadow-md" disabled={loading}>
               {loading ? "Updating..." : "Save Changes"}
             </Button>
           </div>

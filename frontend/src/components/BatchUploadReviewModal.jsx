@@ -56,8 +56,8 @@ const BatchUploadReviewModal = ({ isOpen, onClose, data, onConfirm, type }) => {
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[950px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-6 bg-slate-50 border-b">
-          <DialogTitle className="text-[#2A174E] text-xl font-bold flex items-center gap-2">
-            <EditIcon className="text-[#2A174E]" />
+          <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
+            <EditIcon className="text-brand-primary" />
             Review {type} Batch Data
           </DialogTitle>
           <p className="text-slate-500 text-sm">Review and edit records before final system import.</p>
@@ -70,7 +70,7 @@ const BatchUploadReviewModal = ({ isOpen, onClose, data, onConfirm, type }) => {
                 <TableRow>
                   <TableHead className="w-12 text-center">#</TableHead>
                   {headers.map(header => (
-                    <TableHead key={header} className="capitalize font-bold text-[#2A174E]">
+                    <TableHead key={header} className="capitalize font-bold text-brand-primary">
                       {header.replace('_', ' ')}
                     </TableHead>
                   ))}
@@ -88,7 +88,7 @@ const BatchUploadReviewModal = ({ isOpen, onClose, data, onConfirm, type }) => {
                             <Input 
                               value={editValues[header] || ""} 
                               onChange={(e) => handleValueChange(header, e.target.value)}
-                              className="h-9 text-sm focus-visible:ring-[#2A174E]"
+                              className="h-9 text-sm focus-visible:ring-brand-primary"
                             />
                           ) : (
                             <span className="text-sm font-medium text-slate-700">{item[header]}</span>
@@ -108,7 +108,7 @@ const BatchUploadReviewModal = ({ isOpen, onClose, data, onConfirm, type }) => {
                             </>
                           ) : (
                             <>
-                              <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-[#2A174E] hover:bg-slate-100" onClick={() => handleStartEdit(index, item)}>
+                              <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-brand-primary hover:bg-slate-100" onClick={() => handleStartEdit(index, item)}>
                                 <EditIcon className="h-4 w-4" />
                               </Button>
                               <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDelete(index)}>
@@ -137,7 +137,7 @@ const BatchUploadReviewModal = ({ isOpen, onClose, data, onConfirm, type }) => {
             Discard & Close
           </Button>
           <Button 
-            className="w-full sm:flex-[2] h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-lg shadow-[#2A174E]/20"
+            className="w-full sm:flex-[2] h-11 bg-brand-primary hover:bg-brand-primary-hover text-white font-bold shadow-lg shadow-brand-primary/20"
             onClick={() => onConfirm(editedData)}
             disabled={editedData.length === 0}
           >

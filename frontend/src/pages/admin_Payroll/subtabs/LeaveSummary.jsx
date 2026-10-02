@@ -121,7 +121,7 @@ const LeaveSummary = () => {
         {/* Header Section */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 pb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] tracking-tight">Leave & Attendance Hub</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary tracking-tight">Leave & Attendance Hub</h1>
             <span className="text-sm text-slate-500 mt-1 block">
               Manage and track comprehensive employee records and conversions.
             </span>
@@ -132,10 +132,10 @@ const LeaveSummary = () => {
               placeholder="Search employee..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-[250px] bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E]"
+              className="w-full sm:w-[250px] bg-white text-slate-700 border-slate-200 focus-visible:ring-brand-primary"
             />
             <Select value={year.toString()} onValueChange={(val) => setYear(Number(val))}>
-              <SelectTrigger className="w-full sm:w-[120px] bg-white border-slate-200 font-semibold text-[#2A174E]">
+              <SelectTrigger className="w-full sm:w-[120px] bg-white border-slate-200 font-semibold text-brand-primary">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
@@ -149,7 +149,7 @@ const LeaveSummary = () => {
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
                   <Button 
-                    className="w-full bg-[#2A174E] hover:bg-[#2A174E]/80 text-white font-semibold transition-colors"
+                    className="w-full bg-brand-primary hover:bg-brand-primary/80 text-white font-semibold transition-colors"
                     onClick={() => {
                       if (data.length > 0 && !exportEmployeeId) {
                         setExportEmployeeId(data[0].user_Id.toString());
@@ -208,11 +208,11 @@ const LeaveSummary = () => {
                   {/* Card Profile Section */}
                   <CardHeader className="pt-6 bg-slate-50/60 pb-4 border-b border-slate-100 border-t-4 flex flex-row items-center justify-between space-y-0">
                     <div className="flex items-center gap-3 truncate mr-2">
-                      <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
+                      <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary shrink-0">
                         <AccountCircleIcon />
                       </div>
                       <div className="truncate">
-                        <CardTitle className="text-sm md:text-base font-bold text-[#2A174E] truncate">{row.name}</CardTitle>
+                        <CardTitle className="text-sm md:text-base font-bold text-brand-primary truncate">{row.name}</CardTitle>
                         <span className="text-xs font-mono text-slate-400 block mt-0.5">{formatUserId(row.user_Id)}</span>
                       </div>
                     </div>
@@ -223,7 +223,7 @@ const LeaveSummary = () => {
                         <span>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0">
+                              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-brand-primary hover:bg-brand-primary/5 rounded-full shrink-0">
                                 <OpenInNewIcon fontSize="small" />
                               </Button>
                             </TooltipTrigger>
@@ -235,7 +235,7 @@ const LeaveSummary = () => {
                       </SheetTrigger>
                       <SheetContent className="w-full sm:max-w-xl! max-w-full bg-white overflow-y-auto custom-scrollbar p-6 md:p-8">
                         <SheetHeader className="pb-4 border-b border-slate-100">
-                          <SheetTitle className="text-xl font-bold text-[#2A174E]">{row.name}'s History</SheetTitle>
+                          <SheetTitle className="text-xl font-bold text-brand-primary">{row.name}'s History</SheetTitle>
                           <SheetDescription className="text-xs text-slate-400 font-mono">
                             ID: {formatUserId(row.user_Id)} | Target Calendar Year: {year}
                           </SheetDescription>
@@ -257,13 +257,13 @@ const LeaveSummary = () => {
 
                         {/* Column Abbreviations Legend Box */}
                         <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-2.5 my-4">
-                          <div className="flex items-center gap-1.5 text-xs font-bold text-[#2A174E] uppercase tracking-wider">
-                            <HelpOutlineIcon className="!text-sm text-[#2A174E]" />
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-brand-primary uppercase tracking-wider">
+                            <HelpOutlineIcon className="!text-sm text-brand-primary" />
                             <span>Column Legend & Abbreviation Key</span>
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                             <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 shadow-2xs">
-                              <span className="font-mono font-bold text-xs bg-purple-100 text-[#2A174E] px-1.5 py-0.5 rounded">VL</span>
+                              <span className="font-mono font-bold text-xs bg-purple-100 text-brand-primary px-1.5 py-0.5 rounded">VL</span>
                               <span className="text-slate-600 text-[11px] font-medium">Vacation Leave (Days)</span>
                             </div>
                             <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 shadow-2xs">
@@ -290,7 +290,7 @@ const LeaveSummary = () => {
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">12-Month Distributed Log Matrix</h3>
                           <div className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
                             <Table>
-                              <TableHeader className="bg-[#2B174F]">
+                              <TableHeader className="bg-brand-primary">
                                 <TableRow className="hover:bg-transparent border-b-0">
                                   <TableHead className="font-semibold text-white uppercase text-[10px] tracking-wider py-3 px-4">Month</TableHead>
                                   <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">
@@ -348,7 +348,7 @@ const LeaveSummary = () => {
                               <TableBody>
                                 {months.map((month, idx) => (
                                   <TableRow key={month} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                                    <td className="font-bold text-[#2A174E] text-xs py-2.5 px-4">{month}</td>
+                                    <td className="font-bold text-brand-primary text-xs py-2.5 px-4">{month}</td>
                                     <td className="text-center text-xs font-semibold text-slate-600">{monthlyVl[idx] > 0 ? monthlyVl[idx] : "—"}</td>
                                     <td className="text-center text-xs font-semibold text-slate-600">{monthlySl[idx] > 0 ? monthlySl[idx] : "—"}</td>
                                     <td className="text-center text-xs font-semibold text-slate-600">{monthlyOt[idx] > 0 ? monthlyOt[idx].toFixed(1) : "—"}</td>
@@ -507,7 +507,7 @@ const LeaveSummary = () => {
       <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
         <DialogContent className="sm:max-w-[425px] bg-white">
           <DialogHeader>
-            <DialogTitle className="text-[#2A174E] font-bold text-lg">Export PDF Report</DialogTitle>
+            <DialogTitle className="text-brand-primary font-bold text-lg">Export PDF Report</DialogTitle>
             <DialogDescription className="text-slate-500 text-xs">
               Configure scope and category parameters for the generated PDF document.
             </DialogDescription>
@@ -515,7 +515,7 @@ const LeaveSummary = () => {
           <div className="grid gap-4 py-4 text-sm">
             {/* Scope Selection */}
             <div className="grid gap-2">
-              <label className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Report Scope</label>
+              <label className="text-xs font-bold text-brand-primary uppercase tracking-wider">Report Scope</label>
               <Select value={exportScope} onValueChange={(val) => {
                 setExportScope(val);
                 if (val === "single" && data.length > 0 && !exportEmployeeId) {
@@ -535,7 +535,7 @@ const LeaveSummary = () => {
             {/* Employee Selector (Conditional) */}
             {exportScope === "single" && (
               <div className="grid gap-2">
-                <label className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Select Employee</label>
+                <label className="text-xs font-bold text-brand-primary uppercase tracking-wider">Select Employee</label>
                 <Select value={exportEmployeeId} onValueChange={setExportEmployeeId}>
                   <SelectTrigger className="w-full bg-white border-slate-200 font-medium text-slate-700">
                     <SelectValue placeholder="Choose employee..." />
@@ -553,7 +553,7 @@ const LeaveSummary = () => {
 
             {/* Report Type Category Selector */}
             <div className="grid gap-2">
-              <label className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Report Type</label>
+              <label className="text-xs font-bold text-brand-primary uppercase tracking-wider">Report Type</label>
               <Select value={exportCategory} onValueChange={setExportCategory}>
                 <SelectTrigger className="w-full bg-white border-slate-200 font-medium text-slate-700">
                   <SelectValue placeholder="Select Type" />

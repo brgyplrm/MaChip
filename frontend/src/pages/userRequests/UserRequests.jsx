@@ -1230,7 +1230,7 @@ const UserRequests = () => {
 
         {/* Header Section */}
         <div className="mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">My Requests</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">My Requests</h1>
           <span className="text-sm text-slate-500 mt-1 block">
               Submit and track your leave, overtime, and log corrections.
           </span>
@@ -1239,12 +1239,12 @@ const UserRequests = () => {
         {/* Dashboard-Style Statistics Cards */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6 mb-6 w-full">
           {/* Card 1: Pending */}
-          <Card className="shadow-sm border-t-4 border-[#2A174E] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-brand-primary py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Pending</p>
+                    <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Pending</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -1254,10 +1254,10 @@ const UserRequests = () => {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#2A174E]">{stats.pending}</p>
+                  <p className="text-4xl font-bold text-brand-primary">{stats.pending}</p>
                 </div>
               </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <HourglassEmptyIcon className="h-6 w-6" />
               </div>
             </CardContent>
@@ -1266,12 +1266,12 @@ const UserRequests = () => {
           
  
           {/* Card 2: Approved */}
-          <Card className="shadow-sm border-t-4 border-[#3B4E17] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-accent-green py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Approved</p>
+                    <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Approved</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -1281,22 +1281,22 @@ const UserRequests = () => {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#3B4E17]">{stats.approved}</p>
+                  <p className="text-4xl font-bold text-accent-green">{stats.approved}</p>
                 </div>
               </div>
-              <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CheckCircleOutlineIcon className="h-6 w-6" />
               </div>
             </CardContent>
           </Card>
  
           {/* Card 3: Rejected */}
-          <Card className="shadow-sm border-t-4 border-[#BB8B26] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-accent-gold py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Rejected</p>
+                    <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Rejected</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -1306,22 +1306,22 @@ const UserRequests = () => {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#BB8B26]">{stats.rejected}</p>
+                  <p className="text-4xl font-bold text-accent-gold">{stats.rejected}</p>
                 </div>
               </div>
-              <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CancelOutlinedIcon className="h-6 w-6" />
               </div>
             </CardContent>
           </Card>
 
           {/* Card 4: Returned */}
-          <Card className="shadow-sm border-t-4 border-blue-500  py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-status-info py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-blue-800 uppercase tracking-wider">Returned</p>
+                    <p className="text-xs font-bold text-status-info uppercase tracking-wider">Returned</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -1331,10 +1331,10 @@ const UserRequests = () => {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-blue-800">{stats.returned}</p>
+                  <p className="text-4xl font-bold text-status-info">{stats.returned}</p>
                 </div>
               </div>
-              <div className="bg-blue-100 text-blue-800 p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-status-info/10 text-status-info p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <ReplyIcon className="h-6 w-6" />
               </div>
             </CardContent>
@@ -1363,7 +1363,7 @@ const UserRequests = () => {
                       setHistorySearchQuery(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="pl-9 h-9 border-slate-200 focus-visible:ring-[#2A174E] w-full bg-slate-50 text-slate-700 font-medium"
+                    className="pl-9 h-9 border-slate-200 focus-visible:ring-brand-primary w-full bg-slate-50 text-slate-700 font-medium"
                   />
                 </div>
 
@@ -1425,7 +1425,7 @@ const UserRequests = () => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "submit" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "submit" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
                     onClick={() => setActiveTab("submit")}
                   >
                     <AddCircleOutlineIcon className="h-4 w-4 mr-1 mb-0.5" /> Submit Request
@@ -1438,7 +1438,7 @@ const UserRequests = () => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "history" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "history" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
                     onClick={() => setActiveTab("history")}
                   >
                     <HistoryIcon className="h-4 w-4 mr-1 mb-0.5" /> History
@@ -1498,7 +1498,7 @@ const UserRequests = () => {
                          <TooltipTrigger asChild>
                            <button
                              onClick={() => { setHistoryTab(t); setCurrentPage(1); setSelectedReqId(null); }}
-                             className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${historyTab === t ? "bg-white text-[#2A174E] shadow-sm" : "text-slate-500 hover:bg-white/50"}`}
+                             className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${historyTab === t ? "bg-white text-brand-primary shadow-sm" : "text-slate-500 hover:bg-white/50"}`}
                            >
                              {t}
                            </button>
@@ -1525,7 +1525,7 @@ const UserRequests = () => {
                         <div
                           key={req.emp_reqId}
                           onClick={() => setSelectedReqId(req.emp_reqId)}
-                          className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
+                          className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-brand-primary-light border-brand-primary shadow-sm" : "border-slate-200 bg-white hover:border-brand-primary/50"}`}
                         >
                           <div className="flex justify-between items-center mb-2">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1548,7 +1548,7 @@ const UserRequests = () => {
                   ) : (
                     <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl mt-2">
                       <HourglassEmptyIcon className="h-8 w-8 text-slate-300 mb-2" />
-                      <h5 className="font-bold text-[#2A174E] text-sm mb-1">Empty</h5>
+                      <h5 className="font-bold text-brand-primary text-sm mb-1">Empty</h5>
                       <p className="text-xs text-slate-500">No requests in this category.</p>
                     </div>
                   )}
@@ -1576,7 +1576,7 @@ const UserRequests = () => {
             {activeTab === "submit" ? (
               <CardContent className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
                 <div className="mb-6">
-                  <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Submit New Request</h3>
+                  <h3 className="text-xl md:text-2xl font-bold text-brand-primary">Submit New Request</h3>
                   <p className="text-sm text-slate-500 mt-1">Fill out the form below to file a new attendance or leave request.</p>
                 </div>
                 
@@ -1585,7 +1585,7 @@ const UserRequests = () => {
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">Request Type <span className="text-red-500">*</span></label>
                     <Select value={formData.emp_reqTypeId} onValueChange={(val) => handleSelectChange("emp_reqTypeId", val)} required>
-                      <SelectTrigger className="w-full bg-slate-50/50 border-slate-200 focus-visible:ring-[#2A174E]">
+                      <SelectTrigger className="w-full bg-slate-50/50 border-slate-200 focus-visible:ring-brand-primary">
                         <SelectValue placeholder="Select request type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1653,7 +1653,7 @@ const UserRequests = () => {
 
                   {formData.emp_reqTypeId === "5" && (
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
-                      <p className="text-xs font-bold text-slate-500 uppercase">Current Period: <span className="text-[#2A174E]">{payroll.payEnding}</span></p>
+                      <p className="text-xs font-bold text-slate-500 uppercase">Current Period: <span className="text-brand-primary">{payroll.payEnding}</span></p>
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-700">Correction Category</label>
                         <Select value={formData.correctionCategory} onValueChange={(val) => handleSelectChange('correctionCategory', val)}>
@@ -1883,7 +1883,7 @@ const UserRequests = () => {
 
                       {/* NEW: HIGH ACCURACY FINANCIAL SUMMARY CARD */}
                       {formData.netDisbursement > 0 && (
-                        <div className="bg-[#2A174E] text-white p-5 rounded-2xl border border-indigo-900/50 space-y-4 my-6 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
+                        <div className="bg-brand-primary text-white p-5 rounded-2xl border border-indigo-900/50 space-y-4 my-6 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
                           <div className="flex justify-between items-center">
                             <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em]">Matrix Financial Disclosure</h4>
                             <Badge className="bg-yellow-400 text-blue-900 font-black border-0">SSS/HDMF STANDARDS</Badge>
@@ -2212,7 +2212,7 @@ const UserRequests = () => {
                                 </div>
                                 <div className="space-y-2">
                                   <label className="text-sm font-bold text-slate-700">Monthly Amortization (₱) <span className="text-red-500">*</span></label>
-                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-100 text-[#2A174E] font-bold" />
+                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-100 text-brand-primary font-bold" />
                                   <p className="text-[10px] text-slate-400 italic">Auto-computed at 10.5% p.a. interest.</p>
                                 </div>
                               </div>
@@ -2275,7 +2275,7 @@ const UserRequests = () => {
                                 </div>
                                 <div className="space-y-2">
                                   <label className="text-sm font-bold text-slate-700">Monthly Amortization (₱) <span className="text-red-500">*</span></label>
-                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-100 text-[#2A174E] font-bold" />
+                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-100 text-brand-primary font-bold" />
                                   <p className="text-[10px] text-slate-400 italic">Auto-computed at 5.95% p.a. interest.</p>
                                 </div>
                               </div>
@@ -2470,7 +2470,7 @@ const UserRequests = () => {
                   <div className="pt-4 border-t border-slate-100 flex justify-end">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button type="submit" className="bg-[#2A174E] text-white hover:bg-[#1a0e30] w-full sm:w-auto px-8">Submit Request</Button>
+                        <Button type="submit" className="bg-brand-primary text-white hover:bg-brand-primary-hover w-full sm:w-auto px-8">Submit Request</Button>
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
                         Submit this request for review
@@ -2486,7 +2486,7 @@ const UserRequests = () => {
                   <>
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
                       <div>
-                        <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {currentReq.reqTypeName}</h3>
+                        <h3 className="text-xl md:text-2xl font-bold text-brand-primary">Review {currentReq.reqTypeName}</h3>
                         <p className="text-sm text-slate-500 mt-1">Submitted on {currentReq.date_Filed ? new Date(currentReq.date_Filed).toLocaleDateString() : ""}</p>
                       </div>
                       <div className="flex flex-col sm:flex-row items-end gap-3">
@@ -2494,7 +2494,7 @@ const UserRequests = () => {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button 
-                                className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-md"
+                                className="bg-brand-primary hover:bg-brand-primary-hover text-white font-bold shadow-md"
                                 onClick={() => handleEditReturned(currentReq)}
                               >
                                 <EditIcon className="mr-2 h-4 w-4" /> Edit & Resubmit
@@ -2515,7 +2515,7 @@ const UserRequests = () => {
                       
                       <div className="space-y-1 sm:col-span-2 xl:col-span-1 p-3 -m-3 rounded-lg ">
                         <label className="text-xs font-bold text-slate-500 uppercase">Requested Schedule</label>
-                        <p className="font-bold text-[#2A174E]">{getDates(currentReq)}</p>
+                        <p className="font-bold text-brand-primary">{getDates(currentReq)}</p>
                       </div>
 
                       <div className="space-y-1">
@@ -2706,7 +2706,7 @@ const UserRequests = () => {
                                 href={`/api/uploads/${currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File || currentReq.LR_proof_File}`} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center text-[#2A174E] font-semibold hover:underline w-fit"
+                                className="inline-flex items-center text-brand-primary font-semibold hover:underline w-fit"
                               >
                                 <AttachmentIcon className="mr-1 h-4 w-4" /> View Primary Document (Disclosure Statement/Medical Cert)
                               </a>

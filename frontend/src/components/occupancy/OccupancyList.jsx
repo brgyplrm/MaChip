@@ -88,7 +88,7 @@ const OccupancyList = () => {
   return (
     <div className="bg-white rounded-xl shadow-sm overflow-x-auto animate-[fadeInUp_0.3s_ease]">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-5 py-3.5 bg-[#2a174e] text-white">
+      <div className="flex items-center justify-between px-5 py-3.5 bg-brand-primary text-white">
         <div className="flex items-center gap-2.5">
           <MeetingRoomOutlinedIcon className="!text-[20px] text-white/85" />
           <span className="text-[15px] font-semibold tracking-wide">Currently In Office</span>
@@ -142,10 +142,10 @@ const OccupancyList = () => {
             {users.map((u, index) => (
               <tr key={u.user_id} className="border-b border-[#f0f0f0] last:border-b-0 hover:bg-[#faf8ff] transition-colors duration-150">
                 <td className="px-4 py-2.5 text-[#aaa] text-xs w-8 align-middle">{index + 1}</td>
-                <td className="px-4 py-2.5 font-semibold text-[#2a174e] text-xs align-middle">{formatUserId(u.user_Id)}</td>
+                <td className="px-4 py-2.5 font-semibold text-brand-primary text-xs align-middle">{formatUserId(u.user_Id)}</td>
                 <td className="px-4 py-2.5 align-middle">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-[#2a174e] text-white flex items-center justify-center text-[13px] font-bold shrink-0 uppercase">
+                    <div className="w-8 h-8 rounded-full bg-brand-primary text-white flex items-center justify-center text-[13px] font-bold shrink-0 uppercase">
                       {u.firstName?.charAt(0)}
                     </div>
                     <span className="font-medium whitespace-nowrap text-[#333]">
@@ -161,7 +161,7 @@ const OccupancyList = () => {
                 <td className="px-4 py-2.5 align-middle text-right">
                   <Link
                     to={`/users/${u.user_Id}`}
-                    className="inline-block px-3.5 py-1 rounded-[5px] border-[1.5px] border-[#2a174e] text-[#2a174e] text-xs font-semibold hover:bg-[#2a174e] hover:text-white transition-all duration-200 no-underline cursor-pointer"
+                    className="inline-block px-3.5 py-1 rounded-[5px] border-[1.5px] border-brand-primary text-brand-primary text-xs font-semibold hover:bg-brand-primary hover:text-white transition-all duration-200 no-underline cursor-pointer"
                   >
                     View
                   </Link>

@@ -142,7 +142,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-5 box-border bg-[linear-gradient(90deg,#2a174e_0%,#ffffff_28%,#ffffff_72%,#ffae00_100%)]">
+    <div className="min-h-screen flex items-center justify-center p-5 box-border bg-[linear-gradient(90deg,var(--color-brand-primary)_0%,#ffffff_28%,#ffffff_72%,#a3b622_100%)]">
       {/* {loading && <LoadingScreen />} */}
       {/* ── Toast ── */}
       <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
@@ -151,7 +151,7 @@ const Login = () => {
         
         <div className="flex flex-col items-center w-fulls mb-[20px]">
           <img 
-            src="/logo2.png" 
+            src="/2026-Logo.png" 
             alt="MAC-J Logo" 
             className="w-[200px] max-[480px]:w-[150px] mb-[15px] mx-auto pb-[15px]"/>
         </div>
@@ -172,7 +172,7 @@ const Login = () => {
               className={`w-full p-[12px_10px] border-[1.5px] rounded-lg text-[14px] transition-all duration-200 outline-none placeholder:text-[#aaa] placeholder:text-[13px] 
                 ${errors.user_Id 
                   ? 'border-[#c0392b] bg-[#fff5f5] focus:ring-3 focus:ring-[#c0392b]/15' 
-                  : 'border-[#ccc] bg-white focus:border-[#2a174e] focus:ring-3 focus:ring-[#2a174e]/12'}`}
+                  : 'border-[#ccc] bg-white focus:border-brand-primary focus:ring-3 focus:ring-brand-primary/12'}`}
               value={rawId}
               onChange={(e) => {
                 setRawId(e.target.value);
@@ -203,7 +203,7 @@ const Login = () => {
               className={`w-full p-[12px_10px] border-[1.5px] rounded-lg text-[14px] transition-all duration-200 outline-none placeholder:text-[#aaa] placeholder:text-[13px] 
                 ${errors.password 
                   ? 'border-[#c0392b] bg-[#fff5f5] focus:ring-3 focus:ring-[#c0392b]/15' 
-                  : 'border-[#ccc] bg-white focus:border-[#2a174e] focus:ring-3 focus:ring-[#2a174e]/12'}`}
+                  : 'border-[#ccc] bg-white focus:border-brand-primary focus:ring-3 focus:ring-brand-primary/12'}`}
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
@@ -220,7 +220,7 @@ const Login = () => {
             )}
             <div className="flex justify-end w-full mt-[5px]">
               <span 
-                className="text-[12px] text-[#2a174e] underline font-medium cursor-pointer hover:text-[#4f2a94]"
+                className="text-[12px] text-brand-primary underline font-medium cursor-pointer hover:text-[#4f2a94]"
                 onClick={() => setIsModalOpen(true)}
               >
                 Forgot Password?
@@ -231,7 +231,7 @@ const Login = () => {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full p-[10px] mt-[10px] bg-[#2a174e] text-white border-none rounded-lg font-bold text-[14px] shadow-[0px_4px_6px_rgba(0,0,0,0.2)] cursor-pointer transition-all duration-200 hover:bg-[#3e2472] active:scale-[0.97] disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full p-[10px] mt-[10px] bg-brand-primary text-white border-none rounded-lg font-bold text-[14px] shadow-[0px_4px_6px_rgba(0,0,0,0.2)] cursor-pointer transition-all duration-200 hover:bg-[#3e2472] active:scale-[0.97] disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {loading ? "Signing in…" : "Login"}
           </button>

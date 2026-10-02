@@ -294,7 +294,7 @@ const FingerprintManagement = () => {
                   variant="ghost" 
                   size="icon" 
                   asChild 
-                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary"
                 >
                   <Link to="/users">
                     <ChevronLeft className="h-6 w-6" />
@@ -304,12 +304,12 @@ const FingerprintManagement = () => {
               
               {/* Title: Adds left padding when hovered */}
               <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Biometric Fingerprint Registry</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Biometric Fingerprint Registry</h1>
                 <span className="text-sm text-slate-500 mt-1 block">Audit device memory allocations, flash signatures, and biometric slot maps.</span>
               </div>
             </div>
             
-            <Button onClick={handleStartFingerprintScan} className="bg-[#2A174E] hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
+            <Button onClick={handleStartFingerprintScan} className="bg-brand-primary hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
               <ScanLine className="h-4 w-4 text-white" />
               <span>Enroll Fingerprint</span>
             </Button>
@@ -317,23 +317,23 @@ const FingerprintManagement = () => {
 
         {/* Statistics Widgets */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <Card className="border-t-5 border-[#2A174E] bg-white py-0">
+          <Card className="border-t-5 border-brand-primary bg-white py-0">
             <CardContent className="px-5 py-5 flex justify-between items-center">
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Enrolled Templates</p>
-                <p className="text-3xl font-bold text-[#2A174E]">{stats.registered} <span className="text-sm opacity-60">Matrix IDs</span></p>
+                <p className="text-3xl font-bold text-brand-primary">{stats.registered} <span className="text-sm opacity-60">Matrix IDs</span></p>
               </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg"><FingerprintIcon /></div>
+              <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg"><FingerprintIcon /></div>
             </CardContent>
           </Card>
 
-          <Card className="border-t-5 border-blue-600 bg-white py-0">
+          <Card className="border-t-5 border-status-info bg-white py-0">
             <CardContent className="px-5 py-5 flex justify-between items-center">
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Available Memory Capacity</p>
-                <p className="text-3xl font-bold text-blue-700">{stats.availableSlots} <span className="text-sm opacity-60">Slots Left</span></p>
+                <p className="text-3xl font-bold text-status-info">{stats.availableSlots} <span className="text-sm opacity-60">Slots Left</span></p>
               </div>
-              <div className="bg-blue-50 text-blue-600 p-3 rounded-lg"><MemoryIcon /></div>
+              <div className="bg-status-info/10 text-status-info p-3 rounded-lg"><MemoryIcon /></div>
             </CardContent>
           </Card>
         </div>
@@ -357,7 +357,7 @@ const FingerprintManagement = () => {
         <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
           <CardContent className="p-0  flex flex-col">
             <Table>
-              <TableHeader className="bg-[#2A174E]">
+              <TableHeader className="bg-brand-primary">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-white font-bold py-4 px-6 uppercase text-xs tracking-wider">Employee Profile</TableHead>
                   <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">Module Memory Address ID</TableHead>
@@ -372,7 +372,7 @@ const FingerprintManagement = () => {
                       <TableCell className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <div>
-                            <p className="font-bold text-[#2A174E] text-sm">{row.userName}</p>
+                            <p className="font-bold text-brand-primary text-sm">{row.userName}</p>
                             <p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p>
                           </div>
                           {row.fingerprintType && (
@@ -437,7 +437,7 @@ const FingerprintManagement = () => {
       {/* STEP 2: Assign Scanned Biometric Template ID Modal Form */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
         <DialogContent className="sm:max-w-[460px] p-0 border-0 overflow-hidden bg-white rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
-          <DialogHeader className="bg-[#2A174E] text-white p-6 relative">
+          <DialogHeader className="bg-brand-primary text-white p-6 relative">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <FingerprintIcon className="h-5 w-5 text-purple-300" /> Link Biometric Template
             </DialogTitle>
@@ -453,7 +453,7 @@ const FingerprintManagement = () => {
             {/* Captured Device Parameters */}
             <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
               <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Allocated Flash Registry Memory Index</Label>
-              <div className="font-mono text-sm font-black text-[#2A174E] bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
+              <div className="font-mono text-sm font-black text-brand-primary bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
                 Slot Pool Location #{scannedSlotId}
               </div>
             </div>
@@ -462,7 +462,7 @@ const FingerprintManagement = () => {
             <div className="space-y-2">
               <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Assign Target Employee Profile</Label>
               <Select value={selectedUserId} onValueChange={handleSelectEmployee}>
-                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-[#2A174E]">
+                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-brand-primary">
                   <SelectValue placeholder="Select an unassigned employee..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[220px]">
@@ -521,7 +521,7 @@ const FingerprintManagement = () => {
               <Button 
                 onClick={handleAssignBiometricSubmit}
                 disabled={assigning || !selectedUserId || isDuplicateSlot}
-                className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white rounded-lg font-bold shadow-md tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 h-11 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg font-bold shadow-md tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {assigning ? "Allocating Flash..." : "Link Biometric Profile"}
               </Button>

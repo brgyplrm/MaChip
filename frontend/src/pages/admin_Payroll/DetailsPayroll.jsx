@@ -208,14 +208,14 @@ const PayrollDetails = () => {
               onClick={() => setIsHolidayExpanded(!isHolidayExpanded)}
             >
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-700 font-medium group-hover:text-[#2A174E]">Holiday Pay</span>
+                <span className="text-sm text-slate-700 font-medium group-hover:text-brand-primary">Holiday Pay</span>
                 <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
                   {(payroll.holidaysRegularWorked || 0) + (payroll.holidaysSpecialWorked || 0)} Days Worked
                 </Badge>
                 {isHolidayExpanded ? (
-                  <ChevronUp className="h-4 w-4 text-slate-400 group-hover:text-[#2A174E]" />
+                  <ChevronUp className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
                 ) : (
-                  <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-[#2A174E]" />
+                  <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-brand-primary" />
                 )}
               </div>
               <span className="font-semibold text-slate-800">
@@ -225,7 +225,7 @@ const PayrollDetails = () => {
 
             {/* Accordion Detailed Content */}
             {isHolidayExpanded && (
-              <div className="mt-2 ml-1 pl-3 border-l-2 border-[#2A174E]/30 space-y-2 text-xs">
+              <div className="mt-2 ml-1 pl-3 border-l-2 border-brand-primary/30 space-y-2 text-xs">
                 {Array.isArray(payroll.holidayBreakdown) && payroll.holidayBreakdown.length > 0 ? (
                   payroll.holidayBreakdown.map((item, idx) => (
                     <div key={idx} className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 space-y-1">
@@ -346,7 +346,7 @@ const PayrollDetails = () => {
       <CardContent className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-0 pb-6">
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">YTD Gross</label>
-          <p className="font-bold text-[#2A174E] text-lg">₱{parseFloat(payroll.ytdGross || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+          <p className="font-bold text-brand-primary text-lg">₱{parseFloat(payroll.ytdGross || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">YTD Non-Taxable</label>
@@ -366,14 +366,14 @@ const PayrollDetails = () => {
 
   // 4. Net Pay Highlight Banner (From Overview Tab)
   const renderNetPayBanner = () => (
-    <div className="bg-gradient-to-r from-orange-500 to-orange-400 p-8 rounded-2xl text-white flex justify-between items-center relative overflow-hidden mb-4 shadow-md lg:col-span-2">
+    <div className="bg-white border-t-5 border-accent-gold p-8 rounded-2xl text-slate-800 flex justify-between items-center relative overflow-hidden mb-4 shadow-sm border border-slate-200/80 lg:col-span-2">
       <div className="relative z-10">
         <div className="flex items-center gap-1.5 mb-1">
-          <p className="text-sm uppercase tracking-wider font-bold opacity-90">Net Pay</p>
+          <p className="text-sm uppercase tracking-wider font-bold text-accent-gold">Net Pay</p>
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-flex items-center justify-center cursor-pointer">
-                <HelpOutlineIcon className="text-white/80 hover:text-white h-4 w-4" />
+                <HelpOutlineIcon className="text-slate-400 hover:text-slate-600 h-4 w-4" />
               </span>
             </TooltipTrigger>
             <TooltipContent className="bg-slate-900 text-white border-slate-800 p-3 max-w-sm">
@@ -413,9 +413,9 @@ const PayrollDetails = () => {
             </TooltipContent>
           </Tooltip>
         </div>
-        <p className="text-4xl md:text-5xl font-extrabold tracking-tight">₱{parseFloat(payroll.netPay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+        <p className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">₱{parseFloat(payroll.netPay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
       </div>
-      <AttachMoneyIcon className="absolute -right-4 -bottom-4 text-[150px] opacity-20 transform -rotate-12" />
+      <AttachMoneyIcon className="absolute -right-4 -bottom-4 text-[150px] opacity-10 text-accent-gold transform -rotate-12" />
     </div>
   );
 
@@ -539,7 +539,7 @@ const PayrollDetails = () => {
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <p className="font-bold text-[#2A174E] text-xl">₱{parseFloat(payroll.totalEarnings || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+              <p className="font-bold text-brand-primary text-xl">₱{parseFloat(payroll.totalEarnings || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
             </div>
 
             <div className="flex flex-col justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-purple-200 transition-all">
@@ -752,7 +752,7 @@ const PayrollDetails = () => {
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Deductions</span>
             <p className="font-bold text-rose-600 text-lg sm:text-xl">-₱{totalAllDeductions.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
           </div>
-          <div className="bg-[#2A174E] text-white p-2.5 rounded-lg flex flex-col justify-center">
+          <div className="bg-brand-primary text-white p-2.5 rounded-lg flex flex-col justify-center">
             <span className="text-[9px] font-bold text-amber-300 uppercase tracking-wider block">Net Take-Home</span>
             <p className="font-extrabold text-lg sm:text-xl text-white">₱{parseFloat(payroll.netPay || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
           </div>
@@ -1049,7 +1049,7 @@ const PayrollDetails = () => {
                     >
                       <Link 
                         to={periodId ? `/payroll/payrollPeriod?periodId=${periodId}` : "/payroll/payrollPeriod"}
-                        className="flex items-center justify-center rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-all hover:scale-110"
+                        className="flex items-center justify-center rounded-full hover:bg-brand-primary-light text-brand-primary transition-all hover:scale-110"
                       >
                         <ChevronLeft className="h-6 w-6" />
                       </Link>
@@ -1064,7 +1064,7 @@ const PayrollDetails = () => {
 
             {/* Title & Subtitle */}
             <div className="flex flex-col">
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Payroll Details</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Payroll Details</h1>
               <span className="text-sm text-slate-500 font-mono">Payroll ID: {payroll.payrollId}</span>
             </div>
           </div>
@@ -1077,7 +1077,7 @@ const PayrollDetails = () => {
                 size="sm"
                 onClick={handleResendEmail}
                 disabled={isSendingEmail}
-                className="border-purple-200 text-[#2A174E] hover:bg-purple-50 flex items-center gap-2"
+                className="border-purple-200 text-brand-primary hover:bg-purple-50 flex items-center gap-2"
                 title="Resend password-protected Payslips 1 & 2 and DTR to employee email"
               >
                 <Mail className="w-4 h-4 text-purple-700" />
@@ -1112,28 +1112,28 @@ const PayrollDetails = () => {
             <Button 
               variant={activeTab === "overview" ? "default" : "outline"} 
               onClick={() => setActiveTab("overview")}
-              className={activeTab === "overview" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E] hover:bg-[#2A174E]/5"}
+              className={activeTab === "overview" ? "bg-brand-primary text-white" : "text-brand-primary border-brand-primary hover:bg-brand-primary/5"}
             >
               Overview
             </Button>
             <Button 
               variant={activeTab === "govt" ? "default" : "outline"} 
               onClick={() => setActiveTab("govt")}
-              className={activeTab === "govt" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E] hover:bg-[#2A174E]/5"}
+              className={activeTab === "govt" ? "bg-brand-primary text-white" : "text-brand-primary border-brand-primary hover:bg-brand-primary/5"}
             >
               Gov't Share
             </Button>
             <Button 
               variant={activeTab === "other" ? "default" : "outline"} 
               onClick={() => setActiveTab("other")}
-              className={activeTab === "other" ? "bg-[#2A174E] text-white" : "text-[#2A174E] border-[#2A174E] hover:bg-[#2A174E]/5"}
+              className={activeTab === "other" ? "bg-brand-primary text-white" : "text-brand-primary border-brand-primary hover:bg-brand-primary/5"}
             >
               Deductions
             </Button>
             {/* <Button 
               variant={activeTab === "all" ? "default" : "outline"} 
               onClick={() => setActiveTab("all")}
-              className={activeTab === "all" ? "bg-[#2A174E] text-white shadow-sm" : "text-[#2A174E] border-[#2A174E] hover:bg-[#2A174E]/5"}
+              className={activeTab === "all" ? "bg-brand-primary text-white shadow-sm" : "text-brand-primary border-brand-primary hover:bg-brand-primary/5"}
             >
               All-in-One (Playground)
             </Button> */}
@@ -1146,7 +1146,7 @@ const PayrollDetails = () => {
                 <Button 
                   variant="outline" 
                   onClick={() => setIsModalOpen(true)}
-                  className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-all shadow-sm flex items-center gap-2"
+                  className="border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white transition-all shadow-sm flex items-center gap-2"
                 >
                   <ReceiptLongIcon className="h-4 w-4" />
                   <span className="hidden sm:inline">View Payslip</span>
@@ -1164,7 +1164,7 @@ const PayrollDetails = () => {
           
           {/* Employee Information Card */}
           <Card className="border-0 shadow-sm bg-white py-0 h-full">
-            <CardHeader className="border-b border-slate-50 py-4 bg-[#2A174E]">
+            <CardHeader className="border-b border-slate-50 py-4 bg-brand-primary">
               <CardTitle className="text-base flex items-center gap-2 text-white">
                 <PersonOutlineIcon className="text-white h-5 w-5" /> Employee Information
               </CardTitle>
@@ -1191,7 +1191,7 @@ const PayrollDetails = () => {
 
           {/* Pay Period Card */}
           <Card className="border-0 shadow-sm bg-white py-0 h-full">
-            <CardHeader className="border-b border-slate-50 py-4 bg-[#2A174E]">
+            <CardHeader className="border-b border-slate-50 py-4 bg-brand-primary">
               <CardTitle className="text-base flex items-center gap-2 text-white">
                 <CalendarTodayIcon className="text-white h-5 w-5" /> Pay Period
               </CardTitle>
