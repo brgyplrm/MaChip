@@ -139,8 +139,8 @@ exports.markAttendance = async (req, res) => {
     const hasApprovedOT = !!approvedOT;
 
     const lastLogs = await sequelize.query(
-      `SELECT * FROM "user_logging" WHERE "user_id" = :target_user_Id AND "log_Date" BETWEEN :todayStart AND :todayEnd ORDER BY "user_loggingId" DESC LIMIT 1`,
-      { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT }
+      `SELECT * FROM "user_logging" WHERE "user_id" = :target_user_Id AND ("log_Date"::date = :todayStr::date OR "log_Date" BETWEEN :todayStart AND :todayEnd) ORDER BY "user_loggingId" DESC LIMIT 1`,
+      { replacements: { target_user_Id, todayStr, todayStart, todayEnd }, type: QueryTypes.SELECT }
     );
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
 
@@ -158,19 +158,39 @@ exports.markAttendance = async (req, res) => {
     }
 
     const currentStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
-    if (forcedStatus === 1 && [1, 3, 5].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-in` });
-    if (forcedStatus === 2 && [2, 4, 6].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-out` });
+    if (forcedStatus === 1 && [1, 3, 5, 10].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-in` });
+    if (forcedStatus === 2 && [2, 4, 6, 11].includes(currentStatus)) return res.status(400).json({ error: `User ${user.user_FirstName} is already clock-out` });
 
-    const firstLoginToday = await sequelize.query(`SELECT * FROM "user_logging" WHERE "user_id" = :target_user_Id AND "logged_StatusId" IN (1, 3) AND ("attendance_StatusId" IS NULL OR "attendance_StatusId" != 8) AND "log_Date" BETWEEN :todayStart AND :todayEnd LIMIT 1`, { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT });
+    const firstLoginToday = await sequelize.query(`SELECT * FROM "user_logging" WHERE "user_id" = :target_user_Id AND "logged_StatusId" IN (1, 3, 10) AND ("attendance_StatusId" IS NULL OR "attendance_StatusId" != 8) AND ("log_Date"::date = :todayStr::date OR "log_Date" BETWEEN :todayStart AND :todayEnd) LIMIT 1`, { replacements: { target_user_Id, todayStr, todayStart, todayEnd }, type: QueryTypes.SELECT });
     const hasPriorClockIn = !!firstLoginToday[0];
+
+    const priorOtLogin = await sequelize.query(
+      `SELECT 1 FROM "user_logging"
+       WHERE "user_id" = :target_user_Id
+       AND "logged_StatusId" = 5
+       AND ("log_Date"::date = :todayStr::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
+       LIMIT 1`,
+      { replacements: { target_user_Id, todayStr, todayStart, todayEnd }, type: QueryTypes.SELECT },
+    );
+    const hasPriorOtIn = priorOtLogin.length > 0;
+
+    const priorAfternoonIn = await sequelize.query(
+      `SELECT 1 FROM "user_logging"
+       WHERE "user_id" = :target_user_Id
+       AND "logged_StatusId" = 3
+       AND ("log_Date"::date = :todayStr::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
+       LIMIT 1`,
+      { replacements: { target_user_Id, todayStr, todayStart, todayEnd }, type: QueryTypes.SELECT },
+    );
+    const hasPriorAfternoonIn = priorAfternoonIn.length > 0;
 
     const priorIrregular = await sequelize.query(
       `SELECT 1 FROM "user_logging"
        WHERE "user_id" = :target_user_Id
        AND "attendance_StatusId" = 8
-       AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       AND ("log_Date"::date = :todayStr::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
        LIMIT 1`,
-      { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+      { replacements: { target_user_Id, todayStr, todayStart, todayEnd }, type: QueryTypes.SELECT },
     );
     const hadPriorIrregular = priorIrregular.length > 0;
 
@@ -197,24 +217,37 @@ exports.markAttendance = async (req, res) => {
     const isNightShiftAllowed = Boolean(settings?.enableNightShift && user.user_ShiftId === 2);
     const isSuspiciousWindow = (now >= fivePMThirty || now < fiveAMThirty);
     const isPastOT = hasApprovedOT && isPastOTWindow;
-    const isIrregular = (!isWithinOTWindow && isSuspiciousWindow && !isNightShiftAllowed) ||
+    let isIrregular = (!isWithinOTWindow && isSuspiciousWindow && !isNightShiftAllowed) ||
                         isPastOT ||
                         (hadPriorIrregular && isSuspiciousWindow);
 
     let nextStatus;
     const determineInStatus = () => {
-      if (hasApprovedOT && isWithinOTWindow) return 5;
-      if (lastStatus === 2 && !isSuspiciousWindow && hasPriorClockIn) return 3;
+      if (hasApprovedOT && isWithinOTWindow) {
+        return !hasPriorOtIn ? 5 : 10;
+      }
       if (!hasPriorClockIn) {
         return totalMinutes < 720 ? 1 : 3;
       }
-      return 1;
+      if (lastStatus === 2) {
+        return 3;
+      }
+      return 10;
     };
 
     const determineOutStatus = () => {
-      if (lastStatus === 5) return 6;
-      if (lastStatus === 1 && totalMinutes < 780) return 2;
-      return 4;
+      if (lastStatus === 5 || hasPriorOtIn || (hasApprovedOT && isWithinOTWindow)) {
+        const otEndStr = approvedOT?.HrTo || "20:00:00";
+        const otEndMinutes = parseInt(otEndStr.split(":")[0]) * 60 + parseInt(otEndStr.split(":")[1]);
+        return totalMinutes < otEndMinutes - 15 ? 11 : 6;
+      }
+      if (!hasPriorAfternoonIn && totalMinutes < lEnd) {
+        return totalMinutes < lStart ? 11 : 2;
+      }
+      const shiftEndStr = settings?.morningShiftEnd || "17:30:00";
+      const shiftEndMins = parseInt(shiftEndStr.split(":")[0]) * 60 + parseInt(shiftEndStr.split(":")[1]);
+      const afternoonOutThreshold = Math.max(shiftEndMins - 30, 990);
+      return totalMinutes < afternoonOutThreshold ? 11 : 4;
     };
 
     if (forcedStatus === 1) {
@@ -222,10 +255,38 @@ exports.markAttendance = async (req, res) => {
     } else if (forcedStatus === 2) {
       nextStatus = determineOutStatus();
     } else {
-      if (!lastStatus || [2, 4, 6].includes(lastStatus)) {
+      if (!lastStatus || [2, 4, 6, 11].includes(lastStatus)) {
         nextStatus = determineInStatus();
       } else {
         nextStatus = determineOutStatus();
+      }
+    }
+
+    // Guard: At or after 12:00 PM (totalMinutes >= 720), status can never be Morning IN (1)
+    if ([1, 3, 5, 10].includes(nextStatus) && nextStatus === 1 && totalMinutes >= 720) {
+      nextStatus = hasPriorClockIn ? 10 : 3;
+    }
+
+    // Regular daytime employee clocking OUT at or after shift end is not irregular if they have a prior clock-in
+    if ([2, 4, 6, 11].includes(nextStatus) && hasPriorClockIn) {
+      isIrregular = false;
+    }
+
+    if ([1, 3, 5, 10].includes(nextStatus) && [2, 4, 6].includes(lastStatus) && lastLogs[0]?.user_loggingId) {
+      let shouldDemoteToInterim = false;
+      if (lastStatus === 2 && totalMinutes < lStart) {
+        shouldDemoteToInterim = true;
+      } else if (lastStatus === 4) {
+        shouldDemoteToInterim = true;
+      } else if (lastStatus === 6 && hasApprovedOT && isWithinOTWindow) {
+        shouldDemoteToInterim = true;
+      }
+
+      if (shouldDemoteToInterim) {
+        await sequelize.query(
+          `UPDATE "user_logging" SET "logged_StatusId" = 11 WHERE "user_loggingId" = :logId`,
+          { replacements: { logId: lastLogs[0].user_loggingId }, type: QueryTypes.UPDATE }
+        );
       }
     }
 
@@ -261,7 +322,7 @@ exports.markAttendance = async (req, res) => {
     const newLogResult = await sequelize.query(`INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId") VALUES (:target_user_Id, :log_Date, :time_Logged, :logged_StatusId, :attendance_StatusId) RETURNING *`, { replacements: { target_user_Id, log_Date: todayStart, time_Logged: timeStr, logged_StatusId: nextStatus, attendance_StatusId: attendanceVal }, type: QueryTypes.INSERT });
     const newLog = newLogResult[0][0];
 
-    const isEntry = [1, 3, 5].includes(nextStatus);
+    const isEntry = [1, 3, 5, 10].includes(nextStatus);
     const repStat = isEntry ? 1 : 2;
     const existing = await sequelize.query(`SELECT * FROM "employee_Logging_report" WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`, { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT });
     if (!existing[0]) {
@@ -299,8 +360,17 @@ exports.markAttendance = async (req, res) => {
         .catch(err => console.error("[ATTENDANCE-AUTO] Error in post-clockout tasks:", err));
     }
 
-    const labels = { 1: "Clock In", 2: "Lunch Out", 3: "Lunch In", 4: "Clock Out", 5: "Overtime In", 6: "Overtime Out" };
-    const punchLabel = [1, 3, 5].includes(nextStatus) ? "Clock In" : "Clock Out";
+    const labels = { 
+      1: "Morning IN", 
+      2: "Morning OUT", 
+      3: "Afternoon IN", 
+      4: "Afternoon OUT", 
+      5: "Overtime IN", 
+      6: "Overtime OUT", 
+      10: "Clock IN", 
+      11: "Clock OUT" 
+    };
+    const punchLabel = [1, 3, 5, 10].includes(nextStatus) ? "Clock In" : "Clock Out";
     if (isIrregular) {
       await logTransaction(target_user_Id, null, "IRREGULAR_LOG", `Irregular ${punchLabel} at ${timeStr}`, { status: labels[nextStatus], punchDirection: punchLabel, time: timeStr, method: log_Type || "Manual/RFID" }, req);
     } else {
@@ -518,6 +588,13 @@ exports.viewUserLogs = async (req, res) => {
           stats.ot_hrs = 0;
           stats.holiday_hrs = 0;
           stats.totalPayableHours = 0;
+        } else {
+          const threshold = settings?.workHourThreshold !== undefined ? parseFloat(settings.workHourThreshold) : 4.0;
+          const isExempt = Boolean(user?.is_time_exempt) || (user?.user_RoleId === 1);
+          if (!isExempt && stats.reg_hrs < threshold) {
+            stats.reg_hrs = 0;
+            stats.totalPayableHours = Math.round((stats.ot_hrs + stats.nd_hrs + stats.holiday_hrs) * 100) / 100;
+          }
         }
         
         // Handle manual Overtime Request additions if any (Legacy Support)
@@ -633,7 +710,7 @@ exports.viewAllAttendance = async (req, res) => {
         : null;
 
       const isIrregular = plain.attendance_StatusId === 8;
-      const punchDirection = [1, 3, 5].includes(plain.logged_StatusId) ? "Clock In" : "Clock Out";
+      const punchDirection = [1, 3, 5, 10].includes(plain.logged_StatusId) ? "Clock In" : "Clock Out";
       const loggedStatusName = isIrregular 
         ? `Irregular ${punchDirection}` 
         : plain.loggedStatus?.statusName;
@@ -696,13 +773,14 @@ exports.StatusLogic = async (req, res) => {
     const todayEnd = new Date(now);
     todayEnd.setHours(23, 59, 59, 999);
 
+    const todayStr = formatDateLocal(now);
     const logs = await sequelize.query(
       `SELECT * FROM "user_logging"
        WHERE "user_id" = :user_Id
-       AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       AND ("log_Date"::date = :todayStr::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
        ORDER BY "user_loggingId" DESC
        LIMIT 1`,
-      { replacements: { user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+      { replacements: { user_Id, todayStr, todayStart, todayEnd }, type: QueryTypes.SELECT },
     );
 
     let log = logs[0];
@@ -724,11 +802,11 @@ exports.StatusLogic = async (req, res) => {
     const firstLogs = await sequelize.query(
       `SELECT * FROM "user_logging"
        WHERE "user_id" = :user_Id
-       AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       AND ("log_Date"::date = :todayStr::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
        AND "logged_StatusId" = 1
        ORDER BY "user_loggingId" ASC
        LIMIT 1`,
-      { replacements: { user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+      { replacements: { user_Id, todayStr, todayStart, todayEnd }, type: QueryTypes.SELECT },
     );
 
     const firstLog = firstLogs[0];

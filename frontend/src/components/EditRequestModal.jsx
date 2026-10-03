@@ -28,6 +28,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [modificationReason, setModificationReason] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     if (request) {
@@ -163,12 +164,14 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         onUpdate();
         onClose();
         setModificationReason(""); 
+        setErrorMessage("");
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to update request");
+        const error = await response.json().catch(() => ({}));
+        setErrorMessage(error.error || "Failed to update request");
       }
     } catch (err) {
       console.error("Error updating request:", err);
+      setErrorMessage("Network error: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -188,6 +191,11 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
+          {errorMessage && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg font-medium">
+              {errorMessage}
+            </div>
+          )}
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Conditional fields based on type */}

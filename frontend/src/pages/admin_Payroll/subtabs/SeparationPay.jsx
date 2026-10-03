@@ -24,6 +24,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TablePagination } from "@/components/ui/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const SeparationPay = () => {
   const { systemToday } = useSystemTime();
@@ -38,6 +48,7 @@ const SeparationPay = () => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [confirmConfig, setConfirmConfig] = useState(null);
   const [showGuideline, setShowGuideline] = useState(true);
   const [causes, setCauses] = useState([]);
   const [selectedCauseId, setSelectedCauseId] = useState("");
@@ -137,21 +148,7 @@ const SeparationPay = () => {
     }
   };
 
-  const handleGenerate = async (targetStatus = 'Draft') => {
-    if (!preview || !selectedCauseId) return;
-    
-    if (targetStatus === 'Notice Served') {
-      const thirtyDaysFromNow = new Date();
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-      const sepDate = new Date(separationDate);
-      
-      let confirmMsg = `Are you sure you want to serve the Notice of Termination to ${preview.name}?`;
-      if (sepDate < thirtyDaysFromNow) {
-        confirmMsg += "\n\n⚠️ WARNING: The selected separation date is less than 30 days from today. DOLE requires at least 30 days notice.";
-      }
-      if (!window.confirm(confirmMsg)) return;
-    }
-
+  const executeGenerate = async (targetStatus = 'Draft') => {
     setLoading(true);
     try {
       const res = await fetchWithAuth("/api/payroll/separation/generate", {
@@ -181,36 +178,71 @@ const SeparationPay = () => {
     }
   };
 
-  const handleCancel = async (id) => {
-    if (!window.confirm("Are you sure you want to rescind this termination notice? This will restore the employee to Active status and send a notification email.")) return;
-    try {
-      const res = await fetchWithAuth(`/api/payroll/separation/cancel/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (res.ok) {
-        setToast({ message: data.message, type: "success" });
-        fetchHistory();
-      } else {
-        setToast({ message: data.error || "Failed to cancel", type: "error" });
-      }
-    } catch (err) {
-      setToast({ message: "Network error", type: "error" });
+  const handleGenerate = async (targetStatus = 'Draft') => {
+    if (!preview || !selectedCauseId) return;
+    
+    if (targetStatus === 'Notice Served') {
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+      const sepDate = new Date(separationDate);
+      
+      const isShortNotice = sepDate < thirtyDaysFromNow;
+      setConfirmConfig({
+        title: "Serve Notice of Termination",
+        description: `Are you sure you want to serve the official Notice of Termination to ${preview.name}?${
+          isShortNotice ? " Note: The selected separation date is less than 30 days from today. DOLE regulations require at least 30 days notice." : ""
+        }`,
+        actionLabel: "Serve Notice",
+        onConfirm: () => executeGenerate(targetStatus)
+      });
+      return;
     }
+
+    executeGenerate(targetStatus);
   };
 
-  const handleRelease = async (id) => {
-    if (!window.confirm("Release the final settlement? This will mark the employee as 'Separated' and archive their profile.")) return;
-    try {
-      const res = await fetchWithAuth(`/api/payroll/separation/release/${id}`, { method: "PUT" });
-      const data = await res.json();
-      if (res.ok) {
-        setToast({ message: data.message, type: "success" });
-        fetchHistory();
-      } else {
-        setToast({ message: data.error || "Failed to release", type: "error" });
+  const handleCancel = (id) => {
+    setConfirmConfig({
+      title: "Rescind Termination Notice",
+      description: "Are you sure you want to rescind this termination notice? This will restore the employee to Active status and send a notification email.",
+      actionLabel: "Rescind Notice",
+      onConfirm: async () => {
+        try {
+          const res = await fetchWithAuth(`/api/payroll/separation/cancel/${id}`, { method: "DELETE" });
+          const data = await res.json();
+          if (res.ok) {
+            setToast({ message: data.message, type: "success" });
+            fetchHistory();
+          } else {
+            setToast({ message: data.error || "Failed to cancel", type: "error" });
+          }
+        } catch (err) {
+          setToast({ message: "Network error", type: "error" });
+        }
       }
-    } catch (err) {
-      setToast({ message: "Network error", type: "error" });
-    }
+    });
+  };
+
+  const handleRelease = (id) => {
+    setConfirmConfig({
+      title: "Release Final Settlement",
+      description: "Release the final separation settlement? This will mark the employee as 'Separated' and archive their profile.",
+      actionLabel: "Release Settlement",
+      onConfirm: async () => {
+        try {
+          const res = await fetchWithAuth(`/api/payroll/separation/release/${id}`, { method: "PUT" });
+          const data = await res.json();
+          if (res.ok) {
+            setToast({ message: data.message, type: "success" });
+            fetchHistory();
+          } else {
+            setToast({ message: data.error || "Failed to release", type: "error" });
+          }
+        } catch (err) {
+          setToast({ message: "Network error", type: "error" });
+        }
+      }
+    });
   };
 
   const formatCurrency = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -693,6 +725,30 @@ const SeparationPay = () => {
             </TabsContent>
           </Tabs>
         </div>
+
+        {/* Confirmation Dialog */}
+        <AlertDialog open={Boolean(confirmConfig)} onOpenChange={(open) => !open && setConfirmConfig(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{confirmConfig?.title || "Confirm Action"}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirmConfig?.description}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (confirmConfig?.onConfirm) confirmConfig.onConfirm();
+                  setConfirmConfig(null);
+                }}
+                className="bg-brand-primary hover:bg-[#7A52B5] text-white"
+              >
+                {confirmConfig?.actionLabel || "Confirm"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 };

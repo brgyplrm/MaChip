@@ -10,12 +10,14 @@ import { Link, useParams } from "react-router-dom";
 import { fetchWithAuth } from "../../../utils/api";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import Toast from "../../../components/toast/Toast";
 
 export default function LoanDetailsPage() {
     const { id } = useParams();
     const [loan, setLoan] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("overview");
+    const [toast, setToast] = useState({ message: "", type: "success" });
 
     const fetchData = async () => {
         setLoading(true);
@@ -264,11 +266,13 @@ export default function LoanDetailsPage() {
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
+                setToast({ message: "Loan ledger PDF downloaded successfully.", type: "success" });
             } else {
-                alert("Failed to generate PDF ledger.");
+                setToast({ message: "Failed to generate PDF ledger.", type: "error" });
             }
         } catch (err) {
             console.error("Export PDF error:", err);
+            setToast({ message: "Export error: " + err.message, type: "error" });
         }
     };
 
@@ -651,6 +655,7 @@ export default function LoanDetailsPage() {
                         </TabsContent>
                     </Tabs>
                     </div>
+                    <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
                 </TooltipProvider>
             </Sidebar>
         </div>

@@ -129,7 +129,15 @@ const Settings = () => {
         setWorkHourThreshold(data.workHourThreshold ?? 4.0);
         
         const rates = data.payrollRates ?? null;
-        setPayrollRates(rates);
+        setPayrollRates({
+          ...(rates || {}),
+          payrollCutoffBufferDays: data.payrollCutoffBufferDays ?? rates?.payrollCutoffBufferDays ?? 2,
+          payrollProcessingDeadlineDays: data.payrollProcessingDeadlineDays ?? rates?.payrollProcessingDeadlineDays ?? 3,
+          payrollAutoRelease: data.payrollAutoRelease ?? rates?.payrollAutoRelease ?? false,
+          payrollRemindersEnabled: data.payrollRemindersEnabled ?? rates?.payrollRemindersEnabled ?? true,
+          payrollWeekendRule: data.payrollWeekendRule ?? rates?.payrollWeekendRule ?? 'PRECEDING_FRIDAY',
+          payrollGracePeriodDays: data.payrollGracePeriodDays ?? rates?.payrollGracePeriodDays ?? 7,
+        });
         
         // Dynamically pull payroll constants if present in response records
         // Priority: 1. data.payroll (flat), 2. data.payrollRates.statutoryConstants (nested)
@@ -259,6 +267,12 @@ const Settings = () => {
       doubleSpecialDayRestDayRate: newRates.doubleSpecialDayRestDayRate,
       nightDiffRate: newRates.nightDiffRate,
       overtimeRate: newRates.overtimeRate,
+      payrollCutoffBufferDays: newRates.payrollCutoffBufferDays,
+      payrollProcessingDeadlineDays: newRates.payrollProcessingDeadlineDays,
+      payrollAutoRelease: newRates.payrollAutoRelease,
+      payrollRemindersEnabled: newRates.payrollRemindersEnabled,
+      payrollWeekendRule: newRates.payrollWeekendRule,
+      payrollGracePeriodDays: newRates.payrollGracePeriodDays,
       payrollRates: newRates.payrollRates,
       payroll: newRates.payroll
     };

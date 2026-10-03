@@ -340,6 +340,30 @@ const AdminRequests = () => {
     ? currentData.find(r => r.emp_reqId === selectedReqId)
     : (currentData[0] || null);
 
+  const getTimeLength = (req) => {
+    if (!req) return "";
+    if (req.emp_reqTypeId === 1) {
+      return `${req.Total_Hrs || 0} Hours`;
+    }
+    if (req.emp_reqTypeId === 2) {
+      return req.OW_NoHrs ? `${req.OW_NoHrs} Hours` : `${req.OW_NoDays || 1} Day(s)`;
+    }
+    if (req.emp_reqTypeId === 7) {
+      return "0.5 Day (4.0 Hours)";
+    }
+    if ([3, 4, 6, 8, 9, 10, 11, 12].includes(req.emp_reqTypeId)) {
+      const days = req.VL_NoDays || req.SL_NoDays || req.EL_NoDays || req.ST_NoDays || 1;
+      return `${days} ${days === 1 ? "Day" : "Days"}`;
+    }
+    if (req.emp_reqTypeId === 5) {
+      return "Log Adjustment";
+    }
+    if (req.emp_reqTypeId === 13 || req.emp_reqTypeId === 14) {
+      return "Loan Request";
+    }
+    return "";
+  };
+
   const getDates = (req) => {
     if (!req) return "";
     return req.VL_StartDate
@@ -349,7 +373,7 @@ const AdminRequests = () => {
         : req.ST_StartDate
           ? `${new Date(req.ST_StartDate).toLocaleDateString()} — ${new Date(req.ST_EndDate).toLocaleDateString()}`
           : req.OT_DateOf
-            ? `${new Date(req.OT_DateOf).toLocaleDateString()} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
+            ? new Date(req.OT_DateOf).toLocaleDateString()
             : req.LC_logDate
               ? new Date(req.LC_logDate).toLocaleDateString()
               : req.EL_DateOfLeave
@@ -358,7 +382,7 @@ const AdminRequests = () => {
                 ? new Date(req.HD_DateOfLeave).toLocaleDateString()
                 : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : 
                 (req.emp_reqTypeId === 13 || req.emp_reqTypeId === 14) ? new Date(req.date_Filed).toLocaleDateString() : "";
-                };
+  };
   const getStatusColor = (statusId) => {
     if (statusId === 1 || statusId === 4) return "bg-orange-100 text-orange-800 hover:bg-orange-100";
     if (statusId === 2) return "bg-green-100 text-green-800 hover:bg-green-100";
@@ -653,15 +677,23 @@ const AdminRequests = () => {
                             {getShortType(req.reqTypeName)}
                           </Badge>
                           {req.system_remarks && (
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] px-1.5 py-0">
-                              ⚠️ Notice
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] px-1.5 py-0 flex items-center gap-0.5">
+                              <WarningAmberIcon sx={{ fontSize: 11 }} />
+                              Notice
                             </Badge>
                           )}
                         </div>
                         <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
                       </div>
                       <p className="font-bold text-slate-800 text-sm mb-1">{req.userName}</p>
-                      <p className="text-xs text-slate-500">{getDates(req)}</p>
+                      <div className="flex justify-between items-center text-xs text-slate-500">
+                        <span>{getDates(req)}</span>
+                        {getTimeLength(req) && (
+                          <span className="font-semibold text-brand-primary bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded text-[11px]">
+                            {getTimeLength(req)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })
@@ -819,29 +851,9 @@ const AdminRequests = () => {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duration / Details</label>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Time Length / Duration</label>
                       <p className="font-semibold text-slate-800">
-                        {current.emp_reqTypeId === 1
-                          ? `${current.Total_Hrs || 0} Hrs`
-                          : current.emp_reqTypeId === 2
-                            ? `${current.OW_NoDays || 0} Day(s) (${current.OW_NoHrs || 0} Hrs)`
-                            : current.emp_reqTypeId === 5
-                              ? `${current.LC_correctionCategory || "Correction"} for ${new Date(current.LC_logDate).toLocaleDateString()}`
-                              : [3, 4, 6, 8, 9, 10, 11, 12].includes(current.emp_reqTypeId)
-                                ? (() => {
-                                    const used = current.VL_NoDays || current.SL_NoDays || current.EL_NoDays || current.ST_NoDays || 0;
-                                    const start = current.VL_StartDate || current.SL_StartDate || current.EL_DateOfLeave || current.ST_StartDate;
-                                    const end = current.VL_EndDate || current.SL_EndDate || current.EL_DateOfLeave || current.ST_EndDate;
-                                    const original = calculateDays(start, end);
-                                    return used < original 
-                                      ? `${used} Day(s) Used (Original: ${original})` 
-                                      : `${used} Day(s)`;
-                                  })()
-                                : current.emp_reqTypeId === 7 // Half-day
-                                  ? `Half-day (${current.HD_period})`
-                                  : [13, 14].includes(current.emp_reqTypeId)
-                                    ? `${current.LR_agency} ${current.LR_loanType}`
-                                    : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
+                        {getTimeLength(current)}
                       </p>
                     </div>
 

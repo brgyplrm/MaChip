@@ -159,7 +159,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
             log_type: (log.attendance_StatusId === 8 || log.attendanceStatusName === "Irregular")
               ? (log.loggedStatusName?.startsWith("Irregular") 
                   ? log.loggedStatusName 
-                  : `Irregular ${[1, 3, 5].includes(log.logged_StatusId) ? "Clock In" : "Clock Out"}`)
+                  : `Irregular ${[1, 3, 5, 10].includes(log.logged_StatusId) ? "Clock In" : "Clock Out"}`)
               : (log.loggedStatusName ?? "—"),
             action: log.attendanceStatusName ?? "—",
             attendance_StatusId: log.attendance_StatusId,
@@ -767,7 +767,7 @@ const toggleMachipVisibility = (rowId) => {
                                     {(row.action === "Irregular" || row.attendance_StatusId === 8 || row.log_type.includes("Irregular"))
                                       ? (row.log_type.startsWith("Irregular") 
                                           ? row.log_type 
-                                          : `Irregular ${[1, 3, 5].includes(row.logged_StatusId) || row.log_type.toLowerCase().includes("in") ? "Clock In" : "Clock Out"}`)
+                                          : `Irregular ${[1, 3, 5, 10].includes(row.logged_StatusId) || row.log_type.toLowerCase().includes("in") ? "Clock In" : "Clock Out"}`)
                                       : row.log_type}
                                   </Badge>
                                 </TableCell>

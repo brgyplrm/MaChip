@@ -29,6 +29,16 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { TablePagination } from "@/components/ui/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const RetirementPay = () => {
   const { systemToday } = useSystemTime();
@@ -39,6 +49,7 @@ const RetirementPay = () => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [confirmReleaseId, setConfirmReleaseId] = useState(null);
   const [showGuideline, setShowGuideline] = useState(true);
 
   // Edit Modal State
@@ -174,8 +185,14 @@ const RetirementPay = () => {
     }
   };
 
-  const handleRelease = async (id) => {
-    if (!window.confirm("Release this retirement pay? This will mark the tax exemption as used for this employee.")) return;
+  const handleRelease = (id) => {
+    setConfirmReleaseId(id);
+  };
+
+  const executeRelease = async () => {
+    const id = confirmReleaseId;
+    setConfirmReleaseId(null);
+    if (!id) return;
     try {
       const res = await fetchWithAuth(`/api/payroll/retirement/release/${id}`, { method: "PUT" });
       const data = await res.json();
@@ -680,7 +697,7 @@ const RetirementPay = () => {
             
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
               <p className="text-xs text-blue-800 font-medium italic">
-                ℹ️ Changing the date may affect tenure rounding (Years of Service) and will re-audit attendance logs for the final salary component.
+                Changing the date may affect tenure rounding (Years of Service) and will re-audit attendance logs for the final salary component.
               </p>
             </div>
           </div>
@@ -693,6 +710,27 @@ const RetirementPay = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Release Confirmation Dialog */}
+      <AlertDialog open={Boolean(confirmReleaseId)} onOpenChange={(open) => !open && setConfirmReleaseId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Retirement Payout Release</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to release this retirement payout? This action will mark the one-time tax exemption as utilized for this employee and lock the payment record.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeRelease}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              Release &amp; Finalize
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

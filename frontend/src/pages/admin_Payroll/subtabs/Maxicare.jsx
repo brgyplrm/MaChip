@@ -42,6 +42,16 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableHeader, TableRow, TableHead, TableBody } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const Maxicare = () => {
   const { systemToday } = useSystemTime();
@@ -54,6 +64,7 @@ const Maxicare = () => {
   const isAdmin = [1, 4].includes(userData?.user_RoleId);
 
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [confirmDeleteEmp, setConfirmDeleteEmp] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [showAddCalculator, setShowAddCalculator] = useState(false);
@@ -151,13 +162,18 @@ const Maxicare = () => {
     }
   };
 
-  const deleteColumn = async (empKey) => {
+  const deleteColumn = (empKey) => {
     const emp = employeeList.find(e => e.key === empKey);
     if (!emp) return;
+    setConfirmDeleteEmp(emp);
+  };
 
-    if (!window.confirm(`Are you sure you want to remove ${emp.name} from the Maxicare list? This will clear their history and set their expected deduction to 0.`)) return;
+  const executeDeleteColumn = async () => {
+    const emp = confirmDeleteEmp;
+    setConfirmDeleteEmp(null);
+    if (!emp) return;
 
-    await emptyColumn(empKey);
+    await emptyColumn(emp.key);
 
     try {
       await fetchWithAuth("/api/users/bulk-maxicare", {
@@ -167,7 +183,7 @@ const Maxicare = () => {
           updates: [{ user_Id: emp.user_Id, healthCard_Amnt: 0 }]
         })
       });
-      setEmployeeList(prev => prev.filter(e => e.key !== empKey));
+      setEmployeeList(prev => prev.filter(e => e.key !== emp.key));
       setToast({ message: `${emp.name} has been removed from Maxicare.`, type: "success" });
     } catch (err) {
       setToast({ message: "Error updating user status", type: "error" });
@@ -2428,6 +2444,27 @@ const Maxicare = () => {
           </div>
         )}
         </div>
+
+        {/* Delete Maxicare Employee Confirmation */}
+        <AlertDialog open={Boolean(confirmDeleteEmp)} onOpenChange={(open) => !open && setConfirmDeleteEmp(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove from Maxicare Plan</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove <strong>{confirmDeleteEmp?.name}</strong> from the Maxicare list? This will clear their active deduction record and set their health card deduction to &#8369;0.00.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={executeDeleteColumn}
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                Remove Employee
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </TooltipProvider>
       </Sidebar>
     </div>

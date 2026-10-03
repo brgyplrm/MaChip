@@ -25,6 +25,16 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { TablePagination } from "@/components/ui/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const FingerprintManagement = () => {
   const [biometricList, setBiometricList] = useState([]);
@@ -33,6 +43,7 @@ const FingerprintManagement = () => {
   const [loadingUnassigned, setLoadingUnassigned] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [clearTarget, setClearTarget] = useState(null);
   
   // Multi-step Registration Workflow States
   const [showScanModal, setShowScanModal] = useState(false);
@@ -237,8 +248,14 @@ const FingerprintManagement = () => {
     }
   };
 
-  const handleClearTemplate = async (userId, slotId, slotNumber) => {
-    if (!window.confirm(`Clear scanner slot matrix index #${slotId} for this user?`)) return;
+  const handleClearTemplate = (userId, slotId, slotNumber) => {
+    setClearTarget({ userId, slotId, slotNumber });
+  };
+
+  const executeClearTemplate = async () => {
+    if (!clearTarget) return;
+    const { userId, slotNumber } = clearTarget;
+    setClearTarget(null);
     try {
       const url = slotNumber ? `/api/hardware/biometric/clear/${userId}?slotNumber=${slotNumber}` : `/api/hardware/biometric/clear/${userId}`;
       const response = await fetchWithAuth(url, { method: "DELETE" });
@@ -529,6 +546,24 @@ const FingerprintManagement = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Wipe Slot Confirmation Dialog */}
+      <AlertDialog open={!!clearTarget} onOpenChange={(open) => !open && setClearTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Wipe Biometric Slot</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to clear scanner slot matrix index #{clearTarget?.slotId} for this user? This will delete the optical template from hardware flash memory.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setClearTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeClearTemplate} className="bg-red-600 hover:bg-red-700 text-white">
+              Wipe Slot
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   );
 };

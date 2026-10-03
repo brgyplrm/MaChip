@@ -11,6 +11,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import Toast from "../../../components/toast/Toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
@@ -64,19 +65,21 @@ const LeaveSummary = () => {
   const [exportScope, setExportScope] = useState("all");
   const [exportEmployeeId, setExportEmployeeId] = useState("");
   const [exportCategory, setExportCategory] = useState("all");
+  const [toast, setToast] = useState({ message: "", type: "success" });
 
   const handleExport = () => {
     let targetData = data;
     if (exportScope === "single") {
       const selected = data.find(emp => emp.user_Id.toString() === exportEmployeeId);
       if (!selected) {
-        alert("Please select a specific employee.");
+        setToast({ message: "Please select a specific employee.", type: "warning" });
         return;
       }
       targetData = [selected];
     }
     exportLeaveSummaryPDF(targetData, months, year, exportCategory, rates);
     setShowExportModal(false);
+    setToast({ message: "Leave summary exported successfully.", type: "success" });
   };
 
   useEffect(() => {
@@ -595,6 +598,7 @@ const LeaveSummary = () => {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}} />
       
+      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
       </TooltipProvider>
     </Sidebar>
   );

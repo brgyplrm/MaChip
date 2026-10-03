@@ -29,6 +29,16 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EyeIcon } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const ThirteenthMonth = () => {
   const { systemToday } = useSystemTime();
@@ -40,6 +50,7 @@ const ThirteenthMonth = () => {
   const [historyData, setHistoryData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
   const [showGuideline, setShowGuideline] = useState(true);
   
   // Modal states
@@ -208,8 +219,8 @@ const ThirteenthMonth = () => {
     }
   };
 
-  const handleDiscardDrafts = async () => {
-    if (!window.confirm(`Are you sure you want to discard all 13th month drafts for ${currentYear}?`)) return;
+  const executeDiscardDrafts = async () => {
+    setIsDiscardConfirmOpen(false);
     try {
       setLoading(true);
       const response = await fetchWithAuth(`/api/payroll/thirteenth-month/drafts/${currentYear}`, {
@@ -371,7 +382,7 @@ const ThirteenthMonth = () => {
                   </div>
                   <div className="flex gap-2">
                     {previewData.some(i => i.existingStatus === 'Draft') && (
-                      <Button onClick={handleDiscardDrafts} variant="outline" className="border-rose-400 text-rose-300 hover:bg-rose-900/40 hover:text-white">
+                      <Button onClick={() => setIsDiscardConfirmOpen(true)} variant="outline" className="border-rose-400 text-rose-300 hover:bg-rose-900/40 hover:text-white">
                         <DeleteOutlineIcon className="mr-2 h-4 w-4" /> Discard Drafts
                       </Button>
                     )}
@@ -635,7 +646,7 @@ const ThirteenthMonth = () => {
             
             <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
               <p className="text-xs text-amber-800 font-medium">
-                ⚠️ This action is permanent. Once released, the records will be locked for auditing and historical tracking. Please ensure all details are correct.
+                This action is permanent. Once released, the records will be locked for auditing and historical tracking. Please ensure all details are correct.
               </p>
             </div>
           </div>
@@ -643,11 +654,32 @@ const ThirteenthMonth = () => {
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setIsReleaseModalOpen(false)}>Cancel</Button>
             <Button onClick={confirmRelease} className="bg-green-600 hover:bg-green-700 text-white">
-              Confirm & Release
+              Confirm &amp; Release
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Discard Confirmation Dialog */}
+      <AlertDialog open={isDiscardConfirmOpen} onOpenChange={setIsDiscardConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard 13th Month Drafts</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to discard all 13th month calculation drafts for {currentYear}? This will remove all unsaved draft records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeDiscardDrafts}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              Discard Drafts
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

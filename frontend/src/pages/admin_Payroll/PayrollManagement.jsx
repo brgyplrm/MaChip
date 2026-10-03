@@ -14,6 +14,7 @@ import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
 import EmptyState from "../../components/EmptyState";
+import PayrollAlertBanner from "../../components/PayrollAlertBanner";
 import { Link } from "react-router-dom";
 import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodModal";
 import { fetchWithAuth } from "../../utils/api";
@@ -21,6 +22,7 @@ import { useSystemTime } from "../../context/SystemTimeContext";
 import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
 import { EyeIcon } from "lucide-react";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import Toast from "../../components/toast/Toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   BarChart, 
@@ -41,7 +43,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { TablePagination } from "@/components/ui/table-pagination";
 
@@ -61,6 +63,7 @@ const Payroll = () => {
   const [sortOrder, setSortOrder] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [toast, setToast] = useState({ message: "", type: "success" });
 
   // Generate a range of years (e.g., 5 years back from today)
   const availableYears = useMemo(() => {
@@ -135,12 +138,15 @@ const Payroll = () => {
 
       if (response.ok) {
         setIsCreateModalOpen(false);
+        setToast({ message: "Payroll period created successfully.", type: "success" });
         fetchActive();
       } else {
-        alert("Failed to save payroll period.");
+        const errData = await response.json().catch(() => ({}));
+        setToast({ message: errData.error || "Failed to save payroll period.", type: "error" });
       }
     } catch (error) {
       console.error("Error saving period:", error);
+      setToast({ message: "Network error saving period: " + error.message, type: "error" });
     }
   };
 
@@ -272,6 +278,7 @@ const Payroll = () => {
       <Sidebar>
         <TooltipProvider>
           <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+            <PayrollAlertBanner />
         
         {/* Header */}
         
@@ -630,12 +637,15 @@ const Payroll = () => {
         </Card>
 
         <Dialog open={loading && !refreshing}>
-          <DialogContent className="sm:max-w-[425px] flex flex-col items-center justify-center p-10">
+          <DialogContent className="sm:max-w-[425px] flex flex-col items-center justify-center p-10" showCloseButton={false}>
+            <DialogTitle className="sr-only">Loading Payroll</DialogTitle>
+            <DialogDescription className="sr-only">Please wait while payroll data is loading</DialogDescription>
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
             <p className="mt-4 font-medium text-slate-600">Loading payroll data...</p>
           </DialogContent>
         </Dialog>
         </div>
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, message: "" })} />
       </TooltipProvider>
       </Sidebar>
     </div>

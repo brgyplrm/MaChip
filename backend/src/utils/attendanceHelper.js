@@ -180,7 +180,12 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
     if (report.attendance_StatusId === 8 && firstRegularIn) {
       const graceTimeStr = settings?.gracePeriod || "08:35:00";
       const graceTime = graceTimeStr.substring(0, 5);
-      const newStatus = (firstRegularIn.substring(0, 5) <= graceTime) ? 1 : 2;
+      let newStatus = 1;
+      if (firstRegularIn.substring(0, 5) >= "12:00") {
+        newStatus = 4; // Half Day
+      } else if (firstRegularIn.substring(0, 5) > graceTime) {
+        newStatus = 2; // Late
+      }
       await report.update({ attendance_StatusId: newStatus });
       report.attendance_StatusId = newStatus;
     }
@@ -206,6 +211,14 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
       stats.ot_hrs = 0;
       stats.hol_hrs = 0;
       stats.totalPayableHours = 0;
+    } else {
+      // Threshold check: Zero out regular payable hours if below workHourThreshold (default 4.0 hrs)
+      const threshold = settings?.workHourThreshold !== undefined ? parseFloat(settings.workHourThreshold) : 4.0;
+      const isExempt = Boolean(user?.is_time_exempt) || (user?.user_RoleId === 1);
+      if (!isExempt && stats.reg_hrs < threshold) {
+        stats.reg_hrs = 0;
+        stats.totalPayableHours = Math.round((stats.ot_hrs + stats.nd_hrs + stats.hol_hrs) * 100) / 100;
+      }
     }
 
     await report.update({ reg_hrs: stats.reg_hrs, nd_hrs: stats.nd_hrs, ot_hrs: stats.ot_hrs, holiday_hrs: stats.hol_hrs, total_payable_hrs: stats.totalPayableHours });

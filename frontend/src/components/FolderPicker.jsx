@@ -69,10 +69,10 @@ const FolderPicker = ({ onSelect, currentPath: initialPath, isOpen, onClose }) =
         fetchDirs(currentPath);
       } else {
         const data = await response.json();
-        alert(data.error);
+        setError(data.error || "Failed to create folder.");
       }
     } catch (err) {
-      alert("Error creating folder.");
+      setError("Error creating folder.");
     }
   };
 

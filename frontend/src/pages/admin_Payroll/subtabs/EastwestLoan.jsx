@@ -443,21 +443,24 @@ const EastwestLoan = () => {
 
     data.forEach(item => {
       const recordYear = new Date(item.date).getFullYear();
-      if (recordYear === parseInt(selectedYear)) {
-        Object.keys(item.values).forEach(empKey => {
-          const val = item.values[empKey];
-          const amt = val ? val.amount : 0;
-          if (amt > 0) {
+      Object.keys(item.values).forEach(empKey => {
+        const val = item.values[empKey];
+        const amt = val ? val.amount : 0;
+        if (amt > 0) {
+          if (recordYear === parseInt(selectedYear)) {
             annualBorrowers.add(empKey);
-            totalPaid += amt;
-
-            // Active borrower: has an un-deducted/pending record scheduled for current or future cutoffs
-            if (item.date >= todayStr && val.status !== 'paid') {
-              activeBorrowers.add(empKey);
+            // Only count towards totalPaid if officially deducted/paid via payroll
+            if (val.status === 'paid') {
+              totalPaid += amt;
             }
           }
-        });
-      }
+
+          // Active borrower: has an un-deducted/pending record OR an upcoming scheduled deduction
+          if (val.status !== 'paid' || item.date >= todayStr) {
+            activeBorrowers.add(empKey);
+          }
+        }
+      });
     });
 
     // Also include any employee who has an active recurring deduction in their profile
@@ -524,7 +527,7 @@ const EastwestLoan = () => {
         <Card className="p-6">
           <h3 className="text-sm font-bold text-slate-500 uppercase mb-4">Loan Trend</h3>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
               <BarChart data={employeeData}>
                 <XAxis dataKey="date" />
                 <YAxis />

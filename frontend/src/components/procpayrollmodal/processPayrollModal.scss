@@ -55,6 +55,16 @@
           color: #FFD700;
           filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.3));
         }
+
+        &--draft .MuiSvgIcon-root {
+          color: #93c5fd;
+          filter: drop-shadow(0 0 5px rgba(147, 197, 253, 0.4));
+        }
+
+        &--release .MuiSvgIcon-root {
+          color: #86efac;
+          filter: drop-shadow(0 0 5px rgba(134, 239, 172, 0.4));
+        }
       }
 
       h2 { 
@@ -185,6 +195,15 @@
           color: #888;
           box-shadow: none;
           cursor: not-allowed; 
+        }
+
+        &--overdue {
+          background: #d97706;
+          box-shadow: 0 4px 15px rgba(217, 119, 6, 0.25);
+          &:hover:not(:disabled) {
+            background: #b45309;
+            box-shadow: 0 6px 20px rgba(217, 119, 6, 0.35);
+          }
         }
       }
     }

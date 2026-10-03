@@ -11,6 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Plus, Edit, Trash2, Save, X, AlertTriangle, Briefcase, Edit3 
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const PositionManagement = ({ 
   mandatedMinimumWage: initialWage, 
@@ -21,6 +31,7 @@ const PositionManagement = ({
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
+  const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [mandatedWage, setMandatedWage] = useState(initialWage || 610);
   const [effectiveDate, setEffectiveDate] = useState(initialDate || "2025-07-18");
   const [isEditing, setIsEditing] = useState(false);
@@ -166,8 +177,14 @@ const PositionManagement = ({
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this position template?")) return;
+  const handleDelete = (id) => {
+    setDeleteTargetId(id);
+  };
+
+  const executeDelete = async () => {
+    const id = deleteTargetId;
+    setDeleteTargetId(null);
+    if (!id) return;
 
     try {
       const response = await fetchWithAuth(`/api/positions/${id}`, {
@@ -463,6 +480,23 @@ const PositionManagement = ({
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Position Template</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this position template? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTargetId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDelete} className="bg-red-600 hover:bg-red-700 text-white">
+              Delete Position
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

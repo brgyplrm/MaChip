@@ -250,6 +250,21 @@ exports.updateSystemSettings = async (req, res) => {
     if (req.body.payrollGracePeriodDays !== undefined && req.body.payrollGracePeriodDays !== null) {
       updateData.payrollGracePeriodDays = parseInt(req.body.payrollGracePeriodDays, 10);
     }
+    if (req.body.payrollCutoffBufferDays !== undefined && req.body.payrollCutoffBufferDays !== null) {
+      updateData.payrollCutoffBufferDays = parseInt(req.body.payrollCutoffBufferDays, 10);
+    }
+    if (req.body.payrollProcessingDeadlineDays !== undefined && req.body.payrollProcessingDeadlineDays !== null) {
+      updateData.payrollProcessingDeadlineDays = parseInt(req.body.payrollProcessingDeadlineDays, 10);
+    }
+    if (req.body.payrollAutoRelease !== undefined) {
+      updateData.payrollAutoRelease = Boolean(req.body.payrollAutoRelease);
+    }
+    if (req.body.payrollRemindersEnabled !== undefined) {
+      updateData.payrollRemindersEnabled = Boolean(req.body.payrollRemindersEnabled);
+    }
+    if (req.body.payrollWeekendRule !== undefined) {
+      updateData.payrollWeekendRule = String(req.body.payrollWeekendRule);
+    }
 
     // 6. Maxicare / HMO
     if (req.body.maxicareTotalGross !== undefined) updateData.maxicareTotalGross = parseFloat(req.body.maxicareTotalGross);

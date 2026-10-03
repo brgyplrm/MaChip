@@ -92,6 +92,26 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         defaultValue: 7,
       },
+      payrollCutoffBufferDays: {
+        type: DataTypes.INTEGER,
+        defaultValue: 2,
+      },
+      payrollProcessingDeadlineDays: {
+        type: DataTypes.INTEGER,
+        defaultValue: 3,
+      },
+      payrollAutoRelease: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+      },
+      payrollRemindersEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+      },
+      payrollWeekendRule: {
+        type: DataTypes.STRING(30),
+        defaultValue: 'PRECEDING_FRIDAY',
+      },
       archivedRetentionYears: {
         type: DataTypes.INTEGER,
         defaultValue: 5,

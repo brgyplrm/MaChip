@@ -11,6 +11,7 @@ const { generatePayslipPassword } = require("../utils/payslipPassword");
 const { generateDTRPDF } = require("../utils/dtrGenerator");
 const { decrypt } = require("../utils/encryption");
 const { saveFileToArchive } = require("../utils/fileStorage");
+const { resolvePaydaySchedule } = require("../utils/paydayResolver");
 
 // ... (rest of imports remains similar)
 const { getAttendanceReportInternal } = require("./attendance.controller");
@@ -131,7 +132,12 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     return dateObj.getUTCDay() !== 0; // 0 = Sunday
   }).length;
 
-  // 1.05 Standard semi-monthly 2-day cutoff attendance window & rollover configuration
+  // 1.05 Standard semi-monthly cutoff attendance window & rollover configuration
+  const settings = await SystemSettings.findOne();
+  const bufferDays = (settings && settings.payrollCutoffBufferDays !== undefined && settings.payrollCutoffBufferDays !== null) 
+    ? parseInt(settings.payrollCutoffBufferDays, 10) 
+    : 2;
+
   const [sY, sM, sD] = period_Start.split("-").map(Number);
   const [eY, eM, eD] = period_End.split("-").map(Number);
 
@@ -145,26 +151,32 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
   let rollover_End = null;
 
   if (isPeriod1) {
-    // Period 1 (1st to 15th): attendance is evaluated from day 1 to 13.
-    evaluation_End = `${sY}-${String(sM).padStart(2, "0")}-13`;
-    hasRollover = true;
+    // Period 1 (1st to 15th): attendance is evaluated from day 1 to (15 - bufferDays).
+    const evalEndDay = Math.max(1, 15 - bufferDays);
+    evaluation_End = `${sY}-${String(sM).padStart(2, "0")}-${String(evalEndDay).padStart(2, "0")}`;
+    hasRollover = bufferDays > 0;
     
-    // Rollover window from previous month tail (last 2 days of previous month)
+    // Rollover window from previous month tail (last bufferDays of previous month)
     const prevMonthLastDate = new Date(sY, sM - 1, 0);
     const prevLastDay = prevMonthLastDate.getDate();
     const prevMonth = prevMonthLastDate.getMonth() + 1;
     const prevYear = prevMonthLastDate.getFullYear();
     
-    rollover_Start = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(prevLastDay - 1).padStart(2, "0")}`;
-    rollover_End = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(prevLastDay).padStart(2, "0")}`;
+    if (bufferDays > 0) {
+      rollover_Start = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(prevLastDay - bufferDays + 1).padStart(2, "0")}`;
+      rollover_End = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(prevLastDay).padStart(2, "0")}`;
+    }
   } else if (isPeriod2) {
-    // Period 2 (16th to End): attendance is evaluated from day 16 to (End - 2).
-    evaluation_End = `${eY}-${String(eM).padStart(2, "0")}-${String(eD - 2).padStart(2, "0")}`;
-    hasRollover = true;
+    // Period 2 (16th to End): attendance is evaluated from day 16 to (End - bufferDays).
+    const evalEndDay = Math.max(16, eD - bufferDays);
+    evaluation_End = `${eY}-${String(eM).padStart(2, "0")}-${String(evalEndDay).padStart(2, "0")}`;
+    hasRollover = bufferDays > 0;
     
-    // Rollover window from current month Period 1 tail (days 14 and 15)
-    rollover_Start = `${sY}-${String(sM).padStart(2, "0")}-14`;
-    rollover_End = `${sY}-${String(sM).padStart(2, "0")}-15`;
+    // Rollover window from current month Period 1 tail (days (15 - bufferDays + 1) to 15)
+    if (bufferDays > 0) {
+      rollover_Start = `${sY}-${String(sM).padStart(2, "0")}-${String(15 - bufferDays + 1).padStart(2, "0")}`;
+      rollover_End = `${sY}-${String(sM).padStart(2, "0")}-15`;
+    }
   }
 
   // 1.1 Check if user has attendance exemption (is_time_exempt)
@@ -329,14 +341,25 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
         }
       }
       
-      const dayPortion = dailyHrs >= 7 ? 1.0 : (dailyHrs >= 3 ? 0.5 : 0.0);
+      const threshold = settings?.workHourThreshold !== undefined ? parseFloat(settings.workHourThreshold) : 4.0;
+      if (dailyHrs < threshold && !isPresident) {
+        dailyHrs = 0;
+        dailyUnits = (log ? (parseFloat(log.ot_hrs || 0) + parseFloat(log.nd_hrs || 0) + parseFloat(log.holiday_hrs || 0)) : 0);
+      }
+
+      const dayPortion = dailyHrs >= 7 ? 1.0 : (dailyHrs >= threshold ? 0.5 : 0.0);
       actual_Worked_Days += dayPortion;
       actual_Worked_Hrs += dailyHrs;
       total_payable_units += dailyUnits;
 
-      if (dayPortion === 0.5 && isLeave) {
-        if (approvedLeaveDaysMap.get(dateStr).withPay) paidLeave_Days += 0.5;
-        else unpaidLeave_Days += 0.5;
+      if (dayPortion < 1.0 && !isPresident) {
+        if (isLeave) {
+          const leaveData = approvedLeaveDaysMap.get(dateStr);
+          if (leaveData.withPay) paidLeave_Days += (1.0 - dayPortion);
+          else unpaidLeave_Days += (1.0 - dayPortion);
+        } else {
+          absence_Days += (1.0 - dayPortion);
+        }
       }
 
       if (holiday) {
@@ -1260,14 +1283,124 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
 
   for (const emp of employees) {
     const existing = await sequelize.query(
-      `SELECT "payrollId" FROM "Payroll" 
+      `SELECT "payrollId", "status" FROM "Payroll" 
        WHERE "user_Id" = :user_Id 
        AND (("period_Start" = :period_Start AND "period_End" = :period_End) OR ("periodId" = :periodId))`,
       { replacements: { user_Id: emp.user_Id, period_Start, period_End, periodId: periodId || -1 }, type: QueryTypes.SELECT }
     );
 
     if (existing.length > 0) {
-      skippedCount++;
+      if (existing[0].status === 5) {
+        skippedCount++;
+        continue;
+      }
+
+      // Recompute stats fresh from user_logging, requests, loans & rates
+      const existingPayrollId = existing[0].payrollId;
+      const rateToUse = customDailyRate !== null ? customDailyRate : emp.dailyRate;
+      const fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse);
+      const targetStatus = shouldRelease ? 5 : 1;
+
+      await sequelize.query(
+        `UPDATE "Payroll" SET 
+          "NoDays_Worked" = :NoDays_Worked, "NoHrs_Worked" = :NoHrs_Worked, "totalScheduledDays" = :totalScheduledDays,
+          "dailyRate" = :dailyRate, "previousDailyRate" = :previousDailyRate, "ratePerHr" = :ratePerHr,
+          "basicPay" = :basicPay, "totalEarnings" = :totalEarnings, "totalDeductions" = :totalDed, "netPay" = :netPay,
+          "holidaysTotal" = :holidaysTotal, "holidaysRegularWorked" = :holidaysRegularWorked, "holidaysSpecialWorked" = :holidaysSpecialWorked,
+          "status" = :targetStatus, "updatedAt" = :now
+         WHERE "payrollId" = :payrollId`,
+        {
+          replacements: {
+            payrollId: existingPayrollId,
+            NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
+            totalScheduledDays: fullStats.totalScheduledDays,
+            dailyRate: fullStats.dailyRate, previousDailyRate: fullStats.previousDailyRate,
+            ratePerHr: fullStats.ratePerHr,
+            basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings,
+            totalDed: fullStats.totalDeductions, netPay: fullStats.netPay,
+            holidaysTotal: fullStats.holidaysTotal || 0,
+            holidaysRegularWorked: fullStats.legalHol_Days || 0,
+            holidaysSpecialWorked: fullStats.specialHol_Days || 0,
+            targetStatus,
+            now: nowStr
+          },
+          type: QueryTypes.UPDATE
+        }
+      );
+
+      await sequelize.query(
+        `UPDATE "Payroll_Earnings" SET
+          "OT_Hrs" = :OT_Hrs, "OT_Amnt" = :OT_Amnt, 
+          "nightOT_Hrs" = :nightOT_Hrs, "nightOT_Amnt" = :nightOT_Amnt,
+          "nightDiff_Hrs" = :nightDiff_Hrs, "nightDiff_Amnt" = :nightDiff_Amnt,
+          "legalHol_Amnt" = :legalHol_Amnt, "specialHol_Amnt" = :specialHol_Amnt, "specialHol_Adj" = :specialHol_Adj
+         WHERE "payrollId" = :payrollId`,
+        {
+          replacements: {
+            payrollId: existingPayrollId,
+            OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
+            nightOT_Hrs: fullStats.nightOT_Hrs, nightOT_Amnt: fullStats.nightOT_Amnt,
+            nightDiff_Hrs: fullStats.nightDiff_Hrs, nightDiff_Amnt: fullStats.nightDiff_Amnt,
+            legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt, specialHol_Adj: fullStats.specialHol_Adj
+          },
+          type: QueryTypes.UPDATE
+        }
+      );
+
+      await sequelize.query(
+        `UPDATE "Payroll_Deductions" SET
+          "absence_Hrs" = :absence_Hrs, "absence_Amnt" = :absence_Amnt,
+          "tardiness_Mins" = :tardiness_Mins, "tardiness_Amnt" = :tardiness_Amnt,
+          "unpaidLeave_Days" = :unpaidLeave_Days, "unpaidLeave_Amnt" = :unpaidLeave_Amnt, "paidLeave_Days" = :paidLeave_Days,
+          "SSS_Ded" = :sss, "Philhealth_Ded" = :ph, "HDMF_Ded" = :hd, "Tax_Ded" = :tax,
+          "SSS_Ded_ER" = :sssER, "Philhealth_Ded_ER" = :phER, "HDMF_Ded_ER" = :hdER,
+          "healthCard_Amnt" = :hc, "SSS_Loan" = :sl, "HDMF_Loan" = :hl, "calamityLoan_Amnt" = :cl,
+          "multiPurposeSavings" = :ms, "advances_Amnt" = :aa, "globe_Deduction" = :gd, "eastwest_Loan" = :el
+         WHERE "payrollId" = :payrollId`,
+        {
+          replacements: {
+            payrollId: existingPayrollId,
+            absence_Hrs: (fullStats.absence_Days) * 8,
+            absence_Amnt: fullStats.absence_Amnt,
+            tardiness_Mins: fullStats.tardiness_Mins,
+            tardiness_Amnt: fullStats.tardiness_Amnt,
+            unpaidLeave_Days: fullStats.unpaidLeave_Days,
+            unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
+            paidLeave_Days: fullStats.paidLeave_Days,
+            sss: fullStats.SSS_Ded,
+            ph: fullStats.Philhealth_Ded,
+            hd: fullStats.HDMF_Ded,
+            tax: fullStats.Tax_Ded,
+            sssER: fullStats.SSS_Ded_ER,
+            phER: fullStats.Philhealth_Ded_ER,
+            hdER: fullStats.HDMF_Ded_ER,
+            hc: fullStats.healthCard_Amnt,
+            sl: fullStats.SSS_Loan,
+            hl: fullStats.HDMF_Loan,
+            cl: fullStats.calamityLoan_Amnt,
+            ms: fullStats.multiPurposeSavings,
+            aa: fullStats.advances_Amnt,
+            gd: fullStats.globe_Deduction,
+            el: fullStats.eastwest_Loan
+          },
+          type: QueryTypes.UPDATE
+        }
+      );
+
+      if (shouldRelease) {
+        await sequelize.query(
+          `UPDATE "User_Deduction_Profile" SET "advances_Amnt" = 0, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+          { replacements: { user_Id: emp.user_Id, now: nowStr }, type: QueryTypes.UPDATE }
+        );
+
+        newPayrollsForEmail.push({
+          emp,
+          payrollId: existingPayrollId,
+          fullStats
+        });
+      }
+
+      processedCount++;
       continue;
     }
 
@@ -1449,6 +1582,13 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
     });
 
     processedCount++;
+
+    if (shouldRelease) {
+      await sequelize.query(
+        `UPDATE "User_Deduction_Profile" SET "advances_Amnt" = 0, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id: emp.user_Id, now: nowStr }, type: QueryTypes.UPDATE }
+      );
+    }
   }
 
   if (shouldRelease) {
@@ -1571,7 +1711,33 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
     }
   }
 
-  return { processedCount, skippedCount, periodId };
+  const aggResult = await sequelize.query(
+    `SELECT 
+       COALESCE(SUM("netPay"), 0)::float as "totalNetPay",
+       COALESCE(SUM("totalEarnings"), 0)::float as "totalEarnings",
+       COALESCE(SUM("totalDeductions"), 0)::float as "totalDeductions",
+       COUNT(*)::int as "totalCount"
+     FROM "Payroll"
+     WHERE ("period_Start" = :period_Start AND "period_End" = :period_End)
+        OR ("periodId" = :periodId)`,
+    { replacements: { period_Start, period_End, periodId: periodId || -1 }, type: QueryTypes.SELECT }
+  );
+
+  const totalNetPay = aggResult[0]?.totalNetPay || 0;
+  const totalEarnings = aggResult[0]?.totalEarnings || 0;
+  const totalDeductions = aggResult[0]?.totalDeductions || 0;
+  const totalCount = aggResult[0]?.totalCount || processedCount;
+
+  return { 
+    processedCount, 
+    skippedCount, 
+    periodId, 
+    totalNetPay, 
+    totalEarnings, 
+    totalDeductions, 
+    totalCount,
+    status: shouldRelease ? 'Released' : 'Draft' 
+  };
 }
 
 exports.generateBatchPayrollInternal = generateBatchPayrollInternal;
@@ -1579,21 +1745,49 @@ exports.calculatePayrollStats = calculatePayrollStats;
 
 // ── Generate Batch Payroll ──────────────────────────────────────────────────
 exports.generateBatchPayroll = async (req, res) => {
-  const { period_Start, period_End } = req.body;
+  const { period_Start, period_End, shouldRelease } = req.body;
   if (!period_Start || !period_End) {
     return res.status(400).json({ error: "period_Start and period_End are required." });
   }
 
   try {
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    const result = await generateBatchPayrollInternal(period_Start, period_End, currentAdminId);
+    const releaseNow = Boolean(shouldRelease);
+    const result = await generateBatchPayrollInternal(period_Start, period_End, currentAdminId, releaseNow);
 
-    await logTransaction(null, currentAdminId, "BATCH_PAYROLL_GEN", `Generated batch payroll for period ${period_Start} to ${period_End}`, { processedCount: result.processedCount, periodId: result.periodId }, req);
+    await logTransaction(
+      null, 
+      currentAdminId, 
+      releaseNow ? "BATCH_PAYROLL_RELEASE" : "BATCH_PAYROLL_GEN", 
+      `${releaseNow ? "Released and locked" : "Generated draft"} batch payroll for period ${period_Start} to ${period_End}`, 
+      { processedCount: result.processedCount, periodId: result.periodId, status: result.status }, 
+      req
+    );
 
-    res.status(201).json({ message: "Batch payroll generated and emails are being sent.", processed: result.processedCount, skipped: result.skippedCount });
+    const message = releaseNow
+      ? `Batch payroll successfully released and locked for ${result.processedCount || result.totalCount} employees. Records locked and payslip emails dispatched.`
+      : `Batch draft calculated for ${result.processedCount} employees (${result.skippedCount} existing drafts skipped).`;
+
+    res.status(201).json({ 
+      message, 
+      processed: result.processedCount, 
+      skipped: result.skippedCount,
+      totalCount: result.totalCount,
+      totalNetPay: result.totalNetPay,
+      totalEarnings: result.totalEarnings,
+      totalDeductions: result.totalDeductions,
+      status: result.status,
+      periodId: result.periodId
+    });
   } catch (error) {
+    console.error("[generateBatchPayroll ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
+};
+
+exports.releaseBatchPayroll = async (req, res) => {
+  req.body.shouldRelease = true;
+  return exports.generateBatchPayroll(req, res);
 };
 
 
@@ -5017,3 +5211,155 @@ exports.downloadIndividualLoanPDF = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+/**
+ * Gets real-time proactive status alerts for payroll timing.
+ * Evaluates T-2 days, T-0 payroll day, T+1..T+deadlineDays overdue warnings, and auto-release.
+ */
+exports.getPayrollStatusAlerts = async (req, res) => {
+  try {
+    const now = await getSystemTime();
+    const todayStr = formatForSQL(now).split(" ")[0]; // YYYY-MM-DD
+    const settings = await SystemSettings.findOne();
+
+    if (settings && settings.payrollRemindersEnabled === false) {
+      return res.status(200).json({ enabled: false, alerts: [] });
+    }
+
+    const bufferDays = (settings && settings.payrollCutoffBufferDays !== undefined && settings.payrollCutoffBufferDays !== null)
+      ? parseInt(settings.payrollCutoffBufferDays, 10)
+      : 2;
+    const deadlineDays = (settings && settings.payrollProcessingDeadlineDays !== undefined && settings.payrollProcessingDeadlineDays !== null)
+      ? parseInt(settings.payrollProcessingDeadlineDays, 10)
+      : 3;
+    const autoRelease = Boolean(settings && settings.payrollAutoRelease);
+    const weekendRule = settings?.payrollWeekendRule || "PRECEDING_FRIDAY";
+
+    // Fetch official holidays for accurate banking schedule adjustment
+    const holidayRows = await sequelize.query(
+      `SELECT "date"::text as "hDate" FROM "Holiday"`,
+      { type: QueryTypes.SELECT }
+    );
+    const holidayList = holidayRows.map(h => (h.hDate ? h.hDate.split("T")[0] : ""));
+
+    // Fetch latest periods
+    const periods = await sequelize.query(
+      `SELECT * FROM "PayrollPeriod" ORDER BY "endDate" DESC LIMIT 6`,
+      { type: QueryTypes.SELECT }
+    );
+
+    const alerts = [];
+
+    for (const p of periods) {
+      const pStart = p.startDate;
+      const pEnd = p.endDate;
+
+      // Resolve Payday schedule (Weekend / Sunday -> Friday shift)
+      const sched = resolvePaydaySchedule(pEnd, weekendRule, holidayList);
+
+      const isAuditDay = (todayStr === sched.checkingDate);
+      const isPayday = (todayStr === sched.effectivePayday);
+      const isPastPayday = (todayStr > sched.effectivePayday);
+
+      // 1. Audit & Manual Batch Verification Day (T-1 Business Day)
+      if (isAuditDay && p.status === 'Draft') {
+        alerts.push({
+          type: "audit_day",
+          severity: "info",
+          title: "Audit & Manual Verification Day",
+          message: `Payroll release for ${p.label || `${pStart} to ${pEnd}`} is scheduled for ${sched.readablePayday}. Please review attendance corrections, overtime claims, and loan deductions, and verify the batch draft today.`,
+          periodId: p.periodId,
+          periodText: p.label,
+          endDate: pEnd,
+          effectivePayday: sched.effectivePayday,
+          checkingDate: sched.checkingDate,
+          isAdjusted: sched.isAdjusted,
+          adjustmentNotice: sched.adjustmentNotice
+        });
+      }
+
+      // 2. Payday (T-0 Day)
+      if (isPayday) {
+        if (p.status === 'Draft') {
+          if (autoRelease) {
+            try {
+              await exports.generateBatchPayrollInternal(pStart, pEnd, 1, true);
+              alerts.push({
+                type: "auto_released",
+                severity: "success",
+                title: "Payroll Auto-Released for Payday",
+                message: `Batch payroll for ${p.label || `${pStart} to ${pEnd}`} was automatically released and locked today (${sched.readablePayday}). Payslips and records are now available.`,
+                periodId: p.periodId,
+                periodText: p.label,
+                isAdjusted: sched.isAdjusted,
+                adjustmentNotice: sched.adjustmentNotice
+              });
+            } catch (autoErr) {
+              console.error(`[AutoRelease] Payday auto-release error for ${p.label}:`, autoErr.message);
+            }
+          } else {
+            alerts.push({
+              type: "payroll_day",
+              severity: "purple",
+              title: "Today is Payday Release Day!",
+              message: `The designated payroll release date (${sched.readablePayday}) for ${p.label || `${pStart} to ${pEnd}`} has arrived. Please finalize and release the batch.`,
+              periodId: p.periodId,
+              periodText: p.label,
+              status: p.status,
+              endDate: pEnd,
+              isAdjusted: sched.isAdjusted,
+              adjustmentNotice: sched.adjustmentNotice
+            });
+          }
+        } else if (p.status === 'Released') {
+          alerts.push({
+            type: "payday_released",
+            severity: "success",
+            title: "Payroll Released for Payday",
+            message: `Batch payroll for ${p.label || `${pStart} to ${pEnd}`} is officially released and active today (${sched.readablePayday}).`,
+            periodId: p.periodId,
+            periodText: p.label,
+            isAdjusted: sched.isAdjusted,
+            adjustmentNotice: sched.adjustmentNotice
+          });
+        }
+      }
+
+      // 3. Post-Payday (Past effective payday and still Draft)
+      if (isPastPayday && p.status === 'Draft') {
+        if (autoRelease) {
+          try {
+            await exports.generateBatchPayrollInternal(pStart, pEnd, 1, true);
+            alerts.push({
+              type: "auto_released",
+              severity: "success",
+              title: "Payroll Auto-Released",
+              message: `Draft period ${p.label || `${pStart} to ${pEnd}`} was automatically locked and released per designated payday schedule (${sched.readablePayday}). Payslips and records are now available.`,
+              periodId: p.periodId,
+              periodText: p.label,
+              isAdjusted: sched.isAdjusted,
+              adjustmentNotice: sched.adjustmentNotice
+            });
+          } catch (autoErr) {
+            console.error(`[AutoRelease] Failed to auto-release past period ${p.label}:`, autoErr.message);
+          }
+        }
+        // In manual finalization mode, no intrusive banner is generated. 
+        // Periods remain accessible via the quiet status indicator in the Payroll Periods table.
+      }
+    }
+
+    res.status(200).json({
+      enabled: true,
+      currentDate: todayStr,
+      bufferDays,
+      deadlineDays,
+      autoRelease,
+      weekendRule,
+      alerts
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

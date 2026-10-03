@@ -183,6 +183,12 @@ export default function PayrollConfiguration({ data, onUpdate }) {
       doubleSpecialDayRestDayRate: sanitize(localData.laborRates.doubleSpecialDayRestDay),
       nightDiffRate: 1 + (sanitize(localData.otNightRates.nsdRate) / 100),
       overtimeRate: 1 + (sanitize(localData.otNightRates.ordinaryOT) / 100),
+      payrollCutoffBufferDays: localData.batchRules?.cutoffBufferDays ?? localData.payrollCutoffBufferDays ?? 2,
+      payrollProcessingDeadlineDays: localData.batchRules?.deadlineDays ?? localData.payrollProcessingDeadlineDays ?? 3,
+      payrollAutoRelease: localData.batchRules?.autoRelease ?? localData.payrollAutoRelease ?? false,
+      payrollRemindersEnabled: localData.batchRules?.remindersEnabled ?? localData.payrollRemindersEnabled ?? true,
+      payrollWeekendRule: localData.batchRules?.weekendRule ?? localData.payrollWeekendRule ?? 'PRECEDING_FRIDAY',
+      payrollGracePeriodDays: localData.batchRules?.gracePeriodDays ?? localData.payrollGracePeriodDays ?? 7,
       payrollRates: {
         ...localData,
         laborRates: Object.fromEntries(Object.entries(localData.laborRates).map(([k, v]) => [k, sanitize(v)])),
@@ -469,11 +475,23 @@ export default function PayrollConfiguration({ data, onUpdate }) {
             {activeTab === 'leave-caps' && <LeaveCapsView />}
             {activeTab === 'batch-rules' && (
               <BatchRulesView 
-                data={localData.batchRules || { gracePeriodDays: localData.payrollGracePeriodDays || 7 }} 
+                data={{
+                  gracePeriodDays: localData.batchRules?.gracePeriodDays ?? localData.payrollGracePeriodDays ?? 7,
+                  cutoffBufferDays: localData.batchRules?.cutoffBufferDays ?? localData.payrollCutoffBufferDays ?? 2,
+                  deadlineDays: localData.batchRules?.deadlineDays ?? localData.payrollProcessingDeadlineDays ?? 3,
+                  autoRelease: localData.batchRules?.autoRelease ?? localData.payrollAutoRelease ?? false,
+                  remindersEnabled: localData.batchRules?.remindersEnabled ?? localData.payrollRemindersEnabled ?? true,
+                  weekendRule: localData.batchRules?.weekendRule ?? localData.payrollWeekendRule ?? 'PRECEDING_FRIDAY',
+                }} 
                 isEditing={isEditing} 
                 onChange={(f, v) => {
                   updateField('batchRules', f, v);
-                  setLocalData(prev => ({ ...prev, payrollGracePeriodDays: v }));
+                  if (f === 'gracePeriodDays') setLocalData(prev => ({ ...prev, payrollGracePeriodDays: v }));
+                  if (f === 'cutoffBufferDays') setLocalData(prev => ({ ...prev, payrollCutoffBufferDays: v }));
+                  if (f === 'deadlineDays') setLocalData(prev => ({ ...prev, payrollProcessingDeadlineDays: v }));
+                  if (f === 'autoRelease') setLocalData(prev => ({ ...prev, payrollAutoRelease: v }));
+                  if (f === 'remindersEnabled') setLocalData(prev => ({ ...prev, payrollRemindersEnabled: v }));
+                  if (f === 'weekendRule') setLocalData(prev => ({ ...prev, payrollWeekendRule: v }));
                 }} 
               />
             )}
@@ -1297,72 +1315,167 @@ function FormSwitch({ label, description, defaultChecked }) {
 ========================================================================= */}
 function BatchRulesView({ data, isEditing, onChange }) {
   const graceDays = data?.gracePeriodDays ?? 7;
+  const bufferDays = data?.cutoffBufferDays ?? 2;
+  const deadlineDays = data?.deadlineDays ?? 3;
+  const autoRelease = Boolean(data?.autoRelease);
+  const remindersEnabled = Boolean(data?.remindersEnabled ?? true);
+  const weekendRule = data?.weekendRule || "PRECEDING_FRIDAY";
 
   return (
     <div className="space-y-6 text-left">
       <div className="border-b border-slate-100 pb-4">
         <h3 className="text-base font-bold text-slate-800">Payroll Batch & Cutoff Processing Rules</h3>
-        <p className="text-xs text-slate-500 mt-1">Configure post-cutoff grace period accessibility for Process Batch button and archival settings.</p>
+        <p className="text-xs text-slate-500 mt-1">Configure attendance cutoff buffers, rollover timing, release deadlines, and proactive reminder notifications.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Card 1: Attendance Cutoff Buffer */}
+        <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-indigo-100 text-indigo-700 rounded-lg">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800">Attendance Cutoff Buffer</h4>
+              <p className="text-xs text-slate-500">Days before cutoff end where attendance evaluation stops and rollover begins.</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-slate-700 block">Cutoff Buffer (Days)</label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="number"
+                min="0"
+                max="5"
+                value={bufferDays}
+                disabled={!isEditing}
+                onChange={(e) => onChange('cutoffBufferDays', parseInt(e.target.value) || 0)}
+                className={`w-28 px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-sm text-indigo-900 ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+              />
+              <span className="text-xs font-medium text-slate-600">{bufferDays} Days ({bufferDays === 2 ? "Standard 2-Day Buffer" : `${bufferDays} Days Pre-Cutoff`})</span>
+            </div>
+            <p className="text-[11px] text-slate-400 italic">For 1st-15th period, attendance evaluation stops on day {15 - bufferDays}. Activity on buffer tail days automatically rolls over into the next period.</p>
+          </div>
+        </div>
+
+        {/* Card 2: Release Deadline Limit */}
         <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-purple-100 text-purple-700 rounded-lg">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-slate-800">Process Batch Grace Window</h4>
-              <p className="text-xs text-slate-500">Number of days after cutoff end date that Process Batch remains open.</p>
+              <h4 className="text-sm font-bold text-slate-800">Post-Cutoff Release Deadline</h4>
+              <p className="text-xs text-slate-500">Number of days after cutoff before a draft period is flagged overdue or auto-released.</p>
             </div>
           </div>
 
           <div className="space-y-2 pt-2">
-            <label className="text-xs font-semibold text-slate-700 block">Grace Period Length (Days)</label>
+            <label className="text-xs font-semibold text-slate-700 block">Release Deadline Limit (Days)</label>
             <div className="flex items-center space-x-3">
               <input
                 type="number"
                 min="1"
-                max="30"
-                value={graceDays}
+                max="14"
+                value={deadlineDays}
                 disabled={!isEditing}
-                onChange={(e) => onChange('gracePeriodDays', parseInt(e.target.value) || 7)}
+                onChange={(e) => onChange('deadlineDays', parseInt(e.target.value) || 3)}
                 className={`w-28 px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-sm text-purple-900 ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
               />
-              <span className="text-xs font-medium text-slate-600">Days ({graceDays === 7 ? "1 Week Default" : `${graceDays} Days`})</span>
+              <span className="text-xs font-medium text-slate-600">{deadlineDays} Days ({deadlineDays === 3 ? "Standard 3-Day Limit" : `${deadlineDays} Days Post-Cutoff`})</span>
             </div>
-            <p className="text-[11px] text-slate-400 italic">Default is 7 days (1 week). During this time, administrators can process late payroll batches without locking issues.</p>
+            <p className="text-[11px] text-slate-400 italic">During this window, warning alerts countdown to finalization. After this, overdue alerts or auto-release trigger.</p>
           </div>
         </div>
 
+        {/* Card 3: Auto-Release Policy */}
         <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-slate-800">Automated Archival & Security</h4>
-              <p className="text-xs text-slate-500">Security mandates for batch payslips & report zip generation.</p>
+              <h4 className="text-sm font-bold text-slate-800">Automated Batch Release</h4>
+              <p className="text-xs text-slate-500">Automatically lock and disburse payroll when release deadline expires.</p>
             </div>
           </div>
 
-          <div className="space-y-2 text-xs text-slate-600 pt-2 font-mono">
-            <div className="flex justify-between border-b border-slate-200 pb-1.5">
-              <span>PDF File Naming:</span>
-              <span className="font-bold text-emerald-700">Payslip_[LastName]_[ID].pdf</span>
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-slate-700 block">Auto-Release Status</label>
+            <div className="flex items-center space-x-3">
+              <select
+                value={autoRelease ? "true" : "false"}
+                disabled={!isEditing}
+                onChange={(e) => onChange('autoRelease', e.target.value === "true")}
+                className={`w-48 px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-sm ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+              >
+                <option value="false">Manual Finalization Only</option>
+                <option value="true">Enable Auto-Release</option>
+              </select>
             </div>
-            <div className="flex justify-between border-b border-slate-200 pb-1.5">
-              <span>PDF Open Password:</span>
-              <span className="font-bold text-amber-700">[CutoffDays][Month][LastName][ID]</span>
+            <p className="text-[11px] text-slate-400 italic">When enabled, any draft period that passes the deadline without manual action is automatically calculated and archived.</p>
+          </div>
+        </div>
+
+        {/* Card 4: Proactive Reminders */}
+        <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-100 text-blue-700 rounded-lg">
+              <Bell className="w-5 h-5" />
             </div>
-            <div className="flex justify-between border-b border-slate-200 pb-1.5">
-              <span>Batch Storage Directory:</span>
-              <span className="font-bold text-purple-700">Editable in Settings</span>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800">Proactive Reminder Alerts</h4>
+              <p className="text-xs text-slate-500">Contextual notices for T-2 preparation, T-0 cutoff day, and overdue countdowns.</p>
             </div>
-            <div className="flex justify-between pb-1.5">
-              <span>Audit Trail Policy:</span>
-              <span className="font-bold text-blue-700">Mandatory (Paranoid Mode)</span>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-slate-700 block">Reminder Banners & Prompts</label>
+            <div className="flex items-center space-x-3">
+              <select
+                value={remindersEnabled ? "true" : "false"}
+                disabled={!isEditing}
+                onChange={(e) => onChange('remindersEnabled', e.target.value === "true")}
+                className={`w-48 px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-sm ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+              >
+                <option value="true">Enabled (Recommended)</option>
+                <option value="false">Disabled</option>
+              </select>
             </div>
+            <p className="text-[11px] text-slate-400 italic">Displays clean notification banners on the Dashboard and Payroll Management pages around critical cutoff dates.</p>
+          </div>
+        </div>
+
+        {/* Card 5: Weekend Payday Adjustment */}
+        <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4 md:col-span-2">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-amber-100 text-amber-700 rounded-lg">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800">Weekend Payday Adjustment (Sunday / Saturday Rule)</h4>
+              <p className="text-xs text-slate-500">Determine how payroll release shifts when the 15th or End-of-Month falls on a Sunday or Saturday.</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-slate-700 block">Weekend Adjustment Policy</label>
+            <div className="flex items-center space-x-3">
+              <select
+                value={weekendRule}
+                disabled={!isEditing}
+                onChange={(e) => onChange('weekendRule', e.target.value)}
+                className={`w-80 px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-sm ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+              >
+                <option value="PRECEDING_FRIDAY">Shift to Preceding Friday (Recommended)</option>
+                <option value="NEXT_MONDAY">Shift to Next Monday</option>
+                <option value="EXACT_DATE">Exact Date (No Weekend Adjustment)</option>
+              </select>
+            </div>
+            <p className="text-[11px] text-slate-400 italic">
+              When set to Preceding Friday, if the 15th falls on Sunday, payday releases on Friday the 13th, and the preceding Thursday is set as the audit & manual batch verification day.
+            </p>
           </div>
         </div>
       </div>

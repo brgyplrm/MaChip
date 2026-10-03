@@ -52,16 +52,18 @@ const EditAttendance = () => {
     { id: 1, name: "On Time" },
     { id: 2, name: "Late" },
     { id: 3, name: "Absent" },
-    { id: 4, name: "On Leave" },
-    { id: 5, name: "On Field" },
+    { id: 4, name: "Half Day" },
+    { id: 5, name: "On Leave" },
+    { id: 6, name: "Exempt" },
   ];
 
   const statusBadgeStyles = {
     1: "bg-[#def7ec] text-[#03543f] border-[#def7ec]", 
     2: "bg-[#fef3c7] text-[#92400e] border-[#fef3c7]", 
     3: "bg-[#fde8e8] text-[#9b1c1c] border-[#fde8e8]", 
-    4: "bg-[#e1effe] text-[#1e429f] border-[#e1effe]", 
-    5: "bg-[#f3e8ff] text-[#6b21a8] border-[#f3e8ff]", 
+    4: "bg-orange-100 text-orange-800 border-orange-200", 
+    5: "bg-[#e1effe] text-[#1e429f] border-[#e1effe]", 
+    6: "bg-[#f3e8ff] text-[#6b21a8] border-[#f3e8ff]", 
   };
 
   useEffect(() => {

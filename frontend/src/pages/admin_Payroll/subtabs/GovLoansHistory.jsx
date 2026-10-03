@@ -124,11 +124,13 @@ const GovLoansHistory = () => {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+        setToast({ message: "Gov loan report downloaded successfully.", type: "success" });
       } else {
-        alert("Failed to generate PDF report.");
+        setToast({ message: "Failed to generate PDF report.", type: "error" });
       }
     } catch (err) {
       console.error("Export PDF error:", err);
+      setToast({ message: "Export PDF error: " + err.message, type: "error" });
     }
   };
 

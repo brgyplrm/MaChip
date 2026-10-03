@@ -508,14 +508,14 @@ exports.scanRFID = async (req, res) => {
     // Fetch granular daily status directly from user_logging for highest reliability
     const lastLogs = await sequelize.query(
       `SELECT "logged_StatusId" FROM "user_logging"
-       WHERE "user_id" = :target_user_Id AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       WHERE "user_id" = :target_user_Id AND ("log_Date"::date = :workDate::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
        ORDER BY "user_loggingId" DESC LIMIT 1`,
-      { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT }
+      { replacements: { target_user_Id, workDate, todayStart, todayEnd }, type: QueryTypes.SELECT }
     );
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
     
-    // Statuses indicating the user is physically inside: 1 (Morning In), 3 (Afternoon In), 5 (Overtime In)
-    const isCurrentlyIn = [1, 3, 5].includes(lastStatus);
+    // Statuses indicating the user is physically inside: 1 (Morning In), 3 (Afternoon In), 5 (Overtime In), 10 (Clock In)
+    const isCurrentlyIn = [1, 3, 5, 10].includes(lastStatus);
 
     console.log(`[DEBUG-POLICY] User: ${user.user_FirstName}, LastStatus: ${lastStatus || "NONE"}, isCurrentlyIn: ${isCurrentlyIn}`);
 
@@ -675,22 +675,42 @@ exports.scanRFID = async (req, res) => {
     const priorLoginToday = await sequelize.query(
       `SELECT * FROM "user_logging"
        WHERE "user_id" = :target_user_Id
-       AND "logged_StatusId" IN (1, 3)
+       AND "logged_StatusId" IN (1, 3, 10)
        AND ("attendance_StatusId" IS NULL OR "attendance_StatusId" != 8)
-       AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       AND ("log_Date"::date = :workDate::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
        LIMIT 1`,
-      { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+      { replacements: { target_user_Id, workDate, todayStart, todayEnd }, type: QueryTypes.SELECT },
     );
     const hasPriorClockIn = !!priorLoginToday[0];
+
+    const priorOtLogin = await sequelize.query(
+      `SELECT 1 FROM "user_logging"
+       WHERE "user_id" = :target_user_Id
+       AND "logged_StatusId" = 5
+       AND ("log_Date"::date = :workDate::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
+       LIMIT 1`,
+      { replacements: { target_user_Id, workDate, todayStart, todayEnd }, type: QueryTypes.SELECT },
+    );
+    const hasPriorOtIn = priorOtLogin.length > 0;
+
+    const priorAfternoonIn = await sequelize.query(
+      `SELECT 1 FROM "user_logging"
+       WHERE "user_id" = :target_user_Id
+       AND "logged_StatusId" = 3
+       AND ("log_Date"::date = :workDate::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
+       LIMIT 1`,
+      { replacements: { target_user_Id, workDate, todayStart, todayEnd }, type: QueryTypes.SELECT },
+    );
+    const hasPriorAfternoonIn = priorAfternoonIn.length > 0;
 
     // Check if there was any prior scan flagged as Irregular today
     const priorIrregular = await sequelize.query(
       `SELECT 1 FROM "user_logging"
        WHERE "user_id" = :target_user_Id
        AND "attendance_StatusId" = 8
-       AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       AND ("log_Date"::date = :workDate::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
        LIMIT 1`,
-      { replacements: { target_user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+      { replacements: { target_user_Id, workDate, todayStart, todayEnd }, type: QueryTypes.SELECT },
     );
     const hadPriorIrregular = priorIrregular.length > 0;
 
@@ -699,15 +719,22 @@ exports.scanRFID = async (req, res) => {
     const isPastOT = hasApprovedOT && isPastOTWindow;
 
     // Irregular if outside regular hours without approved OT, or past OT window, or prior irregular session during suspicious window
-    const isIrregular = (!isWithinOTWindow && isSuspiciousWindow && !isNightShiftAllowed) ||
+    let isIrregular = (!isWithinOTWindow && isSuspiciousWindow && !isNightShiftAllowed) ||
                         isPastOT ||
                         (hadPriorIrregular && isSuspiciousWindow);
 
+    // Regular daytime employee clocking OUT at or after shift end is not irregular if they have a prior clock-in
+    if (action === "clock_out" && hasPriorClockIn) {
+      isIrregular = false;
+    }
+
     if (action === "clock_in") {
       if (hasApprovedOT && isWithinOTWindow) {
-        nextStatus = 5; // Overtime IN
-      } else if (lastStatus === 2 && !isSuspiciousWindow && hasPriorClockIn) {
-        nextStatus = 3; // Afternoon IN (from lunch)
+        if (!hasPriorOtIn) {
+          nextStatus = 5; // First Overtime IN
+        } else {
+          nextStatus = 10; // Returning during OT: Clock IN
+        }
       } else if (!hasPriorClockIn) {
         // First regular entry of the day
         if (totalMinutes < 720) {
@@ -717,18 +744,67 @@ exports.scanRFID = async (req, res) => {
           // Arrived at or after 12:00 PM -> Afternoon IN (PM arrival)
           nextStatus = 3;
         }
+      } else if (lastStatus === 2) {
+        // Returning from lunch (Morning OUT) -> Afternoon IN
+        nextStatus = 3;
       } else {
-        nextStatus = 1; // Morning IN (or initial entry)
+        // Interim entry (e.g. returning from interim break in morning or afternoon)
+        nextStatus = 10; // Clock IN
+      }
+
+      // Guard: At or after 12:00 PM (totalMinutes >= 720), status can never be Morning IN (1)
+      if (nextStatus === 1 && totalMinutes >= 720) {
+        nextStatus = hasPriorClockIn ? 10 : 3;
+      }
+
+      // If user is clocking back in after an out that was tentatively marked 2, 4, or 6,
+      // and it was actually an interim break, update that preceding out to 11 (Clock OUT)
+      if ([2, 4, 6].includes(lastStatus) && lastLogs[0]?.user_loggingId) {
+        let shouldDemoteToInterim = false;
+        if (lastStatus === 2 && totalMinutes < lStart) {
+          shouldDemoteToInterim = true;
+        } else if (lastStatus === 4) {
+          shouldDemoteToInterim = true;
+        } else if (lastStatus === 6 && hasApprovedOT && isWithinOTWindow) {
+          shouldDemoteToInterim = true;
+        }
+
+        if (shouldDemoteToInterim) {
+          await sequelize.query(
+            `UPDATE "user_logging" SET "logged_StatusId" = 11 WHERE "user_loggingId" = :logId`,
+            { replacements: { logId: lastLogs[0].user_loggingId }, type: QueryTypes.UPDATE }
+          );
+        }
       }
     } else {
-      if (lastStatus === 5) {
-        nextStatus = 6; // Overtime OUT
-      } else if (lastStatus === 1 && totalMinutes < 780) {
-        // Clocking out in the morning or during lunch (< 1:00 PM) -> Morning OUT
-        nextStatus = 2; // Lunch Out (Morning OUT)
+      // action === "clock_out"
+      if (lastStatus === 5 || hasPriorOtIn || (hasApprovedOT && isWithinOTWindow)) {
+        // Overtime session
+        const otEndStr = approvedOT?.HrTo || "20:00:00";
+        const otEndMinutes = parseInt(otEndStr.split(":")[0]) * 60 + parseInt(otEndStr.split(":")[1]);
+        if (totalMinutes < otEndMinutes - 15) {
+          nextStatus = 11; // Stepping out during OT before OT end: Clock OUT
+        } else {
+          nextStatus = 6; // Final exit from Overtime: Overtime OUT
+        }
+      } else if (!hasPriorAfternoonIn && totalMinutes < lEnd) {
+        // Morning session
+        if (totalMinutes < lStart) {
+          nextStatus = 11; // Stepping out before lunch: Clock OUT
+        } else {
+          nextStatus = 2; // Lunch exit: Morning OUT
+        }
       } else {
-        // Clocking out from Afternoon IN or end of day -> Afternoon OUT
-        nextStatus = 4; // Clock Out (Afternoon OUT)
+        // Afternoon session
+        const shiftEndStr = settings?.morningShiftEnd || "17:30:00";
+        const shiftEndMins = parseInt(shiftEndStr.split(":")[0]) * 60 + parseInt(shiftEndStr.split(":")[1]);
+        const afternoonOutThreshold = Math.max(shiftEndMins - 30, 990); // e.g. 17:00 (5:00 PM)
+
+        if (totalMinutes < afternoonOutThreshold) {
+          nextStatus = 11; // Stepping out during afternoon before shift end: Clock OUT
+        } else {
+          nextStatus = 4; // Shift end exit: Afternoon OUT
+        }
       }
     }
 
@@ -781,7 +857,7 @@ exports.scanRFID = async (req, res) => {
     );
 
     // 5. Update Reporting
-    const isEntry = [1, 3, 5].includes(nextStatus);
+    const isEntry = [1, 3, 5, 10].includes(nextStatus);
     const reportLoggedStatus = isEntry ? 1 : 2;
 
     const existingReport = await sequelize.query(
@@ -845,14 +921,23 @@ exports.scanRFID = async (req, res) => {
         .catch(err => console.error("[LEAVE-AUTO] Error resolving leave conflict:", err));
     }
 
-    const statusLabels = { 1: "Clock In", 2: "Lunch Out", 3: "Lunch In", 4: "Clock Out", 5: "Overtime In", 6: "Overtime Out" };
+    const statusLabels = { 
+      1: "Morning IN", 
+      2: "Morning OUT", 
+      3: "Afternoon IN", 
+      4: "Afternoon OUT", 
+      5: "Overtime IN", 
+      6: "Overtime OUT", 
+      10: "Clock IN", 
+      11: "Clock OUT" 
+    };
     const attendanceResult = attendanceVal === 1 ? "On-Time" : attendanceVal === 2 ? "Late" : attendanceVal === 8 ? "Irregular" : "N/A";
     const esp32Ip = req.ip || req.socket.remoteAddress || "Unknown ESP32";
 
     // 6. Log Transaction
     const method = action === "fingerprint_scan" ? "Fingerprint" : "RFID";
     const isIrregularEvent = isIrregular; // Use the isIrregular flag defined earlier
-    const punchLabel = [1, 3, 5].includes(nextStatus) ? "Clock In" : "Clock Out";
+    const punchLabel = [1, 3, 5, 10].includes(nextStatus) ? "Clock In" : "Clock Out";
     
     if (isIrregularEvent) {
       await logTransaction(target_user_Id, null, "IRREGULAR_LOG", `Irregular ${punchLabel} at ${timeStr}`, { 
@@ -1421,17 +1506,18 @@ exports.getFingerprintTemplate = async (req, res) => {
     const todayEnd = new Date(now);
     todayEnd.setHours(23, 59, 59, 999);
 
+    const workDate = formatDateLocal(now);
     const lastLogs = await sequelize.query(
       `SELECT "logged_StatusId" FROM "user_logging"
        WHERE "user_id" = :target_user_Id
-       AND "log_Date" BETWEEN :todayStart AND :todayEnd
+       AND ("log_Date"::date = :workDate::date OR "log_Date" BETWEEN :todayStart AND :todayEnd)
        ORDER BY "user_loggingId" DESC
        LIMIT 1`,
-      { replacements: { target_user_Id: user.user_Id, todayStart, todayEnd }, type: QueryTypes.SELECT },
+      { replacements: { target_user_Id: user.user_Id, workDate, todayStart, todayEnd }, type: QueryTypes.SELECT },
     );
 
     const lastStatus = lastLogs[0] ? lastLogs[0].logged_StatusId : null;
-    const isCurrentlyIn = lastStatus === 1 || lastStatus === 3 || lastStatus === 5;
+    const isCurrentlyIn = [1, 3, 5, 10].includes(lastStatus);
 
     if (isCurrentlyIn) {
       console.log(`[FP DOWNLOAD] User ${user.user_Id} already clocked in. Skipping 2FA template.`);
