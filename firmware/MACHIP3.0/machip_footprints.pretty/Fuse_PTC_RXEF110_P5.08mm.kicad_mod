@@ -1,0 +1,187 @@
+(footprint "Fuse_PTC_RXEF110_P5.08mm"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "PTC Resettable Polyfuse RXEF110, Ihold=1.1A, Pitch=5.08mm, Littelfuse")
+	(tags "ptc resettable fuse polyfuse THT")
+	(property "Reference" "REF**"
+		(at 2.55 -1.9 0)
+		(layer "F.SilkS")
+		(uuid "6ea877a4-cb4b-426d-af71-e021f503030b")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "Fuse_PTC_RXEF110_P5.08mm"
+		(at 2.55 3.1 0)
+		(layer "F.Fab")
+		(uuid "a2856d65-fdd2-437d-8647-382bef710197")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "8c02d93c-c64c-4997-ba89-f7d373b8c350")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "a5a75117-cfb1-4880-a606-59eddd0769b4")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "KiLib_Generator" "fuse"
+		(at 0 0 0)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "d0b58f7e-11b3-4a91-b21e-07accaa75427")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -2.4 -1)
+		(end -0.578 -1)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "ade4386f-7e37-46cc-8f74-f45092906b04")
+	)
+	(fp_line
+		(start -2.4 2.2)
+		(end -2.4 -1)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "1e1b4620-43f8-437b-9c4d-2306c2fb044a")
+	)
+	(fp_line
+		(start 0.578 -1)
+		(end 7.5 -1)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "8890b52c-4504-4844-9190-79c1c70a8a63")
+	)
+	(fp_line
+		(start 4.522 2.2)
+		(end -2.4 2.2)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "7d6a3fbb-2686-4812-af51-feedbd69e0b1")
+	)
+	(fp_line
+		(start 7.5 -1)
+		(end 7.5 2.2)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "07c4e9db-ceec-48bd-a7a7-a13da5a7d77c")
+	)
+	(fp_line
+		(start 7.5 2.2)
+		(end 5.678 2.2)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "b341d992-c42c-485d-8ade-89eeff543815")
+	)
+	(fp_rect
+		(start -2.55 -1.15)
+		(end 7.65 2.35)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.CrtYd")
+		(uuid "aa249e06-1361-4a9a-8eeb-f42c519c01e9")
+	)
+	(fp_rect
+		(start -2.3 -0.9)
+		(end 7.4 2.1)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "2047b61b-9311-4f73-bfd3-d394f7555cea")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 2.55 0.6 0)
+		(layer "F.Fab")
+		(uuid "268b2802-2777-4e80-9c6a-6c1c10cec88c")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" thru_hole circle
+		(at 0 0)
+		(size 1.71 1.71)
+		(drill 0.71)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "d73644ab-35ef-465f-b6c1-bbecf788edda")
+	)
+	(pad "2" thru_hole circle
+		(at 5.1 1.2)
+		(size 1.71 1.71)
+		(drill 0.71)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "c21abcf0-e203-42ba-a4d0-969451849b16")
+	)
+	(embedded_fonts no)
+	(model "${KICAD10_3DMODEL_DIR}/Fuse.3dshapes/Fuse_PTC_RXEF110_P5.08mm.step"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

@@ -1,0 +1,30 @@
+Comment,Designator,Footprint,LCSC Part #,Quantity,Manufacturer Part,Description
+10uF,"C4,C6,C10,C12,C14,C18,C21",Capacitor_THT:CP_Radial_D5.0mm_P2.50mm,C334526,7,Radial 10uF 25V/50V,10uF 50V Radial Electrolytic D5.0mm P2.5mm
+100uF,"C1,C16,C17,C20",Capacitor_THT:CP_Radial_D6.3mm_P2.50mm,C48970442,4,RYHG35V100UF6*8,100uF 35V Radial Electrolytic D6.3mm P2.5mm
+100nF,"C3,C5,C7,C8,C9,C11,C13,C15,C19,C22",Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P2.50mm,C1004,10,Ceramic 100nF 50V,100nF (0.1uF) 50V Ceramic Disc Capacitor P2.5mm
+1uF,C2,Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P2.50mm,C14663,1,Ceramic 1uF 50V,1uF 50V Ceramic Disc Capacitor P2.5mm
+Barrel_Jack_Switch,J1,Connector_BarrelJack:BarrelJack_Horizontal,C42376853,1,DC-005D-1-2.0-PU-B-SP,DC Power Jack 2.0mm Center Pin Through-Hole
+LED,D4,Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,C157925,1,B2B-XH-A(LF)(SN),JST-XH 2-Pin 2.50mm Vertical Shrouded Header (Green LED Cable)
+LED,D3,Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,C157925,1,B2B-XH-A(LF)(SN),JST-XH 2-Pin 2.50mm Vertical Shrouded Header (Red LED Cable)
+BUZZER-MODULE-JST3,J7,Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical,C157926,1,B3B-XH-A(LF)(SN),JST-XH 3-Pin 2.50mm Vertical Shrouded Header
+RELAY-MODULE-JST3,J8,Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical,C157926,1,B3B-XH-A(LF)(SN),JST-XH 3-Pin 2.50mm Vertical Shrouded Header
+FingerPrint_R307,J6,Connector_JST:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical,C157927,1,B4B-XH-A(LF)(SN),JST-XH 4-Pin 2.50mm Vertical Shrouded Header
+MFRC522_INSIDE,J2,Connector_JST:JST_XH_B7B-XH-A_1x07_P2.50mm_Vertical,C157930,1,B7B-XH-A(LF)(SN),JST-XH 7-Pin 2.50mm Vertical Shrouded Header
+MFRC522_OUTSIDE,J3,Connector_JST:JST_XH_B7B-XH-A_1x07_P2.50mm_Vertical,C157930,1,B7B-XH-A(LF)(SN),JST-XH 7-Pin 2.50mm Vertical Shrouded Header
+TFT_INSIDE,J5,Connector_JST:JST_XH_B9B-XH-A_1x09_P2.50mm_Vertical,C157932,1,B9B-XH-A(LF)(SN),JST-XH 9-Pin 2.50mm Vertical Shrouded Header
+TFT_OUTSIDE,J4,Connector_JST:JST_XH_B9B-XH-A_1x09_P2.50mm_Vertical,C157932,1,B9B-XH-A(LF)(SN),JST-XH 9-Pin 2.50mm Vertical Shrouded Header
+SMBJ10CA,D2,Diode_SMD:D_SMB,C49066943,1,SMBJ10CA,TVS Diode 10V Bidirectional SMB (DO-214AA)
+D_Zener,D1,Diode_SMD:D_SOD-123,C20611960,1,BZT52C10,Zener Diode 10V 500mW SOD-123
+RXEF110,F1,Fuse:Fuse_Bourns_MF-RHT100,C434722,1,RXEF110-2,PTC Resettable Fuse 1.1A Hold Radial 5.08mm
+AO3401,Q1,Package_TO_SOT_SMD:SOT-23,C2847031,1,AO3401MI-MS,P-Channel MOSFET -30V -4.2A SOT-23
+RT9080-33GJ5,U3,Package_TO_SOT_SMD:SOT-23-5,C841192,1,RT9080-33GJ5,LDO Regulator 3.3V 600mA SOT-23-5
+ESDSRV05-4,"U4,U5",Package_TO_SOT_SMD:SOT-23-6,C2920029,2,ESDSRV05-4H,TVS Diode Array 5V SOT-23-6
+LM7805,U1,Package_TO_SOT_THT:TO-220-3_Vertical,C71107,1,LM7805L-TF3-T,Linear Regulator 5V 1.5A TO-220F-3
+PN2222A,Q2,Package_TO_SOT_THT:TO-92_Inline,C118536,1,2N2222A,NPN Bipolar Transistor 40V 0.8A TO-92
+100,R10,Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,Through-Hole,1,100 Ohm 1/4W 1%,100 Ohm 0.25W Metal Film Resistor Axial 10mm
+10k,"R1,R2,R3,R4,R5,R6,R7,R11,R15,R17",Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,Through-Hole,10,10k Ohm 1/4W 1%,10k Ohm 0.25W Metal Film Resistor Axial 10mm
+1k,"R14,R16",Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,Through-Hole,2,1k Ohm 1/4W 1%,1k Ohm 0.25W Metal Film Resistor Axial 10mm
+22,"R9,R18,R19",Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,Through-Hole,3,22 Ohm 1/4W 1%,22 Ohm 0.25W Metal Film Resistor Axial 10mm
+220,"R12,R13",Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,Through-Hole,2,220 Ohm 1/4W 1%,220 Ohm 0.25W Metal Film Resistor Axial 10mm
+68,R8,Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,Through-Hole,1,68 Ohm 1/4W 1%,68 Ohm 0.25W Metal Film Resistor Axial 10mm
+ESP32-DEVKIT-38PIN,U2,machip_footprints:ESP32-DEVKIT-38PIN,C319202,2,2.54mm 1*19P Female Header (x2),19-Pin 2.54mm Female Header Socket (Need 2 pcs)
